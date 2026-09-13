@@ -148,3 +148,37 @@ bun build scripts/smoke-listener-ownership.ts --compile --target=bun-linux-arm64
 Run the compiled executable, not the TypeScript source: it launches itself in the
 synthetic child mode. It requires only supported OS inspection tools at runtime;
 it neither installs tools nor reads real Organization data.
+
+## Same-instance process adapter — development only
+
+`startOwnedProcess` is a bounded POSIX adapter for the future single lifecycle owner,
+not another supervisor or a product-facing execute endpoint. It takes an explicit
+absolute executable, argument array, owned working directory and data-only environment;
+it does not inherit ambient credentials, select a toolchain, install dependencies or
+interpret a shell command. Output is discarded in this initial adapter, not copied
+to a new log store. The application layer still must establish actual authorization,
+module custody, tool readiness, lease exclusion and the existing server/locator owner.
+
+The returned same-instance handle retains the spawned launcher and process group.
+There is no `stop(pid)` or reconstruction from persisted numbers. Concurrent stop
+requests share one operation. Stop sends TERM, waits for launcher exit and group
+absence, then may escalate to KILL while the launcher is still live. An observed
+absent group is permanently retired. Launcher exit also retires destructive signaling;
+each signal rechecks the subprocess's current exit state. A surviving group after
+launcher exit returns `incomplete/launcher-exited`, not successful tree termination.
+
+Mac-host synthetic tests exercise a launcher with a separate HTTP child, shared stop,
+graceful group shutdown, forced shutdown with a different application left responding,
+invalid process inputs, and launcher exit before stop or during grace. In the latter
+cases a surviving child receives no further signals, even on repeated stop. Only the
+test cleans up its deliberately orphaned fixture; this is not a product recovery path.
+
+Review found and fixed delayed signaling through a stale group number. The remaining
+POSIX check-then-signal race is **not** an atomic identity guarantee. Surviving or
+escaped descendants, daemonized children, crash recovery, durable ownership, native
+Linux/Windows process-tree qualification and CLI/UI integration remain incomplete.
+Do not expose this primitive to installed consumers until the single lifecycle owner
+provides the stronger identity/descendant handling required by acceptance. Group stop
+alone does not prove an arbitrary process tree is gone. Existing runtime semantics
+were observed at the legacy commit recorded above; no legacy source was copied.
+The new adapter uses [Bun subprocess APIs](https://bun.sh/docs/runtime/child-process).
