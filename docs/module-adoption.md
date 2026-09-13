@@ -417,3 +417,24 @@ conflict against the module inventory and canonical projection hash, then verify
 provider identity, local Git binding and operation rules. Valid JSON is not a valid
 Organization; the current acquisition result cannot yet authorize lifecycle operations.
 No legacy implementation was copied or relicensed in this step.
+
+### Existing document hash compatibility
+
+`src/organizations/document-hash.ts` implements the existing
+`sha256-canonical-json-v1` serialization needed by the pending projection resolver:
+recursive object-key sorting followed by JSON.stringify, with array order retained.
+Numeric object keys therefore follow JavaScript JSON ordering, not a newly substituted
+canonicalization standard. Tests cover non-ASCII strings, numeric keys, negative zero,
+array-order differences, null versus absence and `__proto__` as ordinary JSON data.
+Non-JSON/executable inputs, sparse arrays, non-finite numbers and cycles are refused;
+accessor and toJSON fixture hooks are not invoked.
+
+A read-only Mac-host comparison against the legacy `organizationSemanticHash` at
+the pinned source commit above matched four invented documents (nested/numeric/non-ASCII,
+empty, fractional number/array, and `__proto__`). It imported the existing local legacy
+function only for comparison; it is not a build/test dependency of Platform and no
+legacy implementation was copied. The public tests instead assert explicit expected
+serialized bytes and behavior. This is bounded compatibility evidence, not complete
+projection/normalization parity. Schema validation, projection construction, conflict
+resolution and lifecycle authorization remain incomplete. A matching content hash is
+neither a publisher signature nor a grant of access.
