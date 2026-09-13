@@ -511,3 +511,32 @@ projection digest can still reach this result: projection-content validation and
 legacy-document reconciliation are not implemented by this function. Slot diagnostics
 must still be handled, and neither this result nor a case warning authorizes a launch,
 Git action or manifest repair. No second inventory store or filesystem scan is added.
+
+### Expected legacy projection and declared digest verification
+
+`expectedLegacyProjection` now derives the expected `company.gen3.json` data from
+canonical Organization and module declarations and compares its calculated digest
+with the declared digest. It preserves custom metadata/extensions, emits the existing
+verified forge binding where applicable, excludes root-scoped slots, maps legacy
+remote/branch/access fields and sorts projected slots by path. Nested workspace/module
+database slots do not acquire a guessed slug. Nullish aliases follow existing fallback
+behavior; they are not interpreted as executable/provider authority.
+
+Document scope is deliberately separate from executable mount grammar. Existing
+containers and root descendants can participate in compatibility projection without
+becoming launchable repositories. Unnormalized, escaping or control-character paths
+are refused, not rewritten. The first test run exposed a trailing-slash mismatch;
+the scope check now refuses it as the existing normalizer does. No file is written.
+
+Read-only comparison against the pinned legacy projection functions matched content
+hashes for five invented canonical variants: missing/null/unverified/verified root
+bindings and optional data, with mixed root/workspace/database/production slots.
+Public tests independently verify field mappings, hash mismatch/match, sorting,
+preservation, optional roots, nullish fallback and invalid inputs. The legacy function
+is not imported by the product or its committed tests. No implementation was copied.
+
+A matching expected digest is necessary but not sufficient for Organization resolution:
+the actual legacy document still needs normalization and semantic comparison to
+distinguish transition, projection drift and conflict. Existing slot diagnostics,
+provider rights and lifecycle policy remain separate; this function repairs nothing
+and grants no permission even when `declaredHashMatches` is true.

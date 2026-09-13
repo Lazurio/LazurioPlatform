@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import { array } from "../modules/manifest";
 import { organizationDocumentHash } from "./document-hash";
 
@@ -10,6 +11,34 @@ const rootPaths = new Set([
 const mount = "[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?";
 const direct = new RegExp(`^(workspace|modules|productionspace)/(${mount})$`);
 const database = new RegExp(`^(workspace|modules)/(${mount})/db$`);
+
+// Broader document scope used for legacy projection, NOT executable mount validity.
+export function organizationSlotArea(input: unknown) {
+  if (
+    typeof input !== "string" ||
+    !input ||
+    input.includes("\\") ||
+    input.endsWith("/") ||
+    /[\r\n\0]/.test(input) ||
+    posix.normalize(input) !== input
+  )
+    return null;
+  if (
+    [...rootPaths].some(
+      (root) => input === root || input.startsWith(`${root}/`),
+    )
+  )
+    return "root";
+  if (input === "productionspace" || input.startsWith("productionspace/"))
+    return "productionspace";
+  if (
+    ["workspace", "modules"].some(
+      (root) => input === root || input.startsWith(`${root}/`),
+    )
+  )
+    return "workspace";
+  return null;
+}
 
 // Exact repository-mount grammar, not general filesystem normalization. Never
 // rewrite historical case/spelling or infer permission from a path or scope.
