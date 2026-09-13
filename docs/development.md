@@ -239,3 +239,31 @@ also passed 80 tests / 595 assertions. This is native evidence for these selecte
 filesystem operations, not power-loss durability, every failure boundary, stale-lock
 recovery, Git/worktree preservation, a clean install, full Linux qualification or an
 installed CLI/Launchpad journey. No Windows or x64 result is implied.
+
+### Native Linux CLI Folder lifecycle
+
+`scripts/check-folder-lifecycle.sh` accepts one absolute standalone CLI binary path,
+creates its own temporary fixture and invokes the binary with an empty environment.
+It checks fresh initialization, existing-target refusal, profile update, stale revision
+refusal, no-op, completed-archive verification and manual-edit preservation, including
+synthetic Organization and Personalspace files. It cleans up only its own fixture.
+
+On 2026-09-13 the actual CLI source at
+`93e8fd140899df5429a99db4bad77b7672a55f38` was compiled with Bun 1.4.2:
+
+```sh
+bun build src/cli.ts --compile --target=bun-linux-arm64 --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/folder-lifecycle-cli-linux-arm64
+sh scripts/check-folder-lifecycle.sh /absolute/path/to/folder-lifecycle-cli-linux-arm64
+```
+
+Artifact SHA-256
+`8e05649dd968b16b2dc7cc8123c7cdc4f20a57a8e959edf8ed674a0b2c24c011`
+matched after transfer into the reused Ubuntu ARM64 test VM. The runner passed there;
+neither Bun nor Node was found on the guest PATH. No user work directories were mounted.
+The same lifecycle runner also passed with a native macOS ARM64 build on the development
+host. This adds actual CLI evidence beyond the older embedded-core runner above.
+
+This is not an installer test or a clean-image qualification. The resume case verifies
+an already completed transaction, not a killed CLI process. Initialization recovery,
+stale-lock handling, power-loss durability, Windows/x64 and signed release acceptance
+remain unqualified; no existing working Lazurio Folder was migrated or modified.
