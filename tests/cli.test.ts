@@ -15,12 +15,12 @@ import { previewFolder } from "../src/folder/preview";
 import { updateProfile } from "../src/folder/update-profile";
 
 test.skipIf(process.platform === "win32")(
-  "compiled CLI matches shared preview without ambient runtime",
+  "compiled CLI initializes, updates and recovers a fresh fixture without ambient runtime",
   async () => {
     const temporary = await realpath(
       await mkdtemp(join(tmpdir(), "compiled-folder-cli-")),
     );
-    const directory = join(temporary, "fixture");
+    let directory = join(temporary, "fixture");
     const binary = join(temporary, "lazurio-dev");
     try {
       await mkdir(directory, { mode: 0o700 });
@@ -75,31 +75,41 @@ test.skipIf(process.platform === "win32")(
       const initial = await previewFolder(profile, null, async () => ({
         kind: "absent",
       }));
-      const state = join(directory, ".lazurio");
-      await mkdir(state, { mode: 0o700 });
-      await writeFile(join(directory, "AGENTS.md"), initial.desired.content, {
-        mode: 0o600,
+      const initialize = async (path: string, extra: string[] = []) => {
+        const child = Bun.spawn(
+          [
+            binary,
+            "folder-init",
+            "--folder",
+            path,
+            "--profile",
+            JSON.stringify(profile),
+            ...extra,
+          ],
+          { cwd: temporary, env: {}, stdout: "pipe", stderr: "pipe" },
+        );
+        const [out, error, exit] = await Promise.all([
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+          child.exited,
+        ]);
+        return { out, error, exit };
+      };
+      expect((await initialize(directory)).exit).toBe(1);
+      expect(await readdir(directory)).toEqual([]);
+      directory = join(temporary, "new-folder");
+      expect(
+        (await initialize(directory, ["--expected-revision", "1"])).exit,
+      ).toBe(1);
+      expect(await readdir(temporary)).not.toContain("new-folder");
+      const created = await initialize(directory);
+      expect(created.exit, created.error).toBe(0);
+      expect(JSON.parse(created.out)).toEqual({
+        kind: "initialized",
+        revision: 1,
       });
-      await writeFile(
-        join(state, "preferences.json"),
-        JSON.stringify({
-          schemaVersion: 1,
-          revision: 1,
-          profile,
-          customInstructions: "",
-        }),
-        { mode: 0o600 },
-      );
-      await writeFile(
-        join(state, "instructions.json"),
-        JSON.stringify({
-          schemaVersion: 1,
-          preferenceRevision: 1,
-          templateRevision: initial.templateRevision,
-          output: { path: "AGENTS.md", digest: initial.desired.digest },
-        }),
-        { mode: 0o600 },
-      );
+      expect((await initialize(directory)).exit).toBe(1);
+      const state = join(directory, ".lazurio");
       await writeFile(join(directory, "unrelated"), "Preserve work");
       const invoke = async (
         revision: string | null,
@@ -218,6 +228,7 @@ test.skipIf(process.platform === "win32")(
         "Preserve work",
       );
       expect((await readdir(join(state, "history"))).sort()).toEqual([
+        "initialization",
         "revision-2",
         "revision-3",
       ]);

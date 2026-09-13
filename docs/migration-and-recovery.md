@@ -195,7 +195,10 @@ exceptions after initial directory, journal, instructions, preferences, manifest
 layout creation. Incomplete attempts remain in place and ordinary updates are blocked.
 A very early failure can leave only the new directory without a journal. Recovery of
 these initial attempts, process-death recovery, power-loss/native platform qualification
-and CLI onboarding remain missing; no new initialization CLI command is exposed yet.
+and installed onboarding remain missing. An explicitly experimental development
+`folder-init` CLI entry now exercises this operation on fresh synthetic paths; its
+help discloses retained failures and missing initialization resume. It is not a
+supported daily-installation or migration command.
 This source-level development API does not authorize use against an existing daily Folder.
 
 ### Development preparation writer

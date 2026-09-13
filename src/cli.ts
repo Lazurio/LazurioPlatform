@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { initializeFolder } from "./folder/initialize-folder";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectInstructions } from "./folder/inventory";
 import { inspectOwnedDirectory } from "./folder/owned-directory";
@@ -35,6 +36,10 @@ resumes and finalizes an existing prepared update, or verifies its completed arc
 Target revision is the NEW revision, not the old expected revision of profile-update.
 It accepts no profile choices and never reclaims a stale lock or damaged journal.
 Exit status: 0 completed/unchanged/preview available, 2 blocked plan, 1 operation failure.
+folder-init uses the same profile choices with an ABSENT canonical --folder path.
+It creates a new development Folder at revision 1; no revision/digest options are accepted.
+EXPERIMENTAL: failed initialization is retained and has no automatic resume yet.
+Never use a daily working path. It does not install software or migrate existing data.
 Native Windows filesystem inspection is not yet qualified.`);
     return 0;
   }
@@ -66,6 +71,7 @@ Native Windows filesystem inspection is not yet qualified.`);
     positionals.length !== 1 ||
     ![
       "folder-preview",
+      "folder-init",
       "profile-preview",
       "profile-update",
       "profile-resume",
@@ -93,7 +99,11 @@ Native Windows filesystem inspection is not yet qualified.`);
   }
   if (values["target-revision"] !== undefined)
     throw new Error("Recovery option on another command");
-  const configured = positionals[0] !== "folder-preview";
+  const initializing = positionals[0] === "folder-init";
+  if (initializing && values["previous-digest"] !== undefined)
+    throw new Error("Digest is not an initialization input");
+  const configured =
+    positionals[0] === "profile-preview" || positionals[0] === "profile-update";
   if (
     configured
       ? values["previous-digest"] !== undefined
@@ -127,6 +137,10 @@ Native Windows filesystem inspection is not yet qualified.`);
   );
   if (profile.os !== executionOs(process.platform))
     throw new Error("Profile OS does not match execution Machine");
+  if (initializing) {
+    console.log(JSON.stringify(await initializeFolder(folder, profile)));
+    return 0;
+  }
   // This development boundary requires caller-controlled, stable fixtures. No
   // hostile concurrent parent mutations are supported; this is not a sandbox.
   await inspectOwnedDirectory(folder);

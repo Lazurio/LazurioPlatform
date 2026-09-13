@@ -173,6 +173,18 @@ Parser references verified for the regression fix: [Bun Transpiler scan](https:/
 
 ### Development CLI update consumer
 
+The experimental `folder-init` command accepts an absent canonical `--folder` path
+and the normal profile choices/JSON. It rejects every existing target, including an
+empty directory, and accepts no revision/digest inputs. Successful creation produces
+revision 1 using the shared initializer. The compiled macOS CLI fixture now starts
+through this command, then performs update, stale/no-op handling and prepared-update
+resume, without manually seeding preferences or ownership metadata.
+
+Initialization failure retains the partial Folder and is not automatically resumed
+or deleted. A second `folder-init` invocation refuses that occupied path. This is
+development-only evidence, not completed onboarding: initial crash/repair handling,
+native qualification, harness use and signed distribution remain release gates.
+
 `profile-update` takes the same explicit canonical `--folder`, profile choices and
 `--expected-revision` as `profile-preview`, but **writes** via the shared `updateProfile`
 operation. Preview does not mutate profile state. Update holds one operation lock
