@@ -4,7 +4,10 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { probeListenerHealth } from "../src/modules/health";
+import {
+  parseHealthListener,
+  probeListenerHealth,
+} from "../src/modules/health";
 import { readModuleApplication } from "../src/modules/read-application";
 
 const listener = (port: number, path = "/health") => ({
@@ -152,6 +155,35 @@ test("health probe observes success and failure without following redirects or r
         health: { kind: "tcp" },
       }),
     ).toEqual({ kind: "responding" });
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("health path parsing is stable and normalization cannot change the request origin", async () => {
+  const paths: (string | undefined)[] = [];
+  const server = createServer((request, response) => {
+    paths.push(request.url);
+    response.end();
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("Missing address");
+  try {
+    const input = listener(address.port, "/a/..//health?test=1#fragment");
+    const parsed = parseHealthListener(input);
+    expect(parseHealthListener(parsed)).toEqual(parsed);
+    expect(await probeListenerHealth(parsed)).toEqual({
+      kind: "responding",
+      status: 200,
+    });
+    expect(await probeListenerHealth(input)).toEqual({
+      kind: "responding",
+      status: 200,
+    });
+    expect(paths).toEqual(["//health?test=1", "//health?test=1"]);
   } finally {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));

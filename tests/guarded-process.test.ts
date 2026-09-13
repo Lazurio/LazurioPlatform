@@ -101,13 +101,13 @@ const config = (cwd: string, mode: string) => ({
   cwd,
   env: {},
 });
-const health = (port: number) =>
-  probeListenerHealth({
-    host: "127.0.0.1",
-    port,
-    protocol: "http",
-    health: { kind: "http", path: "/" },
-  });
+const listener = (port: number) => ({
+  host: "127.0.0.1",
+  port,
+  protocol: "http",
+  health: { kind: "http", path: "/" },
+});
+const health = (port: number) => probeListenerHealth(listener(port));
 
 posixTest(
   "guard retains group ownership after launcher exit and stops surviving descendants",
@@ -132,9 +132,45 @@ posixTest(
             guardExitCode: null,
           });
         }
+        expect(
+          (await handle.observeListener(listener(endpoint.port))).kind,
+        ).toBe(
+          mode === "exit-before" ? "lifecycle-inactive" : "observed-healthy",
+        );
+        if (mode === "normal") {
+          expect(
+            (
+              await handle.observeListener({
+                ...listener(endpoint.port),
+                health: { kind: "http", path: "/a/..//health" },
+              })
+            ).kind,
+          ).toBe("observed-healthy");
+          expect(
+            await handle.observeListener({
+              ...listener(endpoint.port),
+              health: { kind: "http", path: "/failure" },
+            }),
+          ).toEqual({
+            kind: "health-failed",
+            health: { kind: "http-error", status: 503 },
+          });
+          await expect(
+            handle.observeListener({
+              ...listener(endpoint.port),
+              host: "example.com",
+            }),
+          ).rejects.toThrow();
+          await expect(
+            handle.observeListener(listener(endpoint.port), 0),
+          ).rejects.toThrow();
+        }
         const first = handle.stop(50);
         expect(handle.stop(50)).toBe(first);
         expect(await first).toEqual({ kind: "group-stopped" });
+        expect(await handle.observeListener(listener(endpoint.port))).toEqual({
+          kind: "lifecycle-inactive",
+        });
         expect((await health(endpoint.port)).kind).toBe("unavailable");
         expect(await handle.stop(50)).toEqual({ kind: "group-stopped" });
       } finally {
@@ -220,12 +256,44 @@ posixTest(
       expect((await second.started).kind).toBe("started");
       await readReady(join(firstDir, "ready.json"));
       const other = await readReady(join(secondDir, "ready.json"));
+      expect(await first.observeListener(listener(other.port))).toEqual({
+        kind: "ownership-unconfirmed",
+        reason: "foreign-group",
+      });
+      expect(
+        (
+          await second.observeListener({
+            ...listener(other.port),
+            host: "localhost",
+          })
+        ).kind,
+      ).toBe("observed-healthy");
       expect(await first.stop(30)).toEqual({ kind: "group-stopped" });
       expect((await health(other.port)).kind).toBe("responding");
       expect(second.inspect().guardExitCode).toBe(null);
     } finally {
       await first.stop(30);
       await second.stop(30);
+    }
+  },
+);
+
+posixTest(
+  "stop during a health request cannot return a healthy owned listener",
+  async () => {
+    const cwd = join(root, "stop-observation");
+    await mkdir(cwd, { mode: 0o700 });
+    const handle = await startGuardedProcess(config(cwd, "slow"), binary);
+    try {
+      expect((await handle.started).kind).toBe("started");
+      const endpoint = await readReady(join(cwd, "ready.json"));
+      const observed = handle.observeListener(listener(endpoint.port));
+      await readReady(join(cwd, "ready.json.request"));
+      const stopped = handle.stop(30);
+      expect(await observed).toEqual({ kind: "lifecycle-inactive" });
+      expect(await stopped).toEqual({ kind: "group-stopped" });
+    } finally {
+      await handle.stop(30);
     }
   },
 );

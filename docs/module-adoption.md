@@ -151,6 +151,25 @@ it neither installs tools nor reads real Organization data.
 
 ## Pipe-controlled process group — development only
 
+The retained guard handle now also provides `observeListener` for one validated
+declared endpoint. It checks that startup succeeded, the launcher and guard have
+not exited and stop has not been requested. It obtains matching loopback/group
+observations before and after the bounded health request, rechecking lifecycle
+state after each await. A foreign group, unavailable observation, changed binding
+snapshot, launcher exit or concurrent stop cannot produce `observed-healthy`.
+The health input parser is shared with the standalone connectivity adapter.
+
+This is a read-only instantaneous observation, not authorization, a bind reservation,
+continuous readiness, or atomic evidence of socket ownership during the request.
+A replacement followed by restoration between observations cannot be excluded.
+All required application listeners still need evaluation by the single lifecycle
+owner, along with module identity, dependencies and authority. No imported PGID
+can create this handle, and this method never sends a signal or adopts a process.
+Mac-host synthetic tests cover a matching group, localhost, foreign group, HTTP 503,
+invalid inputs, launcher exit, stopped state and stopping during a health request.
+These new observations have not yet been qualified in Linux/Windows or the UI;
+the older native evidence below applies only to its stated sources and scenarios.
+
 `startGuardedProcess` replaces the provisional numeric-group signaling adapter;
 there is only one maintained launch/stop implementation. The caller supplies a
 verified Platform executable and explicit app executable, args, owned cwd and data-only

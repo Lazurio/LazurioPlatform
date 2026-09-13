@@ -10,12 +10,7 @@ type Observation = Readonly<{
 
 // Connectivity only. A responding endpoint does not establish process ownership,
 // correct application identity, access rights or whole-application readiness.
-export async function probeListenerHealth(
-  input: unknown,
-  timeoutMs = 1500,
-): Promise<Observation> {
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000)
-    throw new Error("Bounded health timeout required");
+export function parseHealthListener(input: unknown) {
   const listener = object(input, ["host", "port", "protocol", "health"]);
   const host = text(listener.host, /^(127\.0\.0\.1|::1|localhost)$/);
   const port = listener.port;
@@ -33,9 +28,35 @@ export async function probeListenerHealth(
     const url = new URL(path, "http://health.invalid");
     if (path.includes("\\") || url.origin !== "http://health.invalid")
       throw new Error("Same-origin health path required");
-    path = url.pathname + url.search;
+    // Retain the validated source spelling so parsing is idempotent. A safe
+    // path such as /a/..//health normalizes to //health, which must not later
+    // be reinterpreted as an origin. Only the request adapter normalizes it.
   } else if (health.kind !== "tcp" || Object.hasOwn(health, "path"))
     throw new Error("Invalid health declaration");
+  return Object.freeze({
+    host,
+    port: port as number,
+    protocol,
+    health: Object.freeze(
+      health.kind === "http"
+        ? { kind: "http" as const, path }
+        : { kind: "tcp" as const },
+    ),
+  });
+}
+
+export async function probeListenerHealth(
+  input: unknown,
+  timeoutMs = 1500,
+): Promise<Observation> {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000)
+    throw new Error("Bounded health timeout required");
+  const { host, port, protocol, health } = parseHealthListener(input);
+  const url = new URL(
+    health.kind === "http" ? health.path : "/",
+    "http://health.invalid",
+  );
+  const path = url.pathname + url.search;
 
   // Avoid DNS/hosts-file or proxy redirection. localhost means only the two
   // numeric loopback interfaces; try both with one shared deadline.

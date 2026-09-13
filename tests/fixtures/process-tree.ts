@@ -4,7 +4,18 @@ if (process.argv[2] === "--child") {
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
-    fetch: () => Response.json({ terms }),
+    fetch: async (request) => {
+      if (new URL(request.url).pathname === "/failure")
+        return new Response("fixture unavailable", { status: 503 });
+      if (process.argv[4] === "slow") {
+        await Bun.write(
+          `${process.argv[3]}.request`,
+          JSON.stringify({ pid: process.pid, port: server.port }),
+        );
+        await Bun.sleep(1000);
+      }
+      return Response.json({ terms });
+    },
   });
   if (process.argv[4] === "ignore" || process.argv[4]?.startsWith("exit-"))
     process.on("SIGTERM", () => {
