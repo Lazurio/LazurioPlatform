@@ -391,3 +391,29 @@ The configured origin is not the effective fetch destination after Git rewrites,
 proof of repository contents, provider rights or Organization authorization. Full
 Organization document resolution and operation policy remain separate prerequisites;
 this adapter does not grant lifecycle access or touch a real installation.
+
+### Organization document acquisition
+
+`src/organizations/read-documents.ts` acquires the existing three root documents:
+`lazurio.organization.json`, `company.gen3.json`, and `modules.manifest.json`.
+Each result is explicitly missing, invalid, or a recursively frozen decoded object;
+an unreadable, linked, oversized, non-object or malformed document is not absence.
+It never falls back from an invalid canonical document to a legacy projection.
+Boundary failure returns unavailable, without raw filesystem errors or file contents
+in diagnostics. The shared `providers/owned-json.ts` retains the bounded no-follow
+reader already used by application declarations. No recursive directory discovery,
+Organization data modification or implicit creation occurs.
+
+Mac-host fixtures exercise all three states, malformed UTF-8, size bounds, symlinks,
+hard links, directories and shared-writable files/root, with original contents retained.
+These are acquisition tests, not semantic Organization acceptance. Reads assume a
+stable cooperative directory and are not one atomic multi-document transaction.
+Windows is refused; native Linux qualification remains outstanding.
+
+The existing resolution behavior was inspected in `organization-root-reader-lib.mjs`
+and `organization-activation-lib.mjs` at the legacy commit above. A complete consumer
+must still resolve legacy-only, canonical-only, transition, projection drift and
+conflict against the module inventory and canonical projection hash, then verify
+provider identity, local Git binding and operation rules. Valid JSON is not a valid
+Organization; the current acquisition result cannot yet authorize lifecycle operations.
+No legacy implementation was copied or relicensed in this step.
