@@ -27,6 +27,20 @@ roots. Slice 1 is complete only when both 1a and 1b pass; the owning distributio
 plan must record that ordering before implementation starts. Build/proof experiments
 without installation remain useful evidence but do not bypass 1a.
 
+These dependencies govern completed installed-consumer acceptance, not a requirement
+to serialize all development behind signing-account provisioning. Shared-core,
+Folder Factory and profile implementation may proceed against explicitly isolated
+synthetic fixtures before signed distribution is available. Settle the relevant
+ownership and schema contracts before implementing writes; retain parity, conflict,
+concurrency and recovery tests. This permission does not add installation or migration
+commands to the bounded proof by implication: use reviewed product implementation
+boundaries and keep the proof's evidence labels accurate.
+
+Unsigned fixture evidence cannot complete slices 1–3, qualify an official installer,
+authorize daily-Machine activation or waive any native platform/harness gate. Installer
+trust decisions in 1a remain prerequisites for installer implementation; certificate
+availability is not a prerequisite for unrelated core or generation tests.
+
 Fresh local cohorts qualify distribution, generation, profile and local-founder behavior;
 they do not wait for unrelated hosted/shared-workshop migration. Existing-environment migration
 cohorts must pass their preservation/recovery gate; hosted cohorts additionally need the

@@ -37,8 +37,11 @@ The proof has no install/update/profile-write/migrate command. Lazurio Folder Fa
 the shared planning/generation/reconciliation component used by CLI and Launchpad;
 the shared local core owns application of configuration and desired changes through CLI or Launchpad. A source
 checkout never applies them remotely. Do not quietly turn
-it into one. Implement each subsequent slice only after its recorded acceptance and
-decision prerequisites are satisfied. Test behavior and failure recovery, not source
+it into one. Satisfy the relevant ownership, schema and decision prerequisites before
+implementation. Isolated shared-core, Folder Factory and profile development may run
+before signed distribution, as specified in `docs/acceptance.md`; installed-consumer
+completion still requires all recorded acceptance gates. Installer implementation
+still requires accepted distribution decisions. Test behavior and failure recovery, not source
 text shape or arbitrary file-size limits. Compiling for an OS is not testing on it.
 
 First transition acceptance requires official installation and real CLI/Launchpad on
