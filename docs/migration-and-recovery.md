@@ -198,6 +198,15 @@ current revisions and unchanged active state under the lock before applying anyt
 The bounded journal format remains development-only until that consumer is implemented
 and its crash/recovery tests pass. Fresh Folder initialization is a separate missing path.
 
+`validatePreparation` now checks decoded before/after snapshots and the prepared
+marker as one transition. It validates schema and identity representation, recomputes
+the profile-change plan and requires exact agreement of new preferences, manifest,
+revisions, digest and staged instruction content. Tests consume the actual files
+written by preparation and reject modified source, marker, schema and output. This
+is semantic journal validation, not authentication of journal custody or verification
+that recorded file identities still exist. The activation/recovery adapter must
+perform those native filesystem checks under the lock before any replacement.
+
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
 revision, matching current preference/manifest revision and current-template output

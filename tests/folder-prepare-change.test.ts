@@ -18,6 +18,7 @@ import {
   prepareProfileChange,
 } from "../src/folder/prepare-profile-change";
 import { previewFolder } from "../src/folder/preview";
+import { validatePreparation } from "../src/folder/validate-preparation";
 
 async function fixture() {
   const folder = await realpath(
@@ -137,6 +138,74 @@ for (const stop of [
             createHash("sha256").update(staged).digest("hex"),
           );
           expect(marker.nextRevision).toBe(2);
+          const before = JSON.parse(
+            await readFile(join(f.state, "transaction", "before.json"), "utf8"),
+          );
+          const preferences = JSON.parse(
+            await readFile(
+              join(f.state, "transaction", "preferences.json"),
+              "utf8",
+            ),
+          );
+          const manifest = JSON.parse(
+            await readFile(
+              join(f.state, "transaction", "instructions.json"),
+              "utf8",
+            ),
+          );
+          const valid = await validatePreparation(
+            before,
+            preferences,
+            manifest,
+            marker,
+            staged.toString("utf8"),
+          );
+          expect(valid.plan.preferences.revision).toBe(2);
+          await expect(
+            validatePreparation(
+              before,
+              preferences,
+              manifest,
+              { ...marker, nextRevision: 3 },
+              staged.toString("utf8"),
+            ),
+          ).rejects.toThrow("revision");
+          await expect(
+            validatePreparation(
+              before,
+              preferences,
+              manifest,
+              marker,
+              "Modified stage",
+            ),
+          ).rejects.toThrow("regenerated");
+          await expect(
+            validatePreparation(
+              before,
+              { ...preferences, customInstructions: "Unreviewed source" },
+              manifest,
+              marker,
+              staged.toString("utf8"),
+            ),
+          ).rejects.toThrow("regenerated");
+          await expect(
+            validatePreparation(
+              before,
+              preferences,
+              manifest,
+              { ...marker, outputIdentity: { dev: "1", ino: "../file" } },
+              staged.toString("utf8"),
+            ),
+          ).rejects.toThrow("identity");
+          await expect(
+            validatePreparation(
+              { ...before, schemaVersion: 2 },
+              preferences,
+              manifest,
+              marker,
+              staged.toString("utf8"),
+            ),
+          ).rejects.toThrow("schema");
         } else
           expect(await readdir(join(f.state, "transaction"))).not.toContain(
             "prepared.json",

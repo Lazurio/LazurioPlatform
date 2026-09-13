@@ -16,7 +16,7 @@ export type InstructionManifest = Readonly<{
   output: Readonly<{ path: "AGENTS.md"; digest: string }>;
 }>;
 
-function fields(
+export function stateFields(
   input: unknown,
   keys: readonly string[],
 ): Record<string, unknown> {
@@ -45,7 +45,7 @@ function revision(input: unknown): number {
 }
 
 export function parseFolderPreferences(input: unknown): FolderPreferences {
-  const value = fields(input, [
+  const value = stateFields(input, [
     "schemaVersion",
     "revision",
     "profile",
@@ -64,13 +64,13 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
 }
 
 export function parseInstructionManifest(input: unknown): InstructionManifest {
-  const value = fields(input, [
+  const value = stateFields(input, [
     "schemaVersion",
     "preferenceRevision",
     "templateRevision",
     "output",
   ]);
-  const output = fields(value.output, ["path", "digest"]);
+  const output = stateFields(value.output, ["path", "digest"]);
   if (
     value.schemaVersion !== 1 ||
     typeof value.templateRevision !== "string" ||
