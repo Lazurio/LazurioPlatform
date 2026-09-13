@@ -110,4 +110,11 @@ standalone preview behavior, not source-unavailable OS sandboxing, a clean-syste
 installation, signature trust or the other platform cells. No compiled artifact is
 checked into Git or installed by this test.
 
+The CLI also compares the requested profile OS with the actual execution process
+through `src/folder/platform.ts` before inventory. A remote client's OS cannot select
+the execution OS. Mapping Windows does not qualify the Windows filesystem adapter;
+that remains unsupported. With mismatch coverage the complete local check passes
+25 tests and 226 assertions. This is still development-fixture evidence, not a native
+three-OS acceptance result.
+
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.

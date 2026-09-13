@@ -83,7 +83,7 @@ test.skipIf(process.platform === "win32")(
       await mkdtemp(join(tmpdir(), "folder-cli-")),
     );
     const profile = JSON.stringify({
-      os: "macos",
+      os: process.platform === "darwin" ? "macos" : "linux",
       access: "local",
       purpose: "human",
       locale: "en",
@@ -114,6 +114,18 @@ test.skipIf(process.platform === "win32")(
         profile,
       ];
       const fresh = await run(args);
+      const wrongOs = JSON.stringify({ ...JSON.parse(profile), os: "windows" });
+      expect(
+        (
+          await run([
+            "folder-preview",
+            "--folder",
+            directory,
+            "--profile",
+            wrongOs,
+          ])
+        ).code,
+      ).toBe(1);
       expect(fresh.code).toBe(0);
       expect(JSON.parse(fresh.stdout).plan.kind).toBe("create");
       expect(await readdir(directory)).toEqual([]);

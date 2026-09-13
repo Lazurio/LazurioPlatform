@@ -2,7 +2,9 @@ import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { inspectInstructions } from "./folder/inventory";
+import { executionOs } from "./folder/platform";
 import { previewFolder } from "./folder/preview";
+import { parseFolderProfile } from "./folder/profile";
 
 // Development CLI entrypoint. No installer, implicit folder discovery or writer.
 export async function runCli(args: string[]): Promise<number> {
@@ -21,7 +23,9 @@ export async function runCli(args: string[]): Promise<number> {
   const folder = values.folder;
   if (!folder || !values.profile)
     throw new Error("Explicit --folder and --profile JSON required");
-  const profile: unknown = JSON.parse(values.profile);
+  const profile = parseFolderProfile(JSON.parse(values.profile));
+  if (profile.os !== executionOs(process.platform))
+    throw new Error("Profile OS does not match execution Machine");
   // This development boundary requires caller-controlled, stable fixtures. No
   // hostile concurrent parent mutations are supported; this is not a sandbox.
   if (!isAbsolute(folder) || (await realpath(folder)) !== resolve(folder))
