@@ -47,14 +47,22 @@ The first real Launchpad consumer should add Playwright for browser flows, error
 
 This is not a general secret scanner: it does not inspect Git history, ignored files, dependencies, compiled binary contents, arbitrary provider token formats, encoded/fragmented values or organization confidentiality. Static TypeScript dependencies are read with Bun.Transpiler.scan, including side-effect imports, re-exports and import attributes. HTMLRewriter parses attributes independently of quoting or whitespace; only the small reviewed HTML vocabulary is allowed, so CSS, srcset, inline scripts and import maps require explicit policy expansion. Computed loading and arbitrary runtime IO are still a review boundary, not a security sandbox. The build embeds only the reviewed proof graph, and the smoke observes behavior; neither proves comprehensive absence of secrets. Review history, diffs, release inputs and artifact provenance before public release; add a maintained scanner when choosing the repository-wide release pipeline. Never treat a passing guard as permission to copy private data into this public repository.
 
-Observed locally on 2026-09-13: mechanical checks, strict types, fourteen tests (109 assertions), the public-input guard, standalone build and native macOS arm64 smoke passed. The Linux ARM64 artifact also passed the isolated CLI/HTTP/asset runner in a clean Ubuntu 24.04.4 guest without Bun/Node or a source checkout. The macOS arm64 proof passed the same runner in two independent macOS 26.6.2 clean clones. This is bounded proof evidence, not installer or full Launchpad qualification. Windows, other architectures and full browser flows remain unverified.
+Observed locally on 2026-09-13: mechanical checks, strict types, fifteen tests (119 assertions), the public-input guard, standalone build and native macOS arm64 smoke passed. The Linux ARM64 artifact also passed the isolated CLI/HTTP/asset runner in a clean Ubuntu 24.04.4 guest without Bun/Node or a source checkout. The macOS arm64 proof passed the same runner in two independent macOS 26.6.2 clean clones. This is bounded proof evidence, not installer or full Launchpad qualification. Windows, other architectures and full browser flows remain unverified.
 
 `src/folder/reconcile.ts` starts product development separately from the disposable
 proof: a pure planner for the generated `AGENTS.md` file. It consumes typed inventory
 and prior/desired digests, not ambient filesystem state. Unknown ownership, unsafe
 paths and drift block the plan. Its tests do not prove inventory accuracy, runtime
 input validation, write safety, locks, atomic generation or CLI/UI integration;
-those adapters and consumers remain to be implemented. This is not a persisted
+the remaining adapters and consumers still require implementation. This is not a persisted
 manifest schema or a public API. Product source is included in lint and type checks.
+
+`src/folder/inventory.ts` adds read-only POSIX inspection of that one file in an
+explicit absolute directory. Its caller must validate ownership and maintain a stable
+parent directory; this snapshot is not a lock or defense against parent substitution.
+It rejects root symlinks, nonregular instruction files and hardlinks; IO failures
+propagate rather than masquerading as absent files. Tests use synthetic temporary
+directories on macOS, not personal data. Windows explicitly remains unsupported by
+this adapter. Linux proof results above do not qualify this new adapter on Linux.
 
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.
