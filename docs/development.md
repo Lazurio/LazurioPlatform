@@ -168,3 +168,30 @@ not durable state, mutation/recovery, full OS support, signed installation or Wi
 qualification. Temporary fixture contents are invented; no live Lazurio Folder is used.
 
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.
+
+## Native profile transaction fixture smoke
+
+`scripts/smoke-profile-transaction.ts` is an independently reviewed fixture runner,
+not the installed CLI. It accepts no paths or arguments and creates/removes only its
+own temporary data. Compile with the pinned Bun 1.4.2:
+
+```sh
+bun build scripts/smoke-profile-transaction.ts --compile --target=bun-linux-arm64 --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/profile-transaction-smoke
+```
+
+The runner source and all its imports are recorded at
+`1ed5324d746dfa270cf26141520126a3619558eb`. On 2026-09-13 its Linux ARM64 artifact
+SHA-256 `c2b1cb799deeee12c1e347fb5881d24d7b5b7e88ac3c0b906874a219e12957b6`
+matched after transfer and passed in the reused Ubuntu 24.04 ARM64 test VM. Neither
+Bun nor Node was on the guest PATH; execution used `env -i`, with no source checkout
+or user working-directory mounts. The VM was stopped after the run. The same runner
+also passed through the development Bun runtime on the macOS ARM64 host.
+
+Observed Linux cases: preparation interruption and preserved retirement, application
+interruption immediately after instruction rename, forward resume, finalization
+interruption after archive rename and retry, unchanged-profile inspection, manual-edit
+refusal and unchanged invented Organization/Personalspace bytes. The full host check
+also passed 80 tests / 595 assertions. This is native evidence for these selected
+filesystem operations, not power-loss durability, every failure boundary, stale-lock
+recovery, Git/worktree preservation, a clean install, full Linux qualification or an
+installed CLI/Launchpad journey. No Windows or x64 result is implied.
