@@ -102,4 +102,12 @@ private filesystem paths. No installed CLI, Windows support, mutation or UI pari
 is claimed. The full local check passed with 23 tests and 217 assertions after this
 entrypoint was added; this extends the earlier foundation evidence above.
 
+The subsequent compiled-CLI regression builds `src/cli.ts` into its own temporary
+artifact and executes it with an empty environment from a separate fixture directory.
+Its JSON result equals the shared preview and the fixture stays empty. The complete
+local check now passes 24 tests with 221 assertions. This proves native macOS
+standalone preview behavior, not source-unavailable OS sandboxing, a clean-system
+installation, signature trust or the other platform cells. No compiled artifact is
+checked into Git or installed by this test.
+
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.

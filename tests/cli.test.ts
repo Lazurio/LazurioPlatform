@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  mkdir,
   mkdtemp,
   readdir,
   realpath,
@@ -9,6 +10,71 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { previewFolder } from "../src/folder/preview";
+
+test.skipIf(process.platform === "win32")(
+  "compiled CLI matches shared preview without ambient runtime",
+  async () => {
+    const temporary = await realpath(
+      await mkdtemp(join(tmpdir(), "compiled-folder-cli-")),
+    );
+    const directory = join(temporary, "fixture");
+    const binary = join(temporary, "lazurio-dev");
+    try {
+      await mkdir(directory, { mode: 0o700 });
+      const build = Bun.spawn(
+        [
+          process.execPath,
+          "build",
+          resolve("src/cli.ts"),
+          "--compile",
+          "--no-compile-autoload-dotenv",
+          "--no-compile-autoload-bunfig",
+          "--outfile",
+          binary,
+        ],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      const [, buildError, buildCode] = await Promise.all([
+        new Response(build.stdout).text(),
+        new Response(build.stderr).text(),
+        build.exited,
+      ]);
+      expect(buildCode, buildError).toBe(0);
+      const profile = {
+        os: process.platform === "darwin" ? "macos" : "linux",
+        access: "local",
+        purpose: "human",
+        locale: "en",
+        detail: "concise",
+        coordination: "direct",
+      };
+      const child = Bun.spawn(
+        [
+          binary,
+          "folder-preview",
+          "--folder",
+          directory,
+          "--profile",
+          JSON.stringify(profile),
+        ],
+        { cwd: directory, env: {}, stdout: "pipe", stderr: "pipe" },
+      );
+      const [stdout, stderr, code] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      expect(code, stderr).toBe(0);
+      expect(JSON.parse(stdout)).toEqual(
+        await previewFolder(profile, null, async () => ({ kind: "absent" })),
+      );
+      expect(await readdir(directory)).toEqual([]);
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  },
+);
 
 test.skipIf(process.platform === "win32")(
   "CLI previews explicit fixture and reports conflicts without writes",
