@@ -173,6 +173,16 @@ replacement, and not evidence for Windows/network filesystems or durable transac
 
 ## Product upgrade and profile rollback
 
+The development `planProfileChange` use case prepares one coherent next preference
+revision and output manifest without writing either. It requires a matching expected
+revision, matching current preference/manifest revision and current-template output
+digest, and unchanged observed owned bytes. Stale state, manual edits, unsupported
+template upgrades, OS changes, unsupported custom composition and revision exhaustion
+return blocked results. A no-op does not advance the revision. It neither changes
+software nor grants access. The future writer must obtain trusted state under the
+shared lock and revalidate before applying; a returned plan is not an authorization
+or durable transaction. CLI/UI transport and persistence are still required consumers.
+
 The release declares supported preferences and generated-manifest versions. Backward
 read compatibility is checked before stage; write compatibility and rollback support
 are checked before activation. Keep the original preference snapshot and exact prior
