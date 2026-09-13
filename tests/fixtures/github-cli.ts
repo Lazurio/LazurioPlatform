@@ -35,6 +35,13 @@ else
         viewer: { id: "User_fixture", login: "fixture-user" },
         repository: {
           id: "Repository_fixture",
+          databaseId: 123,
+          owner: {
+            __typename: "Organization",
+            id: "Org_fixture",
+            login: "Example",
+            databaseId: 456,
+          },
           nameWithOwner: "Example/fixture",
           viewerPermission: "READ",
           isArchived: false,

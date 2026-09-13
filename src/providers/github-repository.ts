@@ -5,7 +5,13 @@ import { parseProcessLaunch } from "../modules/process-launch";
 
 const run = promisify(execFile);
 const query =
-  "query($owner:String!,$name:String!){viewer{id login} repository(owner:$owner,name:$name){id nameWithOwner viewerPermission isArchived isDisabled}}";
+  "query($owner:String!,$name:String!){viewer{id login} repository(owner:$owner,name:$name){id databaseId nameWithOwner viewerPermission isArchived isDisabled owner{__typename id login ... on Organization{databaseId}}}}";
+function databaseId(value: unknown) {
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1)
+    throw new Error("Exact provider database identity required");
+  return String(value);
+}
 function request(input: unknown) {
   const value = object(input, ["owner", "repository", "expectedViewerId"]);
   return Object.freeze({
@@ -35,12 +41,29 @@ export function parseGitHubRepositoryObservation(
       return Object.freeze({ kind: "repository-unavailable" as const });
     const repo = object(data.repository, [
       "id",
+      "databaseId",
+      "owner",
       "nameWithOwner",
       "viewerPermission",
       "isArchived",
       "isDisabled",
     ]);
     const repositoryId = text(repo.id, /^[A-Za-z0-9_+=/-]{1,256}$/);
+    const numericId = databaseId(repo.databaseId);
+    const owner = object(
+      repo.owner,
+      ["__typename", "id", "login"],
+      ["databaseId"],
+    );
+    const ownerKind = text(owner.__typename, /^(Organization|User)$/);
+    const ownerId = text(owner.id, /^[A-Za-z0-9_+=/-]{1,256}$/);
+    const ownerLogin = text(owner.login, /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/);
+    const ownerDatabaseId =
+      ownerKind === "Organization" ? databaseId(owner.databaseId) : null;
+    if (ownerKind === "User" && Object.hasOwn(owner, "databaseId"))
+      return unavailable();
+    if (ownerLogin.toLowerCase() !== target.owner.toLowerCase())
+      return Object.freeze({ kind: "repository-mismatch" as const });
     const name = text(repo.nameWithOwner, /^[A-Za-z0-9-]+\/[A-Za-z0-9_.-]+$/);
     if (
       name.toLowerCase() !==
@@ -61,6 +84,13 @@ export function parseGitHubRepositoryObservation(
       viewer: Object.freeze({ id, login }),
       repository: Object.freeze({
         id: repositoryId,
+        databaseId: numericId,
+        owner: Object.freeze({
+          kind: ownerKind,
+          id: ownerId,
+          login: ownerLogin,
+          databaseId: ownerDatabaseId,
+        }),
         name,
         permission,
         archived: repo.isArchived,

@@ -98,6 +98,25 @@ Organization/module contract and actual operation, and recheck at the operation
 boundary. Missing or inaccessible repository is not proof of nonexistence. No new
 roster, IAM, credential store or provider binding model is introduced.
 
+The observation additionally reads repository `databaseId` and the owner's type,
+node ID, login and Organization `databaseId`. `compareGitHubBindings` compares these
+with the existing verified `organizationForgeBinding` / `repositoryForgeBinding`
+wire fields from `lazurio/lazurio.organization.v1.schema.json` at the same clean
+legacy commit cited below. No schema source was copied. Both stable decimal IDs
+and current locators must agree; unverified bindings, user-owned repositories,
+replacement IDs, renamed/transferred locators and missing identities do not match.
+Case-only locator differences are accepted. This reads no local manifest and grants
+no permission: filesystem custody, manifest integrity and operation policy remain
+separate. It neither upgrades unverified records nor rewrites a manifest after rename.
+
+GraphQL `databaseId` values are accepted only as positive safe-integer numbers and
+converted exactly to decimal strings. Null means unavailable, not a guessed ID;
+unsafe numbers are refused rather than rounded. This cannot qualify every possible
+20-digit manifest ID. The inspected API does not offer Repository `fullDatabaseId`;
+no unsupported field or lossy numeric fallback is used. A future broader ID transport
+must preserve exact values and be separately verified. Node IDs remain separate
+from database IDs and are never decoded to fabricate the latter.
+
 Credential values remain inside the selected `gh` process context and are never
 returned or logged by this adapter. Supply an explicit data-only environment
 snapshot; Bun's accessor-backed `process.env` is deliberately not accepted directly.
@@ -124,6 +143,13 @@ partial/malformed data and identity mismatch. This is not live revocation, priva
 Organization authorization, app permission, token-custody qualification, or installed
 Linux/Windows evidence. The lifecycle's production authorization adapter still needs
 the Organization manifest/local-repository binding and operation policy.
+
+The extended query and comparison were also exercised read-only against the public
+Platform repository on the Mac host: observed Organization/repository decimal IDs
+matched the selected expected values, while a deliberately wrong expected repository
+ID failed. This is not a real transfer/recreation or local-manifest custody test.
+Synthetic tests cover both ID mismatches, locator changes, unverified bindings,
+user-owned repositories and missing/unsafe numeric IDs.
 
 ## App runtime declaration
 
