@@ -149,36 +149,46 @@ Run the compiled executable, not the TypeScript source: it launches itself in th
 synthetic child mode. It requires only supported OS inspection tools at runtime;
 it neither installs tools nor reads real Organization data.
 
-## Same-instance process adapter — development only
+## Pipe-controlled process group — development only
 
-`startOwnedProcess` is a bounded POSIX adapter for the future single lifecycle owner,
-not another supervisor or a product-facing execute endpoint. It takes an explicit
-absolute executable, argument array, owned working directory and data-only environment;
-it does not inherit ambient credentials, select a toolchain, install dependencies or
-interpret a shell command. Output is discarded in this initial adapter, not copied
-to a new log store. The application layer still must establish actual authorization,
-module custody, tool readiness, lease exclusion and the existing server/locator owner.
+`startGuardedProcess` replaces the provisional numeric-group signaling adapter;
+there is only one maintained launch/stop implementation. The caller supplies a
+verified Platform executable and explicit app executable, args, owned cwd and data-only
+environment. No ambient credentials or shell interpretation are added. Application
+stdout/stderr is currently discarded; diagnostics/log integration remains unfinished.
+The future single lifecycle owner still establishes authorization, module custody,
+toolchain readiness, lease exclusion and the existing server/locator. This library
+does not itself expose app actions through the public CLI or Launchpad API.
 
-The returned same-instance handle retains the spawned launcher and process group.
-There is no `stop(pid)` or reconstruction from persisted numbers. Concurrent stop
-requests share one operation. Stop sends TERM, waits for launcher exit and group
-absence, then may escalate to KILL while the launcher is still live. An observed
-absent group is permanently retired. Launcher exit also retires destructive signaling;
-each signal rechecks the subprocess's current exit state. A surviving group after
-launcher exit returns `incomplete/launcher-exited`, not successful tree termination.
+The Platform executable has an internal `__lazurio-process-guard` entrypoint. It
+verifies that it is the leader of its own POSIX process group before launching any
+app. It reads one bounded JSON launch request over inherited stdin, starts the app
+inside that group, and reports only started PID / launcher exit code over stdout.
+It remains alive after the app launcher exits, retaining the group's leader identity.
+It has no network listener, locator, durable PID record or separate distribution.
 
-Mac-host synthetic tests exercise a launcher with a separate HTTP child, shared stop,
-graceful group shutdown, forced shutdown with a different application left responding,
-invalid process inputs, and launcher exit before stop or during grace. In the latter
-cases a surviving child receives no further signals, even on repeated stop. Only the
-test cleans up its deliberately orphaned fixture; this is not a product recovery path.
+The owner requests stop over the pipe; concurrent stop requests share one operation.
+The guard ignores its own TERM, sends TERM to its own group, waits the bounded grace
+period, then sends KILL to that same group including itself. Because the signaler is
+the still-live group leader, this does not reconstruct authority from a stale numeric
+group. The parent never sends a destructive signal to a saved PID/PGID. Pipe EOF
+also triggers cleanup. Missing/malformed launch messages fail through the same cleanup.
+The parent confirms guard exit and observed group absence before returning
+`group-stopped`; missing confirmation or an unexpected surviving group is `incomplete`.
 
-Review found and fixed delayed signaling through a stale group number. The remaining
-POSIX check-then-signal race is **not** an atomic identity guarantee. Surviving or
-escaped descendants, daemonized children, crash recovery, durable ownership, native
-Linux/Windows process-tree qualification and CLI/UI integration remain incomplete.
-Do not expose this primitive to installed consumers until the single lifecycle owner
-provides the stronger identity/descendant handling required by acceptance. Group stop
-alone does not prove an arbitrary process tree is gone. Existing runtime semantics
-were observed at the legacy commit recorded above; no legacy source was copied.
-The new adapter uses [Bun subprocess APIs](https://bun.sh/docs/runtime/child-process).
+Compiled Mac-host tests cover normal and TERM-ignoring launcher/child groups, launcher
+exit before stop and during grace (including surviving children), concurrent/repeated
+stop, failed executable, refusal to run in the caller's existing group, pipe EOF
+cleanup, and preservation of a second live application while stopping the first.
+Input tests retain immutable data-only environment snapshots and reject
+implicit executables and NUL arguments. These are synthetic tests; the app explicitly
+uses the developer Bun as its fixture toolchain, while the guard is the compiled CLI.
+
+This improves ordinary launcher-exit handling but is not containment of arbitrary
+daemonized/escaped descendants. Unexpected guard death, durable crash recovery,
+native Linux/Windows process-group qualification and full CLI/UI consumer integration
+remain incomplete. A group-stop result does not prove an arbitrary process tree is
+gone. No daily installation is activated, and there is no permission granted by this
+internal protocol. Existing runtime semantics were observed at the legacy commit above;
+no legacy source was copied. The adapter uses
+[Bun subprocess APIs](https://bun.sh/docs/runtime/child-process).

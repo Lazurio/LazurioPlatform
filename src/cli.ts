@@ -9,6 +9,7 @@ import { parseFolderProfile } from "./folder/profile";
 import { resumeInitialization } from "./folder/resume-initialization";
 import { resumeProfileUpdate, updateProfile } from "./folder/update-profile";
 import { startLaunchpad } from "./launchpad/server";
+import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 
 // Development CLI entrypoint. No installer or implicit folder discovery.
 export async function runCli(args: string[]): Promise<number> {
@@ -198,7 +199,9 @@ Native Windows filesystem inspection is not yet qualified.`);
 
 if (import.meta.main) {
   try {
-    process.exitCode = await runCli(process.argv.slice(2));
+    if (process.argv.length === 3 && process.argv[2] === processGuardCommand)
+      await runProcessGuard();
+    else process.exitCode = await runCli(process.argv.slice(2));
   } catch {
     // Do not echo profile input, private paths or raw filesystem errors.
     console.error(
