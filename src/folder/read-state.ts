@@ -61,6 +61,9 @@ export async function readOwnedStateFile(
     | "instructions.json"
     | "before.json"
     | "prepared.json"
+    | "created-agents.json"
+    | "created-preferences.json"
+    | "created-instructions.json"
     | "AGENTS.md",
 ) {
   if (
@@ -69,6 +72,9 @@ export async function readOwnedStateFile(
       "instructions.json",
       "before.json",
       "prepared.json",
+      "created-agents.json",
+      "created-preferences.json",
+      "created-instructions.json",
       "AGENTS.md",
     ].includes(name)
   )

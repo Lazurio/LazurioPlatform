@@ -182,24 +182,45 @@ and `personalspace` directories, root `AGENTS.md`, and the same `.lazurio` state
 used by profile operations. Preferences/manifest use their existing version-1 schemas,
 starting at revision 1 with empty custom source. Execution OS must match the profile.
 
-Under the common lock, `.lazurio/transaction/before.json` contains a version-1
+Under the common lock, `.lazurio/transaction/before.json` contains a version-2
 `fresh-folder-initialization` record with the proposed preferences and manifest. This
-record is deliberately not a version-2 profile-update journal and cannot be consumed
+record is deliberately not a profile-update journal and cannot be consumed
 by profile resume or incomplete-update retirement. All files use exclusive creation
 and file sync; their identities and bytes are checked before moving the retained
-journal to `.lazurio/history/initialization`. Directory syncs follow before success.
+journal to `.lazurio/history/initialization`. Separate `created-agents.json`,
+`created-preferences.json` and `created-instructions.json` receipts retain each
+created file's device/inode from its open handle. Directory syncs follow before success.
 No existing path is overwritten and no failure handler recursively removes data.
 
 Tests create a new temporary Folder, perform a subsequent profile update and inject
 exceptions after initial directory, journal, instructions, preferences, manifest and
 layout creation. Incomplete attempts remain in place and ordinary updates are blocked.
 A very early failure can leave only the new directory without a journal. Recovery of
-these initial attempts, process-death recovery, power-loss/native platform qualification
-and installed onboarding remain missing. An explicitly experimental development
+attempts before a valid journal or creation receipt, process-death recovery,
+power-loss/native platform qualification and installed onboarding remain missing.
+An explicitly experimental development
 `folder-init` CLI entry now exercises this operation on fresh synthetic paths; its
-help discloses retained failures and missing initialization resume. It is not a
+help discloses retained failures and bounded explicit initialization resume. It is not a
 supported daily-installation or migration command.
 This source-level development API does not authorize use against an existing daily Folder.
+
+`resumeInitialization`, exposed as `folder-resume --folder <fixture>`, completes a
+recognized interrupted initialization under the same operation lock. It validates the
+profile/manifest against the current renderer and accepts only an ordered prefix of
+the original writes. Existing files require both exact bytes and their recorded
+creation identity; missing files are created exclusively, never replaced. Receipts
+without their file, files without receipts, edited files, unknown metadata, old
+version-1 initialization records and occupied archives are retained and refused.
+An interruption between file creation and receipt persistence remains a separate
+repair case, not permission to adopt a matching file.
+
+Completion rechecks all output bytes/identities, retains the transaction in history
+and syncs directories. Retry after archive movement verifies the current revision-1
+files; a later profile update cannot be undone through initialization resume.
+Organization/Personalspace contents are neither inspected nor rewritten. Tests cover
+each recorded initialization checkpoint, interrupted recovery/archive, identical-byte
+foreign output, edits during recovery and the standalone CLI entrypoint. These are
+development fixtures, not process-death lock recovery or installed qualification.
 
 ### Development preparation writer
 

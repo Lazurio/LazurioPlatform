@@ -11,6 +11,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { initializeFolder } from "../src/folder/initialize-folder";
 import { previewFolder } from "../src/folder/preview";
 import { updateProfile } from "../src/folder/update-profile";
 
@@ -51,6 +52,30 @@ test.skipIf(process.platform === "win32")(
         detail: "concise",
         coordination: "direct",
       };
+      const interrupted = join(temporary, "interrupted-init");
+      await expect(
+        initializeFolder(interrupted, profile, async (step) => {
+          if (step === "instructions")
+            throw new Error("initialization interrupted");
+        }),
+      ).rejects.toThrow("initialization interrupted");
+      for (const extra of [["--locale", "cs"], [], []]) {
+        const recovery = Bun.spawn(
+          [binary, "folder-resume", "--folder", interrupted, ...extra],
+          { env: {}, stdout: "pipe", stderr: "pipe" },
+        );
+        const [output, error, status] = await Promise.all([
+          new Response(recovery.stdout).text(),
+          new Response(recovery.stderr).text(),
+          recovery.exited,
+        ]);
+        expect(status, error).toBe(extra.length ? 1 : 0);
+        if (!extra.length)
+          expect(JSON.parse(output)).toEqual({
+            kind: "recovered",
+            revision: 1,
+          });
+      }
       const child = Bun.spawn(
         [
           binary,

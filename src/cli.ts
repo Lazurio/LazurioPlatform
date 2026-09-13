@@ -6,6 +6,7 @@ import { inspectOwnedDirectory } from "./folder/owned-directory";
 import { executionOs } from "./folder/platform";
 import { previewFolder } from "./folder/preview";
 import { parseFolderProfile } from "./folder/profile";
+import { resumeInitialization } from "./folder/resume-initialization";
 import { resumeProfileUpdate, updateProfile } from "./folder/update-profile";
 
 // Development CLI entrypoint. No installer or implicit folder discovery.
@@ -38,7 +39,10 @@ It accepts no profile choices and never reclaims a stale lock or damaged journal
 Exit status: 0 completed/unchanged/preview available, 2 blocked plan, 1 operation failure.
 folder-init uses the same profile choices with an ABSENT canonical --folder path.
 It creates a new development Folder at revision 1; no revision/digest options are accepted.
-EXPERIMENTAL: failed initialization is retained and has no automatic resume yet.
+EXPERIMENTAL: failed initialization is retained, never automatically retried.
+folder-resume --folder <fixture> explicitly completes a recognized initialization.
+It accepts no other options, never overwrites edits and cannot reclaim stale locks.
+Missing/damaged journals and partial file writes require separate repair.
 Never use a daily working path. It does not install software or migrate existing data.
 Native Windows filesystem inspection is not yet qualified.`);
     return 0;
@@ -72,12 +76,19 @@ Native Windows filesystem inspection is not yet qualified.`);
     ![
       "folder-preview",
       "folder-init",
+      "folder-resume",
       "profile-preview",
       "profile-update",
       "profile-resume",
     ].includes(positionals[0] ?? "")
   )
     throw new Error("Expected Folder command");
+  if (positionals[0] === "folder-resume") {
+    if (!values.folder || Object.keys(values).some((name) => name !== "folder"))
+      throw new Error("Explicit initialization recovery folder required");
+    console.log(JSON.stringify(await resumeInitialization(values.folder)));
+    return 0;
+  }
   if (positionals[0] === "profile-resume") {
     if (
       !values.folder ||

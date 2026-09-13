@@ -1,6 +1,10 @@
 import { constants } from "node:fs";
 import { mkdir, open, readdir, rename } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import {
+  initializationReceipts,
+  recordInitializationCreation,
+} from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
@@ -51,7 +55,7 @@ export async function initializeFolder(
     const transaction = join(state, "transaction");
     await mkdir(transaction, { mode: 0o700 });
     const journal = JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       kind: "fresh-folder-initialization",
       preferences,
       manifest,
@@ -80,6 +84,11 @@ export async function initializeFolder(
       } finally {
         await file.close();
       }
+      if (name !== "before.json") {
+        const identity = identities[index];
+        if (!identity) throw new Error("Missing creation identity");
+        await recordInitializationCreation(transaction, name, identity);
+      }
       const step = steps[index];
       if (!step) throw new Error("Unknown initialization step");
       await checkpoint(step);
@@ -91,8 +100,13 @@ export async function initializeFolder(
       await inspectOwnedDirectory(join(folder, name));
     const transactionEntries = await readdir(transaction);
     if (
-      transactionEntries.length !== 1 ||
-      transactionEntries[0] !== "before.json"
+      transactionEntries.length !== 4 ||
+      transactionEntries.some(
+        (name) =>
+          !["before.json", ...Object.values(initializationReceipts)].includes(
+            name,
+          ),
+      )
     )
       throw new Error("Unrecognized initialization journal");
     for (const [index, [directory, name, content]] of expected.entries()) {
