@@ -128,6 +128,13 @@ target artifacts, not a rebuild after personal acceptance.
 
 ## Required lifecycle evidence
 
+For the current foundation proof, `bun run scripts/identify-proof.ts` rebuilds
+the native proof from a clean committed checkout and emits its byte digest,
+size, source commit, lockfile digest and pinned toolchain. This is an unsigned
+build identity, not publisher authentication, a release manifest or a native
+installation qualification. Run from the repository root using the pinned Bun.
+The output must not be used as authorization to install or activate a product.
+
 Run three simultaneous fixtures and prove distinct PATH resolution, Lazurio Folder, state and
 processes; deliberately collide a port and terminate one run without harming its peers
 or daily installation. Separately prove integrated Machine activation with cold CLI
