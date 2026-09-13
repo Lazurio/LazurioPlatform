@@ -4,6 +4,30 @@ The next Launchpad consumer is permitted-module discovery followed by app
 start/status/stop through one shared lifecycle owner. It must not invent a second
 module catalog, port registry or process supervisor.
 
+## Workspace standards and versioned presets — accepted direction
+
+Keep three responsibilities separate: the Platform's shared operational
+install/lifecycle/Doctor contract, each application's concrete requirements, and
+versioned preset inputs that produce a conforming starting application. Organizations
+select their allowed standards/presets through their existing rules owner. TypeScript
+and Bun are the first reference path, not a global ban on other qualified stacks.
+Presets give agents and operators, including non-developers, tested starting points;
+they do not certify arbitrary subsequent application code.
+
+First document one standard and prove one reference preset through the existing
+install/check/start/health/stop consumer. Then qualify conversion of one representative
+workspace module without losing functionality or data. Follow with a deduplicated
+inventory and gradual alignment of other workspace apps, and creation from a selected
+tested preset. Fleet conversion and marketplace are not prerequisites for the first
+usable Platform milestone. Nonstandard projects retain their Production Space regime;
+this classification does not authorize moving existing paths.
+
+Initial presets can be ordinary versioned sources without a backend. Generated modules
+are Organization-owned code; changing a preset must not overwrite local customization.
+Preset format, upgrade mechanism and UI remain open. Community presets and other
+qualified stacks belong to the already planned marketplace, not another registry,
+catalog, service or plugin framework. This direction adds no rollout or release mandate.
+
 Protocol observation: `HumanAndMachines/Lazurio` at
 `afa1c19fab473be6ee38094e5db769b6b0722e51`, specifically
 `lazurio/schemas/lazurio-module.schema.json` and
