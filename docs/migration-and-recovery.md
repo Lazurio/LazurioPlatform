@@ -229,6 +229,24 @@ journals are rejected and retained, not silently upgraded or deleted. No install
 format migration is implemented or authorized here. Snapshot retention prepares for,
 but does not itself implement, partially applied transaction recovery.
 
+`applyPreparation` now provides a development-only existing-file replacement and
+forward-resume consumer. Under the common lock it validates the entire journal and
+all active/staged files, accepts only a prefix of the fixed replacement order
+(`AGENTS.md`, preferences, manifest), and renames the remaining staged files. A
+consumed staged file must be the recorded inode at its active destination with the
+expected content. Edits, foreign replacements, incomplete preparation and unknown
+entries block further writes. This is not a filesystem-atomic three-file change.
+Directory syncs are repeated on resume, including when a rename was observed before
+its earlier sync completed. Tests inject exceptions immediately after rename and
+after sync, resume to revision 2, repeat the operation, and preserve post-interruption
+edits. This is native macOS fixture evidence, not power-loss or cross-OS qualification.
+
+The result explicitly says `applied-journal-retained`: before/after records remain in
+the pending transaction directory, which still blocks ordinary profile operations.
+Journal retirement, incomplete-preparation repair and verified stale-lock reclamation
+remain missing before this is a usable persistent profile workflow. No CLI write
+command, real Folder activation, fresh initialization or migration is introduced.
+
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
 revision, matching current preference/manifest revision and current-template output

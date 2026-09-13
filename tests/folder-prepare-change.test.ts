@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { applyPreparation } from "../src/folder/apply-preparation";
 import { inspectPreparation } from "../src/folder/inspect-preparation";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
 import { executionOs } from "../src/folder/platform";
@@ -73,6 +74,147 @@ async function fixture() {
     throw error;
   }
 }
+
+for (const invalid of [
+  "partial",
+  "out-of-order",
+  "foreign-applied-inode",
+] as const) {
+  test.skipIf(process.platform === "win32")(
+    `application refuses ${invalid} without further writes`,
+    async () => {
+      const f = await fixture();
+      try {
+        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        const stage = join(f.state, "transaction");
+        if (invalid === "partial") {
+          await rm(join(stage, "prepared.json"));
+        } else if (invalid === "out-of-order") {
+          await rename(
+            join(stage, "preferences.json"),
+            join(f.state, "preferences.json"),
+          );
+        } else {
+          await rename(join(stage, "AGENTS.md"), join(f.folder, "AGENTS.md"));
+          await writeFile(
+            join(f.folder, "foreign"),
+            await readFile(join(f.folder, "AGENTS.md")),
+            { mode: 0o600 },
+          );
+          await rename(join(f.folder, "foreign"), join(f.folder, "AGENTS.md"));
+        }
+        const active = await readFile(join(f.folder, "AGENTS.md"));
+        const preferences = await readFile(join(f.state, "preferences.json"));
+        const entries = (await readdir(stage)).sort();
+        await expect(applyPreparation(f.folder)).rejects.toThrow();
+        expect(await readFile(join(f.folder, "AGENTS.md"))).toEqual(active);
+        expect(await readFile(join(f.state, "preferences.json"))).toEqual(
+          preferences,
+        );
+        expect(await readFile(join(f.state, "instructions.json"), "utf8")).toBe(
+          f.manifest,
+        );
+        expect((await readdir(stage)).sort()).toEqual(entries);
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+for (const stop of [
+  null,
+  "renamed:AGENTS.md",
+  "renamed:preferences.json",
+  "renamed:instructions.json",
+  "AGENTS.md",
+  "preferences.json",
+  "instructions.json",
+] as const) {
+  test.skipIf(process.platform === "win32")(
+    `application resumes after ${stop ?? "no interruption"}`,
+    async () => {
+      const f = await fixture();
+      try {
+        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        const desired = await readFile(
+          join(f.state, "transaction", "AGENTS.md"),
+          "utf8",
+        );
+        if (stop) {
+          await expect(
+            applyPreparation(f.folder, async (step) => {
+              if (step === stop)
+                throw new Error("Injected application interruption");
+            }),
+          ).rejects.toThrow("Injected application interruption");
+        }
+        expect(await applyPreparation(f.folder)).toEqual({
+          kind: "applied-journal-retained",
+          revision: 2,
+        });
+        expect(await applyPreparation(f.folder)).toEqual({
+          kind: "applied-journal-retained",
+          revision: 2,
+        });
+        expect(await readFile(join(f.folder, "AGENTS.md"), "utf8")).toBe(
+          desired,
+        );
+        expect(
+          JSON.parse(await readFile(join(f.state, "preferences.json"), "utf8"))
+            .revision,
+        ).toBe(2);
+        expect(
+          JSON.parse(await readFile(join(f.state, "instructions.json"), "utf8"))
+            .preferenceRevision,
+        ).toBe(2);
+        expect((await readdir(join(f.state, "transaction"))).sort()).toEqual([
+          "before.json",
+          "prepared.json",
+        ]);
+        expect(await readFile(join(f.folder, "own-notes"), "utf8")).toBe(
+          "Preserve user work",
+        );
+        await expect(
+          inspectProfileChange(f.folder, 2, f.profile),
+        ).rejects.toThrow("pending");
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+test.skipIf(process.platform === "win32")(
+  "application preserves edits after interrupted activation",
+  async () => {
+    const f = await fixture();
+    try {
+      await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+      await expect(
+        applyPreparation(f.folder, async () => {
+          await writeFile(
+            join(f.folder, "AGENTS.md"),
+            "New work after activation",
+          );
+          throw new Error("Interrupted");
+        }),
+      ).rejects.toThrow("Interrupted");
+      await expect(applyPreparation(f.folder)).rejects.toThrow("conflicts");
+      expect(await readFile(join(f.folder, "AGENTS.md"), "utf8")).toBe(
+        "New work after activation",
+      );
+      expect(await readFile(join(f.state, "preferences.json"), "utf8")).toBe(
+        f.preferences,
+      );
+      expect(await readFile(join(f.state, "instructions.json"), "utf8")).toBe(
+        f.manifest,
+      );
+    } finally {
+      await rm(f.folder, { recursive: true, force: true });
+    }
+  },
+);
 
 for (const stop of [
   null,
