@@ -117,4 +117,14 @@ that remains unsupported. With mismatch coverage the complete local check passes
 25 tests and 226 assertions. This is still development-fixture evidence, not a native
 three-OS acceptance result.
 
+Linux preview observation on 2026-09-13: source
+`f12d1bced878215293d9e8dd2c3dcc7a38cfb6c7`, Bun 1.4.2, compiled `src/cli.ts`
+with target `bun-linux-arm64` and both compile-autoload options disabled. Artifact
+SHA-256 `baef7e681422e741ae0cad08d9e7442bcc9a4fbe301b395c94267376945dcaba`
+matched before and after transfer to Ubuntu 24.04.4 LTS aarch64. With Bun/Node absent
+and an empty execution environment, the linux/remote/human/cs/concise/direct profile
+returned exit 0 and a create proposal while leaving its temporary Folder empty.
+This was one positive scenario in a reused test clone, not installation qualification,
+all Linux failure cases, UI adoption, mutation or migration evidence.
+
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.
