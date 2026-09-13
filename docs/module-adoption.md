@@ -81,6 +81,50 @@ is deliberately an invented test adapter, not live provider evidence. Real disco
 server locator/transport integration, toolchain policy, Linux/Windows lifecycle
 qualification and installed CLI/Launchpad acceptance remain incomplete.
 
+## GitHub repository observation for the authorization adapter
+
+`src/providers/github-repository.ts` performs a fixed read-only GraphQL query through
+an explicitly selected GitHub CLI executable and the caller's existing credential
+context. Viewer node ID and exact repository facts come from the same response.
+The expected viewer ID must come from the selected Principal context, not a profile
+or repository name. Wrong viewer/repository, partial GraphQL errors, malformed
+fields, warnings, timeout and oversized output never produce positive evidence.
+Successful observations carry request start/completion times; they are not cached.
+
+The adapter returns the repository's node ID, canonical name, reported permission
+(including null), archived and disabled state. These facts do not grant app execution,
+publication or local filesystem custody. The caller must bind them to the existing
+Organization/module contract and actual operation, and recheck at the operation
+boundary. Missing or inaccessible repository is not proof of nonexistence. No new
+roster, IAM, credential store or provider binding model is introduced.
+
+Credential values remain inside the selected `gh` process context and are never
+returned or logged by this adapter. Supply an explicit data-only environment
+snapshot; Bun's accessor-backed `process.env` is deliberately not accepted directly.
+Only existing credential/configuration and essential OS location variables are
+forwarded. Proxy/debug/host overrides are omitted, prompting and update notifications
+disabled, output limited to 64 KiB and execution bounded. Errors are reason-only;
+raw stderr and provider payloads are not emitted. The trusted caller still verifies
+the executable and credential custody. This is an optional connected-operation
+dependency, not a Bun/Node/gh requirement for offline Folder generation.
+
+References: [GitHub CLI API](https://cli.github.com/manual/gh_api) and
+[credential/environment behavior](https://cli.github.com/manual/gh_help_environment).
+Existing provider behavior was inspected in `lazurio/core/github-provider-lib.mjs`
+at legacy commit `afa1c19fab473be6ee38094e5db769b6b0722e51` (clean); no legacy source
+was copied or relicensed. The new adapter intentionally exposes a fixed observation,
+not arbitrary provider commands.
+
+Native Mac-host evidence: `gh` 2.97.0 and the new source adapter successfully queried
+the public Platform repository with the existing configured identity and rejected
+an intentionally different expected viewer ID. No identity switch or remote mutation
+was performed. Synthetic compiled transport tests cover fixed argv, filtered host/
+debug/proxy environment, warnings, oversized output and timeout; parser tests cover
+partial/malformed data and identity mismatch. This is not live revocation, private
+Organization authorization, app permission, token-custody qualification, or installed
+Linux/Windows evidence. The lifecycle's production authorization adapter still needs
+the Organization manifest/local-repository binding and operation policy.
+
 ## App runtime declaration
 
 `src/modules/runtime.ts` adds a new TypeScript reader for `lazurio.runtime.v1`,
