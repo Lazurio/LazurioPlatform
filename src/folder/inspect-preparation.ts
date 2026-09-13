@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { withFolderOperationLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
-import { readOwnedStateFile, readStateJson } from "./read-state";
+import {
+  inspectStateLayout,
+  readOwnedStateFile,
+  readStateJson,
+} from "./read-state";
 import { renderInstructions } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { validatePreparation } from "./validate-preparation";
@@ -32,12 +36,7 @@ export async function readPreparedChange(folder: string) {
   const stagedRoot = await inspectOwnedDirectory(transaction);
   if (root.dev !== stateRoot.dev || root.dev !== stagedRoot.dev)
     throw new Error("Cross-filesystem transaction is unsupported");
-  await exactEntries(state, [
-    "preferences.json",
-    "instructions.json",
-    ".operation-lock",
-    "transaction",
-  ]);
+  await inspectStateLayout(state, true);
   await exactEntries(transaction, [
     "before.json",
     "preferences.json",

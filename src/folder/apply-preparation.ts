@@ -1,10 +1,14 @@
 import { constants } from "node:fs";
-import { open, readdir, rename } from "node:fs/promises";
+import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderOperationLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
-import { readOwnedStateFile, readStateJson } from "./read-state";
+import {
+  inspectStateLayout,
+  readOwnedStateFile,
+  readStateJson,
+} from "./read-state";
 import { renderInstructions } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { validatePreparation } from "./validate-preparation";
@@ -57,26 +61,18 @@ export async function applyPreparation(
 
 // Caller holds the common lock. Only a prefix of the fixed replacement order is
 // accepted; each consumed stage must be the recorded inode now at its destination.
-async function inspectProgress(folder: string) {
+async function inspectProgress(folder: string, archivedRevision?: number) {
   const state = join(folder, ".lazurio");
-  const transaction = join(state, "transaction");
+  const transaction =
+    archivedRevision === undefined
+      ? join(state, "transaction")
+      : join(state, "history", `revision-${archivedRevision}`);
   const root = await inspectOwnedDirectory(folder);
   const metadata = await inspectOwnedDirectory(state);
   const stage = await inspectOwnedDirectory(transaction);
   if (root.dev !== metadata.dev || root.dev !== stage.dev)
     throw new Error("Cross-filesystem transaction is unsupported");
-  const entries = await readdir(state);
-  const expected = [
-    "preferences.json",
-    "instructions.json",
-    ".operation-lock",
-    "transaction",
-  ];
-  if (
-    entries.length !== expected.length ||
-    entries.some((n) => !expected.includes(n))
-  )
-    throw new Error("Unrecognized Folder state");
+  await inspectStateLayout(state, archivedRevision === undefined);
   const stagedEntries = await readdir(transaction);
   if (
     !stagedEntries.includes("before.json") ||
@@ -151,6 +147,69 @@ async function inspectProgress(folder: string) {
     }
   }
   return { applied, revision: preferences.revision };
+}
+
+// Explicit close operation: preserve the verified journal by moving it to a
+// revision-keyed archive. Never delete or overwrite an existing history entry.
+export async function finalizePreparation(
+  folder: string,
+  revision: number,
+  checkpoint: (step: "history" | "archived") => Promise<void> = async () => {},
+) {
+  if (!Number.isSafeInteger(revision) || revision < 2)
+    throw new Error("Invalid finalized revision");
+  await inspectOwnedDirectory(folder);
+  const state = join(folder, ".lazurio");
+  const history = join(state, "history");
+  const transaction = join(state, "transaction");
+  const archive = join(history, `revision-${revision}`);
+  return withFolderOperationLock(state, async (assertHeld) => {
+    const pending = await exists(transaction);
+    const verified = await inspectProgress(
+      folder,
+      pending ? undefined : revision,
+    );
+    if (
+      verified.revision !== revision ||
+      verified.applied.length !== names.length
+    )
+      throw new Error("Transaction is not fully applied at requested revision");
+    if (pending) {
+      if (!(await exists(history))) await mkdir(history, { mode: 0o700 });
+      await inspectStateLayout(state, true);
+      await syncDirectory(state);
+      await checkpoint("history");
+      if (await exists(archive))
+        throw new Error("History destination already exists");
+      // Revalidate after the test interruption boundary and immediately before move.
+      const current = await inspectProgress(folder);
+      if (
+        current.revision !== revision ||
+        current.applied.length !== names.length
+      )
+        throw new Error("Transaction changed before finalization");
+      await assertHeld();
+      await rename(transaction, archive);
+      await checkpoint("archived");
+    }
+    await syncDirectory(history);
+    await syncDirectory(state);
+    const final = await inspectProgress(folder, revision);
+    if (final.revision !== revision || final.applied.length !== names.length)
+      throw new Error("Finalized transaction no longer matches active state");
+    await assertHeld();
+    return { kind: "finalized" as const, revision };
+  });
+}
+
+async function exists(path: string) {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 function normalize(name: OutputName, content: string) {

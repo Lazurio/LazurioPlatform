@@ -1,16 +1,14 @@
 import { constants } from "node:fs";
 import { lstat, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { inspectOwnedDirectory } from "./owned-directory";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 
 // Development state layout, inside the same caller-bound stable operation owner.
 // Call under its lock. Unknown entries (including any pending journal) block use.
 // This is not discovery, import, fresh-state initialization or custody proof.
 export async function readFolderState(stateDirectory: string) {
-  const entries = await readdir(stateDirectory);
-  const names = ["preferences.json", "instructions.json", ".operation-lock"];
-  if (entries.some((name) => !names.includes(name)))
-    throw new Error("Unrecognized or pending Folder state");
+  await inspectStateLayout(stateDirectory, false);
   return {
     preferences: parseFolderPreferences(
       await readStateJson(stateDirectory, "preferences.json"),
@@ -19,6 +17,30 @@ export async function readFolderState(stateDirectory: string) {
       await readStateJson(stateDirectory, "instructions.json"),
     ),
   };
+}
+
+// History is retained evidence, never an alternate active-state source. Only its
+// canonical owned directory is inspected; unrelated historical content is not read.
+export async function inspectStateLayout(
+  stateDirectory: string,
+  pending: boolean,
+) {
+  const entries = await readdir(stateDirectory);
+  const names = ["preferences.json", "instructions.json", ".operation-lock"];
+  if (pending) names.push("transaction");
+  if (
+    entries.some((name) => name !== "history" && !names.includes(name)) ||
+    names.some((name) => !entries.includes(name))
+  )
+    throw new Error("Unrecognized or pending Folder state");
+  if (entries.includes("history")) {
+    const root = await inspectOwnedDirectory(stateDirectory);
+    const history = await inspectOwnedDirectory(
+      join(stateDirectory, "history"),
+    );
+    if (root.dev !== history.dev)
+      throw new Error("Cross-filesystem history is unsupported");
+  }
 }
 
 export async function readStateJson(

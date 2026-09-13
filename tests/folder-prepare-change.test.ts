@@ -12,7 +12,10 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyPreparation } from "../src/folder/apply-preparation";
+import {
+  applyPreparation,
+  finalizePreparation,
+} from "../src/folder/apply-preparation";
 import { inspectPreparation } from "../src/folder/inspect-preparation";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
 import { executionOs } from "../src/folder/platform";
@@ -74,6 +77,98 @@ async function fixture() {
     throw error;
   }
 }
+
+for (const stop of [null, "history", "archived"] as const) {
+  test.skipIf(process.platform === "win32")(
+    `finalization ${stop ?? "completes"} retains evidence and permits the next profile change`,
+    async () => {
+      const f = await fixture();
+      try {
+        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        await expect(finalizePreparation(f.folder, 2)).rejects.toThrow(
+          "not fully applied",
+        );
+        await applyPreparation(f.folder);
+        const before = await readFile(
+          join(f.state, "transaction", "before.json"),
+        );
+        const prepared = await readFile(
+          join(f.state, "transaction", "prepared.json"),
+        );
+        if (stop)
+          await expect(
+            finalizePreparation(f.folder, 2, async (step) => {
+              if (step === stop) throw new Error("Interrupted finalization");
+            }),
+          ).rejects.toThrow("Interrupted finalization");
+        expect(await finalizePreparation(f.folder, 2)).toEqual({
+          kind: "finalized",
+          revision: 2,
+        });
+        expect(await finalizePreparation(f.folder, 2)).toEqual({
+          kind: "finalized",
+          revision: 2,
+        });
+        const archive = join(f.state, "history", "revision-2");
+        expect(await readFile(join(archive, "before.json"))).toEqual(before);
+        expect(await readFile(join(archive, "prepared.json"))).toEqual(
+          prepared,
+        );
+        expect((await inspectProfileChange(f.folder, 2, f.profile)).kind).toBe(
+          "profile-change",
+        );
+        await prepareProfileChange(f.folder, 2, f.profile);
+        expect(
+          (await inspectPreparation(f.folder)).plan.preferences.revision,
+        ).toBe(3);
+        await applyPreparation(f.folder);
+        await finalizePreparation(f.folder, 3);
+        expect((await readdir(join(f.state, "history"))).sort()).toEqual([
+          "revision-2",
+          "revision-3",
+        ]);
+        expect(await readFile(join(archive, "before.json"))).toEqual(before);
+        expect(await readFile(join(f.folder, "AGENTS.md"), "utf8")).toBe(
+          f.content,
+        );
+        expect(await readFile(join(f.folder, "own-notes"), "utf8")).toBe(
+          "Preserve user work",
+        );
+        await expect(finalizePreparation(f.folder, 2)).rejects.toThrow();
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+test.skipIf(process.platform === "win32")(
+  "finalization never replaces occupied history",
+  async () => {
+    const f = await fixture();
+    try {
+      await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+      await applyPreparation(f.folder);
+      const history = join(f.state, "history");
+      await mkdir(history, { mode: 0o700 });
+      const occupied = join(history, "revision-2");
+      await mkdir(occupied, { mode: 0o700 });
+      await writeFile(join(occupied, "notes"), "Retained evidence");
+      await expect(finalizePreparation(f.folder, 2)).rejects.toThrow(
+        "already exists",
+      );
+      expect(await readFile(join(occupied, "notes"), "utf8")).toBe(
+        "Retained evidence",
+      );
+      expect((await readdir(join(f.state, "transaction"))).sort()).toEqual([
+        "before.json",
+        "prepared.json",
+      ]);
+    } finally {
+      await rm(f.folder, { recursive: true, force: true });
+    }
+  },
+);
 
 for (const invalid of [
   "partial",

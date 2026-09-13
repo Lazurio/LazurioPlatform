@@ -241,11 +241,24 @@ its earlier sync completed. Tests inject exceptions immediately after rename and
 after sync, resume to revision 2, repeat the operation, and preserve post-interruption
 edits. This is native macOS fixture evidence, not power-loss or cross-OS qualification.
 
-The result explicitly says `applied-journal-retained`: before/after records remain in
-the pending transaction directory, which still blocks ordinary profile operations.
-Journal retirement, incomplete-preparation repair and verified stale-lock reclamation
-remain missing before this is a usable persistent profile workflow. No CLI write
-command, real Folder activation, fresh initialization or migration is introduced.
+The apply result explicitly says `applied-journal-retained`: before/after records
+remain in the pending transaction directory, blocking ordinary profile operations.
+The separate development `finalizePreparation` operation verifies all three active
+files against that completed transaction under the same lock, then archives the
+journal at `.lazurio/history/revision-<nextRevision>`. The history directory is local,
+canonical, owner-controlled and on the same filesystem; it is retained evidence,
+not a second active-state source. No history is pruned or overwritten. An occupied
+destination blocks finalization, including an empty directory or a link.
+
+After archive rename, ordinary profile operations can proceed. A retry of finalization
+validates the archived journal against the current exact active files and requested
+revision and repeats directory syncs; it cannot finalize an older revision over a newer
+one. Tests interrupt before and after archive rename, retry, and complete a second
+profile change while retaining the first journal unchanged. The archive move closes
+this bounded existing-file transaction, not the installed consumer acceptance gate.
+Incomplete-preparation repair and verified stale-lock reclamation remain missing.
+No CLI write command, real Folder activation, fresh initialization or migration is
+introduced. Archive retention/size management still needs an explicit policy.
 
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
