@@ -1,4 +1,4 @@
-export {};
+import { type MessageKey, messages } from "./messages";
 
 const token = location.hash.slice(1);
 history.replaceState(null, "", location.pathname);
@@ -10,6 +10,7 @@ const result = document.querySelector<HTMLPreElement>("#result");
 if (!form || !choices || !apply || !status || !result)
   throw new Error("Missing UI");
 const controls = { form, choices, apply, status, result };
+let copy = messages("en");
 let current: { revision: number; profile: Record<string, string> };
 let pending: {
   expectedRevision: number;
@@ -27,17 +28,26 @@ async function request(path: string, body: unknown) {
   });
   const value = await response.json();
   controls.result.textContent = JSON.stringify(value, null, 2);
-  if (!response.ok)
-    throw new Error("Operation refused; reload state or use CLI recovery.");
+  if (!response.ok) throw new Error(copy.refused);
   return value;
 }
 async function load() {
   current = await request("/api/profile", {});
+  copy = messages(current.profile.locale);
+  document.documentElement.lang = current.profile.locale === "cs" ? "cs" : "en";
+  document.title = copy.title;
+  for (const element of document.querySelectorAll<HTMLElement>(
+    "[data-message]",
+  )) {
+    const key = element.dataset.message;
+    if (key && Object.hasOwn(copy, key))
+      element.textContent = copy[key as MessageKey];
+  }
   for (const [key, value] of Object.entries(current.profile)) {
     const control = controls.form.elements.namedItem(key);
     if (control instanceof HTMLSelectElement) control.value = value;
   }
-  controls.status.textContent = `Revision ${current.revision} · ${current.profile.os}`;
+  controls.status.textContent = `${copy.revision} ${current.revision} · ${current.profile.os}`;
   controls.choices.disabled = false;
 }
 controls.form.addEventListener("change", () => {
@@ -51,8 +61,7 @@ document.querySelector("#reload")?.addEventListener("click", async () => {
   try {
     await load();
   } catch {
-    controls.status.textContent =
-      "Cannot reload profile; CLI recovery may be required.";
+    controls.status.textContent = copy.reloadFailed;
   } finally {
     controls.choices.disabled = false;
   }
@@ -75,9 +84,9 @@ controls.form.addEventListener("submit", async (event) => {
       pending = candidate;
       controls.apply.disabled = false;
     }
-    controls.status.textContent = "Preview complete. No changes applied.";
-  } catch (error) {
-    controls.status.textContent = String(error);
+    controls.status.textContent = copy.previewComplete;
+  } catch {
+    controls.status.textContent = copy.refused;
   } finally {
     controls.choices.disabled = false;
   }
@@ -91,13 +100,12 @@ controls.apply.addEventListener("click", async () => {
   try {
     await request("/api/update", candidate);
     await load();
-  } catch (error) {
-    controls.status.textContent = String(error);
+  } catch {
+    controls.status.textContent = copy.refused;
   } finally {
     controls.choices.disabled = false;
   }
 });
 load().catch(() => {
-  controls.status.textContent =
-    "Cannot read profile. Open the session link from CLI; pending state may require CLI recovery.";
+  controls.status.textContent = copy.loadFailed;
 });

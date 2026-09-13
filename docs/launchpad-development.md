@@ -20,6 +20,12 @@ The browser does not write files independently. Errors retain local evidence and
 may require the explicit CLI recovery operations. User output is rendered as text,
 not HTML. The core currently blocks nonempty custom instruction composition.
 
+The persisted profile locale selects Czech or English labels, option text, status
+messages, document title and document language. Preview does not activate a language
+change; the UI changes language only after the new state is loaded. Stable enum
+values, JSON diagnostic keys, Folder paths and user content are not translated.
+Before state is available the loading/error shell defaults to English.
+
 On 2026-09-13, real in-app browser interaction against a new temporary macOS fixture
 loaded revision 1, selected Czech instructions, previewed without writing, applied
 the selection and displayed revision 2 with apply disabled again. HTTP tests compare
@@ -34,8 +40,14 @@ for that concrete local journey, not all concurrency or restart scenarios. The f
 host check passed 104 tests / 808 assertions; independent development review found
 no unresolved findings in this scope.
 
+The localized compiled panel was also exercised in the browser: English revision 3
+remained English through a Czech preview, confirmation produced Czech revision 4;
+changing another choice disabled the pending apply action, and a new preview plus
+confirmation returned to English at revision 5. This is a manual native macOS
+browser observation, not an automated multi-browser or three-OS localization gate.
+
 This is an initial functional profile panel, not the completed Launchpad consumer.
-UI localization (currently English), visual/accessibility qualification, repeatable
+Visual/accessibility qualification, repeatable
 browser automation, remote-human access, restart/session behavior and installed
 native three-OS acceptance remain open. Module discovery/start/status/stop must still
 use the reviewed manifest and existing lifecycle owner; this panel implements none

@@ -3,19 +3,19 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio — Profile</title></head>
 <body>
 <main>
-<h1>Lazurio — Profile</h1>
-<p id="notice">Development fixture only. No software installation or migration.</p>
+<h1 data-message="title">Lazurio — Profile</h1>
+<p id="notice" data-message="notice">Development fixture only. No software installation or migration.</p>
 <form id="profile">
 <fieldset disabled id="choices">
-<legend id="legend">Machine profile</legend>
-<p><label>Access <select name="access"><option value="local">Local</option><option value="remote">Remote</option></select></label></p>
-<p><label>Purpose <select name="purpose"><option value="human">Human</option><option value="buddy">Buddy</option><option value="ai_colleague">AI colleague</option></select></label></p>
-<p><label>Language <select name="locale"><option value="en">English</option><option value="cs">Čeština</option></select></label></p>
-<p><label>Detail <select name="detail"><option value="concise">Concise</option><option value="technical">Technical</option></select></label></p>
-<p><label>Coordination <select name="coordination"><option value="direct">Direct</option><option value="coordinator">Coordinator</option></select></label></p>
-<button type="submit">Preview</button>
-<button type="button" id="reload">Reload profile</button>
-<button type="button" id="apply" disabled>Apply previewed change</button>
+<legend id="legend" data-message="legend">Machine profile</legend>
+<p><label><span data-message="access">Access</span> <select name="access"><option value="local" data-message="local">Local</option><option value="remote" data-message="remote">Remote</option></select></label></p>
+<p><label><span data-message="purpose">Purpose</span> <select name="purpose"><option value="human" data-message="human">Human</option><option value="buddy" data-message="buddy">Buddy</option><option value="ai_colleague" data-message="ai_colleague">AI colleague</option></select></label></p>
+<p><label><span data-message="locale">Language</span> <select name="locale"><option value="en">English</option><option value="cs">Čeština</option></select></label></p>
+<p><label><span data-message="detail">Detail</span> <select name="detail"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></label></p>
+<p><label><span data-message="coordination">Coordination</span> <select name="coordination"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></label></p>
+<button type="submit" data-message="preview">Preview</button>
+<button type="button" id="reload" data-message="reload">Reload profile</button>
+<button type="button" id="apply" data-message="apply" disabled>Apply previewed change</button>
 </fieldset>
 </form>
 <p id="status" role="status">Loading…</p>
