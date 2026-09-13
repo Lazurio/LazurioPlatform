@@ -34,6 +34,53 @@ stop-owned-tree, wrong identity, invalid manifest, occupied port and failed star
 through CLI and Launchpad. Local-founder binding still requires the F6 amendment.
 No running legacy Server or real module was contacted or started in this step.
 
+## Shared application lifecycle — development integration boundary
+
+`createApplicationLifecycle` composes the module reader, guarded launch, listener
+observation and owned stop into one in-memory owner. It is intended to be instantiated
+once by the existing local server, shared by CLI and Launchpad requests; it is not
+yet wired into either transport. Do not construct an owner per CLI invocation or
+alongside the legacy supervisor for the same Environment. No locator, persistent
+PID database, module catalog or permission store is introduced.
+
+Every operation requires a trusted authorization adapter bound to the actual selected
+company/module/package and operation; failure denies the request. The adapter supplies
+the canonical module directory only after verifying the existing authority/custody
+contract. This interface is not itself a GitHub probe or implementation of the pending
+owner-local project model. The production adapter must perform those real checks.
+The separate trusted toolchain adapter must honor the declared development script,
+license/dependency/required-slot readiness and explicit environment policy. Neither
+adapter is accepted from HTTP/CLI JSON or inferred from a path/profile label.
+
+Start reads and validates the selected declaration, prepares an explicit launch,
+serializes competing starts, refuses this owner's already claimed port or any observed
+external binding, then rechecks authorization and declaration before spawn. Runtime
+plans retain the selected script's digest; the filesystem reader additionally binds
+the full decoded module/package declarations, including pre/post hooks, package
+manager and dependencies. Revalidation therefore detects changed executable hooks,
+not only a changed main command. Digests are local change detectors, not publisher
+proof, and status returns neither command text nor these fingerprints.
+Filesystem checks still assume stable cooperative
+custody; they are not an atomic read-to-exec or cross-file transaction.
+
+`started` means the guard reported a launcher, not readiness. Status observes each
+declared listener through the retained handle; the aggregate is an instantaneous
+observation, not atomic multi-listener evidence. A port race after inspection can
+still cause a failed app start; no foreign process is adopted or signaled. Duplicate
+start is `already-managed`, not a replacement/restart. Changed authorization scope
+cannot control an old run. Stop removes an entry only after confirmed group cleanup;
+incomplete cleanup retains it and blocks reuse. Owner shutdown closes new starts and
+drains only retained groups, without needing new provider rights to clean up its own
+resources. It cannot recover escaped descendants or adopt runs after owner death.
+
+Native Mac-host synthetic tests run a declared package script with an explicit fixture
+Bun toolchain and a compiled actual CLI guard. They cover concurrent duplicate start,
+healthy status, denied/wrong identity, access revocation, occupied foreign port,
+changed script/hook, failed executable, changed scope and owned shutdown. Authorization
+is deliberately an invented test adapter, not live provider evidence. Real discovery,
+server locator/transport integration, toolchain policy, Linux/Windows lifecycle
+qualification and installed CLI/Launchpad acceptance remain incomplete.
+
 ## App runtime declaration
 
 `src/modules/runtime.ts` adds a new TypeScript reader for `lazurio.runtime.v1`,

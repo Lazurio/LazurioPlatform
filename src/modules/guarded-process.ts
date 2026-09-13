@@ -154,6 +154,7 @@ export async function startGuardedProcess(
         appExitCode: appExited,
         guardExitCode: guard.exitCode,
         stopped,
+        stopRequested,
       }),
     // One bounded observation tied to this retained launch handle, never an
     // imported PID. Not authorization or a continuous readiness guarantee.

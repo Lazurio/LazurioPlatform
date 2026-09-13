@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   array,
   object,
@@ -169,6 +170,7 @@ export function planModuleRuntime(
   return Object.freeze({
     kind: "declared-runtime-plan" as const,
     package: packagePath,
+    scriptDigest: createHash("sha256").update(script.value).digest("hex"),
     runtime,
     listeners: Object.freeze(listeners),
   });

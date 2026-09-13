@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -94,5 +95,12 @@ export async function readModuleApplication(
   const after = await inspectOwnedDirectory(moduleDirectory);
   if (after.dev !== root.dev || after.ino !== root.ino)
     throw new Error("Module directory changed");
-  return plan;
+  return Object.freeze({
+    ...plan,
+    // Include package hooks/toolchain/dependencies, not only the selected script.
+    // This is a local change detector, never a publisher or authority proof.
+    declarationDigest: createHash("sha256")
+      .update(JSON.stringify({ manifest, pkg }))
+      .digest("hex"),
+  });
 }
