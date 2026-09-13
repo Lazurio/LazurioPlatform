@@ -32,6 +32,8 @@ export async function validatePreparation(
     "preferences",
     "manifest",
     "outputIdentity",
+    "preferencesIdentity",
+    "manifestIdentity",
   ]);
   const marker = stateFields(markerInput, [
     "schemaVersion",
@@ -39,8 +41,12 @@ export async function validatePreparation(
     "nextRevision",
     "outputIdentity",
     "outputDigest",
+    "preferences",
+    "manifest",
+    "preferencesIdentity",
+    "manifestIdentity",
   ]);
-  if (before.schemaVersion !== 1 || marker.schemaVersion !== 1)
+  if (before.schemaVersion !== 2 || marker.schemaVersion !== 2)
     throw new Error("Unsupported transaction schema");
   const previousPreferences = parseFolderPreferences(before.preferences);
   const previousManifest = parseInstructionManifest(before.manifest);
@@ -53,6 +59,10 @@ export async function validatePreparation(
     throw new Error("Transaction revision mismatch");
   const previousIdentity = identity(before.outputIdentity);
   const stagedIdentity = identity(marker.outputIdentity);
+  const previousPreferencesIdentity = identity(before.preferencesIdentity);
+  const previousManifestIdentity = identity(before.manifestIdentity);
+  const stagedPreferencesIdentity = identity(marker.preferencesIdentity);
+  const stagedManifestIdentity = identity(marker.manifestIdentity);
   const plan = await planProfileChange(
     previousPreferences,
     previousManifest,
@@ -64,6 +74,10 @@ export async function validatePreparation(
     plan.kind !== "profile-change" ||
     JSON.stringify(plan.preferences) !== JSON.stringify(preferences) ||
     JSON.stringify(plan.manifest) !== JSON.stringify(manifest) ||
+    JSON.stringify(parseFolderPreferences(marker.preferences)) !==
+      JSON.stringify(preferences) ||
+    JSON.stringify(parseInstructionManifest(marker.manifest)) !==
+      JSON.stringify(manifest) ||
     marker.outputDigest !== plan.desired.digest ||
     stagedContent !== plan.desired.content
   )
@@ -74,5 +88,9 @@ export async function validatePreparation(
     previousManifest,
     previousIdentity,
     stagedIdentity,
+    previousPreferencesIdentity,
+    previousManifestIdentity,
+    stagedPreferencesIdentity,
+    stagedManifestIdentity,
   };
 }

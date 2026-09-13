@@ -46,18 +46,28 @@ export async function readPreparedChange(folder: string) {
     "prepared.json",
   ]);
   const staged = await readOwnedStateFile(transaction, "AGENTS.md");
+  const stagedPreferences = await readOwnedStateFile(
+    transaction,
+    "preferences.json",
+  );
+  const stagedManifest = await readOwnedStateFile(
+    transaction,
+    "instructions.json",
+  );
   const validated = await validatePreparation(
     await readStateJson(transaction, "before.json"),
-    await readStateJson(transaction, "preferences.json"),
-    await readStateJson(transaction, "instructions.json"),
+    JSON.parse(stagedPreferences.content),
+    JSON.parse(stagedManifest.content),
     await readStateJson(transaction, "prepared.json"),
     staged.content,
   );
+  const preferencesFile = await readOwnedStateFile(state, "preferences.json");
+  const manifestFile = await readOwnedStateFile(state, "instructions.json");
   const currentPreferences = parseFolderPreferences(
-    await readStateJson(state, "preferences.json"),
+    JSON.parse(preferencesFile.content),
   );
   const currentManifest = parseInstructionManifest(
-    await readStateJson(state, "instructions.json"),
+    JSON.parse(manifestFile.content),
   );
   const current = await readOwnedStateFile(folder, "AGENTS.md");
   if (
@@ -70,7 +80,16 @@ export async function readPreparedChange(folder: string) {
       renderInstructions(validated.previousPreferences.profile) ||
     JSON.stringify(current.identity) !==
       JSON.stringify(validated.previousIdentity) ||
-    JSON.stringify(staged.identity) !== JSON.stringify(validated.stagedIdentity)
+    JSON.stringify(staged.identity) !==
+      JSON.stringify(validated.stagedIdentity) ||
+    JSON.stringify(preferencesFile.identity) !==
+      JSON.stringify(validated.previousPreferencesIdentity) ||
+    JSON.stringify(manifestFile.identity) !==
+      JSON.stringify(validated.previousManifestIdentity) ||
+    JSON.stringify(stagedPreferences.identity) !==
+      JSON.stringify(validated.stagedPreferencesIdentity) ||
+    JSON.stringify(stagedManifest.identity) !==
+      JSON.stringify(validated.stagedManifestIdentity)
   )
     throw new Error("Prepared transaction no longer matches owned state");
   return validated;

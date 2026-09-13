@@ -6,7 +6,7 @@ import { inspectInstructions } from "./inventory";
 import { withFolderOperationLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
-import { readFolderState } from "./read-state";
+import { readFolderState, readOwnedStateFile } from "./read-state";
 
 export type PreparationStep =
   | "directory"
@@ -43,6 +43,14 @@ export async function prepareProfileChange(
     );
     if (plan.kind !== "profile-change") return plan;
     const before = await lstat(join(folder, "AGENTS.md"));
+    const previousPreferences = await readOwnedStateFile(
+      stateDirectory,
+      "preferences.json",
+    );
+    const previousManifest = await readOwnedStateFile(
+      stateDirectory,
+      "instructions.json",
+    );
     const directory = join(stateDirectory, "transaction");
     await assertHeld();
     await mkdir(directory, { mode: 0o700 }); // Exclusive; never adopt an existing directory.
@@ -51,18 +59,20 @@ export async function prepareProfileChange(
     await writeNew(
       join(directory, "before.json"),
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         ...state,
         outputIdentity: { dev: String(before.dev), ino: String(before.ino) },
+        preferencesIdentity: previousPreferences.identity,
+        manifestIdentity: previousManifest.identity,
       }),
     );
     await checkpoint("before");
-    await writeNew(
+    const stagedPreferences = await writeNew(
       join(directory, "preferences.json"),
       JSON.stringify(plan.preferences),
     );
     await checkpoint("preferences");
-    await writeNew(
+    const stagedManifest = await writeNew(
       join(directory, "instructions.json"),
       JSON.stringify(plan.manifest),
     );
@@ -89,11 +99,21 @@ export async function prepareProfileChange(
     await writeNew(
       join(directory, "prepared.json"),
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         expectedRevision,
         nextRevision: plan.preferences.revision,
         outputIdentity: { dev: String(staged.dev), ino: String(staged.ino) },
         outputDigest: plan.desired.digest,
+        preferences: plan.preferences,
+        manifest: plan.manifest,
+        preferencesIdentity: {
+          dev: String(stagedPreferences.dev),
+          ino: String(stagedPreferences.ino),
+        },
+        manifestIdentity: {
+          dev: String(stagedManifest.dev),
+          ino: String(stagedManifest.ino),
+        },
       }),
     );
     await syncDirectory(directory);

@@ -218,6 +218,17 @@ internal `readPreparedChange` entry is for a writer already holding the same loc
 which must retain the lock and revalidate immediately before any mutation. These are
 native macOS fixture observations, not general hostile-filesystem or cross-OS proof.
 
+The development journal now uses version 2 for `before.json` and `prepared.json`
+(preferences and manifest schemas remain version 1). The marker retains the complete
+proposed preference/manifest snapshots independently of the staged files, plus their
+file identities; the before record retains corresponding original identities. This
+keeps recovery inputs available when a later activation consumes staged files through
+rename. Pre-activation inspection verifies all three original and staged identities,
+not just `AGENTS.md`; identical-byte metadata replacement is refused. Older development
+journals are rejected and retained, not silently upgraded or deleted. No installed
+format migration is implemented or authorized here. Snapshot retention prepares for,
+but does not itself implement, partially applied transaction recovery.
+
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
 revision, matching current preference/manifest revision and current-template output

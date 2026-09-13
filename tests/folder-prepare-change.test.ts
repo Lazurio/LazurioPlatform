@@ -204,7 +204,7 @@ for (const stop of [
           ).rejects.toThrow("identity");
           await expect(
             validatePreparation(
-              { ...before, schemaVersion: 2 },
+              { ...before, schemaVersion: 3 },
               preferences,
               manifest,
               marker,
@@ -276,6 +276,34 @@ test.skipIf(process.platform === "win32")(
 );
 
 for (const target of ["active", "staged"] as const) {
+  for (const name of ["preferences.json", "instructions.json"] as const) {
+    test.skipIf(process.platform === "win32")(
+      `prepared inspection rejects replacement of ${target} ${name}`,
+      async () => {
+        const f = await fixture();
+        try {
+          await prepareProfileChange(f.folder, 1, {
+            ...f.profile,
+            locale: "cs",
+          });
+          const path =
+            target === "active"
+              ? join(f.state, name)
+              : join(f.state, "transaction", name);
+          const bytes = await readFile(path);
+          const replacement = join(f.folder, "replacement");
+          await writeFile(replacement, bytes, { mode: 0o600 });
+          await rename(replacement, path);
+          await expect(inspectPreparation(f.folder)).rejects.toThrow(
+            "no longer matches",
+          );
+          expect(await readFile(path)).toEqual(bytes);
+        } finally {
+          await rm(f.folder, { recursive: true, force: true });
+        }
+      },
+    );
+  }
   test.skipIf(process.platform === "win32")(
     `prepared inspection rejects in-place BOM edit of ${target} instructions`,
     async () => {
