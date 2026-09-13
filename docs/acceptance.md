@@ -11,13 +11,21 @@ the other slices are complete.
 | Slice | Prerequisite | Smallest real consumer and exit criterion |
 | --- | --- | --- |
 | 0 — Foundation review | Product intent and repository routing | Public architecture, explicit decision amendments, stack comparison, working standalone proof, independent review |
-| 1 — Distribution | Accepted stack and release trust/layout decisions | Clean machine runs full installed CLI + Launchpad without source; signed/tampered/offline artifact cases and artifact secret scan |
+| 1a — Distribution decisions | Reviewed foundation and accepted stack | Distribution owner proposes and obtains acceptance of concrete bootstrap trust, hosting, signing/rotation, channel authorization, retention, platform support and installer layout contracts; record signed/tampered/offline behavior and test strategy |
+| 1b — Distribution implementation | Accepted slice 1a contracts | Clean machine runs full installed CLI + Launchpad without source; signed/tampered/offline artifact cases and artifact secret scan |
 | 2 — Environment generation | Slice 1 and ownership/schema contract | Folder Factory produces only owned Lazurio Folder files through the shared CLI/Launchpad core; the shared core applies locally through CLI or Launchpad, starts full app; unknown/edited paths preserved; rollback drill |
 | 3 — Profile capability | Slice 2 and accepted behavior schema | CLI and Launchpad use the same profile use case; deterministic generation, stale revision refusal, session pin/restart and upgrade preservation |
 | 4 — Environment purposes | Slices 2–3 and hosting amendment | Dedicated human/Buddy/AI Colleague acceptance with correct Principal, Owner, custody and unavailable-capability behavior |
 | 5 — Migration rehearsal | Relevant slices 1–4, legacy compatibility and restore mapping | Faithful dirty legacy source-working fixtures plus shared-workshop transition prove preservation, interrupted recovery and no-op unknown state |
 | 6 — Opt-in cohorts | Qualified consumer slices; rehearsal and explicit migration approval for migrating cohorts | Small native cohort on each supported OS, user completion evidence, observation and recovery; halt on data loss/identity ambiguity |
 | 7 — General availability and retirement | Successful cohorts, public release approval | Published support matrix and release provenance; legacy install/update paths retired by declared criteria, backups retained by policy |
+
+Slice 1 includes decision work, not only coding. The foundation does not claim those
+mechanisms are already selected. Acceptance of this foundation permits developing
+the concrete distribution proposal, not shipping an installer with invented trust
+roots. Slice 1 is complete only when both 1a and 1b pass; the owning distribution
+plan must record that ordering before implementation starts. Build/proof experiments
+without installation remain useful evidence but do not bypass 1a.
 
 Fresh local cohorts qualify distribution, generation, profile and local-founder behavior;
 they do not wait for unrelated hosted/shared-workshop migration. Existing-environment migration

@@ -11,5 +11,5 @@
     ]
   },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
-  "linter": { "enabled": true, "rules": { "preset": "none" } }
+  "linter": { "enabled": true, "rules": { "preset": "recommended" } }
 }
