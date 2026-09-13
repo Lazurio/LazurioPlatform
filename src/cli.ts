@@ -8,6 +8,7 @@ import { previewFolder } from "./folder/preview";
 import { parseFolderProfile } from "./folder/profile";
 import { resumeInitialization } from "./folder/resume-initialization";
 import { resumeProfileUpdate, updateProfile } from "./folder/update-profile";
+import { startLaunchpad } from "./launchpad/server";
 
 // Development CLI entrypoint. No installer or implicit folder discovery.
 export async function runCli(args: string[]): Promise<number> {
@@ -44,6 +45,9 @@ folder-resume --folder <fixture> explicitly completes a recognized initializatio
 It accepts no other options, never overwrites edits and cannot reclaim stale locks.
 Missing/damaged journals and partial file writes require separate repair.
 Never use a daily working path. It does not install software or migrate existing data.
+launchpad --folder <initialized fixture> starts the local development profile panel.
+Open its private session URL from this terminal; do not share the URL/token.
+The panel uses the same preview/update core, not a separate writer or full app launcher.
 Native Windows filesystem inspection is not yet qualified.`);
     return 0;
   }
@@ -77,12 +81,27 @@ Native Windows filesystem inspection is not yet qualified.`);
       "folder-preview",
       "folder-init",
       "folder-resume",
+      "launchpad",
       "profile-preview",
       "profile-update",
       "profile-resume",
     ].includes(positionals[0] ?? "")
   )
     throw new Error("Expected Folder command");
+  if (positionals[0] === "launchpad") {
+    if (!values.folder || Object.keys(values).some((name) => name !== "folder"))
+      throw new Error("Explicit Launchpad fixture required");
+    const { server, url } = await startLaunchpad(values.folder);
+    console.log(
+      JSON.stringify({ url, scope: "local-development-profile-panel" }),
+    );
+    for (const signal of ["SIGINT", "SIGTERM"] as const)
+      process.once(signal, () => {
+        server.stop(true);
+        process.exit(0);
+      });
+    return 0;
+  }
   if (positionals[0] === "folder-resume") {
     if (!values.folder || Object.keys(values).some((name) => name !== "folder"))
       throw new Error("Explicit initialization recovery folder required");
