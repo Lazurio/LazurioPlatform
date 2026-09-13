@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { planProfileChange } from "./change-profile";
 import { inspectInstructions } from "./inventory";
 import { withFolderOperationLock } from "./lock";
@@ -31,5 +32,3 @@ export async function inspectProfileChange(
     return result;
   });
 }
-
-import { join } from "node:path";

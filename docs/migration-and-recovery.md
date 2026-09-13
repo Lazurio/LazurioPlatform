@@ -173,6 +173,31 @@ replacement, and not evidence for Windows/network filesystems or durable transac
 
 ## Product upgrade and profile rollback
 
+### Development preparation writer
+
+`prepareProfileChange` recomputes the profile-change plan under the same Folder
+operation lock, then exclusively creates `.lazurio/transaction`. It writes a before
+snapshot, proposed preferences/manifest and staged `AGENTS.md` using exclusive file
+creation and file sync. A final `prepared.json` marker records expected/next revisions
+and the staged file identity/digest after rechecking active instruction bytes and
+identity. Directory sync is requested as well. All stage paths are fixed and bounded;
+Organization/Personalspace and active preferences/instructions are not written.
+
+This is preparation only, not activation or completed recovery. The marker is not
+proof of application or a reusable authorization token. Incomplete preparation is
+retained, including an empty transaction directory, and blocks subsequent ordinary
+inspection/preparation. Never remove it by age or assume that an exception means no
+staging happened. An unchanged/stale request creates no transaction. No CLI command
+currently exposes preparation; tests use only newly created synthetic fixtures.
+
+Current native macOS tests inject exceptions after each preparation checkpoint and
+verify exact active-state preservation and retained evidence. They do not prove power-
+loss durability, Windows/Linux writer qualification or successful forward recovery.
+The activation/recovery consumer must validate staged schemas, bytes, file identities,
+current revisions and unchanged active state under the lock before applying anything.
+The bounded journal format remains development-only until that consumer is implemented
+and its crash/recovery tests pass. Fresh Folder initialization is a separate missing path.
+
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
 revision, matching current preference/manifest revision and current-template output
