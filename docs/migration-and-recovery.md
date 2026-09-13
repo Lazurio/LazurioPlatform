@@ -183,6 +183,19 @@ software nor grants access. The future writer must obtain trusted state under th
 shared lock and revalidate before applying; a returned plan is not an authorization
 or durable transaction. CLI/UI transport and persistence are still required consumers.
 
+The development `inspectProfileChange` adapter now binds this planner to an explicit
+owned fixture and state directory under the shared lock. Its state reader uses
+`preferences.json` and `instructions.json` in that directory; this is not selection
+of an installed state location. The caller must establish the Folder-to-state-owner
+binding, never treat arbitrary imported JSON as that proof. The reader rejects
+nonregular/linked/shared-writable files, changed read snapshots, malformed UTF-8/JSON
+and unknown entries that could represent pending transaction recovery. Each JSON
+document is bounded to 16 MiB by the development decoder, not a published custom-profile
+size promise. A missing file is an error, not permission to initialize fresh state.
+Only the ephemeral lock is created/removed; source, manifest, instructions and user
+files remain unchanged. Actual persistence, journal recovery and installed CLI/UI
+integration are not supplied by this read-only adapter.
+
 The release declares supported preferences and generated-manifest versions. Backward
 read compatibility is checked before stage; write compatibility and rollback support
 are checked before activation. Keep the original preference snapshot and exact prior
