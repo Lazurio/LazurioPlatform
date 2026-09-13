@@ -438,3 +438,28 @@ serialized bytes and behavior. This is bounded compatibility evidence, not compl
 projection/normalization parity. Schema validation, projection construction, conflict
 resolution and lifecycle authorization remain incomplete. A matching content hash is
 neither a publisher signature nor a grant of access.
+
+### Canonical Organization schema reader
+
+`parseCanonicalOrganization` validates the existing `lazurio.organization.v1`
+wire fields and binding invariants, returning a separate frozen data snapshot.
+Organization metadata, legacy extensions and optional governance/team/layer/task-source/
+Doctor data remain intact. Reserved-field collisions, unknown structural fields,
+wrong identity types, mixed binding states, mismatched owners, unsupported governance,
+bad projection pointers/digest syntax and invalid port pools are refused.
+
+The existing runtime compatibility check additionally requires a verified root to be
+`<owner>/<owner>_GEN3` on `main`; that rule was verified in
+`organization-scaffold-lib.mjs#validForgeBinding` at the pinned legacy commit. It is
+not generalized to unverified declarations. Unverified absent/null roots remain
+representable, without adopting the still-pending owner-local project contract.
+Team fields follow the published schema, including optional exact team forge binding;
+the older runtime's shape check only verifies that teams is an array. Malformed team
+entries accepted by that weaker runtime are intentionally not silently adopted.
+
+Tests cover frozen-copy preservation, unverified optional roots and 44 malformed or
+conflicting variants. This parser verifies declaration shape and cross-field rules,
+not the correctness of the declared projection hash, agreement with modules inventory,
+legacy semantic equivalence, provider facts or operation permission. Those remain
+separate steps before a lifecycle consumer can use the Organization. No document is
+written, migrated, renamed or used to activate a real installation.
