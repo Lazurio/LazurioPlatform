@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   realpath,
   rm,
   symlink,
@@ -70,6 +71,87 @@ test.skipIf(process.platform === "win32")(
         await previewFolder(profile, null, async () => ({ kind: "absent" })),
       );
       expect(await readdir(directory)).toEqual([]);
+      const initial = await previewFolder(profile, null, async () => ({
+        kind: "absent",
+      }));
+      const state = join(directory, ".lazurio");
+      await mkdir(state, { mode: 0o700 });
+      await writeFile(join(directory, "AGENTS.md"), initial.desired.content, {
+        mode: 0o600,
+      });
+      await writeFile(
+        join(state, "preferences.json"),
+        JSON.stringify({
+          schemaVersion: 1,
+          revision: 1,
+          profile,
+          customInstructions: "",
+        }),
+        { mode: 0o600 },
+      );
+      await writeFile(
+        join(state, "instructions.json"),
+        JSON.stringify({
+          schemaVersion: 1,
+          preferenceRevision: 1,
+          templateRevision: initial.templateRevision,
+          output: { path: "AGENTS.md", digest: initial.desired.digest },
+        }),
+        { mode: 0o600 },
+      );
+      await writeFile(join(directory, "unrelated"), "Preserve work");
+      const invoke = async (revision: string | null, locale: string) => {
+        const args = [
+          binary,
+          "profile-update",
+          "--folder",
+          directory,
+          "--profile",
+          JSON.stringify({ ...profile, locale }),
+        ];
+        if (revision !== null) args.push("--expected-revision", revision);
+        const process = Bun.spawn(args, {
+          cwd: directory,
+          env: {},
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        const [out, error, exit] = await Promise.all([
+          new Response(process.stdout).text(),
+          new Response(process.stderr).text(),
+          process.exited,
+        ]);
+        return { out, error, exit };
+      };
+      expect((await invoke(null, "cs")).exit).toBe(1);
+      expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
+        initial.desired.content,
+      );
+      const updated = await invoke("1", "cs");
+      expect(updated.exit, updated.error).toBe(0);
+      expect(JSON.parse(updated.out)).toEqual({ kind: "updated", revision: 2 });
+      const stale = await invoke("1", "en");
+      expect(stale.exit).toBe(2);
+      expect(JSON.parse(stale.out)).toEqual({
+        kind: "blocked",
+        reason: "stale-revision",
+      });
+      const unchanged = await invoke("2", "cs");
+      expect(unchanged.exit).toBe(0);
+      expect(JSON.parse(unchanged.out)).toEqual({ kind: "unchanged" });
+      await writeFile(
+        join(directory, "AGENTS.md"),
+        "Preserve manual instruction edit",
+      );
+      expect((await invoke("2", "en")).exit).toBe(2);
+      expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
+        "Preserve manual instruction edit",
+      );
+      expect(await readFile(join(directory, "unrelated"), "utf8")).toBe(
+        "Preserve work",
+      );
+      expect(await readdir(join(state, "history"))).toEqual(["revision-2"]);
+      expect(await readdir(state)).not.toContain("transaction");
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

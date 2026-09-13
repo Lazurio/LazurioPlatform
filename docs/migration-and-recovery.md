@@ -187,8 +187,9 @@ This is preparation only, not activation or completed recovery. The marker is no
 proof of application or a reusable authorization token. Incomplete preparation is
 retained, including an empty transaction directory, and blocks subsequent ordinary
 inspection/preparation. Never remove it by age or assume that an exception means no
-staging happened. An unchanged/stale request creates no transaction. No CLI command
-currently exposes preparation; tests use only newly created synthetic fixtures.
+staging happened. An unchanged/stale request creates no transaction. The development
+CLI exposes the complete shared update, not a standalone preparation verb; tests use
+only newly created synthetic fixtures.
 
 Current native macOS tests inject exceptions after each preparation checkpoint and
 verify exact active-state preservation and retained evidence. They do not prove power-
@@ -257,8 +258,8 @@ one. Tests interrupt before and after archive rename, retry, and complete a seco
 profile change while retaining the first journal unchanged. The archive move closes
 this bounded existing-file transaction, not the installed consumer acceptance gate.
 Incomplete-preparation repair and verified stale-lock reclamation remain missing.
-No CLI write command, real Folder activation, fresh initialization or migration is
-introduced. Archive retention/size management still needs an explicit policy.
+This mechanism does not provide real Folder activation, fresh initialization or
+migration acceptance. Archive retention/size management still needs an explicit policy.
 
 The development `retireIncompletePreparation` operation handles a narrower, explicit
 repair case: a valid before snapshot and a recognized prefix of staging files, with

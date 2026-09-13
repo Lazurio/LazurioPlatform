@@ -171,6 +171,25 @@ Parser references verified for the regression fix: [Bun Transpiler scan](https:/
 
 ## Native profile transaction fixture smoke
 
+### Development CLI update consumer
+
+`profile-update` takes the same explicit canonical `--folder`, profile choices and
+`--expected-revision` as `profile-preview`, but **writes** via the shared `updateProfile`
+operation. Preview does not mutate profile state. Update holds one operation lock
+through preparation, application and finalization; stale revisions/drift are blocked,
+and pending transactions require explicit recovery rather than automatic adoption.
+There is no implicit discovery, initialization, migration or installed release here.
+Use newly created synthetic fixtures only, not an active daily Lazurio Folder.
+
+The compiled CLI test now covers successful revision 1→2, stale revision refusal,
+unchanged selection, missing expected revision and preservation of edited instructions
+and unrelated files, with an empty child environment. Exit 0 means completed/unchanged
+or preview success, 2 means a blocked plan, and 1 means failure that may require recovery.
+Errors do not expose raw paths or profile content. The command is a development API;
+headless recovery commands, real Launchpad integration and installed acceptance remain
+unfinished. The native Linux fixture evidence below predates this CLI update entrypoint
+and does not qualify that command on Linux or Windows.
+
 `scripts/smoke-profile-transaction.ts` is an independently reviewed fixture runner,
 not the installed CLI. It accepts no paths or arguments and creates/removes only its
 own temporary data. Compile with the pinned Bun 1.4.2:
