@@ -463,3 +463,28 @@ not the correctness of the declared projection hash, agreement with modules inve
 legacy semantic equivalence, provider facts or operation permission. Those remain
 separate steps before a lifecycle consumer can use the Organization. No document is
 written, migrated, renamed or used to activate a real installation.
+
+### Repository mount diagnostics
+
+`src/organizations/repository-slots.ts` recognizes the existing exact repository
+mount grammar: named root slots, direct workspace/modules/productionspace mounts and
+workspace/modules nested `db` mounts. It preserves case, dots and underscores in the
+physical basename, with the separate declared/default repository slug inspected for
+validity. Paths are never normalized into acceptance. Containers and arbitrary deeper
+descendants are not executable repository mounts, even where the broader Organization
+document scope classifier recognizes their area.
+
+Collection diagnostics identify implicated declaration indices for duplicate paths,
+case collisions, conflicting identities, repeated slugs and missing/exact-case-wrong
+nested-database parents. Unsupported entries remain visible as issues; unrelated
+siblings are retained. Path scope wins over a contradictory `space` label for this
+observation, but that label's semantic validation is still required downstream.
+This is neither a second catalog nor authorization, checkout verification or proof
+that a nested database is an application. Remote aliases, source-of-truth declarations,
+required slots, live rights and the actual module manifest still need evaluation.
+
+Synthetic tests cover 22 accepted/refused path observations and 11 diagnostic cases,
+including unchanged inputs and healthy siblings. A read-only comparison of 14 invented
+paths matched the legacy canonical-mount, scope and nested-database helpers at the
+pinned commit above. No legacy source was copied or introduced as a dependency; the
+public tests are independent fixtures. No real Organization files were enumerated.
