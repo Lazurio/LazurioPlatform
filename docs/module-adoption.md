@@ -33,3 +33,30 @@ runtime-to-lease references; integrate one process/locator owner; prove readines
 stop-owned-tree, wrong identity, invalid manifest, occupied port and failed start
 through CLI and Launchpad. Local-founder binding still requires the F6 amendment.
 No running legacy Server or real module was contacted or started in this step.
+
+## App runtime declaration
+
+`src/modules/runtime.ts` adds a new TypeScript reader for `lazurio.runtime.v1`,
+observed in `lazurio/schemas/lazurio-runtime.schema.json` and
+`lazurio/core/runtime-contract-lib.mjs` at the same legacy commit above (clean files).
+No legacy source is embedded. The pure runtime plan binds an explicitly declared
+package to matching company/module identity, an existing own package script, and
+the module's leases. Host/port values come only from that module, not app overrides.
+
+Exactly one HTTP(S) entrypoint is required. Listener IDs and lease references must
+be unique; missing lease references or contradictory health protocols are refused.
+Optional required module slots and presentation/build metadata are retained without
+claiming their availability. Parsing never runs scripts, resolves plugins or fetches
+production/health URLs. The executor still must verify filesystem containment,
+provider scope, dependency readiness and exclusive ownership before any effect.
+
+Health paths receive an additional safety check beyond the legacy schema's leading
+slash: resolving a path must retain the bound origin. Network-relative URLs,
+backslashes and tab-normalized origin escapes are refused. This is not yet a health
+probe implementation; future HTTP probes must also bound timeouts and redirects.
+Nonempty textual fields additionally reject blank-only or newline/NUL values.
+
+Fixtures verify a valid runtime-to-lease plan, an undeclared package, wrong identity,
+absent/accessor script, duplicate listeners, missing leases, unsafe health paths and
+retained module requirements. These checks prepare the common lifecycle consumer;
+they are not app start/status/stop or installed-product evidence.

@@ -1,6 +1,10 @@
 // New TypeScript reader of the existing lazurio.module.v1 wire contract.
 // Provenance and compatibility boundaries: docs/module-adoption.md.
-function object(input: unknown, required: string[], optional: string[] = []) {
+export function object(
+  input: unknown,
+  required: string[],
+  optional: string[] = [],
+) {
   if (typeof input !== "object" || input === null || Array.isArray(input))
     throw new Error("Invalid module object");
   const result: Record<string, unknown> = Object.create(null);
@@ -17,7 +21,7 @@ function object(input: unknown, required: string[], optional: string[] = []) {
   return result;
 }
 
-function text(input: unknown, pattern: RegExp) {
+export function text(input: unknown, pattern: RegExp) {
   if (
     typeof input !== "string" ||
     /[\r\n\0]/.test(input) ||
@@ -27,7 +31,7 @@ function text(input: unknown, pattern: RegExp) {
   return input;
 }
 
-function array(input: unknown): unknown[] {
+export function array(input: unknown): unknown[] {
   if (
     !Array.isArray(input) ||
     Reflect.ownKeys(input).length !== input.length + 1
