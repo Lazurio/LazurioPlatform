@@ -222,6 +222,21 @@ each recorded initialization checkpoint, interrupted recovery/archive, identical
 foreign output, edits during recovery and the standalone CLI entrypoint. These are
 development fixtures, not process-death lock recovery or installed qualification.
 
+The separate `folder-initialization-crash.test.ts` runs actual child processes that
+exit without unwinding the lock callback at each recorded initialization checkpoint.
+All five cases retain the lock and exact journal bytes; `folder-resume` refuses them
+without deleting evidence. This proves the current refusal boundary, not successful
+process-death recovery. The empty directory lock has no recorded owner, so an operator
+cannot infer safe reclamation from its age or a guessed PID.
+
+Before replacing this adapter, qualify process-bound exclusion and interruption on
+each target OS, including competing recovery attempts and legacy directory-lock
+refusal. Kernel file locks are a candidate: Linux documents their lifetime in
+[flock(2)](https://man7.org/linux/man-pages/man2/flock.2.html). The transport into the
+standalone TypeScript executable remains unresolved; [Bun FFI](https://bun.com/docs/runtime/ffi)
+is explicitly experimental and is not adopted as a production dependency by this
+investigation. Do not add a force-unlock shortcut while that gap remains.
+
 ### Development preparation writer
 
 `prepareProfileChange` recomputes the profile-change plan under the same Folder
