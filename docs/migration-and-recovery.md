@@ -173,6 +173,31 @@ replacement, and not evidence for Windows/network filesystems or durable transac
 
 ## Product upgrade and profile rollback
 
+### Development fresh Folder initialization
+
+`initializeFolder` accepts only an explicit absent canonical path beneath an existing
+caller-owned stable parent. Exclusive directory creation refuses even an empty existing
+destination; this is not adoption or migration. It creates lower-case `organizations`
+and `personalspace` directories, root `AGENTS.md`, and the same `.lazurio` state owner
+used by profile operations. Preferences/manifest use their existing version-1 schemas,
+starting at revision 1 with empty custom source. Execution OS must match the profile.
+
+Under the common lock, `.lazurio/transaction/before.json` contains a version-1
+`fresh-folder-initialization` record with the proposed preferences and manifest. This
+record is deliberately not a version-2 profile-update journal and cannot be consumed
+by profile resume or incomplete-update retirement. All files use exclusive creation
+and file sync; their identities and bytes are checked before moving the retained
+journal to `.lazurio/history/initialization`. Directory syncs follow before success.
+No existing path is overwritten and no failure handler recursively removes data.
+
+Tests create a new temporary Folder, perform a subsequent profile update and inject
+exceptions after initial directory, journal, instructions, preferences, manifest and
+layout creation. Incomplete attempts remain in place and ordinary updates are blocked.
+A very early failure can leave only the new directory without a journal. Recovery of
+these initial attempts, process-death recovery, power-loss/native platform qualification
+and CLI onboarding remain missing; no new initialization CLI command is exposed yet.
+This source-level development API does not authorize use against an existing daily Folder.
+
 ### Development preparation writer
 
 `prepareProfileChange` recomputes the profile-change plan under the same Folder
