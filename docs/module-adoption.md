@@ -106,3 +106,45 @@ Platform supervisor. No real Organization app was started.
 Reference API behavior: [Node networking](https://nodejs.org/api/net.html) and
 [HTTP client](https://nodejs.org/api/http.html). Existing runtime ownership behavior
 was inspected in `lazurio/runtime/runtime-lib.mjs`; no implementation was copied.
+
+## Native listener/group observation
+
+`observeListenerBindings` queries the exact declared port using the OS `lsof`
+executable (`/usr/sbin/lsof` on macOS, `/usr/bin/lsof` on Linux). It requests only
+PID, process group, numeric UID, file descriptor and numeric binding fields. No
+command arguments, process environments, filenames or working directories are read.
+The subprocess has a 5-second timeout, bounded output and a minimal environment;
+missing tools, warnings, malformed/partial fields or failed inspection are unavailable.
+The field format follows the [lsof manual](https://lsof.readthedocs.io/en/stable/manpage/),
+not a copied legacy parser. No-match means nothing was observed, never a reserved or
+globally free port, because visibility can be restricted.
+
+`compareListenerGroup` compares an observation to the lifecycle owner's expected
+group and exact declared loopback binding. Any foreign group, wildcard or other
+binding refuses a positive match. These observations are transient evidence, not
+durable PID identity, permission to kill, a process handle or a replacement locator.
+The future single lifecycle owner must retain actual launch ownership and account
+for races and PID reuse; accepting a caller-supplied group number alone is not enough.
+This code does not create a supervisor, take over a port or change live applications.
+
+### Native evidence, 2026-09-13
+
+The standalone `scripts/smoke-listener-ownership.ts` runner passed on macOS ARM64
+and Ubuntu ARM64: spawn a synthetic child in a distinct group, observe matching
+PID/group and binding, refuse a different expected group, confirm HTTP still responds,
+then terminate only the test-owned child and confirm the endpoint is unavailable.
+Linux ran with `env -i`, without Bun or Node installed, with the system `lsof` present.
+The transferred artifact's SHA-256 matched
+`9999eb10567e6421bef551c1539130416a2741977da7b67fa2157ca2f8718452`.
+The VM was stopped afterwards. This is not an installation, clean-image claim,
+Windows qualification, multi-process tree stop, or CLI/Launchpad lifecycle acceptance.
+
+Build the runner with pinned Bun and compile autoloading disabled, for example:
+
+```sh
+bun build scripts/smoke-listener-ownership.ts --compile --target=bun-linux-arm64 --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/listener-ownership-linux-arm64
+```
+
+Run the compiled executable, not the TypeScript source: it launches itself in the
+synthetic child mode. It requires only supported OS inspection tools at runtime;
+it neither installs tools nor reads real Organization data.
