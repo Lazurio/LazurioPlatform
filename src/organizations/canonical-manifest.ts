@@ -1,5 +1,5 @@
 import { array, object, text } from "../modules/manifest";
-import { organizationDocumentHash } from "./document-hash";
+import { snapshotOrganizationDocument } from "./document-hash";
 
 const positiveId = /^[1-9][0-9]{0,19}$/;
 const login = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
@@ -64,20 +64,13 @@ function binding(input: unknown, repository: boolean) {
     throw new Error("Invalid Organization binding state");
   return value;
 }
-function freezeData(value: unknown): void {
-  if (value && typeof value === "object") {
-    for (const child of Object.values(value)) freezeData(child);
-    Object.freeze(value);
-  }
-}
 
 // Existing canonical wire schema plus root-binding cross-field invariants.
 // This does not resolve legacy documents, validate the projection hash or grant access.
 export function parseCanonicalOrganization(input: unknown) {
   // Reject executable/lossy values before cloning Organization-owned extension data.
-  organizationDocumentHash(input);
   const value = object(
-    structuredClone(input),
+    snapshotOrganizationDocument(input),
     [
       "schema_version",
       "kind",
@@ -213,6 +206,5 @@ export function parseCanonicalOrganization(input: unknown) {
         text(identity.asserted_slug, /^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/);
       }
     }
-  freezeData(value);
   return Object.freeze(value);
 }

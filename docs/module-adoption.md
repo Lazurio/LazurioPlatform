@@ -488,3 +488,26 @@ including unchanged inputs and healthy siblings. A read-only comparison of 14 in
 paths matched the legacy canonical-mount, scope and nested-database helpers at the
 pinned commit above. No legacy source was copied or introduced as a dependency; the
 public tests are independent fixtures. No real Organization files were enumerated.
+
+### Canonical Organization / inventory declaration binding
+
+`inspectCanonicalInventory` composes canonical schema validation with the existing
+modules-manifest header contract and mount diagnostics. A missing schema/generation
+remains the legacy header form; explicit versions are limited to
+`companiesascode.modules.v1` or `modules.manifest.v3`, with `gen3` when generation is
+present. Unknown/null versions are not absence. Company slug and GitHub owner must
+match the canonical Organization case-insensitively; exact-case differences remain
+visible warnings instead of rewritten identity strings.
+
+The result keeps frozen copies of both declarations, including Organization-owned
+inventory metadata, and indexed slot diagnostics without discarding healthy siblings.
+The data snapshot implementation is shared with canonical validation and content
+hashing, avoiding execution hooks or mutation of caller input. Tests exercise all
+three header forms, mismatched identities, malformed headers/slots, preserved custom
+data, case warnings and conflicting slots alongside an unaffected sibling.
+
+This observes declaration agreement only. An all-zero but syntactically valid declared
+projection digest can still reach this result: projection-content validation and
+legacy-document reconciliation are not implemented by this function. Slot diagnostics
+must still be handled, and neither this result nor a case warning authorizes a launch,
+Git action or manifest repair. No second inventory store or filesystem scan is added.

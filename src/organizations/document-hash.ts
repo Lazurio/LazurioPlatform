@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 // Existing sha256-canonical-json-v1 wire behavior: recursively sort object keys,
 // preserve array order, then use JSON.stringify (including its numeric-key order).
 // This is NOT RFC 8785, a signature, schema validation or an access grant.
-export function organizationDocumentHash(input: unknown): string {
+export function snapshotOrganizationDocument(input: unknown): unknown {
   const ancestors = new Set<object>();
   const snapshot = (value: unknown): unknown => {
     if (
@@ -38,7 +38,7 @@ export function organizationDocumentHash(input: unknown): string {
             throw new Error("JSON array data required");
           result.push(snapshot(field.value));
         }
-        return result;
+        return Object.freeze(result);
       }
       const result: Record<string, unknown> = Object.create(null);
       for (const key of (keys as string[]).sort()) {
@@ -47,12 +47,16 @@ export function organizationDocumentHash(input: unknown): string {
           throw new Error("JSON object data required");
         result[key] = snapshot(field.value);
       }
-      return result;
+      return Object.freeze(result);
     } finally {
       ancestors.delete(value);
     }
   };
+  return snapshot(input);
+}
+
+export function organizationDocumentHash(input: unknown): string {
   return `sha256:${createHash("sha256")
-    .update(JSON.stringify(snapshot(input)))
+    .update(JSON.stringify(snapshotOrganizationDocument(input)))
     .digest("hex")}`;
 }
