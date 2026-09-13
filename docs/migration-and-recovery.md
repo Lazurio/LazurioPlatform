@@ -94,6 +94,44 @@ immutable generation directories plus one activation record, with a supported
 Windows launcher/selection mechanism proven before accepting the layout. Preserve
 old versions until no running process references them and retention gates pass.
 
+### Proposed first instruction-write transaction
+
+The read-only development code currently treats root `AGENTS.md` as a regular file.
+Ordinary harness discovery reads that path, not an application generation pointer;
+the inventory adapter deliberately rejects symlinks. Therefore a pointer-only switch
+is not an implementation of instruction activation. This proposal qualifies the
+immutable-generation preference above for the first, single-output consumer; it is
+not a claim that a writer, persisted schema or recovery mechanism already exists.
+
+Keep canonical preferences and custom instruction source separate from derived output.
+Before implementing writes, define their schema and the ownership manifest together
+with the existing local operation owner. Stage one validated instruction file on the
+same filesystem. Under one shared operation lock, recheck the expected revision,
+target identity and digest; an unowned, edited or unsafe target remains a refusal.
+Use a native-qualified regular-file replacement as the visible activation point.
+Fresh creation must not overwrite a file that appeared after planning.
+
+The ownership manifest and bounded recovery journal describe preparation and the
+observed replacement outcome. Recover by inspecting both journal and actual bytes;
+do not trust a phase label alone or blindly overwrite post-interruption user edits.
+Preferences, manifest and root file are not one filesystem-atomic write. Consumers
+of the local core must refuse incomplete transactions until reconciled. Immutable
+generation snapshots may retain source and recovery evidence, but no independent
+pointer may contradict which root instructions are actually visible.
+
+This bounded one-file mechanism cannot complete multi-file generation acceptance.
+Before adding more generated files, prove coherent reader selection or an equivalent
+qualified transaction protocol; independent file renames do not suffice. Keep all
+Organization and Personalspace paths outside the write set. Session pinning still
+requires actual harness evidence: a file replacement cannot by itself guarantee
+that an already-running agent retains its previous instruction snapshot.
+
+Required fixtures cover fresh-create races, manual edits, stale revisions, competing
+invocations, interruption before and after every journal/replacement boundary,
+interrupted recovery, permissions, disk exhaustion and link rejection, with exact
+unrelated-file preservation. Qualify filesystem replacement separately on each
+supported native OS. No real Folder write or migration is authorized by this proposal.
+
 ## Product upgrade and profile rollback
 
 The release declares supported preferences and generated-manifest versions. Backward
