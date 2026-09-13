@@ -6,7 +6,7 @@ import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
 
 type Selection = Readonly<{ company: string; module: string; package: string }>;
-type Operation = "start" | "status" | "stop";
+type Operation = "start" | "status" | "open" | "stop" | "prepare";
 type Plan = Extract<
   Awaited<ReturnType<typeof readModuleApplication>>,
   { kind: "declared-runtime-plan" }
@@ -32,6 +32,24 @@ export function createApplicationLifecycle(adapters: {
     operation: Operation,
   ) => Promise<{ moduleDirectory: string }>;
   prepareLaunch: (plan: Plan, cwd: string) => Promise<unknown>;
+  // Explicit module preparation. Preflight is read-only and checks its actual
+  // dependency owner before any app stop. The effect owns bounded subprocess
+  // cleanup; close remains retained if cleanup cannot be confirmed.
+  preflightPreparation?: (
+    plan: Plan,
+    cwd: string,
+  ) => Promise<{
+    run: (
+      signal: AbortSignal,
+    ) => Promise<{ kind: "prepared" | "preparation-failed" }>;
+    close: () => Promise<{ kind: "closed" | "incomplete" }>;
+  }>;
+  // Trusted composition boundary for the shared install/pull/start owner lock.
+  // null selects owner shutdown; the coordinator must drain its accepted mutations.
+  coordinateMutation?: <T>(
+    selection: Selection | null,
+    action: () => Promise<T>,
+  ) => Promise<T>;
 }) {
   const runs = new Map<
     string,
@@ -39,6 +57,10 @@ export function createApplicationLifecycle(adapters: {
   >();
   let queue = Promise.resolve();
   let closing = false;
+  const preparationAbort = new AbortController();
+  const preparations = new Set<
+    Awaited<ReturnType<NonNullable<typeof adapters.preflightPreparation>>>
+  >();
   const key = (value: Selection) => JSON.stringify(value);
   function exclusive<T>(operation: () => Promise<T>): Promise<T> {
     const result = queue.then(operation);
@@ -47,6 +69,11 @@ export function createApplicationLifecycle(adapters: {
       () => {},
     );
     return result;
+  }
+  function mutation<T>(value: Selection | null, operation: () => Promise<T>) {
+    return adapters.coordinateMutation
+      ? adapters.coordinateMutation(value, () => exclusive(operation))
+      : exclusive(operation);
   }
   async function authorized(value: Selection, operation: Operation) {
     try {
@@ -94,12 +121,106 @@ export function createApplicationLifecycle(adapters: {
     });
   }
   return Object.freeze({
+    prepare(input: unknown) {
+      const value = selection(input);
+      return mutation(value, async () => {
+        if (closing) return Object.freeze({ kind: "closing" as const });
+        if (!adapters.preflightPreparation)
+          return Object.freeze({ kind: "preparation-unavailable" as const });
+        if (preparations.size)
+          return Object.freeze({
+            kind: "preparation-cleanup-required" as const,
+          });
+        const directory = await authorized(value, "prepare");
+        if (!directory) return Object.freeze({ kind: "denied" as const });
+        if (closing) return Object.freeze({ kind: "closing" as const });
+        // Until shared-owner overlap resolution is composed, do not mutate
+        // dependencies while any other managed app could be consuming them.
+        if ([...runs.keys()].some((id) => id !== key(value)))
+          return Object.freeze({ kind: "other-app-managed" as const });
+        const run = runs.get(key(value));
+        if (run && run.directory !== directory)
+          return Object.freeze({ kind: "scope-changed" as const });
+        let plan: Plan;
+        let preparation: Awaited<
+          ReturnType<NonNullable<typeof adapters.preflightPreparation>>
+        >;
+        try {
+          plan = await read(value, directory);
+          preparation = await adapters.preflightPreparation(
+            plan,
+            dirname(join(directory, value.package)),
+          );
+        } catch {
+          return Object.freeze({
+            kind: "preparation-preflight-failed" as const,
+          });
+        }
+        preparations.add(preparation);
+        try {
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          if ((await authorized(value, "prepare")) !== directory)
+            return Object.freeze({ kind: "denied" as const });
+          if (
+            JSON.stringify(await read(value, directory)) !==
+            JSON.stringify(plan)
+          )
+            return Object.freeze({ kind: "declaration-changed" as const });
+          if (run) {
+            if ((await authorized(value, "stop")) !== directory)
+              return Object.freeze({ kind: "denied" as const });
+            if ((await run.handle.stop()).kind !== "group-stopped")
+              return Object.freeze({
+                kind: "preparation-cleanup-required" as const,
+              });
+            runs.delete(key(value));
+          }
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          if ((await authorized(value, "prepare")) !== directory)
+            return Object.freeze({ kind: "denied" as const });
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          if (
+            JSON.stringify(await read(value, directory)) !==
+            JSON.stringify(plan)
+          )
+            return Object.freeze({ kind: "declaration-changed" as const });
+          const result = await preparation.run(preparationAbort.signal);
+          if ((await preparation.close()).kind !== "closed")
+            return Object.freeze({
+              kind: "preparation-cleanup-required" as const,
+            });
+          preparations.delete(preparation);
+          if (
+            JSON.stringify(await read(value, directory)) !==
+            JSON.stringify(plan)
+          )
+            return Object.freeze({ kind: "declaration-changed" as const });
+          return Object.freeze(result);
+        } catch {
+          return Object.freeze({ kind: "preparation-failed" as const });
+        } finally {
+          if (preparations.has(preparation)) {
+            try {
+              if ((await preparation.close()).kind === "closed")
+                preparations.delete(preparation);
+            } catch {
+              /* retained for owner shutdown; never claim ready */
+            }
+          }
+        }
+      });
+    },
     start(input: unknown) {
       const value = selection(input);
-      return exclusive(async () => {
+      return mutation(value, async () => {
         if (closing) return Object.freeze({ kind: "closing" as const });
+        if (preparations.size)
+          return Object.freeze({
+            kind: "preparation-cleanup-required" as const,
+          });
         const directory = await authorized(value, "start");
         if (!directory) return Object.freeze({ kind: "denied" as const });
+        if (closing) return Object.freeze({ kind: "closing" as const });
         const existing = runs.get(key(value));
         if (existing)
           return existing.directory === directory
@@ -168,6 +289,54 @@ export function createApplicationLifecycle(adapters: {
         return Object.freeze({ kind: "started" as const });
       });
     },
+    async entrypoint(input: unknown) {
+      const value = selection(input);
+      if (closing) return Object.freeze({ kind: "closing" as const });
+      const directory = await authorized(value, "open");
+      if (!directory) return Object.freeze({ kind: "denied" as const });
+      const run = runs.get(key(value));
+      if (!run) return Object.freeze({ kind: "not-managed" as const });
+      if (run.directory !== directory)
+        return Object.freeze({ kind: "scope-changed" as const });
+      const listener = run.plan.listeners.find(
+        (item) => item.role === "entrypoint",
+      );
+      if (!listener || !["http", "https"].includes(listener.protocol))
+        return Object.freeze({ kind: "no-browser-entrypoint" as const });
+      const observation = await inspect(run);
+      if (!observation.observedHealthy)
+        return Object.freeze({ kind: "not-ready" as const });
+      if ((await authorized(value, "open")) !== directory)
+        return Object.freeze({ kind: "denied" as const });
+      try {
+        if (
+          JSON.stringify(await read(value, directory)) !==
+          JSON.stringify(run.plan)
+        )
+          return Object.freeze({ kind: "declaration-changed" as const });
+      } catch {
+        return Object.freeze({ kind: "declaration-changed" as const });
+      }
+      const state = run.handle.inspect();
+      if (
+        closing ||
+        runs.get(key(value)) !== run ||
+        state.stopRequested ||
+        state.appExitCode !== null ||
+        state.guardExitCode !== null
+      )
+        return Object.freeze({ kind: "not-ready" as const });
+      const host = listener.host.includes(":")
+        ? `[${listener.host}]`
+        : listener.host;
+      // Execution-Machine loopback only, never production_url or the health path.
+      // The interface owns browser opening / a qualified remote route. This is a
+      // fresh observation, not proof that a browser opened or a function worked.
+      return Object.freeze({
+        kind: "local-entrypoint" as const,
+        url: `${listener.protocol}://${host}:${listener.port}/`,
+      });
+    },
     async status(input: unknown) {
       const value = selection(input);
       const directory = await authorized(value, "status");
@@ -180,7 +349,7 @@ export function createApplicationLifecycle(adapters: {
     },
     stop(input: unknown) {
       const value = selection(input);
-      return exclusive(async () => {
+      return mutation(value, async () => {
         const directory = await authorized(value, "stop");
         if (!directory) return Object.freeze({ kind: "denied" as const });
         const run = runs.get(key(value));
@@ -194,13 +363,25 @@ export function createApplicationLifecycle(adapters: {
     },
     close() {
       closing = true;
-      return exclusive(async () => {
+      preparationAbort.abort();
+      return mutation(null, async () => {
+        for (const preparation of preparations) {
+          try {
+            if ((await preparation.close()).kind === "closed")
+              preparations.delete(preparation);
+          } catch {
+            /* retain incomplete owned work */
+          }
+        }
         for (const [id, run] of runs) {
           if ((await run.handle.stop()).kind === "group-stopped")
             runs.delete(id);
         }
         return Object.freeze({
-          kind: runs.size ? ("incomplete" as const) : ("closed" as const),
+          kind:
+            runs.size || preparations.size
+              ? ("incomplete" as const)
+              : ("closed" as const),
         });
       });
     },

@@ -4,7 +4,7 @@
 <body>
 <main>
 <h1 data-message="title">Lazurio — Profile</h1>
-<p id="notice" data-message="notice">Development fixture only. No software installation or migration.</p>
+<p id="notice" data-message="notice">Development fixture only. No Lazurio installation or migration.</p>
 <form id="profile">
 <fieldset disabled id="choices">
 <legend id="legend" data-message="legend">Machine profile</legend>
@@ -20,6 +20,31 @@
 </form>
 <p id="status" role="status">Loading…</p>
 <pre id="result"></pre>
+<section aria-labelledby="apps-heading">
+<h2 id="apps-heading" data-message="appsTitle">Application</h2>
+<p data-message="appsNotice">Explicit development selection. The server must authorize the declared application.</p>
+<button type="button" id="app-discover" data-message="appDiscover">Read declared applications</button>
+<label><span data-message="appDiscovered">Observed application</span>
+<select id="app-discovered" disabled><option value=""></option></select></label>
+<p id="app-discovery-status" role="status"></p>
+<pre id="app-discovery-result"></pre>
+<form id="application">
+<fieldset id="app-choices">
+<legend data-message="appSelection">Declared application</legend>
+<p><label><span data-message="appCompany">Organization</span> <input name="company" required maxlength="100" autocomplete="off"></label></p>
+<p><label><span data-message="appModule">Module</span> <input name="module" required maxlength="100" autocomplete="off"></label></p>
+<p><label><span data-message="appPackage">Package</span> <input name="package" required maxlength="500" placeholder="app/package.json" autocomplete="off"></label></p>
+<button type="submit" name="operation" value="prepare" data-message="appPrepare">Prepare dependencies</button>
+<button type="submit" name="operation" value="start" data-message="appStart">Start</button>
+<button type="submit" name="operation" value="status" data-message="appStatus">Status</button>
+<button type="submit" name="operation" value="open" data-message="appOpen">Get application link</button>
+<button type="submit" name="operation" value="stop" data-message="appStop">Stop</button>
+</fieldset>
+</form>
+<p id="app-status" role="status"></p>
+<a id="app-link" hidden target="_blank" rel="noopener noreferrer" data-message="appVisit">Open application on this machine</a>
+<pre id="app-result"></pre>
+</section>
 </main>
 <script type="module" src="./ui.ts"></script>
 </body>

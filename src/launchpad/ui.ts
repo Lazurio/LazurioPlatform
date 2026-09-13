@@ -1,3 +1,8 @@
+import {
+  applicationMessage,
+  discoveredApplicationChoices,
+  localApplicationLink,
+} from "./application-view";
 import { type MessageKey, messages } from "./messages";
 
 const token = location.hash.slice(1);
@@ -16,7 +21,7 @@ let pending: {
   expectedRevision: number;
   profile: Record<string, string>;
 } | null = null;
-async function request(path: string, body: unknown) {
+async function post(path: string, body: unknown) {
   const response = await fetch(path, {
     method: "POST",
     headers: {
@@ -27,8 +32,12 @@ async function request(path: string, body: unknown) {
     cache: "no-store",
   });
   const value = await response.json();
+  return { value, ok: response.ok };
+}
+async function request(path: string, body: unknown) {
+  const { value, ok } = await post(path, body);
   controls.result.textContent = JSON.stringify(value, null, 2);
-  if (!response.ok) throw new Error(copy.refused);
+  if (!ok) throw new Error(copy.refused);
   return value;
 }
 async function load() {
@@ -108,4 +117,127 @@ controls.apply.addEventListener("click", async () => {
 });
 load().catch(() => {
   controls.status.textContent = copy.loadFailed;
+});
+
+const appForm = document.querySelector<HTMLFormElement>("#application");
+const appChoices = document.querySelector<HTMLFieldSetElement>("#app-choices");
+const appStatus = document.querySelector<HTMLParagraphElement>("#app-status");
+const appResult = document.querySelector<HTMLPreElement>("#app-result");
+const appLink = document.querySelector<HTMLAnchorElement>("#app-link");
+if (!appForm || !appChoices || !appStatus || !appResult || !appLink)
+  throw new Error("Missing application UI");
+const apps = {
+  form: appForm,
+  choices: appChoices,
+  status: appStatus,
+  result: appResult,
+  link: appLink,
+};
+function clearAppLink() {
+  apps.link.hidden = true;
+  apps.link.removeAttribute("href");
+}
+function clearAppSelectionResult() {
+  clearAppLink();
+  apps.status.textContent = "";
+  apps.result.textContent = "";
+}
+apps.form.addEventListener("input", clearAppSelectionResult);
+controls.form.addEventListener("change", clearAppLink);
+const discover = document.querySelector<HTMLButtonElement>("#app-discover");
+const discovered = document.querySelector<HTMLSelectElement>("#app-discovered");
+const discoveryStatus = document.querySelector<HTMLParagraphElement>(
+  "#app-discovery-status",
+);
+const discoveryResult = document.querySelector<HTMLPreElement>(
+  "#app-discovery-result",
+);
+if (!discover || !discovered || !discoveryStatus || !discoveryResult)
+  throw new Error("Missing discovery UI");
+const discovery = {
+  button: discover,
+  select: discovered,
+  status: discoveryStatus,
+  result: discoveryResult,
+};
+let observedChoices: ReturnType<typeof discoveredApplicationChoices> = [];
+discovery.button.addEventListener("click", async () => {
+  if (apps.choices.disabled) return;
+  clearAppLink();
+  apps.choices.disabled = true;
+  discovery.result.textContent = "";
+  observedChoices = [];
+  discovery.select.replaceChildren(new Option("", ""));
+  discovery.select.disabled = true;
+  discovery.button.disabled = true;
+  discovery.status.textContent = copy.appBusy;
+  try {
+    const { value, ok } = await post("/api/apps/discover", {});
+    discovery.result.textContent = JSON.stringify(value, null, 2);
+    if (!ok || value?.kind !== "applications-observed")
+      throw new Error("Discovery unavailable");
+    observedChoices = discoveredApplicationChoices(value);
+    observedChoices.forEach((selection, index) => {
+      discovery.select.add(
+        new Option(
+          `${selection.company} / ${selection.module} / ${selection.package}`,
+          String(index),
+        ),
+      );
+    });
+    discovery.select.disabled = observedChoices.length === 0;
+    discovery.status.textContent = copy.appDiscoveryNotice;
+  } catch {
+    discovery.status.textContent = copy.appDiscoveryUnavailable;
+  } finally {
+    discovery.button.disabled = false;
+    apps.choices.disabled = false;
+  }
+});
+discovery.select.addEventListener("change", () => {
+  clearAppLink();
+  if (apps.choices.disabled || discovery.select.value === "") return;
+  const selection = observedChoices[Number(discovery.select.value)];
+  if (!selection) return;
+  clearAppSelectionResult();
+  for (const [key, value] of Object.entries(selection)) {
+    const field = apps.form.elements.namedItem(key);
+    if (field instanceof HTMLInputElement) field.value = value;
+  }
+});
+apps.form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const action = event.submitter;
+  if (
+    !(action instanceof HTMLButtonElement) ||
+    !["prepare", "start", "status", "open", "stop"].includes(action.value)
+  )
+    return;
+  const operation = action.value;
+  const selection = Object.fromEntries(new FormData(apps.form).entries());
+  clearAppLink();
+  apps.choices.disabled = true;
+  discovery.button.disabled = true;
+  discovery.select.disabled = true;
+  apps.status.textContent = copy.appBusy;
+  try {
+    const { value, ok } = await post(`/api/apps/${operation}`, selection);
+    apps.result.textContent = JSON.stringify(value, null, 2);
+    const local = current?.profile.access === "local";
+    apps.status.textContent = copy[applicationMessage(value, local)];
+    const link =
+      value?.kind === "local-entrypoint"
+        ? localApplicationLink(value.url)
+        : null;
+    if (ok && local && link) {
+      apps.link.href = link;
+      apps.link.hidden = false;
+    }
+  } catch {
+    apps.status.textContent = copy.appResultUnknown;
+  } finally {
+    apps.choices.disabled = false;
+    discovery.button.disabled = false;
+    discovery.select.disabled = observedChoices.length === 0;
+  }
 });

@@ -1,6 +1,6 @@
 # Lazurio Platform architecture
 
-Status: proposed implementation contract, updated 2026-09-13. Product direction is supplied
+Status: proposed implementation contract, updated 2026-09-14. Product direction is supplied
 by the Principal; this document does not claim that the target is deployed. Decision
 amendments and rollout gates are in [decisions](docs/decisions.md).
 
@@ -92,6 +92,7 @@ installed executable, not a separate implementation of installation/profile logi
 | Chosen collaboration profile, locale, detail preference | Machine-local versioned settings selected by its Principal | Profile use case validates then generates instructions; upgrade preserves preference |
 | Lazurio Folder generation and expected digests | Lazurio Folder Factory and its installed generation manifest | CLI or Launchpad invokes the shared core locally and replaces only listed owned paths |
 | Organization identity, repo and app declarations | Organization manifests | Discovery and lifecycle consume them; Platform source never creates a second allowlist |
+| Module-specific preparation, dependencies and database setup | Owning module under its Organization's standard | Explicit module preparation through the shared core; read-only status never provisions or repairs |
 | Git access, membership, publication permission | GitHub | Live checks for online mutations; offline state is not fresh authority |
 | Running app processes | Existing lifecycle owner, adapted once | One process tree and one state locator, bounded to the actual environment |
 | Secrets and provider recovery | Existing credential/provider custody | Reference/operation proof only; no secret material in manifests or logs |
@@ -116,6 +117,84 @@ Isolated worktree testing and explicit integrated-candidate Machine activation a
 different accepted workflows, defined in [release lifecycle](docs/release-cycle.md).
 Program selection and Lazurio Folder selection are independent; source edits
 are never live.
+
+## Workspace module contract and first usable milestone
+
+**Confirmed direction:** Platform standardizes how module operations are invoked,
+coordinated and reported. A module owns the concrete preparation of its internal
+dependencies. CLI and Launchpad invoke the same core and lifecycle owner, not two
+implementations of installation or process management.
+
+“The module works” means completing the entire user journey:
+
+1. Install or prepare its declared dependencies.
+2. Start the selected application.
+3. Open it and verify a representative basic function.
+4. Inspect its actual state.
+5. Stop the application and its owned processes.
+
+Equivalent selections and conditions must produce equivalent outcomes through CLI
+and Launchpad, including understandable failures. Installer exit zero, a live process
+or HTTP 200 alone does not establish that this journey works. Opening the application
+must target the selected running instance; on a remote Machine, the access route must
+be qualified rather than assuming that the operator's browser runs on the server.
+
+### Module-owned dependencies, Platform-owned coordination
+
+A module with a separate database declares how that dependency is checked and prepared
+through the standard module contract. Platform does not implement a special database
+resolver for each application. The explicit preparation operation may obtain or initialize
+the required database through the module's supported procedure and actual applicable
+rights. The exact procedure, source and data prerequisites must be established in the
+owning module, not guessed by Platform.
+
+Read-only status/Doctor inspection never silently installs, clones or repairs anything.
+A missing database can mean “preparation required”; an explicit preparation operation
+then either succeeds with verified postconditions or returns an actionable failure.
+Missing dependencies or failed preparation must never become a false installed/ready
+state. Existing databases must not be replaced with empty or test data to make a check
+pass. Module scripts remain authorized code execution, not a sandbox or a self-certified
+proof of success; observable readiness and functional qualification are still required.
+
+The shared core owns scope checks, sequencing, cancellation, process ownership and
+consistent results. Conflicting preparation/install/start/update operations share the
+resolved dependency owner's coordination boundary. Frozen package installation and
+bounded cleanup remain reusable Platform effects, not application-specific DB logic.
+An explicit clean install may remove only the verified derived dependency tree; it must
+not remove source, lockfiles, Git state, databases, other checkouts or a global cache.
+
+### Adapt modules to the target standard, then expand
+
+Workspace modules follow an Organization-selected supported standard. TypeScript with
+Bun is the first reference path, not a universal prohibition on other stacks. Adapt the
+selected existing modules and deprecated dependencies in their owning repositories,
+preserving functionality, data and user changes. Do not reproduce each historical
+exception as a permanent new-runtime compatibility mechanism.
+
+Qualify one representative application first, then a second application with a separate
+Repository DB so that a simple web app does not hide dependency complexity. For each,
+run the complete journey through both interfaces on an isolated local Mac copy, then
+on clean local macOS and Linux VMs, without waiting for CI. Use nonproduction test data
+and no live customer checkouts or personal credentials. The DB case covers both successful
+explicit preparation from the missing-DB state and failed preparation without false
+readiness. Reset test environments to a known clean state for repeatable runs.
+
+Add further modules only after both candidates pass these host and VM journeys. Record
+other differences without automatically expanding implementation scope; address current
+milestone blockers first. Record exact source/artifact revisions, scenario outcomes and
+evidence rather than declaring support from a plan or compilation. These are acceptance
+requirements, not a claim of completed tests. Windows, other supported architectures,
+signed distribution and release qualification remain subsequent required gates.
+
+### Deliberately open implementation details
+
+The exact module operation interface, each module's database acquisition/setup procedure,
+and the representative functional check for each candidate still need to be specified
+and verified in their owning scope. These open details do not change the boundaries
+above: module-owned preparation, one shared CLI/Launchpad lifecycle, adaptation to the
+target standard, and qualification of both candidates before expanding module coverage.
+Do not infer automatic database provisioning or legacy compatibility requirements from
+a missing implementation detail.
 
 ## Confirmed system topology
 

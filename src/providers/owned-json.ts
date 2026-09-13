@@ -3,7 +3,7 @@ import { lstat, open } from "node:fs/promises";
 
 // Caller must first establish a stable canonical owned parent directory.
 // Bounded POSIX declaration read; not an atomic multi-document snapshot.
-export async function readOwnedJson(path: string): Promise<unknown> {
+export async function readOwnedDeclarationBytes(path: string): Promise<Buffer> {
   if (!["darwin", "linux"].includes(process.platform))
     throw new Error("Unqualified declaration reader platform");
   const before = await lstat(path);
@@ -42,12 +42,16 @@ export async function readOwnedJson(path: string): Promise<unknown> {
       named.ino !== opened.ino
     )
       throw new Error("Declaration changed during read");
-    return JSON.parse(
-      new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-        bytes.subarray(0, count),
-      ),
-    ) as unknown;
+    return bytes.subarray(0, count);
   } finally {
     await file.close();
   }
+}
+
+export async function readOwnedJson(path: string): Promise<unknown> {
+  return JSON.parse(
+    new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      await readOwnedDeclarationBytes(path),
+    ),
+  ) as unknown;
 }

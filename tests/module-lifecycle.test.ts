@@ -2,8 +2,13 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { initializeFolder } from "../src/folder/initialize-folder";
+import { executionOs } from "../src/folder/platform";
+import { requestApplication } from "../src/launchpad/application-client";
+import { startLaunchpad } from "../src/launchpad/server";
 import { probeListenerHealth } from "../src/modules/health";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
+import { createOwnerOperations } from "../src/modules/owner-operations";
 
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
@@ -40,6 +45,196 @@ const selection = {
   module: "fixture",
   package: "app/package.json",
 };
+
+posixTest(
+  "compiled application CLI reports lost delivery without leaking the session or claiming cancellation",
+  async () => {
+    const token = "e".repeat(64);
+    const endpoint = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch() {
+        return new Response("deliberately invalid JSON");
+      },
+    });
+    try {
+      const sessionUrl = `${endpoint.url.href}#${token}`;
+      const child = Bun.spawn([binary, "app-request"], {
+        stdin: new Blob([
+          JSON.stringify({ sessionUrl, operation: "prepare", selection }),
+        ]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [out, error, code] = await Promise.all([
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      expect(code).toBe(1);
+      expect(out).toBe("");
+      expect(error).toContain("operation may still be running");
+      expect(error).toContain("not confirmation of cancellation");
+      expect(error).not.toContain(token);
+      expect(error).not.toContain(sessionUrl);
+      expect(error).not.toContain("deliberately invalid JSON");
+      expect(error).not.toContain("Folder operation failed");
+    } finally {
+      await endpoint.stop(true);
+    }
+  },
+);
+
+posixTest(
+  "CLI preparation waits beyond normal HTTP deadlines for the shared owner",
+  async () => {
+    const f = await fixture("slow-preparation");
+    const folder = join(root, "slow-preparation-folder");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    let runs = 0;
+    const app = await startLaunchpad(folder, {
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: f.prepareLaunch,
+      preflightPreparation: async () => ({
+        run: async () => {
+          runs++;
+          await Bun.sleep(31_000);
+          return { kind: "prepared" as const };
+        },
+        close: async () => ({ kind: "closed" as const }),
+      }),
+    });
+    try {
+      expect(
+        await requestApplication({
+          sessionUrl: app.url,
+          operation: "prepare",
+          selection,
+        }),
+      ).toEqual({
+        httpOk: true,
+        result: { kind: "prepared" },
+      });
+      expect(runs).toBe(1);
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+    }
+  },
+  40_000,
+);
+
+posixTest(
+  "Launchpad API owns one real application across requests and drains it on close",
+  async () => {
+    const f = await fixture("http-owner");
+    const folder = join(root, "http-folder");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const app = await startLaunchpad(folder, {
+      platformExecutable: binary,
+      authorize: async (value) => {
+        if (JSON.stringify(value) !== JSON.stringify(selection))
+          throw new Error("denied");
+        return { moduleDirectory: f.directory };
+      },
+      prepareLaunch: f.prepareLaunch,
+    });
+    const url = new URL(app.url);
+    const headers = {
+      "Content-Type": "application/json",
+      Origin: url.origin,
+      Authorization: `Bearer ${url.hash.slice(1)}`,
+    };
+    const call = (action: string, body: unknown = selection, override = {}) =>
+      fetch(`${url.origin}/api/apps/${action}`, {
+        method: "POST",
+        headers: { ...headers, ...override },
+        body: JSON.stringify(body),
+      });
+    try {
+      expect(
+        (await call("start", selection, { Origin: "https://example.invalid" }))
+          .status,
+      ).toBe(403);
+      expect(
+        (await call("start", selection, { Authorization: "" })).status,
+      ).toBe(403);
+      expect(
+        await (await call("start", { ...selection, company: "Other" })).json(),
+      ).toEqual({ kind: "denied" });
+      expect(
+        (await call("start", { ...selection, executable: process.execPath }))
+          .status,
+      ).toBe(400);
+      expect(await (await call("status")).json()).toEqual({
+        kind: "not-managed",
+      });
+      const cli = Bun.spawn([binary, "app-request"], {
+        env: {},
+        cwd: root,
+        stdin: new Blob([
+          JSON.stringify({
+            sessionUrl: app.url,
+            operation: "start",
+            selection,
+          }),
+        ]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [code, stdout, stderr] = await Promise.all([
+        cli.exited,
+        new Response(cli.stdout).text(),
+        new Response(cli.stderr).text(),
+      ]);
+      expect(code).toBe(0);
+      expect(stderr).toBe("");
+      expect(stdout).not.toContain(url.hash.slice(1));
+      expect(JSON.parse(stdout)).toEqual({ kind: "started" });
+      expect(await (await call("start")).json()).toEqual({
+        kind: "already-managed",
+      });
+      let ready = false;
+      const deadline = performance.now() + 3000;
+      while (!ready && performance.now() < deadline) {
+        const value = (await (await call("status")).json()) as {
+          observedHealthy?: boolean;
+        };
+        ready = value.observedHealthy === true;
+        if (!ready) await Bun.sleep(25);
+      }
+      expect(ready).toBe(true);
+      expect(await (await call("open")).json()).toEqual({
+        kind: "local-entrypoint",
+        url: `http://127.0.0.1:${f.port}/`,
+      });
+      expect(await (await call("stop")).json()).toEqual({
+        kind: "group-stopped",
+      });
+      expect(await (await call("status")).json()).toEqual({
+        kind: "not-managed",
+      });
+      expect(await (await call("start")).json()).toEqual({ kind: "started" });
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+      expect((await f.health()).kind).toBe("unavailable");
+    }
+  },
+);
 
 async function fixture(name: string) {
   const reservation = Bun.serve({
@@ -116,6 +311,192 @@ async function fixture(name: string) {
 }
 
 posixTest(
+  "module preparation checks first, stops only its app and does not imply running readiness",
+  async () => {
+    const f = await fixture("preparation");
+    let failPreflight = true;
+    let effects = 0;
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: f.prepareLaunch,
+      preflightPreparation: async () => {
+        if (failPreflight) throw new Error("missing preparation input");
+        return {
+          run: async () => {
+            expect((await f.health()).kind).toBe("unavailable");
+            effects++;
+            return { kind: "prepared" };
+          },
+          close: async () => ({ kind: "closed" }),
+        };
+      },
+    });
+    try {
+      expect(await owner.start(selection)).toEqual({ kind: "started" });
+      expect(await owner.prepare(selection)).toEqual({
+        kind: "preparation-preflight-failed",
+      });
+      expect(effects).toBe(0);
+      expect((await owner.status(selection)).kind).toBe("status");
+      failPreflight = false;
+      expect(await owner.prepare(selection)).toEqual({ kind: "prepared" });
+      expect(effects).toBe(1);
+      expect(await owner.status(selection)).toEqual({ kind: "not-managed" });
+      expect(await owner.start(selection)).toEqual({ kind: "started" });
+    } finally {
+      expect(await owner.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
+  "incomplete preparation cleanup remains owned and blocks start until shutdown recovers it",
+  async () => {
+    const f = await fixture("preparation-cleanup");
+    let canClose = false;
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: f.prepareLaunch,
+      preflightPreparation: async () => ({
+        run: async () => ({ kind: "preparation-failed" }),
+        close: async () => ({ kind: canClose ? "closed" : "incomplete" }),
+      }),
+    });
+    try {
+      expect(await owner.prepare(selection)).toEqual({
+        kind: "preparation-cleanup-required",
+      });
+      expect(await owner.start(selection)).toEqual({
+        kind: "preparation-cleanup-required",
+      });
+      expect(await owner.close()).toEqual({ kind: "incomplete" });
+      canClose = true;
+      expect(await owner.close()).toEqual({ kind: "closed" });
+    } finally {
+      canClose = true;
+      await owner.close();
+    }
+  },
+);
+
+posixTest(
+  "server shutdown drains a pending authorized start without preparing or launching it",
+  async () => {
+    const f = await fixture("http-shutdown-pending");
+    const folder = join(root, "http-shutdown-folder");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    let release = () => {};
+    let entered = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const admission = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let prepared = 0;
+    const app = await startLaunchpad(folder, {
+      platformExecutable: binary,
+      authorize: async () => {
+        entered();
+        await gate;
+        return { moduleDirectory: f.directory };
+      },
+      prepareLaunch: async (...args) => {
+        prepared++;
+        return f.prepareLaunch(...args);
+      },
+    });
+    const url = new URL(app.url);
+    const request = fetch(`${url.origin}/api/apps/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: url.origin,
+        Authorization: `Bearer ${url.hash.slice(1)}`,
+      },
+      body: JSON.stringify(selection),
+    }).then(
+      async (response) => response.json(),
+      () => null,
+    );
+    try {
+      await admission;
+      const close = app.close();
+      expect(app.close()).toBe(close);
+      release();
+      expect(await close).toEqual({ kind: "closed" });
+      await request;
+      expect(prepared).toBe(0);
+      expect((await f.health()).kind).toBe("unavailable");
+    } finally {
+      release();
+      await request;
+      await app.close();
+    }
+  },
+);
+
+posixTest(
+  "shared dependency-owner operation delays real launch until mutation finishes",
+  async () => {
+    const f = await fixture("dependency-coordination");
+    const operations = createOwnerOperations();
+    let release = () => {};
+    let entered = () => {};
+    const enteredPromise = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const barrier = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let prepared = false;
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: async (plan, cwd) => {
+        prepared = true;
+        return f.prepareLaunch(plan, cwd);
+      },
+      coordinateMutation: async (value, action) => {
+        if (value === null) {
+          await operations.close();
+          return action();
+        }
+        // Explicit synthetic dependency owner; no app-path fallback resolver.
+        expect(value).toEqual(selection);
+        return operations.run(f.directory, action);
+      },
+    });
+    try {
+      const install = operations.run(f.directory, async () => {
+        entered();
+        await barrier;
+      });
+      await enteredPromise;
+      const start = owner.start(selection);
+      expect(prepared).toBe(false);
+      release();
+      await install;
+      expect(await start).toEqual({ kind: "started" });
+      expect(prepared).toBe(true);
+      expect(await owner.stop(selection)).toEqual({ kind: "group-stopped" });
+    } finally {
+      release();
+      expect(await owner.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
   "one lifecycle starts a declared module, observes status and stops only its retained process",
   async () => {
     const f = await fixture("normal");
@@ -132,6 +513,9 @@ posixTest(
       },
     });
     try {
+      expect(await owner.entrypoint(selection)).toEqual({
+        kind: "not-managed",
+      });
       const results = await Promise.all([
         owner.start(selection),
         owner.start(selection),
@@ -151,12 +535,20 @@ posixTest(
         status = await owner.status(selection);
       }
       expect(status).toMatchObject({ kind: "status", observedHealthy: true });
+      expect(await owner.entrypoint(selection)).toEqual({
+        kind: "local-entrypoint",
+        url: `http://127.0.0.1:${f.port}/`,
+      });
       allowed = false;
+      expect(await owner.entrypoint(selection)).toEqual({ kind: "denied" });
       expect(await owner.status(selection)).toEqual({ kind: "denied" });
       expect(await owner.stop(selection)).toEqual({ kind: "denied" });
       expect((await f.health()).kind).toBe("responding");
       allowed = true;
       expect(await owner.stop(selection)).toEqual({ kind: "group-stopped" });
+      expect(await owner.entrypoint(selection)).toEqual({
+        kind: "not-managed",
+      });
       expect((await f.health()).kind).toBe("unavailable");
       expect(await owner.stop(selection)).toEqual({ kind: "not-managed" });
       expect(calls.filter((item) => item === "start")).toHaveLength(3);
@@ -193,6 +585,42 @@ posixTest(
       expect((await f.health()).kind).toBe("unavailable");
     } finally {
       await owner.close();
+    }
+  },
+);
+
+posixTest(
+  "entrypoint never uses production metadata and refuses changed declarations",
+  async () => {
+    const f = await fixture("entrypoint-drift");
+    Object.assign(f.pkg.lazurio.runtime, {
+      production_url: "https://example.invalid/production",
+    });
+    await f.savePackage();
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: f.prepareLaunch,
+    });
+    try {
+      expect(await owner.start(selection)).toEqual({ kind: "started" });
+      let result = await owner.entrypoint(selection);
+      const deadline = performance.now() + 3000;
+      while (result.kind === "not-ready" && performance.now() < deadline) {
+        await Bun.sleep(25);
+        result = await owner.entrypoint(selection);
+      }
+      expect(result).toEqual({
+        kind: "local-entrypoint",
+        url: `http://127.0.0.1:${f.port}/`,
+      });
+      f.pkg.scripts.dev += " --changed";
+      await f.savePackage();
+      expect(await owner.entrypoint(selection)).toEqual({
+        kind: "declaration-changed",
+      });
+    } finally {
+      expect(await owner.close()).toEqual({ kind: "closed" });
     }
   },
 );

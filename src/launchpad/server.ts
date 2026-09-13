@@ -6,14 +6,28 @@ import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
 import { stateFields } from "../folder/state";
 import { updateProfile } from "../folder/update-profile";
+import { createApplicationLifecycle } from "../modules/lifecycle";
+import { readOrganizationApplications } from "../organizations/read-applications";
 import index from "./index.html";
 
-// Local development profile consumer, not a remote admin service or app supervisor.
-export async function startLaunchpad(folder: string) {
+// One local owner. Optional application adapters are trusted composition, never
+// HTTP input; the browser cannot supply a filesystem root or executable.
+export async function startLaunchpad(
+  folder: string,
+  applicationAdapters?: Parameters<typeof createApplicationLifecycle>[0],
+  discovery?: Readonly<{ organizationDirectory: string }>,
+) {
+  const organizationDirectory = discovery?.organizationDirectory;
+  if (organizationDirectory !== undefined)
+    await inspectOwnedDirectory(organizationDirectory);
   await inspectOwnedDirectory(folder);
   const state = join(folder, ".lazurio");
   await withFolderOperationLock(state, () => readFolderState(state));
   const token = randomBytes(32).toString("hex");
+  const applications = applicationAdapters
+    ? createApplicationLifecycle(applicationAdapters)
+    : null;
+  let closing = false;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -43,6 +57,34 @@ export async function startLaunchpad(folder: string) {
         return response({ error: "invalid-content-type" }, 415);
       try {
         const input: unknown = await request.json();
+        if (closing) return response({ error: "closing" }, 503);
+        if (url.pathname === "/api/apps/discover") {
+          stateFields(input, []);
+          if (!organizationDirectory)
+            return response({ error: "discovery-unavailable" }, 503);
+          return response(
+            await readOrganizationApplications(organizationDirectory),
+          );
+        }
+        if (url.pathname.startsWith("/api/apps/")) {
+          if (!applications)
+            return response({ error: "applications-unavailable" }, 503);
+          const operations = {
+            "/api/apps/prepare": applications.prepare,
+            "/api/apps/start": applications.start,
+            "/api/apps/status": applications.status,
+            "/api/apps/open": applications.entrypoint,
+            "/api/apps/stop": applications.stop,
+          };
+          if (!Object.hasOwn(operations, url.pathname))
+            return response({ error: "not-found" }, 404);
+          const operation = operations[url.pathname as keyof typeof operations];
+          // Only an authenticated, fully-read preparation request gets the
+          // longer wait. Keep the normal idle deadline on request admission.
+          if (url.pathname === "/api/apps/prepare")
+            server.timeout(request, 660);
+          return response(await operation(input));
+        }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
           const current = await withFolderOperationLock(state, () =>
@@ -78,5 +120,28 @@ export async function startLaunchpad(folder: string) {
       }
     },
   });
-  return { server, url: `${server.url.href}#${token}` };
+  let closePending: ReturnType<
+    ReturnType<typeof createApplicationLifecycle>["close"]
+  > | null = null;
+  return {
+    server,
+    url: `${server.url.href}#${token}`,
+    close() {
+      closing = true;
+      if (!closePending)
+        closePending = (async () => {
+          // Close admission immediately, before waiting for HTTP requests to drain.
+          // Existing requests and shutdown must share the same lifecycle queue.
+          const applicationClose = applications?.close();
+          await server.stop(true);
+          const result = applicationClose
+            ? await applicationClose
+            : Object.freeze({ kind: "closed" as const });
+          return result;
+        })().finally(() => {
+          closePending = null;
+        });
+      return closePending;
+    },
+  };
 }

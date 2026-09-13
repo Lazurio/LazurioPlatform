@@ -8,11 +8,47 @@ import { previewFolder } from "./folder/preview";
 import { parseFolderProfile } from "./folder/profile";
 import { resumeInitialization } from "./folder/resume-initialization";
 import { resumeProfileUpdate, updateProfile } from "./folder/update-profile";
+import {
+  readApplicationRequest,
+  requestApplication,
+} from "./launchpad/application-client";
 import { startLaunchpad } from "./launchpad/server";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
+import { readOrganizationApplications } from "./organizations/read-applications";
 
 // Development CLI entrypoint. No installer or implicit folder discovery.
 export async function runCli(args: string[]): Promise<number> {
+  if (args[0] === "organization-inspect") {
+    const { values, positionals, tokens } = parseArgs({
+      args: args.slice(1),
+      strict: true,
+      tokens: true,
+      options: { directory: { type: "string" } },
+    });
+    if (!values.directory || positionals.length !== 0 || tokens.length !== 1)
+      throw new Error("One explicit Organization directory required");
+    const result = await readOrganizationApplications(values.directory);
+    console.log(JSON.stringify(result));
+    return result.kind === "applications-observed" ? 0 : 2;
+  }
+  if (args.length === 1 && args[0] === "app-request") {
+    const response = await requestApplication(
+      await readApplicationRequest(Bun.stdin.stream()),
+    );
+    console.log(JSON.stringify(response.result));
+    return response.httpOk &&
+      [
+        "started",
+        "prepared",
+        "already-managed",
+        "status",
+        "local-entrypoint",
+        "group-stopped",
+        "not-managed",
+      ].includes(String(response.result.kind))
+      ? 0
+      : 2;
+  }
   if (args.length === 1 && (args[0] === "--help" || args[0] === "help")) {
     console.log(`Lazurio development CLI — Folder profiles
 
@@ -47,9 +83,23 @@ It accepts no other options, never overwrites edits and cannot reclaim stale loc
 Missing/damaged journals and partial file writes require separate repair.
 Never use a daily working path. It does not install software or migrate existing data.
 launchpad --folder <initialized fixture> starts the local development profile panel.
+Optional --organization-directory <permitted canonical Organization fixture> enables
+read-only application discovery in the panel; it does not configure launch authority.
 Open its private session URL from this terminal; do not share the URL/token.
 The panel uses the same preview/update core, not a separate writer or full app launcher.
+app-request reads one JSON object from stdin: sessionUrl, operation and selection.
+Operations: prepare/start/status/open/stop; selection: company/module/package.
+It contacts an already running, explicitly configured development Launchpad session;
+it does not discover or start a server or configure app bindings. Explicit prepare
+requires a configured module preparation adapter and may change its dependencies.
+The session URL is private. Supply it through protected stdin, not shell history.
+open returns the execution Machine's local URL; it does not launch a browser or tunnel.
 Native Windows filesystem inspection is not yet qualified.`);
+    console.log(`organization-inspect --directory <permitted canonical Organization fixture>
+Read declared workspace applications without executing scripts or querying GitHub.
+Requires canonical Organization and module inventory documents; no GEN3 fallback.
+Output is local declaration evidence, not access, readiness or permission to launch.
+Per-module conflicts remain explicit even when other modules are observed.`);
     return 0;
   }
   const { values, positionals, tokens } = parseArgs({
@@ -59,6 +109,7 @@ Native Windows filesystem inspection is not yet qualified.`);
     tokens: true,
     options: {
       folder: { type: "string" },
+      "organization-directory": { type: "string" },
       profile: { type: "string" },
       "previous-digest": { type: "string" },
       "expected-revision": { type: "string" },
@@ -90,19 +141,38 @@ Native Windows filesystem inspection is not yet qualified.`);
   )
     throw new Error("Expected Folder command");
   if (positionals[0] === "launchpad") {
-    if (!values.folder || Object.keys(values).some((name) => name !== "folder"))
+    if (
+      !values.folder ||
+      Object.keys(values).some(
+        (name) => !["folder", "organization-directory"].includes(name),
+      )
+    )
       throw new Error("Explicit Launchpad fixture required");
-    const { server, url } = await startLaunchpad(values.folder);
+    const { close, url } = await startLaunchpad(
+      values.folder,
+      undefined,
+      values["organization-directory"] === undefined
+        ? undefined
+        : {
+            organizationDirectory: values["organization-directory"],
+          },
+    );
     console.log(
       JSON.stringify({ url, scope: "local-development-profile-panel" }),
     );
     for (const signal of ["SIGINT", "SIGTERM"] as const)
-      process.once(signal, () => {
-        server.stop(true);
-        process.exit(0);
+      process.once(signal, async () => {
+        try {
+          const result = await close();
+          process.exit(result.kind === "closed" ? 0 : 1);
+        } catch {
+          process.exit(1);
+        }
       });
     return 0;
   }
+  if (values["organization-directory"] !== undefined)
+    throw new Error("Discovery option belongs only to Launchpad");
   if (positionals[0] === "folder-resume") {
     if (!values.folder || Object.keys(values).some((name) => name !== "folder"))
       throw new Error("Explicit initialization recovery folder required");
@@ -204,9 +274,14 @@ if (import.meta.main) {
     else process.exitCode = await runCli(process.argv.slice(2));
   } catch {
     // Do not echo profile input, private paths or raw filesystem errors.
-    console.error(
-      "Folder operation failed. State may require recovery; no automatic retry or cleanup was performed. Use a caller-owned stable canonical development fixture, valid command/profile and required access. Symlink paths and hostile concurrent changes are unsupported.",
-    );
+    if (process.argv[2] === "app-request") {
+      console.error(
+        "Application request could not be completed or its result confirmed. A submitted operation may still be running; this is not confirmation of cancellation. Check the existing Launchpad lifecycle owner before retrying a mutation. Verify the request and local session without sharing its private token.",
+      );
+    } else
+      console.error(
+        "Folder operation failed. State may require recovery; no automatic retry or cleanup was performed. Use a caller-owned stable canonical development fixture, valid command/profile and required access. Symlink paths and hostile concurrent changes are unsupported.",
+      );
     process.exitCode = 1;
   }
 }

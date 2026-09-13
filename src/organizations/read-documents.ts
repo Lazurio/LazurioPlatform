@@ -69,3 +69,25 @@ export async function readOrganizationDocuments(directory: string) {
     return Object.freeze({ kind: "unavailable" as const });
   }
 }
+
+// Target runtime acquisition: legacy files are neither read nor used as fallback.
+// The three-document reader above remains available for explicit migration inspection.
+export async function readCanonicalDocuments(directory: string) {
+  if (!["darwin", "linux"].includes(process.platform))
+    return Object.freeze({ kind: "unavailable" as const });
+  try {
+    const before = await inspectOwnedDirectory(directory);
+    const canonical = await readDocument(join(directory, paths.canonical));
+    const modules = await readDocument(join(directory, paths.modules));
+    const after = await inspectOwnedDirectory(directory);
+    if (before.dev !== after.dev || before.ino !== after.ino)
+      return Object.freeze({ kind: "unavailable" as const });
+    return Object.freeze({
+      kind: "documents-observed" as const,
+      canonical,
+      modules,
+    });
+  } catch {
+    return Object.freeze({ kind: "unavailable" as const });
+  }
+}

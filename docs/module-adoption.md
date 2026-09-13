@@ -4,6 +4,153 @@ The next Launchpad consumer is permitted-module discovery followed by app
 start/status/stop through one shared lifecycle owner. It must not invent a second
 module catalog, port registry or process supervisor.
 
+## Integrated consumer draft — current boundary
+
+`organization-inspect --directory <permitted canonical Organization fixture>` now
+exercises the shared read-only application inventory from the compiled CLI. It reads
+the canonical Organization and declared module inventory, then only declared workspace
+module/application files. It does not read the legacy Organization projection, guess
+missing applications, inspect Repository DB contents, execute scripts or query GitHub.
+Conflicted slots, unavailable modules and invalid runtimes remain explicit; healthy
+siblings can still be observed. A final Organization-document recheck detects changes
+during the observation. The result is not an atomic snapshot, provider permission,
+dependency readiness or a reusable authorization to launch. Production selection must
+still bind live access and revalidate the selected scope at each operation.
+
+The development Launchpad accepts an optional `--organization-directory` selected by
+its starting CLI. Its authenticated `POST /api/apps/discover` accepts only an empty
+object and uses that configured directory, never a path supplied by the browser.
+The panel presents the same declaration results and can populate the application
+selection from a declared runtime. Refresh reads the canonical documents again;
+conflicts remain visible and changing selection clears the previous app result/link.
+Discovery does not install application authorization adapters: a discovery-only session
+still refuses app control. Live provider/operation binding remains a separate missing
+integration, not an implied permission from this local view.
+
+The existing Launchpad server can compose one application lifecycle with trusted
+authorization/toolchain adapters. Its authenticated application API serves both the
+browser controls and the compiled development CLI's `app-request` stdin transport.
+The latter accepts an explicit existing private session URL, operation and declared
+selection, not a second locator, process owner or persisted credential. The standard
+`launchpad --folder` command still configures only profiles; production Organization
+bindings and the complete preparation/install journey remain incomplete.
+
+Authenticated preparation requests use a 660-second transport wait rather than the
+ordinary CLI request's 30 seconds, allowing the Bun preparation effect's maximum
+600-second budget and cleanup. Launchpad extends that request's idle timeout only
+after authentication and body parsing. A real 31-second shared-owner test covers
+the CLI/server path. These deadlines do not cancel an operation, prove rollback,
+or solve queue admission, reconnect/status tracking and uncooperative adapter
+timeouts; those remain integration work, not reasons to automatically retry a write.
+
+The browser exposes explicit preparation/start/status/link/stop in Czech and English. A link is restricted
+to the selected execution Machine's observed loopback web listener, never production
+metadata. Remote-profile context does not expose that address as a local browser link;
+a qualified remote access route remains required. Process start, health observation,
+opening a page and functional acceptance are distinct results.
+
+Run `bun run scripts/smoke-application-ui.ts cs` and the same command with `en` using
+an explicitly supplied external Playwright installation and its Chromium (for example,
+via the test environment's `NODE_PATH`). This optional local harness compiles the CLI,
+creates synthetic Folder/module data and an isolated browser, opens the synthetic app,
+then stops its owner and removes only its temporary fixture. It is not a release gate
+or evidence of either real candidate's installation/DB readiness. The main `bun run
+check` includes transport, lifecycle and presentation unit/integration tests; it does
+not implicitly download a browser or run this separate browser harness.
+
+The Bun preparation adapter now composes exact toolchain/manifest/lock preflight,
+a guarded frozen install, an optional explicitly selected declared module preparation
+script and a mandatory read-only postcondition. The preparation script must belong
+to the snapshotted package owner; it is not a browser-supplied command or an inferred
+DB recipe. Both subprocess phases use the same retained process-group runner and
+share the preparation deadline/cancellation. Manifest/lock drift, nonzero exit,
+incomplete cleanup or failed postconditions prevent a prepared result. A terminated
+module may leave partial data or its own recovery gate: Platform preserves these
+instead of running a destructive repair or treating them as ready.
+
+The browser harness installs a real synthetic local dependency and runs its explicit
+module-owned synthetic data preparation before starting its app. An
+installer exit of zero with failed module postconditions does not become prepared;
+start adapters must also check current module prerequisites. This is not a generic
+DB resolver or a claim that clean-install/workspace owner resolution is complete.
+Preparation shares the lifecycle mutation path, stops only its selected owned app,
+and retains incomplete cleanup for shutdown/recovery. While shared-owner overlap
+resolution remains unimplemented, another managed app causes an explicit refusal,
+not an assumption that mutating its dependencies is safe. Full composition with
+actual Organization bindings, both candidates and their module-owned preparation
+contracts remains the integrated milestone.
+
+Module-owned dependency/DB preparation and adaptation to the target standard follow
+[the architecture contract](../ARCHITECTURE.md#workspace-module-contract-and-first-usable-milestone).
+Do not replace that ownership with application-specific Platform DB provisioning.
+
+### Local draft verification — 2026-09-14
+
+The current integrated working tree passed `bun run check` on macOS ARM64 with
+Bun 1.4.2: 234 tests passed, one Windows-specific test was skipped, and none failed
+(235 tests across 42 files, 1525 assertions).
+Lint, TypeScript, the narrow public-input guard and standalone proof smoke passed.
+The separate Chromium harness passed in Czech and English: canonical inventory discovery
+and application selection in the panel, explicit frozen install and declared module preparation,
+start, healthy status, opening the synthetic page and stop through the browser, followed
+by the compiled CLI journey against the same lifecycle owner. Changing the selected
+module clears the preceding application result instead of showing stale readiness.
+
+Module preparation tests additionally run a declared script only after the install,
+refuse absent/option-like script selections, reject success when postconditions fail,
+and cancel a real preparation process with a live descendant. The retained guard
+reports group-stopped, the descendant's heartbeat stops, and partial synthetic data
+survives. This is POSIX local fixture evidence, not native Windows or arbitrary
+module/Git recovery qualification.
+
+This evidence applies to the local uncommitted draft and isolated synthetic fixtures,
+not an approved release or qualification of actual Organization bindings, either real
+candidate, clean-install, or VM/platform coverage. Repeat it on the exact review commit
+before treating it as commit-bound integration evidence.
+
+The canonical application inspection tests include the compiled CLI and exercise canonical-only acquisition,
+conflict quarantine, missing/foreign modules, invalid runtime and linked-parent refusal.
+Authenticated discovery tests reject browser-supplied directories and foreign origins,
+re-read changed canonical state and prove that discovery alone does not grant app control.
+
+### Native artifact lifecycle runner
+
+Compile `scripts/smoke-application-native.ts` and `src/cli.ts` for the same target
+with compile-time dotenv/bunfig autoload disabled. Run the compiled runner with the
+absolute CLI artifact path and `cs` or `en`. Copy only those two artifacts to a
+disposable guest and independently verify their digests before execution. The runner
+creates and removes only its own synthetic Folder/Organization, uses an embedded test
+application, and closes its lifecycle owner. It needs no separately installed Bun/Node
+or Platform source in the guest. Its fixture-scoped authorization is not a live provider
+adapter. This runner covers canonical discovery parity and shared CLI/HTTP
+start/status/entrypoint/HTTP-function/stop, not package preparation, browser interaction,
+DB acquisition, installation, or the two real candidate modules.
+
+On 2026-09-14 it passed on the macOS ARM64 host (`en`) and Ubuntu 24.04.4 LTS ARM64,
+kernel `7.0.0-30-generic` (`en` and `cs`). The Linux guest was a reused disposable Tart
+2.32.1 test clone, not a fresh-install qualification; Bun, Node and Lazurio were absent
+from its tested PATH. Networking was host-only, with no host directory/clipboard/audio
+sharing or credential forwarding. Transfers matched the independently calculated
+artifact digests; the owned test processes were absent after completion.
+
+The same macOS artifacts subsequently passed both `en` and `cs` in a reused disposable
+macOS 26.6.2 (25G83) ARM64 VM, also with Bun/Node/Lazurio absent from its tested PATH.
+Only the compiled CLI and runner were copied; no Platform checkout or host working
+directory was exposed. Independent digest checks preceded execution and both runs
+closed their lifecycle owner. This adds native guest lifecycle evidence, not a clean
+installation, notarization, browser or actual-module acceptance claim.
+
+| Artifact from the local draft | SHA-256 |
+| --- | --- |
+| macOS ARM64 CLI | `f2601d02a53d544f786a1c6b46d75fbb667f935eeaf9da4cb52314c72d17b82c` |
+| macOS ARM64 runner | `e9e39924e1fc3b9c67fc21b9ff734ae98104266c8991b21b05b931ad35400f2c` |
+| Linux ARM64 CLI | `7d2c7b9564c03c762e0304ef3c716108dcaf83dda3883976587c391aba04ae0b` |
+| Linux ARM64 runner | `feb1dd0dac16c0a782cdd5baaffbc6efadfbd6d41ada739eac7970077ab87a9c` |
+| Runner source | `ce3a13a2bc2f14976d4e328bc38b2f49a98fde9d5d96e78809275b0e7dbdc072` |
+
+These hashes identify tested local artifacts, not authenticated releases or reviewed
+source commits. Repeat qualification after the integrated source is committed/reviewed.
+
 ## Workspace standards and versioned presets — accepted direction
 
 Keep three responsibilities separate: the Platform's shared operational
@@ -51,19 +198,21 @@ legacy spellings must be reported, not normalized or silently renamed. Newline/N
 accessor-valued objects and sparse/executable arrays are refused. Parsed snapshots
 do not grant provider rights, prove filesystem custody or authorize taking a port.
 
-Remaining consumer work: bind module identity to an authorized Organization and
-canonical contained path; read explicit app package runtime declarations; validate
-runtime-to-lease references; integrate one process/locator owner; prove readiness,
-stop-owned-tree, wrong identity, invalid manifest, occupied port and failed start
-through CLI and Launchpad. Local-founder binding still requires the F6 amendment.
-No running legacy Server or real module was contacted or started in this step.
+The draft now reads explicit app runtime declarations, validates runtime-to-lease
+references and exercises readiness, owned stop and refusal cases through its shared
+lifecycle tests and synthetic transports. Remaining consumer work includes binding
+module identity to a live authorized Organization and canonical contained path,
+the existing process locator, and full qualification with real modules. Local-founder
+binding still requires the F6 amendment. Synthetic evidence does not authorize
+contacting a running legacy Server or controlling a customer's module.
 
 ## Shared application lifecycle — development integration boundary
 
 `createApplicationLifecycle` composes the module reader, guarded launch, listener
 observation and owned stop into one in-memory owner. It is intended to be instantiated
-once by the existing local server, shared by CLI and Launchpad requests; it is not
-yet wired into either transport. Do not construct an owner per CLI invocation or
+once by the existing local server, shared by CLI and Launchpad requests. The draft
+transports use this owner when trusted application adapters are supplied; default
+production discovery/binding remains incomplete. Do not construct an owner per CLI invocation or
 alongside the legacy supervisor for the same Environment. No locator, persistent
 PID database, module catalog or permission store is introduced.
 
@@ -435,17 +584,20 @@ stable cooperative directory and are not one atomic multi-document transaction.
 Windows is refused; native Linux qualification remains outstanding.
 
 The existing resolution behavior was inspected in `organization-root-reader-lib.mjs`
-and `organization-activation-lib.mjs` at the legacy commit above. A complete consumer
-must still resolve legacy-only, canonical-only, transition, projection drift and
-conflict against the module inventory and canonical projection hash, then verify
-provider identity, local Git binding and operation rules. Valid JSON is not a valid
-Organization; the current acquisition result cannot yet authorize lifecycle operations.
+and `organization-activation-lib.mjs` at the legacy commit above. That historical
+resolution is reference material for a controlled one-time conversion, where legacy-only,
+transition, projection drift and conflicts may need inspection. It is not the target
+runtime contract: normal application discovery reads canonical documents only and
+refuses missing/invalid canonical state rather than adopting legacy state. Conversion
+must preserve the owning Organization's work and has separate rollout/retirement gates.
+Provider identity, local Git binding and operation rules remain required for connected
+application control. Valid JSON or successful local discovery cannot authorize it.
 No legacy implementation was copied or relicensed in this step.
 
 ### Existing document hash compatibility
 
 `src/organizations/document-hash.ts` implements the existing
-`sha256-canonical-json-v1` serialization needed by the pending projection resolver:
+`sha256-canonical-json-v1` serialization retained for explicit conversion/projection inspection:
 recursive object-key sorting followed by JSON.stringify, with array order retained.
 Numeric object keys therefore follow JavaScript JSON ordering, not a newly substituted
 canonicalization standard. Tests cover non-ASCII strings, numeric keys, negative zero,
