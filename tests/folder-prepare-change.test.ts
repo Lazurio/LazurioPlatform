@@ -24,6 +24,7 @@ import {
   prepareProfileChange,
 } from "../src/folder/prepare-profile-change";
 import { previewFolder } from "../src/folder/preview";
+import { retireIncompletePreparation } from "../src/folder/retire-preparation";
 import { validatePreparation } from "../src/folder/validate-preparation";
 
 async function fixture() {
@@ -76,6 +77,110 @@ async function fixture() {
     await rm(folder, { recursive: true, force: true });
     throw error;
   }
+}
+
+for (const stop of [
+  "before",
+  "preferences",
+  "manifest",
+  "instructions",
+] as const) {
+  test.skipIf(process.platform === "win32")(
+    `retire incomplete ${stop} and reprepare without active writes`,
+    async () => {
+      const f = await fixture();
+      const id = "a".repeat(32);
+      try {
+        await expect(
+          prepareProfileChange(
+            f.folder,
+            1,
+            { ...f.profile, locale: "cs" },
+            async (step) => {
+              if (step === stop) throw new Error("Interrupted");
+            },
+          ),
+        ).rejects.toThrow("Interrupted");
+        const transaction = join(f.state, "transaction");
+        const files = await readdir(transaction);
+        const contents = await Promise.all(
+          files.map((name) => readFile(join(transaction, name))),
+        );
+        await expect(
+          retireIncompletePreparation(f.folder, 1, id, async () => {
+            throw new Error("Archive interrupted");
+          }),
+        ).rejects.toThrow("Archive interrupted");
+        expect((await retireIncompletePreparation(f.folder, 1, id)).kind).toBe(
+          "incomplete-preparation-retained",
+        );
+        const archive = join(f.state, "history", `incomplete-${id}`);
+        expect(
+          await Promise.all(files.map((name) => readFile(join(archive, name)))),
+        ).toEqual(contents);
+        expect(await readFile(join(f.folder, "AGENTS.md"), "utf8")).toBe(
+          f.content,
+        );
+        expect(await readFile(join(f.state, "preferences.json"), "utf8")).toBe(
+          f.preferences,
+        );
+        expect(await readFile(join(f.state, "instructions.json"), "utf8")).toBe(
+          f.manifest,
+        );
+        expect(
+          (
+            await prepareProfileChange(f.folder, 1, {
+              ...f.profile,
+              locale: "cs",
+            })
+          ).kind,
+        ).toBe("prepared");
+        await applyPreparation(f.folder);
+        await finalizePreparation(f.folder, 2);
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+for (const mode of ["empty", "prepared", "edited"] as const) {
+  test.skipIf(process.platform === "win32")(
+    `incomplete recovery refuses ${mode}`,
+    async () => {
+      const f = await fixture();
+      try {
+        if (mode === "prepared")
+          await prepareProfileChange(f.folder, 1, {
+            ...f.profile,
+            locale: "cs",
+          });
+        else
+          await expect(
+            prepareProfileChange(
+              f.folder,
+              1,
+              { ...f.profile, locale: "cs" },
+              async (step) => {
+                if (step === (mode === "empty" ? "directory" : "before"))
+                  throw new Error("Interrupted");
+              },
+            ),
+          ).rejects.toThrow("Interrupted");
+        if (mode === "edited")
+          await writeFile(join(f.folder, "AGENTS.md"), "Manual edit");
+        const active = await readFile(join(f.folder, "AGENTS.md"));
+        const files = await readdir(join(f.state, "transaction"));
+        await expect(
+          retireIncompletePreparation(f.folder, 1, "b".repeat(32)),
+        ).rejects.toThrow();
+        expect(await readFile(join(f.folder, "AGENTS.md"))).toEqual(active);
+        expect(await readdir(join(f.state, "transaction"))).toEqual(files);
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
 }
 
 for (const stop of [null, "history", "archived"] as const) {

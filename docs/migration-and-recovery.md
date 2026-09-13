@@ -260,6 +260,24 @@ Incomplete-preparation repair and verified stale-lock reclamation remain missing
 No CLI write command, real Folder activation, fresh initialization or migration is
 introduced. Archive retention/size management still needs an explicit policy.
 
+The development `retireIncompletePreparation` operation handles a narrower, explicit
+repair case: a valid before snapshot and a recognized prefix of staging files, with
+no prepared marker, while all three active files still match their original recorded
+identities and coherent content. It moves the entire partial directory into
+`history/incomplete-<recoveryId>` without deleting or overwriting any evidence. The
+caller retains a 32-hex retry token; it is neither permission nor another state owner.
+After interruption at archive rename, the same request validates the archived attempt
+against unchanged active state and repeats directory syncs. A new preparation can then
+start normally; retirement does not infer or apply the abandoned requested profile.
+
+Tests cover before/preferences/manifest/instructions checkpoints, interrupted archive,
+byte-preserved staged files, unchanged active state and subsequent preparation/application.
+An empty attempt, unreadable before snapshot, unexpected entry, prepared marker, changed
+active state or occupied archive remains a refusal. This does not recover every partial
+write or reclaim a dead-process lock. Those cases still need a separately verified
+repair path; there is no automatic force-clean or legacy rollback. Evidence remains
+native macOS synthetic fixtures, without installed-command or power-loss qualification.
+
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
 revision, matching current preference/manifest revision and current-template output
