@@ -5,7 +5,7 @@ import { inspectOwnedDirectory } from "./folder/owned-directory";
 import { executionOs } from "./folder/platform";
 import { previewFolder } from "./folder/preview";
 import { parseFolderProfile } from "./folder/profile";
-import { updateProfile } from "./folder/update-profile";
+import { resumeProfileUpdate, updateProfile } from "./folder/update-profile";
 
 // Development CLI entrypoint. No installer or implicit folder discovery.
 export async function runCli(args: string[]): Promise<number> {
@@ -30,6 +30,10 @@ it replaces owned instructions/preferences/manifest and archives the transaction
 Use only an explicitly prepared development fixture, not your daily Lazurio.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
 --previous-digest is not accepted by either profile command.
+profile-resume --folder <fixture> --target-revision <integer >= 2>
+resumes and finalizes an existing prepared update, or verifies its completed archive.
+Target revision is the NEW revision, not the old expected revision of profile-update.
+It accepts no profile choices and never reclaims a stale lock or damaged journal.
 Exit status: 0 completed/unchanged/preview available, 2 blocked plan, 1 operation failure.
 Native Windows filesystem inspection is not yet qualified.`);
     return 0;
@@ -43,6 +47,7 @@ Native Windows filesystem inspection is not yet qualified.`);
       profile: { type: "string" },
       "previous-digest": { type: "string" },
       "expected-revision": { type: "string" },
+      "target-revision": { type: "string" },
       access: { type: "string" },
       purpose: { type: "string" },
       locale: { type: "string" },
@@ -52,11 +57,35 @@ Native Windows filesystem inspection is not yet qualified.`);
   });
   if (
     positionals.length !== 1 ||
-    !["folder-preview", "profile-preview", "profile-update"].includes(
-      positionals[0] ?? "",
-    )
+    ![
+      "folder-preview",
+      "profile-preview",
+      "profile-update",
+      "profile-resume",
+    ].includes(positionals[0] ?? "")
   )
     throw new Error("Expected Folder command");
+  if (positionals[0] === "profile-resume") {
+    if (
+      !values.folder ||
+      Object.keys(values).some(
+        (name) => !["folder", "target-revision"].includes(name),
+      ) ||
+      !/^[1-9][0-9]*$/.test(values["target-revision"] ?? "")
+    )
+      throw new Error("Explicit recovery folder and target revision required");
+    console.log(
+      JSON.stringify(
+        await resumeProfileUpdate(
+          values.folder,
+          Number(values["target-revision"]),
+        ),
+      ),
+    );
+    return 0;
+  }
+  if (values["target-revision"] !== undefined)
+    throw new Error("Recovery option on another command");
   const configured = positionals[0] !== "folder-preview";
   if (
     configured

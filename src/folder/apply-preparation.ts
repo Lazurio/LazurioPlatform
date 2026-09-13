@@ -224,6 +224,28 @@ export async function finalizePreparationLocked(
   return { kind: "finalized" as const, revision };
 }
 
+// Internal recovery entry; caller retains the common lock. Check the intended
+// target before applying any remaining replacement, not merely after success.
+export async function resumePreparationLocked(
+  folder: string,
+  targetRevision: number,
+  assertHeld: () => Promise<void>,
+) {
+  await assertHeld();
+  if (!Number.isSafeInteger(targetRevision) || targetRevision < 2)
+    throw new Error("Invalid recovery target revision");
+  const pending = await exists(join(folder, ".lazurio", "transaction"));
+  const current = await inspectProgress(
+    folder,
+    pending ? undefined : targetRevision,
+  );
+  if (current.revision !== targetRevision)
+    throw new Error("Recovery target revision mismatch");
+  if (pending) await applyPreparationLocked(folder, assertHeld);
+  await finalizePreparationLocked(folder, targetRevision, assertHeld);
+  return { kind: "recovered" as const, revision: targetRevision };
+}
+
 async function exists(path: string) {
   try {
     await lstat(path);

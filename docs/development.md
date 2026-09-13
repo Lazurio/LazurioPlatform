@@ -186,9 +186,20 @@ unchanged selection, missing expected revision and preservation of edited instru
 and unrelated files, with an empty child environment. Exit 0 means completed/unchanged
 or preview success, 2 means a blocked plan, and 1 means failure that may require recovery.
 Errors do not expose raw paths or profile content. The command is a development API;
-headless recovery commands, real Launchpad integration and installed acceptance remain
+complete headless recovery coverage, real Launchpad integration and installed acceptance remain
 unfinished. The native Linux fixture evidence below predates this CLI update entrypoint
 and does not qualify that command on Linux or Windows.
+
+`profile-resume --folder <canonical fixture> --target-revision <new revision>` now
+invokes the shared prepared-update recovery under one lock. Unlike update's expected
+old revision, this requires the transaction's target revision (at least 2) before
+any remaining replacement. No profile or update options are accepted. It resumes a
+valid prepared/partially applied transaction and finalizes it, or verifies the already
+completed archive against current active state. A wrong target, changed active file,
+incomplete preparation or blocking lock fails without forced repair. Compiled macOS
+CLI tests cover a prepared interruption, wrong target/options preserving old state,
+successful resume, repeat invocation and refusal after a manual edit. This is not
+stale-lock reclamation, arbitrary journal repair or installed migration recovery.
 
 `scripts/smoke-profile-transaction.ts` is an independently reviewed fixture runner,
 not the installed CLI. It accepts no paths or arguments and creates/removes only its

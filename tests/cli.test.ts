@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { previewFolder } from "../src/folder/preview";
+import { updateProfile } from "../src/folder/update-profile";
 
 test.skipIf(process.platform === "win32")(
   "compiled CLI matches shared preview without ambient runtime",
@@ -139,18 +140,67 @@ test.skipIf(process.platform === "win32")(
       const unchanged = await invoke("2", "cs");
       expect(unchanged.exit).toBe(0);
       expect(JSON.parse(unchanged.out)).toEqual({ kind: "unchanged" });
+      await expect(
+        updateProfile(directory, 2, profile, async (step) => {
+          if (step === "prepared") throw new Error("Prepared interruption");
+        }),
+      ).rejects.toThrow("Prepared interruption");
+      const beforeResume = await readFile(join(directory, "AGENTS.md"));
+      const resume = async (revision: string, extra: string[] = []) => {
+        const child = Bun.spawn(
+          [
+            binary,
+            "profile-resume",
+            "--folder",
+            directory,
+            "--target-revision",
+            revision,
+            ...extra,
+          ],
+          { cwd: directory, env: {}, stdout: "pipe", stderr: "pipe" },
+        );
+        const [out, error, exit] = await Promise.all([
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+          child.exited,
+        ]);
+        return { out, error, exit };
+      };
+      expect((await resume("4")).exit).toBe(1);
+      expect((await resume("3", ["--locale", "cs"])).exit).toBe(1);
+      expect(await readFile(join(directory, "AGENTS.md"))).toEqual(
+        beforeResume,
+      );
+      expect(
+        JSON.parse(await readFile(join(state, "preferences.json"), "utf8"))
+          .revision,
+      ).toBe(2);
+      const recovered = await resume("3");
+      expect(recovered.exit, recovered.error).toBe(0);
+      expect(JSON.parse(recovered.out)).toEqual({
+        kind: "recovered",
+        revision: 3,
+      });
+      expect((await resume("3")).exit).toBe(0);
+      expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
+        initial.desired.content,
+      );
       await writeFile(
         join(directory, "AGENTS.md"),
         "Preserve manual instruction edit",
       );
-      expect((await invoke("2", "en")).exit).toBe(2);
+      expect((await invoke("3", "cs")).exit).toBe(2);
+      expect((await resume("3")).exit).toBe(1);
       expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
         "Preserve manual instruction edit",
       );
       expect(await readFile(join(directory, "unrelated"), "utf8")).toBe(
         "Preserve work",
       );
-      expect(await readdir(join(state, "history"))).toEqual(["revision-2"]);
+      expect((await readdir(join(state, "history"))).sort()).toEqual([
+        "revision-2",
+        "revision-3",
+      ]);
       expect(await readdir(state)).not.toContain("transaction");
     } finally {
       await rm(temporary, { recursive: true, force: true });

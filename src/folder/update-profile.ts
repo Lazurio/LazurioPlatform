@@ -2,10 +2,21 @@ import { join } from "node:path";
 import {
   applyPreparationLocked,
   finalizePreparationLocked,
+  resumePreparationLocked,
 } from "./apply-preparation";
 import { withFolderOperationLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { prepareProfileChangeLocked } from "./prepare-profile-change";
+
+export async function resumeProfileUpdate(
+  folder: string,
+  targetRevision: number,
+) {
+  await inspectOwnedDirectory(folder);
+  return withFolderOperationLock(join(folder, ".lazurio"), (assertHeld) =>
+    resumePreparationLocked(folder, targetRevision, assertHeld),
+  );
+}
 
 // One application use case for CLI/Launchpad adapters. Holds exclusion across
 // planning, staging, activation and archive; never adopts a pre-existing attempt.
