@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectInstructions } from "./folder/inventory";
 import { inspectOwnedDirectory } from "./folder/owned-directory";
 import { executionOs } from "./folder/platform";
@@ -19,7 +20,11 @@ All five choices are required. OS is detected on the execution Machine.
 Alternatively supply --profile <JSON> instead of the five profile choices.
 Optional --previous-digest <sha256> is development inventory input, not proof of ownership.
 The directory must already exist and be caller-owned, non-shared and stable.
-No files are written. This command does not install or migrate Lazurio.
+No files are written by folder-preview. Neither command installs or migrates Lazurio.
+profile-preview uses the same profile choices and --folder, plus required
+--expected-revision <positive integer>. It reads existing .lazurio state and
+creates/removes only its operation lock. It does not apply the proposed change.
+--previous-digest is not accepted by profile-preview.
 Exit status: 0 preview available, 2 blocked plan, 1 invalid input or inspection failure.
 Native Windows filesystem inspection is not yet qualified.`);
     return 0;
@@ -32,6 +37,7 @@ Native Windows filesystem inspection is not yet qualified.`);
       folder: { type: "string" },
       profile: { type: "string" },
       "previous-digest": { type: "string" },
+      "expected-revision": { type: "string" },
       access: { type: "string" },
       purpose: { type: "string" },
       locale: { type: "string" },
@@ -39,8 +45,24 @@ Native Windows filesystem inspection is not yet qualified.`);
       coordination: { type: "string" },
     },
   });
-  if (positionals.length !== 1 || positionals[0] !== "folder-preview")
-    throw new Error("Expected folder-preview command");
+  if (
+    positionals.length !== 1 ||
+    !["folder-preview", "profile-preview"].includes(positionals[0] ?? "")
+  )
+    throw new Error("Expected preview command");
+  const configured = positionals[0] === "profile-preview";
+  if (
+    configured
+      ? values["previous-digest"] !== undefined
+      : values["expected-revision"] !== undefined
+  )
+    throw new Error("Option does not belong to this command");
+  if (
+    configured &&
+    (!/^[1-9][0-9]*$/.test(values["expected-revision"] ?? "") ||
+      !Number.isSafeInteger(Number(values["expected-revision"])))
+  )
+    throw new Error("Explicit expected revision required");
   const folder = values.folder;
   if (!folder) throw new Error("Explicit --folder required");
   const axes = {
@@ -65,6 +87,15 @@ Native Windows filesystem inspection is not yet qualified.`);
   // This development boundary requires caller-controlled, stable fixtures. No
   // hostile concurrent parent mutations are supported; this is not a sandbox.
   await inspectOwnedDirectory(folder);
+  if (configured) {
+    const result = await inspectProfileChange(
+      folder,
+      Number(values["expected-revision"]),
+      profile,
+    );
+    console.log(JSON.stringify(result));
+    return result.kind === "blocked" ? 2 : 0;
+  }
   const result = await previewFolder(
     profile,
     values["previous-digest"] ?? null,

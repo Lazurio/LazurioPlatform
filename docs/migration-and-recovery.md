@@ -149,7 +149,7 @@ transaction, not a released storage API or an installed state directory:
   composition error; it is never silently omitted from generated output.
 
 The filesystem owner must still establish trusted state custody and the operation lock.
-No JSON imported by a caller can prove ownership of an existing file. Physical storage,
+No JSON imported by a caller can prove ownership of an existing file. Durable storage,
 journal schema, creation/replacement and durable recovery remain unimplemented. There is
 no second locator or workflow service. Custom composition/conflict handling and actual
 CLI/Launchpad state loading must precede claims of usable persistent preferences.
@@ -183,11 +183,16 @@ software nor grants access. The future writer must obtain trusted state under th
 shared lock and revalidate before applying; a returned plan is not an authorization
 or durable transaction. CLI/UI transport and persistence are still required consumers.
 
-The development `inspectProfileChange` adapter now binds this planner to an explicit
-owned fixture and state directory under the shared lock. Its state reader uses
-`preferences.json` and `instructions.json` in that directory; this is not selection
-of an installed state location. The caller must establish the Folder-to-state-owner
-binding, never treat arbitrary imported JSON as that proof. The reader rejects
+The development `inspectProfileChange` adapter binds this planner to an explicit
+canonical owned Folder and its single `.lazurio` metadata directory under the shared
+lock. It no longer accepts an alternate state-directory argument. Its state reader
+uses `.lazurio/preferences.json` and `.lazurio/instructions.json`; every operation on
+the same Folder must use `.lazurio/.operation-lock`. This folder-relative binding
+avoids an independently writable global Folder registry and prevents cooperating
+callers from selecting different state owners for the same Folder. Symlinked Folder
+or metadata paths are rejected. Existing unknown metadata is preserved and blocks
+use; the name alone is not proof of ownership, an import or a migration permission.
+Installed creation/upgrade still require the custody and transaction gates. The reader rejects
 nonregular/linked/shared-writable files, changed read snapshots, malformed UTF-8/JSON
 and unknown entries that could represent pending transaction recovery. Each JSON
 document is bounded to 16 MiB by the development decoder, not a published custom-profile

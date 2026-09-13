@@ -111,6 +111,17 @@ same profile validator and preview use case as JSON; mixing the two forms is rej
 This is a noninteractive development preview, not completed first-run onboarding.
 `--previous-digest` is a supplied test input, not evidence that a file is owned.
 
+`profile-preview --folder <canonical-fixture-path> --expected-revision <revision>`
+uses the same profile choices but reads the fixture's `.lazurio/preferences.json`
+and `.lazurio/instructions.json` under the common operation lock. There is no state
+directory override or previous-digest override. It returns the shared profile-change
+plan, unchanged result or blocking reason; it does not apply the plan. Unlike
+`folder-preview`, it temporarily creates/removes a lock and requires write access to
+the metadata directory. Missing/unknown state is refused, not initialized. This is
+an internal development CLI; creating a valid fixture manually is not the installed
+onboarding contract. Source-CLI parity with the shared operation is tested on macOS;
+native guest evidence for this newer command has not yet been collected.
+
 The subsequent compiled-CLI regression builds `src/cli.ts` into its own temporary
 artifact and executes it with an empty environment from a separate fixture directory.
 Its JSON result equals the shared preview and the fixture stays empty. The complete

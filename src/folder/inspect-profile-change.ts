@@ -5,16 +5,17 @@ import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState } from "./read-state";
 
-// Caller binds this Folder to its existing trusted state owner; arbitrary imported
-// state is never evidence of that relationship. No automatic home/state discovery.
+// One folder-relative state location for every caller. Existing directory custody
+// and schema are verified; its name alone does not grant file ownership. No import
+// or automatic home discovery, and no alternate state-directory override.
 // Only the ephemeral operation lock is written; no preferences/output are changed.
 export async function inspectProfileChange(
   folder: string,
-  stateDirectory: string,
   expectedRevision: number,
   requested: unknown,
 ) {
   await inspectOwnedDirectory(folder);
+  const stateDirectory = join(folder, ".lazurio");
   return withFolderOperationLock(stateDirectory, async (assertHeld) => {
     const state = await readFolderState(stateDirectory);
     if (state.preferences.profile.os !== executionOs(process.platform))
@@ -30,3 +31,5 @@ export async function inspectProfileChange(
     return result;
   });
 }
+
+import { join } from "node:path";
