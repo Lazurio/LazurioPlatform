@@ -47,13 +47,13 @@ if (process.argv[2] === "--fixture-child") {
     await mkdtemp(join(tmpdir(), "guarded-process-smoke-")),
   );
   const handles: Awaited<ReturnType<typeof startGuardedProcess>>[] = [];
-  const health = (port: number) =>
-    probeListenerHealth({
-      host: "127.0.0.1",
-      port,
-      protocol: "http",
-      health: { kind: "http", path: "/" },
-    });
+  const listener = (port: number) => ({
+    host: "127.0.0.1",
+    port,
+    protocol: "http",
+    health: { kind: "http", path: "/" },
+  });
+  const health = (port: number) => probeListenerHealth(listener(port));
   async function launch(name: string, mode: string) {
     const cwd = join(root, name);
     await mkdir(cwd, { mode: 0o700 });
@@ -112,11 +112,37 @@ if (process.argv[2] === "--fixture-child") {
         throw new Error("Fixture listener group mismatch");
       if ((await health(port)).kind !== "responding")
         throw new Error("Fixture unavailable");
+      const observed = await handle.observeListener(listener(port));
+      if (
+        observed.kind !==
+        (mode === "exit-before" ? "lifecycle-inactive" : "observed-healthy")
+      )
+        throw new Error("Owned listener lifecycle observation mismatch");
+      if (mode !== "exit-before") {
+        const foreign = await handle.observeListener(listener(other.port));
+        if (
+          foreign.kind !== "ownership-unconfirmed" ||
+          foreign.reason !== "foreign-group"
+        )
+          throw new Error("Foreign listener was not refused");
+        const normalized = await handle.observeListener({
+          ...listener(port),
+          host: "localhost",
+          health: { kind: "http", path: "/a/..//health" },
+        });
+        if (normalized.kind !== "observed-healthy")
+          throw new Error("Normalized localhost health observation failed");
+      }
       const stop = handle.stop(50);
       if (handle.stop(50) !== stop || (await stop).kind !== "group-stopped")
         throw new Error("Group stop not confirmed");
       if ((await health(port)).kind !== "unavailable")
         throw new Error("Stopped fixture still responds");
+      if (
+        (await handle.observeListener(listener(port))).kind !==
+        "lifecycle-inactive"
+      )
+        throw new Error("Stopped lifecycle reported active");
       if ((await health(other.port)).kind !== "responding")
         throw new Error("Unrelated fixture affected");
       if ((await handle.stop(50)).kind !== "group-stopped")
@@ -131,6 +157,7 @@ if (process.argv[2] === "--fixture-child") {
         platform: process.platform,
         arch: process.arch,
         scenarios: ["normal", "ignore", "exit-before", "exit-grace"],
+        ownedListenerObservations: true,
         installedProduct: false,
       }),
     );

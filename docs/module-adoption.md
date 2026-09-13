@@ -167,8 +167,10 @@ owner, along with module identity, dependencies and authority. No imported PGID
 can create this handle, and this method never sends a signal or adopts a process.
 Mac-host synthetic tests cover a matching group, localhost, foreign group, HTTP 503,
 invalid inputs, launcher exit, stopped state and stopping during a health request.
-These new observations have not yet been qualified in Linux/Windows or the UI;
-the older native evidence below applies only to its stated sources and scenarios.
+The compiled runner also exercises matching/foreign ownership, localhost path
+normalization, launcher exit and stopped state on macOS ARM64 and Linux ARM64;
+see the dated evidence below. Concurrent-stop observation and HTTP 503 remain
+Mac-host source tests, not Linux qualification. Windows and the UI remain unqualified.
 
 `startGuardedProcess` replaces the provisional numeric-group signaling adapter;
 there is only one maintained launch/stop implementation. The caller supplies a
@@ -232,3 +234,24 @@ product custody checks were not relaxed. The corrected runner passed, then the V
 was stopped. This reused test VM is not a clean installer test. Linux evidence here
 does not cover pipe EOF, guard death, escaped descendants, Windows, Organization
 authorization or the still-missing user-facing app lifecycle commands and UI.
+
+### Owned listener observation evidence, 2026-09-13
+
+The extended `scripts/smoke-guarded-process.ts` passed on the Mac ARM64 host and
+the existing Ubuntu ARM64 VM with Platform source
+`d1a4e3a08c0a8415efb472ef5b90a2fbb20e11b6`. It checks the retained handle's own
+healthy listener, refusal of the other fixture's group, localhost with a normalized
+health path, launcher-exit refusal and inactive status after confirmed stop, in
+addition to the four earlier process scenarios. The compiled runner contains the
+observer adapter; the separately compiled actual CLI supplies the process guard.
+This does not claim user-facing CLI app commands already exist.
+
+Both ran under `env -i`. The Ubuntu guest had no `bun` or `node` command; transferred
+SHA-256 values matched before execution:
+
+- Platform CLI: `fdf9a845138b298a5ea36bf02796f5f8eab5a271e452a7244d9706f0fcddd5a5`.
+- Extended runner: `0d8803eac52909feea006017c938e147abd008bd3535706cb61fd39dc154fb00`.
+
+The VM was stopped afterwards. This is a reused fixture VM, not a clean installation,
+signed distribution, full readiness/authority proof, Windows qualification or
+CLI/Launchpad acceptance. No Organization or Personalspace was mounted or used.
