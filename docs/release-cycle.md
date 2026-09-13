@@ -49,6 +49,47 @@ OS signing/notarization requirements, native support floor, update-check privacy
 and preview cohort exit criteria. Prefer the provider's standard release and signing
 capabilities; do not create a general deployment service for this workflow.
 
+## Distribution decision inputs (slice 1a)
+
+These are researched options, not an accepted bootstrap protocol or authorization
+to provision signing identities. The first consumer is the terminal install on a
+fresh machine without Bun, Node, npm or a source checkout.
+
+| Option | Useful property | Gap for the first-install contract |
+| --- | --- | --- |
+| HTTPS download and checksum only | Small provider-native baseline | A co-delivered checksum does not authenticate a publisher independently of the transport; does not meet the accepted signature requirement |
+| GitHub immutable release assets and attestations | Existing provider binds assets to a release/ref and prevents changing published assets | Ordinary verification uses an additional verifier; release immutability does not authenticate the first verifier or authorize preview/stable selection |
+| OS-signed distribution plus authenticated update metadata | OS trust can validate platform packages; metadata can govern future selection | Linux/bootstrap verification, key custody/rotation, expiry and offline behavior still need a concrete cross-platform contract |
+
+Proposed transport: prefer GitHub immutable release assets over a new download
+service. GitHub permits assembling all assets in a draft before publication locks
+them; this fits signing and qualification before promotion. Release notes and
+pre-release/latest flags remain editable, so those flags alone are not trusted
+channel authorization. Do not enable repository settings or publish a candidate
+merely because this option is documented. See [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+and [release verification](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/verify-release-integrity).
+
+For metadata verification, evaluate an established update-security implementation
+such as [TUF](https://theupdateframework.io/docs/overview/) before implementing
+custom rotation, expiry and rollback protection. TUF's trusted initial metadata
+must itself be delivered authentically; adding it does not solve first-install
+trust automatically. No TUF dependency or new updater is selected here.
+
+Keep native distribution signatures separate from build provenance:
+[Apple Developer ID and notarization](https://developer.apple.com/developer-id/)
+are the macOS route to qualify. A Windows public-trust signing provider such as
+[Microsoft Artifact Signing](https://learn.microsoft.com/en-us/azure/artifact-signing/concept-trust-models)
+requires eligibility and identity validation; it is an option, not an assumed
+company account or a purchase instruction. GitHub build attestations provide
+additional provenance, not a replacement for these platform-specific checks.
+
+Before coding the installer, select the exact bootstrap trust anchor and verifier
+delivery, supported OS prerequisites, artifact/container layout, channel metadata
+policy and signing custody. Demonstrate a clean first install, substituted verifier,
+tampered artifact, wrong publisher, expired/stale metadata and offline failure in
+synthetic fixtures. Missing credentials can block official signing without blocking
+unsigned local build tests; those tests must remain explicitly non-release evidence.
+
 ## Two independent test modes
 
 ```mermaid
