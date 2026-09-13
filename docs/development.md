@@ -136,4 +136,24 @@ returned exit 0 and a create proposal while leaving its temporary Folder empty.
 This was one positive scenario in a reused test clone, not installation qualification,
 all Linux failure cases, UI adoption, mutation or migration evidence.
 
+Expanded native preview smoke on 2026-09-13 uses
+`scripts/check-folder-preview.sh /absolute/path/to/compiled-cli`. It needs POSIX
+shell/core utilities, not Bun or Node, creates and removes only its own synthetic
+temporary fixture, and runs the CLI with an empty environment. It checks both
+languages, unowned-file refusal, drift refusal, symlink refusal, malformed/missing
+input, non-disclosure of the fixture path in errors, and preservation of synthetic
+Organization/Personalspace bytes. This script is separate from the old proof smoke.
+
+Both runs passed against CLI source `12371edfa8b94a82fe41d7beba39d87094bc8e36`, built
+with Bun 1.4.2 and both compile-autoload options disabled:
+
+| Native execution | Artifact SHA-256 | Scope |
+| --- | --- | --- |
+| Ubuntu 24.04.4 aarch64 test VM | `2ae5fe5b3a7acec3ec9209b2d465ebd92adcc5e2e296b2067c23a24fe7de8702` | Reused clone; Bun/Node absent; transferred artifact digest matched |
+| macOS 26.6.2 arm64 development host | `8242ad6e21d37da690ef956f13aed0783a70b38bc58609ceb9979f6493d8d42d` | Empty process environment, not a clean-system installation |
+
+The Linux VM was stopped after testing. These are bounded preview/refusal results,
+not durable state, mutation/recovery, full OS support, signed installation or Windows
+qualification. Temporary fixture contents are invented; no live Lazurio Folder is used.
+
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.
