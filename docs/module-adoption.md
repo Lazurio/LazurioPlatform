@@ -60,3 +60,23 @@ Fixtures verify a valid runtime-to-lease plan, an undeclared package, wrong iden
 absent/accessor script, duplicate listeners, missing leases, unsafe health paths and
 retained module requirements. These checks prepare the common lifecycle consumer;
 they are not app start/status/stop or installed-product evidence.
+
+## Explicit filesystem reader
+
+`readModuleApplication` reads `lazurio.module.json` and the selected declared
+`package.json` (`lazurio.runtime` plus package scripts). Ordinary package metadata
+is allowed; legacy `companyascode.app` requires explicit adoption, not an implicit
+fallback. Undeclared applications return the selector's blocked result.
+
+This POSIX development adapter requires a canonical, caller-owned, non-shared-write
+module directory and checks every intermediate app directory. Files must be owned,
+regular, single-link and non-shared-write; reads use no-follow/nonblocking opens,
+identity checks, a 1 MiB declaration limit and strict UTF-8 JSON. It never scans
+Organizations, executes scripts, fetches URLs or writes files. Tests use invented
+temporary modules, including links, malformed/oversized data and legacy conflicts.
+
+This is a snapshot under stable, cooperative local directories, not a sandbox against
+same-user ancestor replacement, a cross-file transaction, provider authorization or
+an executable lease. The lifecycle owner must revalidate declarations and authority
+before launch. Windows filesystem semantics and the complete CLI/UI consumer remain
+unqualified; this adapter does not alter the pending Organization binding model.
