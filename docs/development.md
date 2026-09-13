@@ -91,4 +91,15 @@ The preview is not authorization, a persisted transaction or a safe-to-apply tok
 future application must revalidate ownership, revisions and filesystem state under
 the mutation contract. No home-directory discovery or writer exists in this use case.
 
+Development entrypoint: `bun run src/cli.ts folder-preview --folder <canonical-fixture-path>
+--profile '<profile-json>' [--previous-digest <sha256>]`. Use only your own stable
+synthetic fixture, not a live Lazurio Folder. The directory must be canonical, owned
+by the current user and not group/world writable; symlink paths are rejected. These
+checks do not protect against hostile concurrent parent-directory replacement.
+The command prints a JSON preview, returns 0 for a valid proposal, 2 for a blocked
+plan, and 1 for invalid input or unavailable inventory. Errors omit raw input and
+private filesystem paths. No installed CLI, Windows support, mutation or UI parity
+is claimed. The full local check passed with 23 tests and 217 assertions after this
+entrypoint was added; this extends the earlier foundation evidence above.
+
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.
