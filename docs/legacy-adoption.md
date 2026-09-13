@@ -12,6 +12,10 @@ a Platform checkout. Test the same path through CLI and Launchpad, including den
 access, invalid manifest, busy port and failed start. The profile preview experiment
 does not satisfy this consumer.
 
+The [module adoption record](module-adoption.md) pins the observed existing wire
+contract and documents the new TypeScript reader/explicit app selector. Parsing is
+not discovery, access verification or a running lifecycle consumer.
+
 | Concern | Proposed disposition | Evidence and convergence |
 | --- | --- | --- |
 | Module/Organization discovery | Preserve contracts, port implementation selectively | Real manifest fixtures, case/remote identity and unauthorized/unknown scope denial |
