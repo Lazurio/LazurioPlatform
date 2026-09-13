@@ -114,7 +114,7 @@ posixTest(
   async () => {
     for (const mode of ["normal", "ignore", "exit-before", "exit-grace"]) {
       const cwd = join(root, mode);
-      await mkdir(cwd);
+      await mkdir(cwd, { mode: 0o700 });
       const handle = await startGuardedProcess(config(cwd, mode), binary);
       try {
         expect((await handle.started).kind).toBe("started");
@@ -179,7 +179,7 @@ posixTest(
   "closing the private control pipe cleans up an orphaned fixture group",
   async () => {
     const cwd = join(root, "pipe-close");
-    await mkdir(cwd);
+    await mkdir(cwd, { mode: 0o700 });
     const guard = Bun.spawn([binary, processGuardCommand], {
       cwd,
       env: {},
@@ -208,8 +208,8 @@ posixTest(
   async () => {
     const firstDir = join(root, "independent-first");
     const secondDir = join(root, "independent-second");
-    await mkdir(firstDir);
-    await mkdir(secondDir);
+    await mkdir(firstDir, { mode: 0o700 });
+    await mkdir(secondDir, { mode: 0o700 });
     const first = await startGuardedProcess(config(firstDir, "ignore"), binary);
     const second = await startGuardedProcess(
       config(secondDir, "normal"),

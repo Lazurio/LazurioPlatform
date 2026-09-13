@@ -186,9 +186,30 @@ uses the developer Bun as its fixture toolchain, while the guard is the compiled
 
 This improves ordinary launcher-exit handling but is not containment of arbitrary
 daemonized/escaped descendants. Unexpected guard death, durable crash recovery,
-native Linux/Windows process-group qualification and full CLI/UI consumer integration
+the complete native Linux/Windows qualification matrix and full CLI/UI consumer integration
 remain incomplete. A group-stop result does not prove an arbitrary process tree is
 gone. No daily installation is activated, and there is no permission granted by this
 internal protocol. Existing runtime semantics were observed at the legacy commit above;
 no legacy source was copied. The adapter uses
 [Bun subprocess APIs](https://bun.sh/docs/runtime/child-process).
+
+### Compiled guard native evidence, 2026-09-13
+
+`scripts/smoke-guarded-process.ts` uses a separately compiled actual `src/cli.ts`
+for the internal guard and its own standalone executable for the synthetic launcher
+and child. With Platform source `f07e022e3880826c79ad14432ac2306ad665d268`, it passed
+on the Mac ARM64 host and Ubuntu ARM64 VM: normal stop, TERM-ignoring processes,
+launcher exit before stop, launcher exit during grace, live listener/group match,
+endpoint disappearance, concurrent/repeated stop and an unrelated application left
+responding. Both run with empty environments; Ubuntu had neither Bun nor Node installed.
+`/bin/ps` and `/usr/bin/lsof` were present. The transferred Linux hashes matched:
+
+- Platform CLI: `26e8a44c20c88785fb83bef67a25e512486e5a5ad7346cef1440a5a20b1f7f88`.
+- Standalone runner: `bcf0214fcf8901fb543c78c1d24149a2791e6181d3e9170943e4965fa27e92d8`.
+
+The first Linux attempt correctly refused a group-writable fixture directory inherited
+from the guest umask. The runner and source test now request mode 0700 explicitly;
+product custody checks were not relaxed. The corrected runner passed, then the VM
+was stopped. This reused test VM is not a clean installer test. Linux evidence here
+does not cover pipe EOF, guard death, escaped descendants, Windows, Organization
+authorization or the still-missing user-facing app lifecycle commands and UI.
