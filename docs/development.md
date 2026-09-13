@@ -185,8 +185,10 @@ The compiled CLI test now covers successful revision 1→2, stale revision refus
 unchanged selection, missing expected revision and preservation of edited instructions
 and unrelated files, with an empty child environment. Exit 0 means completed/unchanged
 or preview success, 2 means a blocked plan, and 1 means failure that may require recovery.
-Errors do not expose raw paths or profile content. The command is a development API;
-complete headless recovery coverage, real Launchpad integration and installed acceptance remain
+Errors do not expose raw paths or profile content. The command is a development API.
+Repeated options are rejected before filesystem operations, including identical
+values and mixed `--name value` / `--name=value` forms; no last-value-wins target selection.
+Complete headless recovery coverage, real Launchpad integration and installed acceptance remain
 unfinished. The native Linux fixture evidence below predates this CLI update entrypoint
 and does not qualify that command on Linux or Windows.
 

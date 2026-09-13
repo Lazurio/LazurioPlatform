@@ -38,10 +38,11 @@ Exit status: 0 completed/unchanged/preview available, 2 blocked plan, 1 operatio
 Native Windows filesystem inspection is not yet qualified.`);
     return 0;
   }
-  const { values, positionals } = parseArgs({
+  const { values, positionals, tokens } = parseArgs({
     args,
     strict: true,
     allowPositionals: true,
+    tokens: true,
     options: {
       folder: { type: "string" },
       profile: { type: "string" },
@@ -55,6 +56,12 @@ Native Windows filesystem inspection is not yet qualified.`);
       coordination: { type: "string" },
     },
   });
+  const supplied = new Set<string>();
+  for (const token of tokens) {
+    if (token.kind !== "option") continue;
+    if (supplied.has(token.name)) throw new Error("Duplicate command option");
+    supplied.add(token.name);
+  }
   if (
     positionals.length !== 1 ||
     ![

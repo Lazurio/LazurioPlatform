@@ -101,7 +101,11 @@ test.skipIf(process.platform === "win32")(
         { mode: 0o600 },
       );
       await writeFile(join(directory, "unrelated"), "Preserve work");
-      const invoke = async (revision: string | null, locale: string) => {
+      const invoke = async (
+        revision: string | null,
+        locale: string,
+        extra: string[] = [],
+      ) => {
         const args = [
           binary,
           "profile-update",
@@ -111,6 +115,7 @@ test.skipIf(process.platform === "win32")(
           JSON.stringify({ ...profile, locale }),
         ];
         if (revision !== null) args.push("--expected-revision", revision);
+        args.push(...extra);
         const process = Bun.spawn(args, {
           cwd: directory,
           env: {},
@@ -125,6 +130,20 @@ test.skipIf(process.platform === "win32")(
         return { out, error, exit };
       };
       expect((await invoke(null, "cs")).exit).toBe(1);
+      for (const duplicate of [
+        ["--folder", directory],
+        ["--expected-revision=1"],
+        ["--profile", JSON.stringify({ ...profile, locale: "cs" })],
+      ]) {
+        const rejected = await invoke("1", "cs", duplicate);
+        expect(rejected.exit).toBe(1);
+        expect(rejected.out).toBe("");
+        expect(rejected.error).not.toContain(directory);
+        expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
+          initial.desired.content,
+        );
+        expect(await readdir(state)).not.toContain("transaction");
+      }
       expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
         initial.desired.content,
       );
@@ -167,6 +186,7 @@ test.skipIf(process.platform === "win32")(
         return { out, error, exit };
       };
       expect((await resume("4")).exit).toBe(1);
+      expect((await resume("3", ["--target-revision=3"])).exit).toBe(1);
       expect((await resume("3", ["--locale", "cs"])).exit).toBe(1);
       expect(await readFile(join(directory, "AGENTS.md"))).toEqual(
         beforeResume,
