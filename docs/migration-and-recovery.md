@@ -132,6 +132,28 @@ interrupted recovery, permissions, disk exhaustion and link rejection, with exac
 unrelated-file preservation. Qualify filesystem replacement separately on each
 supported native OS. No real Folder write or migration is authorized by this proposal.
 
+### Development state schema for this consumer
+
+`src/folder/state.ts` defines a testable version-1 candidate for the single-output
+transaction, not a released storage API or an installed state directory:
+
+- Preferences own a positive safe-integer revision, the composed profile and verbatim
+  custom instruction source. They contain no effective authorization or credentials.
+- The generated manifest separately records its preference revision, template revision
+  and the digest of the only supported output, root `AGENTS.md`. Arbitrary paths and
+  Organization/Personalspace outputs are rejected.
+- Both parsers reject unknown versions/fields and executable accessor fields, returning
+  immutable snapshots. Parsing proves structure, not trusted custody or ownership.
+- The shared configured-preview consumer rejects mismatched preference/manifest revisions
+  before inventory. Nonempty custom source currently stops with an explicit unsupported
+  composition error; it is never silently omitted from generated output.
+
+The filesystem owner must still establish trusted state custody and the operation lock.
+No JSON imported by a caller can prove ownership of an existing file. Physical storage,
+journal schema, creation/replacement and durable recovery remain unimplemented. There is
+no second locator or workflow service. Custom composition/conflict handling and actual
+CLI/Launchpad state loading must precede claims of usable persistent preferences.
+
 ## Product upgrade and profile rollback
 
 The release declares supported preferences and generated-manifest versions. Backward
