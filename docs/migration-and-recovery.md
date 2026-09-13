@@ -154,6 +154,23 @@ journal schema, creation/replacement and durable recovery remain unimplemented. 
 no second locator or workflow service. Custom composition/conflict handling and actual
 CLI/Launchpad state loading must precede claims of usable persistent preferences.
 
+The development POSIX adapter `withFolderOperationLock` uses atomic creation of
+`.operation-lock` within an explicitly supplied, canonical, caller-owned stable
+state directory. It does not discover or create an installed state location. All
+consumers must bind the same existing operation owner; selecting different directories
+does not provide mutual exclusion. It exposes a held-lock recheck before mutation,
+checks directory identities, and removes only its own empty lock on callback exit.
+Unexpected lock content or replacement is retained as an error. A terminated process
+leaves a blocking lock; age, PID absence or guessed completion never automatically
+reclaims it. Journal-aware operator recovery remains to be implemented. Callback
+exceptions release an otherwise unchanged lock, so the caller must inspect pending
+transaction recovery under every acquired lock before doing new work.
+
+Tests currently exercise native macOS fixtures, contention, callback failure,
+process termination and preservation of unexpected lock contents. This is cooperative
+local exclusion, not a security boundary against same-user attackers or ancestor
+replacement, and not evidence for Windows/network filesystems or durable transactions.
+
 ## Product upgrade and profile rollback
 
 The release declares supported preferences and generated-manifest versions. Backward

@@ -1,7 +1,6 @@
-import { lstat, realpath } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { inspectInstructions } from "./folder/inventory";
+import { inspectOwnedDirectory } from "./folder/owned-directory";
 import { executionOs } from "./folder/platform";
 import { previewFolder } from "./folder/preview";
 import { parseFolderProfile } from "./folder/profile";
@@ -65,16 +64,7 @@ Native Windows filesystem inspection is not yet qualified.`);
     throw new Error("Profile OS does not match execution Machine");
   // This development boundary requires caller-controlled, stable fixtures. No
   // hostile concurrent parent mutations are supported; this is not a sandbox.
-  if (!isAbsolute(folder) || (await realpath(folder)) !== resolve(folder))
-    throw new Error("Canonical fixture directory required");
-  const directory = await lstat(folder);
-  if (
-    !directory.isDirectory() ||
-    !process.getuid ||
-    directory.uid !== process.getuid() ||
-    (directory.mode & 0o022) !== 0
-  )
-    throw new Error("Caller-owned non-shared fixture required");
+  await inspectOwnedDirectory(folder);
   const result = await previewFolder(
     profile,
     values["previous-digest"] ?? null,
