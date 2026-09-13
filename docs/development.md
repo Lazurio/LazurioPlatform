@@ -18,7 +18,7 @@ Recommend one mechanical tool: exact `@biomejs/biome` 2.5.12 for formatting, imp
 | ESLint + Prettier + tsc | Valid alternative, but introduces two mechanical configurations and dependency surfaces for the current consumer | Actual framework/plugin rules justify the extra moving parts |
 | Formatter only | Makes diffs consistent | Insufficient by itself: it does not replace lint, type checking or behavioral tests |
 
-`biome.json` scopes automation to proof/scripts/tests TypeScript and the three JSON config files. It deliberately does not reformat architecture documents, instructions or other contributors' prose. Review the configuration scope when adding product source; an excluded future directory must not silently miss lint. The current HTML asset is reviewed manually. [Biome configuration reference](https://biomejs.dev/reference/configuration/).
+`biome.json` scopes automation to src/proof/scripts/tests TypeScript and the three JSON config files. It deliberately does not reformat architecture documents, instructions or other contributors' prose. Review the configuration scope when adding product source; an excluded future directory must not silently miss lint. The current HTML asset is reviewed manually. [Biome configuration reference](https://biomejs.dev/reference/configuration/).
 
 ```sh
 bun install --frozen-lockfile
@@ -47,6 +47,14 @@ The first real Launchpad consumer should add Playwright for browser flows, error
 
 This is not a general secret scanner: it does not inspect Git history, ignored files, dependencies, compiled binary contents, arbitrary provider token formats, encoded/fragmented values or organization confidentiality. Static TypeScript dependencies are read with Bun.Transpiler.scan, including side-effect imports, re-exports and import attributes. HTMLRewriter parses attributes independently of quoting or whitespace; only the small reviewed HTML vocabulary is allowed, so CSS, srcset, inline scripts and import maps require explicit policy expansion. Computed loading and arbitrary runtime IO are still a review boundary, not a security sandbox. The build embeds only the reviewed proof graph, and the smoke observes behavior; neither proves comprehensive absence of secrets. Review history, diffs, release inputs and artifact provenance before public release; add a maintained scanner when choosing the repository-wide release pipeline. Never treat a passing guard as permission to copy private data into this public repository.
 
-Observed locally on 2026-09-13: mechanical checks, strict types, ten tests (97 assertions), the public-input guard, standalone build and native macOS arm64 smoke passed. The Linux ARM64 artifact also passed the isolated CLI/HTTP/asset runner in a clean Ubuntu 24.04.4 guest without Bun/Node or a source checkout. This is bounded proof evidence, not installer or full Launchpad qualification. Clean macOS VM, Windows, other architectures and browser flows remain unverified.
+Observed locally on 2026-09-13: mechanical checks, strict types, fourteen tests (109 assertions), the public-input guard, standalone build and native macOS arm64 smoke passed. The Linux ARM64 artifact also passed the isolated CLI/HTTP/asset runner in a clean Ubuntu 24.04.4 guest without Bun/Node or a source checkout. The macOS arm64 proof passed the same runner in two independent macOS 26.6.2 clean clones. This is bounded proof evidence, not installer or full Launchpad qualification. Windows, other architectures and full browser flows remain unverified.
+
+`src/folder/reconcile.ts` starts product development separately from the disposable
+proof: a pure planner for the generated `AGENTS.md` file. It consumes typed inventory
+and prior/desired digests, not ambient filesystem state. Unknown ownership, unsafe
+paths and drift block the plan. Its tests do not prove inventory accuracy, runtime
+input validation, write safety, locks, atomic generation or CLI/UI integration;
+those adapters and consumers remain to be implemented. This is not a persisted
+manifest schema or a public API. Product source is included in lint and type checks.
 
 Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.

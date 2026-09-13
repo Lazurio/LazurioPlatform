@@ -10,5 +10,10 @@
     "types": ["bun"],
     "skipLibCheck": true
   },
-  "include": ["proof/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "proof/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts"
+  ]
 }
