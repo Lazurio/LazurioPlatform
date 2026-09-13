@@ -6,11 +6,13 @@ import {
   readdir,
   readFile,
   realpath,
+  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inspectPreparation } from "../src/folder/inspect-preparation";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
 import { executionOs } from "../src/folder/platform";
 import {
@@ -138,6 +140,9 @@ for (const stop of [
             createHash("sha256").update(staged).digest("hex"),
           );
           expect(marker.nextRevision).toBe(2);
+          expect(
+            (await inspectPreparation(f.folder)).plan.preferences.revision,
+          ).toBe(2);
           const before = JSON.parse(
             await readFile(join(f.state, "transaction", "before.json"), "utf8"),
           );
@@ -264,6 +269,83 @@ test.skipIf(process.platform === "win32")(
         "instructions.json",
         "preferences.json",
       ]);
+    } finally {
+      await rm(f.folder, { recursive: true, force: true });
+    }
+  },
+);
+
+for (const target of ["active", "staged"] as const) {
+  test.skipIf(process.platform === "win32")(
+    `prepared inspection rejects in-place BOM edit of ${target} instructions`,
+    async () => {
+      const f = await fixture();
+      try {
+        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        const path =
+          target === "active"
+            ? join(f.folder, "AGENTS.md")
+            : join(f.state, "transaction", "AGENTS.md");
+        const changed = Buffer.concat([
+          Buffer.from([0xef, 0xbb, 0xbf]),
+          await readFile(path),
+        ]);
+        await writeFile(path, changed);
+        await expect(inspectPreparation(f.folder)).rejects.toThrow();
+        expect(await readFile(path)).toEqual(changed);
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
+  test.skipIf(process.platform === "win32")(
+    `prepared inspection rejects identical-byte ${target} file replacement`,
+    async () => {
+      const f = await fixture();
+      try {
+        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        const path =
+          target === "active"
+            ? join(f.folder, "AGENTS.md")
+            : join(f.state, "transaction", "AGENTS.md");
+        const bytes = await readFile(path);
+        const replacement = join(f.folder, "replacement");
+        await writeFile(replacement, bytes, { mode: 0o600 });
+        await rename(replacement, path);
+        await expect(inspectPreparation(f.folder)).rejects.toThrow(
+          "no longer matches",
+        );
+        expect(await readFile(path)).toEqual(bytes);
+        expect(await readFile(join(f.state, "preferences.json"), "utf8")).toBe(
+          f.preferences,
+        );
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+test.skipIf(process.platform === "win32")(
+  "prepared inspection rejects new preference state without reverting it",
+  async () => {
+    const f = await fixture();
+    try {
+      await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+      const edited = JSON.stringify({
+        ...JSON.parse(f.preferences),
+        revision: 2,
+      });
+      await writeFile(join(f.state, "preferences.json"), edited);
+      await expect(inspectPreparation(f.folder)).rejects.toThrow(
+        "no longer matches",
+      );
+      expect(await readFile(join(f.state, "preferences.json"), "utf8")).toBe(
+        edited,
+      );
+      expect(await readFile(join(f.folder, "AGENTS.md"), "utf8")).toBe(
+        f.content,
+      );
     } finally {
       await rm(f.folder, { recursive: true, force: true });
     }

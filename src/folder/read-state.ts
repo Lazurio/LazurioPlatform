@@ -13,18 +13,44 @@ export async function readFolderState(stateDirectory: string) {
     throw new Error("Unrecognized or pending Folder state");
   return {
     preferences: parseFolderPreferences(
-      await readJson(stateDirectory, "preferences.json"),
+      await readStateJson(stateDirectory, "preferences.json"),
     ),
     manifest: parseInstructionManifest(
-      await readJson(stateDirectory, "instructions.json"),
+      await readStateJson(stateDirectory, "instructions.json"),
     ),
   };
 }
 
-async function readJson(
+export async function readStateJson(
   directory: string,
-  name: "preferences.json" | "instructions.json",
+  name:
+    | "preferences.json"
+    | "instructions.json"
+    | "before.json"
+    | "prepared.json",
 ) {
+  return JSON.parse((await readOwnedStateFile(directory, name)).content);
+}
+
+export async function readOwnedStateFile(
+  directory: string,
+  name:
+    | "preferences.json"
+    | "instructions.json"
+    | "before.json"
+    | "prepared.json"
+    | "AGENTS.md",
+) {
+  if (
+    ![
+      "preferences.json",
+      "instructions.json",
+      "before.json",
+      "prepared.json",
+      "AGENTS.md",
+    ].includes(name)
+  )
+    throw new Error("Unknown state file name");
   const path = join(directory, name);
   const before = await lstat(path);
   if (
@@ -43,6 +69,8 @@ async function readJson(
     if (
       !opened.isFile() ||
       opened.nlink !== 1 ||
+      opened.uid !== process.getuid?.() ||
+      (opened.mode & 0o022) !== 0 ||
       opened.dev !== before.dev ||
       opened.ino !== before.ino
     )
@@ -63,9 +91,13 @@ async function readJson(
       after.ctimeMs !== opened.ctimeMs
     )
       throw new Error("Folder state file changed during read");
-    return JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)),
-    );
+    return {
+      content: new TextDecoder("utf-8", {
+        fatal: true,
+        ignoreBOM: true,
+      }).decode(Buffer.concat(chunks)),
+      identity: { dev: String(opened.dev), ino: String(opened.ino) },
+    };
   } finally {
     await file.close();
   }

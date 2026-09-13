@@ -207,6 +207,17 @@ is semantic journal validation, not authentication of journal custody or verific
 that recorded file identities still exist. The activation/recovery adapter must
 perform those native filesystem checks under the lock before any replacement.
 
+The development `inspectPreparation` operation now performs pre-activation disk
+checks under the common lock: exact expected directory entries, owned regular
+single-link files, same filesystem, semantic journal validation, unchanged current
+preferences/manifest and matching active/staged device/inode identities and bytes.
+Identical content in a replacement inode is rejected. Tests also prove that changed
+preferences are retained rather than reverted. This operation refuses incomplete or
+already-applied transactions; it is not the forward-recovery implementation. Its
+internal `readPreparedChange` entry is for a writer already holding the same lock,
+which must retain the lock and revalidate immediately before any mutation. These are
+native macOS fixture observations, not general hostile-filesystem or cross-OS proof.
+
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
 revision, matching current preference/manifest revision and current-template output
