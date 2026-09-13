@@ -372,3 +372,22 @@ SHA-256 values matched before execution:
 The VM was stopped afterwards. This is a reused fixture VM, not a clean installation,
 signed distribution, full readiness/authority proof, Windows qualification or
 CLI/Launchpad acceptance. No Organization or Personalspace was mounted or used.
+
+### Local Git checkout observation
+
+`src/providers/git-checkout.ts` is a read-only POSIX development adapter using an
+explicit caller-qualified Git executable. It requires a canonical caller-owned,
+non-shared-writable checkout root and Git/common directories, observes their
+identities again, and reads one locally configured origin without includes. Nested
+paths are not accepted as checkout roots. Only exact GitHub HTTPS or SSH coordinates
+are returned; credentials, alternate transports and ambiguous origins are refused.
+Commands have bounded time/output and do not fetch, check out, clean or modify Git.
+
+Synthetic Mac-host tests cover an ordinary checkout and a linked worktree, preserve
+untracked work and Git configuration/pointer files, and reject nested paths and
+multiple origins. This is not Linux/Windows qualification. Observations assume a
+stable cooperative filesystem, not atomic protection against same-user replacement.
+The configured origin is not the effective fetch destination after Git rewrites,
+proof of repository contents, provider rights or Organization authorization. Full
+Organization document resolution and operation policy remain separate prerequisites;
+this adapter does not grant lifecycle access or touch a real installation.
