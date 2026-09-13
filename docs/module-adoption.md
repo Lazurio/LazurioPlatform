@@ -80,3 +80,29 @@ same-user ancestor replacement, a cross-file transaction, provider authorization
 an executable lease. The lifecycle owner must revalidate declarations and authority
 before launch. Windows filesystem semantics and the complete CLI/UI consumer remain
 unqualified; this adapter does not alter the pending Organization binding model.
+
+## Listener health observation
+
+`probeListenerHealth` performs one bounded HTTP(S) or TCP connectivity observation
+for a validated loopback endpoint. It does not certify which process owns that port.
+The lifecycle owner must combine health with fresh process/binding ownership evidence
+before reporting an application ready; an unrelated service can also return HTTP 200.
+
+HTTP uses direct Node-compatible request APIs with no reusable proxy agent, no
+credentials, no redirects and no response-body buffering. Non-2xx is `http-error`;
+transport/TLS failure is `unavailable`; the overall deadline is `timeout`. HTTPS
+certificate verification stays enabled. `localhost` tries only numeric IPv4/IPv6
+loopback under one deadline, never hosts-file/DNS targets. A responding IPv4 service
+ends that observation, so this is not a discovery mechanism for multiple local services.
+No response bodies, headers, URLs or low-level errors are returned in the report.
+
+Synthetic native-host tests cover a real child HTTP process observed through the
+module reader, success then disappearance after test-owned termination, TCP response,
+HTTP failure, unfollowed redirect, stalled response and unsafe input. They do not prove
+process-tree ownership, production start/stop, certificate distribution, or Windows/
+Linux qualification. The child is launched and cleaned up by the test, not a second
+Platform supervisor. No real Organization app was started.
+
+Reference API behavior: [Node networking](https://nodejs.org/api/net.html) and
+[HTTP client](https://nodejs.org/api/http.html). Existing runtime ownership behavior
+was inspected in `lazurio/runtime/runtime-lib.mjs`; no implementation was copied.
