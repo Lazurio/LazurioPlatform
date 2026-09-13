@@ -102,6 +102,15 @@ private filesystem paths. No installed CLI, Windows support, mutation or UI pari
 is claimed. The full local check passed with 23 tests and 217 assertions after this
 entrypoint was added; this extends the earlier foundation evidence above.
 
+For readable profile selection, `bun run src/cli.ts --help` documents an alternative
+to JSON: pass all of `--access`, `--purpose`, `--locale`, `--detail` and
+`--coordination`. The execution OS is detected automatically. For example, append
+`--access remote --purpose human --locale cs --detail concise --coordination direct`
+to `folder-preview --folder <canonical-fixture-path>`. These choices go through the
+same profile validator and preview use case as JSON; mixing the two forms is rejected.
+This is a noninteractive development preview, not completed first-run onboarding.
+`--previous-digest` is a supplied test input, not evidence that a file is owned.
+
 The subsequent compiled-CLI regression builds `src/cli.ts` into its own temporary
 artifact and executes it with an empty environment from a separate fixture directory.
 Its JSON result equals the shared preview and the fixture stays empty. The complete

@@ -128,6 +128,41 @@ test.skipIf(process.platform === "win32")(
       ).toBe(1);
       expect(fresh.code).toBe(0);
       expect(JSON.parse(fresh.stdout).plan.kind).toBe("create");
+      const choices = [
+        "--access",
+        "local",
+        "--purpose",
+        "human",
+        "--locale",
+        "en",
+        "--detail",
+        "concise",
+        "--coordination",
+        "direct",
+      ];
+      const fromChoices = await run([
+        "folder-preview",
+        "--folder",
+        directory,
+        ...choices,
+      ]);
+      expect(fromChoices.code).toBe(0);
+      expect(JSON.parse(fromChoices.stdout)).toEqual(JSON.parse(fresh.stdout));
+      expect((await run([...args, ...choices])).code).toBe(1);
+      expect(
+        (
+          await run([
+            "folder-preview",
+            "--folder",
+            directory,
+            ...choices.slice(2),
+          ])
+        ).code,
+      ).toBe(1);
+      const help = await run(["--help"]);
+      expect(help.code).toBe(0);
+      expect(help.stdout).toContain("No files are written");
+      expect((await run(["--help", "--folder", directory])).code).toBe(1);
       expect(await readdir(directory)).toEqual([]);
       await writeFile(join(directory, "AGENTS.md"), "Own instructions");
       const conflict = await run(args);

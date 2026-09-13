@@ -8,6 +8,23 @@ import { parseFolderProfile } from "./folder/profile";
 
 // Development CLI entrypoint. No installer, implicit folder discovery or writer.
 export async function runCli(args: string[]): Promise<number> {
+  if (args.length === 1 && (args[0] === "--help" || args[0] === "help")) {
+    console.log(`Lazurio development CLI — read-only Folder preview
+
+folder-preview --folder <absolute canonical fixture directory>
+  --access <local|remote> --purpose <human|buddy|ai_colleague>
+  --locale <cs|en> --detail <concise|technical>
+  --coordination <direct|coordinator>
+
+All five choices are required. OS is detected on the execution Machine.
+Alternatively supply --profile <JSON> instead of the five profile choices.
+Optional --previous-digest <sha256> is development inventory input, not proof of ownership.
+The directory must already exist and be caller-owned, non-shared and stable.
+No files are written. This command does not install or migrate Lazurio.
+Exit status: 0 preview available, 2 blocked plan, 1 invalid input or inspection failure.
+Native Windows filesystem inspection is not yet qualified.`);
+    return 0;
+  }
   const { values, positionals } = parseArgs({
     args,
     strict: true,
@@ -16,14 +33,34 @@ export async function runCli(args: string[]): Promise<number> {
       folder: { type: "string" },
       profile: { type: "string" },
       "previous-digest": { type: "string" },
+      access: { type: "string" },
+      purpose: { type: "string" },
+      locale: { type: "string" },
+      detail: { type: "string" },
+      coordination: { type: "string" },
     },
   });
   if (positionals.length !== 1 || positionals[0] !== "folder-preview")
     throw new Error("Expected folder-preview command");
   const folder = values.folder;
-  if (!folder || !values.profile)
-    throw new Error("Explicit --folder and --profile JSON required");
-  const profile = parseFolderProfile(JSON.parse(values.profile));
+  if (!folder) throw new Error("Explicit --folder required");
+  const axes = {
+    access: values.access,
+    purpose: values.purpose,
+    locale: values.locale,
+    detail: values.detail,
+    coordination: values.coordination,
+  };
+  if (
+    values.profile !== undefined &&
+    Object.values(axes).some((value) => value !== undefined)
+  )
+    throw new Error("Profile JSON and profile choices cannot be mixed");
+  const profile = parseFolderProfile(
+    values.profile !== undefined
+      ? JSON.parse(values.profile)
+      : { os: executionOs(process.platform), ...axes },
+  );
   if (profile.os !== executionOs(process.platform))
     throw new Error("Profile OS does not match execution Machine");
   // This development boundary requires caller-controlled, stable fixtures. No
