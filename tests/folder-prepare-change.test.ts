@@ -25,6 +25,7 @@ import {
 } from "../src/folder/prepare-profile-change";
 import { previewFolder } from "../src/folder/preview";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
+import { updateProfile } from "../src/folder/update-profile";
 import { validatePreparation } from "../src/folder/validate-preparation";
 
 async function fixture() {
@@ -77,6 +78,84 @@ async function fixture() {
     await rm(folder, { recursive: true, force: true });
     throw error;
   }
+}
+
+test.skipIf(process.platform === "win32")(
+  "shared update holds exclusion across preparation, activation and finalization",
+  async () => {
+    const f = await fixture();
+    try {
+      const checkpoints: string[] = [];
+      expect(
+        await updateProfile(
+          f.folder,
+          1,
+          { ...f.profile, locale: "cs" },
+          async (step) => {
+            checkpoints.push(step);
+            await expect(
+              updateProfile(f.folder, 1, f.profile),
+            ).rejects.toThrow();
+            await expect(
+              inspectProfileChange(f.folder, 1, f.profile),
+            ).rejects.toThrow();
+          },
+        ),
+      ).toEqual({ kind: "updated", revision: 2 });
+      expect(checkpoints).toEqual(["prepared", "applied", "finalized"]);
+      expect(await updateProfile(f.folder, 1, f.profile)).toEqual({
+        kind: "blocked",
+        reason: "stale-revision",
+      });
+      expect(
+        await updateProfile(f.folder, 2, { ...f.profile, locale: "cs" }),
+      ).toEqual({ kind: "unchanged" });
+      expect(await updateProfile(f.folder, 2, f.profile)).toEqual({
+        kind: "updated",
+        revision: 3,
+      });
+      expect(await readFile(join(f.folder, "AGENTS.md"), "utf8")).toBe(
+        f.content,
+      );
+      expect(await readFile(join(f.folder, "own-notes"), "utf8")).toBe(
+        "Preserve user work",
+      );
+    } finally {
+      await rm(f.folder, { recursive: true, force: true });
+    }
+  },
+);
+
+for (const stop of ["prepared", "applied"] as const) {
+  test.skipIf(process.platform === "win32")(
+    `shared update interruption at ${stop} retains recoverable attempt`,
+    async () => {
+      const f = await fixture();
+      try {
+        await expect(
+          updateProfile(
+            f.folder,
+            1,
+            { ...f.profile, locale: "cs" },
+            async (step) => {
+              if (step === stop) throw new Error("Interrupted use case");
+            },
+          ),
+        ).rejects.toThrow("Interrupted use case");
+        await expect(updateProfile(f.folder, 1, f.profile)).rejects.toThrow(
+          "pending",
+        );
+        await applyPreparation(f.folder);
+        await finalizePreparation(f.folder, 2);
+        expect(await updateProfile(f.folder, 2, f.profile)).toEqual({
+          kind: "updated",
+          revision: 3,
+        });
+      } finally {
+        await rm(f.folder, { recursive: true, force: true });
+      }
+    },
+  );
 }
 
 for (const stop of [

@@ -278,6 +278,21 @@ write or reclaim a dead-process lock. Those cases still need a separately verifi
 repair path; there is no automatic force-clean or legacy rollback. Evidence remains
 native macOS synthetic fixtures, without installed-command or power-loss qualification.
 
+The development `updateProfile` application use case now holds one uninterrupted
+Folder operation lock across preparation, application and finalization. CLI/Launchpad
+adapters should use this single operation rather than chaining independently locked
+steps. Existing step wrappers remain available for explicit recovery tests. Their
+internal `Locked` entries require the caller to retain and recheck that same lock;
+they are not independent authority or a supported external API.
+
+The use case returns unchanged/blocked without staging, or updated with the completed
+revision. A pre-existing pending transaction is refused rather than silently adopted.
+Interruption retains the same explicit recovery evidence as the component operations.
+Tests attempt competing mutation and inspection at each phase, then verify stale
+revision refusal, no-op behavior, a second update and recovery from interrupted use
+cases. This is shared-core behavior, not yet actual CLI/Launchpad UI parity or fresh
+Folder initialization, and does not waive native qualification or stale-lock recovery.
+
 The development `planProfileChange` use case prepares one coherent next preference
 revision and output manifest without writing either. It requires a matching expected
 revision, matching current preference/manifest revision and current-template output

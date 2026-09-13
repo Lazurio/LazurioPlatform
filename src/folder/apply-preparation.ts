@@ -25,38 +25,48 @@ export async function applyPreparation(
   checkpoint: (step: ApplicationStep) => Promise<void> = async () => {},
 ) {
   await inspectOwnedDirectory(folder);
+  return withFolderOperationLock(join(folder, ".lazurio"), (assertHeld) =>
+    applyPreparationLocked(folder, assertHeld, checkpoint),
+  );
+}
+
+// Internal entry for a caller retaining the same operation lock.
+export async function applyPreparationLocked(
+  folder: string,
+  assertHeld: () => Promise<void>,
+  checkpoint: (step: ApplicationStep) => Promise<void> = async () => {},
+) {
+  await assertHeld();
   const state = join(folder, ".lazurio");
   const transaction = join(state, "transaction");
-  return withFolderOperationLock(state, async (assertHeld) => {
-    for (const name of names) {
-      const current = await inspectProgress(folder);
-      if (current.applied.includes(name)) {
-        await assertHeld();
-        await syncDirectory(name === "AGENTS.md" ? folder : state);
-        await syncDirectory(transaction);
-        continue;
-      }
+  for (const name of names) {
+    const current = await inspectProgress(folder);
+    if (current.applied.includes(name)) {
       await assertHeld();
-      await rename(
-        join(transaction, name),
-        join(name === "AGENTS.md" ? folder : state, name),
-      );
-      await checkpoint(`renamed:${name}`);
       await syncDirectory(name === "AGENTS.md" ? folder : state);
       await syncDirectory(transaction);
-      await checkpoint(name);
+      continue;
     }
-    // Resume may observe a rename whose directory sync previously failed.
-    await syncDirectory(folder);
-    await syncDirectory(state);
-    await syncDirectory(transaction);
-    const verified = await inspectProgress(folder);
     await assertHeld();
-    return {
-      kind: "applied-journal-retained" as const,
-      revision: verified.revision,
-    };
-  });
+    await rename(
+      join(transaction, name),
+      join(name === "AGENTS.md" ? folder : state, name),
+    );
+    await checkpoint(`renamed:${name}`);
+    await syncDirectory(name === "AGENTS.md" ? folder : state);
+    await syncDirectory(transaction);
+    await checkpoint(name);
+  }
+  // Resume may observe a rename whose directory sync previously failed.
+  await syncDirectory(folder);
+  await syncDirectory(state);
+  await syncDirectory(transaction);
+  const verified = await inspectProgress(folder);
+  await assertHeld();
+  return {
+    kind: "applied-journal-retained" as const,
+    revision: verified.revision,
+  };
 }
 
 // Caller holds the common lock. Only a prefix of the fixed replacement order is
@@ -156,6 +166,20 @@ export async function finalizePreparation(
   revision: number,
   checkpoint: (step: "history" | "archived") => Promise<void> = async () => {},
 ) {
+  await inspectOwnedDirectory(folder);
+  return withFolderOperationLock(join(folder, ".lazurio"), (assertHeld) =>
+    finalizePreparationLocked(folder, revision, assertHeld, checkpoint),
+  );
+}
+
+// Internal entry for a caller retaining the same operation lock.
+export async function finalizePreparationLocked(
+  folder: string,
+  revision: number,
+  assertHeld: () => Promise<void>,
+  checkpoint: (step: "history" | "archived") => Promise<void> = async () => {},
+) {
+  await assertHeld();
   if (!Number.isSafeInteger(revision) || revision < 2)
     throw new Error("Invalid finalized revision");
   await inspectOwnedDirectory(folder);
@@ -163,43 +187,41 @@ export async function finalizePreparation(
   const history = join(state, "history");
   const transaction = join(state, "transaction");
   const archive = join(history, `revision-${revision}`);
-  return withFolderOperationLock(state, async (assertHeld) => {
-    const pending = await exists(transaction);
-    const verified = await inspectProgress(
-      folder,
-      pending ? undefined : revision,
-    );
-    if (
-      verified.revision !== revision ||
-      verified.applied.length !== names.length
-    )
-      throw new Error("Transaction is not fully applied at requested revision");
-    if (pending) {
-      if (!(await exists(history))) await mkdir(history, { mode: 0o700 });
-      await inspectStateLayout(state, true);
-      await syncDirectory(state);
-      await checkpoint("history");
-      if (await exists(archive))
-        throw new Error("History destination already exists");
-      // Revalidate after the test interruption boundary and immediately before move.
-      const current = await inspectProgress(folder);
-      if (
-        current.revision !== revision ||
-        current.applied.length !== names.length
-      )
-        throw new Error("Transaction changed before finalization");
-      await assertHeld();
-      await rename(transaction, archive);
-      await checkpoint("archived");
-    }
-    await syncDirectory(history);
+  const pending = await exists(transaction);
+  const verified = await inspectProgress(
+    folder,
+    pending ? undefined : revision,
+  );
+  if (
+    verified.revision !== revision ||
+    verified.applied.length !== names.length
+  )
+    throw new Error("Transaction is not fully applied at requested revision");
+  if (pending) {
+    if (!(await exists(history))) await mkdir(history, { mode: 0o700 });
+    await inspectStateLayout(state, true);
     await syncDirectory(state);
-    const final = await inspectProgress(folder, revision);
-    if (final.revision !== revision || final.applied.length !== names.length)
-      throw new Error("Finalized transaction no longer matches active state");
+    await checkpoint("history");
+    if (await exists(archive))
+      throw new Error("History destination already exists");
+    // Revalidate after the test interruption boundary and immediately before move.
+    const current = await inspectProgress(folder);
+    if (
+      current.revision !== revision ||
+      current.applied.length !== names.length
+    )
+      throw new Error("Transaction changed before finalization");
     await assertHeld();
-    return { kind: "finalized" as const, revision };
-  });
+    await rename(transaction, archive);
+    await checkpoint("archived");
+  }
+  await syncDirectory(history);
+  await syncDirectory(state);
+  const final = await inspectProgress(folder, revision);
+  if (final.revision !== revision || final.applied.length !== names.length)
+    throw new Error("Finalized transaction no longer matches active state");
+  await assertHeld();
+  return { kind: "finalized" as const, revision };
 }
 
 async function exists(path: string) {
