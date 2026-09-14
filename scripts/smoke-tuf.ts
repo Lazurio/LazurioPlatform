@@ -24,6 +24,10 @@ import {
 } from "@tufjs/models";
 import { Updater } from "tuf-js";
 import { selectPilotTarget } from "../src/distribution/channel";
+import {
+  downloadPilotCandidate,
+  type PilotTrust,
+} from "../src/distribution/download-pilot";
 import { DistributionTransport } from "../src/distribution/transport";
 import {
   parseTrustCheckpoint,
@@ -73,12 +77,16 @@ assert.ok(
 );
 const payload = await readFile(artifact);
 const artifactPath = `artifacts/${hash(payload).sha256}/lazurio`;
-const repository = (version: number, expired = false) => {
+const repository = (
+  version: number,
+  expired = false,
+  channelSequence = version,
+) => {
   const channel = Buffer.from(
     JSON.stringify({
       schemaVersion: 1,
       channel: "pilot",
-      sequence: version,
+      sequence: channelSequence,
       targets: { "linux-arm64": artifactPath },
     }),
   );
@@ -171,6 +179,74 @@ async function client(name: string) {
   });
 }
 try {
+  {
+    const download = (
+      name: string,
+      trust: PilotTrust,
+      maxArtifactBytes = payload.length,
+    ) =>
+      downloadPilotCandidate({
+        directory: join(fixture, name),
+        trust,
+        executionTarget: "linux-arm64",
+        metadataBaseUrl: `${server.url}metadata/`,
+        targetBaseUrl: `${server.url}targets/`,
+        allowedOrigins: [server.url.origin],
+        timeoutMs: 30_000,
+        signal: new AbortController().signal,
+        maxArtifactBytes,
+        loopbackFixture: true,
+      });
+    const downloaded = await download("owned-download", {
+      kind: "bootstrap",
+      trustedRoot: rootBytes.toString(),
+    });
+    assert.deepEqual(await readFile(downloaded.artifactPath), payload);
+    assert.deepEqual(
+      await readTrustCheckpoint(join(fixture, "owned-download", "checkpoint")),
+      downloaded.checkpoint,
+    );
+    const established: PilotTrust = {
+      kind: "established",
+      checkpoint: downloaded.checkpoint,
+      channel: downloaded.selection,
+    };
+    const retry = await download("owned-retry", established);
+    assert.deepEqual(retry.selection, downloaded.selection);
+    await assert.rejects(download("owned-download", established), /EEXIST/);
+    served = repository(3, false, 1);
+    await assert.rejects(
+      download("owned-channel-rollback", established),
+      /Channel rollback/,
+    );
+    served = repository(3);
+    served.set(`/targets/${artifactPath}`, Buffer.alloc(payload.length, 65));
+    await assert.rejects(
+      download("owned-tamper", established),
+      /Expected hash/,
+    );
+    await assert.rejects(
+      readFile(join(fixture, "owned-tamper", "checkpoint", "trust.json")),
+      /ENOENT/,
+    );
+    served = repository(3);
+    await assert.rejects(
+      download("owned-oversize", established, payload.length - 1),
+      /identity or size/,
+    );
+    const upgraded = await download("owned-upgrade", established);
+    assert.equal(upgraded.selection.sequence, 3);
+    assert.deepEqual(await readFile(upgraded.artifactPath), payload);
+    assert.deepEqual(await readFile(downloaded.artifactPath), payload);
+    assert.deepEqual(
+      await readTrustCheckpoint(join(fixture, "owned-download", "checkpoint")),
+      downloaded.checkpoint,
+    );
+    console.log(
+      "PASS: shared verified download, established retry/update, channel rollback, payload tamper, size and existing-output refusal; prior download preserved",
+    );
+    served = repository(2);
+  }
   const valid = await client("valid");
   await valid.refresh();
   const channelTarget = await valid.getTargetInfo("channels/pilot.json");

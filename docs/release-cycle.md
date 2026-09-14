@@ -191,7 +191,21 @@ unsupported targets, path escapes, lower sequence and changed bytes at the same
 sequence. Identical authenticated bytes are retryable. The installation owner must
 persist the high-water mark without resetting it on network failure.
 
-This parser is not yet wired to a download/install command. Before staging, the
+The shared `downloadPilotCandidate` operation now connects this parser to the
+pinned TUF client and constrained transport. It requires explicit trusted bootstrap
+bytes or an established checkpoint plus channel high-water mark, creates a new owned
+output directory, verifies the channel and the digest-addressed target, bounds channel
+size to 64 KiB and artifact size to the caller's policy, and syncs downloaded files.
+Only top-level targets are supported. Existing output is refused and failures retain
+their isolated evidence. Successful results include a new checkpoint and selection;
+the original trusted state and downloaded candidate are not overwritten. The regular
+test suite runs the signed fixture scenarios against this shared operation.
+
+This is not yet a download/install command or the durable installation state owner.
+In particular, accepted metadata/root progress during a failed operation must be
+reconciled under that owner's lock before another refresh; it must not be discarded
+by retrying from the older input checkpoint. No automatic retry/repair is provided.
+Before staging, the
 consumer must bind the selected path to TUF length/hash and product build identity,
 check product-version/schema compatibility and persist trusted state under the
 installer's exclusion/recovery protocol. A newer channel sequence alone cannot prove
