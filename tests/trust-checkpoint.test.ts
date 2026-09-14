@@ -64,6 +64,13 @@ test("immutable checkpoint preserves bytes, refuses replacement and damaged stat
     const before = await readFile(join(directory, "trust.json"));
     await expect(writeNewTrustCheckpoint(directory, fixture)).rejects.toThrow();
     expect(await readFile(join(directory, "trust.json"))).toEqual(before);
+    const unexpected = join(directory, "pending.json");
+    await writeFile(unexpected, "retained evidence", { flag: "wx" });
+    await expect(readTrustCheckpoint(directory)).rejects.toThrow(
+      "unrecognized",
+    );
+    expect(await readFile(unexpected, "utf8")).toBe("retained evidence");
+    await rm(unexpected);
     await writeFile(join(directory, "trust.json"), "\u0000");
     await expect(readTrustCheckpoint(directory)).rejects.toThrow();
     expect(await readFile(join(directory, "trust.json"), "utf8")).toBe(

@@ -1,4 +1,4 @@
-import { mkdir, open } from "node:fs/promises";
+import { mkdir, open, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readOwnedJson } from "../providers/owned-json";
@@ -103,6 +103,9 @@ export async function readTrustCheckpoint(
   directory: string,
 ): Promise<TrustCheckpoint> {
   await inspectOwnedDirectory(directory);
+  const entries = await readdir(directory);
+  if (entries.length !== 1 || entries[0] !== "trust.json")
+    throw new Error("Incomplete or unrecognized trust checkpoint directory");
   return parseTrustCheckpoint(
     await readOwnedJson(join(directory, "trust.json")),
   );
