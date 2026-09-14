@@ -154,6 +154,15 @@ workspace input capture, remote browser access, provider operations and installe
 consumer qualification remain open. Do not run competing development owners against
 the same dependency tree or use this as daily-environment activation.
 
+The existing `scripts/smoke-application-ui.ts` now starts that compiled CLI command,
+not an injected lifecycle adapter. Its synthetic module declares its own data check
+and preparation. On the local macOS ARM64 host, both `en` and `cs` passed canonical
+discovery/selection, preparation, clean reinstall, start/status/open and stop through
+actual Chromium controls and the compiled CLI. The harness independently checks the
+synthetic dependency/data, unchanged package/lock and removal of only derived sentinels.
+Run with an externally supplied Playwright/Chromium installation via `NODE_PATH`.
+These are host synthetic integration results, not new real-module or VM qualification.
+
 For start-time prerequisites, `preflightDeclaredBunCheck` selects the explicit check
 operation of that same process owner. It skips frozen installation and prepare_script,
 requires check_script, and rejects clean-install mode. Module check code is expected

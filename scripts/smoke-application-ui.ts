@@ -6,8 +6,6 @@ import { join, resolve } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { messages } from "../src/launchpad/messages";
-import { startLaunchpad } from "../src/launchpad/server";
-import { preflightBunPreparation } from "../src/modules/bun-preparation";
 
 // Explicit local browser harness; Playwright and its Chromium are test tooling,
 // supplied externally, not dependencies of the distributed Platform executable.
@@ -16,7 +14,7 @@ const locale = process.argv[2] ?? "cs";
 assert.ok(locale === "cs" || locale === "en");
 const copy = messages(locale);
 const root = await realpath(await mkdtemp(join(tmpdir(), "lazurio-app-ui-")));
-let launchpad: Awaited<ReturnType<typeof startLaunchpad>> | undefined;
+let launchpad: { url: string; close(): Promise<{ kind: string }> } | undefined;
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
   const binary = join(root, "platform");
@@ -113,9 +111,16 @@ try {
       dependencies: { "fixture-dependency": "file:./dependency" },
       scripts: {
         "prepare:data": `"${process.execPath}" --no-env-file prepare-data.ts`,
-        dev: `"${process.execPath}" --no-env-file "${resolve("tests/fixtures/lifecycle-app.ts")}"`,
+        "check:data": "bun run check-data.ts",
+        dev: "bun run fixture-server.ts",
       },
       lazurio: {
+        preparation: {
+          schema_version: "lazurio.preparation.v1",
+          owner_package: "app/package.json",
+          prepare_script: "prepare:data",
+          check_script: "check:data",
+        },
         runtime: {
           schema_version: "lazurio.runtime.v1",
           id: "fixture-app",
@@ -140,6 +145,16 @@ try {
     { mode: 0o600 },
   );
   const ownerDirectory = join(directory, "app");
+  await writeFile(
+    join(ownerDirectory, "fixture-server.ts"),
+    `process.env.FIXTURE_PORT=${JSON.stringify(String(port))}; await import(${JSON.stringify(resolve("tests/fixtures/lifecycle-app.ts"))});`,
+    { mode: 0o600 },
+  );
+  await writeFile(
+    join(ownerDirectory, "check-data.ts"),
+    `const pkg=await Bun.file('node_modules/fixture-dependency/package.json').json(); if(pkg.name!=='fixture-dependency'||pkg.version!=='1.0.0'||await Bun.file('module-data').text()!=='synthetic prepared data') process.exit(1);`,
+    { mode: 0o600 },
+  );
   await writeFile(
     join(ownerDirectory, "prepare-data.ts"),
     "if (!(await Bun.file('module-data').exists())) await Bun.write('module-data', 'synthetic prepared data');",
@@ -181,53 +196,37 @@ try {
         "synthetic prepared data"
     );
   };
-  launchpad = await startLaunchpad(
-    folder,
-    {
-      platformExecutable: binary,
-      authorize: async (value) => {
-        assert.deepEqual(value, selection);
-        return { moduleDirectory: directory };
-      },
-      preflightPreparation: async (_plan, cwd) => {
-        assert.equal(cwd, ownerDirectory);
-        return preflightBunPreparation({
-          checkout: directory,
-          owner: ownerDirectory,
-          executable: process.execPath,
-          platformExecutable: binary,
-          env,
-          timeoutMs: 10_000,
-          modulePreparationScript: "prepare:data",
-          verifyPrepared,
-        });
-      },
-      preflightCleanPreparation: async (_plan, cwd) => {
-        assert.equal(cwd, ownerDirectory);
-        return preflightBunPreparation({
-          checkout: directory,
-          owner: ownerDirectory,
-          executable: process.execPath,
-          platformExecutable: binary,
-          env,
-          timeoutMs: 10_000,
-          cleanInstall: true,
-          modulePreparationScript: "prepare:data",
-          verifyPrepared,
-        });
-      },
-      prepareLaunch: async (plan, cwd) => {
-        assert.equal(await verifyPrepared(), true);
-        return {
-          executable: process.execPath,
-          args: ["--no-env-file", "run", plan.runtime.dev_script],
-          cwd,
-          env,
-        };
-      },
-    },
-    { organizationDirectory },
+  const owner = Bun.spawn(
+    [
+      binary,
+      "launchpad",
+      "--folder",
+      folder,
+      "--organization-directory",
+      organizationDirectory,
+      "--bun-executable",
+      process.execPath,
+    ],
+    { env, stdout: "pipe", stderr: "pipe" },
   );
+  // Register cleanup before reading startup output, including failed startup.
+  launchpad = {
+    url: "",
+    async close() {
+      owner.kill("SIGTERM");
+      return { kind: (await owner.exited) === 0 ? "closed" : "incomplete" };
+    },
+  };
+  const reader = owner.stdout.getReader();
+  let startup = "";
+  while (!startup.includes("\n")) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error("CLI owner did not start");
+    startup += new TextDecoder().decode(chunk.value);
+    assert.ok(startup.length < 16_384);
+  }
+  reader.releaseLock();
+  launchpad.url = JSON.parse(startup.split("\n")[0] as string).url;
   browser = await chromium.launch({
     headless: true,
     env: { PATH: "/usr/bin:/bin", HOME: root },
