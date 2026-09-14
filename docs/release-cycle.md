@@ -51,8 +51,16 @@ capabilities; do not create a general deployment service for this workflow.
 
 ## Distribution decision inputs (slice 1a)
 
-These are researched options, not an accepted bootstrap protocol or authorization
-to provision signing identities. The first consumer is the terminal install on a
+The accepted trust boundary is HTTPS initial delivery from the official source,
+then TUF verification. This does not protect a compromised first bootstrap merely
+by embedding a root inside that same download. The Principal permits a controlled
+internal pilot before Apple Developer ID/notarization and Windows publisher signing;
+public release still requires them and tests of the final signed bytes. No OS protections
+are disabled. Detailed hosting, key handling, expiry and layout choices are delegated
+for implementation and verification; operational custody stays outside this public source.
+
+The options below retain the design rationale, not a request to choose initial trust
+again or authorization to provision signing identities. The first consumer is the terminal install on a
 fresh machine without Bun, Node, npm or a source checkout.
 
 | Option | Useful property | Gap for the first-install contract |
@@ -70,10 +78,11 @@ merely because this option is documented. See [immutable releases](https://docs.
 and [release verification](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/verify-release-integrity).
 
 For metadata verification, evaluate an established update-security implementation
-such as [TUF](https://theupdateframework.io/docs/overview/) before implementing
+for [TUF](https://theupdateframework.io/docs/overview/) before implementing
 custom rotation, expiry and rollback protection. TUF's trusted initial metadata
 must itself be delivered authentically; adding it does not solve first-install
-trust automatically. No TUF dependency or new updater is selected here.
+trust automatically. TUF is selected as the verification approach; the concrete library
+still needs qualification. No second updater is introduced.
 
 Keep native distribution signatures separate from build provenance:
 [Apple Developer ID and notarization](https://developer.apple.com/developer-id/)
@@ -91,6 +100,62 @@ synthetic fixtures. Missing credentials can block official signing without block
 unsigned local build tests; those tests must remain explicitly non-release evidence.
 
 ## Two independent test modes
+
+### Internal-pilot implementation contract
+
+The following choices specify the delegated implementation direction, not completed
+qualification. Real hosting and signing custody must be verified before a real pilot;
+local development uses disposable keys and an isolated metadata server.
+
+- Build the real `src/cli.ts` entrypoint, including its Launchpad assets and Folder
+  Factory. `proof/main.ts` remains a separate demonstration and is not a release input.
+  Pin Bun from `packageManager`; disable compiled ambient dotenv/bunfig loading.
+  The distribution does not bundle every module's Bun or database dependency.
+- Use one standalone executable per qualified native target, with a separate build
+  identity based on `scripts/artifact-identity.ts`: product version, full source SHA,
+  lock digest, exact toolchain, target, byte length and SHA-256. This JSON is provenance,
+  not authentication. A clean source tree and frozen dependencies are build prerequisites.
+  A local build must use an explicit new output directory and never replace an installation.
+- Deliver immutable artifacts through GitHub release assets. A static HTTPS metadata
+  origin serves versioned TUF metadata, publishing timestamp last. Its concrete URL is
+  release configuration, not inferred from `latest` or from an Organization manifest.
+  Local fixtures use their own explicit loopback origin; never contact production by fallback.
+- Start with an explicit `pilot` channel. A TUF-authenticated target document selects
+  the product version and exact platform artifact identity. Reject unknown schema,
+  unsupported targets, mismatched length/hash and downgrade selection before staging.
+  A release flag alone cannot authorize a channel change. No automatic channel switch.
+- Separate root, targets, snapshot and timestamp keys. Controlled-pilot root and targets
+  each use their own owner-controlled offline key with threshold one; disclose the
+  single-key compromise risk. Build jobs receive neither private key. Snapshot and
+  timestamp have separate custody from build output. Production values never enter
+  source, logs or fixtures; the private custody record names actual operators/storage.
+  Before broader release, explicitly evaluate threshold custody and recovery ownership.
+- Initial metadata lifetimes are root one year, targets 90 days, snapshot 30 days and
+  timestamp seven days with daily refresh. These are policy choices, not TUF defaults.
+  Expiry blocks a new install/update, not use of the already installed product. Clock
+  anomalies must produce an actionable error, never disable expiry checking.
+  Retain every intermediate root for sequential rotation and exercise old/new signatures.
+- Install per user outside the Folder: macOS `~/Library/Application Support/Lazurio`,
+  Linux `${XDG_DATA_HOME:-~/.local/share}/lazurio`, Windows `%LOCALAPPDATA%/Lazurio`.
+  Resolve and validate actual absolute paths; this notation is not shell code to execute.
+  Versioned product directories are immutable after verification. One stable entrypoint
+  selects the active version through the existing installation owner. Windows entrypoint
+  replacement and running-handle behavior must be qualified natively, not assumed from POSIX.
+- Stage and activate are separate states under one installer lock. A downloaded target
+  is not installed; a staged target is not active. Reject partial records and retain
+  recovery evidence after interruption. Preserve the active and previous compatible
+  version plus every version referenced by a live process or recovery record. For the
+  controlled pilot, do not automatically prune published artifacts or unknown local state.
+- Initial installation and update checks are explicit terminal actions, not network
+  activity on every CLI launch. Offline failure preserves existing active software.
+  No source checkout, user Bun/Node/npm, sudo, provider credential or access to a private
+  integration repository is required merely to launch the installed CLI and Launchpad.
+
+Qualification starts on the available native macOS ARM64 and Linux ARM64 fixtures.
+Other target names in an identity schema do not establish support. Windows and the
+remaining launch matrix remain required work, not silently dropped deliverables.
+The full first installed consumer must use the real CLI/Launchpad module lifecycle,
+not just `--help`. All earlier preservation, tamper, concurrency and recovery gates apply.
 
 ```mermaid
 flowchart LR

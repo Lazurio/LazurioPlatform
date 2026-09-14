@@ -72,8 +72,12 @@ Platform releases.
 strict TypeScript with pinned Bun tooling. Distribute a standalone executable containing
 its required runtime; users do not need a separately installed Bun, Node or npm. First
 installation starts with a terminal command and a thin bootstrap that verifies and
-installs Lazurio; environment setup belongs to the shared core. Exact bootstrap trust,
-hosting and signing mechanisms remain to be selected and tested. React/Vite for the real Launchpad remains under consideration;
+installs Lazurio; environment setup belongs to the shared core. HTTPS delivery from
+the official source followed by TUF verification is accepted. A controlled internal
+pilot may precede Apple Developer ID, notarization and Windows publisher signing;
+these remain mandatory before public release. Remaining technical details are delegated
+to the implementer to specify and verify, without disabling OS protections.
+React/Vite for the real Launchpad remains under consideration;
 the proof's tiny native HTML surface is not a final UI framework selection.
 
 Baseline incremental cleanup of the legacy source-working directory retains deployment coupling.
@@ -189,7 +193,9 @@ A candidate's provenance includes source repository and full commit, dependency
 lockfile, toolchain pin, target, artifact digest and signed release metadata. A digest
 alone detects corruption but does not authenticate its publisher. Trust bootstrap,
 signing-key rotation, rollback retention and Windows/macOS distribution signing
-must be implemented and exercised before user installation. No keys or workflows
+must be implemented and exercised before public release. The controlled pilot exception
+above defers OS publisher signing only, not TUF verification, preservation or recovery.
+No keys or workflows
 are created by this draft.
 
 ## Open gates, owners and resolution evidence

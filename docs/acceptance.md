@@ -36,10 +36,18 @@ concurrency and recovery tests. This permission does not add installation or mig
 commands to the bounded proof by implication: use reviewed product implementation
 boundaries and keep the proof's evidence labels accurate.
 
-Unsigned fixture evidence cannot complete slices 1–3, qualify an official installer,
+Unsigned fixture evidence cannot complete public-release slices 1–3, qualify a public installer,
 authorize daily-Machine activation or waive any native platform/harness gate. Installer
 trust decisions in 1a remain prerequisites for installer implementation; certificate
 availability is not a prerequisite for unrelated core or generation tests.
+
+The Principal explicitly permits a controlled internal pilot with HTTPS initial
+bootstrap and subsequent TUF verification before Apple Developer ID, notarization
+and Windows publisher signing are available. Record that limitation in pilot evidence.
+Do not disable OS protections, waive integrity/recovery tests or infer public release
+readiness. Later OS signing changes artifact bytes: qualify those final signed artifacts
+before promotion. Remaining technical distribution details are delegated for design and
+verification; they must be documented, not repeatedly treated as pending founder choices.
 
 Fresh local cohorts qualify distribution, generation, profile and local-founder behavior;
 they do not wait for unrelated hosted/shared-workshop migration. Existing-environment migration
