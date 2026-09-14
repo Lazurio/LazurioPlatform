@@ -141,6 +141,16 @@ export async function downloadPilotCandidate(options: {
     throw new Error("Pilot channel unavailable or too large");
   const channelPath = join(options.directory, "channel.json");
   await updater.downloadTarget(channelTarget, channelPath);
+  // The selected sequence must not become observable before its authenticated
+  // source bytes are durable enough for the recovery path to reverify them.
+  for (const path of [channelPath, options.directory]) {
+    const handle = await open(path, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  }
   const channelBytes = await readFile(channelPath);
   const selection = selectPilotTarget(
     new TextDecoder("utf-8", { fatal: true }).decode(channelBytes),
@@ -162,7 +172,7 @@ export async function downloadPilotCandidate(options: {
   await updater.downloadTarget(target, artifactPath);
   options.signal.throwIfAborted();
   // The library's destination copy is not itself a durability guarantee.
-  for (const path of [channelPath, artifactPath]) {
+  for (const path of [artifactPath]) {
     const file = await open(path, "r");
     try {
       await file.sync();

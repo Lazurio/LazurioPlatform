@@ -6,6 +6,7 @@ import {
   readdir,
   readFile,
   realpath,
+  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -28,6 +29,7 @@ import {
   downloadPilotCandidate,
   type PilotTrust,
 } from "../src/distribution/download-pilot";
+import { replayPilotTrust } from "../src/distribution/replay-pilot";
 import { DistributionTransport } from "../src/distribution/transport";
 import {
   parseTrustCheckpoint,
@@ -145,10 +147,12 @@ const repository = (
   ]);
 };
 let served = repository(2);
+let requestCount = 0;
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
   fetch(request) {
+    requestCount++;
     const bytes = served.get(new URL(request.url).pathname);
     return bytes
       ? new Response(new Uint8Array(bytes))
@@ -246,6 +250,87 @@ try {
     await assert.rejects(
       readFile(join(fixture, "owned-tamper", "checkpoint", "trust.json")),
       /ENOENT/,
+    );
+    const beforeReplay = requestCount;
+    const recovered = await replayPilotTrust(
+      join(fixture, "owned-tamper"),
+      join(fixture, "recovered"),
+      "linux-arm64",
+    );
+    assert.equal(requestCount, beforeReplay);
+    assert.equal(recovered.selection.sequence, 3);
+    assert.equal(
+      JSON.parse(recovered.checkpoint.metadata.timestamp).signed.version,
+      3,
+    );
+    const replayedTrust: PilotTrust = {
+      kind: "established",
+      checkpoint: recovered.checkpoint,
+      channel: recovered.selection,
+    };
+    served = repository(2);
+    await assert.rejects(
+      download("recovered-timestamp-rollback", replayedTrust),
+      /New timestamp version 2 is less than current version 3/,
+    );
+    served = repository(4, false, 2);
+    await assert.rejects(
+      download("recovered-channel-rollback", replayedTrust),
+      /Channel rollback/,
+    );
+    await assert.rejects(
+      replayPilotTrust(
+        join(fixture, "owned-tamper"),
+        join(fixture, "recovered"),
+        "linux-arm64",
+      ),
+      /EEXIST/,
+    );
+    const channelPath = join(fixture, "owned-tamper", "channel.json");
+    const originalChannel = await readFile(channelPath);
+    await writeFile(channelPath, Buffer.alloc(originalChannel.length, 65));
+    await assert.rejects(
+      replayPilotTrust(
+        join(fixture, "owned-tamper"),
+        join(fixture, "replay-bad-channel"),
+        "linux-arm64",
+      ),
+      /Expected hash/,
+    );
+    await writeFile(channelPath, originalChannel);
+    const snapshotPath = join(journal, "002-snapshot.json");
+    const originalSnapshot = await readFile(snapshotPath);
+    await writeFile(snapshotPath, Buffer.alloc(originalSnapshot.length, 65));
+    await assert.rejects(
+      replayPilotTrust(
+        join(fixture, "owned-tamper"),
+        join(fixture, "replay-bad-metadata"),
+        "linux-arm64",
+      ),
+    );
+    await writeFile(snapshotPath, originalSnapshot);
+    await rename(snapshotPath, join(fixture, "saved-snapshot"));
+    await assert.rejects(
+      replayPilotTrust(
+        join(fixture, "owned-tamper"),
+        join(fixture, "replay-gap"),
+        "linux-arm64",
+      ),
+      /Incomplete/,
+    );
+    await rename(join(fixture, "saved-snapshot"), snapshotPath);
+    served = repository(4, true);
+    await assert.rejects(download("owned-expired", established), /expired/);
+    await assert.rejects(
+      replayPilotTrust(
+        join(fixture, "owned-expired"),
+        join(fixture, "replay-expired"),
+        "linux-arm64",
+      ),
+      /expired/,
+    );
+    console.log(
+      "PASS: offline TUF replay restores metadata and channel high-water after payload failure; altered, missing, expired and occupied evidence refused",
     );
     served = repository(3);
     await assert.rejects(
@@ -457,6 +542,45 @@ try {
     acceptedRoot,
   );
   assert.ok(await rotated.getTargetInfo("artifact.bin"));
+  served.set(`/targets/${artifactPath}`, Buffer.alloc(payload.length, 65));
+  const rotatedAttempt = join(fixture, "rotated-download");
+  await assert.rejects(
+    downloadPilotCandidate({
+      directory: rotatedAttempt,
+      trust: { kind: "bootstrap", trustedRoot: rootBytes.toString() },
+      executionTarget: "linux-arm64",
+      metadataBaseUrl: `${server.url}metadata/`,
+      targetBaseUrl: `${server.url}targets/`,
+      allowedOrigins: [server.url.origin],
+      timeoutMs: 30_000,
+      signal: new AbortController().signal,
+      maxArtifactBytes: payload.length,
+      loopbackFixture: true,
+    }),
+    /Expected hash/,
+  );
+  const rootReplayed = await replayPilotTrust(
+    rotatedAttempt,
+    join(fixture, "replayed-root"),
+    "linux-arm64",
+  );
+  assert.equal(rootReplayed.checkpoint.metadata.root, acceptedRoot.toString());
+  assert.equal(rootReplayed.selection.sequence, 2);
+  await writeFile(
+    join(rotatedAttempt, "received-metadata", "001-2.root.json"),
+    rotatedRoot(true, false),
+  );
+  await assert.rejects(
+    replayPilotTrust(
+      rotatedAttempt,
+      join(fixture, "replay-unilateral-root"),
+      "linux-arm64",
+    ),
+    /root was signed by 0\/1 keys/,
+  );
+  console.log(
+    "PASS: replay re-verifies old/new root rotation from original anchor and rejects unilateral replacement",
+  );
   const validDirectory = join(fixture, "valid");
   const before = new Map(
     await Promise.all(

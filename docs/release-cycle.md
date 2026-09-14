@@ -214,6 +214,23 @@ fetcher and preserves partial output. Tests cover occupied records, concurrent r
 retention after payload tampering and abrupt process exit after a returned record.
 The exit test does not establish power-loss durability or completed replay recovery.
 
+`replayPilotTrust` now provides bounded offline reverification after metadata and
+channel delivery: it reads the owned original input and ordered response records,
+runs the same pinned TUF client against a network-free replay fetcher, and verifies
+the retained channel bytes against the resulting signed targets before deriving the
+selection/high-water mark. Channel bytes are synced before first selection, not only
+after artifact completion. Replay uses a new output and preserves its source; it
+requires the owner to bind that source to its recorded attempt and trusted original
+input. Filesystem ownership alone does not authenticate an arbitrary supplied root. It
+does not execute or reuse a failed artifact. It rejects gaps, altered responses,
+unconsumed records, occupied output and expired/incomplete evidence without fallback.
+Tests verify root rotation again from the original anchor and show a subsequent
+download refusing both older timestamp and older channel using the recovered state.
+This does not yet publish recovered state under the installation owner's lock or
+recover an expired/incomplete transcript via fresh network metadata; those paths
+remain closed rather than resetting to bootstrap. Native power-loss qualification
+and active-version switching remain separate gates.
+
 This is not yet a download/install command or the durable installation state owner.
 In particular, accepted metadata/root progress during a failed operation must be
 reconciled under that owner's lock before another refresh; it must not be discarded
