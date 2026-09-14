@@ -5,6 +5,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  realpath,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -24,6 +25,11 @@ import {
 import { Updater } from "tuf-js";
 import { selectPilotTarget } from "../src/distribution/channel";
 import { DistributionTransport } from "../src/distribution/transport";
+import {
+  parseTrustCheckpoint,
+  readTrustCheckpoint,
+  writeNewTrustCheckpoint,
+} from "../src/distribution/trust-checkpoint";
 
 // Local synthetic repository only. One ephemeral test key for all roles is NOT
 // a proposed production key-management policy. No installation takes place.
@@ -141,7 +147,9 @@ const server = Bun.serve({
       : new Response("not found", { status: 404 });
   },
 });
-const fixture = await mkdtemp(join(tmpdir(), "tuf-updater-fixture-"));
+const fixture = await realpath(
+  await mkdtemp(join(tmpdir(), "tuf-updater-fixture-")),
+);
 const transport = () =>
   new DistributionTransport(
     [server.url.origin],
@@ -222,6 +230,19 @@ try {
   const damaged = await client("damaged-cache");
   await damaged.refresh();
   assert.ok(await damaged.getTargetInfo("channels/pilot.json"));
+  const checkpointPath = join(fixture, "trust-checkpoint");
+  const metadata = Object.fromEntries(
+    await Promise.all(
+      ["root", "timestamp", "snapshot", "targets"].map(async (role) => [
+        role,
+        await readFile(join(fixture, "damaged-cache", `${role}.json`), "utf8"),
+      ]),
+    ),
+  );
+  await writeNewTrustCheckpoint(
+    checkpointPath,
+    parseTrustCheckpoint({ schemaVersion: 1, metadata }),
+  );
   for (const role of ["timestamp", "snapshot", "targets"])
     await writeFile(join(fixture, "damaged-cache", `${role}.json`), "\u0000");
   served = repository(1);
@@ -243,6 +264,26 @@ try {
   );
   console.log(
     "OBSERVED: damaged TUF cache permits older signed metadata; retained channel high-water rejects it, durable retention still required",
+  );
+  const retained = await readTrustCheckpoint(checkpointPath);
+  const restoredDirectory = join(fixture, "restored-cache");
+  await mkdir(restoredDirectory, { mode: 0o700 });
+  for (const [role, bytes] of Object.entries(retained.metadata))
+    await writeFile(join(restoredDirectory, `${role}.json`), bytes, {
+      flag: "wx",
+      mode: 0o600,
+    });
+  const restored = new Updater({
+    fetcher: transport(),
+    metadataDir: restoredDirectory,
+    metadataBaseUrl: `${server.url}metadata/`,
+  });
+  await assert.rejects(
+    restored.refresh(),
+    /New timestamp version 1 is less than current version 2/,
+  );
+  console.log(
+    "PASS: reloading retained checkpoint into a separate fixture preserves TUF timestamp rollback refusal; not automated crash recovery",
   );
   served = repository(1, true);
   const expired = await client("expired");

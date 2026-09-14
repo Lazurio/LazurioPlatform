@@ -228,6 +228,21 @@ The installer must recognize damaged/missing established state before refresh an
 retain a coherent durable trust checkpoint. Never silently treat it as first install.
 The smoke's in-memory previous selection is not evidence of durable protection.
 
+The development trust-checkpoint adapter stores exact root/timestamp/snapshot/targets
+JSON strings together in one exclusively created `trust.json` beneath a new owned
+directory. It syncs the file and directories, refuses existing output and retains
+partial failures. Its reader rejects unsafe files and malformed storage; shape checks
+do not verify signatures, freshness or provenance. The complete smoke saves verified
+metadata and reloads it into a separate fixture cache, where TUF again refuses older
+timestamp metadata. Tests also cover concurrent creation, links and getter refusal.
+
+This is not yet an active trust-state selector or automated repair mechanism. The
+installer still needs coordinated checkpoint selection, root-rotation continuity,
+channel high-water state, interrupted-write handling and native crash qualification.
+Do not choose an older readable checkpoint merely because the newest is damaged.
+The current adapter is bounded to the existing 1 MiB owned-declaration envelope;
+larger/delegated repositories require an explicit compatible storage design.
+
 The default fetcher sets a timeout for each request and follows the platform fetch
 behavior. It does not provide the entire install operation's cancellation/redirect
 policy. Integration must explicitly constrain transport, bound the total operation and
