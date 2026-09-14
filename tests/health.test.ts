@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,10 @@ import {
   probeListenerHealth,
 } from "../src/modules/health";
 import { readModuleApplication } from "../src/modules/read-application";
+import {
+  mkdirOwnedFixture as mkdir,
+  writeOwnedFixture as writeFile,
+} from "./fixtures/owned-files";
 
 const listener = (port: number, path = "/health") => ({
   host: "127.0.0.1",

@@ -2,18 +2,20 @@ import { expect, test } from "bun:test";
 import {
   chmod,
   link,
-  mkdir,
   mkdtemp,
   readFile,
   realpath,
   rm,
   symlink,
-  writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { inspectPreparationBinding } from "../src/modules/preparation-binding";
 import { readModuleApplication } from "../src/modules/read-application";
+import {
+  mkdirOwnedFixture as mkdir,
+  writeOwnedFixture as writeFile,
+} from "./fixtures/owned-files";
 
 const posixTest = test.skipIf(process.platform === "win32");
 

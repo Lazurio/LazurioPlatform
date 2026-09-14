@@ -1,13 +1,5 @@
 import { expect, test } from "bun:test";
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  realpath,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
@@ -21,6 +13,10 @@ import {
   resolveOrganizationApplication,
 } from "../src/organizations/read-applications";
 import { readCanonicalDocuments } from "../src/organizations/read-documents";
+import {
+  mkdirOwnedFixture as mkdir,
+  writeOwnedFixture as writeFile,
+} from "./fixtures/owned-files";
 
 const posixTest = test.skipIf(!["darwin", "linux"].includes(process.platform));
 

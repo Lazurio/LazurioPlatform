@@ -1,18 +1,15 @@
 import { expect, test } from "bun:test";
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   githubRemoteCoordinate,
   inspectGitCheckout,
 } from "../src/providers/git-checkout";
+import {
+  mkdirOwnedFixture as mkdir,
+  writeOwnedFixture as writeFile,
+} from "./fixtures/owned-files";
 
 test("remote parsing returns only exact GitHub coordinates and rejects credential-bearing URLs", () => {
   for (const url of [
@@ -42,16 +39,26 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     const directory = join(root, "repo");
     await mkdir(directory, { mode: 0o700 });
     const git = async (args: string[]) => {
-      const child = Bun.spawn(["/usr/bin/git", ...args], {
-        cwd: directory,
-        env: {
-          PATH: "/usr/bin:/bin",
-          GIT_CONFIG_NOSYSTEM: "1",
-          GIT_CONFIG_GLOBAL: "/dev/null",
+      // Git creates its own metadata; constrain only this fixture subprocess.
+      const child = Bun.spawn(
+        [
+          "/bin/sh",
+          "-c",
+          'umask 077; exec /usr/bin/git "$@"',
+          "fixture-git",
+          ...args,
+        ],
+        {
+          cwd: directory,
+          env: {
+            PATH: "/usr/bin:/bin",
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_GLOBAL: "/dev/null",
+          },
+          stdout: "pipe",
+          stderr: "pipe",
         },
-        stdout: "pipe",
-        stderr: "pipe",
-      });
+      );
       const [error, code] = await Promise.all([
         new Response(child.stderr).text(),
         child.exited,

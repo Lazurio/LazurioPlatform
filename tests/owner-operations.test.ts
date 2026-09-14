@@ -116,7 +116,9 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     let ownerInspections = 0;
     const queue = createOwnerOperations(async (path) => {
       const stat = await inspectOwnedDirectory(path);
-      if (path === owner && ++ownerInspections === 3) observed.release();
+      // First operation inspects admission, queued identity and held identity.
+      // Wait for the second operation's admission before replacing the path.
+      if (path === owner && ++ownerInspections === 4) observed.release();
       return stat;
     });
     const started = gate();

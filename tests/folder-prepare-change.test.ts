@@ -1,14 +1,12 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
-  mkdir,
   mkdtemp,
   readdir,
   readFile,
   realpath,
   rename,
   rm,
-  writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,6 +25,10 @@ import { previewFolder } from "../src/folder/preview";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
 import { updateProfile } from "../src/folder/update-profile";
 import { validatePreparation } from "../src/folder/validate-preparation";
+import {
+  mkdirOwnedFixture as mkdir,
+  writeOwnedFixture as writeFile,
+} from "./fixtures/owned-files";
 
 async function fixture() {
   const folder = await realpath(

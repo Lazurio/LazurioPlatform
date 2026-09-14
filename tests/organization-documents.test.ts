@@ -2,17 +2,19 @@ import { expect, test } from "bun:test";
 import {
   chmod,
   link,
-  mkdir,
   mkdtemp,
   readFile,
   realpath,
   rm,
   symlink,
-  writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readOrganizationDocuments } from "../src/organizations/read-documents";
+import {
+  mkdirOwnedFixture as mkdir,
+  writeOwnedFixture as writeFile,
+} from "./fixtures/owned-files";
 
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
   "Organization acquisition keeps missing, invalid and present documents separate without fallback or writes",
