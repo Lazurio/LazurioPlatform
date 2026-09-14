@@ -293,6 +293,7 @@ export function createApplicationLifecycle(adapters: {
               }
             }
           }
+          if (closing) return Object.freeze({ kind: "closing" as const });
           launch = parseProcessLaunch(await adapters.prepareLaunch(plan, cwd));
           if (launch.cwd !== cwd) throw new Error("Launch path mismatch");
           if (

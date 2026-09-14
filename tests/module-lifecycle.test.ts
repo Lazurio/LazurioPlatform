@@ -662,6 +662,50 @@ posixTest(
 );
 
 posixTest(
+  "shutdown after a successful start check prevents launch preparation",
+  async () => {
+    const f = await fixture("prepared-check-shutdown");
+    let entered = () => {};
+    const running = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let complete = () => {};
+    const completed = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    let launches = 0;
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: async (...args) => {
+        launches++;
+        return f.prepareLaunch(...args);
+      },
+      preflightStartCheck: async () => ({
+        run: async () => {
+          entered();
+          await completed;
+          return { kind: "prepared" };
+        },
+        close: async () => ({ kind: "closed" }),
+      }),
+    });
+    const starting = owner.start(selection);
+    try {
+      await running;
+      complete();
+      const stopping = owner.close();
+      expect(await starting).toEqual({ kind: "closing" });
+      expect(await stopping).toEqual({ kind: "closed" });
+      expect(launches).toBe(0);
+    } finally {
+      complete();
+      await owner.close();
+    }
+  },
+);
+
+posixTest(
   "shutdown cancels a running start check before preparing the application launch",
   async () => {
     const f = await fixture("start-check-shutdown");
