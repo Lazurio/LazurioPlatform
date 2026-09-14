@@ -29,6 +29,9 @@ export async function preflightBunPreparation(input: {
   timeoutMs: number;
   cleanInstall?: boolean;
   modulePreparationScript?: string;
+  // Trusted declaration selection, not a script name supplied by an HTTP request.
+  // Read-only behavior is the module contract, not an OS sandbox guarantee.
+  moduleCheckScript?: string;
   verifyPrepared: (
     authority: Authority,
     signal: AbortSignal,
@@ -48,6 +51,9 @@ export async function preflightBunPreparation(input: {
   const modulePreparationScript = input.modulePreparationScript;
   if (modulePreparationScript !== undefined)
     modulePreparationArgs(authority, modulePreparationScript);
+  const moduleCheckScript = input.moduleCheckScript;
+  if (moduleCheckScript !== undefined)
+    modulePreparationArgs(authority, moduleCheckScript);
   const launch = parseProcessLaunch({
     executable: input.executable,
     cwd: authority.owner,
@@ -75,6 +81,7 @@ export async function preflightBunPreparation(input: {
   let pending: Promise<PreparationResult> | null = null;
   let install: Install | undefined;
   let modulePreparation: Install | undefined;
+  let moduleCheck: Install | undefined;
   let closing = false;
   let used = false;
   const failed = () => Object.freeze({ kind: "preparation-failed" as const });
@@ -128,6 +135,24 @@ export async function preflightBunPreparation(input: {
             )
               return failed();
           }
+          if (moduleCheckScript !== undefined) {
+            moduleCheck = await runModulePreparationProcess({
+              authority,
+              executable: launch.executable,
+              platformExecutable,
+              env: launch.env,
+              timeoutMs,
+              signal: combined,
+              script: moduleCheckScript,
+            });
+            if (
+              combined.aborted ||
+              moduleCheck.kind !== "process-exited" ||
+              moduleCheck.code !== 0 ||
+              moduleCheck.cleanup !== "group-stopped"
+            )
+              return failed();
+          }
           if (
             !(await verifyPrepared(authority, combined)) ||
             combined.aborted ||
@@ -146,7 +171,7 @@ export async function preflightBunPreparation(input: {
       abort.abort();
       await pending;
       let incomplete = false;
-      for (const operation of [install, modulePreparation])
+      for (const operation of [install, modulePreparation, moduleCheck])
         if (
           operation &&
           "handle" in operation &&

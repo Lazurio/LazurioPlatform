@@ -75,6 +75,16 @@ spellings of the same key. The original package and opaque Bun lockfile remain
 unchanged; this does not parse a Bun lockfile as JSON or regenerate it. Regression
 coverage is in `tests/install-authority.test.ts` and `tests/unique-json.test.ts`.
 
+Trusted preparation composition may additionally select `moduleCheckScript`, an
+explicit script from the same snapshotted package owner. It runs after installation
+and optional preparation under the same deadline and cancellation signal. Its process
+handle remains retained for cleanup, including after failure or cancellation. Nonzero
+exit, incomplete cleanup or authority drift prevents the final postcondition callback
+and a prepared result. The callback remains required; check-script exit alone does
+not establish full application functionality. Read-only check behavior is a module
+contract, not a sandbox guarantee. No manifest field, implicit script discovery or
+browser-supplied command is introduced by this adapter option.
+
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
 installer exit of zero with failed module postconditions does not become prepared;

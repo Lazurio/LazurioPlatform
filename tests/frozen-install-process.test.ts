@@ -115,6 +115,105 @@ async function fixture(
 }
 
 posixTest(
+  "module check runs after preparation and failure cannot become prepared",
+  async () => {
+    const f = await fixture("module-check");
+    const pkg = await Bun.file(join(f.directory, "package.json")).json();
+    pkg.scripts["prepare:data"] =
+      `"${process.execPath}" --no-env-file prepare.ts`;
+    pkg.scripts["check:data"] = `"${process.execPath}" --no-env-file check.ts`;
+    await writeFile(join(f.directory, "package.json"), JSON.stringify(pkg));
+    await writeFile(
+      join(f.directory, "prepare.ts"),
+      "await Bun.write('module-data', 'prepared');",
+    );
+    await writeFile(
+      join(f.directory, "check.ts"),
+      "if ((await Bun.file('module-data').text()) !== 'prepared') process.exit(19); if (await Bun.file('fail-check').exists()) process.exit(23);",
+    );
+    for (const fail of [false, true]) {
+      if (fail) await writeFile(join(f.directory, "fail-check"), "yes");
+      let verified = false;
+      const preparation = await preflightBunPreparation({
+        checkout: f.directory,
+        owner: f.directory,
+        executable: process.execPath,
+        platformExecutable: platform,
+        env: f.request.env,
+        timeoutMs: 10_000,
+        modulePreparationScript: "prepare:data",
+        moduleCheckScript: "check:data",
+        verifyPrepared: async () => {
+          verified = true;
+          return true;
+        },
+      });
+      try {
+        expect(await preparation.run(new AbortController().signal)).toEqual({
+          kind: fail ? "preparation-failed" : "prepared",
+        });
+        expect(verified).toBe(!fail);
+        expect(await Bun.file(join(f.directory, "module-data")).text()).toBe(
+          "prepared",
+        );
+      } finally {
+        expect(await preparation.close()).toEqual({ kind: "closed" });
+      }
+    }
+  },
+  15_000,
+);
+
+posixTest(
+  "cancelling module check retains and drains its process ownership",
+  async () => {
+    const f = await fixture("cancel-module-check");
+    const pkg = await Bun.file(join(f.directory, "package.json")).json();
+    pkg.scripts["check:data"] = `"${process.execPath}" --no-env-file check.ts`;
+    await writeFile(join(f.directory, "package.json"), JSON.stringify(pkg));
+    await writeFile(
+      join(f.directory, "check.ts"),
+      "setInterval(() => { void Bun.write('heartbeat', String(Date.now())); }, 20); await Bun.sleep(60_000);",
+    );
+    let verified = false;
+    const preparation = await preflightBunPreparation({
+      checkout: f.directory,
+      owner: f.directory,
+      executable: process.execPath,
+      platformExecutable: platform,
+      env: f.request.env,
+      timeoutMs: 10_000,
+      moduleCheckScript: "check:data",
+      verifyPrepared: async () => {
+        verified = true;
+        return true;
+      },
+    });
+    const controller = new AbortController();
+    const pending = preparation.run(controller.signal);
+    try {
+      const heartbeat = () => Bun.file(join(f.directory, "heartbeat"));
+      const deadline = performance.now() + 5000;
+      while (!(await heartbeat().exists()) && performance.now() < deadline)
+        await Bun.sleep(20);
+      expect(await heartbeat().exists()).toBe(true);
+      controller.abort();
+      expect(await pending).toEqual({ kind: "preparation-failed" });
+      expect(await preparation.close()).toEqual({ kind: "closed" });
+      const stopped = await heartbeat().text();
+      await Bun.sleep(100);
+      expect(await heartbeat().text()).toBe(stopped);
+      expect(verified).toBe(false);
+    } finally {
+      controller.abort();
+      await pending;
+      expect(await preparation.close()).toEqual({ kind: "closed" });
+    }
+  },
+  15_000,
+);
+
+posixTest(
   "real frozen Bun install runs hook and drains group without claiming readiness",
   async () => {
     const f = await fixture("success");
