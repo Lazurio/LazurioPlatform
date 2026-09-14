@@ -5,10 +5,7 @@ import { inspectOwnedDirectory } from "./owned-directory";
 // One lock per explicitly bound local state owner. Callers must use that same
 // directory, check pending recovery under the lock, and recheck before mutation.
 // This development adapter is not yet native-qualified for Windows/network FS.
-export async function withFolderOperationLock<T>(
-  stateDirectory: string,
-  operation: (assertHeld: () => Promise<void>) => Promise<T>,
-): Promise<T> {
+export async function acquireFolderOperationLock(stateDirectory: string) {
   if (process.platform === "win32")
     throw new Error("Unqualified lock platform");
   const parent = await inspectOwnedDirectory(stateDirectory);
@@ -34,13 +31,26 @@ export async function withFolderOperationLock<T>(
     )
       throw new Error("Folder operation lock changed; recovery required");
   };
+  await assertHeld();
+  return Object.freeze({
+    assertHeld,
+    async release() {
+      // Never remove a replaced lock, recursively erase unexpected content or
+      // reclaim an old lock on age alone. A killed process leaves a blocking lock.
+      await assertHeld();
+      await rmdir(path);
+    },
+  });
+}
+
+export async function withFolderOperationLock<T>(
+  stateDirectory: string,
+  operation: (assertHeld: () => Promise<void>) => Promise<T>,
+): Promise<T> {
+  const lock = await acquireFolderOperationLock(stateDirectory);
   try {
-    await assertHeld();
-    return await operation(assertHeld);
+    return await operation(lock.assertHeld);
   } finally {
-    // Never remove a replaced lock, recursively erase unexpected content or
-    // reclaim an old lock on age alone. A killed process leaves a blocking lock.
-    await assertHeld();
-    await rmdir(path);
+    await lock.release();
   }
 }

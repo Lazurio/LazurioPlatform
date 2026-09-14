@@ -141,10 +141,39 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       await first;
       await expect(second).rejects.toThrow("changed");
       expect(invoked).toBe(false);
+      // A renamed scope cannot safely release its old lock by the new path.
+      await expect(queue.close()).rejects.toThrow();
     } finally {
       finish.release();
-      await queue.close();
+      await queue.close().catch(() => {});
       await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "dependency exclusion survives action return and drain until confirmed close",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "owner-retained-")),
+    );
+    const first = createOwnerOperations();
+    const second = createOwnerOperations();
+    try {
+      await first.run(root, async () => "started");
+      await expect(second.run(root, async () => "unsafe")).rejects.toThrow(
+        "busy",
+      );
+      await first.drain();
+      await expect(second.run(root, async () => "unsafe")).rejects.toThrow(
+        "busy",
+      );
+      await first.close();
+      expect(await second.run(root, async () => "safe")).toBe("safe");
+    } finally {
+      await first.close();
+      await second.close();
+      await rm(root, { recursive: true });
     }
   },
 );

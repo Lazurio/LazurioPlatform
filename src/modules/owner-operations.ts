@@ -1,13 +1,19 @@
+import { acquireFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 
 // One instance belongs to the shared lifecycle owner. Callers resolve the actual
 // package/workspace dependency owner first; an app path is not a fallback owner.
-// This serializes cooperative operations within that owner process only. It is
-// not a cross-process lock, authorization, or protection against hostile renames.
+// Retain cooperative filesystem exclusion until the lifecycle confirms cleanup.
+// This is not authorization or protection against hostile same-user renames.
 export function createOwnerOperations(
   inspect: typeof inspectOwnedDirectory = inspectOwnedDirectory,
 ) {
   const pending = new Map<string, Promise<void>>();
+  const locks = new Map<
+    string,
+    Awaited<ReturnType<typeof acquireFolderOperationLock>>
+  >();
+  let releaseQueue = Promise.resolve();
   let admission = Promise.resolve();
   let closing = false;
   async function run<T>(
@@ -41,6 +47,15 @@ export function createOwnerOperations(
       const current = await inspect(directory);
       if (before.dev !== current.dev || before.ino !== current.ino)
         throw new Error("Dependency owner changed while queued");
+      let lock = locks.get(key);
+      if (!lock) {
+        lock = await acquireFolderOperationLock(directory);
+        locks.set(key, lock);
+      }
+      await lock.assertHeld();
+      const held = await inspect(directory);
+      if (before.dev !== held.dev || before.ino !== held.ino)
+        throw new Error("Dependency owner changed before execution");
       return action();
     });
     const settled = result.then(
@@ -53,11 +68,23 @@ export function createOwnerOperations(
     });
     return result;
   }
+  async function drain() {
+    closing = true;
+    await Promise.all(pending.values());
+  }
   return Object.freeze({
     run,
+    drain,
     async close() {
-      closing = true;
-      await Promise.all(pending.values());
+      await drain();
+      const released = releaseQueue.then(async () => {
+        for (const [key, lock] of locks) {
+          await lock.release();
+          locks.delete(key);
+        }
+      });
+      releaseQueue = released.catch(() => {});
+      return released;
     },
   });
 }

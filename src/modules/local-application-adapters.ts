@@ -115,8 +115,18 @@ export function localApplicationAdapters(input: {
     },
     async coordinateMutation(selection, action) {
       if (selection === null) {
-        await owners.close();
-        return action();
+        await owners.drain();
+        const result = await action();
+        // An incomplete/throwing lifecycle cleanup must retain exclusion:
+        // subprocesses may still be using these dependencies.
+        if (
+          result &&
+          typeof result === "object" &&
+          "kind" in result &&
+          result.kind === "closed"
+        )
+          await owners.close();
+        return result;
       }
       const module = await authorize(selection, "start");
       const binding = await inspectPreparationBinding(

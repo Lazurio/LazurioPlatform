@@ -149,10 +149,26 @@ all dependencies are semantically correct. No per-module database resolver is ad
 
 The compiled CLI fixture covers missing prerequisites, explicit preparation, start,
 observed health, actual HTTP content and owned stop without injected test adapters.
-This composition remains development-only: cross-process mutation exclusion, complete
+This composition remains development-only: qualified crash recovery, complete
 workspace input capture, remote browser access, provider operations and installed
 consumer qualification remain open. Do not run competing development owners against
 the same dependency tree or use this as daily-environment activation.
+
+The local dependency owner now retains the existing cooperative directory lock at
+the resolved dependency root across operations, including after start returns.
+The lifecycle first closes admission and drains accepted operations, then stops its
+owned processes. Only a confirmed closed result releases the dependency locks.
+An incomplete or throwing cleanup retains exclusion. This intentionally reserves
+an encountered dependency root until that lifecycle closes, even after an app stop;
+it does not hand processes to another supervisor or infer process adoption.
+Competing owners receive a busy/recovery failure, not permission to reinstall.
+
+The lock uses the same `.operation-lock` mechanism as Folder operations, but is
+bound to the actual package/workspace dependency owner, not the Lazurio Folder.
+Unknown existing locks, replaced directories and unexpected contents remain refused.
+A killed owner can leave descendants and a retained lock; there is no automatic
+age/PID-based reclamation. Operator recovery and native Windows/network-filesystem
+support remain unqualified. This cooperative guard is not a same-user sandbox.
 
 The existing `scripts/smoke-application-ui.ts` now starts that compiled CLI command,
 not an injected lifecycle adapter. Its synthetic module declares its own data check

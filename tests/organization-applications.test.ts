@@ -13,6 +13,8 @@ import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
+import { localApplicationAdapters } from "../src/modules/local-application-adapters";
+import { createOwnerOperations } from "../src/modules/owner-operations";
 import { inspectPreparationBinding } from "../src/modules/preparation-binding";
 import {
   readOrganizationApplications,
@@ -21,6 +23,78 @@ import {
 import { readCanonicalDocuments } from "../src/organizations/read-documents";
 
 const posixTest = test.skipIf(!["darwin", "linux"].includes(process.platform));
+
+posixTest(
+  "local coordinator retains exclusion after incomplete or throwing shutdown",
+  async () => {
+    await fixture(async (root) => {
+      const appDirectory = join(root, "workspace/web/app");
+      const packagePath = join(appDirectory, "package.json");
+      const pkg = JSON.parse(await readFile(packagePath, "utf8"));
+      pkg.packageManager = `bun@${Bun.version}`;
+      pkg.dependencies = { "fixture-dependency": "file:./dependency" };
+      await mkdir(join(appDirectory, "dependency"));
+      await writeFile(
+        join(appDirectory, "dependency/package.json"),
+        JSON.stringify({ name: "fixture-dependency", version: "1.0.0" }),
+      );
+      pkg.scripts.check = "must not execute in this coordination test";
+      pkg.lazurio.preparation = {
+        schema_version: "lazurio.preparation.v1",
+        owner_package: "app/package.json",
+        check_script: "check",
+      };
+      await writeFile(packagePath, JSON.stringify(pkg));
+      const env = { HOME: root, PATH: "/usr/bin:/bin" };
+      const install = Bun.spawn(
+        [process.execPath, "install", "--lockfile-only"],
+        {
+          cwd: appDirectory,
+          env,
+          stdout: "pipe",
+          stderr: "pipe",
+        },
+      );
+      expect(await install.exited).toBe(0);
+      const adapters = localApplicationAdapters({
+        organizationDirectory: root,
+        bunExecutable: process.execPath,
+        platformExecutable: process.execPath,
+        environment: env,
+      });
+      const coordinate = adapters.coordinateMutation;
+      if (!coordinate) throw new Error("Expected local coordinator");
+      const competitor = createOwnerOperations();
+      try {
+        await coordinate(
+          { company: "fixture", module: "web", package: "app/package.json" },
+          async () => "held",
+        );
+        expect(
+          await coordinate(null, async () => ({ kind: "incomplete" })),
+        ).toEqual({ kind: "incomplete" });
+        await expect(
+          competitor.run(appDirectory, async () => "unsafe"),
+        ).rejects.toThrow("busy");
+        await expect(
+          coordinate(null, async () => {
+            throw new Error("cleanup failed");
+          }),
+        ).rejects.toThrow("cleanup failed");
+        await expect(
+          competitor.run(appDirectory, async () => "unsafe"),
+        ).rejects.toThrow("busy");
+        await coordinate(null, async () => ({ kind: "closed" }));
+        expect(await competitor.run(appDirectory, async () => "released")).toBe(
+          "released",
+        );
+      } finally {
+        await coordinate(null, async () => ({ kind: "closed" }));
+        await competitor.close();
+      }
+    });
+  },
+);
 
 posixTest(
   "compiled CLI composes declared local preparation and application lifecycle",
@@ -124,6 +198,7 @@ posixTest(
         ],
         { env, stdout: "pipe", stderr: "pipe" },
       );
+      const competitor = createOwnerOperations();
       try {
         const reader = owner.stdout.getReader();
         const first = await reader.read();
@@ -166,6 +241,11 @@ posixTest(
         expect(await (await fetch(`http://127.0.0.1:${port}`)).text()).toBe(
           "fixture-ready",
         );
+        // The real compiled owner keeps exclusion after start returns; an
+        // independent process must not mutate the app's live dependencies.
+        await expect(
+          competitor.run(appDirectory, async () => "unsafe"),
+        ).rejects.toThrow("busy");
         const lockBefore = await readFile(join(appDirectory, "bun.lock"));
         await writeFile(join(appDirectory, "user-work"), "keep my draft");
         await writeFile(
@@ -199,6 +279,13 @@ posixTest(
       } finally {
         owner.kill("SIGTERM");
         expect(await owner.exited).toBe(0);
+        try {
+          expect(
+            await competitor.run(appDirectory, async () => "released"),
+          ).toBe("released");
+        } finally {
+          await competitor.close();
+        }
       }
     });
   },
