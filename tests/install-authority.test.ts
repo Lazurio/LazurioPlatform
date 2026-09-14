@@ -22,6 +22,98 @@ import {
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
 
+for (const parentRelative of ["parent", ""]) {
+  test.skipIf(!["darwin", "linux"].includes(process.platform))(
+    `terminal parent dependency captures ${parentRelative || "owner root"}`,
+    async () => {
+      const root = await realpath(
+        await mkdtemp(join(tmpdir(), "parent-input-")),
+      );
+      const home = await realpath(
+        await mkdtemp(join(tmpdir(), "parent-tools-")),
+      );
+      try {
+        const parent = join(root, parentRelative);
+        const child = join(parent, "child");
+        await mkdir(child, { recursive: true });
+        await writeFile(
+          join(root, "package.json"),
+          JSON.stringify({
+            name: "owner",
+            version: "1.0.0",
+            packageManager: "bun@1.4.2",
+            dependencies: {
+              child: `file:./${parentRelative ? `${parentRelative}/` : ""}child`,
+            },
+          }),
+        );
+        if (parentRelative)
+          await writeFile(
+            join(parent, "package.json"),
+            JSON.stringify({
+              name: "parent",
+              version: "1.0.0",
+              main: "index.js",
+            }),
+          );
+        await writeFile(join(parent, "index.js"), "export const value = 1;");
+        await writeFile(
+          join(child, "package.json"),
+          JSON.stringify({
+            name: "child",
+            version: "1.0.0",
+            dependencies: { parent: "file:.." },
+          }),
+        );
+        const installed = Bun.spawnSync({
+          cmd: [
+            process.execPath,
+            "--no-env-file",
+            "install",
+            "--ignore-scripts",
+            "--backend",
+            "copyfile",
+          ],
+          cwd: root,
+          env: { HOME: home, PATH: "/usr/bin:/bin" },
+          stdout: "pipe",
+          stderr: "pipe",
+          timeout: 10_000,
+        });
+        expect(installed.exitCode, installed.stderr.toString()).toBe(0);
+        expect(
+          await readFile(
+            join(root, "node_modules/child/node_modules/parent/index.js"),
+            "utf8",
+          ),
+        ).toBe("export const value = 1;");
+        await chmod(join(root, "bun.lock"), 0o600);
+        const before = await inspectInstallAuthority(root, root);
+        expect(await verifyInstallAuthority(before)).toBe(true);
+        await writeFile(join(parent, "index.js"), "export const value = 2;");
+        expect(await verifyInstallAuthority(before)).toBe(false);
+        await writeFile(
+          join(child, "package.json"),
+          JSON.stringify({
+            name: "child",
+            version: "1.0.0",
+            dependencies: {
+              outside: parentRelative ? "file:../../.." : "file:../..",
+            },
+          }),
+        );
+        await expect(inspectInstallAuthority(root, root)).rejects.toThrow(
+          "Local dependency escapes its owner",
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+    20_000,
+  );
+}
+
 for (const dependencyField of ["dependencies", "devDependencies"]) {
   test.skipIf(!["darwin", "linux"].includes(process.platform))(
     `transitive local ${dependencyField} content invalidates install authority`,

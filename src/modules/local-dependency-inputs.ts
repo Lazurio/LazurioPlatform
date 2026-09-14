@@ -41,6 +41,13 @@ export async function inspectLocalDependencyInputs(
           prefix.pop();
           path = path.slice(3);
         }
+        if (path === "..") {
+          if (!prefix.length)
+            throw new Error("Local dependency escapes its owner");
+          prefix.pop();
+          roots.add(prefix.join("/"));
+          continue;
+        }
         if (
           path
             .split("/")
@@ -84,7 +91,7 @@ export async function inspectLocalDependencyInputs(
         const entries = await readdir(path);
         for (const entry of entries.sort().reverse()) {
           if (entry === ".git" || entry === "node_modules") continue;
-          pending.push(`${relative}/${entry}`);
+          pending.push(relative ? `${relative}/${entry}` : entry);
         }
       } else {
         const bytes = await readOwnedDeclarationBytes(path);
@@ -92,7 +99,7 @@ export async function inspectLocalDependencyInputs(
         if (size > 64 * 1024 * 1024)
           throw new Error("Local dependency byte limit exceeded");
         result[relative] = createHash("sha256").update(bytes).digest("hex");
-        if (relative === `${root}/package.json`) {
+        if (relative === (root ? `${root}/package.json` : "package.json")) {
           const nested = parseUniqueJson(bytes.toString("utf8"));
           if (!nested || typeof nested !== "object" || Array.isArray(nested))
             throw new Error("Local dependency package object required");
