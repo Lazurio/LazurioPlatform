@@ -103,6 +103,30 @@ unsigned local build tests; those tests must remain explicitly non-release evide
 
 ### Internal-pilot implementation contract
 
+Development packaging is executable with the pinned Bun from a clean committed
+repository root:
+
+```sh
+bun run scripts/build-candidate.ts /absolute/absent/output-directory
+bun run scripts/smoke-candidate.ts /absolute/absent/output-directory/lazurio
+```
+
+The parent output directory must already exist and be canonical; the output itself
+must be absent. The build installs frozen development dependencies without lifecycle
+scripts, runs the narrow publication guard, compiles the real CLI and emits
+`identity.json`. It refuses a dirty source or an existing output; partial failed
+output is retained, not cleaned automatically. The identity describes unsigned bytes,
+not a TUF target, release authorization or reproducibility proof.
+
+The POSIX smoke accepts an existing executable, creates its own temporary Folder,
+initializes Czech instructions, changes to English, starts that executable's Launchpad,
+checks embedded HTML, API denial and authenticated profile state, then stops it.
+The child's PATH excludes development runtimes. This is not a clean-OS install,
+browser interaction, full module journey, Windows acceptance or TUF verification.
+Compile this runner separately for a source-free VM if needed; it never rebuilds
+the supplied candidate. A candidate's identity digest must be checked separately
+against trusted metadata before any real installation.
+
 The following choices specify the delegated implementation direction, not completed
 qualification. Real hosting and signing custody must be verified before a real pilot;
 local development uses disposable keys and an isolated metadata server.
