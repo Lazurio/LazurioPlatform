@@ -14,11 +14,16 @@ import {
 } from "./launchpad/application-client";
 import { startLaunchpad } from "./launchpad/server";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
+import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
 
 // Development CLI entrypoint. No installer or implicit folder discovery.
 export async function runCli(args: string[]): Promise<number> {
-  if (args[0] === "organization-inspect") {
+  if (
+    ["organization-inspect", "organization-conversion-preview"].includes(
+      args[0] ?? "",
+    )
+  ) {
     const { values, positionals, tokens } = parseArgs({
       args: args.slice(1),
       strict: true,
@@ -27,9 +32,14 @@ export async function runCli(args: string[]): Promise<number> {
     });
     if (!values.directory || positionals.length !== 0 || tokens.length !== 1)
       throw new Error("One explicit Organization directory required");
-    const result = await readOrganizationApplications(values.directory);
+    const result =
+      args[0] === "organization-conversion-preview"
+        ? await inspectOrganizationConversion(values.directory)
+        : await readOrganizationApplications(values.directory);
     console.log(JSON.stringify(result));
-    return result.kind === "applications-observed" ? 0 : 2;
+    return ["applications-observed", "conversion-draft"].includes(result.kind)
+      ? 0
+      : 2;
   }
   if (args.length === 1 && args[0] === "app-request") {
     const response = await requestApplication(
@@ -99,7 +109,13 @@ Native Windows filesystem inspection is not yet qualified.`);
 Read declared workspace applications without executing scripts or querying GitHub.
 Requires canonical Organization and module inventory documents; no GEN3 fallback.
 Output is local declaration evidence, not access, readiness or permission to launch.
-Per-module conflicts remain explicit even when other modules are observed.`);
+Per-module conflicts remain explicit even when other modules are observed.
+organization-conversion-preview --directory <permitted legacy Organization fixture>
+Reads legacy declarations and inventory; outputs a lossless canonical JSON draft only.
+Refuses an occupied canonical target, conflicting declarations or observed drift.
+No files, locks, provider requests or applications are created. Output may contain
+private Organization metadata: keep it in the owning scope, not public logs.
+This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     return 0;
   }
   const { values, positionals, tokens } = parseArgs({

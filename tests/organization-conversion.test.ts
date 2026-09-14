@@ -1,7 +1,101 @@
 import { expect, test } from "bun:test";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { organizationDocumentHash } from "../src/organizations/document-hash";
+import { inspectOrganizationConversion } from "../src/organizations/inspect-conversion";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import { prepareOrganizationConversion } from "../src/organizations/prepare-conversion";
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "compiled conversion preview is read-only and refuses occupied or invalid targets",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "conversion-preview-")),
+    );
+    const binary = join(root, "cli");
+    const canonical = join(root, "lazurio.organization.json");
+    try {
+      const { legacy, modules } = fixture();
+      const legacyBytes = JSON.stringify(legacy);
+      const moduleBytes = JSON.stringify(modules);
+      await writeFile(join(root, "company.gen3.json"), legacyBytes, {
+        mode: 0o600,
+      });
+      await writeFile(join(root, "modules.manifest.json"), moduleBytes, {
+        mode: 0o600,
+      });
+      const build = Bun.spawn(
+        [
+          process.execPath,
+          "build",
+          "src/cli.ts",
+          "--compile",
+          "--no-compile-autoload-dotenv",
+          "--no-compile-autoload-bunfig",
+          "--outfile",
+          binary,
+        ],
+        { stdout: "ignore", stderr: "pipe" },
+      );
+      const error = new Response(build.stderr).text();
+      expect(await build.exited).toBe(0);
+      await error;
+      const files = (await readdir(root)).sort();
+      const child = Bun.spawn(
+        [binary, "organization-conversion-preview", "--directory", root],
+        { env: {}, stdout: "pipe", stderr: "pipe" },
+      );
+      const [code, output, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ]);
+      expect(code).toBe(0);
+      expect(stderr).toBe("");
+      expect(JSON.parse(output)).toEqual(
+        prepareOrganizationConversion(legacy, modules),
+      );
+      expect((await readdir(root)).sort()).toEqual(files);
+      expect(await readFile(join(root, "company.gen3.json"), "utf8")).toBe(
+        legacyBytes,
+      );
+      expect(await readFile(join(root, "modules.manifest.json"), "utf8")).toBe(
+        moduleBytes,
+      );
+      for (const bytes of ["{}", "malformed"]) {
+        await writeFile(canonical, bytes);
+        expect(await inspectOrganizationConversion(root)).toEqual({
+          kind: "blocked",
+          reason: "canonical-target-occupied",
+        });
+        expect(await readFile(canonical, "utf8")).toBe(bytes);
+      }
+      await rm(canonical);
+      await symlink(join(root, "missing"), canonical);
+      expect(await inspectOrganizationConversion(root)).toMatchObject({
+        kind: "blocked",
+        reason: "canonical-target-occupied",
+      });
+      await rm(canonical);
+      await writeFile(join(root, "company.gen3.json"), "{}");
+      expect(await inspectOrganizationConversion(root)).toMatchObject({
+        kind: "blocked",
+        reason: "declaration-reconciliation-required",
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
 
 function fixture() {
   return {

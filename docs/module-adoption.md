@@ -684,6 +684,17 @@ existing canonical document. No active Organization is migrated by this function
 Synthetic tests cover lossless custom-data preservation, declared/unverified IDs,
 binding conflicts, inventory drift, duplicate slots, alias loss and accessor refusal.
 
+The development CLI exposes `organization-conversion-preview --directory <fixture>`
+through `inspectOrganizationConversion`. It reads only the explicit owned directory,
+refuses any occupied canonical target (including invalid files or links), requires
+both legacy declarations and inventory, and repeats directory/document observation
+before returning a draft. Changed observations are refused; this is not an atomic
+snapshot or protection against same-user replacement. Exit 0 means a draft, not an
+applied conversion; exit 2 reports a reason-only block. Draft JSON may contain private
+Organization metadata and must remain within the owning scope. It performs no write,
+lock creation, provider query or app execution. Compiled CLI fixture tests verify
+unchanged source bytes and directory contents, plus refusal of occupied targets.
+
 `inspectCanonicalInventory` composes canonical schema validation with the existing
 modules-manifest header contract and mount diagnostics. A missing schema/generation
 remains the legacy header form; explicit versions are limited to
