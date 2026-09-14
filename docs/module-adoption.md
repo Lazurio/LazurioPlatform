@@ -124,6 +124,20 @@ is not enabled by this reader. No ancestor search or application-specific DB res
 is introduced. The workspace matcher is also checked against a synthetic real Bun
 installation; that check does not qualify arbitrary workspace layouts or native OSes.
 
+The install authority additionally inventories manifest bytes of regular workspace
+members selected by the declared positive and negative patterns. Verification repeats
+the inventory, so changed manifests and added or removed members invalidate the prior
+observation. Member ancestor identities are retained and declaration ownership rules
+still apply. Enumeration does not follow symlinks; linked members are not qualified
+by this observation. Traversal prunes Git/derived trees and paths that cannot contain
+a declared match; the pinned MIT-licensed `minimatch` 10.2.6 partial matcher supplies
+path-prefix matching rather than a handwritten glob parser (see its
+[upstream API](https://github.com/isaacs/minimatch#partial)). Bun matching remains
+the final membership filter. Nonmatching descendants and excluded leaves do not
+affect the snapshot. This is not a complete effect-input snapshot: local dependency
+contents, patches, workspace configuration and enumeration bounds still need their
+own qualification before the workspace execution refusal can be removed.
+
 The development `preflightDeclaredBunPreparation` adapter connects this inspection to
 the existing preparation owner for a self-owned package without workspace declarations.
 It selects the check/optional preparation scripts from the package, rechecks the binding

@@ -6,6 +6,7 @@ import { snapshotOrganizationDocument } from "../organizations/document-hash";
 import { readOwnedDeclarationBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import { parseProcessLaunch } from "./process-launch";
+import { inspectWorkspaceInputs } from "./workspace-inputs";
 
 const lockNames = ["bun.lock", "bun.lockb"] as const;
 async function present(path: string) {
@@ -129,6 +130,7 @@ export async function inspectInstallAuthority(
     lockDigest: digest(lockBytes),
     packageManager: manifest.packageManager,
     manifest,
+    workspaceInputs: await inspectWorkspaceInputs(owner, manifest.workspaces),
     configuration: Object.freeze(configuration),
     environment: env,
   });
@@ -157,6 +159,8 @@ export async function verifyInstallAuthority(
       current.packageDigest === expected.packageDigest &&
       current.lockfile === expected.lockfile &&
       current.lockDigest === expected.lockDigest &&
+      JSON.stringify(current.workspaceInputs) ===
+        JSON.stringify(expected.workspaceInputs) &&
       JSON.stringify(current.configuration) ===
         JSON.stringify(expected.configuration)
     );

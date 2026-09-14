@@ -20,7 +20,15 @@ export function isDeclaredWorkspaceMember(
   if (workspaces === undefined) return false;
   // The first contract uses Bun's documented array form. Unknown shapes must not
   // silently become membership or a fallback to an ancestor install owner.
-  const patterns = array(workspaces).map((value) => {
+  const patterns = compileWorkspacePatterns(workspaces);
+  return (
+    patterns.some(({ excluded, glob }) => !excluded && glob.match(member)) &&
+    !patterns.some(({ excluded, glob }) => excluded && glob.match(member))
+  );
+}
+
+export function compileWorkspacePatterns(workspaces: unknown) {
+  return array(workspaces).map((value) => {
     const source = text(value, /.+/);
     const excluded = source.startsWith("!");
     const pattern = excluded ? source.slice(1) : source;
@@ -31,10 +39,6 @@ export function isDeclaredWorkspaceMember(
       pattern.split("/").includes("..")
     )
       throw new Error("Module-relative workspace pattern required");
-    return { excluded, glob: new Bun.Glob(pattern) };
+    return { excluded, pattern, glob: new Bun.Glob(pattern) };
   });
-  return (
-    patterns.some(({ excluded, glob }) => !excluded && glob.match(member)) &&
-    !patterns.some(({ excluded, glob }) => excluded && glob.match(member))
-  );
 }

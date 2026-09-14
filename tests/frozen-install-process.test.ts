@@ -659,7 +659,15 @@ posixTest(
     expect((await lstat(join(f.directory, "check-ran"))).mtimeMs).toBe(
       checkBefore.mtimeMs,
     );
-    pkg.workspaces = ["dependency"];
+    // Use a fresh member: Bun may hardlink the installed file: dependency's
+    // manifest on Linux, which correctly fails custody before this scope gate.
+    await mkdir(join(f.directory, "workspace-member"), { mode: 0o700 });
+    await writeFile(
+      join(f.directory, "workspace-member/package.json"),
+      JSON.stringify({ name: "workspace-member", version: "1.0.0" }),
+      { mode: 0o600 },
+    );
+    pkg.workspaces = ["workspace-member"];
     await writeFile(join(f.directory, "package.json"), JSON.stringify(pkg), {
       mode: 0o600,
     });
