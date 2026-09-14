@@ -1,9 +1,10 @@
-import { mkdir, open, readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Updater } from "tuf-js";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { parseUniqueJson } from "../providers/unique-json";
 import { type ChannelSelection, selectPilotTarget } from "./channel";
+import { MetadataJournalFetcher } from "./metadata-journal";
 import { DistributionTransport } from "./transport";
 import {
   parseTrustCheckpoint,
@@ -61,6 +62,10 @@ export async function downloadPilotCandidate(options: {
       !/^[a-f0-9]{64}$/.test(previous.documentSha256)
     )
       throw new Error("Established channel state required");
+    previous = Object.freeze({
+      sequence: previous.sequence,
+      documentSha256: previous.documentSha256,
+    });
   } else if (options.trust.kind === "bootstrap") {
     // Reject ambiguous JSON before the library consumes bootstrap input.
     parseUniqueJson(options.trust.trustedRoot);
@@ -68,18 +73,63 @@ export async function downloadPilotCandidate(options: {
   } else {
     throw new Error("Explicit pilot trust state required");
   }
+  const inputBytes = JSON.stringify({
+    schemaVersion: 1,
+    kind: options.trust.kind,
+    metadata,
+    channel: previous ?? null,
+  });
+  if (Buffer.byteLength(inputBytes) > 1024 * 1024)
+    throw new Error("Pilot trust input exceeds storage envelope");
   options.signal.throwIfAborted();
   await inspectOwnedDirectory(dirname(options.directory));
   await mkdir(options.directory, { mode: 0o700 });
+  // The library may replace working cache files. Retain the original trust input
+  // independently so later recovery can reverify received roots from that anchor.
+  const input = await open(
+    join(options.directory, "input-trust.json"),
+    "wx",
+    0o600,
+  );
+  try {
+    await input.writeFile(inputBytes);
+    await input.sync();
+  } finally {
+    await input.close();
+  }
+  const received = join(options.directory, "received-metadata");
+  await mkdir(received, { mode: 0o700 });
   const cache = join(options.directory, "metadata");
   await mkdir(cache, { mode: 0o700 });
-  for (const [role, bytes] of Object.entries(metadata))
-    await writeFile(join(cache, `${role}.json`), bytes, {
-      flag: "wx",
-      mode: 0o600,
-    });
+  for (const [role, bytes] of Object.entries(metadata)) {
+    const file = await open(join(cache, `${role}.json`), "wx", 0o600);
+    try {
+      await file.writeFile(bytes);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+  }
+  // Publish the evidence directory entries before any metadata can be consumed.
+  for (const path of [
+    cache,
+    received,
+    options.directory,
+    dirname(options.directory),
+  ]) {
+    const directory = await open(path, "r");
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+  }
   const updater = new Updater({
-    fetcher,
+    fetcher: new MetadataJournalFetcher(
+      fetcher,
+      received,
+      options.metadataBaseUrl,
+    ),
     metadataDir: cache,
     metadataBaseUrl: options.metadataBaseUrl,
     targetBaseUrl: options.targetBaseUrl,

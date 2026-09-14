@@ -201,6 +201,19 @@ their isolated evidence. Successful results include a new checkpoint and selecti
 the original trusted state and downloaded candidate are not overwritten. The regular
 test suite runs the signed fixture scenarios against this shared operation.
 
+Before network consumption, the operation syncs a separate `input-trust.json` and
+its directory entries; the client's mutable cache cannot replace this original input.
+`MetadataJournalFetcher` records each metadata response with exclusive file creation
+and file/directory sync before returning its bytes to TUF. Records are untrusted
+received evidence, not accepted checkpoints: recovery must cryptographically verify
+them from the retained input, never promote records just because they exist. Names
+contain only an ordinal and the permitted metadata filename, not origin credentials
+or query strings. Bounds are 1 MiB per response, 32 MiB total and 260 records; only
+top-level metadata is supported. A record-write failure prevents further use of that
+fetcher and preserves partial output. Tests cover occupied records, concurrent refusal,
+retention after payload tampering and abrupt process exit after a returned record.
+The exit test does not establish power-loss durability or completed replay recovery.
+
 This is not yet a download/install command or the durable installation state owner.
 In particular, accepted metadata/root progress during a failed operation must be
 reconciled under that owner's lock before another refresh; it must not be discarded

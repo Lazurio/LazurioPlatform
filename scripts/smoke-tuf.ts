@@ -225,6 +225,24 @@ try {
       download("owned-tamper", established),
       /Expected hash/,
     );
+    const retainedInput = JSON.parse(
+      await readFile(join(fixture, "owned-tamper", "input-trust.json"), "utf8"),
+    );
+    assert.equal(retainedInput.kind, "established");
+    assert.deepEqual(retainedInput.metadata, downloaded.checkpoint.metadata);
+    assert.equal(retainedInput.channel.sequence, 2);
+    const journal = join(fixture, "owned-tamper", "received-metadata");
+    const records = (await readdir(journal)).sort();
+    assert.deepEqual(records, [
+      "001-timestamp.json",
+      "002-snapshot.json",
+      "003-targets.json",
+    ]);
+    for (const name of records)
+      assert.deepEqual(
+        await readFile(join(journal, name)),
+        served.get(`/metadata/${name.slice(4)}`),
+      );
     await assert.rejects(
       readFile(join(fixture, "owned-tamper", "checkpoint", "trust.json")),
       /ENOENT/,

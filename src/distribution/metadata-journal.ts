@@ -1,0 +1,112 @@
+import { open } from "node:fs/promises";
+import { join } from "node:path";
+import type { Fetcher } from "tuf-js";
+import { inspectOwnedDirectory } from "../folder/owned-directory";
+
+/** Write-ahead evidence, NOT trusted metadata. The owner provides a new private
+ * directory, retains failures and must reverify records before any recovery use.
+ * Never record origin credentials/query strings. TUF currently requests metadata
+ * sequentially; refuse concurrent use rather than ambiguously ordering records.
+ */
+export class MetadataJournalFetcher implements Fetcher {
+  private readonly base: URL;
+  private count = 0;
+  private bytes = 0;
+  private busy = false;
+  private failed = false;
+
+  constructor(
+    private readonly transport: Fetcher,
+    private readonly directory: string,
+    metadataBaseUrl: string,
+  ) {
+    try {
+      this.base = new URL(metadataBaseUrl);
+    } catch {
+      throw new Error("Invalid metadata journal origin");
+    }
+    if (
+      this.base.username ||
+      this.base.password ||
+      this.base.search ||
+      this.base.hash ||
+      !this.base.pathname.endsWith("/")
+    )
+      throw new Error("Ambiguous metadata journal base");
+  }
+
+  async downloadBytes(url: string, maxLength: number): Promise<Buffer> {
+    if (this.failed) throw new Error("Metadata journal requires recovery");
+    if (this.busy) throw new Error("Concurrent metadata journal use refused");
+    let request: URL;
+    try {
+      request = new URL(url);
+    } catch {
+      throw new Error("Invalid metadata journal request");
+    }
+    if (!Number.isSafeInteger(maxLength) || maxLength < 0)
+      throw new Error("Invalid metadata journal length");
+    const name = request.pathname.slice(this.base.pathname.length);
+    if (
+      request.origin !== this.base.origin ||
+      !request.pathname.startsWith(this.base.pathname) ||
+      request.username ||
+      request.password ||
+      request.search ||
+      request.hash ||
+      !/^(?:[1-9][0-9]*\.)?(?:root|timestamp|snapshot|targets)\.json$/.test(
+        name,
+      )
+    )
+      throw new Error("Metadata journal request refused");
+    if (this.count >= 260) throw new Error("Metadata journal record limit");
+    this.busy = true;
+    let recording = false;
+    try {
+      await inspectOwnedDirectory(this.directory);
+      // A signed length is still bounded by the local operation's resource policy.
+      const bytes = await this.transport.downloadBytes(
+        url,
+        Math.min(maxLength, 1024 * 1024),
+      );
+      recording = true;
+      if (this.bytes + bytes.length > 32 * 1024 * 1024)
+        throw new Error("Metadata journal byte limit");
+      const path = join(
+        this.directory,
+        `${String(++this.count).padStart(3, "0")}-${name}`,
+      );
+      const file = await open(path, "wx", 0o600);
+      try {
+        await file.writeFile(bytes);
+        await file.sync();
+      } finally {
+        await file.close();
+      }
+      const directory = await open(this.directory, "r");
+      try {
+        await directory.sync();
+      } finally {
+        await directory.close();
+      }
+      this.bytes += bytes.length;
+      return bytes;
+    } catch (error) {
+      // Normal root 404s contain no record and must remain usable by TUF.
+      if (recording) this.failed = true;
+      throw error;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  downloadFile<T>(
+    url: string,
+    maxLength: number,
+    handler: (file: string) => Promise<T>,
+  ): Promise<T> {
+    if (this.failed)
+      return Promise.reject(new Error("Metadata journal requires recovery"));
+    return this.transport.downloadFile(url, maxLength, handler);
+  }
+}
