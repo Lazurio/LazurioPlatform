@@ -14,6 +14,73 @@ import { join } from "node:path";
 import { inspectLegacyPaths } from "../src/folder/inspect-legacy-paths";
 
 test.skipIf(process.platform !== "darwin")(
+  "compiled legacy path CLI requires explicit scope and preserves alias contents",
+  async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "legacy-cli-")));
+    const home = join(root, "fixture");
+    const binary = join(root, "cli");
+    try {
+      await mkdir(home, { mode: 0o700 });
+      await mkdir(join(home, "Lazurio"), { mode: 0o700 });
+      await symlink("Lazurio", join(home, "Conglomerate"));
+      const build = Bun.spawn(
+        [
+          process.execPath,
+          "build",
+          "src/cli.ts",
+          "--compile",
+          "--no-compile-autoload-dotenv",
+          "--no-compile-autoload-bunfig",
+          "--outfile",
+          binary,
+        ],
+        { stdout: "ignore", stderr: "ignore" },
+      );
+      expect(await build.exited).toBe(0);
+      const run = async (args: string[]) => {
+        const child = Bun.spawn([binary, "legacy-paths-inspect", ...args], {
+          env: {},
+          cwd: root,
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        const [code, output, error] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        return { code, output, error };
+      };
+      const observed = await run(["--home", home]);
+      expect(observed.code).toBe(0);
+      expect(observed.error).toBe("");
+      expect(JSON.parse(observed.output)).toEqual(
+        await inspectLegacyPaths(home),
+      );
+      for (const args of [
+        [],
+        ["--home", home, "--home", home],
+        ["--home", home, "extra"],
+      ]) {
+        expect((await run(args)).code).toBe(1);
+      }
+      await rm(join(home, "Conglomerate"));
+      await symlink("private-target", join(home, "Conglomerate"));
+      const denied = await run(["--home", home]);
+      expect(denied.code).toBe(2);
+      expect(denied.error).toBe("");
+      expect(JSON.parse(denied.output)).toEqual({
+        kind: "blocked",
+        reason: "unsafe-or-changing-paths",
+      });
+      expect(await readlink(join(home, "Conglomerate"))).toBe("private-target");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform !== "darwin")(
   "legacy inventory rejects a regular canonical file and noncanonical home",
   async () => {
     const home = await realpath(await mkdtemp(join(tmpdir(), "legacy-paths-")));

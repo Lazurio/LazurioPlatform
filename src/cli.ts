@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { initializeFolder } from "./folder/initialize-folder";
+import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectInstructions } from "./folder/inventory";
 import { inspectOwnedDirectory } from "./folder/owned-directory";
@@ -19,6 +20,19 @@ import { readOrganizationApplications } from "./organizations/read-applications"
 
 // Development CLI entrypoint. No installer or implicit folder discovery.
 export async function runCli(args: string[]): Promise<number> {
+  if (args[0] === "legacy-paths-inspect") {
+    const { values, tokens } = parseArgs({
+      args: args.slice(1),
+      strict: true,
+      tokens: true,
+      options: { home: { type: "string" } },
+    });
+    if (!values.home || tokens.length !== 1)
+      throw new Error("One explicit home fixture required");
+    const result = await inspectLegacyPaths(values.home);
+    console.log(JSON.stringify(result));
+    return result.kind === "observed" ? 0 : 2;
+  }
   if (
     ["organization-inspect", "organization-conversion-preview"].includes(
       args[0] ?? "",
@@ -105,7 +119,11 @@ requires a configured module preparation adapter and may change its dependencies
 The session URL is private. Supply it through protected stdin, not shell history.
 open returns the execution Machine's local URL; it does not launch a browser or tunnel.
 Native Windows filesystem inspection is not yet qualified.`);
-    console.log(`organization-inspect --directory <permitted canonical Organization fixture>
+    console.log(`legacy-paths-inspect --home <absolute canonical owned home fixture>
+Read-only macOS inventory of Lazurio, Conglomerate and Conglomerate_GEN3 paths.
+No implicit home discovery, content inspection, locks, moves or migration approval.
+Exit 0 means observations available, NOT that migration is safe; 2 means blocked.
+organization-inspect --directory <permitted canonical Organization fixture>
 Read declared workspace applications without executing scripts or querying GitHub.
 Requires canonical Organization and module inventory documents; no GEN3 fallback.
 Output is local declaration evidence, not access, readiness or permission to launch.

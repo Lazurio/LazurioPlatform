@@ -49,6 +49,9 @@ does not prove population, Git independence, checkpoint validity, process quiesc
 or a held operation lock. Those checks and CLI/Launchpad composition remain required
 before an apply plan exists. Current evidence is synthetic native macOS tests only;
 other platforms are refused before filesystem access.
+The experimental `legacy-paths-inspect --home <fixture>` CLI exposes this same reader.
+Exit 0 means observations are available, not that any migration is approved or safe;
+exit 2 reports a blocked inspection. No ambient home fallback exists.
 
 The target macOS layout has exactly one real Lazurio Folder at `<home>/Lazurio`.
 `<home>/Conglomerate` and `<home>/Conglomerate_GEN3` are compatibility symlinks to
