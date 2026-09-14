@@ -5,7 +5,7 @@ import { readOwnedDeclarationBytes } from "../providers/owned-json";
 
 // Explicit owner-relative patch inputs, not a parser or executor of patch content.
 export async function inspectPatchInputs(owner: string, value: unknown) {
-  const result: Record<string, string> = {};
+  const result: Record<string, string> = Object.create(null);
   if (value === undefined) return Object.freeze(result);
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Patch declaration object required");

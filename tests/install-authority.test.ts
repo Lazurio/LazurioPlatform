@@ -23,6 +23,79 @@ import {
 } from "./fixtures/owned-files";
 
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "prototype-named patch and local files remain explicit snapshot inputs",
+  async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "named-input-")));
+    try {
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({
+          packageManager: "bun@1.4.2",
+          dependencies: { fixture: "file:./__proto__" },
+          patchedDependencies: { fixture: "__proto__" },
+        }),
+      );
+      await writeFile(join(root, "bun.lock"), "opaque fixture lock");
+      await writeFile(join(root, "__proto__"), "first");
+      const before = await inspectInstallAuthority(root, root);
+      expect(Object.hasOwn(before.patchInputs, "__proto__")).toBe(true);
+      expect(Object.hasOwn(before.localDependencyInputs, "__proto__")).toBe(
+        true,
+      );
+      await writeFile(join(root, "__proto__"), "second");
+      expect(await verifyInstallAuthority(before)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "local dependency content changes invalidate install authority without manifest changes",
+  async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "local-input-")));
+    try {
+      await mkdir(join(root, "dependency"));
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({
+          packageManager: "bun@1.4.2",
+          dependencies: { fixture: "file:./dependency" },
+        }),
+      );
+      await writeFile(join(root, "bun.lock"), "opaque fixture lock");
+      await writeFile(
+        join(root, "dependency/package.json"),
+        JSON.stringify({
+          name: "fixture",
+          version: "1.0.0",
+          main: "index.js",
+        }),
+      );
+      const source = join(root, "dependency/index.js");
+      await writeFile(source, "export const value = 1;");
+      const before = await inspectInstallAuthority(root, root);
+      expect(await verifyInstallAuthority(before)).toBe(true);
+      await writeFile(source, "export const value = 2;");
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await writeFile(source, "export const value = 1;");
+      expect(await verifyInstallAuthority(before)).toBe(true);
+      const extra = join(root, "dependency/extra.js");
+      await writeFile(extra, "export const extra = true;");
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await rm(extra);
+      expect(await verifyInstallAuthority(before)).toBe(true);
+      await rm(source);
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await symlink(join(root, "package.json"), source);
+      expect(await verifyInstallAuthority(before)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
   "patch bytes are install inputs even when package and lock stay unchanged",
   async () => {
     const root = await realpath(await mkdtemp(join(tmpdir(), "patch-input-")));

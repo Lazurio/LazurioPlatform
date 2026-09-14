@@ -55,6 +55,11 @@ export function runFrozenInstallProcess(input: ProcessInput) {
     "--no-env-file",
     "install",
     "--frozen-lockfile",
+    // Keep declared local source inputs independent from node_modules/cache.
+    // Bun's Linux hardlink backend otherwise changes their custody on install.
+    ...(Object.keys(input.authority.localDependencyInputs).length
+      ? ["--backend", "copyfile"]
+      : []),
   ]);
 }
 

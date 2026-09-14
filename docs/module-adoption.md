@@ -146,6 +146,16 @@ checks; linked, missing or shared-write inputs cannot verify as unchanged. This
 does not apply patches, validate patch syntax, qualify workspace-level patch
 semantics or complete the remaining local dependency input snapshot.
 
+Direct owner-relative `file:` dependency content is now inventoried, including
+added and removed files, with directory identities and regular-file custody checks.
+Git metadata and derived `node_modules` trees are excluded; the inventory has
+explicit depth, entry and byte limits and refuses unsafe inputs rather than
+returning a truncated snapshot. When these inputs exist, the frozen Bun install
+uses `--backend copyfile`: installing a dependency must not hardlink its source
+into the installed tree or cache. This is an initial direct-input implementation,
+not complete resolution of transitive local dependencies, other local protocols,
+workspace effects or every Bun packaging configuration. Those gates remain open.
+
 The development `preflightDeclaredBunPreparation` adapter connects this inspection to
 the existing preparation owner for a self-owned package without workspace declarations.
 It selects the check/optional preparation scripts from the package, rechecks the binding

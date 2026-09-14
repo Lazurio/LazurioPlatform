@@ -286,6 +286,16 @@ posixTest(
     const lock = await readFile(join(f.directory, "bun.lock"));
     const result = await runFrozenInstallProcess(f.request);
     expect(result.kind).toBe("process-exited");
+    const sourceManifest = await lstat(
+      join(f.directory, "dependency/package.json"),
+    );
+    const installedManifest = await lstat(
+      join(f.directory, "node_modules/fixture-dependency/package.json"),
+    );
+    expect(sourceManifest.nlink).toBe(1);
+    expect(`${sourceManifest.dev}:${sourceManifest.ino}`).not.toBe(
+      `${installedManifest.dev}:${installedManifest.ino}`,
+    );
     if (result.kind !== "process-exited")
       throw new Error("Expected exit evidence");
     expect(result.code).toBe(0);
