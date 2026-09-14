@@ -183,6 +183,20 @@ not just `--help`. All earlier preservation, tamper, concurrency and recovery ga
 
 ### TUF client integration boundary
 
+The development pilot channel document uses `schemaVersion: 1`, `channel: "pilot"`,
+a positive integer `sequence`, and `targets` mapping execution targets to
+`artifacts/<sha256>/lazurio` (or `lazurio.exe` on Windows). `selectPilotTarget`
+consumes JSON only after TUF verification; it rejects duplicate/unknown fields,
+unsupported targets, path escapes, lower sequence and changed bytes at the same
+sequence. Identical authenticated bytes are retryable. The installation owner must
+persist the high-water mark without resetting it on network failure.
+
+This parser is not yet wired to a download/install command. Before staging, the
+consumer must bind the selected path to TUF length/hash and product build identity,
+check product-version/schema compatibility and persist trusted state under the
+installer's exclusion/recovery protocol. A newer channel sequence alone cannot prove
+product downgrade safety, native support or permission to activate.
+
 `bun run scripts/smoke-tuf.ts /absolute/candidate` exercises the pinned client
 against a loopback fixture serving the supplied candidate's actual bytes. It generates
 ephemeral test keys, downloads/verifies but never executes the artifact, and removes

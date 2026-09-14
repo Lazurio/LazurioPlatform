@@ -22,6 +22,7 @@ import {
   Timestamp,
 } from "@tufjs/models";
 import { Updater } from "tuf-js";
+import { selectPilotTarget } from "../src/distribution/channel";
 import { DistributionTransport } from "../src/distribution/transport";
 
 // Local synthetic repository only. One ephemeral test key for all roles is NOT
@@ -65,11 +66,30 @@ assert.ok(
   "Supply an explicit candidate artifact; it will not be executed",
 );
 const payload = await readFile(artifact);
+const artifactPath = `artifacts/${hash(payload).sha256}/lazurio`;
 const repository = (version: number, expired = false) => {
+  const channel = Buffer.from(
+    JSON.stringify({
+      schemaVersion: 1,
+      channel: "pilot",
+      sequence: version,
+      targets: { "linux-arm64": artifactPath },
+    }),
+  );
   const targets = signed(
     new Targets({
       ...fields(version),
       targets: {
+        "channels/pilot.json": new TargetFile({
+          path: "channels/pilot.json",
+          length: channel.length,
+          hashes: hash(channel),
+        }),
+        [artifactPath]: new TargetFile({
+          path: artifactPath,
+          length: payload.length,
+          hashes: hash(payload),
+        }),
         "artifact.bin": new TargetFile({
           path: "artifact.bin",
           length: payload.length,
@@ -106,6 +126,8 @@ const repository = (version: number, expired = false) => {
     ["/metadata/snapshot.json", snapshot],
     ["/metadata/targets.json", targets],
     ["/targets/artifact.bin", payload],
+    ["/targets/channels/pilot.json", channel],
+    [`/targets/${artifactPath}`, payload],
   ]);
 };
 let served = repository(2);
@@ -143,6 +165,37 @@ async function client(name: string) {
 try {
   const valid = await client("valid");
   await valid.refresh();
+  const channelTarget = await valid.getTargetInfo("channels/pilot.json");
+  assert.ok(channelTarget);
+  const channelFile = await valid.downloadTarget(channelTarget);
+  const selection = selectPilotTarget(
+    await readFile(channelFile, "utf8"),
+    "linux-arm64",
+  );
+  const selectedTarget = await valid.getTargetInfo(selection.targetPath);
+  assert.ok(selectedTarget);
+  assert.equal(selectedTarget.hashes.sha256, hash(payload).sha256);
+  assert.equal(selectedTarget.length, payload.length);
+  const selectedFile = await valid.downloadTarget(selectedTarget);
+  assert.deepEqual(await readFile(selectedFile), payload);
+  const channelBytes = await readFile(channelFile);
+  served.set(
+    "/targets/channels/pilot.json",
+    Buffer.alloc(channelBytes.length, 65),
+  );
+  let selectedTamperedChannel = false;
+  await assert.rejects(async () => {
+    const alteredFile = await valid.downloadTarget(channelTarget);
+    selectedTamperedChannel = true;
+    selectPilotTarget(await readFile(alteredFile, "utf8"), "linux-arm64");
+  }, /Expected hash/);
+  assert.equal(selectedTamperedChannel, false);
+  assert.deepEqual(await readFile(channelFile), channelBytes);
+  assert.deepEqual(await readFile(selectedFile), payload);
+  served.set("/targets/channels/pilot.json", channelBytes);
+  console.log(
+    "PASS: TUF-authenticated channel selects a TUF-verified artifact; platform label is a synthetic fixture, not qualification",
+  );
   const target = await valid.getTargetInfo("artifact.bin");
   assert.ok(target);
   const downloaded = await valid.downloadTarget(target);
