@@ -707,6 +707,30 @@ Projection conflicts additionally identify fixed section labels such as `modules
 or `company`, never arbitrary metadata keys or values. A section diagnostic does
 not choose which declaration wins, reorder entries or authorize reconciliation.
 
+`scripts/smoke-organization-conversion.ts` is a standalone native qualification
+runner. Compile it and `src/cli.ts` for the target with compile-time dotenv/bunfig
+autoloading disabled; pass the CLI's absolute path to the compiled runner. It
+creates and removes only its own temporary synthetic fixture, checks a successful
+draft and an exact conflict result from the real CLI, and verifies unchanged input
+bytes and absence of a canonical output. It is not a publisher-signature verifier,
+installer test, full migration test or Launchpad qualification.
+
+On 2026-09-14, the initial runner executed successfully in the existing Ubuntu ARM64
+development VM against CLI source `cdfb444ecd833b99e6547f9f1cdf121da96b300c`.
+The CLI SHA-256 was `3e6b0e4bbb6ec387301fc277ad22867959da751c2475e0454a772445bed7938f`;
+the pre-publication runner SHA-256 was
+`90159bf5a08a5ce76d4f5d4c39e44cc1286c1e2df4e0519e0aaa3f36c2c5c71f`.
+Transferred hashes matched the host artifacts, the command exited zero, and the VM
+was stopped afterward. Both executables carried the Bun 1.4.2 runtime. This was a
+prepared development VM, not evidence of installation on a pristine system. Rebuild
+and record new artifact hashes when rerunning the checked-in formatted runner.
+The checked-in runner also resolves its owned temporary directory to a canonical
+path before calling the CLI: the initial Mac-host run correctly hit CLI refusal
+on the system's aliased temporary path. After that runner correction, the compiled
+smoke passed on the macOS ARM64 development host. This does not change or relax
+the product's symlink/custody checks; the corrected runner has not yet been rerun
+in the Linux guest.
+
 `inspectCanonicalInventory` composes canonical schema validation with the existing
 modules-manifest header contract and mount diagnostics. A missing schema/generation
 remains the legacy header form; explicit versions are limited to
