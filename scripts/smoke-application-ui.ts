@@ -202,6 +202,20 @@ try {
           verifyPrepared,
         });
       },
+      preflightCleanPreparation: async (_plan, cwd) => {
+        assert.equal(cwd, ownerDirectory);
+        return preflightBunPreparation({
+          checkout: directory,
+          owner: ownerDirectory,
+          executable: process.execPath,
+          platformExecutable: binary,
+          env,
+          timeoutMs: 10_000,
+          cleanInstall: true,
+          modulePreparationScript: "prepare:data",
+          verifyPrepared,
+        });
+      },
       prepareLaunch: async (plan, cwd) => {
         assert.equal(await verifyPrepared(), true);
         return {
@@ -245,6 +259,36 @@ try {
     .click();
   await page.waitForFunction(() =>
     document.querySelector("#app-result")?.textContent?.includes('"prepared"'),
+  );
+  const lockBeforeClean = await Bun.file(
+    join(ownerDirectory, "bun.lock"),
+  ).text();
+  const packageBeforeClean = await Bun.file(
+    join(ownerDirectory, "package.json"),
+  ).text();
+  await page.getByRole("button", { name: copy.appStart, exact: true }).click();
+  await page.waitForFunction(() =>
+    document.querySelector("#app-result")?.textContent?.includes('"started"'),
+  );
+  await writeFile(join(ownerDirectory, "node_modules/stale-ui"), "derived");
+  await page
+    .getByRole("button", { name: copy.appCleanPrepare, exact: true })
+    .click();
+  await page.waitForFunction(() =>
+    document.querySelector("#app-result")?.textContent?.includes('"prepared"'),
+  );
+  assert.equal(
+    await Bun.file(join(ownerDirectory, "node_modules/stale-ui")).exists(),
+    false,
+  );
+  assert.equal(await verifyPrepared(), true);
+  assert.equal(
+    await Bun.file(join(ownerDirectory, "bun.lock")).text(),
+    lockBeforeClean,
+  );
+  assert.equal(
+    await Bun.file(join(ownerDirectory, "package.json")).text(),
+    packageBeforeClean,
   );
   await page.getByRole("button", { name: copy.appStart, exact: true }).click();
   await page.waitForFunction(() =>
@@ -305,6 +349,23 @@ try {
   };
   assert.equal((await cli("prepare")).kind, "prepared");
   assert.equal((await cli("start")).kind, "started");
+  await writeFile(join(ownerDirectory, "node_modules/stale-cli"), "derived");
+  assert.equal((await cli("clean-prepare")).kind, "prepared");
+  assert.equal((await cli("status")).kind, "not-managed");
+  assert.equal(
+    await Bun.file(join(ownerDirectory, "node_modules/stale-cli")).exists(),
+    false,
+  );
+  assert.equal(await verifyPrepared(), true);
+  assert.equal(
+    await Bun.file(join(ownerDirectory, "bun.lock")).text(),
+    lockBeforeClean,
+  );
+  assert.equal(
+    await Bun.file(join(ownerDirectory, "package.json")).text(),
+    packageBeforeClean,
+  );
+  assert.equal((await cli("start")).kind, "started");
   healthy = false;
   for (let attempt = 0; attempt < 20 && !healthy; attempt++) {
     healthy = (await cli("status")).observedHealthy === true;
@@ -330,7 +391,7 @@ try {
   assert.equal(await page.locator("#app-result").innerText(), "");
   assert.deepEqual(errors, []);
   console.log(
-    `PASS: canonical discovery/selection in Chromium and compiled CLI frozen install/module preparation/start/status/link/open synthetic page/stop through one Launchpad owner (${locale}); not real candidate or VM qualification`,
+    `PASS: canonical discovery/selection in Chromium and compiled CLI frozen install/clean reinstall/module preparation/start/status/link/open synthetic page/stop through one Launchpad owner (${locale}); not real candidate or VM qualification`,
   );
 } finally {
   if (browser) await browser.close();

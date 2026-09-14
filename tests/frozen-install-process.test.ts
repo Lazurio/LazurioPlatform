@@ -5,6 +5,7 @@ import {
   readFile,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -137,6 +138,118 @@ posixTest(
     });
     expect(result).toEqual({ kind: "authority-changed" });
     expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(false);
+  },
+);
+
+posixTest(
+  "explicit clean preparation reinstalls only derived dependencies and preserves external links and data",
+  async () => {
+    const f = await fixture("clean-install");
+    await runFrozenInstallProcess(f.request);
+    await writeFile(join(f.directory, "node_modules/stale"), "derived");
+    await mkdir(join(f.directory, "db"));
+    await writeFile(join(f.directory, "db/work"), "preserve data");
+    await mkdir(join(f.directory, ".git"));
+    await writeFile(join(f.directory, ".git/work"), "preserve Git");
+    await symlink(
+      join(f.directory, "db"),
+      join(f.directory, "node_modules/external-data"),
+    );
+    const lock = await readFile(join(f.directory, "bun.lock"));
+    const source = await readFile(join(f.directory, "package.json"));
+    const preparation = await preflightBunPreparation({
+      checkout: f.directory,
+      owner: f.directory,
+      executable: process.execPath,
+      platformExecutable: platform,
+      env: f.request.env,
+      timeoutMs: 10_000,
+      cleanInstall: true,
+      verifyPrepared: async () =>
+        Bun.file(
+          join(f.directory, "node_modules/fixture-dependency/package.json"),
+        ).exists(),
+    });
+    try {
+      expect(await preparation.run(new AbortController().signal)).toEqual({
+        kind: "prepared",
+      });
+      expect(
+        await Bun.file(join(f.directory, "node_modules/stale")).exists(),
+      ).toBe(false);
+      expect(await readFile(join(f.directory, "db/work"), "utf8")).toBe(
+        "preserve data",
+      );
+      expect(await readFile(join(f.directory, ".git/work"), "utf8")).toBe(
+        "preserve Git",
+      );
+      expect(await readFile(join(f.directory, "bun.lock"))).toEqual(lock);
+      expect(await readFile(join(f.directory, "package.json"))).toEqual(source);
+    } finally {
+      expect(await preparation.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
+  "clean preparation refuses a linked dependency root without touching its destination",
+  async () => {
+    const f = await fixture("clean-linked-root");
+    const external = join(root, "preserved-dependency-target");
+    await mkdir(external, { mode: 0o700 });
+    await writeFile(join(external, "work"), "preserve");
+    await symlink(external, join(f.directory, "node_modules"));
+    const preparation = await preflightBunPreparation({
+      checkout: f.directory,
+      owner: f.directory,
+      executable: process.execPath,
+      platformExecutable: platform,
+      env: f.request.env,
+      timeoutMs: 10_000,
+      cleanInstall: true,
+      verifyPrepared: async () => true,
+    });
+    try {
+      expect(await preparation.run(new AbortController().signal)).toEqual({
+        kind: "preparation-failed",
+      });
+      expect(await readFile(join(external, "work"), "utf8")).toBe("preserve");
+      expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(false);
+    } finally {
+      expect(await preparation.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
+  "cancelled clean preparation preserves the existing dependency tree",
+  async () => {
+    const f = await fixture("clean-cancelled");
+    await mkdir(join(f.directory, "node_modules"));
+    await writeFile(join(f.directory, "node_modules/preserve"), "unchanged");
+    const preparation = await preflightBunPreparation({
+      checkout: f.directory,
+      owner: f.directory,
+      executable: process.execPath,
+      platformExecutable: platform,
+      env: f.request.env,
+      timeoutMs: 10_000,
+      cleanInstall: true,
+      verifyPrepared: async () => true,
+    });
+    const controller = new AbortController();
+    controller.abort();
+    try {
+      expect(await preparation.run(controller.signal)).toEqual({
+        kind: "preparation-failed",
+      });
+      expect(
+        await readFile(join(f.directory, "node_modules/preserve"), "utf8"),
+      ).toBe("unchanged");
+      expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(false);
+    } finally {
+      expect(await preparation.close()).toEqual({ kind: "closed" });
+    }
   },
 );
 

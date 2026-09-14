@@ -6,12 +6,27 @@ import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
 
 type Selection = Readonly<{ company: string; module: string; package: string }>;
-type Operation = "start" | "status" | "open" | "stop" | "prepare";
+type Operation =
+  | "start"
+  | "status"
+  | "open"
+  | "stop"
+  | "prepare"
+  | "clean-prepare";
 type Plan = Extract<
   Awaited<ReturnType<typeof readModuleApplication>>,
   { kind: "declared-runtime-plan" }
 >;
 type Handle = Awaited<ReturnType<typeof startGuardedProcess>>;
+type PreparationFactory = (
+  plan: Plan,
+  cwd: string,
+) => Promise<{
+  run: (
+    signal: AbortSignal,
+  ) => Promise<{ kind: "prepared" | "preparation-failed" }>;
+  close: () => Promise<{ kind: "closed" | "incomplete" }>;
+}>;
 
 function selection(input: unknown): Selection {
   const value = object(input, ["company", "module", "package"]);
@@ -35,15 +50,10 @@ export function createApplicationLifecycle(adapters: {
   // Explicit module preparation. Preflight is read-only and checks its actual
   // dependency owner before any app stop. The effect owns bounded subprocess
   // cleanup; close remains retained if cleanup cannot be confirmed.
-  preflightPreparation?: (
-    plan: Plan,
-    cwd: string,
-  ) => Promise<{
-    run: (
-      signal: AbortSignal,
-    ) => Promise<{ kind: "prepared" | "preparation-failed" }>;
-    close: () => Promise<{ kind: "closed" | "incomplete" }>;
-  }>;
+  preflightPreparation?: PreparationFactory;
+  // Separate explicit capability: never substitute ordinary preparation when
+  // the caller asks to discard and regenerate derived dependencies.
+  preflightCleanPreparation?: PreparationFactory;
   // Trusted composition boundary for the shared install/pull/start owner lock.
   // null selects owner shutdown; the coordinator must drain its accepted mutations.
   coordinateMutation?: <T>(
@@ -121,17 +131,23 @@ export function createApplicationLifecycle(adapters: {
     });
   }
   return Object.freeze({
-    prepare(input: unknown) {
+    prepare(input: unknown, mode: "prepare" | "clean-prepare" = "prepare") {
+      if (!["prepare", "clean-prepare"].includes(mode))
+        throw new Error("Invalid preparation mode");
       const value = selection(input);
+      const preflight =
+        mode === "clean-prepare"
+          ? adapters.preflightCleanPreparation
+          : adapters.preflightPreparation;
       return mutation(value, async () => {
         if (closing) return Object.freeze({ kind: "closing" as const });
-        if (!adapters.preflightPreparation)
+        if (!preflight)
           return Object.freeze({ kind: "preparation-unavailable" as const });
         if (preparations.size)
           return Object.freeze({
             kind: "preparation-cleanup-required" as const,
           });
-        const directory = await authorized(value, "prepare");
+        const directory = await authorized(value, mode);
         if (!directory) return Object.freeze({ kind: "denied" as const });
         if (closing) return Object.freeze({ kind: "closing" as const });
         // Until shared-owner overlap resolution is composed, do not mutate
@@ -147,7 +163,7 @@ export function createApplicationLifecycle(adapters: {
         >;
         try {
           plan = await read(value, directory);
-          preparation = await adapters.preflightPreparation(
+          preparation = await preflight(
             plan,
             dirname(join(directory, value.package)),
           );
@@ -159,7 +175,7 @@ export function createApplicationLifecycle(adapters: {
         preparations.add(preparation);
         try {
           if (closing) return Object.freeze({ kind: "closing" as const });
-          if ((await authorized(value, "prepare")) !== directory)
+          if ((await authorized(value, mode)) !== directory)
             return Object.freeze({ kind: "denied" as const });
           if (
             JSON.stringify(await read(value, directory)) !==
@@ -176,7 +192,7 @@ export function createApplicationLifecycle(adapters: {
             runs.delete(key(value));
           }
           if (closing) return Object.freeze({ kind: "closing" as const });
-          if ((await authorized(value, "prepare")) !== directory)
+          if ((await authorized(value, mode)) !== directory)
             return Object.freeze({ kind: "denied" as const });
           if (closing) return Object.freeze({ kind: "closing" as const });
           if (

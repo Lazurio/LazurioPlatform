@@ -6,6 +6,7 @@ const en = {
   appDiscoveryUnavailable:
     "Application discovery is unavailable. Configure a permitted canonical Organization in the CLI; no legacy fallback is used.",
   appPrepare: "Prepare dependencies",
+  appCleanPrepare: "Reinstall dependencies (remove node_modules)",
   appPrepared:
     "Module preparation completed. Start the app and verify its function separately.",
   appPreparationUnavailable:
@@ -86,6 +87,7 @@ const cs: Record<MessageKey, string> = {
   appDiscoveryUnavailable:
     "Aplikace nelze načíst. V CLI vyberte povolenou kanonickou organizaci; starý formát se jako náhrada nepoužívá.",
   appPrepare: "Připravit závislosti",
+  appCleanPrepare: "Přeinstalovat závislosti (odstranit node_modules)",
   appPrepared:
     "Příprava modulu byla dokončena. Aplikaci zvlášť spusťte a ověřte její funkci.",
   appPreparationUnavailable:

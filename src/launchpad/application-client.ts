@@ -8,9 +8,12 @@ export async function requestApplication(input: unknown) {
   if (
     typeof value.sessionUrl !== "string" ||
     typeof value.operation !== "string" ||
-    !["prepare", "start", "status", "open", "stop"].includes(value.operation)
+    !["prepare", "clean-prepare", "start", "status", "open", "stop"].includes(
+      value.operation,
+    )
   )
     throw new Error("Explicit application request required");
+  const operation = value.operation;
   const url = new URL(value.sessionUrl);
   if (
     url.protocol !== "http:" ||
@@ -44,7 +47,7 @@ export async function requestApplication(input: unknown) {
         // Preparation may use the core's ten-minute budget plus cleanup.
         // A transport deadline is not cancellation or evidence of rollback.
         signal: AbortSignal.timeout(
-          value.operation === "prepare" ? 660_000 : 30_000,
+          ["prepare", "clean-prepare"].includes(operation) ? 660_000 : 30_000,
         ),
         headers: {
           "Content-Type": "application/json",

@@ -71,6 +71,8 @@ export async function startLaunchpad(
             return response({ error: "applications-unavailable" }, 503);
           const operations = {
             "/api/apps/prepare": applications.prepare,
+            "/api/apps/clean-prepare": (input: unknown) =>
+              applications.prepare(input, "clean-prepare"),
             "/api/apps/start": applications.start,
             "/api/apps/status": applications.status,
             "/api/apps/open": applications.entrypoint,
@@ -81,7 +83,11 @@ export async function startLaunchpad(
           const operation = operations[url.pathname as keyof typeof operations];
           // Only an authenticated, fully-read preparation request gets the
           // longer wait. Keep the normal idle deadline on request admission.
-          if (url.pathname === "/api/apps/prepare")
+          if (
+            ["/api/apps/prepare", "/api/apps/clean-prepare"].includes(
+              url.pathname,
+            )
+          )
             server.timeout(request, 660);
           return response(await operation(input));
         }

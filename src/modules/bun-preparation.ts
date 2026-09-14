@@ -1,4 +1,5 @@
 import { inspectBunToolchain } from "./bun-toolchain";
+import { cleanDerivedDependencies } from "./clean-dependencies";
 import {
   modulePreparationArgs,
   runFrozenInstallProcess,
@@ -26,6 +27,7 @@ export async function preflightBunPreparation(input: {
   platformExecutable: string;
   env: Record<string, string>;
   timeoutMs: number;
+  cleanInstall?: boolean;
   modulePreparationScript?: string;
   verifyPrepared: (
     authority: Authority,
@@ -54,6 +56,12 @@ export async function preflightBunPreparation(input: {
   });
   const platformExecutable = input.platformExecutable;
   const timeoutMs = input.timeoutMs;
+  if (
+    input.cleanInstall !== undefined &&
+    typeof input.cleanInstall !== "boolean"
+  )
+    throw new Error("Explicit clean-install mode required");
+  const cleanInstall = input.cleanInstall === true;
   const verifyPrepared = input.verifyPrepared;
   const toolchain = await inspectBunToolchain({
     ...launch,
@@ -81,6 +89,12 @@ export async function preflightBunPreparation(input: {
       ]);
       pending = (async () => {
         try {
+          if (combined.aborted) return failed();
+          if (cleanInstall) {
+            const cleanup = await cleanDerivedDependencies(authority, combined);
+            if (cleanup.kind === "authority-changed" || combined.aborted)
+              return failed();
+          }
           install = await runFrozenInstallProcess({
             authority,
             executable: launch.executable,

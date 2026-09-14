@@ -312,6 +312,96 @@ async function fixture(name: string, host = "127.0.0.1") {
 }
 
 posixTest(
+  "clean preparation has an explicit API/CLI capability and authorization operation",
+  async () => {
+    const f = await fixture("clean-api");
+    const folder = join(root, "clean-api-folder");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    let cleanRuns = 0;
+    let ordinaryRuns = 0;
+    let permitted = false;
+    const app = await startLaunchpad(folder, {
+      platformExecutable: binary,
+      authorize: async (_selection, operation) => {
+        if (operation === "clean-prepare" && !permitted)
+          throw new Error("denied");
+        return { moduleDirectory: f.directory };
+      },
+      prepareLaunch: f.prepareLaunch,
+      preflightPreparation: async () => ({
+        run: async () => {
+          ordinaryRuns++;
+          return { kind: "prepared" };
+        },
+        close: async () => ({ kind: "closed" }),
+      }),
+      preflightCleanPreparation: async () => ({
+        run: async () => {
+          cleanRuns++;
+          return { kind: "prepared" };
+        },
+        close: async () => ({ kind: "closed" }),
+      }),
+    });
+    try {
+      expect(
+        (
+          await requestApplication({
+            sessionUrl: app.url,
+            operation: "clean-prepare",
+            selection,
+          })
+        ).result,
+      ).toEqual({ kind: "denied" });
+      expect(cleanRuns).toBe(0);
+      permitted = true;
+      const cli = Bun.spawn([binary, "app-request"], {
+        env: {},
+        cwd: root,
+        stdin: new Blob([
+          JSON.stringify({
+            sessionUrl: app.url,
+            operation: "clean-prepare",
+            selection,
+          }),
+        ]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [code, output] = await Promise.all([
+        cli.exited,
+        new Response(cli.stdout).text(),
+      ]);
+      expect(code).toBe(0);
+      expect(JSON.parse(output)).toEqual({ kind: "prepared" });
+      expect(cleanRuns).toBe(1);
+      expect(ordinaryRuns).toBe(0);
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+    }
+    const unsupported = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: f.prepareLaunch,
+    });
+    try {
+      expect(await unsupported.prepare(selection, "clean-prepare")).toEqual({
+        kind: "preparation-unavailable",
+      });
+    } finally {
+      expect(await unsupported.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
   "localhost lease produces a browser-presentable healthy entrypoint",
   async () => {
     const f = await fixture("localhost-link", "localhost");

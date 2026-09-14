@@ -210,7 +210,9 @@ apps.form.addEventListener("submit", async (event) => {
   const action = event.submitter;
   if (
     !(action instanceof HTMLButtonElement) ||
-    !["prepare", "start", "status", "open", "stop"].includes(action.value)
+    !["prepare", "clean-prepare", "start", "status", "open", "stop"].includes(
+      action.value,
+    )
   )
     return;
   const operation = action.value;
