@@ -196,6 +196,11 @@ target standard, and qualification of both candidates before expanding module co
 Do not infer automatic database provisioning or legacy compatibility requirements from
 a missing implementation detail.
 
+The bounded development declaration and its current implementation limits are tracked
+in [module adoption](docs/module-adoption.md#development-preparation-declaration).
+Reading a preparation declaration does not authorize execution or establish readiness;
+it must not be reported as completion of the module journey above.
+
 ## Confirmed system topology
 
 A **Lazurio Environment** is one Machine's operational composition of compatible

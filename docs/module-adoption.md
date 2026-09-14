@@ -85,6 +85,35 @@ not establish full application functionality. Read-only check behavior is a modu
 contract, not a sandbox guarantee. No manifest field, implicit script discovery or
 browser-supplied command is introduced by this adapter option.
 
+### Development preparation declaration
+
+The application package may explicitly declare `lazurio.preparation` alongside
+`lazurio.runtime`:
+
+```json
+{
+  "schema_version": "lazurio.preparation.v1",
+  "owner_package": "app/package.json",
+  "prepare_script": "prepare:data",
+  "check_script": "check:data"
+}
+```
+
+This is a development contract, not a released API. `owner_package` is a safe
+module-relative package path, not an ancestor search. `prepare_script` is optional;
+`check_script` is required. Both name package scripts, not shell commands. Unknown
+fields, versions, traversal and executable input objects are refused. An absent
+declaration is explicitly `null` in the reader result; existing modules are not
+silently assigned default script names or made preparation-capable.
+
+The read-only application reader includes this declaration in its existing digest.
+Parsing does not prove that the owner exists, owns the selected workspace package,
+declares those scripts or may execute them. Before execution, the composition must
+resolve and verify those facts, the toolchain and current authority under the existing
+owner coordination. No dependency installation, script execution or new permission
+follows from a successfully parsed declaration. Consumer wiring and native lifecycle
+qualification remain incomplete; fixtures exercise parsing and unchanged source bytes.
+
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
 installer exit of zero with failed module postconditions does not become prepared;

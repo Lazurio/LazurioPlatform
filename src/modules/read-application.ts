@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readOwnedJson as readDeclaration } from "../providers/owned-json";
 import { selectModuleApplication } from "./manifest";
+import { parsePreparationDeclaration } from "./preparation-declaration";
 import { planModuleRuntime } from "./runtime";
 
 // Read-only adapter for an explicitly selected, stable, caller-owned module.
@@ -37,7 +38,11 @@ export async function readModuleApplication(
   const pkg = record(await readDeclaration(packagePath));
   if (pkg.companyascode && Object.hasOwn(record(pkg.companyascode), "app"))
     throw new Error("Legacy app declaration requires explicit adoption");
-  const runtime = record(pkg.lazurio).runtime;
+  const metadata = record(pkg.lazurio);
+  const runtime = metadata.runtime;
+  const preparation = Object.hasOwn(metadata, "preparation")
+    ? parsePreparationDeclaration(metadata.preparation)
+    : null;
   const plan = planModuleRuntime(
     manifest,
     runtime,
@@ -49,6 +54,7 @@ export async function readModuleApplication(
     throw new Error("Module directory changed");
   return Object.freeze({
     ...plan,
+    preparation,
     // Include package hooks/toolchain/dependencies, not only the selected script.
     // This is a local change detector, never a publisher or authority proof.
     declarationDigest: createHash("sha256")

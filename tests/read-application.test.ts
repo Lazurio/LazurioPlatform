@@ -67,6 +67,42 @@ async function fixture(
 }
 
 posixTest(
+  "module reader observes explicit preparation and refuses malformed declarations without execution",
+  async () => {
+    await fixture(async (root, pkg) => {
+      const initial = await readModuleApplication(root);
+      if (initial.kind !== "declared-runtime-plan")
+        throw new Error("Missing runtime");
+      expect(initial.preparation).toBeNull();
+      const preparation = {
+        schema_version: "lazurio.preparation.v1" as const,
+        owner_package: "app/package.json",
+        prepare_script: "prepare:data",
+        check_script: "check:data",
+      };
+      const path = join(root, "app/package.json");
+      const updated = {
+        ...pkg,
+        lazurio: { ...(pkg.lazurio as Record<string, unknown>), preparation },
+      };
+      const bytes = JSON.stringify(updated);
+      await writeFile(path, bytes);
+      const observed = await readModuleApplication(root);
+      if (observed.kind !== "declared-runtime-plan")
+        throw new Error("Missing runtime");
+      expect(observed.preparation).toEqual(preparation);
+      expect(observed.declarationDigest).not.toBe(initial.declarationDigest);
+      expect(await readFile(path, "utf8")).toBe(bytes);
+      updated.lazurio.preparation.owner_package = "../package.json";
+      const invalid = JSON.stringify(updated);
+      await writeFile(path, invalid);
+      await expect(readModuleApplication(root)).rejects.toThrow();
+      expect(await readFile(path, "utf8")).toBe(invalid);
+    });
+  },
+);
+
+posixTest(
   "read-only declared app selection tolerates ordinary package metadata",
   async () => {
     await fixture(async (root) => {
