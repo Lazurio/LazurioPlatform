@@ -81,7 +81,9 @@ if (["hold", "contend"].includes(process.argv[2] ?? "")) {
       stderr: "pipe",
     });
     const children = [child];
+    let timedOut = false;
     const timer = setTimeout(() => {
+      timedOut = true;
       for (const process of children) process.kill("SIGKILL");
     }, 5000);
     try {
@@ -93,12 +95,15 @@ if (["hold", "contend"].includes(process.argv[2] ?? "")) {
       assert.throws(() => db.exec("BEGIN EXCLUSIVE"), /locked/);
       child.kill("SIGKILL");
       await child.exited;
+      assert.equal(timedOut, false, "Probe watchdog expired");
+      assert.equal(child.signalCode, "SIGKILL", "Holder did not die by signal");
       db.exec("BEGIN EXCLUSIVE");
       assert.deepEqual(db.query("SELECT value FROM sentinel").all(), [
         { value: "preserve" },
       ]);
       db.exec("ROLLBACK");
       const contenders: typeof children = [];
+      const outcomes: string[] = [];
       for (let index = 0; index < 2; index++) {
         const contender = Bun.spawn([process.execPath, "contend", path], {
           stdin: "pipe",
@@ -107,22 +112,33 @@ if (["hold", "contend"].includes(process.argv[2] ?? "")) {
         });
         children.push(contender);
         contenders.push(contender);
-      }
-      for (const contender of contenders) {
+        // Complete acquisition before the next process opens SQLite. Concurrent
+        // database opens can themselves contend; that is not a lock takeover test.
         contender.stdin.write("go\n");
-        contender.stdin.flush();
+        await contender.stdin.flush();
+        const reader = contender.stdout.getReader();
+        const result = await reader.read();
+        reader.releaseLock();
+        assert.equal(result.done, false, "Contender exited before outcome");
+        const outcome = new TextDecoder().decode(result.value).trim();
+        assert.equal(outcome, index === 0 ? "held" : "busy");
+        outcomes.push(outcome);
       }
-      const outcomes = await Promise.all(
-        contenders.map(async (contender) => {
-          const reader = contender.stdout.getReader();
-          const result = await reader.read();
-          reader.releaseLock();
-          return new TextDecoder().decode(result.value).trim();
-        }),
+      assert.deepEqual([...outcomes].sort(), ["busy", "held"]);
+      const winner = contenders[outcomes.indexOf("held")];
+      const loser = contenders[outcomes.indexOf("busy")];
+      assert.ok(winner && loser);
+      assert.equal(await loser.exited, 0, "Rejected contender failed");
+      // Readiness output alone does not prove the winner still owns the lock.
+      assert.throws(() => db.exec("BEGIN EXCLUSIVE"), /locked/);
+      winner.kill("SIGKILL");
+      await winner.exited;
+      assert.equal(timedOut, false, "Probe watchdog expired");
+      assert.equal(
+        winner.signalCode,
+        "SIGKILL",
+        "Winner did not die by signal",
       );
-      assert.deepEqual(outcomes.sort(), ["busy", "held"]);
-      for (const contender of contenders) contender.kill("SIGKILL");
-      await Promise.all(contenders.map((contender) => contender.exited));
       db.exec("BEGIN EXCLUSIVE");
       assert.deepEqual(db.query("SELECT value FROM sentinel").all(), [
         { value: "preserve" },
@@ -132,7 +148,7 @@ if (["hold", "contend"].includes(process.argv[2] ?? "")) {
         "PASS: competing process excluded; SIGKILL releases transaction lock; sentinel retained",
       );
       console.log(
-        "PASS: two post-crash contenders produce exactly one holder; subsequent acquisition succeeds",
+        "PASS: confirmed post-crash holder excludes the next contender; subsequent acquisition succeeds",
       );
       console.log(
         "PASS: NOFOLLOW refuses symlink target and legacy directory without modifying database bytes",

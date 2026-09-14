@@ -10,20 +10,27 @@ and run it as a standalone executable in a disposable test environment:
 ```sh
 bun build scripts/smoke-sqlite-lock.ts --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/sqlite-lock-probe
 ./dist/sqlite-lock-probe
+for run in {1..10}; do ./dist/sqlite-lock-probe || exit 1; done
 ```
 
 Do not run the TypeScript entrypoint directly: subprocesses use the executable path.
 It creates only synthetic temporary data. It tests exclusive transaction contention,
-owner SIGKILL, a pair of subsequent contenders, preserved sentinel data and refusal
+owner SIGKILL, a confirmed successor excluding a subsequent contender, preserved sentinel data and refusal
 of symlink/directory targets with `SQLITE_OPEN_NOFOLLOW`. This is not part of ordinary
 product startup and does not change `withFolderOperationLock`.
 
-The preceding isolated experiment passed on macOS ARM64 and Linux ARM64 for
-contention and owner death. The added NOFOLLOW scenarios have only been exercised
-on macOS so far. The checked-in runner also passed its standalone macOS execution
-after adding bounded subprocess cleanup and canonical-path handling. Windows and
-network filesystems are unqualified; the earlier Linux artifact does not qualify
-these newer source changes.
+The runner at source `2957a7231cc41b9a10f673d596ef003caf59bcef` passed one
+native Linux ARM64 run, including NOFOLLOW and cleanup, in an existing isolated
+Ubuntu 24.04 development clone. Its executable SHA-256 was
+`9cc7a82866e920ae23b95eb8a0045ada768cdb92f6eb9dad4a3b56fac37f2e08`.
+Independent repeated macOS runs subsequently exposed an unstable simultaneous-open
+scenario: both contenders could report busy. The revised protocol confirms successor
+acquisition before starting the excluded contender and checks continued exclusion
+before killing the holder. It rejects watchdog expiry and verifies SIGKILL termination.
+This proves bounded sequential takeover and exclusion, not fairness or guaranteed
+progress among simultaneously opening contenders. The earlier Linux artifact does
+not qualify this revised protocol. Windows and network filesystems remain unqualified;
+none of these experiments establishes clean-install or product-runtime qualification.
 
 ## Integration conditions, not an implementation claim
 
