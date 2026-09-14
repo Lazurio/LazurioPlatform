@@ -74,6 +74,39 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect(await readFile(join(root, "modules.manifest.json"), "utf8")).toBe(
         moduleBytes,
       );
+      const conflictingBytes = JSON.stringify({
+        ...legacy,
+        modules: [
+          { path: "workspace/private-fixture-marker", note: "do-not-echo" },
+        ],
+      });
+      await writeFile(join(root, "company.gen3.json"), conflictingBytes);
+      const refused = Bun.spawn(
+        [binary, "organization-conversion-preview", "--directory", root],
+        { env: {}, stdout: "pipe", stderr: "pipe" },
+      );
+      const [refusedCode, refusedOutput, refusedError] = await Promise.all([
+        refused.exited,
+        new Response(refused.stdout).text(),
+        new Response(refused.stderr).text(),
+      ]);
+      expect(refusedCode).toBe(2);
+      expect(refusedError).toBe("");
+      expect(JSON.parse(refusedOutput)).toEqual({
+        kind: "blocked",
+        reason: "declaration-reconciliation-required",
+        sections: ["modules"],
+      });
+      expect(refusedOutput).not.toContain("private-fixture-marker");
+      expect(refusedOutput).not.toContain("do-not-echo");
+      expect((await readdir(root)).sort()).toEqual(files);
+      expect(await readFile(join(root, "company.gen3.json"), "utf8")).toBe(
+        conflictingBytes,
+      );
+      expect(await readFile(join(root, "modules.manifest.json"), "utf8")).toBe(
+        moduleBytes,
+      );
+      await writeFile(join(root, "company.gen3.json"), legacyBytes);
       for (const bytes of ["{}", "malformed"]) {
         await writeFile(canonical, bytes);
         expect(await inspectOrganizationConversion(root)).toEqual({
