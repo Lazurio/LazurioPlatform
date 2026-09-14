@@ -236,7 +236,11 @@ do not verify signatures, freshness or provenance. The complete smoke saves veri
 metadata and reloads it into a separate fixture cache, where TUF again refuses older
 timestamp metadata. Tests also cover concurrent creation, links and getter refusal.
 
-This is not yet an active trust-state selector or automated repair mechanism. The
+An explicit-selection reader accepts only an owned `selected.json` containing
+`schemaVersion: 1` and a single safe generation name beneath that directory. Missing,
+malformed or unavailable selected state fails closed, even when another readable
+generation exists. It neither scans for replacements nor writes the selection.
+This is not yet an active trust-state publisher or automated repair mechanism. The
 installer still needs coordinated checkpoint selection, root-rotation continuity,
 channel high-water state, interrupted-write handling and native crash qualification.
 Do not choose an older readable checkpoint merely because the newest is damaged.

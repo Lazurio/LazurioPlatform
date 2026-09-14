@@ -110,3 +110,24 @@ export async function readTrustCheckpoint(
     await readOwnedJson(join(directory, "trust.json")),
   );
 }
+
+/** Reads only the explicitly selected generation. Missing/damaged state is an
+ * error, never first-install authorization or permission to scan older copies.
+ * Publication and serialization of this selector remain the state owner's job.
+ */
+export async function readSelectedTrustCheckpoint(
+  directory: string,
+): Promise<TrustCheckpoint> {
+  await inspectOwnedDirectory(directory);
+  const selection = fields(
+    await readOwnedJson(join(directory, "selected.json")),
+    ["schemaVersion", "generation"],
+  );
+  if (
+    selection.schemaVersion !== 1 ||
+    typeof selection.generation !== "string" ||
+    !/^[a-z0-9][a-z0-9-]{0,63}$/.test(selection.generation)
+  )
+    throw new Error("Invalid trust checkpoint selection");
+  return readTrustCheckpoint(join(directory, selection.generation));
+}
