@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readdir,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -48,6 +50,16 @@ test("published trust never falls back to another readable generation and fails 
   const selected = join(trust, "selected.json");
   try {
     expect(await readPublishedPilotTrust(root)).toBeNull();
+    // An existing trust entry must pass custody before emptiness means
+    // first install: a symlink or shared-writable directory is refused.
+    await mkdir(join(root, "elsewhere"), { mode: 0o700 });
+    await symlink(join(root, "elsewhere"), trust);
+    await expect(readPublishedPilotTrust(root)).rejects.toThrow("Canonical");
+    await rm(trust);
+    await mkdir(trust, { mode: 0o700 });
+    await chmod(trust, 0o770);
+    await expect(readPublishedPilotTrust(root)).rejects.toThrow("owned");
+    await rm(trust, { recursive: true });
     await mkdir(trust, { mode: 0o700 });
     expect(await readPublishedPilotTrust(root)).toBeNull();
     await writeNewTrustCheckpoint(join(trust, "old"), checkpoint);
@@ -231,7 +243,7 @@ test("recovery closes attempts without received metadata, binds evidence to the 
   }
 });
 
-test("owner operations refuse a held or replaced operation lock", async () => {
+test("owner operations refuse a held operation lock without touching the root", async () => {
   const { root } = await fixture();
   try {
     await mkdir(join(root, ".operation-lock"), { mode: 0o700 });
@@ -241,7 +253,8 @@ test("owner operations refuse a held or replaced operation lock", async () => {
     await expect(
       recoverPilotAttempts({ root, executionTarget: "linux-arm64" }),
     ).rejects.toThrow("busy or requires recovery");
-    expect(await readdir(join(root, "attempts"))).toEqual([]);
+    // No layout is materialized before the lock is held.
+    expect(await readdir(root)).toEqual([".operation-lock"]);
   } finally {
     await rm(root, { recursive: true });
   }

@@ -61,15 +61,16 @@ async function readPublished(
   trust: string,
   pendingAttempts: readonly string[],
 ): Promise<PublishedPilotTrust | null> {
-  let entries: string[];
+  // Only a genuinely absent directory may mean first install; an existing
+  // entry must pass custody before its emptiness is believed.
   try {
-    entries = await readdir(trust);
+    await inspectOwnedDirectory(trust);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+  const entries = await readdir(trust);
   if (entries.length === 0) return null;
-  await inspectOwnedDirectory(trust);
   if (!entries.includes("selected.json")) {
     // Only an interrupted first publication of a still-pending attempt may
     // leave generations without a selection; anything else is damage.
@@ -138,8 +139,9 @@ export async function downloadPilotUnderOwner(
   published: PublishedPilotTrust;
   candidate: PilotCandidate;
 }> {
-  const layout = await openLayout(options.root);
+  await inspectOwnedDirectory(options.root);
   return withFolderOperationLock(options.root, async (assertHeld) => {
+    const layout = await openLayout(options.root);
     const pending = await listAttempts(layout.attempts);
     if (pending.length)
       throw new Error(
@@ -203,8 +205,9 @@ export async function recoverPilotAttempts(options: {
   bootstrapRoot?: string;
   executionTarget: string;
 }): Promise<readonly RecoveredAttempt[]> {
-  const layout = await openLayout(options.root);
+  await inspectOwnedDirectory(options.root);
   return withFolderOperationLock(options.root, async (assertHeld) => {
+    const layout = await openLayout(options.root);
     const pending = await listAttempts(layout.attempts);
     // Damaged published state is reported even when nothing is pending.
     await readPublished(layout.trust, pending);
@@ -309,6 +312,7 @@ export async function recoverPilotAttempts(options: {
   });
 }
 
+// Materializes the owner layout only while the operation lock is held.
 async function openLayout(root: string) {
   await inspectOwnedDirectory(root);
   const layout = {
