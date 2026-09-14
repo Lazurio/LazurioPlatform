@@ -1,32 +1,70 @@
-import { mkdir, open, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  readdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { type Fetcher, Updater } from "tuf-js";
-import { DownloadHTTPError } from "tuf-js/dist/error";
+import { DownloadHTTPError, ExpiredMetadataError } from "tuf-js/dist/error";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import {
   readOwnedDeclarationBytes,
   readOwnedJson,
 } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
-import { selectPilotTarget } from "./channel";
+import { type ChannelSelection, selectPilotTarget } from "./channel";
 import {
   parseTrustCheckpoint,
+  type TrustCheckpoint,
   writeNewTrustCheckpoint,
 } from "./trust-checkpoint";
 
+export type PilotReplay = Readonly<
+  | {
+      outcome: "complete";
+      checkpoint: TrustCheckpoint;
+      selection: ChannelSelection;
+    }
+  | {
+      /** Metadata accepted before a deterministic refusal of the final record,
+       * before the transcript ended, or before the channel was received. The
+       * caller keeps its previous channel high-water; null means the accepted
+       * state has no complete role set (bootstrap before its first refresh).
+       */
+      outcome: "partial";
+      checkpoint: TrustCheckpoint | null;
+      refused: string;
+    }
+>;
+
+const roles = ["root", "timestamp", "snapshot", "targets"] as const;
+
+// The pinned client wraps snapshot/targets failures in RuntimeError, so the
+// expiry class alone cannot be relied on; the message is stable in tuf-js 6.0.0.
+function isExpiry(error: unknown) {
+  return (
+    error instanceof ExpiredMetadataError ||
+    (error instanceof Error && /expired/i.test(error.message))
+  );
+}
+
 /** Bounded offline reverification after metadata/channel delivery. Not a general
- * crash-recovery owner: expired/incomplete evidence fails closed, and the caller
- * must serialize access and publish the returned trust before a new attempt.
- * The owner must bind source to its recorded attempt and trusted original input;
- * filesystem ownership alone does not authenticate an arbitrary bootstrap root.
- * No network fetch or artifact execution is reachable from this operation.
+ * crash-recovery owner: the caller must serialize access and publish the returned
+ * trust before a new attempt. The owner must bind source to its recorded attempt
+ * and trusted original input; filesystem ownership alone does not authenticate an
+ * arbitrary bootstrap root. No network fetch or artifact execution is reachable.
+ * A partial outcome reproduces only what the original process could itself have
+ * accepted: expiry at replay time, altered or unconsumed records fail closed.
  */
 export async function replayPilotTrust(
   source: string,
   output: string,
   executionTarget: string,
-) {
+): Promise<PilotReplay> {
   await inspectOwnedDirectory(source);
   const input = (await readOwnedJson(
     join(source, "input-trust.json"),
@@ -109,6 +147,7 @@ export async function replayPilotTrust(
       mode: 0o600,
     });
   let cursor = 0;
+  let exhausted = false;
   const base = "https://replay.invalid/metadata/";
   const fetcher: Fetcher = {
     async downloadBytes(url, maxLength) {
@@ -128,6 +167,10 @@ export async function replayPilotTrust(
           .some((entry) => entry.name.endsWith(".root.json"))
       )
         throw new DownloadHTTPError("No further received root", 404);
+      if (cursor === records.length) {
+        exhausted = true;
+        throw new Error("Replay evidence ends before this metadata");
+      }
       throw new Error("Missing or out-of-order replay response");
     },
     async downloadFile() {
@@ -140,30 +183,64 @@ export async function replayPilotTrust(
     fetcher,
     config: { fetchRetries: 0, fetchRetry: false, maxDelegations: 0 },
   });
-  await updater.refresh();
+  let refused: string | undefined;
+  try {
+    await updater.refresh();
+  } catch (error) {
+    // Only a deterministic refusal of the final record or a transcript that
+    // ends before the next request reproduces the original process's state.
+    // Expiry depends on replay time and cannot prove the original refused it.
+    if (cursor !== records.length || isExpiry(error)) throw error;
+    refused = exhausted
+      ? "Retained metadata ends before the next required response"
+      : error instanceof Error
+        ? error.message
+        : String(error);
+  }
   if (cursor !== records.length) throw new Error("Unconsumed replay evidence");
+  const persisted: Record<string, string> = {};
+  for (const role of roles) {
+    try {
+      persisted[role] = await readFile(join(cache, `${role}.json`), "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+  const complete = roles.every((role) => role in persisted);
+  const checkpoint = complete
+    ? parseTrustCheckpoint({ schemaVersion: 1, metadata: persisted })
+    : null;
+  const partial = async (reason: string): Promise<PilotReplay> => {
+    if (checkpoint)
+      await writeNewTrustCheckpoint(join(output, "checkpoint"), checkpoint);
+    await syncDirectory(dirname(output));
+    return Object.freeze({ outcome: "partial", checkpoint, refused: reason });
+  };
+  if (refused !== undefined) return partial(refused);
+  if (!checkpoint) throw new Error("Replay accepted an incomplete role set");
   const target = await updater.getTargetInfo("channels/pilot.json");
   if (!target || target.length > 64 * 1024)
-    throw new Error("Replay channel unavailable or oversized");
-  const channelBytes = await readOwnedDeclarationBytes(
-    join(source, "channel.json"),
-  );
+    return partial("Replay channel unavailable or oversized");
+  const channelPath = join(source, "channel.json");
+  try {
+    await lstat(channelPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return partial("Channel was not received before the failure");
+  }
+  // A present channel was verified before its copy; an altered copy is refused.
+  const channelBytes = await readOwnedDeclarationBytes(channelPath);
   await target.verify(Readable.from([channelBytes]));
-  const selection = selectPilotTarget(
-    new TextDecoder("utf-8", { fatal: true }).decode(channelBytes),
-    executionTarget,
-    previous,
-  );
-  const verifiedMetadata: Record<string, string> = {};
-  for (const role of ["root", "timestamp", "snapshot", "targets"])
-    verifiedMetadata[role] = await readFile(
-      join(cache, `${role}.json`),
-      "utf8",
+  let selection: ChannelSelection;
+  try {
+    selection = selectPilotTarget(
+      new TextDecoder("utf-8", { fatal: true }).decode(channelBytes),
+      executionTarget,
+      previous,
     );
-  const checkpoint = parseTrustCheckpoint({
-    schemaVersion: 1,
-    metadata: verifiedMetadata,
-  });
+  } catch (error) {
+    return partial(error instanceof Error ? error.message : String(error));
+  }
   const channel = await open(join(output, "channel.json"), "wx", 0o600);
   try {
     await channel.writeFile(channelBytes);
@@ -173,11 +250,15 @@ export async function replayPilotTrust(
   }
   await writeNewTrustCheckpoint(join(output, "checkpoint"), checkpoint);
   // Sync the new output's name too, not only its contents.
-  const parent = await open(dirname(output), "r");
+  await syncDirectory(dirname(output));
+  return Object.freeze({ outcome: "complete", checkpoint, selection });
+}
+
+async function syncDirectory(path: string) {
+  const handle = await open(path, "r");
   try {
-    await parent.sync();
+    await handle.sync();
   } finally {
-    await parent.close();
+    await handle.close();
   }
-  return Object.freeze({ checkpoint, selection });
 }

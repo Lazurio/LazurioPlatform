@@ -11,54 +11,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   parseTrustCheckpoint,
-  readSelectedTrustCheckpoint,
   readTrustCheckpoint,
   writeNewTrustCheckpoint,
 } from "../src/distribution/trust-checkpoint";
-
-test("selected checkpoint never falls back to another readable generation", async () => {
-  const parent = await realpath(
-    await mkdtemp(join(tmpdir(), "trust-selection-")),
-  );
-  const metadata = Object.fromEntries(
-    ["root", "timestamp", "snapshot", "targets"].map((role) => [
-      role,
-      JSON.stringify({ signed: { _type: role, version: 1 }, signatures: [] }),
-    ]),
-  );
-  const fixture = parseTrustCheckpoint({ schemaVersion: 1, metadata });
-  const selector = join(parent, "selected.json");
-  try {
-    await writeNewTrustCheckpoint(join(parent, "old"), fixture);
-    await expect(readSelectedTrustCheckpoint(parent)).rejects.toThrow();
-    for (const generation of ["missing", "../old", "/old", "", "old/../old"]) {
-      await writeFile(
-        selector,
-        JSON.stringify({ schemaVersion: 1, generation }),
-        { mode: 0o600 },
-      );
-      await expect(readSelectedTrustCheckpoint(parent)).rejects.toThrow();
-    }
-    await writeFile(
-      selector,
-      JSON.stringify({ schemaVersion: 1, generation: "old" }),
-    );
-    expect(await readSelectedTrustCheckpoint(parent)).toEqual(fixture);
-    await writeFile(selector, "\u0000");
-    await expect(readSelectedTrustCheckpoint(parent)).rejects.toThrow();
-    expect(await readTrustCheckpoint(join(parent, "old"))).toEqual(fixture);
-    await writeFile(
-      selector,
-      JSON.stringify({ schemaVersion: 1, generation: "old" }),
-    );
-    await writeFile(join(parent, "old", "trust.json"), "\u0000");
-    await writeNewTrustCheckpoint(join(parent, "other"), fixture);
-    await expect(readSelectedTrustCheckpoint(parent)).rejects.toThrow();
-    expect(await readTrustCheckpoint(join(parent, "other"))).toEqual(fixture);
-  } finally {
-    await rm(parent, { recursive: true });
-  }
-});
 
 test("checkpoint rejects executable and inherited fields without invoking getters", () => {
   let invoked = false;

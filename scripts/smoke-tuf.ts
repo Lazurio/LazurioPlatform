@@ -29,6 +29,11 @@ import {
   downloadPilotCandidate,
   type PilotTrust,
 } from "../src/distribution/download-pilot";
+import {
+  downloadPilotUnderOwner,
+  readPublishedPilotTrust,
+  recoverPilotAttempts,
+} from "../src/distribution/installation-state";
 import { replayPilotTrust } from "../src/distribution/replay-pilot";
 import { DistributionTransport } from "../src/distribution/transport";
 import {
@@ -258,6 +263,8 @@ try {
       "linux-arm64",
     );
     assert.equal(requestCount, beforeReplay);
+    assert.equal(recovered.outcome, "complete");
+    if (recovered.outcome !== "complete") throw new Error("unreachable");
     assert.equal(recovered.selection.sequence, 3);
     assert.equal(
       JSON.parse(recovered.checkpoint.metadata.timestamp).signed.version,
@@ -347,6 +354,220 @@ try {
     );
     console.log(
       "PASS: shared verified download, established retry/update, channel rollback, payload tamper, size and existing-output refusal; prior download preserved",
+    );
+    served = repository(2);
+  }
+  {
+    // Installation state owner: one lock, one published trust record, pending
+    // attempts reconciled by offline replay before any new refresh.
+    const root = join(fixture, "installation");
+    await mkdir(root, { mode: 0o700 });
+    const network = {
+      executionTarget: "linux-arm64",
+      metadataBaseUrl: `${server.url}metadata/`,
+      targetBaseUrl: `${server.url}targets/`,
+      allowedOrigins: [server.url.origin],
+      timeoutMs: 30_000,
+      signal: new AbortController().signal,
+      maxArtifactBytes: payload.length,
+      loopbackFixture: true,
+    };
+    const bootstrapRoot = rootBytes.toString();
+    const attempts = join(root, "attempts");
+    const history = join(root, "history");
+    const selected = join(root, "trust", "selected.json");
+    assert.equal(await readPublishedPilotTrust(root), null);
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, ...network }),
+      /Bootstrap root required/,
+    );
+    const first = await downloadPilotUnderOwner({
+      root,
+      bootstrapRoot,
+      ...network,
+    });
+    assert.equal(first.published.trust.channel.sequence, 2);
+    assert.equal(first.candidate.sha256, hash(payload).sha256);
+    assert.deepEqual(await readFile(first.candidate.path), payload);
+    assert.deepEqual(await readdir(attempts), []);
+    assert.deepEqual(await readdir(history), [first.attempt]);
+    assert.deepEqual(await readPublishedPilotTrust(root), first.published);
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, bootstrapRoot, ...network }),
+      /bootstrap refused/,
+    );
+    served = repository(3);
+    const second = await downloadPilotUnderOwner({ root, ...network });
+    assert.equal(second.published.trust.channel.sequence, 3);
+    assert.notEqual(second.attempt, first.attempt);
+    // Payload failure: metadata v4 accepted, artifact refused, attempt pending.
+    served = repository(4);
+    served.set(`/targets/${artifactPath}`, Buffer.alloc(payload.length, 65));
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, ...network }),
+      /Expected hash/,
+    );
+    const [pendingTamper] = await readdir(attempts);
+    assert.ok(pendingTamper);
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, ...network }),
+      /requires recovery/,
+    );
+    assert.deepEqual(await readPublishedPilotTrust(root), second.published);
+    const beforeRecovery = requestCount;
+    assert.deepEqual(
+      await recoverPilotAttempts({ root, executionTarget: "linux-arm64" }),
+      [{ attempt: pendingTamper, published: true, candidate: null }],
+    );
+    assert.equal(requestCount, beforeRecovery);
+    const reconciled = await readPublishedPilotTrust(root);
+    assert.ok(reconciled);
+    assert.equal(reconciled.generation, pendingTamper);
+    assert.equal(reconciled.trust.channel.sequence, 4);
+    assert.equal(
+      JSON.parse(reconciled.trust.checkpoint.metadata.timestamp).signed.version,
+      4,
+    );
+    assert.deepEqual(await readdir(attempts), []);
+    // The reconciled trust, not the pre-failure checkpoint, governs the next
+    // refresh: a mirror serving the older repository is refused and that
+    // refusal reconciles to no progress instead of blocking the owner.
+    served = repository(3);
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, ...network }),
+      /New timestamp version 3 is less than current version 4/,
+    );
+    const [pendingRollback] = await readdir(attempts);
+    assert.ok(pendingRollback);
+    assert.deepEqual(
+      await recoverPilotAttempts({ root, executionTarget: "linux-arm64" }),
+      [{ attempt: pendingRollback, published: false, candidate: null }],
+    );
+    assert.deepEqual(await readPublishedPilotTrust(root), reconciled);
+    // Channel failure after accepted metadata v5: metadata progress publishes,
+    // the channel high-water stays at 4 and no candidate is claimed.
+    served = repository(5);
+    const goodChannel = served.get("/targets/channels/pilot.json");
+    assert.ok(goodChannel);
+    served.set(
+      "/targets/channels/pilot.json",
+      Buffer.alloc(goodChannel.length, 65),
+    );
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, ...network }),
+      /Expected hash/,
+    );
+    const [pendingChannel] = await readdir(attempts);
+    assert.ok(pendingChannel);
+    assert.deepEqual(
+      await recoverPilotAttempts({ root, executionTarget: "linux-arm64" }),
+      [{ attempt: pendingChannel, published: true, candidate: null }],
+    );
+    const metadataOnly = await readPublishedPilotTrust(root);
+    assert.ok(metadataOnly);
+    assert.equal(metadataOnly.generation, pendingChannel);
+    assert.equal(metadataOnly.trust.channel.sequence, 4);
+    assert.equal(
+      JSON.parse(metadataOnly.trust.checkpoint.metadata.timestamp).signed
+        .version,
+      5,
+    );
+    served = repository(5);
+    const fifth = await downloadPilotUnderOwner({ root, ...network });
+    assert.equal(fifth.published.trust.channel.sequence, 5);
+    assert.deepEqual(await readFile(fifth.candidate.path), payload);
+    // Unreachable origin: no response was recorded, so nothing is reconciled.
+    served = new Map();
+    await assert.rejects(downloadPilotUnderOwner({ root, ...network }));
+    const [pendingOffline] = await readdir(attempts);
+    assert.ok(pendingOffline);
+    assert.deepEqual(
+      await readdir(join(attempts, pendingOffline, "received-metadata")),
+      [],
+    );
+    assert.deepEqual(
+      await recoverPilotAttempts({ root, executionTarget: "linux-arm64" }),
+      [{ attempt: pendingOffline, published: false, candidate: null }],
+    );
+    assert.deepEqual(await readPublishedPilotTrust(root), fifth.published);
+    // Interrupted publication after the generation write but before the
+    // selection: recovery republishes the same generation and keeps the candidate.
+    served = repository(6);
+    const sixth = await downloadPilotUnderOwner({ root, ...network });
+    await rename(join(history, sixth.attempt), join(attempts, sixth.attempt));
+    await writeFile(
+      selected,
+      JSON.stringify({
+        schemaVersion: 1,
+        generation: fifth.attempt,
+        channel: fifth.published.trust.channel,
+      }),
+    );
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, ...network }),
+      /requires recovery/,
+    );
+    const republished = await recoverPilotAttempts({
+      root,
+      executionTarget: "linux-arm64",
+    });
+    assert.deepEqual(
+      republished.map((entry) => ({
+        attempt: entry.attempt,
+        published: entry.published,
+        sha256: entry.candidate?.sha256,
+      })),
+      [
+        {
+          attempt: sixth.attempt,
+          published: true,
+          sha256: hash(payload).sha256,
+        },
+      ],
+    );
+    assert.deepEqual(await readPublishedPilotTrust(root), sixth.published);
+    // Interrupted after the selection but before closing the attempt.
+    await rename(join(history, sixth.attempt), join(attempts, sixth.attempt));
+    assert.deepEqual(
+      (
+        await recoverPilotAttempts({ root, executionTarget: "linux-arm64" })
+      ).map((entry) => ({
+        attempt: entry.attempt,
+        published: entry.published,
+        sha256: entry.candidate?.sha256,
+      })),
+      [
+        {
+          attempt: sixth.attempt,
+          published: false,
+          sha256: hash(payload).sha256,
+        },
+      ],
+    );
+    assert.deepEqual(await readPublishedPilotTrust(root), sixth.published);
+    assert.deepEqual(await readdir(attempts), []);
+    // A damaged selection without a pending attempt is never first install.
+    const selectedBytes = await readFile(selected);
+    await rm(selected);
+    await assert.rejects(readPublishedPilotTrust(root), /requires recovery/);
+    await assert.rejects(
+      downloadPilotUnderOwner({ root, bootstrapRoot, ...network }),
+      /requires recovery/,
+    );
+    await assert.rejects(
+      recoverPilotAttempts({
+        root,
+        bootstrapRoot,
+        executionTarget: "linux-arm64",
+      }),
+      /requires recovery/,
+    );
+    // Restore with an explicit private mode; an inherited group-writable umask
+    // must not turn the fixture's repair into an unsafe selection file.
+    await writeFile(selected, selectedBytes, { mode: 0o600 });
+    assert.deepEqual(await readPublishedPilotTrust(root), sixth.published);
+    console.log(
+      "PASS: installation owner publishes trust and channel high-water under one lock, reconciles pending attempts offline, refuses stale/damaged state and never resets to bootstrap",
     );
     served = repository(2);
   }
@@ -564,6 +785,8 @@ try {
     join(fixture, "replayed-root"),
     "linux-arm64",
   );
+  assert.equal(rootReplayed.outcome, "complete");
+  if (rootReplayed.outcome !== "complete") throw new Error("unreachable");
   assert.equal(rootReplayed.checkpoint.metadata.root, acceptedRoot.toString());
   assert.equal(rootReplayed.selection.sequence, 2);
   await writeFile(

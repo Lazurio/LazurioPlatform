@@ -214,7 +214,7 @@ fetcher and preserves partial output. Tests cover occupied records, concurrent r
 retention after payload tampering and abrupt process exit after a returned record.
 The exit test does not establish power-loss durability or completed replay recovery.
 
-`replayPilotTrust` now provides bounded offline reverification after metadata and
+`replayPilotTrust` provides bounded offline reverification after metadata and
 channel delivery: it reads the owned original input and ordered response records,
 runs the same pinned TUF client against a network-free replay fetcher, and verifies
 the retained channel bytes against the resulting signed targets before deriving the
@@ -223,23 +223,48 @@ after artifact completion. Replay uses a new output and preserves its source; it
 requires the owner to bind that source to its recorded attempt and trusted original
 input. Filesystem ownership alone does not authenticate an arbitrary supplied root. It
 does not execute or reuse a failed artifact. It rejects gaps, altered responses,
-unconsumed records, occupied output and expired/incomplete evidence without fallback.
-Tests verify root rotation again from the original anchor and show a subsequent
-download refusing both older timestamp and older channel using the recovered state.
-This does not yet publish recovered state under the installation owner's lock or
-recover an expired/incomplete transcript via fresh network metadata; those paths
-remain closed rather than resetting to bootstrap. Native power-loss qualification
-and active-version switching remain separate gates.
+unconsumed records and occupied output without fallback. A `complete` outcome
+carries checkpoint and selection. A `partial` outcome reproduces only what the
+original process could itself have accepted: the transcript ended before the next
+request, the final record was refused for a deterministic reason (signature,
+version, hash), the channel was not received, or the channel was refused after
+verification. Expiry at replay time cannot prove what the original accepted and
+therefore still fails closed. Tests verify root rotation again from the original
+anchor and show a subsequent download refusing both older timestamp and older
+channel using the recovered state.
 
-This is not yet a download/install command or the durable installation state owner.
-In particular, accepted metadata/root progress during a failed operation must be
-reconciled under that owner's lock before another refresh; it must not be discarded
-by retrying from the older input checkpoint. No automatic retry/repair is provided.
-Before staging, the
-consumer must bind the selected path to TUF length/hash and product build identity,
-check product-version/schema compatibility and persist trusted state under the
-installer's exclusion/recovery protocol. A newer channel sequence alone cannot prove
-product downgrade safety, native support or permission to activate.
+The development installation state owner (`src/distribution/installation-state.ts`)
+binds these operations to one explicit root directory under the existing
+`.operation-lock` discipline. `attempts/<id>` holds pending download evidence,
+`history/<id>` holds closed attempts (retained, never pruned here), and
+`trust/<generation>/trust.json` plus one `trust/selected.json` record (generation
+and channel high-water) is the only published trust. `downloadPilotUnderOwner`
+uses the published trust, or the caller's bootstrap root only while nothing was ever
+published; a pending attempt must be recovered first, and a failed attempt stays
+pending with its evidence. `recoverPilotAttempts` reconciles each pending attempt
+under the lock: an attempt without received metadata is closed because nothing
+reached the client; otherwise the attempt's retained input must equal the published
+trust (or the supplied bootstrap root before any publication), the transcript is
+replayed offline, and the accepted metadata is published as a new generation before
+the attempt closes, keeping the previous channel high-water when no channel was
+verified. A mirror serving older metadata therefore leaves no lasting pending state,
+while accepted timestamp/root progress from a failed payload download governs the
+next refresh instead of the pre-failure checkpoint. Publication writes the
+generation, then replaces the selection atomically; an interrupted publication is
+completed by recovery from the still-pending attempt, and a selection missing while
+generations exist is reported as damage, never as first install. A closed attempt
+whose artifact bytes match the authenticated selection is reported as a candidate
+with its digest; it is not staged, active or executed.
+
+Still open: recovery of an expired or inconsistent transcript via fresh network
+metadata (such attempts stay pending and block new downloads until an explicit
+repair path exists), reclaiming a lock left by a dead process, per-user install
+locations, staging into immutable versioned product directories, activation,
+product-version/schema compatibility binding and native power-loss/Windows
+qualification. Before staging, the consumer must bind the selected path to TUF
+length/hash and product build identity and check compatibility. A newer channel
+sequence alone cannot prove product downgrade safety, native support or permission
+to activate.
 
 `bun run scripts/smoke-tuf.ts /absolute/candidate` exercises the pinned client
 against a loopback fixture serving the supplied candidate's actual bytes. It generates
@@ -280,16 +305,13 @@ do not verify signatures, freshness or provenance. The complete smoke saves veri
 metadata and reloads it into a separate fixture cache, where TUF again refuses older
 timestamp metadata. Tests also cover concurrent creation, links and getter refusal.
 
-An explicit-selection reader accepts only an owned `selected.json` containing
-`schemaVersion: 1` and a single safe generation name beneath that directory. Missing,
-malformed or unavailable selected state fails closed, even when another readable
-generation exists. It neither scans for replacements nor writes the selection.
-This is not yet an active trust-state publisher or automated repair mechanism. The
-installer still needs coordinated checkpoint selection, root-rotation continuity,
-channel high-water state, interrupted-write handling and native crash qualification.
-Do not choose an older readable checkpoint merely because the newest is damaged.
-The current adapter is bounded to the existing 1 MiB owned-declaration envelope;
-larger/delegated repositories require an explicit compatible storage design.
+The owner's published-trust reader accepts only an owned `selected.json` containing
+`schemaVersion: 1`, a single safe generation name beneath the trust directory and the
+channel high-water. Missing, malformed or unavailable selected state fails closed,
+even when another readable generation exists; it neither scans for replacements nor
+writes the selection. Do not choose an older readable checkpoint merely because the
+newest is damaged. The adapter is bounded to the existing 1 MiB owned-declaration
+envelope; larger/delegated repositories require an explicit compatible storage design.
 
 The default fetcher sets a timeout for each request and follows the platform fetch
 behavior. It does not provide the entire install operation's cancellation/redirect

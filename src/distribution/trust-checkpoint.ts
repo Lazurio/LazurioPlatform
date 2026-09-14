@@ -6,7 +6,8 @@ import { parseUniqueJson } from "../providers/unique-json";
 
 const roles = ["root", "timestamp", "snapshot", "targets"] as const;
 type Role = (typeof roles)[number];
-function fields(
+/** Exact own data fields only: no prototype, extra, missing or accessor members. */
+export function exactFields(
   input: unknown,
   expected: readonly string[],
 ): Record<string, unknown> {
@@ -40,10 +41,10 @@ export type TrustCheckpoint = Readonly<{
 // This validates storage shape, NOT signatures, freshness, or a trust bootstrap.
 // Only the installation owner may promote a cryptographically verified checkpoint.
 export function parseTrustCheckpoint(input: unknown): TrustCheckpoint {
-  const value = fields(input, ["metadata", "schemaVersion"]);
+  const value = exactFields(input, ["metadata", "schemaVersion"]);
   if (value.schemaVersion !== 1)
     throw new Error("Unsupported trust checkpoint");
-  const metadata = fields(value.metadata, roles);
+  const metadata = exactFields(value.metadata, roles);
   const result = {} as Record<Role, string>;
   for (const role of roles) {
     const bytes = metadata[role];
@@ -109,25 +110,4 @@ export async function readTrustCheckpoint(
   return parseTrustCheckpoint(
     await readOwnedJson(join(directory, "trust.json")),
   );
-}
-
-/** Reads only the explicitly selected generation. Missing/damaged state is an
- * error, never first-install authorization or permission to scan older copies.
- * Publication and serialization of this selector remain the state owner's job.
- */
-export async function readSelectedTrustCheckpoint(
-  directory: string,
-): Promise<TrustCheckpoint> {
-  await inspectOwnedDirectory(directory);
-  const selection = fields(
-    await readOwnedJson(join(directory, "selected.json")),
-    ["schemaVersion", "generation"],
-  );
-  if (
-    selection.schemaVersion !== 1 ||
-    typeof selection.generation !== "string" ||
-    !/^[a-z0-9][a-z0-9-]{0,63}$/.test(selection.generation)
-  )
-    throw new Error("Invalid trust checkpoint selection");
-  return readTrustCheckpoint(join(directory, selection.generation));
 }
