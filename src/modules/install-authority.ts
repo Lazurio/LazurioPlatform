@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { snapshotOrganizationDocument } from "../organizations/document-hash";
 import { readOwnedDeclarationBytes } from "../providers/owned-json";
+import { parseUniqueJson } from "../providers/unique-json";
 import { parseProcessLaunch } from "./process-launch";
 
 const lockNames = ["bun.lock", "bun.lockb"] as const;
@@ -92,7 +93,7 @@ export async function inspectInstallAuthority(
     join(owner, "package.json"),
   );
   const pkg = snapshotOrganizationDocument(
-    JSON.parse(
+    parseUniqueJson(
       new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
         packageBytes,
       ),

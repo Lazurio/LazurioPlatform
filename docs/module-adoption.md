@@ -68,6 +68,13 @@ incomplete cleanup or failed postconditions prevent a prepared result. A termina
 module may leave partial data or its own recovery gate: Platform preserves these
 instead of running a destructive repair or treating them as ready.
 
+The install-authority package reader uses the same duplicate-member rejection as
+the module/Organization declaration readers. Duplicate decoded keys in toolchain,
+scripts or dependencies fail preflight before tool execution, including escaped
+spellings of the same key. The original package and opaque Bun lockfile remain
+unchanged; this does not parse a Bun lockfile as JSON or regenerate it. Regression
+coverage is in `tests/install-authority.test.ts` and `tests/unique-json.test.ts`.
+
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
 installer exit of zero with failed module postconditions does not become prepared;

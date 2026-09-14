@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   mkdir,
   mkdtemp,
+  readFile,
   realpath,
   rename,
   rm,
@@ -10,10 +11,61 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { preflightBunPreparation } from "../src/modules/bun-preparation";
 import {
   inspectInstallAuthority,
   verifyInstallAuthority,
 } from "../src/modules/install-authority";
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "install authority rejects duplicate package declarations without changing package or lock",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "install-duplicates-")),
+    );
+    const file = join(root, "package.json");
+    const lock = join(root, "bun.lock");
+    try {
+      const valid =
+        '{"packageManager":"bun@1.4.2","scripts":{"preinstall":"fixture"}}';
+      await writeFile(file, valid);
+      await writeFile(lock, "opaque fixture lock");
+      const before = await inspectInstallAuthority(root, root);
+      for (const source of [
+        '{"packageManager":"private-marker","packageManager":"bun@1.4.2"}',
+        '{"packageManager":"bun@1.4.2","scripts":{"preinstall":"private-marker","preinstall":"fixture"}}',
+        '{"packageManager":"bun@1.4.2","scripts":{"preinstall":"private-marker","pre\\u0069nstall":"fixture"}}',
+        '{"packageManager":"bun@1.4.2","dependencies":{"fixture":"one","fixture":"two"}}',
+      ]) {
+        await writeFile(file, source);
+        await expect(inspectInstallAuthority(root, root)).rejects.toThrow(
+          "Duplicate JSON declaration member",
+        );
+        let postconditionCalled = false;
+        await expect(
+          preflightBunPreparation({
+            checkout: root,
+            owner: root,
+            executable: join(root, "must-not-execute"),
+            platformExecutable: join(root, "must-not-execute-platform"),
+            env: { HOME: root },
+            timeoutMs: 1000,
+            verifyPrepared: async () => {
+              postconditionCalled = true;
+              return true;
+            },
+          }),
+        ).rejects.toThrow("Duplicate JSON declaration member");
+        expect(postconditionCalled).toBe(false);
+        expect(await verifyInstallAuthority(before)).toBe(false);
+        expect(await readFile(file, "utf8")).toBe(source);
+        expect(await readFile(lock, "utf8")).toBe("opaque fixture lock");
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
 
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
   "install authority pins exact owner, package hooks and opaque lock bytes without ancestor fallback",
