@@ -163,6 +163,13 @@ synthetic dependency/data, unchanged package/lock and removal of only derived se
 Run with an externally supplied Playwright/Chromium installation via `NODE_PATH`.
 These are host synthetic integration results, not new real-module or VM qualification.
 
+Local launch derives `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT` from each
+validated runtime listener and its module-owned lease. IDs use uppercase with hyphens
+mapped to underscores; the listener grammar disallows ambiguous underscore IDs.
+The client cannot supply these addresses. A compiled CLI regression consumes the
+variables in its real server and checks the resulting health/content; it failed
+before this propagation was added. Preparation does not start the declared listeners.
+
 For start-time prerequisites, `preflightDeclaredBunCheck` selects the explicit check
 operation of that same process owner. It skips frozen installation and prepare_script,
 requires check_script, and rejects clean-install mode. Module check code is expected

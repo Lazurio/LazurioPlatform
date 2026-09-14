@@ -75,7 +75,7 @@ posixTest(
       );
       await writeFile(
         join(appDirectory, "server.ts"),
-        `Bun.serve({hostname:"127.0.0.1",port:${port},fetch:()=>new Response("fixture-ready")});`,
+        `if(process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST!=="127.0.0.1"||process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT!=="${port}") process.exit(1); Bun.serve({hostname:process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST,port:Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT),fetch:()=>new Response("fixture-ready")});`,
       );
       const install = Bun.spawn(
         [process.execPath, "install", "--lockfile-only"],

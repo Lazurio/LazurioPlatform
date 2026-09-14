@@ -100,11 +100,17 @@ export function localApplicationAdapters(input: {
       });
       if (tool.kind !== "toolchain-observed")
         throw new Error("Required toolchain unavailable");
+      const environment: Record<string, string> = { ...selected.env };
+      for (const listener of plan.listeners) {
+        const prefix = `LAZURIO_RUNTIME_LISTENER_${listener.id.replaceAll("-", "_").toUpperCase()}`;
+        environment[`${prefix}_HOST`] = listener.host;
+        environment[`${prefix}_PORT`] = String(listener.port);
+      }
       return {
         executable: selected.executable,
         cwd,
         args: ["--no-env-file", "run", plan.runtime.dev_script],
-        env: selected.env,
+        env: environment,
       };
     },
     async coordinateMutation(selection, action) {
