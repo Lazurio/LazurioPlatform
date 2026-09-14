@@ -1,11 +1,39 @@
 import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { parseModuleManifest } from "../modules/manifest";
+import { object, parseModuleManifest, text } from "../modules/manifest";
 import { readModuleApplication } from "../modules/read-application";
 import { readOwnedJson } from "../providers/owned-json";
 import { inspectCanonicalInventory } from "./canonical-inventory";
 import { organizationDocumentHash } from "./document-hash";
 import { readCanonicalDocuments } from "./read-documents";
+
+// Resolve a selection against the live inventory, never a caller-supplied path.
+// Local composition must invoke this again at each operation boundary. The
+// result is not provider permission, a lock, or a durable execution capability.
+export async function resolveOrganizationApplication(
+  directory: string,
+  input: unknown,
+) {
+  const value = object(input, ["company", "module", "package"]);
+  const company = text(value.company, /^[A-Za-z0-9][A-Za-z0-9-]*$/);
+  const module = text(value.module, /^[a-z0-9][a-z0-9-]*$/);
+  const pkg = text(value.package, /\S/);
+  const observed = await readOrganizationApplications(directory);
+  if (observed.kind !== "applications-observed" || observed.company !== company)
+    throw new Error("Selected Organization unavailable");
+  const matches = observed.entries.filter((entry) => entry.module === module);
+  const entry = matches[0];
+  if (
+    matches.length !== 1 ||
+    !entry ||
+    entry.kind !== "module-observed" ||
+    !entry.apps.some(
+      (app) => app.package === pkg && app.kind === "runtime-declared",
+    )
+  )
+    throw new Error("Selected application unavailable");
+  return Object.freeze({ moduleDirectory: join(directory, entry.path) });
+}
 
 // Local declaration observation, not provider access, readiness, or a launch grant.
 // The caller selects a permitted Organization directory; no recursive disk scan,

@@ -14,6 +14,7 @@ import {
   requestApplication,
 } from "./launchpad/application-client";
 import { startLaunchpad } from "./launchpad/server";
+import { localApplicationAdapters } from "./modules/local-application-adapters";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
@@ -109,6 +110,10 @@ Never use a daily working path. It does not install software or migrate existing
 launchpad --folder <initialized fixture> starts the local development profile panel.
 Optional --organization-directory <permitted canonical Organization fixture> enables
 read-only application discovery in the panel; it does not configure launch authority.
+Additionally --bun-executable <absolute trusted Bun> enables local module operations
+for that explicitly selected Organization. Module check/prepare scripts execute as
+your local account, not in a sandbox. No provider rights or hosted service are granted.
+Only declared self-owned Bun packages are currently supported. No Bun is downloaded.
 Open its private session URL from this terminal; do not share the URL/token.
 The panel uses the same preview/update core, not a separate writer or full app launcher.
 app-request reads one JSON object from stdin: sessionUrl, operation and selection.
@@ -144,6 +149,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     options: {
       folder: { type: "string" },
       "organization-directory": { type: "string" },
+      "bun-executable": { type: "string" },
       profile: { type: "string" },
       "previous-digest": { type: "string" },
       "expected-revision": { type: "string" },
@@ -178,13 +184,34 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     if (
       !values.folder ||
       Object.keys(values).some(
-        (name) => !["folder", "organization-directory"].includes(name),
+        (name) =>
+          !["folder", "organization-directory", "bun-executable"].includes(
+            name,
+          ),
       )
     )
       throw new Error("Explicit Launchpad fixture required");
+    let applicationAdapters:
+      | ReturnType<typeof localApplicationAdapters>
+      | undefined;
+    if (values["bun-executable"] !== undefined) {
+      if (!values["organization-directory"] || !process.env.HOME)
+        throw new Error("Local Organization and account home required");
+      const environment: Record<string, string> = {
+        HOME: process.env.HOME,
+        PATH: process.env.PATH ?? "/usr/bin:/bin",
+      };
+      if (process.env.TMPDIR) environment.TMPDIR = process.env.TMPDIR;
+      applicationAdapters = localApplicationAdapters({
+        organizationDirectory: values["organization-directory"],
+        bunExecutable: values["bun-executable"],
+        platformExecutable: process.execPath,
+        environment,
+      });
+    }
     const { close, url } = await startLaunchpad(
       values.folder,
-      undefined,
+      applicationAdapters,
       values["organization-directory"] === undefined
         ? undefined
         : {
@@ -205,7 +232,10 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       });
     return 0;
   }
-  if (values["organization-directory"] !== undefined)
+  if (
+    values["organization-directory"] !== undefined ||
+    values["bun-executable"] !== undefined
+  )
     throw new Error("Discovery option belongs only to Launchpad");
   if (positionals[0] === "folder-resume") {
     if (!values.folder || Object.keys(values).some((name) => name !== "folder"))

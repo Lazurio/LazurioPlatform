@@ -130,8 +130,29 @@ It selects the check/optional preparation scripts from the package, rechecks the
 before execution and retains the existing cancellation, cleanup and mandatory final
 postcondition. Workspace installation remains explicitly unavailable until its broader
 input snapshot is qualified. A lifecycle fixture exercises real install/check/start/stop
-through this adapter; normal CLI/Launchpad startup still needs its trusted composition.
+through this adapter; the explicit local CLI composition below is its next consumer.
 This intermediate boundary is not completion of either candidate's full module journey.
+
+The development `launchpad` command can now opt into local application execution with
+both `--organization-directory` and `--bun-executable`. Without the explicit executable,
+discovery remains read-only. It does not download a toolchain or select one from PATH.
+The executable must match the module's exact Bun version. Only HOME, PATH and optional
+TMPDIR enter the selected process environment; module scripts still run as the local
+account and can access its files, so this is not a sandbox or provider permission check.
+
+One `localApplicationAdapters` composition resolves each selection from the current
+canonical inventory, uses the declared self-owned preparation/check scripts, and shares
+the dependency owner queue with start/stop. The module check supplies its postcondition;
+the platform also rechecks install inputs, then independently observes process health
+after start. This is not proof that arbitrary module check scripts are honest or that
+all dependencies are semantically correct. No per-module database resolver is added.
+
+The compiled CLI fixture covers missing prerequisites, explicit preparation, start,
+observed health, actual HTTP content and owned stop without injected test adapters.
+This composition remains development-only: cross-process mutation exclusion, complete
+workspace input capture, remote browser access, provider operations and installed
+consumer qualification remain open. Do not run competing development owners against
+the same dependency tree or use this as daily-environment activation.
 
 For start-time prerequisites, `preflightDeclaredBunCheck` selects the explicit check
 operation of that same process owner. It skips frozen installation and prepare_script,
