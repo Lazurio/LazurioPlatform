@@ -6,6 +6,13 @@ import {
 import { expectedLegacyProjection } from "./legacy-projection";
 
 type Data = Readonly<Record<string, unknown>>;
+export class OrganizationProjectionConflict extends Error {
+  readonly sections: readonly string[];
+  constructor(sections: string[]) {
+    super("Organization conversion would change legacy content");
+    this.sections = Object.freeze([...sections]);
+  }
+}
 function record(input: unknown): Data {
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new Error("Organization conversion requires objects");
@@ -120,10 +127,36 @@ export function prepareOrganizationConversion(
   if (inspected.inventory.issues.length || inspected.warnings.length)
     throw new Error("Organization conversion requires reconciled inventory");
   // Also rejects conflicting aliases, unknown binding fields and lossy defaults.
-  if (
-    !expectedLegacyProjection(inspected.canonical, modules).declaredHashMatches
-  )
-    throw new Error("Organization conversion would change legacy content");
+  const projected = expectedLegacyProjection(inspected.canonical, modules);
+  if (!projected.declaredHashMatches) {
+    // Fixed section labels only: never put private values or arbitrary metadata
+    // keys into diagnostic messages. A mismatch remains a refusal, not a repair.
+    const known = [
+      "company",
+      "forge_binding",
+      "modules",
+      "organization_generation",
+      "organization_kind",
+      ...shared,
+    ];
+    const changed = (key: string) =>
+      Object.hasOwn(projectedLegacy, key) !==
+        Object.hasOwn(projected.projection, key) ||
+      (Object.hasOwn(projectedLegacy, key) &&
+        organizationDocumentHash(projectedLegacy[key]) !==
+          organizationDocumentHash(projected.projection[key]));
+    const sections = known.filter(changed);
+    if (
+      [
+        ...new Set([
+          ...Object.keys(projectedLegacy),
+          ...Object.keys(projected.projection),
+        ]),
+      ].some((key) => !known.includes(key) && changed(key))
+    )
+      sections.push("other-metadata");
+    throw new OrganizationProjectionConflict(sections);
+  }
   return Object.freeze({
     kind: "conversion-draft" as const,
     canonical: inspected.canonical,

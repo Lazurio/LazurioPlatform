@@ -699,6 +699,9 @@ applied conversion; exit 2 reports a reason-only block. Draft JSON may contain p
 Organization metadata and must remain within the owning scope. It performs no write,
 lock creation, provider query or app execution. Compiled CLI fixture tests verify
 unchanged source bytes and directory contents, plus refusal of occupied targets.
+Projection conflicts additionally identify fixed section labels such as `modules`
+or `company`, never arbitrary metadata keys or values. A section diagnostic does
+not choose which declaration wins, reorder entries or authorize reconciliation.
 
 `inspectCanonicalInventory` composes canonical schema validation with the existing
 modules-manifest header contract and mount diagnostics. A missing schema/generation

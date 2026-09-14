@@ -13,7 +13,10 @@ import { join } from "node:path";
 import { organizationDocumentHash } from "../src/organizations/document-hash";
 import { inspectOrganizationConversion } from "../src/organizations/inspect-conversion";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
-import { prepareOrganizationConversion } from "../src/organizations/prepare-conversion";
+import {
+  OrganizationProjectionConflict,
+  prepareOrganizationConversion,
+} from "../src/organizations/prepare-conversion";
 
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
   "compiled conversion preview is read-only and refuses occupied or invalid targets",
@@ -96,6 +99,30 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     }
   },
 );
+
+test("projection refusal identifies only fixed sections, not private values", () => {
+  const { legacy, modules } = fixture();
+  const changed = {
+    ...legacy,
+    modules: [
+      {
+        path: "workspace/private-fixture-marker",
+        secretFixture: "do-not-echo",
+      },
+    ],
+  };
+  try {
+    prepareOrganizationConversion(changed, modules);
+    throw new Error("Expected projection conflict");
+  } catch (error) {
+    expect(error).toBeInstanceOf(OrganizationProjectionConflict);
+    const conflict = error as OrganizationProjectionConflict;
+    expect(conflict.sections).toEqual(["modules"]);
+    expect(Object.isFrozen(conflict.sections)).toBe(true);
+    expect(JSON.stringify(conflict)).not.toContain("private-fixture-marker");
+    expect(String(conflict)).not.toContain("do-not-echo");
+  }
+});
 
 function fixture() {
   return {

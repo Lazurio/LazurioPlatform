@@ -1,6 +1,9 @@
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { organizationDocumentHash } from "./document-hash";
-import { prepareOrganizationConversion } from "./prepare-conversion";
+import {
+  OrganizationProjectionConflict,
+  prepareOrganizationConversion,
+} from "./prepare-conversion";
 import { readOrganizationDocuments } from "./read-documents";
 
 // Read-only explicit migration preview, never normal runtime fallback. Repeated
@@ -26,7 +29,12 @@ export async function inspectOrganizationConversion(directory: string) {
         documents.legacy.value,
         documents.modules.value,
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof OrganizationProjectionConflict)
+        return Object.freeze({
+          ...blocked("declaration-reconciliation-required"),
+          sections: error.sections,
+        });
       return blocked("declaration-reconciliation-required");
     }
     const current = await readOrganizationDocuments(directory);
