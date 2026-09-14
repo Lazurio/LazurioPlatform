@@ -16,11 +16,13 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
+    "@tufjs/models": "5.0.0",
     "@types/bun": "1.4.2",
     "typescript": "5.9.3"
   },
   "license": "Elastic-2.0",
   "dependencies": {
-    "minimatch": "10.2.6"
+    "minimatch": "10.2.6",
+    "tuf-js": "6.0.0"
   }
 }

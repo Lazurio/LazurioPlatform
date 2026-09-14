@@ -181,6 +181,54 @@ remaining launch matrix remain required work, not silently dropped deliverables.
 The full first installed consumer must use the real CLI/Launchpad module lifecycle,
 not just `--help`. All earlier preservation, tamper, concurrency and recovery gates apply.
 
+### TUF client integration boundary
+
+`bun run scripts/smoke-tuf.ts /absolute/candidate` exercises the pinned client
+against a loopback fixture serving the supplied candidate's actual bytes. It generates
+ephemeral test keys, downloads/verifies but never executes the artifact, and removes
+only its fixture directory. The test covers valid delivery, modified payload/signature,
+timestamp expiry/rollback, two-sided root rotation and preservation after transport failure.
+It can be compiled with Bun and the same no-autoload flags for a standalone smoke.
+Its shared fixture key across roles is deliberately not the production key policy.
+This test is not a product download command, HTTPS bootstrap, interrupted-write recovery
+or proof of production custody. Those remain implementation/qualification requirements.
+
+The selected client candidate is pinned `tuf-js@6.0.0`. Inspection of its distributed
+`Updater.downloadTarget` implementation confirms hash/length verification precedes
+copying, but the copy can replace its destination. Metadata persistence uses individual
+file writes, not a crash-atomic repository transaction. Therefore do not pass an active
+executable, existing user file or live installation directory as its download destination.
+
+The installer must provide its own exclusively created staging directory and preserve
+the existing active version on any failure. Verified download is not activation. Metadata
+cache writes need the same installation owner's exclusion and recovery discipline;
+discarding the trusted cache after a failure could discard rollback protection. An
+interrupted metadata write is a recoverable/refused state, not permission to reset trust
+from freshly downloaded root metadata.
+
+The default fetcher sets a timeout for each request and follows the platform fetch
+behavior. It does not provide the entire install operation's cancellation/redirect
+policy. Integration must explicitly constrain transport, bound the total operation and
+avoid logging URLs carrying credentials. Test cancellation and interrupted persistence,
+not only valid signatures. Local fixture root keys are never production trust anchors.
+
+The development `DistributionTransport` now supplies the smoke's TUF fetcher. One
+instance has a shared network deadline and caller cancellation across requests. It
+accepts only explicitly configured HTTPS origins, manually follows at most five
+redirects to permitted origins, omits credentials and does not expose transfer URLs
+in transport errors. HTTP on literal loopback is an explicit fixture-only option;
+there are no production origins or automatic fallback. Actual release/CDN origin
+configuration still needs qualification before a pilot.
+
+Downloads use private, exclusively created temporary files, enforce the supplied
+byte limit while streaming, sync completed bytes and clean only their own temporary
+directory. TUF still performs cryptographic validation before its handler copies a
+target; transport completion is not authenticity or activation. The adapter retains
+the pinned client's HTTP error class for its root-not-found behavior, covered by the
+full TUF smoke. Tests cover redirects, oversize refusal, handler failure cleanup,
+deadline and cancellation. This does not yet implement installation state, durable
+TUF cache recovery or the deadline for non-network activation work.
+
 ```mermaid
 flowchart LR
   S[Platform changes] --> B[Same local and CI artifact build]
