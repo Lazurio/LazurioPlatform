@@ -27,6 +27,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
     platformExecutable: input.platformExecutable,
     env: launch.env,
     timeoutMs: input.timeoutMs,
+    ...(input.operation === undefined ? {} : { operation: input.operation }),
     ...(input.cleanInstall === undefined
       ? {}
       : { cleanInstall: input.cleanInstall }),
@@ -77,12 +78,23 @@ export async function preflightDeclaredBunPreparation(input: Input) {
     await preparation.close();
     throw new Error("Preparation declaration changed before execution");
   }
+  let used = false;
   return Object.freeze({
     async run(signal: AbortSignal) {
+      if (used) return Object.freeze({ kind: "preparation-failed" as const });
+      used = true;
       if (signal.aborted || !(await current()))
         return Object.freeze({ kind: "preparation-failed" as const });
       return preparation.run(signal);
     },
     close: preparation.close,
   });
+}
+
+// Start-time prerequisite check only: never installs or runs prepare_script.
+// The lifecycle must retain run/close ownership just as it does for preparation.
+export function preflightDeclaredBunCheck(
+  input: Omit<Input, "operation" | "cleanInstall">,
+) {
+  return preflightDeclaredBunPreparation({ ...input, operation: "check" });
 }

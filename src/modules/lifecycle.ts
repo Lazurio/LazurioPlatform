@@ -51,6 +51,9 @@ export function createApplicationLifecycle(adapters: {
   // dependency owner before any app stop. The effect owns bounded subprocess
   // cleanup; close remains retained if cleanup cannot be confirmed.
   preflightPreparation?: PreparationFactory;
+  // Optional start-time check, without install/repair. Its subprocess ownership
+  // is retained in the same set and drained by the same shutdown as preparation.
+  preflightStartCheck?: PreparationFactory;
   // Separate explicit capability: never substitute ordinary preparation when
   // the caller asks to discard and regenerate derived dependencies.
   preflightCleanPreparation?: PreparationFactory;
@@ -257,6 +260,39 @@ export function createApplicationLifecycle(adapters: {
         try {
           plan = await read(value, directory);
           const cwd = dirname(join(directory, value.package));
+          if (adapters.preflightStartCheck) {
+            const check = await adapters.preflightStartCheck(plan, cwd);
+            preparations.add(check);
+            try {
+              if (closing) return Object.freeze({ kind: "closing" as const });
+              if ((await authorized(value, "start")) !== directory)
+                return Object.freeze({ kind: "denied" as const });
+              if (
+                JSON.stringify(await read(value, directory)) !==
+                JSON.stringify(plan)
+              )
+                return Object.freeze({ kind: "declaration-changed" as const });
+              const result = await check.run(preparationAbort.signal);
+              if ((await check.close()).kind !== "closed")
+                return Object.freeze({
+                  kind: "preparation-cleanup-required" as const,
+                });
+              preparations.delete(check);
+              if (result.kind !== "prepared")
+                return Object.freeze({
+                  kind: "prerequisites-not-ready" as const,
+                });
+            } finally {
+              if (preparations.has(check)) {
+                try {
+                  if ((await check.close()).kind === "closed")
+                    preparations.delete(check);
+                } catch {
+                  /* retain incomplete check ownership for shutdown */
+                }
+              }
+            }
+          }
           launch = parseProcessLaunch(await adapters.prepareLaunch(plan, cwd));
           if (launch.cwd !== cwd) throw new Error("Launch path mismatch");
           if (

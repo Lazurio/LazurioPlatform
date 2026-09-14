@@ -27,6 +27,7 @@ export async function preflightBunPreparation(input: {
   platformExecutable: string;
   env: Record<string, string>;
   timeoutMs: number;
+  operation?: "prepare" | "check";
   cleanInstall?: boolean;
   modulePreparationScript?: string;
   // Trusted declaration selection, not a script name supplied by an HTTP request.
@@ -54,6 +55,16 @@ export async function preflightBunPreparation(input: {
   const moduleCheckScript = input.moduleCheckScript;
   if (moduleCheckScript !== undefined)
     modulePreparationArgs(authority, moduleCheckScript);
+  const operation = input.operation ?? "prepare";
+  if (!["prepare", "check"].includes(operation))
+    throw new Error("Unknown preparation operation");
+  if (
+    operation === "check" &&
+    (input.cleanInstall || moduleCheckScript === undefined)
+  )
+    throw new Error(
+      "Check requires a declared script and cannot clean dependencies",
+    );
   const launch = parseProcessLaunch({
     executable: input.executable,
     cwd: authority.owner,
@@ -102,38 +113,40 @@ export async function preflightBunPreparation(input: {
             if (cleanup.kind === "authority-changed" || combined.aborted)
               return failed();
           }
-          install = await runFrozenInstallProcess({
-            authority,
-            executable: launch.executable,
-            platformExecutable,
-            env: launch.env,
-            timeoutMs,
-            signal: combined,
-          });
-          if (
-            combined.aborted ||
-            install.kind !== "process-exited" ||
-            install.code !== 0 ||
-            install.cleanup !== "group-stopped"
-          )
-            return failed();
-          if (modulePreparationScript !== undefined) {
-            modulePreparation = await runModulePreparationProcess({
+          if (operation === "prepare") {
+            install = await runFrozenInstallProcess({
               authority,
               executable: launch.executable,
               platformExecutable,
               env: launch.env,
               timeoutMs,
               signal: combined,
-              script: modulePreparationScript,
             });
             if (
               combined.aborted ||
-              modulePreparation.kind !== "process-exited" ||
-              modulePreparation.code !== 0 ||
-              modulePreparation.cleanup !== "group-stopped"
+              install.kind !== "process-exited" ||
+              install.code !== 0 ||
+              install.cleanup !== "group-stopped"
             )
               return failed();
+            if (modulePreparationScript !== undefined) {
+              modulePreparation = await runModulePreparationProcess({
+                authority,
+                executable: launch.executable,
+                platformExecutable,
+                env: launch.env,
+                timeoutMs,
+                signal: combined,
+                script: modulePreparationScript,
+              });
+              if (
+                combined.aborted ||
+                modulePreparation.kind !== "process-exited" ||
+                modulePreparation.code !== 0 ||
+                modulePreparation.cleanup !== "group-stopped"
+              )
+                return failed();
+            }
           }
           if (moduleCheckScript !== undefined) {
             moduleCheck = await runModulePreparationProcess({

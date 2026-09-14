@@ -609,6 +609,88 @@ posixTest(
 );
 
 posixTest(
+  "start check cleanup remains owned and prevents application launch",
+  async () => {
+    const f = await fixture("start-check-cleanup");
+    let canClose = false;
+    let launches = 0;
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: async (...args) => {
+        launches++;
+        return f.prepareLaunch(...args);
+      },
+      preflightStartCheck: async () => ({
+        run: async () => ({ kind: "prepared" }),
+        close: async () => ({ kind: canClose ? "closed" : "incomplete" }),
+      }),
+    });
+    try {
+      expect(await owner.start(selection)).toEqual({
+        kind: "preparation-cleanup-required",
+      });
+      expect(await owner.start(selection)).toEqual({
+        kind: "preparation-cleanup-required",
+      });
+      expect(launches).toBe(0);
+      expect(await owner.close()).toEqual({ kind: "incomplete" });
+      canClose = true;
+      expect(await owner.close()).toEqual({ kind: "closed" });
+    } finally {
+      canClose = true;
+      await owner.close();
+    }
+  },
+);
+
+posixTest(
+  "shutdown cancels a running start check before preparing the application launch",
+  async () => {
+    const f = await fixture("start-check-shutdown");
+    let entered = () => {};
+    const running = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let launches = 0;
+    let closed = 0;
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: async (...args) => {
+        launches++;
+        return f.prepareLaunch(...args);
+      },
+      preflightStartCheck: async () => ({
+        run: async (signal) => {
+          entered();
+          if (!signal.aborted)
+            await new Promise<void>((resolve) =>
+              signal.addEventListener("abort", () => resolve(), { once: true }),
+            );
+          return { kind: "preparation-failed" };
+        },
+        close: async () => {
+          closed++;
+          return { kind: "closed" };
+        },
+      }),
+    });
+    const starting = owner.start(selection);
+    try {
+      await running;
+      const stopping = owner.close();
+      expect(await starting).toEqual({ kind: "prerequisites-not-ready" });
+      expect(await stopping).toEqual({ kind: "closed" });
+      expect(launches).toBe(0);
+      expect(closed).toBe(1);
+    } finally {
+      await owner.close();
+    }
+  },
+);
+
+posixTest(
   "server shutdown drains a pending authorized start without preparing or launching it",
   async () => {
     const f = await fixture("http-shutdown-pending");

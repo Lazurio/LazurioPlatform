@@ -133,6 +133,16 @@ input snapshot is qualified. A lifecycle fixture exercises real install/check/st
 through this adapter; normal CLI/Launchpad startup still needs its trusted composition.
 This intermediate boundary is not completion of either candidate's full module journey.
 
+For start-time prerequisites, `preflightDeclaredBunCheck` selects the explicit check
+operation of that same process owner. It skips frozen installation and prepare_script,
+requires check_script, and rejects clean-install mode. Module check code is expected
+not to provision or repair; that is a module contract, not an OS sandbox guarantee.
+The lifecycle's optional `preflightStartCheck` retains this operation through run/close
+and shutdown before preparing an application launch. Failed prerequisites return
+`prerequisites-not-ready`; unconfirmed cleanup stays owned and prevents another start.
+Status inspection does not invoke this operation. Synthetic tests distinguish a missing
+dependency from permission to install it and cover shutdown during the start check.
+
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
 installer exit of zero with failed module postconditions does not become prepared;

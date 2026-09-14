@@ -14,7 +14,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { preflightBunPreparation } from "../src/modules/bun-preparation";
 import { cleanDerivedDependencies } from "../src/modules/clean-dependencies";
-import { preflightDeclaredBunPreparation } from "../src/modules/declared-bun-preparation";
+import {
+  preflightDeclaredBunCheck,
+  preflightDeclaredBunPreparation,
+} from "../src/modules/declared-bun-preparation";
 import {
   runFrozenInstallProcess,
   runModulePreparationProcess,
@@ -114,6 +117,68 @@ async function fixture(
     },
   };
 }
+
+posixTest(
+  "check-only operation neither installs nor provisions missing module data",
+  async () => {
+    const f = await fixture("check-only");
+    const pkg = await Bun.file(join(f.directory, "package.json")).json();
+    pkg.scripts["prepare:data"] =
+      `"${process.execPath}" --no-env-file prepare.ts`;
+    pkg.scripts["check:data"] = `"${process.execPath}" --no-env-file check.ts`;
+    await writeFile(join(f.directory, "package.json"), JSON.stringify(pkg));
+    await writeFile(
+      join(f.directory, "prepare.ts"),
+      "await Bun.write('module-data', 'unexpected preparation');",
+    );
+    await writeFile(
+      join(f.directory, "check.ts"),
+      "if (!(await Bun.file('module-data').exists()) || (await Bun.file('module-data').text()) !== 'ready') process.exit(23);",
+    );
+    const options = {
+      checkout: f.directory,
+      owner: f.directory,
+      executable: process.execPath,
+      platformExecutable: platform,
+      env: f.request.env,
+      timeoutMs: 10_000,
+      operation: "check" as const,
+      modulePreparationScript: "prepare:data",
+      moduleCheckScript: "check:data",
+      verifyPrepared: async () => true,
+    };
+    for (const ready of [false, true]) {
+      if (ready) await writeFile(join(f.directory, "module-data"), "ready");
+      const check = await preflightBunPreparation(options);
+      try {
+        expect(await check.run(new AbortController().signal)).toEqual({
+          kind: ready ? "prepared" : "preparation-failed",
+        });
+        expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(
+          false,
+        );
+        if (ready)
+          expect(await readFile(join(f.directory, "module-data"), "utf8")).toBe(
+            "ready",
+          );
+        else
+          expect(
+            await Bun.file(join(f.directory, "module-data")).exists(),
+          ).toBe(false);
+      } finally {
+        expect(await check.close()).toEqual({ kind: "closed" });
+      }
+    }
+    await expect(
+      preflightBunPreparation({ ...options, cleanInstall: true }),
+    ).rejects.toThrow("cannot clean");
+    const { moduleCheckScript: _script, ...withoutCheck } = options;
+    await expect(preflightBunPreparation(withoutCheck)).rejects.toThrow(
+      "requires a declared script",
+    );
+  },
+  15_000,
+);
 
 posixTest(
   "module check runs after preparation and failure cannot become prepared",
@@ -514,6 +579,16 @@ posixTest(
           timeoutMs: 10_000,
           verifyPrepared: verify,
         }),
+      preflightStartCheck: async (plan) =>
+        preflightDeclaredBunCheck({
+          moduleDirectory: f.directory,
+          applicationPackage: plan.package,
+          executable: process.execPath,
+          platformExecutable: platform,
+          env: f.request.env,
+          timeoutMs: 10_000,
+          verifyPrepared: verify,
+        }),
     });
     try {
       expect(await owner.prepare(selection)).toEqual({ kind: "prepared" });
@@ -528,7 +603,7 @@ posixTest(
         kind: "preparation-failed",
       });
       expect(await owner.start(selection)).toEqual({
-        kind: "invalid-or-unavailable",
+        kind: "prerequisites-not-ready",
       });
       expect(await owner.status(selection)).toEqual({ kind: "not-managed" });
     } finally {
@@ -551,9 +626,15 @@ posixTest(
     mutable.env.HOME = join(f.directory, "must-not-read");
     const captured = await pendingCapture;
     expect(await captured.close()).toEqual({ kind: "closed" });
-    const cancelled = await preflightDeclaredBunPreparation(options);
+    const cancelled = await preflightDeclaredBunPreparation({
+      ...options,
+      verifyPrepared: async () => true,
+    });
     try {
       expect(await cancelled.run(AbortSignal.abort())).toEqual({
+        kind: "preparation-failed",
+      });
+      expect(await cancelled.run(new AbortController().signal)).toEqual({
         kind: "preparation-failed",
       });
     } finally {
