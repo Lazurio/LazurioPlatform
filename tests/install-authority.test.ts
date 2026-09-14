@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import {
+  chmod,
+  link,
   mkdtemp,
   readFile,
   realpath,
@@ -14,10 +16,90 @@ import {
   inspectInstallAuthority,
   verifyInstallAuthority,
 } from "../src/modules/install-authority";
+import { inspectPatchInputs } from "../src/modules/patch-inputs";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "patch bytes are install inputs even when package and lock stay unchanged",
+  async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "patch-input-")));
+    try {
+      await mkdir(join(root, "patches"));
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({
+          packageManager: "bun@1.4.2",
+          patchedDependencies: { "fixture@1.0.0": "patches/fixture.patch" },
+        }),
+      );
+      await writeFile(join(root, "bun.lock"), "opaque fixture lock");
+      const patch = join(root, "patches/fixture.patch");
+      await writeFile(patch, "original patch bytes");
+      const before = await inspectInstallAuthority(root, root);
+      expect(await verifyInstallAuthority(before)).toBe(true);
+      await writeFile(patch, "changed patch bytes");
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await writeFile(patch, "original patch bytes");
+      expect(await verifyInstallAuthority(before)).toBe(true);
+      await chmod(patch, 0o666);
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await chmod(patch, 0o600);
+      const alias = join(root, "alias.patch");
+      await link(patch, alias);
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await rm(alias);
+      await rename(patch, alias);
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await symlink(alias, patch);
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      await rm(patch);
+      await rename(alias, patch);
+      await rename(join(root, "patches"), join(root, "retained-patches"));
+      await symlink(join(root, "retained-patches"), join(root, "patches"));
+      expect(await verifyInstallAuthority(before)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test("patch declaration refuses invalid paths and accessors before filesystem inspection", async () => {
+  for (const path of [
+    "",
+    "/outside.patch",
+    "../outside.patch",
+    "a/../b",
+    "./patch",
+    "a//b",
+    "a\\b",
+    "C:/patch",
+    ".git/patch",
+    "node_modules/patch",
+    "a\nb",
+  ]) {
+    await expect(
+      inspectPatchInputs("/must-not-inspect", { fixture: path }),
+    ).rejects.toThrow("Owner-relative patch path required");
+  }
+  for (const value of [null, [], "patch", { fixture: 1 }]) {
+    await expect(
+      inspectPatchInputs("/must-not-inspect", value),
+    ).rejects.toThrow();
+  }
+  let called = false;
+  await expect(
+    inspectPatchInputs("/must-not-inspect", {
+      get fixture() {
+        called = true;
+        return "patch";
+      },
+    }),
+  ).rejects.toThrow("Patch path required");
+  expect(called).toBe(false);
+});
 
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
   "install authority rejects duplicate package declarations without changing package or lock",

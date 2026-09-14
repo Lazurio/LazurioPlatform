@@ -5,6 +5,7 @@ import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { snapshotOrganizationDocument } from "../organizations/document-hash";
 import { readOwnedDeclarationBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
+import { inspectPatchInputs } from "./patch-inputs";
 import { parseProcessLaunch } from "./process-launch";
 import { inspectWorkspaceInputs } from "./workspace-inputs";
 
@@ -131,6 +132,7 @@ export async function inspectInstallAuthority(
     packageManager: manifest.packageManager,
     manifest,
     workspaceInputs: await inspectWorkspaceInputs(owner, manifest.workspaces),
+    patchInputs: await inspectPatchInputs(owner, manifest.patchedDependencies),
     configuration: Object.freeze(configuration),
     environment: env,
   });
@@ -161,6 +163,8 @@ export async function verifyInstallAuthority(
       current.lockDigest === expected.lockDigest &&
       JSON.stringify(current.workspaceInputs) ===
         JSON.stringify(expected.workspaceInputs) &&
+      JSON.stringify(current.patchInputs) ===
+        JSON.stringify(expected.patchInputs) &&
       JSON.stringify(current.configuration) ===
         JSON.stringify(expected.configuration)
     );

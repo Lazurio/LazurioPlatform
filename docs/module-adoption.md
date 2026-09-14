@@ -138,6 +138,14 @@ affect the snapshot. This is not a complete effect-input snapshot: local depende
 contents, patches, workspace configuration and enumeration bounds still need their
 own qualification before the workspace execution refusal can be removed.
 
+The authority also captures the bytes of owner-level `patchedDependencies` files
+(the [Bun patch mechanism](https://bun.sh/docs/pm/cli/patch)). Paths must remain
+relative to the explicit dependency owner, outside Git and derived dependency
+trees. Every parent directory and regular patch file passes the existing custody
+checks; linked, missing or shared-write inputs cannot verify as unchanged. This
+does not apply patches, validate patch syntax, qualify workspace-level patch
+semantics or complete the remaining local dependency input snapshot.
+
 The development `preflightDeclaredBunPreparation` adapter connects this inspection to
 the existing preparation owner for a self-owned package without workspace declarations.
 It selects the check/optional preparation scripts from the package, rechecks the binding
