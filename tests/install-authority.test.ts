@@ -22,6 +22,106 @@ import {
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
 
+for (const dependencyField of ["dependencies", "devDependencies"]) {
+  test.skipIf(!["darwin", "linux"].includes(process.platform))(
+    `transitive local ${dependencyField} content invalidates install authority`,
+    async () => {
+      const root = await realpath(
+        await mkdtemp(join(tmpdir(), "transitive-input-")),
+      );
+      try {
+        await mkdir(join(root, "first"));
+        await mkdir(join(root, "second"));
+        await writeFile(
+          join(root, "package.json"),
+          JSON.stringify({
+            packageManager: "bun@1.4.2",
+            dependencies: { first: "file:./first" },
+          }),
+        );
+        await writeFile(
+          join(root, "first/package.json"),
+          JSON.stringify({
+            name: "first",
+            version: "1.0.0",
+            [dependencyField]: { second: "file:../second" },
+          }),
+        );
+        await writeFile(
+          join(root, "second/package.json"),
+          JSON.stringify({
+            name: "second",
+            version: "1.0.0",
+            main: "index.js",
+          }),
+        );
+        await writeFile(
+          join(root, "second/index.js"),
+          "export const value = 1;",
+        );
+        const installed = Bun.spawnSync({
+          cmd: [
+            process.execPath,
+            "--no-env-file",
+            "install",
+            "--ignore-scripts",
+            "--backend",
+            "copyfile",
+          ],
+          cwd: root,
+          env: { HOME: root, PATH: "/usr/bin:/bin" },
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        expect(installed.exitCode, installed.stderr.toString()).toBe(0);
+        expect(
+          await readFile(
+            join(root, "node_modules/first/node_modules/second/index.js"),
+            "utf8",
+          ),
+        ).toBe("export const value = 1;");
+        await chmod(join(root, "bun.lock"), 0o600);
+        const before = await inspectInstallAuthority(root, root);
+        expect(await verifyInstallAuthority(before)).toBe(true);
+        await writeFile(
+          join(root, "second/index.js"),
+          "export const value = 2;",
+        );
+        expect(await verifyInstallAuthority(before)).toBe(false);
+        // Inventory must terminate for a graph cycle without dropping either input.
+        await writeFile(
+          join(root, "second/package.json"),
+          JSON.stringify({
+            name: "second",
+            version: "1.0.0",
+            dependencies: { first: "file:../first" },
+          }),
+        );
+        const cyclic = await inspectInstallAuthority(root, root);
+        expect(await verifyInstallAuthority(cyclic)).toBe(true);
+        await writeFile(
+          join(root, "second/index.js"),
+          "export const value = 3;",
+        );
+        expect(await verifyInstallAuthority(cyclic)).toBe(false);
+        await writeFile(
+          join(root, "second/package.json"),
+          JSON.stringify({
+            name: "second",
+            version: "1.0.0",
+            dependencies: { outside: "file:../../outside" },
+          }),
+        );
+        await expect(inspectInstallAuthority(root, root)).rejects.toThrow(
+          "Local dependency escapes its owner",
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
   "prototype-named patch and local files remain explicit snapshot inputs",
   async () => {

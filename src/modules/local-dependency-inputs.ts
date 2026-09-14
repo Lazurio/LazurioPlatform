@@ -3,56 +3,68 @@ import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readOwnedDeclarationBytes } from "../providers/owned-json";
+import { parseUniqueJson } from "../providers/unique-json";
 
-// Direct owner-relative file: inputs. No installation or dependency resolution.
-// Other local protocols and transitive local inputs still need qualification.
+// File dependency graph within one explicit owner. No installation occurs here.
+// Other local protocols and workspace effects still need qualification.
 export async function inspectLocalDependencyInputs(
   owner: string,
   manifest: Readonly<Record<string, unknown>>,
 ) {
   const roots = new Set<string>();
-  for (const field of [
-    "dependencies",
-    "devDependencies",
-    "optionalDependencies",
-    "peerDependencies",
-  ]) {
-    const declarations = manifest[field];
-    if (declarations === undefined) continue;
-    if (
-      !declarations ||
-      typeof declarations !== "object" ||
-      Array.isArray(declarations)
-    )
-      throw new Error("Dependency declaration object required");
-    for (const descriptor of Object.values(
-      Object.getOwnPropertyDescriptors(declarations),
-    )) {
-      if (!("value" in descriptor) || typeof descriptor.value !== "string")
-        throw new Error("Dependency reference required");
-      if (!descriptor.value.startsWith("file:")) continue;
-      const path = descriptor.value.slice(5).replace(/^\.\//, "");
+  function collect(manifest: Readonly<Record<string, unknown>>, base: string) {
+    for (const field of [
+      "dependencies",
+      "devDependencies",
+      "optionalDependencies",
+      "peerDependencies",
+    ]) {
+      const declarations = manifest[field];
+      if (declarations === undefined) continue;
       if (
-        path
-          .split("/")
-          .some(
-            (part: string) =>
-              !part || [".", "..", ".git", "node_modules"].includes(part),
-          ) ||
-        path.includes("\\") ||
-        path.includes(":") ||
-        [...path].some(
-          (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
-        )
+        !declarations ||
+        typeof declarations !== "object" ||
+        Array.isArray(declarations)
       )
-        throw new Error("Owner-relative local dependency required");
-      roots.add(path);
+        throw new Error("Dependency declaration object required");
+      for (const descriptor of Object.values(
+        Object.getOwnPropertyDescriptors(declarations),
+      )) {
+        if (!("value" in descriptor) || typeof descriptor.value !== "string")
+          throw new Error("Dependency reference required");
+        if (!descriptor.value.startsWith("file:")) continue;
+        let path = descriptor.value.slice(5).replace(/^\.\//, "");
+        const prefix = base ? base.split("/") : [];
+        while (path.startsWith("../")) {
+          if (!prefix.length)
+            throw new Error("Local dependency escapes its owner");
+          prefix.pop();
+          path = path.slice(3);
+        }
+        if (
+          path
+            .split("/")
+            .some(
+              (part: string) =>
+                !part || [".", "..", ".git", "node_modules"].includes(part),
+            ) ||
+          path.includes("\\") ||
+          path.includes(":") ||
+          [...path].some(
+            (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+          )
+        )
+          throw new Error("Owner-relative local dependency required");
+        roots.add([...prefix, path].join("/"));
+      }
     }
   }
+  collect(manifest, "");
   const result: Record<string, string> = Object.create(null);
   let count = 0;
   let size = 0;
-  for (const root of [...roots].sort()) {
+  // Set iteration includes newly discovered roots and visits cycles only once.
+  for (const root of roots) {
     let parent = owner;
     for (const segment of root.split("/").slice(0, -1)) {
       parent = join(parent, segment);
@@ -80,6 +92,12 @@ export async function inspectLocalDependencyInputs(
         if (size > 64 * 1024 * 1024)
           throw new Error("Local dependency byte limit exceeded");
         result[relative] = createHash("sha256").update(bytes).digest("hex");
+        if (relative === `${root}/package.json`) {
+          const nested = parseUniqueJson(bytes.toString("utf8"));
+          if (!nested || typeof nested !== "object" || Array.isArray(nested))
+            throw new Error("Local dependency package object required");
+          collect(nested as Record<string, unknown>, root);
+        }
       }
     }
   }

@@ -153,8 +153,19 @@ explicit depth, entry and byte limits and refuses unsafe inputs rather than
 returning a truncated snapshot. When these inputs exist, the frozen Bun install
 uses `--backend copyfile`: installing a dependency must not hardlink its source
 into the installed tree or cache. This is an initial direct-input implementation,
-not complete resolution of transitive local dependencies, other local protocols,
-workspace effects or every Bun packaging configuration. Those gates remain open.
+not complete resolution of other local protocols, workspace effects or every Bun
+packaging configuration. Those gates remain open.
+
+Directory dependency manifests also contribute their `file:` dependency edges to
+the same bounded inventory. Leading parent references resolve from that package
+directory but may not escape the explicit owner or enter Git/derived trees. Each
+dependency root is visited once, so cycles do not cause unbounded recursion. A
+native Bun fixture confirms a sibling transitive dependency is installed and that
+changing its source invalidates the captured authority. This does not inspect
+dependencies hidden inside tarballs or qualify every package-manager input form.
+The pinned Bun 1.4.2 fixture also installs the sibling when declared under the
+nested package's `devDependencies`; those edges therefore remain captured rather
+than assuming they can be omitted from this toolchain's input graph.
 
 The development `preflightDeclaredBunPreparation` adapter connects this inspection to
 the existing preparation owner for a self-owned package without workspace declarations.
