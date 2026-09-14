@@ -220,6 +220,14 @@ discarding the trusted cache after a failure could discard rollback protection. 
 interrupted metadata write is a recoverable/refused state, not permission to reset trust
 from freshly downloaded root metadata.
 
+The smoke characterizes this explicitly: after corrupting cached timestamp, snapshot
+and targets, the pinned library can fetch older, still-valid signed metadata. The
+retained channel sequence rejects the older channel in this fixture, but that is
+not complete TUF recovery: it does not preserve root rotation or all role versions.
+The installer must recognize damaged/missing established state before refresh and
+retain a coherent durable trust checkpoint. Never silently treat it as first install.
+The smoke's in-memory previous selection is not evidence of durable protection.
+
 The default fetcher sets a timeout for each request and follows the platform fetch
 behavior. It does not provide the entire install operation's cancellation/redirect
 policy. Integration must explicitly constrain transport, bound the total operation and

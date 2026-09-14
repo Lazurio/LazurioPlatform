@@ -216,6 +216,34 @@ try {
     cached.refresh(),
     /New timestamp version 1 is less than current version 2/,
   );
+  // Characterize a damaged cache: the library alone cannot remember discarded
+  // versions. An installer must retain independently durable high-water state.
+  served = repository(2);
+  const damaged = await client("damaged-cache");
+  await damaged.refresh();
+  assert.ok(await damaged.getTargetInfo("channels/pilot.json"));
+  for (const role of ["timestamp", "snapshot", "targets"])
+    await writeFile(join(fixture, "damaged-cache", `${role}.json`), "\u0000");
+  served = repository(1);
+  const afterDamage = new Updater({
+    fetcher: transport(),
+    metadataDir: join(fixture, "damaged-cache"),
+    metadataBaseUrl: `${server.url}metadata/`,
+    targetDir: join(fixture, "damaged-cache"),
+    targetBaseUrl: `${server.url}targets/`,
+  });
+  await afterDamage.refresh();
+  const olderChannel = await afterDamage.getTargetInfo("channels/pilot.json");
+  assert.ok(olderChannel);
+  const olderFile = await afterDamage.downloadTarget(olderChannel);
+  const olderJson = await readFile(olderFile, "utf8");
+  assert.throws(
+    () => selectPilotTarget(olderJson, "linux-arm64", selection),
+    /rollback/,
+  );
+  console.log(
+    "OBSERVED: damaged TUF cache permits older signed metadata; retained channel high-water rejects it, durable retention still required",
+  );
   served = repository(1, true);
   const expired = await client("expired");
   await assert.rejects(expired.refresh(), /Final timestamp.json is expired/);
