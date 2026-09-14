@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, sep } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { snapshotOrganizationDocument } from "../organizations/document-hash";
 import { readOwnedDeclarationBytes } from "../providers/owned-json";
+import { parseProcessLaunch } from "./process-launch";
 
 const lockNames = ["bun.lock", "bun.lockb"] as const;
 async function present(path: string) {
@@ -20,8 +21,24 @@ const digest = (bytes: Buffer) =>
 
 // Snapshot only, called with an explicitly resolved owner under the shared lock.
 // Does NOT establish workspace membership, provider rights or install readiness.
-// It never searches outside the selected checkout or chooses an ancestor fallback.
-export async function inspectInstallAuthority(checkout: string, owner: string) {
+// Package/lock ownership never falls back to an ancestor. Configuration additionally
+// covers only the explicit caller-supplied HOME/XDG roots, never ambient process.env.
+// The caller must establish custody of these roots; hashes are internal evidence,
+// not public output or a guarantee against hostile concurrent filesystem mutation.
+export async function inspectInstallAuthority(
+  checkout: string,
+  owner: string,
+  environment?: Readonly<Record<string, string>>,
+) {
+  const env =
+    environment === undefined
+      ? null
+      : parseProcessLaunch({
+          executable: "/unused",
+          cwd: owner,
+          args: [],
+          env: environment,
+        }).env;
   const checkoutStat = await inspectOwnedDirectory(checkout);
   const offset = relative(checkout, owner);
   if (isAbsolute(offset) || offset === ".." || offset.startsWith(`..${sep}`))
@@ -33,6 +50,44 @@ export async function inspectInstallAuthority(checkout: string, owner: string) {
       await inspectOwnedDirectory(parent);
     }
   const ownerStat = await inspectOwnedDirectory(owner);
+  const configuration: Record<string, string | null> = {};
+  if (env) {
+    if (!env.HOME || !isAbsolute(env.HOME))
+      throw new Error("Explicit configuration home required");
+    for (const name of Object.keys(env))
+      if (
+        ["npm_config_userconfig", "npm_config_globalconfig"].includes(
+          name.toLowerCase(),
+        )
+      )
+        throw new Error("Custom npm configuration path is not qualified");
+    for (const directory of new Set([
+      env.HOME,
+      ...(env.XDG_CONFIG_HOME ? [env.XDG_CONFIG_HOME] : []),
+    ])) {
+      if (!isAbsolute(directory))
+        throw new Error("Explicit configuration directory required");
+      const identity = await inspectOwnedDirectory(directory);
+      configuration[`directory:${directory}`] =
+        `${identity.dev}:${identity.ino}`;
+      for (const name of [".npmrc", ".bunfig.toml"]) {
+        const path = join(directory, name);
+        configuration[`global:${path}`] = (await present(path))
+          ? digest(await readOwnedDeclarationBytes(path))
+          : null;
+      }
+    }
+  }
+  let configDirectory = checkout;
+  for (const segment of ["", ...(offset ? offset.split(sep) : [])]) {
+    if (segment) configDirectory = join(configDirectory, segment);
+    for (const name of [".npmrc", "bunfig.toml"]) {
+      const path = join(configDirectory, name);
+      configuration[relative(checkout, path)] = (await present(path))
+        ? digest(await readOwnedDeclarationBytes(path))
+        : null;
+    }
+  }
   const packageBytes = await readOwnedDeclarationBytes(
     join(owner, "package.json"),
   );
@@ -73,6 +128,8 @@ export async function inspectInstallAuthority(checkout: string, owner: string) {
     lockDigest: digest(lockBytes),
     packageManager: manifest.packageManager,
     manifest,
+    configuration: Object.freeze(configuration),
+    environment: env,
   });
   const afterCheckout = await inspectOwnedDirectory(checkout);
   const afterOwner = await inspectOwnedDirectory(owner);
@@ -91,13 +148,16 @@ export async function verifyInstallAuthority(
     const current = await inspectInstallAuthority(
       expected.checkout,
       expected.owner,
+      expected.environment ?? undefined,
     );
     return (
       current.checkoutIdentity === expected.checkoutIdentity &&
       current.ownerIdentity === expected.ownerIdentity &&
       current.packageDigest === expected.packageDigest &&
       current.lockfile === expected.lockfile &&
-      current.lockDigest === expected.lockDigest
+      current.lockDigest === expected.lockDigest &&
+      JSON.stringify(current.configuration) ===
+        JSON.stringify(expected.configuration)
     );
   } catch {
     return false;

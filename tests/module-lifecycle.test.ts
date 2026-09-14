@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { requestApplication } from "../src/launchpad/application-client";
+import { applicationMessage } from "../src/launchpad/application-view";
 import { startLaunchpad } from "../src/launchpad/server";
 import { probeListenerHealth } from "../src/modules/health";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
@@ -236,7 +237,7 @@ posixTest(
   },
 );
 
-async function fixture(name: string) {
+async function fixture(name: string, host = "127.0.0.1") {
   const reservation = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -284,7 +285,7 @@ async function fixture(name: string) {
       id: "fixture",
       company: "Example",
       tcp_port_policy: { mode: "single" },
-      port_leases: [{ id: "main", host: "127.0.0.1", port }],
+      port_leases: [{ id: "main", host, port }],
       apps: ["app/package.json"],
       default_app: "app/package.json",
     }),
@@ -309,6 +310,142 @@ async function fixture(name: string) {
     });
   return { directory, port, pkg, savePackage, prepareLaunch, health };
 }
+
+posixTest(
+  "localhost lease produces a browser-presentable healthy entrypoint",
+  async () => {
+    const f = await fixture("localhost-link", "localhost");
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: f.prepareLaunch,
+    });
+    try {
+      expect(await owner.start(selection)).toEqual({ kind: "started" });
+      const deadline = performance.now() + 3000;
+      let link = await owner.entrypoint(selection);
+      while (link.kind === "not-ready" && performance.now() < deadline) {
+        await Bun.sleep(25);
+        link = await owner.entrypoint(selection);
+      }
+      expect(link).toEqual({
+        kind: "local-entrypoint",
+        url: `http://localhost:${f.port}/`,
+      });
+      expect(applicationMessage(link, true)).toBe("appLinkReady");
+      expect(applicationMessage(link, false)).toBe("appRemoteLink");
+    } finally {
+      expect(await owner.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
+  "exited applications retain cleanup ownership without reporting a successful restart",
+  async () => {
+    const f = await fixture("exited-restart");
+    const owner = createApplicationLifecycle({
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: async (_plan, cwd) => ({
+        executable: process.execPath,
+        args: ["--no-env-file", "-e", "process.exit(0)"],
+        cwd,
+        env: { PATH: "/usr/bin:/bin" },
+      }),
+    });
+    try {
+      expect(await owner.start(selection)).toEqual({ kind: "started" });
+      const deadline = performance.now() + 3000;
+      let result = await owner.start(selection);
+      while (
+        result.kind === "already-managed" &&
+        performance.now() < deadline
+      ) {
+        await Bun.sleep(25);
+        result = await owner.start(selection);
+      }
+      expect(result).toEqual({ kind: "application-cleanup-required" });
+      expect(applicationMessage(result, true)).toBe(
+        "appPreparationCleanupRequired",
+      );
+      expect(await owner.stop(selection)).toEqual({ kind: "group-stopped" });
+      expect(await owner.status(selection)).toEqual({ kind: "not-managed" });
+    } finally {
+      expect(await owner.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
+  "API and compiled CLI reject restart of an exited retained app",
+  async () => {
+    const f = await fixture("exited-api");
+    const folder = join(root, "exited-api-folder");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const app = await startLaunchpad(folder, {
+      platformExecutable: binary,
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: async (_plan, cwd) => ({
+        executable: process.execPath,
+        args: ["--no-env-file", "-e", "process.exit(0)"],
+        cwd,
+        env: { PATH: "/usr/bin:/bin" },
+      }),
+    });
+    const call = (operation: string) =>
+      requestApplication({ sessionUrl: app.url, operation, selection });
+    try {
+      expect((await call("start")).result).toEqual({ kind: "started" });
+      let response = await call("start");
+      const deadline = performance.now() + 3000;
+      while (
+        response.result.kind === "already-managed" &&
+        performance.now() < deadline
+      ) {
+        await Bun.sleep(25);
+        response = await call("start");
+      }
+      expect(response.result).toEqual({ kind: "application-cleanup-required" });
+      expect(applicationMessage(response.result, true)).toBe(
+        "appPreparationCleanupRequired",
+      );
+      const cli = Bun.spawn([binary, "app-request"], {
+        env: {},
+        cwd: root,
+        stdin: new Blob([
+          JSON.stringify({
+            sessionUrl: app.url,
+            operation: "start",
+            selection,
+          }),
+        ]),
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [code, stdout, stderr] = await Promise.all([
+        cli.exited,
+        new Response(cli.stdout).text(),
+        new Response(cli.stderr).text(),
+      ]);
+      // Domain refusal is exit 2; transport failure is exit 1.
+      expect(code).toBe(2);
+      expect(JSON.parse(stdout)).toEqual(response.result);
+      expect(stderr).not.toContain(app.url);
+      expect((await call("stop")).result).toEqual({ kind: "group-stopped" });
+      expect((await call("status")).result).toEqual({ kind: "not-managed" });
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
 
 posixTest(
   "module preparation checks first, stops only its app and does not imply running readiness",

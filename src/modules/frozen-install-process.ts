@@ -87,6 +87,12 @@ async function runBunOwnerProcess(
     env: input.env,
   });
   const authority = input.authority;
+  if (
+    !authority.environment ||
+    JSON.stringify(Object.entries(launch.env).sort()) !==
+      JSON.stringify(Object.entries(authority.environment).sort())
+  )
+    return Object.freeze({ kind: "authority-changed" as const });
   const signal = input.signal;
   const deadline = performance.now() + input.timeoutMs;
   if (signal?.aborted) return Object.freeze({ kind: "cancelled" as const });

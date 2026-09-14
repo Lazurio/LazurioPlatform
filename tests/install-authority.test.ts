@@ -43,6 +43,57 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect(await verifyInstallAuthority(snapshot)).toBe(true);
       expect(snapshot.packageManager).toBe("bun@1.4.2");
       expect(Object.isFrozen(snapshot.manifest.scripts)).toBe(true);
+      const home = join(root, "home");
+      const xdg = join(root, "xdg");
+      await mkdir(home, { mode: 0o700 });
+      await mkdir(xdg, { mode: 0o700 });
+      const env = { HOME: home, XDG_CONFIG_HOME: xdg, PATH: "/usr/bin:/bin" };
+      const globalSnapshot = await inspectInstallAuthority(
+        checkout,
+        owner,
+        env,
+      );
+      for (const directory of [home, xdg]) {
+        for (const name of [".npmrc", ".bunfig.toml"]) {
+          const file = join(directory, name);
+          await writeFile(file, "# synthetic global configuration\n");
+          expect(await verifyInstallAuthority(globalSnapshot)).toBe(false);
+          const configured = await inspectInstallAuthority(
+            checkout,
+            owner,
+            env,
+          );
+          expect(await verifyInstallAuthority(configured)).toBe(true);
+          await writeFile(file, "# changed synthetic configuration\n");
+          expect(await verifyInstallAuthority(configured)).toBe(false);
+          await rm(file);
+          expect(await verifyInstallAuthority(configured)).toBe(false);
+        }
+      }
+      expect(await verifyInstallAuthority(globalSnapshot)).toBe(true);
+      await expect(
+        inspectInstallAuthority(checkout, owner, { HOME: "relative" }),
+      ).rejects.toThrow();
+      await expect(
+        inspectInstallAuthority(checkout, owner, {
+          ...env,
+          NPM_CONFIG_USERCONFIG: join(home, "alternate"),
+        }),
+      ).rejects.toThrow();
+      for (const directory of [checkout, owner]) {
+        for (const name of [".npmrc", "bunfig.toml"]) {
+          const file = join(directory, name);
+          await writeFile(file, "fixture configuration");
+          expect(await verifyInstallAuthority(snapshot)).toBe(false);
+          const configured = await inspectInstallAuthority(checkout, owner);
+          expect(await verifyInstallAuthority(configured)).toBe(true);
+          await writeFile(file, "changed configuration");
+          expect(await verifyInstallAuthority(configured)).toBe(false);
+          await rm(file);
+          expect(await verifyInstallAuthority(configured)).toBe(false);
+          expect(await verifyInstallAuthority(snapshot)).toBe(true);
+        }
+      }
       pkg.scripts.preinstall = "different";
       await writeFile(packageFile, JSON.stringify(pkg));
       expect(await verifyInstallAuthority(snapshot)).toBe(false);

@@ -65,6 +65,10 @@ test("application presentation distinguishes start, health, stop and failed prep
         "appPreparationCleanupRequired",
       ],
       [{ kind: "other-app-managed" }, "appOtherAppManaged"],
+      [
+        { kind: "application-cleanup-required" },
+        "appPreparationCleanupRequired",
+      ],
       [{ kind: "declaration-changed" }, "appDeclarationChanged"],
       [{ kind: "scope-changed" }, "appDeclarationChanged"],
     ] as const) {
@@ -75,6 +79,12 @@ test("application presentation distinguishes start, health, stop and failed prep
 });
 
 test("only explicit loopback web links can be shown, remote context is not local opening", () => {
+  expect(localApplicationLink("http://localhost:12345/")).toBe(
+    "http://localhost:12345/",
+  );
+  expect(
+    localApplicationLink("http://localhost.example.invalid:12345/"),
+  ).toBeNull();
   expect(localApplicationLink("http://127.0.0.1:12345/")).toBe(
     "http://127.0.0.1:12345/",
   );

@@ -97,7 +97,7 @@ async function fixture(
     }),
     { mode: 0o600 },
   );
-  const authority = await inspectInstallAuthority(directory, directory);
+  const authority = await inspectInstallAuthority(directory, directory, env);
   return {
     directory,
     request: {
@@ -126,6 +126,37 @@ posixTest(
     expect(result.handle.inspect().stopped).toBe(true);
   },
 );
+
+posixTest(
+  "install refuses environment replacement after authority capture",
+  async () => {
+    const f = await fixture("environment-drift");
+    const result = await runFrozenInstallProcess({
+      ...f.request,
+      env: { ...f.request.env, npm_config_registry: "https://example.invalid" },
+    });
+    expect(result).toEqual({ kind: "authority-changed" });
+    expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(false);
+  },
+);
+
+for (const config of [".npmrc", "bunfig.toml", ".bunfig.toml"]) {
+  posixTest(`real install stops when its hook changes ${config}`, async () => {
+    const f = await fixture(
+      `configuration-drift-${config.replaceAll(".", "-")}`,
+      `await Bun.write(${JSON.stringify(config)}, '# changed fixture config\\n'); setInterval(() => {}, 1000);`,
+    );
+    const result = await runFrozenInstallProcess(f.request);
+    expect(result.kind).toBe("authority-changed");
+    if (!("handle" in result))
+      throw new Error("Expected retained cleanup handle");
+    expect(result.cleanup).toBe("group-stopped");
+    expect(result.handle.inspect().stopped).toBe(true);
+    expect(await readFile(join(f.directory, config), "utf8")).toBe(
+      "# changed fixture config\n",
+    );
+  });
+}
 
 posixTest(
   "lifecycle preparation runs real Bun and requires module-owned dependency postconditions",
@@ -291,7 +322,11 @@ posixTest(
     expect(await Bun.file(join(f.directory, "module-data")).text()).toBe(
       "prepared",
     );
-    const authority = await inspectInstallAuthority(f.directory, f.directory);
+    const authority = await inspectInstallAuthority(
+      f.directory,
+      f.directory,
+      f.request.env,
+    );
     expect(() =>
       runModulePreparationProcess({
         ...f.request,
@@ -333,7 +368,11 @@ posixTest(
       await Bun.sleep(60_000);
     `,
     );
-    const authority = await inspectInstallAuthority(f.directory, f.directory);
+    const authority = await inspectInstallAuthority(
+      f.directory,
+      f.directory,
+      f.request.env,
+    );
     const controller = new AbortController();
     const pending = runModulePreparationProcess({
       ...f.request,

@@ -58,7 +58,7 @@ export function localApplicationLink(value: unknown): string | null {
     const url = new URL(value);
     if (
       !["http:", "https:"].includes(url.protocol) ||
-      !["127.0.0.1", "[::1]"].includes(url.hostname) ||
+      !["127.0.0.1", "[::1]", "localhost"].includes(url.hostname) ||
       !url.port ||
       url.username ||
       url.password ||
@@ -90,6 +90,7 @@ export function applicationMessage(
     case "preparation-preflight-failed":
       return "appPreparationPreflightFailed";
     case "preparation-cleanup-required":
+    case "application-cleanup-required":
       return "appPreparationCleanupRequired";
     case "other-app-managed":
       return "appOtherAppManaged";

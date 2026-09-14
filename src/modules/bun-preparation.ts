@@ -38,7 +38,11 @@ export async function preflightBunPreparation(input: {
     input.timeoutMs > 600_000
   )
     throw new Error("Bounded preparation timeout required");
-  const authority = await inspectInstallAuthority(input.checkout, input.owner);
+  const authority = await inspectInstallAuthority(
+    input.checkout,
+    input.owner,
+    input.env,
+  );
   const modulePreparationScript = input.modulePreparationScript;
   if (modulePreparationScript !== undefined)
     modulePreparationArgs(authority, modulePreparationScript);

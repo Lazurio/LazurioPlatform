@@ -222,10 +222,20 @@ export function createApplicationLifecycle(adapters: {
         if (!directory) return Object.freeze({ kind: "denied" as const });
         if (closing) return Object.freeze({ kind: "closing" as const });
         const existing = runs.get(key(value));
-        if (existing)
-          return existing.directory === directory
-            ? Object.freeze({ kind: "already-managed" as const })
-            : Object.freeze({ kind: "scope-changed" as const });
+        if (existing) {
+          if (existing.directory !== directory)
+            return Object.freeze({ kind: "scope-changed" as const });
+          const state = existing.handle.inspect();
+          if (
+            state.stopRequested ||
+            state.appExitCode !== null ||
+            state.guardExitCode !== null
+          )
+            return Object.freeze({
+              kind: "application-cleanup-required" as const,
+            });
+          return Object.freeze({ kind: "already-managed" as const });
+        }
         let plan: Plan;
         let launch: ReturnType<typeof parseProcessLaunch>;
         try {
