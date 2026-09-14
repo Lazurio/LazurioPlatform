@@ -11,6 +11,8 @@ const en = {
     "Module preparation completed. Start the app and verify its function separately.",
   appPreparationUnavailable:
     "Module preparation is not configured in this development session.",
+  appPrerequisitesNotReady:
+    "The module prerequisite check did not complete successfully, so the application was not started. Check the module's dependencies and setup requirements before explicitly preparing dependencies or retrying.",
   appPreparationPreflightFailed:
     "Preparation checks failed before any application was stopped. Check the module declarations, lockfile and required toolchain.",
   appPreparationCleanupRequired:
@@ -92,6 +94,8 @@ const cs: Record<MessageKey, string> = {
     "Příprava modulu byla dokončena. Aplikaci zvlášť spusťte a ověřte její funkci.",
   appPreparationUnavailable:
     "Příprava modulu není v této vývojové relaci nakonfigurovaná.",
+  appPrerequisitesNotReady:
+    "Kontrola předpokladů modulu neproběhla úspěšně, proto aplikace nebyla spuštěna. Před výslovnou přípravou závislostí nebo opakováním ověřte závislosti a požadavky modulu na nastavení.",
   appPreparationPreflightFailed:
     "Vstupní kontroly přípravy selhaly před zastavením aplikace. Ověřte deklarace modulu, lockfile a požadované nástroje.",
   appPreparationCleanupRequired:

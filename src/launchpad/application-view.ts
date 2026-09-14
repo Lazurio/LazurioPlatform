@@ -87,6 +87,8 @@ export function applicationMessage(
       return "appPrepared";
     case "preparation-unavailable":
       return "appPreparationUnavailable";
+    case "prerequisites-not-ready":
+      return "appPrerequisitesNotReady";
     case "preparation-preflight-failed":
       return "appPreparationPreflightFailed";
     case "preparation-cleanup-required":

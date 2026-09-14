@@ -56,6 +56,7 @@ test("application presentation distinguishes start, health, stop and failed prep
       [{ kind: "denied" }, "appDenied"],
       [{ error: "applications-unavailable" }, "appUnavailable"],
       [{ kind: "preparation-failed" }, "appFailure"],
+      [{ kind: "prerequisites-not-ready" }, "appPrerequisitesNotReady"],
       [
         { kind: "preparation-preflight-failed" },
         "appPreparationPreflightFailed",
