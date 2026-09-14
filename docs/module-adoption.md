@@ -667,6 +667,23 @@ public tests are independent fixtures. No real Organization files were enumerate
 
 ### Canonical Organization / inventory declaration binding
 
+`prepareOrganizationConversion` provides an explicit pure conversion draft from
+legacy GEN3 declarations and the existing module inventory. It preserves custom
+metadata and existing declared forge IDs, without querying or verifying GitHub.
+Absent IDs remain unverified. It rejects conflicting inventory, case drift,
+malformed bindings and any candidate whose complete legacy projection differs
+from the original document. Thus unsupported aliases/defaults require explicit
+reconciliation instead of silently losing content. The returned input hashes
+identify the inspected data; they are not an authorization token.
+
+This is conversion logic only, not runtime fallback or a writer. Before applying
+a draft, a future shared CLI/Launchpad migration use case must prove canonical
+target absence, recheck input bytes and filesystem custody under its operation
+lock, preserve edits and support interruption recovery. It must not overwrite an
+existing canonical document. No active Organization is migrated by this function.
+Synthetic tests cover lossless custom-data preservation, declared/unverified IDs,
+binding conflicts, inventory drift, duplicate slots, alias loss and accessor refusal.
+
 `inspectCanonicalInventory` composes canonical schema validation with the existing
 modules-manifest header contract and mount diagnostics. A missing schema/generation
 remains the legacy header form; explicit versions are limited to
