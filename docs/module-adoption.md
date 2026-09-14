@@ -681,8 +681,12 @@ Thus other unsupported aliases/defaults require explicit
 reconciliation instead of silently losing content. The returned input hashes
 identify the inspected data; they are not an authorization token.
 
-This is conversion logic only, not runtime fallback or a writer. Before applying
-a draft, a future shared CLI/Launchpad migration use case must prove canonical
+This is conversion logic only, not runtime fallback or a writer. Organization
+declaration adoption is a separately scoped change under that Organization's
+repository ownership and review rules, not an implicit step in Lazurio Folder
+migration. The Folder migrator must report missing or conflicting prerequisites
+without rewriting protected Organization content. Before applying
+a draft, a separately authorized Organization conversion use case must prove canonical
 target absence, recheck input bytes and filesystem custody under its operation
 lock, preserve edits and support interruption recovery. It must not overwrite an
 existing canonical document. No active Organization is migrated by this function.

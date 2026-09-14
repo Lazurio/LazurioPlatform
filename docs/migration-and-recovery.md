@@ -470,6 +470,20 @@ Recovery means protecting data and resuming or repairing forward. Returning the 
 Folder to a legacy Git checkout is not an acceptance requirement. This does not relax
 product-version rollback or the separate shared-workshop migration contract.
 
+### Organization declaration adoption is a separate prerequisite
+
+An Organization that needs canonical declaration adoption or inventory reconciliation
+must handle that change in its own repository scope and review process. The product
+migration does not create or rewrite Organization manifests to make discovery pass.
+Read-only preflight reports missing or conflicting declarations; a conversion preview
+is neither approval to apply it nor evidence of live provider authority.
+
+Rehearse any separately authorized Organization conversion on synthetic fixtures,
+preserve the original declarations and work, and verify compatibility with its actual
+consumers before relying on the result. Folder migration then rechecks the resulting
+prerequisites while retaining Organization and Personalspace paths outside its write
+set. This separation does not introduce a new writer, schema or automatic repair path.
+
 ## Legacy source-working → Lazurio Environment phases and recovery
 
 | Phase | Exit proof | Recovery |
