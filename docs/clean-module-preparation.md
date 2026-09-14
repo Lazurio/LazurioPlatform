@@ -18,6 +18,22 @@ foreign ownership, Git metadata or non-derived special entries are
 refused. Descendant symlinks are unlinked without following their destinations.
 Source, lockfiles, database, Git outside this tree and global cache are not targets.
 
+The dedicated POSIX process guard tightens its inherited creation mask with
+`umask | 0077` before spawning a managed install or application. New default-created
+files/directories in its descendants are private to the executing user, consistent
+with the existing non-shared ownership contract. The caller's process mask is not
+changed, stricter inherited restrictions are not relaxed, and existing files,
+directories and shared cache inodes are never chmodded. This covers application
+cache creation as well as installation; otherwise a guest with umask `0002` can
+install successfully and then fail clean preparation on its own new shared tree.
+An explicitly shared pre-existing tree is still refused rather than repaired.
+Trusted scripts can deliberately change their own mask or modes; the guard is not
+a filesystem sandbox and does not certify arbitrary module code.
+
+A compiled-guard regression launches from a separate umask-0002 process and checks
+new directory/file permissions, inheritance by a descendant, and preservation of
+the test caller's mask. It fails before the guard change and passes afterward.
+
 Regular hardlinked package files are allowed: cleanup unlinks only their names in
 the selected dependency tree, never writes or changes permissions on the shared
 inode. Other cache/checkout links retain their bytes, inode and permissions.

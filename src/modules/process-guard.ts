@@ -56,6 +56,12 @@ export async function runProcessGuard() {
           const config = parseProcessLaunch(JSON.parse(line));
           await inspectOwnedDirectory(config.cwd);
           if (stopping) return;
+          // This dedicated guard, not the caller, owns the child environment.
+          // Managed install/app descendants must not inherit a group-writable
+          // creation default and produce trees our private-owner checks refuse.
+          // Only tighten creation permissions; never chmod existing/shared inodes
+          // or relax a stricter inherited mask. This is not a script sandbox.
+          process.umask(process.umask() | 0o077);
           const app = Bun.spawn([config.executable, ...config.args], {
             cwd: config.cwd,
             env: config.env,

@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { startGuardedProcess } from "../src/modules/guarded-process";
@@ -108,6 +115,70 @@ const listener = (port: number) => ({
   health: { kind: "http", path: "/" },
 });
 const health = (port: number) => probeListenerHealth(listener(port));
+
+posixTest(
+  "guard keeps new app files private under a group-writable parent umask",
+  async () => {
+    const cwd = join(root, "private-creation");
+    await mkdir(cwd, { mode: 0o700 });
+    const parentMask = process.umask();
+    // Set the permissive mask in a separate process, never in the test runner.
+    const guard = Bun.spawn(
+      [
+        "/bin/sh",
+        "-c",
+        'umask 002; exec "$@"',
+        "guard",
+        binary,
+        processGuardCommand,
+      ],
+      {
+        cwd,
+        env: {},
+        detached: true,
+        stdin: "pipe",
+        stdout: "ignore",
+        stderr: "ignore",
+      },
+    );
+    const launch = {
+      executable: process.execPath,
+      cwd,
+      env: {},
+      args: [
+        "--no-env-file",
+        "-e",
+        `
+      const fs = require("node:fs");
+      fs.mkdirSync("derived-directory");
+      fs.writeFileSync("derived-directory/file", "new file");
+      const child = Bun.spawnSync([process.execPath, "--no-env-file", "-e",
+        'require("node:fs").writeFileSync("grandchild-file", "descendant")'], {env: {}});
+      if (child.exitCode !== 0) process.exit(1);
+      fs.writeFileSync("ready.json", JSON.stringify({pid: process.pid, port: 0}));
+    `,
+      ],
+    };
+    guard.stdin.write(`${JSON.stringify(launch)}\n`);
+    await guard.stdin.flush();
+    try {
+      await readReady(join(cwd, "ready.json"));
+      expect((await lstat(join(cwd, "derived-directory"))).mode & 0o777).toBe(
+        0o700,
+      );
+      for (const name of [
+        "derived-directory/file",
+        "grandchild-file",
+        "ready.json",
+      ])
+        expect((await lstat(join(cwd, name))).mode & 0o777).toBe(0o600);
+      expect(process.umask()).toBe(parentMask);
+    } finally {
+      guard.stdin.end();
+      await guard.exited;
+    }
+  },
+);
 
 posixTest(
   "guard retains group ownership after launcher exit and stops surviving descendants",
