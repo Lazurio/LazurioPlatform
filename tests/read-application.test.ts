@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { inspectPreparationBinding } from "../src/modules/preparation-binding";
 import { readModuleApplication } from "../src/modules/read-application";
 
 const posixTest = test.skipIf(process.platform === "win32");
@@ -65,6 +66,113 @@ async function fixture(
     await rm(root, { recursive: true, force: true });
   }
 }
+
+posixTest(
+  "preparation binding accepts an explicit self-owned package and requires its optional script",
+  async () => {
+    await fixture(async (root, pkg) => {
+      const application = {
+        ...pkg,
+        packageManager: "bun@1.4.2",
+        scripts: {
+          ...(pkg.scripts as Record<string, string>),
+          "check:data": "never executed",
+          "prepare:data": "never executed",
+        },
+        lazurio: {
+          ...(pkg.lazurio as Record<string, unknown>),
+          preparation: {
+            schema_version: "lazurio.preparation.v1",
+            owner_package: "app/package.json",
+            check_script: "check:data",
+            prepare_script: "prepare:data",
+          },
+        },
+      };
+      const path = join(root, "app/package.json");
+      await writeFile(path, JSON.stringify(application));
+      await expect(
+        inspectPreparationBinding(root, "app/package.json"),
+      ).rejects.toThrow("lockfile");
+      await writeFile(join(root, "app/bun.lock"), "opaque local lock");
+      const observed = await inspectPreparationBinding(
+        root,
+        "app/package.json",
+      );
+      expect(observed.workspaceMember).toBe(false);
+      expect(observed.authority.owner).toBe(join(root, "app"));
+      const changed = {
+        ...application,
+        scripts: { dev: "never executed", "check:data": "never executed" },
+      };
+      const bytes = JSON.stringify(changed);
+      await writeFile(path, bytes);
+      await expect(
+        inspectPreparationBinding(root, "app/package.json"),
+      ).rejects.toThrow("Explicit declared module preparation script");
+      expect(await readFile(path, "utf8")).toBe(bytes);
+    });
+  },
+);
+
+posixTest(
+  "preparation binding resolves explicit owner scripts and refuses unrelated or excluded packages",
+  async () => {
+    await fixture(async (root, pkg) => {
+      await expect(
+        inspectPreparationBinding(root, "app/package.json"),
+      ).rejects.toThrow("Explicit preparation");
+      const owner = {
+        packageManager: "bun@1.4.2",
+        scripts: { "check:data": "never executed" },
+        workspaces: ["app"],
+      };
+      const application = {
+        ...pkg,
+        lazurio: {
+          ...(pkg.lazurio as Record<string, unknown>),
+          preparation: {
+            schema_version: "lazurio.preparation.v1",
+            owner_package: "package.json",
+            check_script: "check:data",
+          },
+        },
+      };
+      const bytes = JSON.stringify(application);
+      await writeFile(join(root, "app/package.json"), bytes);
+      await writeFile(join(root, "package.json"), JSON.stringify(owner));
+      await writeFile(join(root, "bun.lock"), "opaque fixture lock");
+      const binding = await inspectPreparationBinding(root, "app/package.json");
+      expect(binding.authority.owner).toBe(root);
+      expect(binding.workspaceMember).toBe(true);
+      expect(await readFile(join(root, "app/package.json"), "utf8")).toBe(
+        bytes,
+      );
+      for (const workspaces of [[], ["other"], ["*", "!app"]]) {
+        await writeFile(
+          join(root, "package.json"),
+          JSON.stringify({ ...owner, workspaces }),
+        );
+        await expect(
+          inspectPreparationBinding(root, "app/package.json"),
+        ).rejects.toThrow("not a declared member");
+      }
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({ ...owner, scripts: {} }),
+      );
+      await expect(
+        inspectPreparationBinding(root, "app/package.json"),
+      ).rejects.toThrow("Explicit declared module preparation script");
+      expect(await readFile(join(root, "app/package.json"), "utf8")).toBe(
+        bytes,
+      );
+      expect(await readFile(join(root, "bun.lock"), "utf8")).toBe(
+        "opaque fixture lock",
+      );
+    });
+  },
+);
 
 posixTest(
   "module reader observes explicit preparation and refuses malformed declarations without execution",

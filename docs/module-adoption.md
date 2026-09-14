@@ -114,6 +114,16 @@ owner coordination. No dependency installation, script execution or new permissi
 follows from a successfully parsed declaration. Consumer wiring and native lifecycle
 qualification remain incomplete; fixtures exercise parsing and unchanged source bytes.
 
+`inspectPreparationBinding` now resolves that explicit owner using the existing owned
+package/lock reader, checks self-ownership or declared array-form Bun workspace membership
+(including exclusions), and requires the named scripts in the owner package. It repeats
+the application digest and owner inspection before returning read-only observations.
+This is still not permission or readiness: member manifests and other workspace install
+inputs are not yet a complete execution snapshot, and normal CLI/Launchpad composition
+is not enabled by this reader. No ancestor search or application-specific DB resolver
+is introduced. The workspace matcher is also checked against a synthetic real Bun
+installation; that check does not qualify arbitrary workspace layouts or native OSes.
+
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
 installer exit of zero with failed module postconditions does not become prepared;
