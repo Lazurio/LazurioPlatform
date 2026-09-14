@@ -33,7 +33,12 @@ export async function inspectLocalDependencyInputs(
         if (!("value" in descriptor) || typeof descriptor.value !== "string")
           throw new Error("Dependency reference required");
         if (!descriptor.value.startsWith("file:")) continue;
-        let path = descriptor.value.slice(5).replace(/^\.\//, "");
+        // Trailing directory separators do not change the selected input. Strip
+        // them before resolving parent segments, retaining the owner escape check.
+        let path = descriptor.value
+          .slice(5)
+          .replace(/^\.\//, "")
+          .replace(/\/+$/, "");
         const prefix = base ? base.split("/") : [];
         while (path.startsWith("../")) {
           if (!prefix.length)

@@ -22,9 +22,14 @@ import {
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
 
-for (const parentRelative of ["parent", ""]) {
+for (const [parentRelative, reference] of [
+  ["parent", ".."],
+  ["", ".."],
+  ["parent", "../"],
+  ["", "../"],
+] as const) {
   test.skipIf(!["darwin", "linux"].includes(process.platform))(
-    `terminal parent dependency captures ${parentRelative || "owner root"}`,
+    `terminal parent ${reference} dependency captures ${parentRelative || "owner root"}`,
     async () => {
       const root = await realpath(
         await mkdtemp(join(tmpdir(), "parent-input-")),
@@ -62,7 +67,7 @@ for (const parentRelative of ["parent", ""]) {
           JSON.stringify({
             name: "child",
             version: "1.0.0",
-            dependencies: { parent: "file:.." },
+            dependencies: { parent: `file:${reference}` },
           }),
         );
         const installed = Bun.spawnSync({
@@ -98,7 +103,7 @@ for (const parentRelative of ["parent", ""]) {
             name: "child",
             version: "1.0.0",
             dependencies: {
-              outside: parentRelative ? "file:../../.." : "file:../..",
+              outside: `file:${parentRelative ? "../../.." : "../.."}${reference.endsWith("/") ? "/" : ""}`,
             },
           }),
         );
@@ -114,9 +119,14 @@ for (const parentRelative of ["parent", ""]) {
   );
 }
 
-for (const dependencyField of ["dependencies", "devDependencies"]) {
+for (const [dependencyField, reference] of [
+  ["dependencies", "../second"],
+  ["devDependencies", "../second"],
+  ["dependencies", "../second/"],
+  ["devDependencies", "../second/"],
+] as const) {
   test.skipIf(!["darwin", "linux"].includes(process.platform))(
-    `transitive local ${dependencyField} content invalidates install authority`,
+    `transitive local ${dependencyField} ${reference} content invalidates install authority`,
     async () => {
       const root = await realpath(
         await mkdtemp(join(tmpdir(), "transitive-input-")),
@@ -136,7 +146,7 @@ for (const dependencyField of ["dependencies", "devDependencies"]) {
           JSON.stringify({
             name: "first",
             version: "1.0.0",
-            [dependencyField]: { second: "file:../second" },
+            [dependencyField]: { second: `file:${reference}` },
           }),
         );
         await writeFile(
