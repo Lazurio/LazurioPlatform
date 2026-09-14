@@ -107,6 +107,65 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
         moduleBytes,
       );
       await writeFile(join(root, "company.gen3.json"), legacyBytes);
+      for (const [ambiguousLegacy, ambiguousModules] of [
+        [
+          legacyBytes.replace(
+            '"preserved":true',
+            '"private-marker":1,"private-marker":2',
+          ),
+          moduleBytes,
+        ],
+        [
+          legacyBytes.replace(
+            '"path":"workspace/app"',
+            '"path":"workspace/app","pa\\u0074h":"workspace/app"',
+          ),
+          moduleBytes,
+        ],
+        [
+          legacyBytes,
+          moduleBytes.replace(
+            '"company":"fixture"',
+            '"company":"fixture","company":"fixture"',
+          ),
+        ],
+        [
+          legacyBytes,
+          moduleBytes.replace(
+            '"url":"https://github.com/Fixture/app.git"',
+            '"url":"private-value","url":"https://github.com/Fixture/app.git"',
+          ),
+        ],
+      ] as const) {
+        await writeFile(join(root, "company.gen3.json"), ambiguousLegacy);
+        await writeFile(join(root, "modules.manifest.json"), ambiguousModules);
+        const child = Bun.spawn(
+          [binary, "organization-conversion-preview", "--directory", root],
+          { env: {}, stdout: "pipe", stderr: "pipe" },
+        );
+        const [code, output, error] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        expect(code).toBe(2);
+        expect(error).toBe("");
+        expect(JSON.parse(output)).toEqual({
+          kind: "blocked",
+          reason: "legacy-and-inventory-required",
+        });
+        expect(output).not.toContain("private-marker");
+        expect(output).not.toContain("private-value");
+        expect((await readdir(root)).sort()).toEqual(files);
+        expect(await readFile(join(root, "company.gen3.json"), "utf8")).toBe(
+          ambiguousLegacy,
+        );
+        expect(
+          await readFile(join(root, "modules.manifest.json"), "utf8"),
+        ).toBe(ambiguousModules);
+      }
+      await writeFile(join(root, "company.gen3.json"), legacyBytes);
+      await writeFile(join(root, "modules.manifest.json"), moduleBytes);
       for (const bytes of ["{}", "malformed"]) {
         await writeFile(canonical, bytes);
         expect(await inspectOrganizationConversion(root)).toEqual({

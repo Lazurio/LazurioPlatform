@@ -1,5 +1,6 @@
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
+import { parseUniqueJson } from "./unique-json";
 
 // Caller must first establish a stable canonical owned parent directory.
 // Bounded POSIX declaration read; not an atomic multi-document snapshot.
@@ -49,7 +50,7 @@ export async function readOwnedDeclarationBytes(path: string): Promise<Buffer> {
 }
 
 export async function readOwnedJson(path: string): Promise<unknown> {
-  return JSON.parse(
+  return parseUniqueJson(
     new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       await readOwnedDeclarationBytes(path),
     ),

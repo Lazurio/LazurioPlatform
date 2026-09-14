@@ -571,6 +571,14 @@ this adapter does not grant lifecycle access or touch a real installation.
 `lazurio.organization.json`, `company.gen3.json`, and `modules.manifest.json`.
 Each result is explicitly missing, invalid, or a recursively frozen decoded object;
 an unreadable, linked, oversized, non-object or malformed document is not absence.
+The shared owned-JSON reader also rejects duplicate member names at any object
+depth, including names that become equal after JSON escape decoding. Syntax is
+validated by JSON.parse, then an iterative source scan checks per-object key
+uniqueness before the parsed value can escape. Equal keys in separate objects
+remain valid. Errors contain no key names or values. This prevents last-member-wins
+parsing from discarding declaration content before conversion hashes are computed.
+Compiled conversion CLI tests cover duplicate legacy custom/nested members and
+inventory members with exact source-byte/directory preservation and no output write.
 It never falls back from an invalid canonical document to a legacy projection.
 Boundary failure returns unavailable, without raw filesystem errors or file contents
 in diagnostics. The shared `providers/owned-json.ts` retains the bounded no-follow
