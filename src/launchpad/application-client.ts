@@ -44,10 +44,13 @@ export async function requestApplication(input: unknown) {
       {
         method: "POST",
         agent: false,
-        // Preparation may use the core's ten-minute budget plus cleanup.
+        // Preparation and start-time checks may use the core's ten-minute
+        // budget plus cleanup and application launch.
         // A transport deadline is not cancellation or evidence of rollback.
         signal: AbortSignal.timeout(
-          ["prepare", "clean-prepare"].includes(operation) ? 660_000 : 30_000,
+          ["prepare", "clean-prepare", "start"].includes(operation)
+            ? 660_000
+            : 30_000,
         ),
         headers: {
           "Content-Type": "application/json",

@@ -87,7 +87,7 @@ posixTest(
 );
 
 posixTest(
-  "CLI preparation waits beyond normal HTTP deadlines for the shared owner",
+  "CLI preparation and start checks wait beyond normal HTTP deadlines for the shared owner",
   async () => {
     const f = await fixture("slow-preparation");
     const folder = join(root, "slow-preparation-folder");
@@ -112,6 +112,13 @@ posixTest(
         },
         close: async () => ({ kind: "closed" as const }),
       }),
+      preflightStartCheck: async () => ({
+        run: async () => {
+          await Bun.sleep(31_000);
+          return { kind: "preparation-failed" as const };
+        },
+        close: async () => ({ kind: "closed" as const }),
+      }),
     });
     try {
       expect(
@@ -125,11 +132,21 @@ posixTest(
         result: { kind: "prepared" },
       });
       expect(runs).toBe(1);
+      expect(
+        await requestApplication({
+          sessionUrl: app.url,
+          operation: "start",
+          selection,
+        }),
+      ).toEqual({
+        httpOk: true,
+        result: { kind: "prerequisites-not-ready" },
+      });
     } finally {
       expect(await app.close()).toEqual({ kind: "closed" });
     }
   },
-  40_000,
+  75_000,
 );
 
 posixTest(
