@@ -173,6 +173,23 @@ test("conversion retains declared stable IDs but refuses conflicting or augmente
   expect(
     expectedLegacyProjection(result.canonical, modules).projection,
   ).toEqual(bound);
+  const { default_branch: _branch, ...withoutBranch } = bound.company;
+  const source = { ...bound, company: withoutBranch };
+  const normalized = prepareOrganizationConversion(source, modules);
+  expect(normalized.normalizations).toEqual([
+    "company.default_branch from forge_binding.repository.default_branch",
+  ]);
+  expect(normalized.legacyHash).toBe(organizationDocumentHash(source));
+  expect(
+    expectedLegacyProjection(normalized.canonical, modules).projection,
+  ).toEqual(bound);
+  expect(source.company).not.toHaveProperty("default_branch");
+  expect(() =>
+    prepareOrganizationConversion(
+      { ...bound, company: { ...bound.company, default_branch: "other" } },
+      modules,
+    ),
+  ).toThrow();
   for (const binding of [
     { ...bound.forge_binding, provider: "other" },
     { ...bound.forge_binding, extra: true },

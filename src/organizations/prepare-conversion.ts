@@ -30,7 +30,8 @@ const companyFields = [
 ];
 
 // Pure explicit conversion draft, not runtime fallback or permission evidence.
-// Only lossless round trips are accepted. A future writer must separately prove
+// Only content-preserving round trips with listed normalizations are accepted.
+// A future writer must separately prove
 // canonical-target absence and revalidate source bytes/custody under its lock.
 export function prepareOrganizationConversion(
   legacyInput: unknown,
@@ -50,6 +51,16 @@ export function prepareOrganizationConversion(
   const bindingState = declared ? "verified" : "unverified";
   const hasRoot =
     Object.hasOwn(company, "root_repository") || declared !== null;
+  const materializeBranch =
+    hasRoot &&
+    !Object.hasOwn(company, "default_branch") &&
+    repository?.default_branch === "main";
+  const branch = materializeBranch
+    ? repository.default_branch
+    : company.default_branch;
+  const projectedLegacy = materializeBranch
+    ? { ...legacy, company: { ...company, default_branch: branch } }
+    : legacy;
   const excluded = new Set([
     "organization_generation",
     "organization_kind",
@@ -80,7 +91,7 @@ export function prepareOrganizationConversion(
           root_repository: {
             forge: "github",
             locator: company.root_repository,
-            default_branch: company.default_branch,
+            default_branch: branch,
             binding_state: bindingState,
             ...(repository ? { repository_id: repository.id } : {}),
           },
@@ -96,7 +107,7 @@ export function prepareOrganizationConversion(
       legacy_projection: {
         path: "company.gen3.json",
         algorithm: "sha256-canonical-json-v1",
-        sha256: legacyHash,
+        sha256: organizationDocumentHash(projectedLegacy),
       },
     },
     ...Object.fromEntries(
@@ -118,5 +129,12 @@ export function prepareOrganizationConversion(
     canonical: inspected.canonical,
     legacyHash,
     modulesHash: organizationDocumentHash(modules),
+    normalizations: Object.freeze(
+      materializeBranch
+        ? [
+            "company.default_branch from forge_binding.repository.default_branch",
+          ]
+        : [],
+    ),
   });
 }

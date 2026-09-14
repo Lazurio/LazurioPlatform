@@ -672,7 +672,12 @@ legacy GEN3 declarations and the existing module inventory. It preserves custom
 metadata and existing declared forge IDs, without querying or verifying GitHub.
 Absent IDs remain unverified. It rejects conflicting inventory, case drift,
 malformed bindings and any candidate whose complete legacy projection differs
-from the original document. Thus unsupported aliases/defaults require explicit
+from the original document except for an explicitly reported normalization: a
+missing `company.default_branch` may be materialized from an existing exact `main`
+declaration in `forge_binding.repository.default_branch`. No branch is guessed;
+an existing conflicting value is refused. The input hash still describes the
+original source, while the compatibility digest describes the projected output.
+Thus other unsupported aliases/defaults require explicit
 reconciliation instead of silently losing content. The returned input hashes
 identify the inspected data; they are not an authorization token.
 
