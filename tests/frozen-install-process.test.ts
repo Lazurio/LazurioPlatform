@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { preflightBunPreparation } from "../src/modules/bun-preparation";
 import { cleanDerivedDependencies } from "../src/modules/clean-dependencies";
+import { preflightDeclaredBunPreparation } from "../src/modules/declared-bun-preparation";
 import {
   runFrozenInstallProcess,
   runModulePreparationProcess,
@@ -406,7 +407,7 @@ for (const config of [".npmrc", "bunfig.toml", ".bunfig.toml"]) {
 }
 
 posixTest(
-  "lifecycle preparation runs real Bun and requires module-owned dependency postconditions",
+  "lifecycle preparation selects declared scripts, runs real Bun and requires module-owned postconditions",
   async () => {
     const f = await fixture("composed-preparation");
     const reservation = Bun.serve({
@@ -423,7 +424,19 @@ posixTest(
     };
     const pkg = await Bun.file(join(f.directory, "package.json")).json();
     pkg.scripts.dev = `"${process.execPath}" --no-env-file "${resolve("tests/fixtures/lifecycle-app.ts")}"`;
+    pkg.scripts["check:dependencies"] =
+      `"${process.execPath}" --no-env-file check.ts`;
+    await writeFile(
+      join(f.directory, "check.ts"),
+      "if (!(await Bun.file('marker').exists())) process.exit(23); await Bun.write('check-ran', 'checked');",
+      { mode: 0o600 },
+    );
     pkg.lazurio = {
+      preparation: {
+        schema_version: "lazurio.preparation.v1",
+        owner_package: "package.json",
+        check_script: "check:dependencies",
+      },
       runtime: {
         schema_version: "lazurio.runtime.v1",
         id: "fixture-app",
@@ -491,10 +504,10 @@ posixTest(
           env: { ...f.request.env, FIXTURE_PORT: String(port) },
         };
       },
-      preflightPreparation: async (_plan, cwd) =>
-        preflightBunPreparation({
-          checkout: f.directory,
-          owner: cwd,
+      preflightPreparation: async (plan) =>
+        preflightDeclaredBunPreparation({
+          moduleDirectory: f.directory,
+          applicationPackage: plan.package,
           executable: process.execPath,
           platformExecutable: platform,
           env: f.request.env,
@@ -504,6 +517,9 @@ posixTest(
     });
     try {
       expect(await owner.prepare(selection)).toEqual({ kind: "prepared" });
+      expect(await readFile(join(f.directory, "check-ran"), "utf8")).toBe(
+        "checked",
+      );
       expect(await owner.status(selection)).toEqual({ kind: "not-managed" });
       expect(await owner.start(selection)).toEqual({ kind: "started" });
       expect(await owner.stop(selection)).toEqual({ kind: "group-stopped" });
@@ -518,6 +534,53 @@ posixTest(
     } finally {
       expect(await owner.close()).toEqual({ kind: "closed" });
     }
+    const options = {
+      moduleDirectory: f.directory,
+      applicationPackage: selection.package,
+      executable: process.execPath,
+      platformExecutable: platform,
+      env: f.request.env,
+      timeoutMs: 10_000,
+      verifyPrepared: verify,
+    };
+    const checkBefore = await lstat(join(f.directory, "check-ran"));
+    const cancelled = await preflightDeclaredBunPreparation(options);
+    try {
+      expect(await cancelled.run(AbortSignal.abort())).toEqual({
+        kind: "preparation-failed",
+      });
+    } finally {
+      expect(await cancelled.close()).toEqual({ kind: "closed" });
+    }
+    const changed = await preflightDeclaredBunPreparation(options);
+    pkg.scripts["check:dependencies"] = "must not execute";
+    const changedBytes = JSON.stringify(pkg);
+    await writeFile(join(f.directory, "package.json"), changedBytes, {
+      mode: 0o600,
+    });
+    try {
+      expect(await changed.run(new AbortController().signal)).toEqual({
+        kind: "preparation-failed",
+      });
+    } finally {
+      expect(await changed.close()).toEqual({ kind: "closed" });
+    }
+    expect(await readFile(join(f.directory, "package.json"), "utf8")).toBe(
+      changedBytes,
+    );
+    expect((await lstat(join(f.directory, "check-ran"))).mtimeMs).toBe(
+      checkBefore.mtimeMs,
+    );
+    pkg.workspaces = ["dependency"];
+    await writeFile(join(f.directory, "package.json"), JSON.stringify(pkg), {
+      mode: 0o600,
+    });
+    await expect(
+      preflightDeclaredBunPreparation({
+        ...options,
+        executable: join(f.directory, "must-not-run"),
+      }),
+    ).rejects.toThrow("Workspace installation input snapshot is not qualified");
   },
   15_000,
 );

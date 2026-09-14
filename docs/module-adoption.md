@@ -124,6 +124,15 @@ is not enabled by this reader. No ancestor search or application-specific DB res
 is introduced. The workspace matcher is also checked against a synthetic real Bun
 installation; that check does not qualify arbitrary workspace layouts or native OSes.
 
+The development `preflightDeclaredBunPreparation` adapter connects this inspection to
+the existing preparation owner for a self-owned package without workspace declarations.
+It selects the check/optional preparation scripts from the package, rechecks the binding
+before execution and retains the existing cancellation, cleanup and mandatory final
+postcondition. Workspace installation remains explicitly unavailable until its broader
+input snapshot is qualified. A lifecycle fixture exercises real install/check/start/stop
+through this adapter; normal CLI/Launchpad startup still needs its trusted composition.
+This intermediate boundary is not completion of either candidate's full module journey.
+
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
 installer exit of zero with failed module postconditions does not become prepared;
