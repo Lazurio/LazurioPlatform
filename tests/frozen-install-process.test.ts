@@ -544,6 +544,13 @@ posixTest(
       verifyPrepared: verify,
     };
     const checkBefore = await lstat(join(f.directory, "check-ran"));
+    const mutable = { ...options, env: { ...options.env } };
+    const pendingCapture = preflightDeclaredBunPreparation(mutable);
+    mutable.executable = join(f.directory, "must-not-run");
+    mutable.moduleDirectory = join(f.directory, "must-not-select");
+    mutable.env.HOME = join(f.directory, "must-not-read");
+    const captured = await pendingCapture;
+    expect(await captured.close()).toEqual({ kind: "closed" });
     const cancelled = await preflightDeclaredBunPreparation(options);
     try {
       expect(await cancelled.run(AbortSignal.abort())).toEqual({

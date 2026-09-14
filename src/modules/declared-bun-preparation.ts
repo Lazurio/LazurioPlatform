@@ -1,6 +1,7 @@
 import { preflightBunPreparation } from "./bun-preparation";
 import { verifyInstallAuthority } from "./install-authority";
 import { inspectPreparationBinding } from "./preparation-binding";
+import { parseProcessLaunch } from "./process-launch";
 
 type Input = Omit<
   Parameters<typeof preflightBunPreparation>[0],
@@ -10,10 +11,30 @@ type Input = Omit<
 // Trusted composition inside the existing authorized lifecycle/owner queue.
 // This selects scripts from declarations, never an HTTP-provided command.
 export async function preflightDeclaredBunPreparation(input: Input) {
+  // Capture caller data before the first filesystem await. Later mutation of the
+  // caller's object must not redirect selection, configuration or the executable.
+  const launch = parseProcessLaunch({
+    executable: input.executable,
+    cwd: input.moduleDirectory,
+    args: [],
+    env: input.env,
+  });
+  const moduleDirectory = launch.cwd;
+  const applicationPackage = input.applicationPackage;
+  const verifyPrepared = input.verifyPrepared;
+  const options = {
+    executable: launch.executable,
+    platformExecutable: input.platformExecutable,
+    env: launch.env,
+    timeoutMs: input.timeoutMs,
+    ...(input.cleanInstall === undefined
+      ? {}
+      : { cleanInstall: input.cleanInstall }),
+  };
   const binding = await inspectPreparationBinding(
-    input.moduleDirectory,
-    input.applicationPackage,
-    input.env,
+    moduleDirectory,
+    applicationPackage,
+    options.env,
   );
   const declaration = binding.plan.preparation;
   if (!declaration)
@@ -23,8 +44,6 @@ export async function preflightDeclaredBunPreparation(input: Input) {
     Object.hasOwn(binding.authority.manifest, "workspaces")
   )
     throw new Error("Workspace installation input snapshot is not qualified");
-  const moduleDirectory = input.moduleDirectory;
-  const applicationPackage = input.applicationPackage;
   const environment = binding.authority.environment ?? undefined;
   const current = async () => {
     try {
@@ -41,9 +60,8 @@ export async function preflightDeclaredBunPreparation(input: Input) {
       return false;
     }
   };
-  const verifyPrepared = input.verifyPrepared;
   const preparation = await preflightBunPreparation({
-    ...input,
+    ...options,
     checkout: moduleDirectory,
     owner: binding.authority.owner,
     ...(declaration.prepare_script === undefined
