@@ -35,6 +35,21 @@ here, and these requirements do not claim an implemented migrator.
 
 ## macOS Lazurio Folder compatibility aliases
 
+Development `inspectLegacyPaths` reads only the three named entries beneath an
+explicit canonical, caller-owned home fixture. It reports missing paths, real owned
+directories and direct relative/absolute aliases to the real `Lazurio` directory.
+Foreign/dangling aliases, an aliased canonical Folder, non-directory entries and
+changing observations are refused with a fixed non-content reason. It does not read
+the contents of Organization/Personalspace or any foreign link target. Repeated
+metadata observations detect some intervening changes, not adversarial ABA races.
+
+An `observed` result is inventory, never migration readiness: multiple real trees
+remain separately visible, without selecting, merging or moving one. This adapter
+does not prove population, Git independence, checkpoint validity, process quiescence
+or a held operation lock. Those checks and CLI/Launchpad composition remain required
+before an apply plan exists. Current evidence is synthetic native macOS tests only;
+other platforms are refused before filesystem access.
+
 The target macOS layout has exactly one real Lazurio Folder at `<home>/Lazurio`.
 `<home>/Conglomerate` and `<home>/Conglomerate_GEN3` are compatibility symlinks to
 that folder so historical chats and tools using either absolute path continue to
