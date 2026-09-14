@@ -43,9 +43,11 @@ export async function cleanDerivedDependencies(
       if (stat.isDirectory()) {
         await inspectOwnedDirectory(path);
         await inspect(path);
-      } else if (!stat.isFile() || stat.nlink !== 1) {
+      } else if (!stat.isFile()) {
         throw new Error("Non-derived dependency entry");
       }
+      // Bun uses hardlinks from its cache on Linux. Removal only unlinks this
+      // directory entry; never write/chmod the shared inode or follow other names.
     }
   };
   await inspect(target);

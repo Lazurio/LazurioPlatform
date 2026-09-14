@@ -14,9 +14,18 @@ The Bun adapter's explicit `cleanInstall: true` performs cleanup only in the eff
 phase, under the existing owner coordination after app stop. Package, lock and
 configuration authority are rechecked. Only `<resolved owner>/node_modules` is a
 cleanup target. A symlink at that root, a separate filesystem, nested mounts,
-foreign ownership, Git metadata or non-derived special/hardlinked entries are
+foreign ownership, Git metadata or non-derived special entries are
 refused. Descendant symlinks are unlinked without following their destinations.
 Source, lockfiles, database, Git outside this tree and global cache are not targets.
+
+Regular hardlinked package files are allowed: cleanup unlinks only their names in
+the selected dependency tree, never writes or changes permissions on the shared
+inode. Other cache/checkout links retain their bytes, inode and permissions.
+[Bun's cache documentation](https://bun.sh/docs/pm/global-cache) identifies hardlinks
+as the normal Linux installation backend, unlike macOS clonefile. Rejecting every
+multi-link regular file prevented ordinary Linux clean preparation. A regression
+fixture reproduces that rejection and verifies surviving cache/checkout links after
+cleanup, including unchanged bytes, mode, inode and modification time.
 
 This relies on cooperative stable filesystem custody, not protection against a
 hostile same-user writer replacing paths during traversal/removal. Cleanup safety

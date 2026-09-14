@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import {
+  link,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -11,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { preflightBunPreparation } from "../src/modules/bun-preparation";
+import { cleanDerivedDependencies } from "../src/modules/clean-dependencies";
 import {
   runFrozenInstallProcess,
   runModulePreparationProcess,
@@ -187,6 +190,38 @@ posixTest(
       expect(await readFile(join(f.directory, "package.json"))).toEqual(source);
     } finally {
       expect(await preparation.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+posixTest(
+  "clean dependency removal preserves hardlinked cache and another checkout",
+  async () => {
+    const f = await fixture("clean-hardlinks");
+    const cache = join(root, "shared-cache");
+    const other = join(root, "other-checkout");
+    await mkdir(cache, { mode: 0o700 });
+    await mkdir(other, { mode: 0o700 });
+    await mkdir(join(f.directory, "node_modules"), { mode: 0o700 });
+    const cached = join(cache, "package-content");
+    const retained = join(other, "package-content");
+    await writeFile(cached, "immutable synthetic package", { mode: 0o444 });
+    await link(cached, retained);
+    await link(cached, join(f.directory, "node_modules/package-content"));
+    const before = await lstat(cached);
+    expect(before.nlink).toBe(3);
+    expect(await cleanDerivedDependencies(f.request.authority)).toEqual({
+      kind: "dependencies-removed",
+    });
+    await expect(lstat(join(f.directory, "node_modules"))).rejects.toThrow();
+    for (const path of [cached, retained]) {
+      const after = await lstat(path);
+      expect(await readFile(path, "utf8")).toBe("immutable synthetic package");
+      expect(after.ino).toBe(before.ino);
+      expect(after.dev).toBe(before.dev);
+      expect(after.mode).toBe(before.mode);
+      expect(after.mtimeMs).toBe(before.mtimeMs);
+      expect(after.nlink).toBe(2);
     }
   },
 );
