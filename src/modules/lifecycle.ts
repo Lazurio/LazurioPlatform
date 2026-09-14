@@ -83,7 +83,19 @@ export function createApplicationLifecycle(adapters: {
     );
     return result;
   }
-  function mutation<T>(value: Selection | null, operation: () => Promise<T>) {
+  async function mutation<T>(
+    value: Selection | null,
+    operation: () => Promise<T>,
+    intent?: Operation,
+  ) {
+    // Reject an invalid selection before an owner coordinator tries to resolve
+    // its filesystem scope. The operation still rechecks authority under lock.
+    if (adapters.coordinateMutation && value !== null && intent) {
+      if (closing) return Object.freeze({ kind: "closing" as const });
+      const directory = await authorized(value, intent);
+      if (closing) return Object.freeze({ kind: "closing" as const });
+      if (!directory) return Object.freeze({ kind: "denied" as const });
+    }
     return adapters.coordinateMutation
       ? adapters.coordinateMutation(value, () => exclusive(operation))
       : exclusive(operation);
@@ -142,215 +154,229 @@ export function createApplicationLifecycle(adapters: {
         mode === "clean-prepare"
           ? adapters.preflightCleanPreparation
           : adapters.preflightPreparation;
-      return mutation(value, async () => {
-        if (closing) return Object.freeze({ kind: "closing" as const });
-        if (!preflight)
-          return Object.freeze({ kind: "preparation-unavailable" as const });
-        if (preparations.size)
-          return Object.freeze({
-            kind: "preparation-cleanup-required" as const,
-          });
-        const directory = await authorized(value, mode);
-        if (!directory) return Object.freeze({ kind: "denied" as const });
-        if (closing) return Object.freeze({ kind: "closing" as const });
-        // Until shared-owner overlap resolution is composed, do not mutate
-        // dependencies while any other managed app could be consuming them.
-        if ([...runs.keys()].some((id) => id !== key(value)))
-          return Object.freeze({ kind: "other-app-managed" as const });
-        const run = runs.get(key(value));
-        if (run && run.directory !== directory)
-          return Object.freeze({ kind: "scope-changed" as const });
-        let plan: Plan;
-        let preparation: Awaited<
-          ReturnType<NonNullable<typeof adapters.preflightPreparation>>
-        >;
-        try {
-          plan = await read(value, directory);
-          preparation = await preflight(
-            plan,
-            dirname(join(directory, value.package)),
-          );
-        } catch {
-          return Object.freeze({
-            kind: "preparation-preflight-failed" as const,
-          });
-        }
-        preparations.add(preparation);
-        try {
+      return mutation(
+        value,
+        async () => {
           if (closing) return Object.freeze({ kind: "closing" as const });
-          if ((await authorized(value, mode)) !== directory)
-            return Object.freeze({ kind: "denied" as const });
-          if (
-            JSON.stringify(await read(value, directory)) !==
-            JSON.stringify(plan)
-          )
-            return Object.freeze({ kind: "declaration-changed" as const });
-          if (run) {
-            if ((await authorized(value, "stop")) !== directory)
-              return Object.freeze({ kind: "denied" as const });
-            if ((await run.handle.stop()).kind !== "group-stopped")
-              return Object.freeze({
-                kind: "preparation-cleanup-required" as const,
-              });
-            runs.delete(key(value));
-          }
-          if (closing) return Object.freeze({ kind: "closing" as const });
-          if ((await authorized(value, mode)) !== directory)
-            return Object.freeze({ kind: "denied" as const });
-          if (closing) return Object.freeze({ kind: "closing" as const });
-          if (
-            JSON.stringify(await read(value, directory)) !==
-            JSON.stringify(plan)
-          )
-            return Object.freeze({ kind: "declaration-changed" as const });
-          const result = await preparation.run(preparationAbort.signal);
-          if ((await preparation.close()).kind !== "closed")
+          if (!preflight)
+            return Object.freeze({ kind: "preparation-unavailable" as const });
+          if (preparations.size)
             return Object.freeze({
               kind: "preparation-cleanup-required" as const,
             });
-          preparations.delete(preparation);
-          if (
-            JSON.stringify(await read(value, directory)) !==
-            JSON.stringify(plan)
-          )
-            return Object.freeze({ kind: "declaration-changed" as const });
-          return Object.freeze(result);
-        } catch {
-          return Object.freeze({ kind: "preparation-failed" as const });
-        } finally {
-          if (preparations.has(preparation)) {
-            try {
-              if ((await preparation.close()).kind === "closed")
-                preparations.delete(preparation);
-            } catch {
-              /* retained for owner shutdown; never claim ready */
-            }
-          }
-        }
-      });
-    },
-    start(input: unknown) {
-      const value = selection(input);
-      return mutation(value, async () => {
-        if (closing) return Object.freeze({ kind: "closing" as const });
-        if (preparations.size)
-          return Object.freeze({
-            kind: "preparation-cleanup-required" as const,
-          });
-        const directory = await authorized(value, "start");
-        if (!directory) return Object.freeze({ kind: "denied" as const });
-        if (closing) return Object.freeze({ kind: "closing" as const });
-        const existing = runs.get(key(value));
-        if (existing) {
-          if (existing.directory !== directory)
+          const directory = await authorized(value, mode);
+          if (!directory) return Object.freeze({ kind: "denied" as const });
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          // Until shared-owner overlap resolution is composed, do not mutate
+          // dependencies while any other managed app could be consuming them.
+          if ([...runs.keys()].some((id) => id !== key(value)))
+            return Object.freeze({ kind: "other-app-managed" as const });
+          const run = runs.get(key(value));
+          if (run && run.directory !== directory)
             return Object.freeze({ kind: "scope-changed" as const });
-          const state = existing.handle.inspect();
-          if (
-            state.stopRequested ||
-            state.appExitCode !== null ||
-            state.guardExitCode !== null
-          )
+          let plan: Plan;
+          let preparation: Awaited<
+            ReturnType<NonNullable<typeof adapters.preflightPreparation>>
+          >;
+          try {
+            plan = await read(value, directory);
+            preparation = await preflight(
+              plan,
+              dirname(join(directory, value.package)),
+            );
+          } catch {
             return Object.freeze({
-              kind: "application-cleanup-required" as const,
+              kind: "preparation-preflight-failed" as const,
             });
-          return Object.freeze({ kind: "already-managed" as const });
-        }
-        let plan: Plan;
-        let launch: ReturnType<typeof parseProcessLaunch>;
-        try {
-          plan = await read(value, directory);
-          const cwd = dirname(join(directory, value.package));
-          if (adapters.preflightStartCheck) {
-            const check = await adapters.preflightStartCheck(plan, cwd);
-            preparations.add(check);
-            try {
-              if (closing) return Object.freeze({ kind: "closing" as const });
-              if ((await authorized(value, "start")) !== directory)
+          }
+          preparations.add(preparation);
+          try {
+            if (closing) return Object.freeze({ kind: "closing" as const });
+            if ((await authorized(value, mode)) !== directory)
+              return Object.freeze({ kind: "denied" as const });
+            if (
+              JSON.stringify(await read(value, directory)) !==
+              JSON.stringify(plan)
+            )
+              return Object.freeze({ kind: "declaration-changed" as const });
+            if (run) {
+              if ((await authorized(value, "stop")) !== directory)
                 return Object.freeze({ kind: "denied" as const });
-              if (
-                JSON.stringify(await read(value, directory)) !==
-                JSON.stringify(plan)
-              )
-                return Object.freeze({ kind: "declaration-changed" as const });
-              const result = await check.run(preparationAbort.signal);
-              if ((await check.close()).kind !== "closed")
+              if ((await run.handle.stop()).kind !== "group-stopped")
                 return Object.freeze({
                   kind: "preparation-cleanup-required" as const,
                 });
-              preparations.delete(check);
-              if (result.kind !== "prepared")
-                return Object.freeze({
-                  kind: "prerequisites-not-ready" as const,
-                });
-            } finally {
-              if (preparations.has(check)) {
-                try {
-                  if ((await check.close()).kind === "closed")
-                    preparations.delete(check);
-                } catch {
-                  /* retain incomplete check ownership for shutdown */
-                }
+              runs.delete(key(value));
+            }
+            if (closing) return Object.freeze({ kind: "closing" as const });
+            if ((await authorized(value, mode)) !== directory)
+              return Object.freeze({ kind: "denied" as const });
+            if (closing) return Object.freeze({ kind: "closing" as const });
+            if (
+              JSON.stringify(await read(value, directory)) !==
+              JSON.stringify(plan)
+            )
+              return Object.freeze({ kind: "declaration-changed" as const });
+            const result = await preparation.run(preparationAbort.signal);
+            if ((await preparation.close()).kind !== "closed")
+              return Object.freeze({
+                kind: "preparation-cleanup-required" as const,
+              });
+            preparations.delete(preparation);
+            if (
+              JSON.stringify(await read(value, directory)) !==
+              JSON.stringify(plan)
+            )
+              return Object.freeze({ kind: "declaration-changed" as const });
+            return Object.freeze(result);
+          } catch {
+            return Object.freeze({ kind: "preparation-failed" as const });
+          } finally {
+            if (preparations.has(preparation)) {
+              try {
+                if ((await preparation.close()).kind === "closed")
+                  preparations.delete(preparation);
+              } catch {
+                /* retained for owner shutdown; never claim ready */
               }
             }
           }
+        },
+        mode,
+      );
+    },
+    start(input: unknown) {
+      const value = selection(input);
+      return mutation(
+        value,
+        async () => {
           if (closing) return Object.freeze({ kind: "closing" as const });
-          launch = parseProcessLaunch(await adapters.prepareLaunch(plan, cwd));
-          if (launch.cwd !== cwd) throw new Error("Launch path mismatch");
-          if (
-            JSON.stringify(await read(value, directory)) !==
-            JSON.stringify(plan)
-          )
-            return Object.freeze({ kind: "declaration-changed" as const });
-        } catch {
-          return Object.freeze({ kind: "invalid-or-unavailable" as const });
-        }
-        // Serialize this owner's starts and refuse any observed existing binding.
-        // Absence is not an OS reservation; status still checks actual ownership.
-        for (const listener of plan.listeners) {
-          if (
-            [...runs.values()].some((run) =>
-              run.plan.listeners.some((other) => other.port === listener.port),
+          if (preparations.size)
+            return Object.freeze({
+              kind: "preparation-cleanup-required" as const,
+            });
+          const directory = await authorized(value, "start");
+          if (!directory) return Object.freeze({ kind: "denied" as const });
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          const existing = runs.get(key(value));
+          if (existing) {
+            if (existing.directory !== directory)
+              return Object.freeze({ kind: "scope-changed" as const });
+            const state = existing.handle.inspect();
+            if (
+              state.stopRequested ||
+              state.appExitCode !== null ||
+              state.guardExitCode !== null
             )
-          )
-            return Object.freeze({ kind: "port-managed" as const });
-          const bindings = await observeListenerBindings(listener.port);
-          if (bindings.kind !== "observed")
-            return Object.freeze({ kind: "inspection-unavailable" as const });
-          if (bindings.bindings.length)
-            return Object.freeze({ kind: "port-occupied" as const });
-        }
-        if (closing) return Object.freeze({ kind: "closing" as const });
-        if ((await authorized(value, "start")) !== directory)
-          return Object.freeze({ kind: "denied" as const });
-        try {
-          if (
-            JSON.stringify(await read(value, directory)) !==
-            JSON.stringify(plan)
-          )
+              return Object.freeze({
+                kind: "application-cleanup-required" as const,
+              });
+            return Object.freeze({ kind: "already-managed" as const });
+          }
+          let plan: Plan;
+          let launch: ReturnType<typeof parseProcessLaunch>;
+          try {
+            plan = await read(value, directory);
+            const cwd = dirname(join(directory, value.package));
+            if (adapters.preflightStartCheck) {
+              const check = await adapters.preflightStartCheck(plan, cwd);
+              preparations.add(check);
+              try {
+                if (closing) return Object.freeze({ kind: "closing" as const });
+                if ((await authorized(value, "start")) !== directory)
+                  return Object.freeze({ kind: "denied" as const });
+                if (
+                  JSON.stringify(await read(value, directory)) !==
+                  JSON.stringify(plan)
+                )
+                  return Object.freeze({
+                    kind: "declaration-changed" as const,
+                  });
+                const result = await check.run(preparationAbort.signal);
+                if ((await check.close()).kind !== "closed")
+                  return Object.freeze({
+                    kind: "preparation-cleanup-required" as const,
+                  });
+                preparations.delete(check);
+                if (result.kind !== "prepared")
+                  return Object.freeze({
+                    kind: "prerequisites-not-ready" as const,
+                  });
+              } finally {
+                if (preparations.has(check)) {
+                  try {
+                    if ((await check.close()).kind === "closed")
+                      preparations.delete(check);
+                  } catch {
+                    /* retain incomplete check ownership for shutdown */
+                  }
+                }
+              }
+            }
+            if (closing) return Object.freeze({ kind: "closing" as const });
+            launch = parseProcessLaunch(
+              await adapters.prepareLaunch(plan, cwd),
+            );
+            if (launch.cwd !== cwd) throw new Error("Launch path mismatch");
+            if (
+              JSON.stringify(await read(value, directory)) !==
+              JSON.stringify(plan)
+            )
+              return Object.freeze({ kind: "declaration-changed" as const });
+          } catch {
+            return Object.freeze({ kind: "invalid-or-unavailable" as const });
+          }
+          // Serialize this owner's starts and refuse any observed existing binding.
+          // Absence is not an OS reservation; status still checks actual ownership.
+          for (const listener of plan.listeners) {
+            if (
+              [...runs.values()].some((run) =>
+                run.plan.listeners.some(
+                  (other) => other.port === listener.port,
+                ),
+              )
+            )
+              return Object.freeze({ kind: "port-managed" as const });
+            const bindings = await observeListenerBindings(listener.port);
+            if (bindings.kind !== "observed")
+              return Object.freeze({ kind: "inspection-unavailable" as const });
+            if (bindings.bindings.length)
+              return Object.freeze({ kind: "port-occupied" as const });
+          }
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          if ((await authorized(value, "start")) !== directory)
+            return Object.freeze({ kind: "denied" as const });
+          try {
+            if (
+              JSON.stringify(await read(value, directory)) !==
+              JSON.stringify(plan)
+            )
+              return Object.freeze({ kind: "declaration-changed" as const });
+          } catch {
             return Object.freeze({ kind: "declaration-changed" as const });
-        } catch {
-          return Object.freeze({ kind: "declaration-changed" as const });
-        }
-        if (closing) return Object.freeze({ kind: "closing" as const });
-        // The toolchain adapter must honor the declared script and prerequisites.
-        // Stable cooperative filesystem custody remains required until spawn.
-        let handle: Handle;
-        try {
-          handle = await startGuardedProcess(
-            launch,
-            adapters.platformExecutable,
-          );
-        } catch {
-          return Object.freeze({ kind: "launch-failed" as const });
-        }
-        runs.set(key(value), { directory, plan, handle });
-        if ((await handle.started).kind !== "started") {
-          if ((await handle.stop()).kind === "group-stopped")
-            runs.delete(key(value));
-          return Object.freeze({ kind: "launch-failed" as const });
-        }
-        return Object.freeze({ kind: "started" as const });
-      });
+          }
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          // The toolchain adapter must honor the declared script and prerequisites.
+          // Stable cooperative filesystem custody remains required until spawn.
+          let handle: Handle;
+          try {
+            handle = await startGuardedProcess(
+              launch,
+              adapters.platformExecutable,
+            );
+          } catch {
+            return Object.freeze({ kind: "launch-failed" as const });
+          }
+          runs.set(key(value), { directory, plan, handle });
+          if ((await handle.started).kind !== "started") {
+            if ((await handle.stop()).kind === "group-stopped")
+              runs.delete(key(value));
+            return Object.freeze({ kind: "launch-failed" as const });
+          }
+          return Object.freeze({ kind: "started" as const });
+        },
+        "start",
+      );
     },
     async entrypoint(input: unknown) {
       const value = selection(input);
@@ -412,17 +438,21 @@ export function createApplicationLifecycle(adapters: {
     },
     stop(input: unknown) {
       const value = selection(input);
-      return mutation(value, async () => {
-        const directory = await authorized(value, "stop");
-        if (!directory) return Object.freeze({ kind: "denied" as const });
-        const run = runs.get(key(value));
-        if (!run) return Object.freeze({ kind: "not-managed" as const });
-        if (run.directory !== directory)
-          return Object.freeze({ kind: "scope-changed" as const });
-        const result = await run.handle.stop();
-        if (result.kind === "group-stopped") runs.delete(key(value));
-        return result;
-      });
+      return mutation(
+        value,
+        async () => {
+          const directory = await authorized(value, "stop");
+          if (!directory) return Object.freeze({ kind: "denied" as const });
+          const run = runs.get(key(value));
+          if (!run) return Object.freeze({ kind: "not-managed" as const });
+          if (run.directory !== directory)
+            return Object.freeze({ kind: "scope-changed" as const });
+          const result = await run.handle.stop();
+          if (result.kind === "group-stopped") runs.delete(key(value));
+          return result;
+        },
+        "stop",
+      );
     },
     close() {
       closing = true;

@@ -13,7 +13,72 @@ import { createOwnerOperations } from "../src/modules/owner-operations";
 
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
+test("denied selections never reach mutation scope resolution", async () => {
+  let coordinated = 0;
+  const owner = createApplicationLifecycle({
+    platformExecutable: process.execPath,
+    authorize: async () => {
+      throw new Error("Unknown module");
+    },
+    prepareLaunch: async () => {
+      throw new Error("Must not launch");
+    },
+    coordinateMutation: async (_selection, action) => {
+      coordinated++;
+      return action();
+    },
+  });
+  const unknown = {
+    company: "Example",
+    module: "unknown",
+    package: "app/package.json",
+  };
+  expect(await owner.start(unknown)).toEqual({ kind: "denied" });
+  expect(await owner.prepare(unknown)).toEqual({ kind: "denied" });
+  expect(await owner.prepare(unknown, "clean-prepare")).toEqual({
+    kind: "denied",
+  });
+  expect(await owner.stop(unknown)).toEqual({ kind: "denied" });
+  expect(coordinated).toBe(0);
+  expect(await owner.close()).toEqual({ kind: "closed" });
+});
 let root = "";
+test("shutdown refuses a mutation still awaiting its initial authority check", async () => {
+  let release!: () => void;
+  let entered!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const observed = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  let mutations = 0;
+  const owner = createApplicationLifecycle({
+    platformExecutable: process.execPath,
+    authorize: async () => {
+      entered();
+      await barrier;
+      return { moduleDirectory: "/unused" };
+    },
+    prepareLaunch: async () => {
+      throw new Error("Must not launch");
+    },
+    coordinateMutation: async (value, action) => {
+      if (value) mutations++;
+      return action();
+    },
+  });
+  const pending = owner.start({
+    company: "Example",
+    module: "unknown",
+    package: "app/package.json",
+  });
+  await observed;
+  expect(await owner.close()).toEqual({ kind: "closed" });
+  release();
+  expect(await pending).toEqual({ kind: "closing" });
+  expect(mutations).toBe(0);
+});
 let binary = "";
 beforeAll(async () => {
   if (!supported) return;
