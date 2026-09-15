@@ -50,6 +50,25 @@ account/billing services, choose commercial terms or create a release mandate.
 
 ## Current state versus target
 
+### Machines handover boundary
+
+Machines owns provisioning, network, firewall, SSH and the infrastructure gateway;
+Platform owns the environment inside the Machine. Platform consumes the upstream
+`lazurio.machine.json` read-only, with an exact schema/provenance pin, not another
+identity schema. Identity and Owner/Team names do not grant access. See the
+[handover consumer](docs/machine-handover.md) for the limited Linux/remote/human
+entrypoint and protected empty-layout initialization. Existing residents remain
+until their Platform replacement is qualified; current rollouts do not wait for it.
+
+The nearest controlled pilot is one Machines-delivered Linux workspace through
+the real HTTPS/TUF channel, one agreed profile/Organization/module, agent work,
+restart, bounded repair and a repeat on another approved VM. Personal migration,
+the full OS/purpose/language matrix, Dashboard identity and public release remain
+later gates, not prerequisites of this limited pilot. This does not waive public
+signing requirements or authorize infrastructure operations.
+
+### Product transition
+
 | Concern | Existing evidence | Platform target |
 | --- | --- | --- |
 | Lazurio Folder | Supported source checkout also acts as the working directory | Installed product outside a thin generated non-Git Lazurio Folder |

@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { parseHandoverLayout, verifyHandoverLayout } from "./handover-layout";
 import {
   initializationReceipts,
   recordInitializationCreation,
@@ -73,15 +74,28 @@ export async function resumeInitialization(
       )
     )
       throw new Error("Unrecognized initialization journal");
-    const record = stateFields(
-      await readStateJson(journalDirectory, "before.json"),
-      ["schemaVersion", "kind", "preferences", "manifest"],
-    );
+    const rawRecord = await readStateJson(journalDirectory, "before.json");
+    const handover =
+      typeof rawRecord === "object" &&
+      rawRecord !== null &&
+      "kind" in rawRecord &&
+      rawRecord.kind === "handover-folder-initialization";
+    const record = stateFields(rawRecord, [
+      "schemaVersion",
+      "kind",
+      "preferences",
+      "manifest",
+      ...(handover ? ["layout"] : []),
+    ]);
     if (
-      record.schemaVersion !== 2 ||
-      record.kind !== "fresh-folder-initialization"
+      handover
+        ? record.schemaVersion !== 3
+        : record.schemaVersion !== 2 ||
+          record.kind !== "fresh-folder-initialization"
     )
       throw new Error("Unsupported initialization journal");
+    const handedLayout = handover ? parseHandoverLayout(record.layout) : null;
+    if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
     const preferences = parseFolderPreferences(record.preferences);
     const manifest = parseInstructionManifest(record.manifest);
     if (
@@ -145,15 +159,18 @@ export async function resumeInitialization(
     }
     for (const name of layout) {
       if (!(await exists(join(folder, name)))) {
+        if (handedLayout) throw new Error("Missing handed-over directory");
         missing = true;
         if (!pending) throw new Error("Incomplete archived initialization");
       } else {
-        if (missing) throw new Error("Unordered initialization layout");
+        if (missing && !handedLayout)
+          throw new Error("Unordered initialization layout");
         await inspectOwnedDirectory(join(folder, name));
       }
     }
     for (const [directory, name, content] of files) {
       await assertHeld();
+      if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
       if (!(await exists(join(directory, name)))) {
         const file = await open(join(directory, name), "wx", 0o600);
         try {
@@ -209,6 +226,7 @@ export async function resumeInitialization(
       }
     }
     await assertHeld();
+    if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
     for (const [directory, name, content] of files)
       await verifyFile(directory, name, content, archive);
     return { kind: "recovered" as const, revision: 1 };

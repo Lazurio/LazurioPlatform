@@ -2,6 +2,11 @@ import { constants } from "node:fs";
 import { mkdir, open, readdir, rename } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
+  inspectHandoverLayout,
+  requireEmptyHandoverLayout,
+  verifyHandoverLayout,
+} from "./handover-layout";
+import {
   initializationReceipts,
   recordInitializationCreation,
 } from "./initialization-receipt";
@@ -27,6 +32,24 @@ export async function initializeFolder(
   profile: unknown,
   checkpoint: (step: InitializationStep) => Promise<void> = async () => {},
 ) {
+  return initialize(folder, profile, checkpoint, false);
+}
+
+// Only the empty, operator-owned layout prepared by Machines; not resident adoption.
+export async function initializeHandoverFolder(
+  folder: string,
+  profile: unknown,
+  checkpoint: (step: InitializationStep) => Promise<void> = async () => {},
+) {
+  return initialize(folder, profile, checkpoint, true);
+}
+
+async function initialize(
+  folder: string,
+  profile: unknown,
+  checkpoint: (step: InitializationStep) => Promise<void>,
+  handover: boolean,
+) {
   if (!isAbsolute(folder) || resolve(folder) !== folder)
     throw new Error("Canonical new Folder path required");
   await inspectOwnedDirectory(dirname(folder));
@@ -47,18 +70,27 @@ export async function initializeFolder(
     templateRevision: preview.templateRevision,
     output: { path: "AGENTS.md", digest: preview.desired.digest },
   });
-  await mkdir(folder, { mode: 0o700 }); // Exclusive, including empty existing directories.
+  const layout = handover ? await inspectHandoverLayout(folder) : null;
+  if (layout) await requireEmptyHandoverLayout(folder);
+  else await mkdir(folder, { mode: 0o700 }); // Exclusive fresh-path initialization.
   await checkpoint("folder");
   const state = join(folder, ".lazurio");
   await mkdir(state, { mode: 0o700 });
   return withFolderOperationLock(state, async (assertHeld) => {
+    if (layout) {
+      await verifyHandoverLayout(folder, layout);
+      await requireEmptyHandoverLayout(folder, true);
+    }
     const transaction = join(state, "transaction");
     await mkdir(transaction, { mode: 0o700 });
     const journal = JSON.stringify({
-      schemaVersion: 2,
-      kind: "fresh-folder-initialization",
+      schemaVersion: layout ? 3 : 2,
+      kind: layout
+        ? "handover-folder-initialization"
+        : "fresh-folder-initialization",
       preferences,
       manifest,
+      ...(layout ? { layout } : {}),
     });
     const expected = [
       [transaction, "before.json", journal],
@@ -93,11 +125,13 @@ export async function initializeFolder(
       if (!step) throw new Error("Unknown initialization step");
       await checkpoint(step);
     }
-    for (const name of ["organizations", "personalspace"])
-      await mkdir(join(folder, name), { mode: 0o700 });
+    if (!layout)
+      for (const name of ["organizations", "personalspace"])
+        await mkdir(join(folder, name), { mode: 0o700 });
     await checkpoint("layout");
     for (const name of ["organizations", "personalspace"])
       await inspectOwnedDirectory(join(folder, name));
+    if (layout) await verifyHandoverLayout(folder, layout);
     const transactionEntries = await readdir(transaction);
     if (
       transactionEntries.length !== 4 ||
@@ -153,6 +187,7 @@ export async function initializeFolder(
       }
     }
     await assertHeld();
+    if (layout) await verifyHandoverLayout(folder, layout);
     return { kind: "initialized" as const, revision: 1 };
   });
 }

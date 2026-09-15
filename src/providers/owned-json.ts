@@ -5,13 +5,26 @@ import { parseUniqueJson } from "./unique-json";
 // Caller must first establish a stable canonical owned parent directory.
 // Bounded POSIX declaration read; not an atomic multi-document snapshot.
 export async function readOwnedDeclarationBytes(path: string): Promise<Buffer> {
+  const uid = process.getuid?.();
+  if (uid === undefined) throw new Error("Declaration owner unavailable");
+  return readCustodiedDeclarationBytes(path, uid);
+}
+
+// Explicit custody boundary for root-issued Machine declarations. This checks
+// bytes, not authority. The caller must establish the canonical parent custody.
+export async function readCustodiedDeclarationBytes(
+  path: string,
+  expectedUid: number,
+): Promise<Buffer> {
+  if (!Number.isSafeInteger(expectedUid) || expectedUid < 0)
+    throw new Error("Invalid declaration owner");
   if (!["darwin", "linux"].includes(process.platform))
     throw new Error("Unqualified declaration reader platform");
   const before = await lstat(path);
   const safe = (stat: typeof before) =>
     stat.isFile() &&
     stat.nlink === 1 &&
-    stat.uid === process.getuid?.() &&
+    stat.uid === expectedUid &&
     (stat.mode & 0o022) === 0 &&
     stat.size <= 1024 * 1024;
   if (!safe(before)) throw new Error("Unsafe declaration file");

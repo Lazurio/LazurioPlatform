@@ -8,6 +8,16 @@ the other slices are complete.
 
 ## Ordered consumer slices
 
+Nearest limited pilot (2026-09-16 priority): a Machines-delivered Linux remote-human
+workspace, using its [read-only handover](machine-handover.md), a pinned standalone
+CLI via the real controlled HTTPS/TUF channel, a standard Folder, agent work and
+one agreed real module lifecycle. Then VM restart, failed-update diagnosis/explicit
+repair and the same journey on a second approved VM. This is not acceptance of the
+full matrix below. Migration of personal installations, other OS/purpose/language
+cohorts and public release remain in the roadmap without blocking this narrow
+pilot. Machines retains infrastructure execution; Platform qualification is not an
+apply/restart or access mandate.
+
 | Slice | Prerequisite | Smallest real consumer and exit criterion |
 | --- | --- | --- |
 | 0 — Foundation review | Product intent and repository routing | Public architecture, explicit decision amendments, stack comparison, working standalone proof, independent review |
