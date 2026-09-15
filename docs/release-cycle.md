@@ -266,6 +266,15 @@ It must distinguish the signed-root key-rotation reset specified by
 from an unsafe reset to bootstrap; keeping every numeric floor forever is not a
 substitute for that protocol. No timestamp rewrite or clock backdating is allowed.
 
+Until that repair path exists, a bootstrap attempt with received metadata but no
+complete checkpoint or verified first channel stays pending. Closing it would
+permit a fresh bootstrap that forgets already accepted root/role versions.
+`tests/installation-partial-trust.test.ts` interrupts a signed fixture after the
+timestamp and before the first channel, then verifies repeated offline recovery
+retains the original evidence and blocks a replacement bootstrap without network
+access. This is a preservation barrier, not completed network recovery. Attempts
+with no received metadata can still close without publishing trust.
+
 The development installation state owner (`src/distribution/installation-state.ts`)
 binds these operations to one explicit root directory under the existing
 `.operation-lock` discipline. `attempts/<id>` holds pending download evidence,

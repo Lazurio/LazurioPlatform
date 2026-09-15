@@ -279,8 +279,16 @@ export async function recoverPilotAttempts(options: {
           : published?.trust.channel;
       await assertHeld();
       let didPublish = false;
-      // A bootstrap attempt without a verified channel has no high-water to
-      // publish; nothing was ever published, so closing it reconciles nothing.
+      // Received metadata may already have advanced root/role versions even
+      // before a complete checkpoint or first channel exists. Closing here
+      // would permit a new bootstrap and forget those accepted floors. Keep
+      // the original attempt as the exclusion barrier until partial trust can
+      // be durably carried into a fresh network recovery. No-progress attempts
+      // with zero received records are handled separately above.
+      if (!checkpoint || !channel)
+        throw new Error(
+          `Partial trust remains pending for attempt ${attempt}; network recovery required`,
+        );
       if (checkpoint && channel) {
         const unchanged =
           published !== null &&
