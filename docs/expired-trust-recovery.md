@@ -98,8 +98,15 @@ fetcher. Prior counts are not the new journal's sequence indices. The fetcher
 snapshots its bounds, caps each request by remaining bytes, and refuses oversized
 transport responses before recording or returning them to TUF. This is only a
 write-ahead transport, not a fresh-client verification or publication route.
-Channel/high-water evidence, refused-tail handling, fresh-client integration and
-trust publication are still unimplemented.
+`refreshRecoveryMetadata` now runs a normal fresh TUF refresh from reconstructed
+root state through that transport, in a new disposable cache outside the ledger.
+It checks the complete result against retained version/content floors and returns
+only `fresh-metadata-only`; it cannot download targets or publish trust. Tests
+cover expiry, lower/equal-version replacement and another interruption followed by
+a rollback refusal and successful newer refresh. These are metadata-only tests,
+not end-to-end recovery qualification.
+Channel/high-water evidence, refused-tail handling and owner/trust-publication
+integration are still unimplemented.
 This metadata-only ledger is not yet invoked by `product recover`.
 
 ## Three distinct trust inputs
