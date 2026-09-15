@@ -49,6 +49,34 @@ Damaged installation state is not a fresh install or disposable failed download.
 
 ## Pilot evidence still required
 
+### Qualified development case: interrupted snapshot delivery
+
+The installed-journey runner now exercises this bounded procedure with still-valid
+metadata from an unchanged loopback repository:
+
+1. An installed CLI encounters a transport refusal after receiving the next
+   timestamp, before receiving its snapshot. Record the failure and inspect
+   `lazurio product status`; verify the existing entrypoint still runs.
+2. Restore only the verified transport fault. An ordinary `product install`
+   retry is expected to refuse the retained pending attempt; do not delete it.
+3. Use `lazurio product recover --metadata-url <same approved metadata URL>
+   --target-url <same approved target URL>`. Do not supply a bootstrap root to
+   an established installation. This reverifies the retained prefix and completes
+   its missing responses; it does not activate a product.
+4. Check status, then repeat `product install` with those same approved origins.
+   If recovery refuses expired, changed, damaged or otherwise unsupported evidence,
+   stop and escalate. This procedure does not authorize a trust reset or cleanup.
+
+In the isolated macOS ARM64 development run, active-record bytes, executable
+digest, entrypoint link, generated AGENTS.md and two fixture work files remained
+unchanged through failure and recovery; the existing CLI, Folder and declared
+Bun-module lifecycle remained usable. The next authenticated channel sequence used
+the same artifact: this is not a new-version switch test. The fixture uses an
+explicit `--loopback-fixture` flag; real pilot origins must use HTTPS without it.
+This is not Linux, live hosted-module, restart or official-delivery evidence.
+Current CLI failure text is generic; actionable stage-specific diagnosis remains
+an open pilot requirement, not something this successful recovery test proves.
+
 Prove the full clean installation path and a subsequent update on supported native
 pilot targets. Inject failed preparation (transport, insufficient resources, invalid
 signature/expired metadata) and prove the active version, entrypoint and working data

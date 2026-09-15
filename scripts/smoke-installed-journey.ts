@@ -56,6 +56,19 @@ const fixture = createPilotFixture({
   identity,
   executionTarget,
 });
+let interruptSnapshot = false;
+const repositoryProxy = Bun.serve({
+  hostname: "127.0.0.1",
+  port: 0,
+  fetch(request) {
+    const path = new URL(request.url).pathname;
+    if (interruptSnapshot && path === "/metadata/snapshot.json")
+      return new Response("fixture interruption", { status: 503 });
+    return fetch(new URL(path, fixture.origin));
+  },
+});
+const metadataBaseUrl = `${repositoryProxy.url}metadata/`;
+const targetBaseUrl = `${repositoryProxy.url}targets/`;
 const env: Record<string, string> = {
   HOME: home,
   XDG_DATA_HOME: join(home, "xdg"),
@@ -110,9 +123,9 @@ try {
     "--bootstrap-root",
     bootstrapRoot,
     "--metadata-url",
-    fixture.metadataBaseUrl,
+    metadataBaseUrl,
     "--target-url",
-    fixture.targetBaseUrl,
+    targetBaseUrl,
     "--loopback-fixture",
   ]);
   assert.equal(installed.kind, "product-installed");
@@ -131,9 +144,9 @@ try {
     "product",
     "install",
     "--metadata-url",
-    fixture.metadataBaseUrl,
+    metadataBaseUrl,
     "--target-url",
-    fixture.targetBaseUrl,
+    targetBaseUrl,
     "--loopback-fixture",
   ]);
   assert.equal(again.staged, installed.staged);
@@ -145,9 +158,9 @@ try {
     "--bootstrap-root",
     bootstrapRoot,
     "--metadata-url",
-    fixture.metadataBaseUrl,
+    metadataBaseUrl,
     "--target-url",
-    fixture.targetBaseUrl,
+    targetBaseUrl,
     "--loopback-fixture",
   ]);
   assert.equal(refused.code, 1);
@@ -215,6 +228,87 @@ try {
     ),
     { kind: "updated", revision: 2 },
   );
+  // Failed preparation is not a Folder migration or an activation rollback.
+  // Exercise supported explicit recovery through the installed executable,
+  // without deleting any metadata, changing trust, or installing another runtime.
+  const witnesses = [
+    join(folder, "organizations", "fixture-work.txt"),
+    join(folder, "personalspace", "fixture-work.txt"),
+  ];
+  for (const path of witnesses)
+    await writeFile(path, "preserve unfinished fixture work", { mode: 0o600 });
+  const protectedFiles = [
+    join(base, "active.json"),
+    entrypoint,
+    join(folder, "AGENTS.md"),
+    ...witnesses,
+  ];
+  const digests = async () =>
+    Promise.all(
+      protectedFiles.map(async (path) =>
+        createHash("sha256")
+          .update(await readFile(path))
+          .digest("hex"),
+      ),
+    );
+  const protectedBefore = await digests();
+  const linkBefore = await readlink(entrypoint);
+  const trustSelection = join(base, "distribution", "trust", "selected.json");
+  const publishedBefore = await readFile(trustSelection);
+  const networkArguments = [
+    "--metadata-url",
+    metadataBaseUrl,
+    "--target-url",
+    targetBaseUrl,
+    "--loopback-fixture",
+  ];
+  const installedOperation = (operation: string) =>
+    run(["lazurio", "product", operation, ...networkArguments], {
+      env: shellEnv,
+    });
+  fixture.publish(2);
+  interruptSnapshot = true;
+  const failedUpdate = await installedOperation("install");
+  assert.equal(failedUpdate.code, 1);
+  assert.match(failedUpdate.error, /Product operation failed/);
+  assert.deepEqual(await digests(), protectedBefore);
+  assert.equal(await readlink(entrypoint), linkBefore);
+  assert.deepEqual(await readFile(trustSelection), publishedBefore);
+  assert.equal(
+    (await json([entrypoint, "product", "status"])).active.name,
+    installed.staged,
+  );
+  assert.equal((await run([entrypoint, "--help"])).code, 0);
+  // Restoring transport alone does not silently discard the pending attempt.
+  interruptSnapshot = false;
+  assert.equal((await installedOperation("install")).code, 1);
+  assert.deepEqual(await digests(), protectedBefore);
+  assert.deepEqual(await readFile(trustSelection), publishedBefore);
+  const repaired = await json([
+    entrypoint,
+    "product",
+    "recover",
+    ...networkArguments,
+  ]);
+  assert.equal(repaired.kind, "product-recovered");
+  assert.ok(repaired.attempts.length > 0);
+  assert.deepEqual(await digests(), protectedBefore);
+  assert.equal(await readlink(entrypoint), linkBefore);
+  assert.equal(
+    (await json([entrypoint, "product", "status"])).published.channel.sequence,
+    2,
+  );
+  const retried = await json([
+    entrypoint,
+    "product",
+    "install",
+    ...networkArguments,
+  ]);
+  assert.equal(retried.kind, "product-installed");
+  assert.equal(retried.channelSequence, 2);
+  assert.equal(retried.artifactSha256, candidateSha256);
+  assert.deepEqual(await digests(), protectedBefore);
+  assert.equal(await readlink(entrypoint), linkBefore);
   // 4. Launchpad through the entrypoint, with a declared Bun module when a
   // module toolchain is supplied by the caller (never downloaded here).
   const organizationDirectory = join(home, "Organization");
@@ -439,6 +533,10 @@ try {
       candidateSha256,
       staged: installed.staged,
       module: moduleBun ? "declared-bun-module" : "none",
+      failedPreparation:
+        "snapshot transport refusal; active bytes, entrypoint and fixture work preserved; explicit recover then retry passed",
+      repairLimit:
+        "still-valid metadata and unchanged fixture repository; same artifact at next channel sequence, not a new-version switch or universal recovery",
       note: "installed journey through the stable entrypoint against a loopback fixture origin; not official delivery, PATH integration or Windows",
     }),
   );
@@ -448,5 +546,6 @@ try {
     await launchpad.exited;
   }
   await fixture.stop();
+  await repositoryProxy.stop(true);
   await rm(home, { recursive: true, force: true });
 }
