@@ -18,6 +18,7 @@ import { createPilotFixture } from "../scripts/tuf-fixture";
 import { authenticateHistoricalRoles } from "../src/distribution/historical-roles";
 import {
   beginRecoveryCycle,
+  beginRecoveryMetadataCycle,
   reconstructRecoveryCycles,
 } from "../src/distribution/recovery-cycles";
 import { withFolderOperationLock } from "../src/folder/lock";
@@ -48,6 +49,63 @@ async function setup() {
   };
   return { attempt, fixture, original, record, cleanup };
 }
+
+test("network cycle journals fresh responses without overwriting prior evidence", async () => {
+  const f = await setup();
+  try {
+    await withFolderOperationLock(f.attempt, async (held) => {
+      const first = await beginRecoveryCycle(
+        f.attempt,
+        f.original(),
+        "linux-arm64",
+        held,
+      );
+      await f.record(first.journal, "timestamp", 1);
+      const old = await readFile(join(first.journal, "001-timestamp.json"));
+      const next = await beginRecoveryMetadataCycle(
+        f.attempt,
+        f.original(),
+        "linux-arm64",
+        held,
+        {
+          async downloadBytes(url, limit) {
+            const bytes = Buffer.from(await (await fetch(url)).arrayBuffer());
+            if (bytes.length > limit) throw new Error("fixture budget");
+            return bytes;
+          },
+          async downloadFile() {
+            throw new Error("Unexpected artifact");
+          },
+        },
+        f.fixture.metadataBaseUrl,
+      );
+      expect(next.priorRecords).toBe(1);
+      expect(next.priorBytes).toBe(old.length);
+      expect(next.floors.timestampVersion).toBe(1);
+      await next.fetcher.downloadBytes(
+        `${f.fixture.metadataBaseUrl}timestamp.json`,
+        1024 * 1024,
+      );
+      expect(await readFile(join(first.journal, "001-timestamp.json"))).toEqual(
+        old,
+      );
+      expect(await readFile(join(next.journal, "001-timestamp.json"))).toEqual(
+        old,
+      );
+      expect(
+        (
+          await reconstructRecoveryCycles(
+            f.attempt,
+            f.original(),
+            "linux-arm64",
+          )
+        ).records,
+      ).toBe(2);
+    });
+  } finally {
+    await f.cleanup();
+  }
+});
 
 test("same root with weaker original floors cannot replace a cycle's actual input", async () => {
   const f = await setup();

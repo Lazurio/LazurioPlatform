@@ -41,6 +41,8 @@ export class MetadataJournalFetcher implements Fetcher {
   private bytes = 0;
   private busy = false;
   private failed = false;
+  private readonly recordLimit: number;
+  private readonly byteLimit: number;
 
   constructor(
     private readonly transport: Fetcher,
@@ -50,20 +52,38 @@ export class MetadataJournalFetcher implements Fetcher {
       records: 0,
       bytes: 0,
     },
+    limits: Readonly<{ records: number; bytes: number }> = {
+      records: 260,
+      bytes: 32 * 1024 * 1024,
+    },
   ) {
+    // Snapshot once: a new cycle starts at record 001 even when its budget
+    // has been reduced by evidence retained in earlier cycles.
+    const records = retained.records;
+    const bytes = retained.bytes;
+    const recordLimit = limits.records;
+    const byteLimit = limits.bytes;
     // Only an owner-bound replay may supply the counts of the complete,
     // validated retained prefix. New records always use exclusive creation.
     if (
-      !Number.isSafeInteger(retained.records) ||
-      retained.records < 0 ||
-      retained.records > 260 ||
-      !Number.isSafeInteger(retained.bytes) ||
-      retained.bytes < 0 ||
-      retained.bytes > 32 * 1024 * 1024
+      !Number.isSafeInteger(recordLimit) ||
+      recordLimit < 0 ||
+      recordLimit > 260 ||
+      !Number.isSafeInteger(byteLimit) ||
+      byteLimit < 0 ||
+      byteLimit > 32 * 1024 * 1024 ||
+      !Number.isSafeInteger(records) ||
+      records < 0 ||
+      records > recordLimit ||
+      !Number.isSafeInteger(bytes) ||
+      bytes < 0 ||
+      bytes > byteLimit
     )
       throw new Error("Invalid retained metadata journal bounds");
-    this.count = retained.records;
-    this.bytes = retained.bytes;
+    this.count = records;
+    this.bytes = bytes;
+    this.recordLimit = recordLimit;
+    this.byteLimit = byteLimit;
     try {
       this.base = new URL(metadataBaseUrl);
     } catch {
@@ -103,19 +123,23 @@ export class MetadataJournalFetcher implements Fetcher {
       )
     )
       throw new Error("Metadata journal request refused");
-    if (this.count >= 260) throw new Error("Metadata journal record limit");
+    if (this.count >= this.recordLimit)
+      throw new Error("Metadata journal record limit");
+    if (this.bytes >= this.byteLimit)
+      throw new Error("Metadata journal byte limit");
     this.busy = true;
     let recording = false;
     try {
       await inspectOwnedDirectory(this.directory);
       // A signed length is still bounded by the local operation's resource policy.
-      const bytes = await this.transport.downloadBytes(
-        url,
-        Math.min(maxLength, 1024 * 1024),
+      const limit = Math.min(
+        maxLength,
+        1024 * 1024,
+        this.byteLimit - this.bytes,
       );
+      const bytes = await this.transport.downloadBytes(url, limit);
       recording = true;
-      if (this.bytes + bytes.length > 32 * 1024 * 1024)
-        throw new Error("Metadata journal byte limit");
+      if (bytes.length > limit) throw new Error("Metadata journal byte limit");
       const path = join(
         this.directory,
         `${String(++this.count).padStart(3, "0")}-${name}`,

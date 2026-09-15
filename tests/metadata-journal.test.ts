@@ -6,6 +6,85 @@ import { fileURLToPath } from "node:url";
 import type { Fetcher } from "tuf-js";
 import { MetadataJournalFetcher } from "../src/distribution/metadata-journal";
 
+test("new cycle uses remaining budget without inheriting old journal indices", async () => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), "cycle-budget-")),
+  );
+  const limits = { records: 2, bytes: 5 };
+  const requested: number[] = [];
+  const base = "https://example.invalid/metadata/";
+  const transport: Fetcher = {
+    async downloadBytes(_url, limit) {
+      requested.push(limit);
+      return Buffer.alloc(Math.min(3, limit));
+    },
+    async downloadFile() {
+      throw new Error("Unexpected target");
+    },
+  };
+  try {
+    const journal = new MetadataJournalFetcher(
+      transport,
+      directory,
+      base,
+      undefined,
+      limits,
+    );
+    limits.records = 260;
+    limits.bytes = 32 * 1024 * 1024;
+    await journal.downloadBytes(`${base}timestamp.json`, 100);
+    await journal.downloadBytes(`${base}snapshot.json`, 100);
+    expect(requested).toEqual([5, 2]);
+    expect((await readFile(join(directory, "001-timestamp.json"))).length).toBe(
+      3,
+    );
+    expect((await readFile(join(directory, "002-snapshot.json"))).length).toBe(
+      2,
+    );
+    await expect(
+      journal.downloadBytes(`${base}targets.json`, 100),
+    ).rejects.toThrow("record limit");
+    expect(requested).toHaveLength(2);
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});
+
+test("oversized transport response is never delivered or recorded", async () => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), "cycle-overflow-")),
+  );
+  const base = "https://example.invalid/metadata/";
+  const transport: Fetcher = {
+    async downloadBytes() {
+      return Buffer.alloc(3);
+    },
+    async downloadFile() {
+      throw new Error("Unexpected target");
+    },
+  };
+  try {
+    const journal = new MetadataJournalFetcher(
+      transport,
+      directory,
+      base,
+      undefined,
+      { records: 10, bytes: 2 },
+    );
+    await expect(
+      journal.downloadBytes(`${base}timestamp.json`, 100),
+    ).rejects.toThrow("byte limit");
+    await expect(
+      readFile(join(directory, "001-timestamp.json")),
+    ).rejects.toThrow();
+    await expect(
+      journal.downloadBytes(`${base}timestamp.json`, 100),
+    ).rejects.toThrow("requires recovery");
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});
+
 test("returned metadata evidence survives abrupt process exit", async () => {
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), "metadata-exit-")),

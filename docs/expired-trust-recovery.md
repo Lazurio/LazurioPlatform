@@ -88,10 +88,14 @@ Tests cover a second interrupted cycle and failures before/after publication; th
 are not power-loss qualification.
 
 The ledger is bounded to 32 cycles and 260 records/32 MiB across their journals;
-exhaustion refuses without deleting evidence. Network wiring must reserve/enforce
-the remaining aggregate budget before returning a response to TUF (prior counts
-are not the new journal's sequence indices). That wiring, channel/high-water
-evidence, refused-tail handling and trust publication are still unimplemented.
+exhaustion refuses without deleting evidence. `beginRecoveryMetadataCycle` derives
+the remaining aggregate budget from reconstruction and binds it to the new journal
+fetcher. Prior counts are not the new journal's sequence indices. The fetcher
+snapshots its bounds, caps each request by remaining bytes, and refuses oversized
+transport responses before recording or returning them to TUF. This is only a
+write-ahead transport, not a fresh-client verification or publication route.
+Channel/high-water evidence, refused-tail handling, fresh-client integration and
+trust publication are still unimplemented.
 This metadata-only ledger is not yet invoked by `product recover`.
 
 ## Three distinct trust inputs

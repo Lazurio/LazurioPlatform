@@ -1,5 +1,6 @@
 import { lstat, mkdir, mkdtemp, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
+import type { Fetcher } from "tuf-js";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readOwnedJson } from "../providers/owned-json";
 import {
@@ -7,7 +8,10 @@ import {
   type HistoricalFloors,
   historicalFloorFingerprint,
 } from "./historical-roles";
-import { readMetadataJournal } from "./metadata-journal";
+import {
+  MetadataJournalFetcher,
+  readMetadataJournal,
+} from "./metadata-journal";
 import { exactFields } from "./trust-checkpoint";
 
 function target(value: string) {
@@ -164,4 +168,37 @@ async function sync(directory: string) {
   } finally {
     await file.close();
   }
+}
+
+/** Start a fresh journal with the remaining cross-cycle evidence budget.
+ * Caller retains the owner lock throughout client refresh. This is only the
+ * write-ahead transport; it neither authenticates responses nor publishes trust.
+ */
+export async function beginRecoveryMetadataCycle(
+  attempt: string,
+  original: HistoricalFloors,
+  executionTarget: string,
+  assertHeld: () => Promise<void>,
+  transport: Fetcher,
+  metadataBaseUrl: string,
+) {
+  // Validate the origin before creating durable state; construction does no IO.
+  new MetadataJournalFetcher(transport, attempt, metadataBaseUrl);
+  const cycle = await beginRecoveryCycle(
+    attempt,
+    original,
+    executionTarget,
+    assertHeld,
+  );
+  const fetcher = new MetadataJournalFetcher(
+    transport,
+    cycle.journal,
+    metadataBaseUrl,
+    undefined,
+    {
+      records: 260 - cycle.priorRecords,
+      bytes: 32 * 1024 * 1024 - cycle.priorBytes,
+    },
+  );
+  return Object.freeze({ ...cycle, fetcher });
 }
