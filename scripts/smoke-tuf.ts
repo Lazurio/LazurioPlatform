@@ -779,6 +779,28 @@ try {
     await assert.rejects(readActiveProduct(location), /does not select/);
     assert.equal((await activate(staged.name)).alreadyActive, false);
     assert.deepEqual(await readFile(staged.artifactPath), payload);
+    // A record whose digest shares the name's prefix but differs afterwards is
+    // refused by the reader and by same-name activation, without any write.
+    const recordPath = join(location.base, "active.json");
+    const recordBytes = await readFile(recordPath);
+    const forged = JSON.parse(recordBytes.toString());
+    forged.artifactSha256 = `${forged.artifactSha256.slice(0, 63)}${
+      forged.artifactSha256.endsWith("0") ? "1" : "0"
+    }`;
+    await chmod(recordPath, 0o600);
+    await writeFile(recordPath, JSON.stringify(forged));
+    await chmod(recordPath, 0o400);
+    await assert.rejects(readActiveProduct(location), /digest does not match/);
+    await assert.rejects(activate(staged.name), /digest does not match/);
+    assert.deepEqual(
+      JSON.parse((await readFile(recordPath)).toString()),
+      forged,
+    );
+    assert.equal(await readlink(link), staged.artifactPath);
+    await chmod(recordPath, 0o600);
+    await writeFile(recordPath, recordBytes);
+    await chmod(recordPath, 0o400);
+    assert.equal((await activate(staged.name)).alreadyActive, true);
     // Staging a second version and activating it records the previous one;
     // the immutable previous directory remains available for rollback.
     identityBytes = identityFor("linux-arm64", {

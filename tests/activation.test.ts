@@ -55,6 +55,26 @@ test("activation refuses unstaged names, foreign version directories and a held 
       "location.json",
       "versions",
     ]);
+    // A record naming an absent version, even with a matching digest prefix,
+    // fails closed and is never treated as repairable by readers.
+    await writeFile(
+      join(location.base, "active.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        name: "1.2.3+0123456789abcdef",
+        artifactSha256: `0123456789abcdef${"0".repeat(48)}`,
+        previous: null,
+      }),
+      { mode: 0o600 },
+    );
+    await mkdir(join(location.base, "bin"), { mode: 0o700 });
+    await symlink(
+      join(location.versions, "1.2.3+0123456789abcdef", "lazurio"),
+      join(location.base, "bin", "lazurio"),
+    );
+    await expect(readActiveProduct(location)).rejects.toThrow();
+    await rm(join(location.base, "bin"), { recursive: true });
+    await rm(join(location.base, "active.json"));
     // Records and entrypoints that are not this product's fail closed.
     await writeFile(join(location.base, "active.json"), "{}", { mode: 0o600 });
     await expect(readActiveProduct(location)).rejects.toThrow();

@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { productHelp, runProductCommand } from "./distribution/product-cli";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
@@ -19,8 +20,14 @@ import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
 
-// Development CLI entrypoint. No installer or implicit folder discovery.
+// Development CLI entrypoint. No implicit folder discovery; the only
+// installer surface is the explicit `product` command group.
 export async function runCli(args: string[]): Promise<number> {
+  if (args[0] === "product") {
+    const { code, result } = await runProductCommand(args.slice(1));
+    console.log(JSON.stringify(result));
+    return code;
+  }
   if (args[0] === "legacy-paths-inspect") {
     const { values, tokens } = parseArgs({
       args: args.slice(1),
@@ -139,6 +146,7 @@ Refuses an occupied canonical target, conflicting declarations or observed drift
 No files, locks, provider requests or applications are created. Output may contain
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
+    console.log(productHelp);
     return 0;
   }
   const { values, positionals, tokens } = parseArgs({
@@ -338,7 +346,11 @@ if (import.meta.main) {
     else process.exitCode = await runCli(process.argv.slice(2));
   } catch {
     // Do not echo profile input, private paths or raw filesystem errors.
-    if (process.argv[2] === "app-request") {
+    if (process.argv[2] === "product") {
+      console.error(
+        "Product operation failed. The active version and entrypoint were not changed by a refusal; a failed download stays pending until `product recover`. Check the explicit origins, bootstrap root file and per-user location custody. No automatic retry or repair was performed.",
+      );
+    } else if (process.argv[2] === "app-request") {
       console.error(
         "Application request could not be completed or its result confirmed. A submitted operation may still be running; this is not confirmation of cancellation. Check the existing Launchpad lifecycle owner before retrying a mutation. Verify the request and local session without sharing its private token.",
       );

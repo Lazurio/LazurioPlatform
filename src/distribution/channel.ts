@@ -1,6 +1,16 @@
 import { createHash } from "node:crypto";
 import { parseUniqueJson } from "../providers/unique-json";
 
+/** Execution targets a channel may name. A name is not native qualification. */
+export const pilotTargets: ReadonlySet<string> = new Set([
+  "darwin-arm64",
+  "darwin-x64",
+  "linux-arm64",
+  "linux-x64",
+  "windows-arm64",
+  "windows-x64",
+]);
+
 export type ChannelSelection = Readonly<{
   sequence: number;
   documentSha256: string;
@@ -33,14 +43,7 @@ export function selectPilotTarget(
   )
     throw new Error("Unsupported channel document");
   const targets = record.targets as Record<string, unknown>;
-  const supported = new Set([
-    "darwin-arm64",
-    "darwin-x64",
-    "linux-arm64",
-    "linux-x64",
-    "windows-arm64",
-    "windows-x64",
-  ]);
+  const supported = pilotTargets;
   for (const [target, path] of Object.entries(targets)) {
     // A target name does not establish native qualification. The release owner
     // must publish only qualified entries; the consumer still checks identity.

@@ -323,10 +323,35 @@ previous name is retained for an explicit rollback, which is the same operation 
 the still-staged previous version. Activation changes only what future launches
 select. Windows activation is refused as unqualified.
 
-Still open: PATH integration of the entrypoint, draining or pinning running
-consumers before a switch, write compatibility and rollback checks before
-activation, the first clean-VM installed journey through the entrypoint,
-recovery of an expired or inconsistent transcript via fresh
+`lazurio product install|recover|status|activate` (`src/distribution/product-cli.ts`)
+is the only installer surface of the CLI. `install` takes explicit metadata and
+target base URLs (HTTPS, or `http://127.0.0.1` only with `--loopback-fixture`),
+reads the bootstrap root file with custody checks before any location exists,
+requires it for a first installation and refuses it once trust is published, then
+downloads under the owner, stages and activates for this account's per-user
+location. `recover` reconciles pending attempts offline, `status` reports without
+creating anything, `activate` selects an already staged version. Every argument
+is validated before the location is created or verified; refusals never change
+the active version or the entrypoint, and a failed download stays pending until
+`product recover`.
+
+`scripts/smoke-installed-journey.ts <candidate> [--module-bun <path>]` is the
+first installed journey through the real candidate: the delivered candidate
+installs itself against a loopback signed fixture (`scripts/tuf-fixture.ts`),
+a second install without the bootstrap root reuses the published trust and is
+idempotent, a bootstrap root after publication is refused, a fresh `/bin/sh`
+resolves `lazurio` through PATH containing `<base>/bin` and reports status, the
+entrypoint initializes a Czech Folder and updates it to English, starts the
+Launchpad and, when a module Bun is supplied by the caller, discovers, prepares,
+starts, opens and stops a declared Bun module through `app-request`. Compile the
+runner for a source-free guest; the guest's module Bun is a module toolchain, not
+a product prerequisite. Passed on macOS ARM64 and in the Linux ARM64 VM.
+
+Still open: PATH integration of the entrypoint (the journey adds `<base>/bin`
+explicitly), draining or pinning running consumers before a switch, write
+compatibility and rollback checks before activation, official delivery (the
+journey origin is a loopback fixture), recovery of an expired or inconsistent
+transcript via fresh
 network metadata (such attempts stay pending and block new downloads until an
 explicit repair path exists), reclaiming a lock left by a dead process, write
 compatibility and rollback checks before activation, retention policy for staged

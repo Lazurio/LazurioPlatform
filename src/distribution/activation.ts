@@ -56,11 +56,24 @@ export async function readActiveProduct(
   const artifactPath = join(location.versions, record.name, entrypoint);
   if (target !== artifactPath)
     throw new Error("Entrypoint does not select the active version");
-  await verifyStagedVersionDirectory(
-    join(location.versions, record.name),
-    record.name,
-  );
+  await verifyRecordedVersion(location, record);
   return Object.freeze({ ...record, artifactPath });
+}
+
+// The record's full digest must equal the staged provenance and identity of
+// the version it names; a prefix match through the name proves nothing.
+async function verifyRecordedVersion(
+  location: InstallLocation,
+  record: Readonly<{ name: string; artifactSha256: string }>,
+) {
+  const directory = join(location.versions, record.name);
+  await verifyStagedVersionDirectory(directory, record.name);
+  const provenance = exactFields(
+    await readOwnedJson(join(directory, "provenance.json")),
+    ["artifactSha256", "attempt", "channel", "schemaVersion"],
+  );
+  if (provenance.artifactSha256 !== record.artifactSha256)
+    throw new Error("Active record digest does not match the staged version");
 }
 
 /** Activates one already staged, verified version under the owner lock. The
@@ -105,6 +118,17 @@ export async function activateStagedProduct(options: {
     const linkPath = join(location.base, "bin", entrypoint);
     const current = await readRecord(recordPath);
     const target = await readEntrypoint(linkPath);
+    if (current) {
+      // An existing record must be fully coherent before it is trusted for an
+      // idempotent return or replaced; a corrupt record is never overwritten
+      // as a repair.
+      if (current.name === options.name) {
+        if (current.artifactSha256 !== artifactSha256)
+          throw new Error(
+            "Active record digest does not match the staged artifact bytes",
+          );
+      } else await verifyRecordedVersion(location, current);
+    }
     if (current?.name === options.name && target === artifactPath)
       return Object.freeze({
         ...current,
