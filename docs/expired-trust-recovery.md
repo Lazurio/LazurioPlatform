@@ -27,8 +27,16 @@ claim. Tests use distinct role keys and expired metadata, plus an old-and-new-si
 root rotation. The model package is a pinned direct dependency, not an implicit
 production import from a development-only dependency.
 
+`continueHistoricalRoles` reconstructs each subsequent chain from the preceding
+authenticated root and preserves the maximum of every previously authenticated
+role/reference version, including missing roles in a partial later cycle. It
+rejects deserialized or fabricated floor objects: restart must reauthenticate the
+owner-bound evidence. This is in-memory accumulation, not durable recovery, and
+does not mark lower signed responses as accepted. Root rotation does not silently
+clear the counters.
+
 This adapter is not yet called by the owner. It throws on refused/corrupt evidence;
-it does not yet classify a refused final response or merge a previously accepted
+it does not yet classify a refused final response or import a previously published
 checkpoint's floors. It also does not reset floors after role-key rotation. Those
 steps and durable cross-cycle integration below remain required before enabling
 the new recovery path. A fully authenticated expired chain by itself is not enough.

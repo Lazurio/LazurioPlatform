@@ -10,7 +10,10 @@ import {
   Targets,
   Timestamp,
 } from "@tufjs/models";
-import { authenticateHistoricalRoles } from "../src/distribution/historical-roles";
+import {
+  authenticateHistoricalRoles,
+  continueHistoricalRoles,
+} from "../src/distribution/historical-roles";
 
 function signer(id: string) {
   const pair = generateKeyPairSync("ed25519");
@@ -76,6 +79,73 @@ function fixture() {
   ];
   return { anchor: encode(root), root, keys, fields, encode, link, records };
 }
+
+test("partial subsequent cycles cannot erase earlier authenticated floors", () => {
+  const f = fixture();
+  const initial = authenticateHistoricalRoles(f.anchor, f.records);
+  const before = JSON.stringify(initial);
+  const timestamp = f.encode(
+    new Timestamp({
+      ...f.fields(8),
+      snapshotMeta: new MetaFile({ version: 10 }),
+    }),
+  );
+  const partial = continueHistoricalRoles(initial, [
+    { name: "timestamp.json", bytes: timestamp },
+  ]);
+  expect(partial.timestampVersion).toBe(8);
+  expect(partial.snapshotVersion).toBe(10);
+  expect(partial.snapshotRoles).toEqual({ "targets.json": 4 });
+  expect(partial.targetsVersion).toBe(4);
+  const lower = continueHistoricalRoles(partial, f.records);
+  expect(lower.timestampVersion).toBe(8);
+  expect(lower.snapshotVersion).toBe(10);
+  expect(lower.snapshotRoles).toEqual({ "targets.json": 4 });
+  expect(lower.targetsVersion).toBe(4);
+  expect(continueHistoricalRoles(lower, [])).toEqual(lower);
+  expect(JSON.stringify(initial)).toBe(before);
+});
+
+test("a later snapshot retains missing historical role floors without pretending it is accepted", () => {
+  const f = fixture();
+  const snapshot = f.encode(
+    new Snapshot({
+      ...f.fields(9),
+      meta: {
+        "targets.json": new MetaFile({ version: 4 }),
+        "retained.json": new MetaFile({ version: 12 }),
+      },
+    }),
+  );
+  const timestamp = f.encode(
+    new Timestamp({ ...f.fields(7), snapshotMeta: f.link(snapshot, 9) }),
+  );
+  const initial = authenticateHistoricalRoles(f.anchor, [
+    { name: "timestamp.json", bytes: timestamp },
+    { name: "9.snapshot.json", bytes: snapshot },
+  ]);
+  const result = continueHistoricalRoles(initial, f.records);
+  expect(result.snapshotRoles).toEqual({
+    "targets.json": 4,
+    "retained.json": 12,
+  });
+  expect(result.kind).toBe("historical-floors-only");
+  expect(Object.isFrozen(result.snapshotRoles)).toBe(true);
+});
+
+test("continuation rejects serialized floors and foreign signatures without mutating its input", () => {
+  const f = fixture();
+  const initial = authenticateHistoricalRoles(f.anchor, f.records);
+  const before = JSON.stringify(initial);
+  expect(() => continueHistoricalRoles(JSON.parse(before), [])).toThrow(
+    "reconstructed authentication",
+  );
+  expect(() => continueHistoricalRoles({ ...initial }, [])).toThrow(
+    "reconstructed authentication",
+  );
+  expect(() => continueHistoricalRoles(initial, fixture().records)).toThrow();
+  expect(JSON.stringify(initial)).toBe(before);
+});
 
 test("expired distinct-role chain authenticates floors, not a checkpoint or target", () => {
   const f = fixture();
@@ -156,6 +226,15 @@ test("root rotation requires consecutive version and old plus new authorization"
   ).toThrow();
   metadata.sign(nextKey.sign);
   const both = JSON.stringify(metadata.toJSON());
+  const previous = authenticateHistoricalRoles(f.anchor, f.records);
+  const rootOnly = continueHistoricalRoles(previous, [
+    { name: "2.root.json", bytes: both },
+  ]);
+  expect(rootOnly.rootVersion).toBe(2);
+  expect(rootOnly.timestampVersion).toBe(7);
+  expect(rootOnly.snapshotVersion).toBe(9);
+  expect(rootOnly.snapshotRoles).toEqual({ "targets.json": 4 });
+  expect(rootOnly.targetsVersion).toBe(4);
   const result = authenticateHistoricalRoles(f.anchor, [
     { name: "2.root.json", bytes: both },
     ...f.records,

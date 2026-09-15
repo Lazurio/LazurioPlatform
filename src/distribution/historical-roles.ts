@@ -4,6 +4,25 @@ import { parseUniqueJson } from "../providers/unique-json";
 
 const kinds = ["root", "timestamp", "snapshot", "targets"] as const;
 type Kind = (typeof kinds)[number];
+export type HistoricalFloors = Readonly<{
+  kind: "historical-floors-only";
+  root: string;
+  rootVersion: number;
+  timestampVersion: number | undefined;
+  snapshotVersion: number | undefined;
+  snapshotRoles: Readonly<Record<string, number>>;
+  targetsVersion: number | undefined;
+}>;
+// Restart recovery must reconstruct authentication from owner-bound signed
+// evidence, never adopt deserialized counters as another trust store.
+const authenticated = new WeakSet<HistoricalFloors>();
+
+function seal(value: HistoricalFloors): HistoricalFloors {
+  Object.freeze(value.snapshotRoles);
+  Object.freeze(value);
+  authenticated.add(value);
+  return value;
+}
 
 function envelope(source: string, kind: Kind): JSONObject {
   if (Buffer.byteLength(source) > 1024 * 1024)
@@ -36,7 +55,7 @@ function envelope(source: string, kind: Kind): JSONObject {
 export function authenticateHistoricalRoles(
   anchor: string,
   records: readonly Readonly<{ name: string; bytes: string }>[],
-) {
+): HistoricalFloors {
   if (records.length > 260) throw new Error("Historical record limit");
   let root = Metadata.fromJSON(MetadataKind.Root, envelope(anchor, "root"));
   root.verifyDelegate("root", root);
@@ -118,7 +137,7 @@ export function authenticateHistoricalRoles(
     (!Number.isSafeInteger(snapshotVersion) || snapshotVersion < 1)
   )
     throw new Error("Invalid historical snapshot reference");
-  return Object.freeze({
+  return seal({
     kind: "historical-floors-only" as const,
     root: rootBytes,
     rootVersion: root.signed.version,
@@ -127,6 +146,44 @@ export function authenticateHistoricalRoles(
     snapshotRoles: Object.freeze(snapshotRoles),
     targetsVersion,
   });
+}
+
+/** Carry conservative floors across an authenticated subsequent chain. A partial
+ * cycle cannot erase older floors; a lower signed response is not acceptance or
+ * installation authority. Root/key rotation never silently resets counters.
+ */
+export function continueHistoricalRoles(
+  previous: HistoricalFloors,
+  records: readonly Readonly<{ name: string; bytes: string }>[],
+): HistoricalFloors {
+  if (!authenticated.has(previous))
+    throw new Error(
+      "Historical continuation requires reconstructed authentication",
+    );
+  const next = authenticateHistoricalRoles(previous.root, records);
+  const snapshotRoles: Record<string, number> = {};
+  for (const name of new Set([
+    ...Object.keys(previous.snapshotRoles),
+    ...Object.keys(next.snapshotRoles),
+  ])) {
+    Object.defineProperty(snapshotRoles, name, {
+      value: maximum(previous.snapshotRoles[name], next.snapshotRoles[name]),
+      enumerable: true,
+    });
+  }
+  return seal({
+    kind: "historical-floors-only",
+    root: next.root,
+    rootVersion: next.rootVersion,
+    timestampVersion: maximum(previous.timestampVersion, next.timestampVersion),
+    snapshotVersion: maximum(previous.snapshotVersion, next.snapshotVersion),
+    snapshotRoles,
+    targetsVersion: maximum(previous.targetsVersion, next.targetsVersion),
+  });
+}
+
+function maximum(a: number | undefined, b: number | undefined) {
+  return a === undefined ? b : b === undefined ? a : Math.max(a, b);
 }
 
 function timestampFrom(bytes: string) {
