@@ -271,8 +271,10 @@ per-user location outside any Lazurio Folder: macOS
 (a relative `XDG_DATA_HOME` is ignored); Windows remains unqualified and is refused.
 Beneath it, `distribution/` is the installation owner root and `versions/` holds
 immutable product directories. The three paths are one custody tuple derived from
-`base`; `boundInstallLocation` refuses any other combination before inspection or
-writes, so owner state and versions can never be paired across two locations. `prepareInstallLocation` creates the whole private
+`base`; `boundInstallLocation` reads each component exactly once into a new frozen
+snapshot and refuses any other combination before inspection or writes, so owner
+state and versions can never be paired across two locations, not even through a
+caller object mutated after the call. Every later step uses that snapshot. `prepareInstallLocation` creates the whole private
 layout once, together with an exclusive `location.json` record, in a
 `.lazurio-location-*` directory beside the base and publishes it by one rename; a
 leftover from an interruption is retained. `verifyInstallLocation` is the read-only

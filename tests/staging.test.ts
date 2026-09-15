@@ -67,6 +67,15 @@ test("staging refuses an unbound location, missing trust, an unselectable attemp
     expect(await readdir(root)).toEqual([]);
     expect(await readdir(other.owner)).toEqual([]);
     expect(await readdir(other.versions)).toEqual([]);
+    // Mutating the caller's object after the call cannot redirect staging:
+    // the snapshot keeps location A, so nothing reaches B.
+    const mutable = { ...location };
+    const staging = stage("closed", mutable);
+    mutable.versions = other.versions;
+    mutable.owner = other.owner;
+    await expect(staging).rejects.toThrow();
+    expect(await readdir(other.owner)).toEqual([]);
+    expect(await readdir(other.versions)).toEqual([]);
     await expect(stage("../x")).rejects.toThrow("Invalid attempt");
     await expect(stage("absent")).rejects.toThrow();
     await mkdir(join(root, "history", "closed"), {

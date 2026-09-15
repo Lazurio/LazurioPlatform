@@ -52,17 +52,25 @@ export function resolveInstallLocation(input: {
 
 /** The three paths are one custody tuple derived from `base`; any other
  * combination is refused before inspection or writes, so owner state and
- * versions can never be paired across two locations.
+ * versions can never be paired across two locations. Each component is read
+ * exactly once into a new frozen snapshot; every later step uses that
+ * snapshot, never the caller's possibly mutable object.
  */
-export function boundInstallLocation(location: InstallLocation) {
+export function boundInstallLocation(
+  location: InstallLocation,
+): InstallLocation {
+  const base = location.base;
+  const owner = location.owner;
+  const versions = location.versions;
   if (
-    !isAbsolute(location.base) ||
-    resolve(location.base) !== location.base ||
-    location.owner !== join(location.base, "distribution") ||
-    location.versions !== join(location.base, "versions")
+    typeof base !== "string" ||
+    !isAbsolute(base) ||
+    resolve(base) !== base ||
+    owner !== join(base, "distribution") ||
+    versions !== join(base, "versions")
   )
     throw new Error("Unbound install location tuple");
-  return location;
+  return Object.freeze({ base, owner, versions });
 }
 
 /** Read-only proof that this location was initialized by this product: the
@@ -71,9 +79,9 @@ export function boundInstallLocation(location: InstallLocation) {
  * adopted, repaired or removed. Custody checks do not replace this record.
  */
 export async function verifyInstallLocation(
-  location: InstallLocation,
+  input: InstallLocation,
 ): Promise<InstallLocation> {
-  boundInstallLocation(location);
+  const location = boundInstallLocation(input);
   await inspectOwnedDirectory(location.base);
   const fields = exactFields(await readOwnedJson(join(location.base, record)), [
     "kind",
@@ -182,9 +190,9 @@ export async function verifyStagedVersionDirectory(
  * `.lazurio-location-*` directory from an interruption is retained.
  */
 export async function prepareInstallLocation(
-  location: InstallLocation,
+  input: InstallLocation,
 ): Promise<InstallLocation> {
-  boundInstallLocation(location);
+  const location = boundInstallLocation(input);
   if (await exists(location.base)) return verifyInstallLocation(location);
   const parent = dirname(location.base);
   await mkdir(parent, { recursive: true, mode: 0o700 });

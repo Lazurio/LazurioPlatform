@@ -68,7 +68,10 @@ test("resolves per-user locations outside any Lazurio Folder and ignores relativ
     env: {},
     homedir: "/home/x",
   });
-  expect(boundInstallLocation(bound)).toBe(bound);
+  const snapshot = boundInstallLocation(bound);
+  expect(snapshot).toEqual(bound);
+  expect(snapshot).not.toBe(bound);
+  expect(Object.isFrozen(snapshot)).toBe(true);
   expect(() =>
     boundInstallLocation({
       ...bound,
@@ -184,6 +187,26 @@ test("prepare creates the layout once, verifies it afterwards and refuses foreig
     expect(
       (await readdir(home)).filter((entry) => entry.startsWith(".lazurio")),
     ).toEqual([]);
+    // The tuple is snapshotted once: mutating the caller's object after the
+    // call, or a component that changes on re-read, never yields a mixed tuple.
+    const mutable = { ...location };
+    const verifying = verifyInstallLocation(mutable);
+    mutable.versions = other.versions;
+    expect(await verifying).toEqual(location);
+    expect(Object.isFrozen(await verifying)).toBe(true);
+    let reads = 0;
+    const rereading = {
+      base: location.base,
+      owner: location.owner,
+      get versions() {
+        reads += 1;
+        return reads === 1 ? location.versions : other.versions;
+      },
+    };
+    expect(await verifyInstallLocation(rereading)).toEqual(location);
+    expect(reads).toBe(1);
+    const preparing = prepareInstallLocation({ ...location });
+    expect(await preparing).toEqual(location);
     // A linked base is refused before any record is read.
     const linked = resolve("linked");
     await mkdir(join(home, "linked"), { mode: 0o700 });
