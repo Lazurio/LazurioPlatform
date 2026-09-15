@@ -98,6 +98,10 @@ fetcher. Prior counts are not the new journal's sequence indices. The fetcher
 snapshots its bounds, caps each request by remaining bytes, and refuses oversized
 transport responses before recording or returning them to TUF. This is only a
 write-ahead transport, not a fresh-client verification or publication route.
+The returned recovery fetcher is metadata-only: target downloads refuse without
+calling transport. Its journal writer checks the owner assertion before transport,
+after transport before recording, and after durable write before delivery. Lost
+custody after a write retains that evidence for recovery but refuses delivery.
 `refreshRecoveryMetadata` now runs a normal fresh TUF refresh from reconstructed
 root state through that transport, in a new disposable cache outside the ledger.
 It checks the complete result against retained version/content floors and returns

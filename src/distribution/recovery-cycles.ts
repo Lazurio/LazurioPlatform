@@ -207,6 +207,14 @@ export async function beginRecoveryMetadataCycle(
       records: 260 - cycle.priorRecords,
       bytes: 32 * 1024 * 1024 - cycle.priorBytes,
     },
+    assertHeld,
   );
-  return Object.freeze({ ...cycle, fetcher });
+  const metadataOnly: Fetcher = Object.freeze({
+    downloadBytes: (url: string, maxLength: number) =>
+      fetcher.downloadBytes(url, maxLength),
+    async downloadFile() {
+      throw new Error("Recovery cycle cannot download targets");
+    },
+  });
+  return Object.freeze({ ...cycle, fetcher: metadataOnly });
 }

@@ -56,6 +56,7 @@ export class MetadataJournalFetcher implements Fetcher {
       records: 260,
       bytes: 32 * 1024 * 1024,
     },
+    private readonly assertHeld?: () => Promise<void>,
   ) {
     // Snapshot once: a new cycle starts at record 001 even when its budget
     // has been reduced by evidence retained in earlier cycles.
@@ -130,6 +131,7 @@ export class MetadataJournalFetcher implements Fetcher {
     this.busy = true;
     let recording = false;
     try {
+      await this.assertHeld?.();
       await inspectOwnedDirectory(this.directory);
       // A signed length is still bounded by the local operation's resource policy.
       const limit = Math.min(
@@ -139,6 +141,7 @@ export class MetadataJournalFetcher implements Fetcher {
       );
       const bytes = await this.transport.downloadBytes(url, limit);
       recording = true;
+      await this.assertHeld?.();
       if (bytes.length > limit) throw new Error("Metadata journal byte limit");
       const path = join(
         this.directory,
@@ -158,6 +161,7 @@ export class MetadataJournalFetcher implements Fetcher {
         await directory.close();
       }
       this.bytes += bytes.length;
+      await this.assertHeld?.();
       return bytes;
     } catch (error) {
       // Normal root 404s contain no record and must remain usable by TUF.

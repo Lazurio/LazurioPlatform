@@ -50,6 +50,87 @@ async function setup() {
   return { attempt, fixture, original, record, cleanup };
 }
 
+test("escaped cycle writer refuses a released lock and cannot download targets", async () => {
+  const f = await setup();
+  let calls = 0;
+  try {
+    const cycle = await withFolderOperationLock(f.attempt, async (held) =>
+      beginRecoveryMetadataCycle(
+        f.attempt,
+        f.original(),
+        "linux-arm64",
+        held,
+        {
+          async downloadBytes() {
+            calls++;
+            return Buffer.from("not delivered");
+          },
+          async downloadFile() {
+            calls++;
+            throw new Error("transport reached");
+          },
+        },
+        f.fixture.metadataBaseUrl,
+      ),
+    );
+    await expect(
+      cycle.fetcher.downloadBytes(
+        `${f.fixture.metadataBaseUrl}timestamp.json`,
+        100,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      cycle.fetcher.downloadFile(
+        `${f.fixture.targetBaseUrl}artifact`,
+        100,
+        async () => "unexpected",
+      ),
+    ).rejects.toThrow("cannot download targets");
+    expect(calls).toBe(0);
+    expect(await readdir(cycle.journal)).toEqual([]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("lock revoked during transport prevents new journal evidence and delivery", async () => {
+  const f = await setup();
+  try {
+    await withFolderOperationLock(f.attempt, async (held) => {
+      let revoked = false;
+      const guard = async () => {
+        await held();
+        if (revoked) throw new Error("revoked during transport");
+      };
+      const cycle = await beginRecoveryMetadataCycle(
+        f.attempt,
+        f.original(),
+        "linux-arm64",
+        guard,
+        {
+          async downloadBytes() {
+            revoked = true;
+            return Buffer.from("not recorded");
+          },
+          async downloadFile() {
+            throw new Error("unexpected target");
+          },
+        },
+        f.fixture.metadataBaseUrl,
+      );
+      await expect(
+        cycle.fetcher.downloadBytes(
+          `${f.fixture.metadataBaseUrl}timestamp.json`,
+          100,
+        ),
+      ).rejects.toThrow("revoked during transport");
+      expect(await readdir(cycle.journal)).toEqual([]);
+    });
+  } finally {
+    await f.cleanup();
+  }
+});
+
 test("network cycle journals fresh responses without overwriting prior evidence", async () => {
   const f = await setup();
   try {

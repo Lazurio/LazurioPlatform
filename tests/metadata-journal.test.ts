@@ -85,6 +85,49 @@ test("oversized transport response is never delivered or recorded", async () => 
   }
 });
 
+test("revoked custody after durable write keeps evidence but refuses delivery", async () => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), "journal-final-guard-")),
+  );
+  let checks = 0;
+  try {
+    const journal = new MetadataJournalFetcher(
+      {
+        async downloadBytes() {
+          return Buffer.from("retained evidence");
+        },
+        async downloadFile() {
+          throw new Error("unexpected target");
+        },
+      },
+      directory,
+      "https://example.invalid/metadata/",
+      undefined,
+      undefined,
+      async () => {
+        if (++checks === 3) throw new Error("lost after write");
+      },
+    );
+    await expect(
+      journal.downloadBytes(
+        "https://example.invalid/metadata/timestamp.json",
+        100,
+      ),
+    ).rejects.toThrow("lost after write");
+    expect(await readFile(join(directory, "001-timestamp.json"), "utf8")).toBe(
+      "retained evidence",
+    );
+    await expect(
+      journal.downloadBytes(
+        "https://example.invalid/metadata/snapshot.json",
+        100,
+      ),
+    ).rejects.toThrow("requires recovery");
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});
+
 test("returned metadata evidence survives abrupt process exit", async () => {
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), "metadata-exit-")),
