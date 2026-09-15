@@ -1,5 +1,5 @@
-import { acquireFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { acquireRetainedOperationLock } from "../folder/retained-lock";
 
 // One instance belongs to the shared lifecycle owner. Callers resolve the actual
 // package/workspace dependency owner first; an app path is not a fallback owner.
@@ -11,7 +11,7 @@ export function createOwnerOperations(
   const pending = new Map<string, Promise<void>>();
   const locks = new Map<
     string,
-    Awaited<ReturnType<typeof acquireFolderOperationLock>>
+    Awaited<ReturnType<typeof acquireRetainedOperationLock>>
   >();
   let releaseQueue = Promise.resolve();
   let admission = Promise.resolve();
@@ -49,7 +49,7 @@ export function createOwnerOperations(
         throw new Error("Dependency owner changed while queued");
       let lock = locks.get(key);
       if (!lock) {
-        lock = await acquireFolderOperationLock(directory);
+        lock = await acquireRetainedOperationLock(directory);
         locks.set(key, lock);
       }
       await lock.assertHeld();

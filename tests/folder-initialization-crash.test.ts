@@ -12,7 +12,7 @@ for (const stop of [
   "layout",
 ] as const) {
   test.skipIf(process.platform === "win32")(
-    `abrupt process exit at initialization ${stop} retains evidence and blocks unsafe resume`,
+    `abrupt process exit at initialization ${stop} resumes under kernel exclusion`,
     async () => {
       const parent = await realpath(
         await mkdtemp(join(tmpdir(), "init-process-death-")),
@@ -43,15 +43,22 @@ for (const stop of [
           entries.map((name) => readFile(join(journal, name))),
         );
         expect(entries).toContain("before.json");
-        expect(await readdir(join(state, ".operation-lock"))).toEqual([]);
-        await expect(resumeInitialization(folder)).rejects.toThrow("recovery");
-        expect((await readdir(journal)).sort()).toEqual(entries);
+        expect(await readdir(join(state, ".operation-lock"))).toEqual([
+          "protocol",
+        ]);
+        expect(await resumeInitialization(folder)).toEqual({
+          kind: "recovered",
+          revision: 1,
+        });
+        const archived = join(state, "history", "initialization");
         for (const [index, name] of entries.entries()) {
           const retained = before[index];
           if (!retained) throw new Error("Missing journal snapshot");
-          expect(await readFile(join(journal, name))).toEqual(retained);
+          expect(await readFile(join(archived, name))).toEqual(retained);
         }
-        expect(await readdir(join(state, ".operation-lock"))).toEqual([]);
+        expect(await readdir(join(state, ".operation-lock"))).toEqual([
+          "protocol",
+        ]);
       } finally {
         await rm(parent, { recursive: true, force: true });
       }

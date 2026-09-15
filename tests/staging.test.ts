@@ -107,8 +107,12 @@ test("staging refuses an unbound location, missing trust, an unselectable attemp
       { mode: 0o600 },
     );
     await expect(stage("closed")).rejects.toThrow("not selectable");
-    await mkdir(join(root, ".operation-lock"), { mode: 0o700 });
-    await expect(stage("closed")).rejects.toThrow("busy or requires recovery");
+    const { withFolderOperationLock } = await import("../src/folder/lock");
+    await withFolderOperationLock(root, async () => {
+      await expect(stage("closed")).rejects.toThrow(
+        "busy or requires recovery",
+      );
+    });
     expect(await readdir(versions)).toEqual([]);
   } finally {
     await rm(home, { recursive: true });

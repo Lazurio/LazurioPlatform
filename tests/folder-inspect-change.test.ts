@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
+import { withFolderOperationLock } from "../src/folder/lock";
 import { executionOs } from "../src/folder/platform";
 import { previewFolder } from "../src/folder/preview";
 
@@ -113,14 +114,15 @@ test.skipIf(process.platform === "win32")(
         manifest,
       );
       expect((await readdir(state)).sort()).toEqual([
+        ".operation-lock",
         "instructions.json",
         "preferences.json",
       ]);
-      await mkdir(join(state, ".operation-lock"));
-      await expect(inspectProfileChange(folder, 1, requested)).rejects.toThrow(
-        "busy",
-      );
-      await rm(join(state, ".operation-lock"), { recursive: true });
+      await withFolderOperationLock(state, async () => {
+        await expect(
+          inspectProfileChange(folder, 1, requested),
+        ).rejects.toThrow("busy");
+      });
       await writeFile(
         join(state, "pending.json"),
         "preserve transaction evidence",
@@ -145,6 +147,7 @@ test.skipIf(process.platform === "win32")(
         "Preserve synthetic user work",
       );
       expect((await readdir(state)).sort()).toEqual([
+        ".operation-lock",
         "instructions.json",
         "preferences.json",
       ]);
@@ -155,6 +158,7 @@ test.skipIf(process.platform === "win32")(
         "Canonical",
       );
       expect((await readdir(externalState)).sort()).toEqual([
+        ".operation-lock",
         "instructions.json",
         "preferences.json",
       ]);

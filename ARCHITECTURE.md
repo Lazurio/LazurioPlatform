@@ -118,6 +118,16 @@ different accepted workflows, defined in [release lifecycle](docs/release-cycle.
 Program selection and Lazurio Folder selection are independent; source edits
 are never live.
 
+Local operation exclusion has one owner-bound persistent lock inode. The
+development APFS/ext4 adapter holds native kernel exclusion through the pinned
+runtime, so process death releases exclusion without deleting evidence or guessing
+from a PID. CLI, Launchpad and installation retain their existing owner boundaries.
+Dependency operations retain the earlier blocking protocol until surviving-writer
+cleanup is proven; both protocols refuse each other's occupied lock path.
+No owner gets a competing recovery lock. Acquiring
+exclusion never clears a pending transaction. Unknown/legacy lock protocols remain
+refused; see the [lock and recovery contract](docs/migration-and-recovery.md).
+
 ## Workspace module contract and first usable milestone
 
 **Confirmed direction:** Platform standardizes how module operations are invoked,

@@ -184,6 +184,23 @@ not just `--help`. All earlier preservation, tamper, concurrency and recovery ga
 
 ### TUF client integration boundary
 
+The shared operation lock now uses a persistent protocol-marked directory and
+native nonblocking kernel exclusion. The process owns its open descriptor; close
+or process death releases exclusion, not the pending transaction. An old unmarked
+lock remains refused. Folder and installer share this helper. Dependency operations
+retain the earlier blocking lock because owner death alone does not prove that their
+writers stopped. Both protocols exclude each other at the same path; no second
+updater or competing owner lock is introduced. Pinned Bun FFI and APFS/ext4 native
+qualification are explicit development constraints. The filter accepts APFS and
+Linux ext-family statfs types, not evidence of ext2/ext3 support; Windows and other
+filesystem types are refused.
+
+`scripts/smoke-owner-lock.ts` can be compiled with the usual no-autoload flags for
+a source-free native guest. It verifies live-process exclusion, acquisition after
+SIGKILL while an executed consumer remains alive, and forward initialization
+recovery at five recorded checkpoints with retained journal bytes. This does not
+qualify power loss, unrecorded/partial writes or recovery of expired TUF metadata.
+
 The development pilot channel document uses `schemaVersion: 1`, `channel: "pilot"`,
 a positive integer `sequence`, and `targets` mapping execution targets to
 `artifacts/<sha256>/lazurio` (or `lazurio.exe` on Windows). `selectPilotTarget`
@@ -353,7 +370,8 @@ compatibility and rollback checks before activation, official delivery (the
 journey origin is a loopback fixture), recovery of an expired or inconsistent
 transcript via fresh
 network metadata (such attempts stay pending and block new downloads until an
-explicit repair path exists), reclaiming a lock left by a dead process, write
+explicit repair path exists), repair of legacy/unmarked or partially initialized
+locks (new protocol locks use kernel exclusion released on process death), write
 compatibility and rollback checks before activation, retention policy for staged
 versions, and native power-loss/Windows qualification. A newer channel sequence
 alone cannot prove product downgrade safety, native support or permission to

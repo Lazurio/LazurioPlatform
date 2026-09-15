@@ -542,6 +542,7 @@ for (const stop of [
           f.manifest,
         );
         expect((await readdir(f.state)).sort()).toEqual([
+          ".operation-lock",
           "instructions.json",
           "preferences.json",
           "transaction",
@@ -689,6 +690,7 @@ test.skipIf(process.platform === "win32")(
         kind: "unchanged",
       });
       expect((await readdir(f.state)).sort()).toEqual([
+        ".operation-lock",
         "instructions.json",
         "preferences.json",
       ]);

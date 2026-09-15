@@ -19,6 +19,7 @@ import {
   prepareInstallLocation,
   resolveInstallLocation,
 } from "../src/distribution/install-location";
+import { withFolderOperationLock } from "../src/folder/lock";
 
 test("activation refuses unstaged names, foreign version directories and a held lock without writing", async () => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "activate-home-")));
@@ -47,9 +48,9 @@ test("activation refuses unstaged names, foreign version directories and a held 
     await writeFile(join(foreign, "lazurio"), "not ours", { mode: 0o600 });
     await expect(activate("1.2.3+0123456789abcdef")).rejects.toThrow();
     await rm(foreign, { recursive: true });
-    await mkdir(join(location.owner, ".operation-lock"), { mode: 0o700 });
-    await expect(activate("1.2.3+0123456789abcdef")).rejects.toThrow();
-    await rm(join(location.owner, ".operation-lock"), { recursive: true });
+    await withFolderOperationLock(location.owner, async () => {
+      await expect(activate("1.2.3+0123456789abcdef")).rejects.toThrow("busy");
+    });
     expect((await readdir(location.base)).sort()).toEqual([
       "distribution",
       "location.json",

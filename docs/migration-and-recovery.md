@@ -172,17 +172,38 @@ journal schema, creation/replacement and durable recovery remain unimplemented. 
 no second locator or workflow service. Custom composition/conflict handling and actual
 CLI/Launchpad state loading must precede claims of usable persistent preferences.
 
-The development POSIX adapter `withFolderOperationLock` uses atomic creation of
-`.operation-lock` within an explicitly supplied, canonical, caller-owned stable
-state directory. It does not discover or create an installed state location. All
-consumers must bind the same existing operation owner; selecting different directories
-does not provide mutual exclusion. It exposes a held-lock recheck before mutation,
-checks directory identities, and removes only its own empty lock on callback exit.
-Unexpected lock content or replacement is retained as an error. A terminated process
-leaves a blocking lock; age, PID absence or guessed completion never automatically
-reclaims it. Journal-aware operator recovery remains to be implemented. Callback
-exceptions release an otherwise unchanged lock, so the caller must inspect pending
-transaction recovery under every acquired lock before doing new work.
+The development adapter `withFolderOperationLock` now keeps one persistent
+`.operation-lock` directory with an exact `protocol` marker. Nonblocking native
+`flock` on its open directory descriptor provides exclusion; close/process death
+releases that exclusion without unlinking or replacing the lock inode. Callers still
+bind the same canonical owned state directory and inspect pending transaction recovery
+under every acquired lock before starting new work. The lock is not a transaction
+completion marker. Parent, inode, marker custody and contents are rechecked before
+mutation and on release; unknown content and replacement are preserved and refused.
+
+This replaces the former empty-directory mkdir protocol only when no lock exists.
+An existing unmarked/partial lock is never adopted or deleted, even when old or
+apparently ownerless. A crash during first marker initialization may therefore still
+require explicit repair. Earlier binaries refuse the persistent directory rather
+than run concurrently under a different protocol. No force-unlock command is added.
+
+The native adapter uses pinned Bun FFI and explicit O_CLOEXEC on the directory
+descriptor; an executed consumer must not retain an installer's lock after it dies.
+Local APFS on macOS and ext4 on Linux are the bounded qualification targets.
+The runtime filters APFS/ext-family statfs types; the Linux type also denotes
+ext2/ext3 and does not qualify those filesystems. Other filesystem types and
+Windows fail closed before creating the lock. FFI remains an
+experimental runtime dependency requiring standalone/native release qualification.
+The directory is never pruned: unlink/recreate could split cooperating waiters
+between independent inodes. This is cooperative local exclusion, not a security
+boundary against a same-user process able to replace the owner tree.
+
+Dependency lifecycle operations deliberately continue to use the prior retained
+mkdir lock via `acquireRetainedOperationLock`. A module's preparer/app may outlive
+its owner; releasing exclusion on owner death without proving descendant cleanup
+could admit a second writer. Native protocol upgrade for that consumer requires
+its own lifetime/drain evidence. Both adapters use the same reserved path and
+refuse each other's protocol, never create two independent locks for one owner.
 
 Tests currently exercise native macOS fixtures, contention, callback failure,
 process termination and preservation of unexpected lock contents. This is cooperative
@@ -242,18 +263,16 @@ development fixtures, not process-death lock recovery or installed qualification
 
 The separate `folder-initialization-crash.test.ts` runs actual child processes that
 exit without unwinding the lock callback at each recorded initialization checkpoint.
-All five cases retain the lock and exact journal bytes; `folder-resume` refuses them
-without deleting evidence. This proves the current refusal boundary, not successful
-process-death recovery. The empty directory lock has no recorded owner, so an operator
-cannot infer safe reclamation from its age or a guessed PID.
+All five cases reacquire native exclusion and resume the recognized initialization;
+the original journal bytes survive in history. This is process-death recovery of
+recorded writes, not recovery of an arbitrary partial write or power-loss proof.
 
-Before replacing this adapter, qualify process-bound exclusion and interruption on
-each target OS, including competing recovery attempts and legacy directory-lock
-refusal. Kernel file locks are a candidate: Linux documents their lifetime in
-[flock(2)](https://man7.org/linux/man-pages/man2/flock.2.html). The transport into the
-standalone TypeScript executable remains unresolved; [Bun FFI](https://bun.com/docs/runtime/ffi)
-is explicitly experimental and is not adopted as a production dependency by this
-investigation. Do not add a force-unlock shortcut while that gap remains.
+Qualification must include competing recovery, legacy directory-lock refusal and
+actual executed-consumer inheritance on each supported OS. Linux documents lifetime in
+[flock(2)](https://man7.org/linux/man-pages/man2/flock.2.html). The development transport
+uses [Bun FFI](https://bun.com/docs/runtime/ffi), which is explicitly experimental;
+its adoption does not complete public-release
+qualification. Do not add a force-unlock shortcut for unrecognized locks.
 
 ### Development preparation writer
 
@@ -400,7 +419,7 @@ nonregular/linked/shared-writable files, changed read snapshots, malformed UTF-8
 and unknown entries that could represent pending transaction recovery. Each JSON
 document is bounded to 16 MiB by the development decoder, not a published custom-profile
 size promise. A missing file is an error, not permission to initialize fresh state.
-Only the ephemeral lock is created/removed; source, manifest, instructions and user
+Only persistent lock protocol metadata may be initialized; source, manifest, instructions and user
 files remain unchanged. Actual persistence, journal recovery and installed CLI/UI
 integration are not supplied by this read-only adapter.
 
