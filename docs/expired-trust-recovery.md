@@ -1,6 +1,9 @@
 # Expired pending trust: implementation work package
 
-Status: open implementation gate, not an available recovery command or permission
+Status: deferred automatic-recovery work, not a prerequisite for the controlled
+pilot (scope decision 2026-09-15; see [pilot repair](pilot-repair.md)). Stop expanding
+this work package for pilot readiness. Preserve completed safety checks and retained
+trust; unfinished helpers are not runtime acceptance. Not an available recovery command or permission
 to install from expired metadata. This extends the installation owner described in
 [release-cycle](release-cycle.md), not a second updater or trust selection store.
 

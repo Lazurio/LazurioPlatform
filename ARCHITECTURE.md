@@ -37,6 +37,14 @@ and retire only identified old product content after preserving unique work. Leg
 is inventory/provenance, not profile-branch delivery. Recovery proceeds forward; a runnable
 legacy-installation rollback is not required. See the migration contract for boundaries.
 
+Product updates have a separate failure contract: prepare beside the active version;
+failed preparation preserves the existing usable product and working data. For the
+controlled pilot, clear diagnosis and an explicit bounded repair/retry procedure are
+required, not general automatic recovery from every interruption or expired transcript.
+Repair must preserve accepted trust and cannot reset metadata or bypass signatures.
+See [pilot repair](docs/pilot-repair.md). One-way Folder migration does not weaken this
+product-update preservation requirement.
+
 This preparation does not rewrite legacy apps, migrate current hosts, implement
 account/billing services, choose commercial terms or create a release mandate.
 

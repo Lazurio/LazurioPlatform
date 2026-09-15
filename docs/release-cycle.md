@@ -1,5 +1,16 @@
 # Build, qualification and activation lifecycle
 
+## Controlled-pilot scope decision — 2026-09-15
+
+Preparation is side-by-side; failed preparation preserves the currently usable
+product and working data. The pilot requires a clear diagnosis and a bounded,
+explicit repair/retry procedure, not general automatic recovery from every expired
+or inconsistent transcript. See [pilot repair](pilot-repair.md). This decision
+supersedes earlier pre-pilot automatic-recovery gates below, without relaxing
+signature, expiry, retained-trust, owner-exclusion or activation requirements.
+Complex automatic recovery is deferred; clean installation and failed-update
+preservation are the next integrated qualification priorities.
+
 Status: the two test paths and deliberate whole-Machine candidate activation are
 accepted outcomes. Mechanisms and command spellings below are proposals, not
 implemented commands or a mandate to switch the current host.
