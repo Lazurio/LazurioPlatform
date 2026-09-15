@@ -73,10 +73,91 @@ export async function verifyInstallLocation(
     if (!ownerEntries.has(entry))
       throw new Error("Unknown content in installation owner directory");
   await inspectOwnedDirectory(location.versions);
-  for (const entry of await readdir(location.versions))
-    if (!stagedVersionName.test(entry) && !stagingName.test(entry))
-      throw new Error("Unknown content in product versions directory");
+  for (const entry of await readdir(location.versions)) {
+    const path = join(location.versions, entry);
+    if (stagingName.test(entry)) {
+      // A leftover from an interrupted staging is retained, never used.
+      if (!(await lstat(path)).isDirectory())
+        throw new Error("Unknown content in product versions directory");
+    } else if (stagedVersionName.test(entry))
+      await verifyStagedVersionDirectory(path, entry);
+    else throw new Error("Unknown content in product versions directory");
+  }
   return location;
+}
+
+/** A published version directory must prove it was staged by this product: a
+ * canonical owned directory holding exactly the read-only artifact,
+ * identity.json and provenance.json, whose provenance and identity agree with
+ * each other and with the directory name. A name alone proves nothing; a
+ * regular file, link or foreign directory with a valid name is refused. This
+ * does not re-hash the artifact bytes; staging and activation re-verify them.
+ */
+export async function verifyStagedVersionDirectory(
+  directory: string,
+  name: string,
+) {
+  if (!stagedVersionName.test(name))
+    throw new Error("Invalid staged version name");
+  await inspectOwnedDirectory(directory);
+  const entries = (await readdir(directory)).sort();
+  const artifactName = entries.includes("lazurio.exe")
+    ? "lazurio.exe"
+    : "lazurio";
+  if (entries.join(",") !== `identity.json,${artifactName},provenance.json`)
+    throw new Error("Unrecognized staged version layout");
+  for (const [entry, mode] of [
+    [artifactName, 0o500],
+    ["identity.json", 0o400],
+    ["provenance.json", 0o400],
+  ] as const) {
+    const stat = await lstat(join(directory, entry));
+    if (
+      !stat.isFile() ||
+      stat.nlink !== 1 ||
+      stat.uid !== process.getuid?.() ||
+      (stat.mode & 0o777) !== mode
+    )
+      throw new Error(
+        "Staged version entry is not this product's immutable file",
+      );
+  }
+  const provenance = exactFields(
+    await readOwnedJson(join(directory, "provenance.json")),
+    ["artifactSha256", "attempt", "channel", "schemaVersion"],
+  );
+  const channel = exactFields(provenance.channel, [
+    "documentSha256",
+    "sequence",
+  ]);
+  const [version, digestPrefix] = name.split("+");
+  if (
+    provenance.schemaVersion !== 1 ||
+    typeof provenance.attempt !== "string" ||
+    !/^[a-z0-9][a-z0-9-]{0,63}$/.test(provenance.attempt) ||
+    typeof provenance.artifactSha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(provenance.artifactSha256) ||
+    !provenance.artifactSha256.startsWith(digestPrefix as string) ||
+    !Number.isSafeInteger(channel.sequence) ||
+    (channel.sequence as number) < 1 ||
+    typeof channel.documentSha256 !== "string" ||
+    !/^[a-f0-9]{64}$/.test(channel.documentSha256)
+  )
+    throw new Error("Staged version provenance is inconsistent");
+  const envelope = (await readOwnedJson(
+    join(directory, "identity.json"),
+  )) as Record<string, unknown> | null;
+  const identity = envelope?.identity as Record<string, unknown> | undefined;
+  if (
+    !identity ||
+    typeof identity !== "object" ||
+    identity.schemaVersion !== 1 ||
+    identity.version !== version ||
+    identity.artifactSha256 !== provenance.artifactSha256 ||
+    (identity.target as string | undefined)?.startsWith("windows-") !==
+      (artifactName === "lazurio.exe")
+  )
+    throw new Error("Staged version identity does not match its provenance");
 }
 
 /** Creates the location once as a complete private layout published by one

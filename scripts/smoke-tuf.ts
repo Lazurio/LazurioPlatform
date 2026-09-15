@@ -10,6 +10,7 @@ import {
   rename,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -650,13 +651,15 @@ try {
     const again = await stage(sixth.attempt);
     assert.equal(again.alreadyStaged, true);
     assert.equal(again.directory, staged.directory);
-    // An occupied name with different bytes is a conflict, never overwritten.
+    // An occupied name whose layout or bytes differ is refused, never
+    // overwritten; the staged artifact stays intact.
     await chmod(join(staged.directory, "identity.json"), 0o600);
     await writeFile(join(staged.directory, "identity.json"), "{}");
-    await assert.rejects(stage(sixth.attempt), /Conflicting/);
+    await assert.rejects(stage(sixth.attempt), /immutable file|Conflicting/);
     assert.deepEqual(await readFile(staged.artifactPath), payload);
     await writeFile(join(staged.directory, "identity.json"), identityBytes);
     await chmod(join(staged.directory, "identity.json"), 0o400);
+    assert.equal((await stage(sixth.attempt)).alreadyStaged, true);
     // Identity refusals: wrong platform label and a release that cannot read
     // the required schemas are refused before any directory is created.
     for (const [index, [label, bytes]] of (
@@ -694,7 +697,30 @@ try {
     });
     await assert.rejects(stage(eighth.attempt), /Unknown content/);
     await rm(join(versions, "foreign-owned-content"));
+    // A validly named foreign directory, file or link beside the staged
+    // product blocks staging as well; foreign bytes stay untouched.
+    const foreignName = "9.9.9+fedcba9876543210";
+    const foreignPath = join(versions, foreignName);
+    await mkdir(foreignPath, { mode: 0o700 });
+    await writeFile(join(foreignPath, "lazurio"), "not ours", { mode: 0o600 });
+    await assert.rejects(stage(eighth.attempt), /staged version layout/);
+    assert.equal(
+      await readFile(join(foreignPath, "lazurio"), "utf8"),
+      "not ours",
+    );
+    await rm(foreignPath, { recursive: true });
+    await writeFile(foreignPath, "not ours", { mode: 0o600 });
+    await assert.rejects(stage(eighth.attempt));
+    assert.equal(await readFile(foreignPath, "utf8"), "not ours");
+    await rm(foreignPath);
+    await symlink(staged.directory, foreignPath);
+    await assert.rejects(stage(eighth.attempt), /Canonical/);
+    await rm(foreignPath);
     assert.equal((await stage(eighth.attempt)).alreadyStaged, true);
+    assert.deepEqual((await readdir(versions)).sort(), [
+      ".staging-deadbeefdeadbeef",
+      staged.name,
+    ]);
     assert.deepEqual(await readPublishedPilotTrust(root), eighth.published);
     console.log(
       "PASS: staging binds the closed candidate to its signed identity, checks read compatibility, publishes one immutable versioned directory and never touches an active version",

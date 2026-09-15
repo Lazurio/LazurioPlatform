@@ -278,8 +278,15 @@ proof that this product initialized the location: the record must exist and the
 base, owner and versions directories may hold only entries this product creates.
 A pre-existing base without the record, or unknown content inside an initialized
 one, is refused and never adopted, repaired or removed; filesystem custody alone
-does not make a directory this product's. Staging is bound to one verified
-location and never takes the owner root or versions directory as separate paths.
+does not make a directory this product's. A published `versions/<version>+<sha>`
+entry must itself prove it was staged by this product (`verifyStagedVersionDirectory`):
+a canonical owned directory holding exactly the read-only artifact (0o500),
+`identity.json` and `provenance.json` (0o400) whose provenance and identity agree
+with each other and with the name. A validly named foreign directory, regular file
+or link is refused; a `.staging-*` leftover is only retained. Verification does not
+re-hash artifact bytes; staging and activation re-verify them. Staging is bound to
+one verified location and never takes the owner root or versions directory as
+separate paths.
 
 `stagePilotCandidate` (`src/distribution/staging.ts`) runs under the same owner
 lock and stages one closed attempt that is still selectable under the published

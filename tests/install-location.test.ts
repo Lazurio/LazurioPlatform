@@ -110,6 +110,36 @@ test("prepare creates the layout once, verifies it afterwards and refuses foreig
     await chmod(join(location.base, "location.json"), 0o600);
     await writeFile(join(location.base, "location.json"), "{}");
     await expect(verifyInstallLocation(location)).rejects.toThrow();
+    await writeFile(
+      join(location.base, "location.json"),
+      JSON.stringify({ schemaVersion: 1, kind: "lazurio-install-location" }),
+    );
+    await chmod(join(location.base, "location.json"), 0o400);
+    expect(await verifyInstallLocation(location)).toEqual(location);
+    // A validly named entry in versions/ must prove it is this product's
+    // staged layout: a foreign directory, a regular file and a link are refused.
+    const valid = "1.2.3+0123456789abcdef";
+    await mkdir(join(location.versions, valid), { mode: 0o700 });
+    await writeFile(join(location.versions, valid, "foreign"), "x", {
+      mode: 0o600,
+    });
+    await expect(verifyInstallLocation(location)).rejects.toThrow(
+      "Unrecognized staged version layout",
+    );
+    expect(await readdir(join(location.versions, valid))).toEqual(["foreign"]);
+    await rm(join(location.versions, valid), { recursive: true });
+    await writeFile(join(location.versions, valid), "x", { mode: 0o600 });
+    await expect(verifyInstallLocation(location)).rejects.toThrow();
+    await rm(join(location.versions, valid));
+    await symlink(location.owner, join(location.versions, valid));
+    await expect(verifyInstallLocation(location)).rejects.toThrow("Canonical");
+    await rm(join(location.versions, valid));
+    await writeFile(join(location.versions, ".staging-0123456789abcdef"), "x", {
+      mode: 0o600,
+    });
+    await expect(verifyInstallLocation(location)).rejects.toThrow("Unknown");
+    await rm(join(location.versions, ".staging-0123456789abcdef"));
+    expect(await verifyInstallLocation(location)).toEqual(location);
     // A linked base is refused before any record is read.
     const linked = resolve("linked");
     await mkdir(join(home, "linked"), { mode: 0o700 });

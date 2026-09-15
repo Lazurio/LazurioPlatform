@@ -110,7 +110,9 @@ export async function stagePilotCandidate(options: {
     const existing = (await readdir(versions)).includes(name);
     await assertHeld();
     if (existing) {
-      // Immutable: an occupied name is accepted only when byte-identical.
+      // Immutable: an occupied name is accepted only when it is this product's
+      // staged layout and byte-identical (verifyInstallLocation already
+      // refused anything else before the lock was taken).
       const staged = await describeCandidate(
         directory,
         options.executionTarget,
