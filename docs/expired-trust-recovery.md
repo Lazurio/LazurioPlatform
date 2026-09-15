@@ -17,6 +17,22 @@ The existing EOF continuation is insufficient: it cannot replace an expired
 timestamp or request a snapshot belonging to a different refresh cycle while
 pretending those responses complete the original transcript.
 
+### Current adapter boundary
+
+`src/distribution/historical-roles.ts` authenticates one ordered response chain
+from an explicitly trusted root using pinned model signature and metadata-link
+verification. Its result is branded `historical-floors-only`, contains no target
+selection or installable checkpoint, and makes no freshness/original-acceptance
+claim. Tests use distinct role keys and expired metadata, plus an old-and-new-signed
+root rotation. The model package is a pinned direct dependency, not an implicit
+production import from a development-only dependency.
+
+This adapter is not yet called by the owner. It throws on refused/corrupt evidence;
+it does not yet classify a refused final response or merge a previously accepted
+checkpoint's floors. It also does not reset floors after role-key rotation. Those
+steps and durable cross-cycle integration below remain required before enabling
+the new recovery path. A fully authenticated expired chain by itself is not enough.
+
 ## Three distinct trust inputs
 
 1. The owner-bound published checkpoint (or the explicitly supplied first-install
