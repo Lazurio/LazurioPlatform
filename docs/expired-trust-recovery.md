@@ -72,6 +72,10 @@ the pending attempt. Each contains only an immutable root/target/prior-state inp
 a location on which a caller could perform requests. The caller must hold the
 existing installation owner's lock and supply its held-lock assertion; no second
 lock or trust-selection store is introduced.
+Reconstruction requires the same held-lock assertion: it checks custody at entry,
+before each cycle, after journal reads and before returning usable floors, including
+an empty ledger. A revoked assertion refuses rather than returning a stale result;
+the caller must continue holding the lock while using that result.
 
 Reconstruction starts from the original owner-bound floors, checks every cycle's
 root/target binding and a SHA-256 fingerprint of the entire reconstructed prior

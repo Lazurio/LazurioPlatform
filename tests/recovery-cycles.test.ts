@@ -98,9 +98,64 @@ test("network cycle journals fresh responses without overwriting prior evidence"
             f.attempt,
             f.original(),
             "linux-arm64",
+            held,
           )
         ).records,
       ).toBe(2);
+    });
+  } finally {
+    await f.cleanup();
+  }
+});
+
+test("reconstruction refuses absent or revoked owner custody", async () => {
+  const f = await setup();
+  try {
+    const lost = async () => {
+      throw new Error("revoked owner");
+    };
+    // Refuse at entry, even before touching a nonexistent ledger path.
+    await expect(
+      reconstructRecoveryCycles(
+        join(f.attempt, "missing"),
+        f.original(),
+        "linux-arm64",
+        lost,
+      ),
+    ).rejects.toThrow("revoked owner");
+    await withFolderOperationLock(f.attempt, async (held) => {
+      const cycle = await beginRecoveryCycle(
+        f.attempt,
+        f.original(),
+        "linux-arm64",
+        held,
+      );
+      await f.record(cycle.journal, "timestamp", 1);
+      for (const revokeAt of [2, 3, 4]) {
+        let checks = 0;
+        await expect(
+          reconstructRecoveryCycles(
+            f.attempt,
+            f.original(),
+            "linux-arm64",
+            async () => {
+              await held();
+              if (++checks === revokeAt) throw new Error("revoked owner");
+            },
+          ),
+        ).rejects.toThrow("revoked owner");
+        expect(checks).toBe(revokeAt);
+      }
+      expect(
+        (
+          await reconstructRecoveryCycles(
+            f.attempt,
+            f.original(),
+            "linux-arm64",
+            held,
+          )
+        ).records,
+      ).toBe(1);
     });
   } finally {
     await f.cleanup();
@@ -118,11 +173,17 @@ test("same root with weaker original floors cannot replace a cycle's actual inpu
     await withFolderOperationLock(f.attempt, async (held) => {
       await beginRecoveryCycle(f.attempt, stronger, "linux-arm64", held);
       await expect(
-        reconstructRecoveryCycles(f.attempt, f.original(), "linux-arm64"),
+        reconstructRecoveryCycles(f.attempt, f.original(), "linux-arm64", held),
       ).rejects.toThrow("input does not match");
       expect(
-        (await reconstructRecoveryCycles(f.attempt, stronger, "linux-arm64"))
-          .floors.timestampVersion,
+        (
+          await reconstructRecoveryCycles(
+            f.attempt,
+            stronger,
+            "linux-arm64",
+            held,
+          )
+        ).floors.timestampVersion,
       ).toBe(1);
     });
   } finally {
@@ -188,13 +249,19 @@ test("next durable cycle is bound to an authenticated advanced root, not the ori
       const input = JSON.parse(await readFile(inputPath, "utf8"));
       expect(input.root).toBe(nextRoot);
       expect(
-        (await reconstructRecoveryCycles(f.attempt, original(), "linux-arm64"))
-          .floors.rootVersion,
+        (
+          await reconstructRecoveryCycles(
+            f.attempt,
+            original(),
+            "linux-arm64",
+            held,
+          )
+        ).floors.rootVersion,
       ).toBe(2);
       await chmod(inputPath, 0o600);
       await writeFile(inputPath, JSON.stringify({ ...input, root: firstRoot }));
       await expect(
-        reconstructRecoveryCycles(f.attempt, original(), "linux-arm64"),
+        reconstructRecoveryCycles(f.attempt, original(), "linux-arm64", held),
       ).rejects.toThrow("input does not match");
     });
   } finally {
@@ -251,6 +318,7 @@ test("cycles reconstruct floors after another partial refresh without serialized
         f.attempt,
         f.original(),
         "linux-arm64",
+        held,
       );
       expect(state.floors.timestampVersion).toBe(7);
       expect(state.floors.snapshotVersion).toBe(7);
@@ -265,11 +333,12 @@ test("cycles reconstruct floors after another partial refresh without serialized
       await f.record(second.journal, "timestamp", 1);
       await f.record(second.journal, "snapshot", 2);
     });
-    await withFolderOperationLock(f.attempt, async () => {
+    await withFolderOperationLock(f.attempt, async (held) => {
       const state = await reconstructRecoveryCycles(
         f.attempt,
         f.original(),
         "linux-arm64",
+        held,
       );
       expect(state.count).toBe(2);
       expect(state.records).toBe(3);
@@ -297,7 +366,7 @@ test("lost lock refuses before mutation; interrupted unpublished input is never 
       await expect(
         beginRecoveryCycle(f.attempt, f.original(), "linux-arm64", async () => {
           await held();
-          if (++calls === 3) throw new Error("injected before publication");
+          if (++calls === 5) throw new Error("injected before publication");
         }),
       ).rejects.toThrow("injected before publication");
       expect(await readdir(join(f.attempt, "recovery-cycles"))).toEqual([]);
@@ -312,6 +381,7 @@ test("lost lock refuses before mutation; interrupted unpublished input is never 
             f.attempt,
             f.original(),
             "linux-arm64",
+            held,
           )
         ).count,
       ).toBe(1);
@@ -332,13 +402,14 @@ test("published empty cycle survives interruption after rename", async () => {
       await expect(
         beginRecoveryCycle(f.attempt, f.original(), "linux-arm64", async () => {
           await held();
-          if (++calls === 4) throw new Error("after publication");
+          if (++calls === 6) throw new Error("after publication");
         }),
       ).rejects.toThrow("after publication");
       const state = await reconstructRecoveryCycles(
         f.attempt,
         f.original(),
         "linux-arm64",
+        held,
       );
       expect(state.count).toBe(1);
       expect(state.records).toBe(0);
@@ -360,14 +431,19 @@ test("wrong input binding, gapped cycles and corrupt journal refuse without fall
         held,
       );
       await expect(
-        reconstructRecoveryCycles(f.attempt, f.original(), "darwin-arm64"),
+        reconstructRecoveryCycles(
+          f.attempt,
+          f.original(),
+          "darwin-arm64",
+          held,
+        ),
       ).rejects.toThrow("input does not match");
       const path = join(cycle.directory, "input.json");
       const input = JSON.parse(await readFile(path, "utf8"));
       await chmod(path, 0o600);
       await writeFile(path, JSON.stringify({ ...input, root: "foreign root" }));
       await expect(
-        reconstructRecoveryCycles(f.attempt, f.original(), "linux-arm64"),
+        reconstructRecoveryCycles(f.attempt, f.original(), "linux-arm64", held),
       ).rejects.toThrow("input does not match");
       await writeFile(path, JSON.stringify(input));
       await writeFile(
@@ -376,7 +452,7 @@ test("wrong input binding, gapped cycles and corrupt journal refuse without fall
         { mode: 0o600 },
       );
       await expect(
-        reconstructRecoveryCycles(f.attempt, f.original(), "linux-arm64"),
+        reconstructRecoveryCycles(f.attempt, f.original(), "linux-arm64", held),
       ).rejects.toThrow();
       expect(
         await readFile(join(cycle.journal, "001-timestamp.json"), "utf8"),
@@ -387,9 +463,11 @@ test("wrong input binding, gapped cycles and corrupt journal refuse without fall
     await mkdir(other, { mode: 0o700 });
     await mkdir(join(other, "recovery-cycles"), { mode: 0o700 });
     await mkdir(join(other, "recovery-cycles", "000002"), { mode: 0o700 });
-    await expect(
-      reconstructRecoveryCycles(other, f.original(), "linux-arm64"),
-    ).rejects.toThrow("Gapped or unknown");
+    await withFolderOperationLock(other, async (held) => {
+      await expect(
+        reconstructRecoveryCycles(other, f.original(), "linux-arm64", held),
+      ).rejects.toThrow("Gapped or unknown");
+    });
   } finally {
     await f.cleanup();
   }

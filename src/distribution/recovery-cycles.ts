@@ -28,7 +28,9 @@ export async function reconstructRecoveryCycles(
   attempt: string,
   original: HistoricalFloors,
   executionTarget: string,
+  assertHeld: () => Promise<void>,
 ) {
+  await assertHeld();
   target(executionTarget);
   let floors = continueHistoricalRoles(original, []);
   await inspectOwnedDirectory(attempt);
@@ -36,8 +38,10 @@ export async function reconstructRecoveryCycles(
   try {
     await lstat(parent);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT")
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      await assertHeld();
       return Object.freeze({ floors, count: 0, records: 0, bytes: 0 });
+    }
     throw error;
   }
   await inspectOwnedDirectory(parent);
@@ -46,6 +50,7 @@ export async function reconstructRecoveryCycles(
   let records = 0;
   let bytes = 0;
   for (const [index, name] of names.entries()) {
+    await assertHeld();
     if (name !== String(index + 1).padStart(6, "0"))
       throw new Error("Gapped or unknown recovery cycle");
     const directory = join(parent, name);
@@ -71,6 +76,7 @@ export async function reconstructRecoveryCycles(
     const journal = await readMetadataJournal(
       join(directory, "received-metadata"),
     );
+    await assertHeld();
     records += journal.records.length;
     bytes += journal.bytes;
     if (records > 260 || bytes > 32 * 1024 * 1024)
@@ -86,6 +92,7 @@ export async function reconstructRecoveryCycles(
       })),
     );
   }
+  await assertHeld();
   return Object.freeze({ floors, count: names.length, records, bytes });
 }
 
@@ -106,6 +113,7 @@ export async function beginRecoveryCycle(
     attempt,
     original,
     executionTarget,
+    assertHeld,
   );
   if (
     prior.count >= 32 ||
