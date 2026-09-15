@@ -266,6 +266,16 @@ It must distinguish the signed-root key-rotation reset specified by
 from an unsafe reset to bootstrap; keeping every numeric floor forever is not a
 substitute for that protocol. No timestamp rewrite or clock backdating is allowed.
 
+`tests/expired-cache-refresh.test.ts` qualifies the separate fresh-refresh phase
+through the public client path: given a synthetic previously trusted complete
+cache whose role metadata has expired, a higher fresh generation succeeds while
+a lower generation and fresh dates reusing the same version fail. The original
+checkpoint remains unchanged. This does not authenticate a pending journal or
+license adopting its mutable working cache as trust. The missing recovery step
+must establish and durably preserve the owner-bound accepted version floors
+before invoking that fresh phase; fresh-network success alone cannot prove no
+accepted trust was lost while preparing its input.
+
 Without successful continuation, a bootstrap attempt with received metadata but no
 complete checkpoint or verified first channel stays pending. Closing it would
 permit a fresh bootstrap that forgets already accepted root/role versions.
