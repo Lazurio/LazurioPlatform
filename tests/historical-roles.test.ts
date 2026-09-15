@@ -13,7 +13,9 @@ import {
 import {
   authenticateHistoricalRoles,
   continueHistoricalRoles,
+  historicalFloorsFromTrustedCheckpoint,
 } from "../src/distribution/historical-roles";
+import { parseTrustCheckpoint } from "../src/distribution/trust-checkpoint";
 
 function signer(id: string) {
   const pair = generateKeyPairSync("ed25519");
@@ -104,6 +106,67 @@ test("partial subsequent cycles cannot erase earlier authenticated floors", () =
   expect(lower.targetsVersion).toBe(4);
   expect(continueHistoricalRoles(lower, [])).toEqual(lower);
   expect(JSON.stringify(initial)).toBe(before);
+});
+
+test("explicit previously trusted mixed-stage cache retains all historical versions", () => {
+  const f = fixture();
+  // Synthetic previously accepted cache: newer timestamp, older cached snapshot
+  // and targets. This is not evidence that arbitrary cache bytes are trusted.
+  const checkpoint = parseTrustCheckpoint({
+    schemaVersion: 1,
+    metadata: {
+      root: f.anchor,
+      timestamp: f.encode(
+        new Timestamp({
+          ...f.fields(11),
+          snapshotMeta: new MetaFile({ version: 13 }),
+        }),
+      ),
+      snapshot: f.records[1]?.bytes,
+      targets: f.records[2]?.bytes,
+    },
+  });
+  const before = JSON.stringify(checkpoint);
+  const initial = historicalFloorsFromTrustedCheckpoint(checkpoint);
+  expect(initial.timestampVersion).toBe(11);
+  expect(initial.snapshotVersion).toBe(13);
+  expect(initial.snapshotRoles).toEqual({ "targets.json": 4 });
+  expect(initial.targetsVersion).toBe(4);
+  expect(continueHistoricalRoles(initial, f.records)).toEqual(initial);
+  expect(JSON.stringify(checkpoint)).toBe(before);
+  expect("selection" in initial).toBe(false);
+});
+
+test("trusted input conversion preserves snapshot's own higher version and refuses malformed references", () => {
+  const f = fixture();
+  const checkpoint = parseTrustCheckpoint({
+    schemaVersion: 1,
+    metadata: {
+      root: f.anchor,
+      timestamp: f.encode(
+        new Timestamp({
+          ...f.fields(7),
+          snapshotMeta: new MetaFile({ version: 8 }),
+        }),
+      ),
+      snapshot: f.records[1]?.bytes,
+      targets: f.records[2]?.bytes,
+    },
+  });
+  expect(
+    historicalFloorsFromTrustedCheckpoint(checkpoint).snapshotVersion,
+  ).toBe(9);
+  const invalid = JSON.parse(JSON.stringify(checkpoint));
+  const timestamp = JSON.parse(invalid.metadata.timestamp);
+  timestamp.signed.meta["snapshot.json"].version = Number.MAX_SAFE_INTEGER + 1;
+  invalid.metadata.timestamp = JSON.stringify(timestamp);
+  expect(() => historicalFloorsFromTrustedCheckpoint(invalid)).toThrow();
+  expect(() =>
+    historicalFloorsFromTrustedCheckpoint({
+      ...checkpoint,
+      extra: true,
+    } as typeof checkpoint),
+  ).toThrow();
 });
 
 test("a later snapshot retains missing historical role floors without pretending it is accepted", () => {

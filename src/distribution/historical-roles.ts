@@ -1,6 +1,7 @@
 import { Metadata, MetadataKind } from "@tufjs/models";
 import type { JSONObject } from "@tufjs/models/dist/utils";
 import { parseUniqueJson } from "../providers/unique-json";
+import { parseTrustCheckpoint, type TrustCheckpoint } from "./trust-checkpoint";
 
 const kinds = ["root", "timestamp", "snapshot", "targets"] as const;
 type Kind = (typeof kinds)[number];
@@ -22,6 +23,60 @@ function seal(value: HistoricalFloors): HistoricalFloors {
   Object.freeze(value);
   authenticated.add(value);
   return value;
+}
+
+/** Seed from the installation owner's already-published trusted checkpoint.
+ * This is an explicit trust-input boundary, NOT authentication of arbitrary cache
+ * bytes. The caller must obtain/bind it through readPublishedPilotTrust; merely
+ * passing parseTrustCheckpoint is insufficient to establish that provenance.
+ *
+ * A trusted cache may contain individually accepted roles from different refresh
+ * stages or root-key generations. Requiring a fresh, coherent chain here would
+ * discard precisely the historical state recovery needs to preserve. Freshness,
+ * signature/link checks of new responses and final publication remain separate.
+ * The owner's channel high-water remains separately owned and must also survive.
+ */
+export function historicalFloorsFromTrustedCheckpoint(
+  input: TrustCheckpoint,
+): HistoricalFloors {
+  const { metadata } = parseTrustCheckpoint(input);
+  const root = Metadata.fromJSON(
+    MetadataKind.Root,
+    envelope(metadata.root, "root"),
+  );
+  root.verifyDelegate("root", root);
+  const timestamp = timestampFrom(metadata.timestamp);
+  const snapshot = snapshotFrom(metadata.snapshot);
+  const targets = Metadata.fromJSON(
+    MetadataKind.Targets,
+    envelope(metadata.targets, "targets"),
+  );
+  const snapshotRoles: Record<string, number> = {};
+  for (const [name, meta] of Object.entries(snapshot.signed.meta)) {
+    positiveVersion(meta.version);
+    Object.defineProperty(snapshotRoles, name, {
+      value: meta.version,
+      enumerable: true,
+    });
+  }
+  positiveVersion(timestamp.signed.snapshotMeta.version);
+  return seal({
+    kind: "historical-floors-only",
+    root: metadata.root,
+    rootVersion: root.signed.version,
+    timestampVersion: timestamp.signed.version,
+    snapshotVersion: Math.max(
+      timestamp.signed.snapshotMeta.version,
+      snapshot.signed.version,
+    ),
+    snapshotRoles,
+    targetsVersion: targets.signed.version,
+  });
+}
+
+function positiveVersion(version: number) {
+  if (!Number.isSafeInteger(version) || version < 1)
+    throw new Error("Invalid historical referenced version");
 }
 
 function envelope(source: string, kind: Kind): JSONObject {

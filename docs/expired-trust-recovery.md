@@ -35,9 +35,16 @@ owner-bound evidence. This is in-memory accumulation, not durable recovery, and
 does not mark lower signed responses as accepted. Root rotation does not silently
 clear the counters.
 
+`historicalFloorsFromTrustedCheckpoint` provides an explicit trusted-input seed
+for the owner's already-published checkpoint. It preserves the timestamp's snapshot
+reference, the cached snapshot's own version and role references, and the cached
+targets version even when those roles describe different refresh stages. It does
+not authenticate arbitrary cache files: the caller still has to bind the input to
+`readPublishedPilotTrust`. Shape checks and the function name are not provenance.
+
 This adapter is not yet called by the owner. It throws on refused/corrupt evidence;
-it does not yet classify a refused final response or import a previously published
-checkpoint's floors. It also does not reset floors after role-key rotation. Those
+it does not yet classify a refused final response. It also does not reset floors
+after role-key rotation. Those
 steps and durable cross-cycle integration below remain required before enabling
 the new recovery path. A fully authenticated expired chain by itself is not enough.
 
