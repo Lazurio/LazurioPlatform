@@ -30,10 +30,10 @@ export function createPilotFixture(input: {
     },
   });
   const expires = new Date(Date.now() + 3600_000).toISOString();
-  const fields = (version: number) => ({
+  const fields = (version: number, expiration = expires) => ({
     version,
     specVersion: "1.0.0",
-    expires,
+    expires: expiration,
   });
   const signed = (value: Root | Targets | Timestamp | Snapshot) => {
     const metadata = new Metadata(value);
@@ -56,7 +56,7 @@ export function createPilotFixture(input: {
   const digest = hash(input.artifact).sha256;
   const artifactPath = `artifacts/${digest}/lazurio`;
   const identityPath = `artifacts/${digest}/identity.json`;
-  const repository = (version: number) => {
+  const repository = (version: number, expiration = expires) => {
     const channel = Buffer.from(
       JSON.stringify({
         schemaVersion: 1,
@@ -69,7 +69,7 @@ export function createPilotFixture(input: {
       new TargetFile({ path, length: bytes.length, hashes: hash(bytes) });
     const targets = signed(
       new Targets({
-        ...fields(version),
+        ...fields(version, expiration),
         targets: {
           "channels/pilot.json": target("channels/pilot.json", channel),
           [artifactPath]: target(artifactPath, input.artifact),
@@ -79,7 +79,7 @@ export function createPilotFixture(input: {
     );
     const snapshot = signed(
       new Snapshot({
-        ...fields(version),
+        ...fields(version, expiration),
         meta: {
           "targets.json": new MetaFile({
             version,
@@ -91,7 +91,7 @@ export function createPilotFixture(input: {
     );
     const timestamp = signed(
       new Timestamp({
-        ...fields(version),
+        ...fields(version, expiration),
         snapshotMeta: new MetaFile({
           version,
           length: snapshot.length,
@@ -125,8 +125,8 @@ export function createPilotFixture(input: {
     metadataBaseUrl: `${server.url}metadata/`,
     targetBaseUrl: `${server.url}targets/`,
     origin: server.url.origin,
-    publish(version: number) {
-      served = repository(version);
+    publish(version: number, expiration?: string) {
+      served = repository(version, expiration);
     },
     async stop() {
       await server.stop(true);

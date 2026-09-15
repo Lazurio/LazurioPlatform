@@ -4,7 +4,8 @@ import type { Fetcher } from "tuf-js";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 
 /** Write-ahead evidence, NOT trusted metadata. The owner provides a new private
- * directory, retains failures and must reverify records before any recovery use.
+ * directory (or a completely validated prefix for append), retains failures
+ * and must reverify records before any recovery use.
  * Never record origin credentials/query strings. TUF currently requests metadata
  * sequentially; refuse concurrent use rather than ambiguously ordering records.
  */
@@ -19,7 +20,24 @@ export class MetadataJournalFetcher implements Fetcher {
     private readonly transport: Fetcher,
     private readonly directory: string,
     metadataBaseUrl: string,
+    retained: Readonly<{ records: number; bytes: number }> = {
+      records: 0,
+      bytes: 0,
+    },
   ) {
+    // Only an owner-bound replay may supply the counts of the complete,
+    // validated retained prefix. New records always use exclusive creation.
+    if (
+      !Number.isSafeInteger(retained.records) ||
+      retained.records < 0 ||
+      retained.records > 260 ||
+      !Number.isSafeInteger(retained.bytes) ||
+      retained.bytes < 0 ||
+      retained.bytes > 32 * 1024 * 1024
+    )
+      throw new Error("Invalid retained metadata journal bounds");
+    this.count = retained.records;
+    this.bytes = retained.bytes;
     try {
       this.base = new URL(metadataBaseUrl);
     } catch {

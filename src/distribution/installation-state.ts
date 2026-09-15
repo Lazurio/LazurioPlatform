@@ -9,7 +9,7 @@ import {
 } from "../providers/owned-json";
 import { type ChannelSelection, selectPilotTarget } from "./channel";
 import { downloadPilotCandidate, type PilotTrust } from "./download-pilot";
-import { replayPilotTrust } from "./replay-pilot";
+import { type PilotReplayNetwork, replayPilotTrust } from "./replay-pilot";
 import {
   exactFields,
   readTrustCheckpoint,
@@ -197,14 +197,29 @@ export async function downloadPilotUnderOwner(
  * metadata nothing was accepted and the attempt is closed. Otherwise the attempt
  * input must match the published trust (or the caller's bootstrap root before
  * any publication), the transcript is replayed offline and the accepted state
- * is published before the attempt closes. Expired or inconsistent evidence
+ * is published before the attempt closes. Explicit network options can complete
+ * missing responses after a still-valid prefix; they cannot skip old evidence.
+ * Expired or inconsistent evidence
  * stops recovery and keeps the attempt pending; nothing resets to bootstrap.
  */
 export async function recoverPilotAttempts(options: {
   root: string;
   bootstrapRoot?: string;
   executionTarget: string;
+  network?: PilotReplayNetwork;
 }): Promise<readonly RecoveredAttempt[]> {
+  // One deadline across this owner operation, not a fresh timeout for every
+  // pending attempt. Each replay's transport shares this cancellation signal.
+  const network = options.network
+    ? {
+        ...options.network,
+        allowedOrigins: [...options.network.allowedOrigins],
+        signal: AbortSignal.any([
+          options.network.signal,
+          AbortSignal.timeout(options.network.timeoutMs),
+        ]),
+      }
+    : undefined;
   await inspectOwnedDirectory(options.root);
   return withFolderOperationLock(options.root, async (assertHeld) => {
     const layout = await openLayout(options.root);
@@ -263,6 +278,7 @@ export async function recoverPilotAttempts(options: {
           directory,
           join(directory, `replay-${randomBytes(8).toString("hex")}`),
           options.executionTarget,
+          network,
         );
       } catch (error) {
         throw new Error(
@@ -273,6 +289,7 @@ export async function recoverPilotAttempts(options: {
         );
       }
       const checkpoint = replay.checkpoint;
+      network?.signal.throwIfAborted();
       const channel =
         replay.outcome === "complete"
           ? replay.selection

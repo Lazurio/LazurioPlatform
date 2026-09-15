@@ -132,3 +132,76 @@ test("metadata journal refuses concurrent ordering", async () => {
     await rm(directory, { recursive: true });
   }
 });
+
+test("resumed journal preserves the prefix and applies cumulative bounds", async () => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), "journal-resume-")),
+  );
+  const base = "https://example.invalid/metadata/";
+  let calls = 0;
+  const transport: Fetcher = {
+    async downloadBytes() {
+      calls++;
+      return Buffer.from("second");
+    },
+    async downloadFile() {
+      throw new Error("Unexpected target");
+    },
+  };
+  try {
+    await writeFile(join(directory, "001-timestamp.json"), "first", {
+      mode: 0o600,
+    });
+    const journal = new MetadataJournalFetcher(transport, directory, base, {
+      records: 1,
+      bytes: 5,
+    });
+    expect(await journal.downloadBytes(`${base}snapshot.json`, 100)).toEqual(
+      Buffer.from("second"),
+    );
+    expect(await readFile(join(directory, "001-timestamp.json"), "utf8")).toBe(
+      "first",
+    );
+    expect(await readFile(join(directory, "002-snapshot.json"), "utf8")).toBe(
+      "second",
+    );
+    const countBound = new MetadataJournalFetcher(transport, directory, base, {
+      records: 260,
+      bytes: 11,
+    });
+    await expect(
+      countBound.downloadBytes(`${base}targets.json`, 100),
+    ).rejects.toThrow("record limit");
+    expect(calls).toBe(1);
+    const bytesBound = new MetadataJournalFetcher(transport, directory, base, {
+      records: 2,
+      bytes: 32 * 1024 * 1024,
+    });
+    await expect(
+      bytesBound.downloadBytes(`${base}targets.json`, 100),
+    ).rejects.toThrow("byte limit");
+    await expect(
+      readFile(join(directory, "003-targets.json")),
+    ).rejects.toThrow();
+    const collision = new MetadataJournalFetcher(transport, directory, base, {
+      records: 1,
+      bytes: 5,
+    });
+    await expect(
+      collision.downloadBytes(`${base}snapshot.json`, 100),
+    ).rejects.toThrow();
+    expect(await readFile(join(directory, "002-snapshot.json"), "utf8")).toBe(
+      "second",
+    );
+    for (const retained of [
+      { records: -1, bytes: 0 },
+      { records: 261, bytes: 0 },
+      { records: 0, bytes: Number.NaN },
+    ])
+      expect(
+        () => new MetadataJournalFetcher(transport, directory, base, retained),
+      ).toThrow("bounds");
+  } finally {
+    await rm(directory, { recursive: true });
+  }
+});

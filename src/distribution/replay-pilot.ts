@@ -17,6 +17,8 @@ import {
 } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import { type ChannelSelection, selectPilotTarget } from "./channel";
+import { MetadataJournalFetcher } from "./metadata-journal";
+import { DistributionTransport } from "./transport";
 import {
   parseTrustCheckpoint,
   type TrustCheckpoint,
@@ -43,6 +45,15 @@ export type PilotReplay = Readonly<
 
 const roles = ["root", "timestamp", "snapshot", "targets"] as const;
 
+export type PilotReplayNetwork = Readonly<{
+  metadataBaseUrl: string;
+  targetBaseUrl: string;
+  allowedOrigins: readonly string[];
+  timeoutMs: number;
+  signal: AbortSignal;
+  loopbackFixture?: boolean;
+}>;
+
 // The pinned client wraps snapshot/targets failures in RuntimeError, so the
 // expiry class alone cannot be relied on; the message is stable in tuf-js 6.0.0.
 function isExpiry(error: unknown) {
@@ -52,11 +63,15 @@ function isExpiry(error: unknown) {
   );
 }
 
-/** Bounded offline reverification after metadata/channel delivery. Not a general
+/** Bounded reverification, offline by default. Explicit network options may
+ * complete only the missing end of a still-valid transcript, appending responses
+ * durably before consumption and retaining a verified missing channel. Existing
+ * source bytes are never rewritten. This is not expired-metadata refresh.
+ * Not a general
  * crash-recovery owner: the caller must serialize access and publish the returned
  * trust before a new attempt. The owner must bind source to its recorded attempt
  * and trusted original input; filesystem ownership alone does not authenticate an
- * arbitrary bootstrap root. No network fetch or artifact execution is reachable.
+ * arbitrary bootstrap root. No product artifact download or execution is reachable.
  * A partial outcome reproduces only what the original process could itself have
  * accepted: expiry at replay time, altered or unconsumed records fail closed.
  */
@@ -64,7 +79,9 @@ export async function replayPilotTrust(
   source: string,
   output: string,
   executionTarget: string,
+  network?: PilotReplayNetwork,
 ): Promise<PilotReplay> {
+  network?.signal.throwIfAborted();
   await inspectOwnedDirectory(source);
   const input = (await readOwnedJson(
     join(source, "input-trust.json"),
@@ -149,6 +166,24 @@ export async function replayPilotTrust(
   let cursor = 0;
   let exhausted = false;
   const base = "https://replay.invalid/metadata/";
+  const continuation = network ? { ...network } : undefined;
+  const transport = continuation
+    ? new DistributionTransport(
+        continuation.allowedOrigins,
+        continuation.timeoutMs,
+        continuation.signal,
+        continuation.loopbackFixture ?? false,
+      )
+    : undefined;
+  const append =
+    transport && continuation
+      ? new MetadataJournalFetcher(
+          transport,
+          journal,
+          continuation.metadataBaseUrl,
+          { records: records.length, bytes: length },
+        )
+      : undefined;
   const fetcher: Fetcher = {
     async downloadBytes(url, maxLength) {
       if (!url.startsWith(base)) throw new Error("Unexpected replay origin");
@@ -159,6 +194,19 @@ export async function replayPilotTrust(
           throw new Error("Replay metadata length refused");
         cursor++;
         return record.bytes;
+      }
+      // Only the end of the complete retained prefix permits network use.
+      // No gap, reordering, refused response or expired role is skipped.
+      // Append before handing bytes to TUF so a further interruption replays
+      // the same original input plus the extended, immutable response prefix.
+      if (cursor === records.length && append && continuation) {
+        const bytes = await append.downloadBytes(
+          new URL(name, continuation.metadataBaseUrl).href,
+          maxLength,
+        );
+        records.push({ name, bytes });
+        cursor++;
+        return bytes;
       }
       if (
         /^[1-9][0-9]*\.root\.json$/.test(name) &&
@@ -173,13 +221,17 @@ export async function replayPilotTrust(
       }
       throw new Error("Missing or out-of-order replay response");
     },
-    async downloadFile() {
-      throw new Error("Replay cannot download artifacts");
+    async downloadFile(url, maxLength, handler) {
+      if (!transport) throw new Error("Replay cannot download artifacts");
+      // Only the authenticated channel below calls this method; recovery
+      // never fetches, stages or executes a product artifact.
+      return transport.downloadFile(url, maxLength, handler);
     },
   };
   const updater = new Updater({
     metadataDir: cache,
     metadataBaseUrl: base,
+    ...(continuation ? { targetBaseUrl: continuation.targetBaseUrl } : {}),
     fetcher,
     config: { fetchRetries: 0, fetchRetry: false, maxDelegations: 0 },
   });
@@ -226,7 +278,24 @@ export async function replayPilotTrust(
     await lstat(channelPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return partial("Channel was not received before the failure");
+    if (!continuation)
+      return partial("Channel was not received before the failure");
+    // Precreate the private output with explicit custody even under umask002.
+    // TUF verifies the download before it can become retained source evidence.
+    const receivedPath = join(output, "received-channel.json");
+    const reserved = await open(receivedPath, "wx", 0o600);
+    await reserved.close();
+    await updater.downloadTarget(target, receivedPath);
+    const receivedBytes = await readOwnedDeclarationBytes(receivedPath);
+    continuation.signal.throwIfAborted();
+    const retained = await open(channelPath, "wx", 0o600);
+    try {
+      await retained.writeFile(receivedBytes);
+      await retained.sync();
+    } finally {
+      await retained.close();
+    }
+    await syncDirectory(source);
   }
   // A present channel was verified before its copy; an altered copy is refused.
   const channelBytes = await readOwnedDeclarationBytes(channelPath);

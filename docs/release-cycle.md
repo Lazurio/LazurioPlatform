@@ -234,7 +234,7 @@ The exit test does not establish power-loss durability or completed replay recov
 
 `replayPilotTrust` provides bounded offline reverification after metadata and
 channel delivery: it reads the owned original input and ordered response records,
-runs the same pinned TUF client against a network-free replay fetcher, and verifies
+runs the same pinned TUF client against an offline-by-default replay fetcher, and verifies
 the retained channel bytes against the resulting signed targets before deriving the
 selection/high-water mark. Channel bytes are synced before first selection, not only
 after artifact completion. Replay uses a new output and preserves its source; it
@@ -266,7 +266,7 @@ It must distinguish the signed-root key-rotation reset specified by
 from an unsafe reset to bootstrap; keeping every numeric floor forever is not a
 substitute for that protocol. No timestamp rewrite or clock backdating is allowed.
 
-Until that repair path exists, a bootstrap attempt with received metadata but no
+Without successful continuation, a bootstrap attempt with received metadata but no
 complete checkpoint or verified first channel stays pending. Closing it would
 permit a fresh bootstrap that forgets already accepted root/role versions.
 `tests/installation-partial-trust.test.ts` interrupts a signed fixture after the
@@ -274,6 +274,25 @@ timestamp and before the first channel, then verifies repeated offline recovery
 retains the original evidence and blocks a replacement bootstrap without network
 access. This is a preservation barrier, not completed network recovery. Attempts
 with no received metadata can still close without publishing trust.
+
+Explicit missing-response continuation is now available through
+`product recover --metadata-url <base> --target-url <base>` (the same explicit
+HTTPS policy and optional loopback fixture switch as install). Under the existing
+owner lock, replay first re-verifies the entire retained prefix. Only its end can
+fetch a missing response; the write-ahead journal appends it with cumulative
+record/byte limits before TUF receives it. A later interruption therefore keeps
+both the original input and extended prefix. A missing channel is downloaded and
+TUF-verified before exclusive durable retention. Existing records/channel bytes
+are never rewritten. Recovery publishes trust before closing and does not download,
+stage or activate product artifacts; a subsequent `product install` uses that trust.
+
+This completes only a still-valid transcript against compatible repository bytes,
+not a fresh refresh cycle replacing old timestamp/snapshot metadata. Expiry,
+changed records, gaps and cancellation cannot be bypassed by supplying URLs;
+newer incompatible repository bytes may still require the pending fresh-cycle
+recovery implementation. Tests cover another interruption after appending a
+snapshot, preserved prefix bytes, later successful download without bootstrap,
+resource/collision refusals and the compiled CLI's explicit offline/online boundary.
 
 The development installation state owner (`src/distribution/installation-state.ts`)
 binds these operations to one explicit root directory under the existing

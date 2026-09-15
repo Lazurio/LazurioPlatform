@@ -24,13 +24,16 @@ for (const blockedPath of [
     });
     fixture.publish(7);
     let requests = 0;
+    let blocked: string | undefined = blockedPath;
+    let artifactRequests = 0;
     const proxy = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
       async fetch(request) {
         requests++;
         const path = new URL(request.url).pathname;
-        if (path === blockedPath)
+        if (path.includes("/artifacts/")) artifactRequests++;
+        if (path === blocked)
           return new Response("fixture interrupted", { status: 404 });
         return fetch(new URL(path, fixture.origin));
       },
@@ -85,6 +88,38 @@ for (const blockedPath of [
         ).rejects.toThrow("Pending installation attempt");
       }
       expect(requests).toBe(requestCount);
+      if (blockedPath === "/metadata/snapshot.json") {
+        // A second interruption retains the newly appended snapshot too.
+        blocked = "/metadata/targets.json";
+        await expect(
+          recoverPilotAttempts({ ...options, network: options }),
+        ).rejects.toThrow("Partial trust remains pending");
+        expect(await readdir(journal)).toContain("002-snapshot.json");
+        expect(await readFile(join(journal, "001-timestamp.json"))).toEqual(
+          timestampBefore,
+        );
+      }
+      blocked = undefined;
+      expect(
+        await recoverPilotAttempts({ ...options, network: options }),
+      ).toEqual([
+        { attempt: attempts[0] ?? "missing", published: true, candidate: null },
+      ]);
+      expect(artifactRequests).toBe(0);
+      expect(await readdir(join(root, "attempts"))).toEqual([]);
+      const closed = join(root, "history", attempts[0] ?? "missing");
+      expect(await readFile(join(closed, "input-trust.json"))).toEqual(
+        inputBefore,
+      );
+      expect(
+        await readFile(join(closed, "received-metadata/001-timestamp.json")),
+      ).toEqual(timestampBefore);
+      expect(
+        (await readPublishedPilotTrust(root))?.trust.channel.sequence,
+      ).toBe(7);
+      const { bootstrapRoot: _bootstrapRoot, ...establishedOptions } = options;
+      const downloaded = await downloadPilotUnderOwner(establishedOptions);
+      expect(downloaded.candidate.sha256).toBe(fixture.artifactSha256);
     } finally {
       await proxy.stop(true);
       await fixture.stop();

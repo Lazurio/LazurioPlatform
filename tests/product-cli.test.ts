@@ -20,6 +20,16 @@ test.skipIf(process.platform === "win32")(
         ["status", "--name", "x"],
         ["activate"],
         ["activate", "--name", "x", "--name", "y"],
+        ["recover", "--metadata-url", "https://a/m/"],
+        ["recover", "--target-url", "https://a/t/"],
+        ["recover", "--loopback-fixture"],
+        [
+          "recover",
+          "--metadata-url",
+          "http://a/m/",
+          "--target-url",
+          "http://a/t/",
+        ],
         ["install"],
         [
           "install",

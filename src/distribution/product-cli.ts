@@ -30,7 +30,12 @@ export const productHelp = `product install --bootstrap-root <owned file> --meta
   trust was ever published here and refused afterwards. --loopback-fixture
   permits only an explicit http://127.0.0.1 development origin.
 product recover [--bootstrap-root <owned file>]
-  Reconciles pending installation attempts offline; nothing is downloaded.
+  [--metadata-url <https://.../metadata/> --target-url <https://.../targets/>]
+  [--loopback-fixture]
+  Reconciles pending attempts offline by default. Explicit URLs allow missing
+  metadata/channel responses to be completed after reverifying the retained
+  prefix. Expired or inconsistent evidence is not bypassed. Product artifacts
+  are never downloaded or activated by recovery; then use product install.
 product status
   Reports the location, published trust and active version without changes.
 product activate --name <version+digest>
@@ -69,7 +74,12 @@ export async function runProductCommand(args: string[]): Promise<{
       "target-url",
       "loopback-fixture",
     ],
-    recover: ["bootstrap-root"],
+    recover: [
+      "bootstrap-root",
+      "metadata-url",
+      "target-url",
+      "loopback-fixture",
+    ],
     status: [],
     activate: ["name"],
   };
@@ -110,7 +120,13 @@ export async function runProductCommand(args: string[]): Promise<{
   };
   // Every argument is validated before the location is created or verified.
   const network =
-    command === "install" ? distributionInputs(values) : undefined;
+    command === "install" ||
+    (command === "recover" &&
+      ["metadata-url", "target-url", "loopback-fixture"].some((key) =>
+        supplied.has(key),
+      ))
+      ? distributionInputs(values)
+      : undefined;
   if (command === "activate" && !values.name)
     throw new Error("Explicit staged version name required");
   // The bootstrap file is read (with custody checks) before any location
@@ -176,6 +192,18 @@ export async function runProductCommand(args: string[]): Promise<{
       root: location.owner,
       ...(bootstrapRoot === undefined ? {} : { bootstrapRoot }),
       executionTarget,
+      ...(network
+        ? {
+            network: {
+              metadataBaseUrl: network.metadataBaseUrl.href,
+              targetBaseUrl: network.targetBaseUrl.href,
+              allowedOrigins: network.origins,
+              loopbackFixture: network.loopbackFixture,
+              timeoutMs: 120_000,
+              signal: new AbortController().signal,
+            },
+          }
+        : {}),
     });
     return {
       code: 0,
