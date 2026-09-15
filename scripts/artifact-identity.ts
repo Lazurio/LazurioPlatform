@@ -9,12 +9,37 @@ export const artifactTargets = [
   "windows-x64",
 ] as const;
 
-// Identity describes bytes; it never establishes publisher trust or qualification.
+export type SupportedSchemas = Readonly<{
+  preferences: readonly number[];
+  manifest: readonly number[];
+}>;
+
+// Sorted, unique, positive schema versions the release can read.
+function supportedSchemaVersions(input: unknown): readonly number[] {
+  if (
+    !Array.isArray(input) ||
+    input.length === 0 ||
+    input.some(
+      (version, index) =>
+        !Number.isSafeInteger(version) ||
+        version < 1 ||
+        (index > 0 && version <= (input[index - 1] as number)),
+    )
+  )
+    throw new Error(
+      "Supported schema versions must be sorted positive integers",
+    );
+  return Object.freeze([...(input as number[])]);
+}
+
+// Identity describes bytes and declared read compatibility; it never
+// establishes publisher trust or qualification.
 export function artifactIdentity(input: {
   version: string;
   target: string;
   sourceCommit: string;
   toolchain: string;
+  schemas: SupportedSchemas;
   lockfile: Uint8Array;
   artifact: Uint8Array;
 }) {
@@ -32,6 +57,10 @@ export function artifactIdentity(input: {
     throw new Error("An exact Bun toolchain is required");
   if (!input.artifact.byteLength || !input.lockfile.byteLength)
     throw new Error("Artifact and lockfile must not be empty");
+  const schemas = Object.freeze({
+    preferences: supportedSchemaVersions(input.schemas.preferences),
+    manifest: supportedSchemaVersions(input.schemas.manifest),
+  });
   const digest = (bytes: Uint8Array) =>
     createHash("sha256").update(bytes).digest("hex");
   return {
@@ -40,6 +69,7 @@ export function artifactIdentity(input: {
     target: input.target,
     sourceCommit: input.sourceCommit,
     toolchain: input.toolchain,
+    schemas,
     lockfileSha256: digest(input.lockfile),
     artifactSha256: digest(input.artifact),
     artifactBytes: input.artifact.byteLength,

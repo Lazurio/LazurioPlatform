@@ -459,7 +459,10 @@ async function close(
   return closed;
 }
 
-async function closedSelection(
+/** Selection of a closed attempt, valid only while its channel bytes still equal
+ * the published high-water; older closed attempts are not selectable again.
+ */
+export async function closedSelection(
   directory: string,
   executionTarget: string,
   channel: Pick<ChannelSelection, "sequence" | "documentSha256">,
@@ -487,7 +490,7 @@ async function closedSelection(
 
 // Reverifies retained bytes against the authenticated selection; a mismatch or
 // unsafe file yields no candidate and the closed evidence is left untouched.
-async function describeCandidate(
+export async function describeCandidate(
   directory: string,
   executionTarget: string,
   selection: ChannelSelection,

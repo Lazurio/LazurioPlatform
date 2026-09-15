@@ -170,9 +170,18 @@ export async function downloadPilotCandidate(options: {
     options.executionTarget.startsWith("windows-") ? "lazurio.exe" : "lazurio",
   );
   await updater.downloadTarget(target, artifactPath);
+  // The release publishes the build identity as its own authenticated target
+  // beside the artifact; staging binds bytes to it before any activation.
+  const identityTarget = await updater.getTargetInfo(
+    `${selection.targetPath.slice(0, selection.targetPath.lastIndexOf("/"))}/identity.json`,
+  );
+  if (!identityTarget || identityTarget.length > 64 * 1024)
+    throw new Error("Artifact identity unavailable or too large");
+  const identityPath = join(options.directory, "identity.json");
+  await updater.downloadTarget(identityTarget, identityPath);
   options.signal.throwIfAborted();
   // The library's destination copy is not itself a durability guarantee.
-  for (const path of [artifactPath]) {
+  for (const path of [artifactPath, identityPath]) {
     const file = await open(path, "r");
     try {
       await file.sync();
@@ -194,5 +203,5 @@ export async function downloadPilotCandidate(options: {
     join(options.directory, "checkpoint"),
     checkpoint,
   );
-  return Object.freeze({ artifactPath, checkpoint, selection });
+  return Object.freeze({ artifactPath, identityPath, checkpoint, selection });
 }

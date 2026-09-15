@@ -1,5 +1,12 @@
 import { type FolderProfile, parseFolderProfile } from "./profile";
 
+// Schema versions this product can read; a release declares them in its
+// artifact identity so staging can check backward read compatibility.
+export const folderStateSchemas = Object.freeze({
+  preferences: Object.freeze([1]),
+  manifest: Object.freeze([1]),
+});
+
 // Development schema for the single-output transaction. Parsing is not proof of
 // custody: a filesystem adapter must establish the state owner's trusted boundary.
 export type FolderPreferences = Readonly<{

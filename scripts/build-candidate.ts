@@ -1,5 +1,6 @@
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { folderStateSchemas } from "../src/folder/state";
 import { artifactIdentity } from "./artifact-identity";
 
 // Development packaging only: no download, signing, installation or activation.
@@ -67,6 +68,7 @@ const identity = artifactIdentity({
   target: `${process.platform === "win32" ? "windows" : process.platform}-${process.arch}`,
   sourceCommit,
   toolchain: pkg.packageManager,
+  schemas: folderStateSchemas,
   lockfile,
   artifact: await readFile(binary),
 });

@@ -137,8 +137,9 @@ local development uses disposable keys and an isolated metadata server.
   The distribution does not bundle every module's Bun or database dependency.
 - Use one standalone executable per qualified native target, with a separate build
   identity based on `scripts/artifact-identity.ts`: product version, full source SHA,
-  lock digest, exact toolchain, target, byte length and SHA-256. This JSON is provenance,
-  not authentication. A clean source tree and frozen dependencies are build prerequisites.
+  lock digest, exact toolchain, target, declared readable schema versions, byte length
+  and SHA-256. This JSON is provenance, not authentication; it becomes authenticated
+  only as a signed TUF target beside the artifact. A clean source tree and frozen dependencies are build prerequisites.
   A local build must use an explicit new output directory and never replace an installation.
 - Deliver immutable artifacts through GitHub release assets. A static HTTPS metadata
   origin serves versioned TUF metadata, publishing timestamp last. Its concrete URL is
@@ -256,15 +257,47 @@ generations exist is reported as damage, never as first install. A closed attemp
 whose artifact bytes match the authenticated selection is reported as a candidate
 with its digest; it is not staged, active or executed.
 
-Still open: recovery of an expired or inconsistent transcript via fresh network
-metadata (such attempts stay pending and block new downloads until an explicit
-repair path exists), reclaiming a lock left by a dead process, per-user install
-locations, staging into immutable versioned product directories, activation,
-product-version/schema compatibility binding and native power-loss/Windows
-qualification. Before staging, the consumer must bind the selected path to TUF
-length/hash and product build identity and check compatibility. A newer channel
-sequence alone cannot prove product downgrade safety, native support or permission
-to activate.
+The release publishes its build identity as an authenticated TUF target beside
+the artifact, `artifacts/<sha256>/identity.json` (the `identity.json` emitted by
+`scripts/build-candidate.ts`, bounded to 64 KiB). The identity now also declares
+the preferences and generated-manifest schema versions the release can read
+(`schemas`, taken from `folderStateSchemas` in `src/folder/state.ts`).
+`downloadPilotCandidate` downloads and verifies it after the artifact; a channel
+without an identity target is refused.
+
+`resolveInstallLocation` (`src/distribution/install-location.ts`) is the pure
+per-user location outside any Lazurio Folder: macOS
+`~/Library/Application Support/Lazurio`, Linux `${XDG_DATA_HOME:-~/.local/share}/lazurio`
+(a relative `XDG_DATA_HOME` is ignored); Windows remains unqualified and is refused.
+Beneath it, `distribution/` is the installation owner root and `versions/` holds
+immutable product directories. `prepareInstallLocation` creates the private
+directories once and verifies custody; existing content is never adopted.
+
+`stagePilotCandidate` (`src/distribution/staging.ts`) runs under the same owner
+lock and stages one closed attempt that is still selectable under the published
+channel high-water. It binds the retained artifact and identity bytes to the
+published signed `targets` entries (length and SHA-256), binds the identity to the
+artifact (target, digest, byte length) and checks backward read compatibility: the
+release must list every preferences/manifest schema version the installer
+requires. Only then does it copy the artifact read-only with `identity.json` and a
+`provenance.json` (attempt, channel sequence/digest, artifact digest) into a
+private `.staging-*` directory and publish it by one rename as
+`versions/<version>+<sha256 prefix>`, re-verifying the published bytes. An occupied
+name is accepted only when byte-identical, otherwise refused as a conflict and
+never overwritten. A leftover `.staging-*` directory from an interruption is
+retained and never adopted. No active version record exists or changes; a staged
+directory is not selectable for launch. The smoke covers a different platform
+label, a release that cannot read the required schemas, an occupied conflicting
+name and a leftover staging directory, on macOS and standalone Linux ARM64.
+
+Still open: activation through one stable entrypoint with the first clean-VM
+installed journey, recovery of an expired or inconsistent transcript via fresh
+network metadata (such attempts stay pending and block new downloads until an
+explicit repair path exists), reclaiming a lock left by a dead process, write
+compatibility and rollback checks before activation, retention policy for staged
+versions, and native power-loss/Windows qualification. A newer channel sequence
+alone cannot prove product downgrade safety, native support or permission to
+activate.
 
 `bun run scripts/smoke-tuf.ts /absolute/candidate` exercises the pinned client
 against a loopback fixture serving the supplied candidate's actual bytes. It generates

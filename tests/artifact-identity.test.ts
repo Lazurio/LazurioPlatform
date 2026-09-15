@@ -6,6 +6,7 @@ const input = {
   target: "darwin-arm64",
   sourceCommit: "a".repeat(40),
   toolchain: "bun@1.4.2",
+  schemas: { preferences: [1], manifest: [1] },
   lockfile: new TextEncoder().encode("fixture lock"),
   artifact: new TextEncoder().encode("fixture artifact"),
 };
@@ -32,6 +33,11 @@ test("rejects ambiguous identity and empty inputs", () => {
     { target: "linux" },
     { sourceCommit: "abc123" },
     { toolchain: "bun@latest" },
+    { schemas: { preferences: [], manifest: [1] } },
+    { schemas: { preferences: [1, 1], manifest: [1] } },
+    { schemas: { preferences: [2, 1], manifest: [1] } },
+    { schemas: { preferences: [0], manifest: [1] } },
+    { schemas: { preferences: [1.5], manifest: [1] } },
     { artifact: new Uint8Array() },
     { lockfile: new Uint8Array() },
   ])

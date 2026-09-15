@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readdir,
@@ -8,6 +9,7 @@ import {
   realpath,
   rename,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -35,12 +37,15 @@ import {
   recoverPilotAttempts,
 } from "../src/distribution/installation-state";
 import { replayPilotTrust } from "../src/distribution/replay-pilot";
+import { stagePilotCandidate } from "../src/distribution/staging";
 import { DistributionTransport } from "../src/distribution/transport";
 import {
   parseTrustCheckpoint,
   readTrustCheckpoint,
   writeNewTrustCheckpoint,
 } from "../src/distribution/trust-checkpoint";
+import { folderStateSchemas } from "../src/folder/state";
+import { artifactIdentity } from "./artifact-identity";
 
 // Local synthetic repository only. One ephemeral test key for all roles is NOT
 // a proposed production key-management policy. No installation takes place.
@@ -84,6 +89,24 @@ assert.ok(
 );
 const payload = await readFile(artifact);
 const artifactPath = `artifacts/${hash(payload).sha256}/lazurio`;
+const identityPath = `artifacts/${hash(payload).sha256}/identity.json`;
+// Fixture identity for the supplied bytes; the label is synthetic, not a build.
+const identityFor = (target: string, schemas = folderStateSchemas) =>
+  Buffer.from(
+    JSON.stringify({
+      kind: "unsigned-development-candidate",
+      identity: artifactIdentity({
+        version: "0.0.0",
+        target,
+        sourceCommit: "0".repeat(40),
+        toolchain: "bun@1.4.2",
+        schemas,
+        lockfile: Buffer.from("fixture lock"),
+        artifact: payload,
+      }),
+    }),
+  );
+let identityBytes = identityFor("linux-arm64");
 const repository = (
   version: number,
   expired = false,
@@ -110,6 +133,11 @@ const repository = (
           path: artifactPath,
           length: payload.length,
           hashes: hash(payload),
+        }),
+        [identityPath]: new TargetFile({
+          path: identityPath,
+          length: identityBytes.length,
+          hashes: hash(identityBytes),
         }),
         "artifact.bin": new TargetFile({
           path: "artifact.bin",
@@ -149,6 +177,7 @@ const repository = (
     ["/targets/artifact.bin", payload],
     ["/targets/channels/pilot.json", channel],
     [`/targets/${artifactPath}`, payload],
+    [`/targets/${identityPath}`, identityBytes],
   ]);
 };
 let served = repository(2);
@@ -568,6 +597,92 @@ try {
     assert.deepEqual(await readPublishedPilotTrust(root), sixth.published);
     console.log(
       "PASS: installation owner publishes trust and channel high-water under one lock, reconciles pending attempts offline, refuses stale/damaged state and never resets to bootstrap",
+    );
+    // Staging: bind the closed candidate to its authenticated identity and
+    // publish one immutable versioned directory; nothing becomes active.
+    const versions = join(fixture, "versions");
+    await mkdir(versions, { mode: 0o700 });
+    const stage = (attempt: string, executionTarget = "linux-arm64") =>
+      stagePilotCandidate({
+        root,
+        versions,
+        attempt,
+        executionTarget,
+        requiredSchemas: folderStateSchemas,
+      });
+    await assert.rejects(stage(fifth.attempt), /not selectable/);
+    await assert.rejects(stage(sixth.attempt, "linux-x64"), /not selectable/);
+    const staged = await stage(sixth.attempt);
+    assert.equal(staged.alreadyStaged, false);
+    assert.equal(staged.name, `0.0.0+${hash(payload).sha256.slice(0, 16)}`);
+    assert.equal(staged.identity.artifactSha256, hash(payload).sha256);
+    assert.deepEqual(staged.identity.schemas, {
+      preferences: [1],
+      manifest: [1],
+    });
+    assert.deepEqual(await readFile(staged.artifactPath), payload);
+    assert.equal((await stat(staged.artifactPath)).mode & 0o777, 0o500);
+    assert.deepEqual((await readdir(staged.directory)).sort(), [
+      "identity.json",
+      "lazurio",
+      "provenance.json",
+    ]);
+    assert.deepEqual(
+      JSON.parse(
+        await readFile(join(staged.directory, "provenance.json"), "utf8"),
+      ),
+      {
+        schemaVersion: 1,
+        attempt: sixth.attempt,
+        channel: sixth.published.trust.channel,
+        artifactSha256: hash(payload).sha256,
+      },
+    );
+    assert.deepEqual(await readdir(versions), [staged.name]);
+    const again = await stage(sixth.attempt);
+    assert.equal(again.alreadyStaged, true);
+    assert.equal(again.directory, staged.directory);
+    // An occupied name with different bytes is a conflict, never overwritten.
+    await chmod(join(staged.directory, "identity.json"), 0o600);
+    await writeFile(join(staged.directory, "identity.json"), "{}");
+    await assert.rejects(stage(sixth.attempt), /Conflicting/);
+    assert.deepEqual(await readFile(staged.artifactPath), payload);
+    await writeFile(join(staged.directory, "identity.json"), identityBytes);
+    await chmod(join(staged.directory, "identity.json"), 0o400);
+    // Identity refusals: wrong platform label and a release that cannot read
+    // the required schemas are refused before any directory is created.
+    for (const [index, [label, bytes]] of (
+      [
+        ["different platform", identityFor("linux-x64")],
+        [
+          "required schema",
+          identityFor("linux-arm64", { preferences: [2], manifest: [1] }),
+        ],
+      ] as const
+    ).entries()) {
+      identityBytes = bytes;
+      // Each fixture publication needs a new version; the client keeps an
+      // equal-version cache and would otherwise compare stale target lengths.
+      served = repository(7 + index);
+      const wrong = await downloadPilotUnderOwner({ root, ...network });
+      await assert.rejects(stage(wrong.attempt), new RegExp(label));
+      assert.deepEqual(await readdir(versions), [staged.name]);
+    }
+    identityBytes = identityFor("linux-arm64");
+    // A leftover staging directory from an interruption is retained, never
+    // adopted, and does not block a fresh staging of another version.
+    await mkdir(join(versions, ".staging-deadbeef"), { mode: 0o700 });
+    served = repository(9);
+    const eighth = await downloadPilotUnderOwner({ root, ...network });
+    const restaged = await stage(eighth.attempt);
+    assert.equal(restaged.alreadyStaged, true);
+    assert.deepEqual((await readdir(versions)).sort(), [
+      ".staging-deadbeef",
+      staged.name,
+    ]);
+    assert.deepEqual(await readPublishedPilotTrust(root), eighth.published);
+    console.log(
+      "PASS: staging binds the closed candidate to its signed identity, checks read compatibility, publishes one immutable versioned directory and never touches an active version",
     );
     served = repository(2);
   }

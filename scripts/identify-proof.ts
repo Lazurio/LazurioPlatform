@@ -1,3 +1,4 @@
+import { folderStateSchemas } from "../src/folder/state";
 import { artifactIdentity } from "./artifact-identity";
 
 const git = (args: string[]) => {
@@ -37,6 +38,7 @@ console.log(
         target,
         sourceCommit,
         toolchain: pkg.packageManager,
+        schemas: folderStateSchemas,
         lockfile: await Bun.file("bun.lock").bytes(),
         artifact: await Bun.file(binary).bytes(),
       }),
