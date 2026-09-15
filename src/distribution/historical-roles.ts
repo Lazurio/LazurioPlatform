@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { Metadata, MetadataKind } from "@tufjs/models";
 import type { JSONObject } from "@tufjs/models/dist/utils";
@@ -19,6 +20,27 @@ export type HistoricalFloors = Readonly<{
 // evidence, never adopt deserialized counters as another trust store.
 type RoleBindings = Readonly<Partial<Record<Kind, string>>>;
 const authenticated = new WeakMap<HistoricalFloors, RoleBindings>();
+
+/** Binding only, never a substitute for reauthenticating the original evidence.
+ * Equal roots can carry different prior counters and signed content. */
+export function historicalFloorFingerprint(value: HistoricalFloors): string {
+  const bindings = authenticated.get(value);
+  if (!bindings)
+    throw new Error("Fingerprint requires reconstructed authentication");
+  const encoded = JSON.stringify({
+    schema: "historical-floor-binding-v1",
+    root: value.root,
+    rootVersion: value.rootVersion,
+    timestampVersion: value.timestampVersion ?? null,
+    snapshotVersion: value.snapshotVersion ?? null,
+    targetsVersion: value.targetsVersion ?? null,
+    snapshotRoles: Object.keys(value.snapshotRoles)
+      .sort()
+      .map((name) => [name, value.snapshotRoles[name]]),
+    bindings: kinds.map((role) => [role, bindings[role] ?? null]),
+  });
+  return createHash("sha256").update(encoded).digest("hex");
+}
 
 function seal(
   value: HistoricalFloors,

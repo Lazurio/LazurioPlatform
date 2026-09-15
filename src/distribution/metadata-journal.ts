@@ -1,7 +1,33 @@
-import { open } from "node:fs/promises";
+import { open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetcher } from "tuf-js";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { readOwnedDeclarationBytes } from "../providers/owned-json";
+
+/** Write-ahead evidence, not trust. Shared custody/order checks for all replay. */
+export async function readMetadataJournal(directory: string) {
+  await inspectOwnedDirectory(directory);
+  const names = (await readdir(directory)).sort();
+  if (names.length > 260) throw new Error("Replay record limit");
+  const records: { name: string; bytes: Buffer }[] = [];
+  let bytes = 0;
+  for (const [index, name] of names.entries()) {
+    const prefix = `${String(index + 1).padStart(3, "0")}-`;
+    const leaf = name.slice(prefix.length);
+    if (
+      !name.startsWith(prefix) ||
+      !/^(?:[1-9][0-9]*\.)?(?:root|timestamp|snapshot|targets)\.json$/.test(
+        leaf,
+      )
+    )
+      throw new Error("Incomplete or unknown replay record");
+    const value = await readOwnedDeclarationBytes(join(directory, name));
+    bytes += value.length;
+    if (bytes > 32 * 1024 * 1024) throw new Error("Replay byte limit");
+    records.push({ name: leaf, bytes: value });
+  }
+  return { records, bytes };
+}
 
 /** Write-ahead evidence, NOT trusted metadata. The owner provides a new private
  * directory (or a completely validated prefix for append), retains failures

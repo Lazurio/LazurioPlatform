@@ -64,6 +64,36 @@ final response. It also does not reset floors after role-key rotation. Those
 steps and durable cross-cycle integration below remain required before enabling
 the new recovery path. A fully authenticated expired chain by itself is not enough.
 
+### Durable metadata-cycle ledger (not yet a network recovery route)
+
+`recovery-cycles.ts` creates sequential `recovery-cycles/000001` directories within
+the pending attempt. Each contains only an immutable root/target/prior-state input and a
+`received-metadata` journal. Initialization is synced and renamed before returning
+a location on which a caller could perform requests. The caller must hold the
+existing installation owner's lock and supply its held-lock assertion; no second
+lock or trust-selection store is introduced.
+
+Reconstruction starts from the original owner-bound floors, checks every cycle's
+root/target binding and a SHA-256 fingerprint of the entire reconstructed prior
+floor/content state, and reauthenticates its ordered records with the shared journal
+reader. No counters are deserialized and no mutable client cache is adopted.
+The fingerprint is recomputed from authenticated inputs, not used as an authority;
+equal roots with different prior floors must not be interchangeable. The original
+input includes the original pending journal's authenticated progress, not merely
+the older published checkpoint. Supplying that owner-bound input remains required
+at integration.
+Unpublished initialization directories stay outside the ledger and are retained,
+never reused as evidence. Corrupt/gapped/foreign inputs refuse without fallback.
+Tests cover a second interrupted cycle and failures before/after publication; they
+are not power-loss qualification.
+
+The ledger is bounded to 32 cycles and 260 records/32 MiB across their journals;
+exhaustion refuses without deleting evidence. Network wiring must reserve/enforce
+the remaining aggregate budget before returning a response to TUF (prior counts
+are not the new journal's sequence indices). That wiring, channel/high-water
+evidence, refused-tail handling and trust publication are still unimplemented.
+This metadata-only ledger is not yet invoked by `product recover`.
+
 ## Three distinct trust inputs
 
 1. The owner-bound published checkpoint (or the explicitly supplied first-install

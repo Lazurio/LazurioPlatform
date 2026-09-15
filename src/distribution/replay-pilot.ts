@@ -1,11 +1,4 @@
-import {
-  lstat,
-  mkdir,
-  open,
-  readdir,
-  readFile,
-  writeFile,
-} from "node:fs/promises";
+import { lstat, mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { type Fetcher, Updater } from "tuf-js";
@@ -17,7 +10,10 @@ import {
 } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import { type ChannelSelection, selectPilotTarget } from "./channel";
-import { MetadataJournalFetcher } from "./metadata-journal";
+import {
+  MetadataJournalFetcher,
+  readMetadataJournal,
+} from "./metadata-journal";
 import { DistributionTransport } from "./transport";
 import {
   parseTrustCheckpoint,
@@ -134,26 +130,7 @@ export async function replayPilotTrust(
   } else throw new Error("Unknown retained trust kind");
 
   const journal = join(source, "received-metadata");
-  await inspectOwnedDirectory(journal);
-  const names = (await readdir(journal)).sort();
-  if (names.length > 260) throw new Error("Replay record limit");
-  const records: { name: string; bytes: Buffer }[] = [];
-  let length = 0;
-  for (const [index, name] of names.entries()) {
-    const prefix = `${String(index + 1).padStart(3, "0")}-`;
-    const leaf = name.slice(prefix.length);
-    if (
-      !name.startsWith(prefix) ||
-      !/^(?:[1-9][0-9]*\.)?(?:root|timestamp|snapshot|targets)\.json$/.test(
-        leaf,
-      )
-    )
-      throw new Error("Incomplete or unknown replay record");
-    const bytes = await readOwnedDeclarationBytes(join(journal, name));
-    length += bytes.length;
-    if (length > 32 * 1024 * 1024) throw new Error("Replay byte limit");
-    records.push({ name: leaf, bytes });
-  }
+  const { records, bytes: length } = await readMetadataJournal(journal);
   await inspectOwnedDirectory(dirname(output));
   await mkdir(output, { mode: 0o700 });
   const cache = join(output, "metadata");
