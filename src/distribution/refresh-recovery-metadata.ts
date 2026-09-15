@@ -50,6 +50,7 @@ export async function refreshRecoveryMetadata(
     flag: "wx",
     mode: 0o600,
   });
+  await input.assertHeld();
   const updater = new Updater({
     metadataDir: cache,
     metadataBaseUrl: input.metadataBaseUrl,
@@ -68,6 +69,7 @@ export async function refreshRecoveryMetadata(
     config: { fetchRetries: 0, fetchRetry: false, maxDelegations: 0 },
   });
   await updater.refresh(); // Real clock, normal signatures and metadata links.
+  await input.assertHeld();
   const metadata: Record<string, string> = {};
   for (const role of ["root", "timestamp", "snapshot", "targets"])
     metadata[role] = await readFile(join(cache, `${role}.json`), "utf8");
