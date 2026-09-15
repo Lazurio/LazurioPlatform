@@ -39,6 +39,10 @@ function seal(value: HistoricalFloors): HistoricalFloors {
 export function historicalFloorsFromTrustedCheckpoint(
   input: TrustCheckpoint,
 ): HistoricalFloors {
+  return seal(checkpointFloors(input));
+}
+
+function checkpointFloors(input: TrustCheckpoint): HistoricalFloors {
   const { metadata } = parseTrustCheckpoint(input);
   const root = Metadata.fromJSON(
     MetadataKind.Root,
@@ -60,7 +64,7 @@ export function historicalFloorsFromTrustedCheckpoint(
     });
   }
   positiveVersion(timestamp.signed.snapshotMeta.version);
-  return seal({
+  return {
     kind: "historical-floors-only",
     root: metadata.root,
     rootVersion: root.signed.version,
@@ -71,7 +75,50 @@ export function historicalFloorsFromTrustedCheckpoint(
     ),
     snapshotRoles,
     targetsVersion: targets.signed.version,
-  });
+  };
+}
+
+/** Rollback comparison only, not authentication/freshness or publication.
+ * The owner must independently verify the candidate using the ordinary TUF
+ * client anchored to the reconstructed root. A newer root's version alone does
+ * not prove its chain. Same-version root substitution is rejected here too.
+ */
+export function assertCheckpointRetainsFloors(
+  previous: HistoricalFloors,
+  candidate: TrustCheckpoint,
+): void {
+  if (!authenticated.has(previous))
+    throw new Error("Floor comparison requires reconstructed authentication");
+  const next = checkpointFloors(candidate);
+  if (next.rootVersion < previous.rootVersion)
+    throw new Error("Recovery root rollback");
+  if (next.rootVersion === previous.rootVersion) {
+    const before = Metadata.fromJSON(
+      MetadataKind.Root,
+      envelope(previous.root, "root"),
+    );
+    const after = Metadata.fromJSON(
+      MetadataKind.Root,
+      envelope(next.root, "root"),
+    );
+    if (!before.signed.equals(after.signed))
+      throw new Error("Recovery root substitution at the same version");
+  }
+  for (const field of [
+    "timestampVersion",
+    "snapshotVersion",
+    "targetsVersion",
+  ] as const) {
+    const floor = previous[field];
+    const value = next[field];
+    if (floor !== undefined && (value === undefined || value < floor))
+      throw new Error(`Recovery ${field} rollback`);
+  }
+  for (const [name, floor] of Object.entries(previous.snapshotRoles)) {
+    const value = next.snapshotRoles[name];
+    if (value === undefined || value < floor)
+      throw new Error("Recovery snapshot role rollback or omission");
+  }
 }
 
 function positiveVersion(version: number) {

@@ -9,6 +9,10 @@ import {
 } from "../providers/owned-json";
 import { type ChannelSelection, selectPilotTarget } from "./channel";
 import { downloadPilotCandidate, type PilotTrust } from "./download-pilot";
+import {
+  assertCheckpointRetainsFloors,
+  historicalFloorsFromTrustedCheckpoint,
+} from "./historical-roles";
 import { type PilotReplayNetwork, replayPilotTrust } from "./replay-pilot";
 import {
   exactFields,
@@ -307,6 +311,14 @@ export async function recoverPilotAttempts(options: {
           `Partial trust remains pending for attempt ${attempt}; network recovery required`,
         );
       if (checkpoint && channel) {
+        // This source is the actual selected owner checkpoint, not the attempt's
+        // working cache. Replay still performs cryptographic verification; this
+        // additional comparison must not let recovery forget published floors.
+        if (published)
+          assertCheckpointRetainsFloors(
+            historicalFloorsFromTrustedCheckpoint(published.trust.checkpoint),
+            checkpoint,
+          );
         const unchanged =
           published !== null &&
           sameMetadata(published.trust.checkpoint, checkpoint) &&

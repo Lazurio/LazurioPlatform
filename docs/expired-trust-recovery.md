@@ -42,9 +42,16 @@ targets version even when those roles describe different refresh stages. It does
 not authenticate arbitrary cache files: the caller still has to bind the input to
 `readPublishedPilotTrust`. Shape checks and the function name are not provenance.
 
-This adapter is not yet called by the owner. It throws on refused/corrupt evidence;
-it does not yet classify a refused final response. It also does not reset floors
-after role-key rotation. Those
+The existing recovery owner now seeds floors from its selected published checkpoint
+and calls `assertCheckpointRetainsFloors` before publishing replay's result. This
+comparison rejects lower counters, missing snapshot references and same-version
+root substitution; ordinary replay still owns cryptographic verification. A newer
+root version alone is not proof of its chain, and the comparison does not claim
+freshness. This adds a publication guard, not the new expired-recovery path.
+
+Historical journal reconstruction and continuation are not yet called by the owner.
+The adapter throws on refused/corrupt evidence; it does not yet classify a refused
+final response. It also does not reset floors after role-key rotation. Those
 steps and durable cross-cycle integration below remain required before enabling
 the new recovery path. A fully authenticated expired chain by itself is not enough.
 

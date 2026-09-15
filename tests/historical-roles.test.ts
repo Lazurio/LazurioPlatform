@@ -11,6 +11,7 @@ import {
   Timestamp,
 } from "@tufjs/models";
 import {
+  assertCheckpointRetainsFloors,
   authenticateHistoricalRoles,
   continueHistoricalRoles,
   historicalFloorsFromTrustedCheckpoint,
@@ -81,6 +82,79 @@ function fixture() {
   ];
   return { anchor: encode(root), root, keys, fields, encode, link, records };
 }
+
+test("publication comparison refuses lost counters, omitted roles and root substitution", () => {
+  const f = fixture();
+  const checkpoint = parseTrustCheckpoint({
+    schemaVersion: 1,
+    metadata: {
+      root: f.anchor,
+      timestamp: f.records[0]?.bytes,
+      snapshot: f.records[1]?.bytes,
+      targets: f.records[2]?.bytes,
+    },
+  });
+  const floors = historicalFloorsFromTrustedCheckpoint(checkpoint);
+  expect(() => assertCheckpointRetainsFloors(floors, checkpoint)).not.toThrow();
+  const alter = (
+    role: "timestamp" | "snapshot" | "targets",
+    change: (signed: {
+      version: number;
+      meta: Record<string, { version: number }>;
+    }) => void,
+  ) => {
+    const value = JSON.parse(checkpoint.metadata[role]);
+    change(value.signed);
+    return {
+      ...checkpoint,
+      metadata: { ...checkpoint.metadata, [role]: JSON.stringify(value) },
+    };
+  };
+  expect(() =>
+    assertCheckpointRetainsFloors(
+      floors,
+      alter("timestamp", (s) => {
+        s.version = 6;
+      }),
+    ),
+  ).toThrow("timestampVersion rollback");
+  expect(() =>
+    assertCheckpointRetainsFloors(
+      floors,
+      alter("targets", (s) => {
+        s.version = 3;
+      }),
+    ),
+  ).toThrow("targetsVersion rollback");
+  expect(() =>
+    assertCheckpointRetainsFloors(
+      floors,
+      alter("snapshot", (s) => {
+        delete s.meta["targets.json"];
+      }),
+    ),
+  ).toThrow("snapshot role rollback or omission");
+  expect(() =>
+    assertCheckpointRetainsFloors(
+      floors,
+      alter("snapshot", (s) => {
+        s.meta["targets.json"] = { version: 3 };
+      }),
+    ),
+  ).toThrow("snapshot role rollback or omission");
+  expect(() =>
+    assertCheckpointRetainsFloors(floors, {
+      ...checkpoint,
+      metadata: { ...checkpoint.metadata, root: fixture().anchor },
+    }),
+  ).toThrow("root substitution");
+  expect(() =>
+    assertCheckpointRetainsFloors(
+      JSON.parse(JSON.stringify(floors)),
+      checkpoint,
+    ),
+  ).toThrow("reconstructed authentication");
+});
 
 test("partial subsequent cycles cannot erase earlier authenticated floors", () => {
   const f = fixture();
