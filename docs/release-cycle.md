@@ -251,6 +251,21 @@ therefore still fails closed. Tests verify root rotation again from the original
 anchor and show a subsequent download refusing both older timestamp and older
 channel using the recovered state.
 
+Recovery qualification (not an enabled repair path):
+`tests/tuf-expiry-qualification.test.ts` exercises the pinned client's internal
+store without altering its clock. An authenticated expired timestamp retains
+timestamp/snapshot rollback floors while refusing snapshot use; an expired
+snapshot retains its targets version floor while refusing targets. Unauthenticated
+metadata cannot advance those floors. An expired root permits consecutive signed
+root updates, not timestamp use before a fresh final root. These are in-memory
+observations, not proof of durable recovery or permission to use this private API
+in production. Network recovery still needs an owner-bound durable representation
+of partial trust, authenticated replay, fresh final metadata and interruption tests.
+It must distinguish the signed-root key-rotation reset specified by
+[TUF client workflow](https://theupdateframework.github.io/specification/latest/#detailed-client-workflow)
+from an unsafe reset to bootstrap; keeping every numeric floor forever is not a
+substitute for that protocol. No timestamp rewrite or clock backdating is allowed.
+
 The development installation state owner (`src/distribution/installation-state.ts`)
 binds these operations to one explicit root directory under the existing
 `.operation-lock` discipline. `attempts/<id>` holds pending download evidence,
