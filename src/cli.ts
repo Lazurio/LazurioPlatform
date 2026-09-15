@@ -348,7 +348,7 @@ if (import.meta.main) {
     // Do not echo profile input, private paths or raw filesystem errors.
     if (process.argv[2] === "product") {
       console.error(
-        "Product operation failed. The active version and entrypoint were not changed by a refusal; a failed download stays pending until `product recover`. Check the explicit origins, bootstrap root file and per-user location custody. No automatic retry or repair was performed.",
+        "Product operation failed. Installation state may be incomplete; this message does not prove whether activation changed the active record or entrypoint. Run `product status` and follow the documented repair procedure. Preserve pending attempts and accepted trust; do not reset metadata or bootstrap an established installation again. No automatic retry or repair was performed.",
       );
     } else if (process.argv[2] === "app-request") {
       console.error(
