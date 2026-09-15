@@ -1,7 +1,9 @@
 import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { parseArgs } from "node:util";
 import { folderStateSchemas } from "../src/folder/state";
 import { artifactIdentity } from "./artifact-identity";
+import { candidateTarget } from "./candidate-target";
 
 // Development packaging only: no download, signing, installation or activation.
 const git = (args: string[]) => {
@@ -20,9 +22,24 @@ const run = async (args: string[]) => {
   if ((await child.exited) !== 0) throw new Error("Candidate build failed");
 };
 
-const output = process.argv[2];
-if (!output || process.argv.length !== 3 || !isAbsolute(output))
-  throw new Error("Supply one absolute, absent output directory");
+const { values, positionals, tokens } = parseArgs({
+  args: process.argv.slice(2),
+  strict: true,
+  allowPositionals: true,
+  tokens: true,
+  options: { target: { type: "string" } },
+});
+const output = positionals[0];
+if (
+  !output ||
+  positionals.length !== 1 ||
+  !isAbsolute(output) ||
+  tokens.filter((token) => token.kind === "option").length > 1
+)
+  throw new Error(
+    "Supply one absolute, absent output directory and optional Linux --target",
+  );
+const target = candidateTarget(values.target, process.platform, process.arch);
 if (
   resolve(output) !== output ||
   (await realpath(dirname(output))) !== dirname(output)
@@ -41,14 +58,12 @@ await run(["install", "--frozen-lockfile", "--ignore-scripts"]);
 await run(["run", "check:public"]);
 // Exclusive creation; existing output (even empty) is never adopted or removed.
 await mkdir(output, { mode: 0o700 });
-const binary = join(
-  output,
-  process.platform === "win32" ? "lazurio.exe" : "lazurio",
-);
+const binary = join(output, target.filename);
 await run([
   "build",
   "src/cli.ts",
   "--compile",
+  ...(target.bunTarget ? [`--target=${target.bunTarget}`] : []),
   "--no-compile-autoload-dotenv",
   "--no-compile-autoload-bunfig",
   "--outfile",
@@ -65,7 +80,7 @@ if (!lockfile.equals(await readFile("bun.lock")))
   throw new Error("Lock changed during build");
 const identity = artifactIdentity({
   version: pkg.version,
-  target: `${process.platform === "win32" ? "windows" : process.platform}-${process.arch}`,
+  target: target.target,
   sourceCommit,
   toolchain: pkg.packageManager,
   schemas: folderStateSchemas,

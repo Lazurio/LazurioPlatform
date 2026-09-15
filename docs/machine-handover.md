@@ -79,6 +79,13 @@ directory replacement; ownership checks are not a sandbox.
 
 ## Qualification boundary
 
+A clean committed checkout can produce a Linux glibc candidate from the Mac:
+`bun run scripts/build-candidate.ts /absolute/absent/output --target linux-x64`.
+Use `linux-arm64` for the local ARM64 VM. The target and artifact digest in
+`identity.json` describe the destination bytes, not the build host. The native
+build remains available without `--target`. Cross-compilation is only packaging;
+it does not qualify either architecture. See [Bun's executable targets](https://bun.sh/docs/bundler/executables).
+
 Unit fixtures prove parsing/refusal, directory preservation and recognized
 interruption completion. They do not prove actual Machines delivery, official
 HTTPS/TUF hosting, native Linux x64 execution, Organization/module authorization,
