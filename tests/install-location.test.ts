@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  boundInstallLocation,
   prepareInstallLocation,
   resolveInstallLocation,
   verifyInstallLocation,
@@ -62,6 +63,18 @@ test("resolves per-user locations outside any Lazurio Folder and ignores relativ
       homedir: "relative",
     }),
   ).toThrow("Absolute");
+  const bound = resolveInstallLocation({
+    platform: "linux",
+    env: {},
+    homedir: "/home/x",
+  });
+  expect(boundInstallLocation(bound)).toBe(bound);
+  expect(() =>
+    boundInstallLocation({
+      ...bound,
+      versions: "/home/y/.local/share/lazurio/versions",
+    }),
+  ).toThrow("Unbound");
 });
 
 test("prepare creates the layout once, verifies it afterwards and refuses foreign or uninitialized content", async () => {
@@ -140,6 +153,37 @@ test("prepare creates the layout once, verifies it afterwards and refuses foreig
     await expect(verifyInstallLocation(location)).rejects.toThrow("Unknown");
     await rm(join(location.versions, ".staging-0123456789abcdef"));
     expect(await verifyInstallLocation(location)).toEqual(location);
+    // Two prepared locations never combine: a mixed tuple is refused before
+    // inspection, and a malformed first prepare creates neither base nor
+    // a sibling .lazurio-location-* layout.
+    const other = await prepareInstallLocation(resolve("other"));
+    for (const mixed of [
+      { base: location.base, owner: location.owner, versions: other.versions },
+      { base: location.base, owner: other.owner, versions: location.versions },
+      {
+        base: location.base,
+        owner: location.owner,
+        versions: `${location.base}/versions/../versions`,
+      },
+      {
+        base: `${location.base}/`,
+        owner: location.owner,
+        versions: location.versions,
+      },
+    ]) {
+      await expect(verifyInstallLocation(mixed)).rejects.toThrow("Unbound");
+      await expect(prepareInstallLocation(mixed)).rejects.toThrow("Unbound");
+    }
+    const malformed = {
+      base: join(home, "fresh", "lazurio"),
+      owner: other.owner,
+      versions: join(home, "fresh", "lazurio", "versions"),
+    };
+    await expect(prepareInstallLocation(malformed)).rejects.toThrow("Unbound");
+    await expect(stat(join(home, "fresh"))).rejects.toThrow();
+    expect(
+      (await readdir(home)).filter((entry) => entry.startsWith(".lazurio")),
+    ).toEqual([]);
     // A linked base is refused before any record is read.
     const linked = resolve("linked");
     await mkdir(join(home, "linked"), { mode: 0o700 });

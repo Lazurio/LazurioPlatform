@@ -49,6 +49,24 @@ test("staging refuses an unbound location, missing trust, an unselectable attemp
     await prepareInstallLocation(location);
     const root = location.owner;
     const versions = location.versions;
+    // A tuple mixing two prepared locations is refused before the lock is
+    // taken, before history/trust are read and before anything is created.
+    const other = await prepareInstallLocation(
+      resolveInstallLocation({
+        platform: "linux",
+        env: { XDG_DATA_HOME: join(home, "other") },
+        homedir: home,
+      }),
+    );
+    await expect(
+      stage("closed", { ...location, versions: other.versions }),
+    ).rejects.toThrow("Unbound");
+    await expect(
+      stage("closed", { ...other, owner: location.owner }),
+    ).rejects.toThrow("Unbound");
+    expect(await readdir(root)).toEqual([]);
+    expect(await readdir(other.owner)).toEqual([]);
+    expect(await readdir(other.versions)).toEqual([]);
     await expect(stage("../x")).rejects.toThrow("Invalid attempt");
     await expect(stage("absent")).rejects.toThrow();
     await mkdir(join(root, "history", "closed"), {

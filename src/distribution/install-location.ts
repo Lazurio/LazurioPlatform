@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readOwnedJson } from "../providers/owned-json";
 import { exactFields } from "./trust-checkpoint";
@@ -50,6 +50,21 @@ export function resolveInstallLocation(input: {
   });
 }
 
+/** The three paths are one custody tuple derived from `base`; any other
+ * combination is refused before inspection or writes, so owner state and
+ * versions can never be paired across two locations.
+ */
+export function boundInstallLocation(location: InstallLocation) {
+  if (
+    !isAbsolute(location.base) ||
+    resolve(location.base) !== location.base ||
+    location.owner !== join(location.base, "distribution") ||
+    location.versions !== join(location.base, "versions")
+  )
+    throw new Error("Unbound install location tuple");
+  return location;
+}
+
 /** Read-only proof that this location was initialized by this product: the
  * exclusive `location.json` record exists and every directory holds only
  * entries this product creates. Anything else fails closed and is never
@@ -58,6 +73,7 @@ export function resolveInstallLocation(input: {
 export async function verifyInstallLocation(
   location: InstallLocation,
 ): Promise<InstallLocation> {
+  boundInstallLocation(location);
   await inspectOwnedDirectory(location.base);
   const fields = exactFields(await readOwnedJson(join(location.base, record)), [
     "kind",
@@ -168,6 +184,7 @@ export async function verifyStagedVersionDirectory(
 export async function prepareInstallLocation(
   location: InstallLocation,
 ): Promise<InstallLocation> {
+  boundInstallLocation(location);
   if (await exists(location.base)) return verifyInstallLocation(location);
   const parent = dirname(location.base);
   await mkdir(parent, { recursive: true, mode: 0o700 });
