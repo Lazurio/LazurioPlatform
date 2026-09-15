@@ -1,0 +1,14 @@
+{
+  "schema_version": "lazurio.machine.v1",
+  "machine": { "id": "example-workspace", "kind": "workspace-vm", "name": "workspace", "vmid": 900 },
+  "owner": { "kind": "organization", "organization": "example", "organization_key": "Example", "team": "sample-team" },
+  "operator": { "os_user": "operator", "home": "/home/operator", "lazurio_root": "/home/operator/Lazurio" },
+  "host": { "kind": "virtualization-host", "machine_id": "example-host", "custody_repository": "Example/infra", "provider": "example" },
+  "network": { "headscale_server_url": "https://network.example.invalid", "headscale_hostname": "example-workspace" },
+  "installed": {
+    "machines_release": { "repository": "Example/Machines", "version": "v1.0.0", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "deployment_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recorded_at": "2026-01-01T00:00:00Z"
+  },
+  "account": null
+}

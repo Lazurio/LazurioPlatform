@@ -1,0 +1,8 @@
+{
+  "source_repository": "HumanAndMachine-ai/Machines",
+  "source_commit": "0f438363bed76ec169d62ba7ba527472042b20af",
+  "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
+  "sha256": "e058e67ee897f389cff3917844f22500e65a22dc8fbfb656e651ab99cd6ea341",
+  "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688906823"
+}

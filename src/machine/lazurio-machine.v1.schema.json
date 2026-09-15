@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lazurio.io/schemas/lazurio-machine.v1.schema.json",
+  "title": "lazurio.machine.json — identity of one Machine written at its handover",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "machine", "owner", "operator", "host", "installed", "account"],
+  "properties": {
+    "schema_version": { "const": "lazurio.machine.v1" },
+    "machine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "name", "vmid"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "kind": { "const": "workspace-vm" },
+        "name": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+        "vmid": { "type": "integer", "minimum": 100, "maximum": 999999999 }
+      }
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "organization"],
+      "properties": {
+        "kind": { "const": "organization" },
+        "organization": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "organization_key": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "team": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      }
+    },
+    "operator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os_user", "home", "lazurio_root"],
+      "properties": {
+        "os_user": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+        "home": { "type": "string", "pattern": "^/home/[a-z][a-z0-9-]{0,31}$" },
+        "lazurio_root": { "type": "string", "pattern": "^/home/[a-z][a-z0-9-]{0,31}/Lazurio$" }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "machine_id", "custody_repository", "provider"],
+      "properties": {
+        "kind": { "const": "virtualization-host" },
+        "machine_id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "custody_repository": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$" },
+        "provider": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["headscale_server_url", "headscale_hostname"],
+      "properties": {
+        "headscale_server_url": { "type": "string", "pattern": "^https://[a-z0-9.-]+/?$" },
+        "headscale_hostname": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+      }
+    },
+    "installed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["machines_release", "deployment_head", "recorded_at"],
+      "properties": {
+        "machines_release": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "version", "commit"],
+          "properties": {
+            "repository": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$" },
+            "version": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$" },
+            "commit": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" }
+          }
+        },
+        "deployment_head": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "recorded_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+      }
+    },
+    "account": {
+      "description": "Reserved for the Machine's Lazurio account identity issued by the Dashboard; null until that contract exists.",
+      "type": "null"
+    }
+  }
+}
