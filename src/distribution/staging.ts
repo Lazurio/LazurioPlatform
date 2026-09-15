@@ -6,6 +6,10 @@ import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readOwnedDeclarationBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import {
+  type InstallLocation,
+  verifyInstallLocation,
+} from "./install-location";
+import {
   closedSelection,
   describeCandidate,
   type PilotCandidate,
@@ -42,27 +46,29 @@ const semver =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 /** Stages one closed, still-selectable attempt into an immutable versioned
- * product directory under the same installation owner lock. The artifact and
- * its identity are bound to the published signed targets and to each other,
+ * product directory under the same installation owner lock. Staging is bound
+ * to one verified, product-initialized install location: its owner root and
+ * versions directory are never taken as separate paths. The artifact and its
+ * identity are bound to the published signed targets and to each other,
  * declared read compatibility is checked, and the directory is published by
  * one rename. No active version exists or changes here; a leftover staging
  * directory from an interruption is retained and never adopted.
  */
 export async function stagePilotCandidate(options: {
-  root: string;
-  versions: string;
+  location: InstallLocation;
   attempt: string;
   executionTarget: string;
   requiredSchemas: RequiredSchemas;
 }): Promise<StagedProduct> {
-  await inspectOwnedDirectory(options.root);
-  await inspectOwnedDirectory(options.versions);
+  const { owner: root, versions } = await verifyInstallLocation(
+    options.location,
+  );
   if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(options.attempt))
     throw new Error("Invalid attempt identifier");
-  return withFolderOperationLock(options.root, async (assertHeld) => {
-    const closed = join(options.root, "history", options.attempt);
+  return withFolderOperationLock(root, async (assertHeld) => {
+    const closed = join(root, "history", options.attempt);
     await inspectOwnedDirectory(closed);
-    const published = await readPublishedPilotTrust(options.root);
+    const published = await readPublishedPilotTrust(root);
     if (!published) throw new Error("No published trust to stage from");
     const selection = await closedSelection(
       closed,
@@ -97,11 +103,11 @@ export async function stagePilotCandidate(options: {
       options.requiredSchemas,
     );
     const name = `${identity.version}+${candidate.sha256.slice(0, 16)}`;
-    const directory = join(options.versions, name);
+    const directory = join(versions, name);
     const artifactName = options.executionTarget.startsWith("windows-")
       ? "lazurio.exe"
       : "lazurio";
-    const existing = (await readdir(options.versions)).includes(name);
+    const existing = (await readdir(versions)).includes(name);
     await assertHeld();
     if (existing) {
       // Immutable: an occupied name is accepted only when byte-identical.
@@ -124,7 +130,7 @@ export async function stagePilotCandidate(options: {
       });
     }
     const staging = join(
-      options.versions,
+      versions,
       `.staging-${randomBytes(8).toString("hex")}`,
     );
     await mkdir(staging, { mode: 0o700 });
@@ -147,7 +153,7 @@ export async function stagePilotCandidate(options: {
     await syncPath(staging);
     // Publish the complete directory by one rename; verify the published bytes.
     await rename(staging, directory);
-    await syncPath(options.versions);
+    await syncPath(versions);
     const staged = await describeCandidate(
       directory,
       options.executionTarget,

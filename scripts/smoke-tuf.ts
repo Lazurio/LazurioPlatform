@@ -32,6 +32,10 @@ import {
   type PilotTrust,
 } from "../src/distribution/download-pilot";
 import {
+  prepareInstallLocation,
+  resolveInstallLocation,
+} from "../src/distribution/install-location";
+import {
   downloadPilotUnderOwner,
   readPublishedPilotTrust,
   recoverPilotAttempts,
@@ -389,8 +393,14 @@ try {
   {
     // Installation state owner: one lock, one published trust record, pending
     // attempts reconciled by offline replay before any new refresh.
-    const root = join(fixture, "installation");
-    await mkdir(root, { mode: 0o700 });
+    const location = await prepareInstallLocation(
+      resolveInstallLocation({
+        platform: "linux",
+        env: { XDG_DATA_HOME: join(fixture, "xdg") },
+        homedir: fixture,
+      }),
+    );
+    const root = location.owner;
     const network = {
       executionTarget: "linux-arm64",
       metadataBaseUrl: `${server.url}metadata/`,
@@ -600,12 +610,10 @@ try {
     );
     // Staging: bind the closed candidate to its authenticated identity and
     // publish one immutable versioned directory; nothing becomes active.
-    const versions = join(fixture, "versions");
-    await mkdir(versions, { mode: 0o700 });
+    const versions = location.versions;
     const stage = (attempt: string, executionTarget = "linux-arm64") =>
       stagePilotCandidate({
-        root,
-        versions,
+        location,
         attempt,
         executionTarget,
         requiredSchemas: folderStateSchemas,
@@ -671,15 +679,22 @@ try {
     identityBytes = identityFor("linux-arm64");
     // A leftover staging directory from an interruption is retained, never
     // adopted, and does not block a fresh staging of another version.
-    await mkdir(join(versions, ".staging-deadbeef"), { mode: 0o700 });
+    await mkdir(join(versions, ".staging-deadbeefdeadbeef"), { mode: 0o700 });
     served = repository(9);
     const eighth = await downloadPilotUnderOwner({ root, ...network });
     const restaged = await stage(eighth.attempt);
     assert.equal(restaged.alreadyStaged, true);
     assert.deepEqual((await readdir(versions)).sort(), [
-      ".staging-deadbeef",
+      ".staging-deadbeefdeadbeef",
       staged.name,
     ]);
+    // Foreign content in the versions directory blocks staging, unremoved.
+    await writeFile(join(versions, "foreign-owned-content"), "x", {
+      mode: 0o600,
+    });
+    await assert.rejects(stage(eighth.attempt), /Unknown content/);
+    await rm(join(versions, "foreign-owned-content"));
+    assert.equal((await stage(eighth.attempt)).alreadyStaged, true);
     assert.deepEqual(await readPublishedPilotTrust(root), eighth.published);
     console.log(
       "PASS: staging binds the closed candidate to its signed identity, checks read compatibility, publishes one immutable versioned directory and never touches an active version",

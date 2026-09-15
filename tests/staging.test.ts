@@ -9,6 +9,10 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  prepareInstallLocation,
+  resolveInstallLocation,
+} from "../src/distribution/install-location";
 import { stagePilotCandidate } from "../src/distribution/staging";
 import {
   parseTrustCheckpoint,
@@ -17,20 +21,34 @@ import {
 
 const required = { preferences: [1], manifest: [1] };
 
-test("staging refuses without published trust, a selectable attempt or a held lock, creating nothing", async () => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), "stage-root-")));
-  const versions = await realpath(
-    await mkdtemp(join(tmpdir(), "stage-versions-")),
-  );
-  const stage = (attempt: string) =>
+test("staging refuses an unbound location, missing trust, an unselectable attempt or a held lock, creating nothing", async () => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "stage-home-")));
+  const location = resolveInstallLocation({
+    platform: "linux",
+    env: { XDG_DATA_HOME: home },
+    homedir: home,
+  });
+  const stage = (attempt: string, target = location) =>
     stagePilotCandidate({
-      root,
-      versions,
+      location: target,
       attempt,
       executionTarget: "linux-arm64",
       requiredSchemas: required,
     });
   try {
+    // An owner-owned but uninitialized location is not a staging target.
+    const unbound = {
+      base: join(home, "unbound"),
+      owner: join(home, "unbound", "distribution"),
+      versions: join(home, "unbound", "versions"),
+    };
+    await mkdir(unbound.versions, { recursive: true, mode: 0o700 });
+    await mkdir(unbound.owner, { mode: 0o700 });
+    await expect(stage("closed", unbound)).rejects.toThrow();
+    expect(await readdir(unbound.versions)).toEqual([]);
+    await prepareInstallLocation(location);
+    const root = location.owner;
+    const versions = location.versions;
     await expect(stage("../x")).rejects.toThrow("Invalid attempt");
     await expect(stage("absent")).rejects.toThrow();
     await mkdir(join(root, "history", "closed"), {
@@ -66,7 +84,6 @@ test("staging refuses without published trust, a selectable attempt or a held lo
     await expect(stage("closed")).rejects.toThrow("busy or requires recovery");
     expect(await readdir(versions)).toEqual([]);
   } finally {
-    await rm(root, { recursive: true });
-    await rm(versions, { recursive: true });
+    await rm(home, { recursive: true });
   }
 });

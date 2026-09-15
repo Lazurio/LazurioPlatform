@@ -1,6 +1,9 @@
-import { mkdir } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { randomBytes } from "node:crypto";
+import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
+import { dirname, isAbsolute, join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { readOwnedJson } from "../providers/owned-json";
+import { exactFields } from "./trust-checkpoint";
 
 /** Per-user product location outside any Lazurio Folder: the installation
  * owner root, immutable versioned product directories and, later, the stable
@@ -11,6 +14,17 @@ export type InstallLocation = Readonly<{
   owner: string;
   versions: string;
 }>;
+
+const record = "location.json";
+const ownerEntries = new Set([
+  ".operation-lock",
+  "attempts",
+  "history",
+  "trust",
+]);
+export const stagedVersionName =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\+[0-9a-f]{16}$/;
+const stagingName = /^\.staging-[0-9a-f]{16}$/;
 
 export function resolveInstallLocation(input: {
   platform: string;
@@ -36,18 +50,86 @@ export function resolveInstallLocation(input: {
   });
 }
 
-/** Creates the private base and its two owner directories when absent and
- * verifies each is canonical, caller-owned and not shared-writable. Existing
- * content is never adopted, repaired or removed.
+/** Read-only proof that this location was initialized by this product: the
+ * exclusive `location.json` record exists and every directory holds only
+ * entries this product creates. Anything else fails closed and is never
+ * adopted, repaired or removed. Custody checks do not replace this record.
  */
-export async function prepareInstallLocation(location: InstallLocation) {
-  for (const path of [location.base, location.owner, location.versions]) {
-    try {
-      await mkdir(path, { mode: 0o700 });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    }
-    await inspectOwnedDirectory(path);
-  }
+export async function verifyInstallLocation(
+  location: InstallLocation,
+): Promise<InstallLocation> {
+  await inspectOwnedDirectory(location.base);
+  const fields = exactFields(await readOwnedJson(join(location.base, record)), [
+    "kind",
+    "schemaVersion",
+  ]);
+  if (fields.schemaVersion !== 1 || fields.kind !== "lazurio-install-location")
+    throw new Error("Unrecognized install location record");
+  const entries = (await readdir(location.base)).sort();
+  if (entries.join(",") !== `distribution,${record},versions`)
+    throw new Error("Unknown content in install location");
+  await inspectOwnedDirectory(location.owner);
+  for (const entry of await readdir(location.owner))
+    if (!ownerEntries.has(entry))
+      throw new Error("Unknown content in installation owner directory");
+  await inspectOwnedDirectory(location.versions);
+  for (const entry of await readdir(location.versions))
+    if (!stagedVersionName.test(entry) && !stagingName.test(entry))
+      throw new Error("Unknown content in product versions directory");
   return location;
+}
+
+/** Creates the location once as a complete private layout published by one
+ * rename, or verifies an existing initialized one. A pre-existing base without
+ * this product's record is refused, not adopted; a leftover
+ * `.lazurio-location-*` directory from an interruption is retained.
+ */
+export async function prepareInstallLocation(
+  location: InstallLocation,
+): Promise<InstallLocation> {
+  if (await exists(location.base)) return verifyInstallLocation(location);
+  const parent = dirname(location.base);
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  await inspectOwnedDirectory(parent);
+  const staging = join(
+    parent,
+    `.lazurio-location-${randomBytes(8).toString("hex")}`,
+  );
+  await mkdir(staging, { mode: 0o700 });
+  await mkdir(join(staging, "distribution"), { mode: 0o700 });
+  await mkdir(join(staging, "versions"), { mode: 0o700 });
+  const file = await open(join(staging, record), "wx", 0o400);
+  try {
+    await file.writeFile(
+      JSON.stringify({ schemaVersion: 1, kind: "lazurio-install-location" }),
+    );
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  await syncPath(staging);
+  if (await exists(location.base))
+    throw new Error("Install location appeared during preparation");
+  await rename(staging, location.base);
+  await syncPath(parent);
+  return verifyInstallLocation(location);
+}
+
+async function exists(path: string) {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function syncPath(path: string) {
+  const handle = await open(path, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }

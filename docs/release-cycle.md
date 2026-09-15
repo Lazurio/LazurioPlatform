@@ -270,8 +270,16 @@ per-user location outside any Lazurio Folder: macOS
 `~/Library/Application Support/Lazurio`, Linux `${XDG_DATA_HOME:-~/.local/share}/lazurio`
 (a relative `XDG_DATA_HOME` is ignored); Windows remains unqualified and is refused.
 Beneath it, `distribution/` is the installation owner root and `versions/` holds
-immutable product directories. `prepareInstallLocation` creates the private
-directories once and verifies custody; existing content is never adopted.
+immutable product directories. `prepareInstallLocation` creates the whole private
+layout once, together with an exclusive `location.json` record, in a
+`.lazurio-location-*` directory beside the base and publishes it by one rename; a
+leftover from an interruption is retained. `verifyInstallLocation` is the read-only
+proof that this product initialized the location: the record must exist and the
+base, owner and versions directories may hold only entries this product creates.
+A pre-existing base without the record, or unknown content inside an initialized
+one, is refused and never adopted, repaired or removed; filesystem custody alone
+does not make a directory this product's. Staging is bound to one verified
+location and never takes the owner root or versions directory as separate paths.
 
 `stagePilotCandidate` (`src/distribution/staging.ts`) runs under the same owner
 lock and stages one closed attempt that is still selectable under the published
