@@ -35,6 +35,15 @@ owner-bound evidence. This is in-memory accumulation, not durable recovery, and
 does not mark lower signed responses as accepted. Root rotation does not silently
 clear the counters.
 
+Reconstructed floors privately retain each role's signed JSON content at its
+highest observed version. Continuation and publication reject changed content at
+the same version, including a newly signed expiry extension. The comparison covers
+unknown signed fields, but ignores JSON formatting/key order and envelope signature
+encoding. A partial cycle retains earlier content bindings; restart reconstructs
+them from signed evidence rather than deserializing another counter/content store.
+Publication also compares each cached role's own version separately: a higher
+timestamp snapshot reference must not mask rollback of the cached snapshot itself.
+
 `historicalFloorsFromTrustedCheckpoint` provides an explicit trusted-input seed
 for the owner's already-published checkpoint. It preserves the timestamp's snapshot
 reference, the cached snapshot's own version and role references, and the cached
@@ -45,7 +54,7 @@ not authenticate arbitrary cache files: the caller still has to bind the input t
 The existing recovery owner now seeds floors from its selected published checkpoint
 and calls `assertCheckpointRetainsFloors` before publishing replay's result. This
 comparison rejects lower counters, missing snapshot references and same-version
-root substitution; ordinary replay still owns cryptographic verification. A newer
+signed-content substitution; ordinary replay still owns cryptographic verification. A newer
 root version alone is not proof of its chain, and the comparison does not claim
 freshness. This adds a publication guard, not the new expired-recovery path.
 

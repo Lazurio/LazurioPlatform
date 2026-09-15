@@ -83,6 +83,123 @@ function fixture() {
   return { anchor: encode(root), root, keys, fields, encode, link, records };
 }
 
+test("higher snapshot reference cannot mask rollback of the cached snapshot itself", () => {
+  const f = fixture();
+  const checkpoint = parseTrustCheckpoint({
+    schemaVersion: 1,
+    metadata: {
+      root: f.anchor,
+      timestamp: f.encode(
+        new Timestamp({
+          ...f.fields(11),
+          snapshotMeta: new MetaFile({ version: 13 }),
+        }),
+      ),
+      snapshot: f.records[1]?.bytes,
+      targets: f.records[2]?.bytes,
+    },
+  });
+  const previous = historicalFloorsFromTrustedCheckpoint(checkpoint);
+  const candidate = {
+    ...checkpoint,
+    metadata: {
+      ...checkpoint.metadata,
+      snapshot: f.encode(
+        new Snapshot({
+          ...f.fields(8),
+          meta: { "targets.json": f.link(f.records[2]?.bytes ?? "", 4) },
+        }),
+      ),
+    },
+  };
+  expect(previous.snapshotVersion).toBe(13);
+  expect(() => assertCheckpointRetainsFloors(previous, candidate)).toThrow(
+    "snapshot content version rollback",
+  );
+});
+
+for (const role of ["timestamp", "snapshot", "targets"] as const) {
+  test(`validly signed ${role} cannot extend expiry at the same version`, () => {
+    const f = fixture();
+    const previous = authenticateHistoricalRoles(f.anchor, f.records);
+    const before = JSON.stringify(previous);
+    const fresh = new Date(Date.now() + 86_400_000).toISOString();
+    const targets =
+      role === "targets"
+        ? f.encode(new Targets({ ...f.fields(4), expires: fresh }))
+        : (f.records[2]?.bytes ?? "");
+    const snapshotVersion = role === "targets" ? 10 : 9;
+    const snapshot =
+      role === "timestamp"
+        ? (f.records[1]?.bytes ?? "")
+        : f.encode(
+            new Snapshot({
+              ...f.fields(snapshotVersion),
+              ...(role === "snapshot" ? { expires: fresh } : {}),
+              meta: { "targets.json": f.link(targets, 4) },
+            }),
+          );
+    const timestamp = f.encode(
+      new Timestamp({
+        ...f.fields(role === "timestamp" ? 7 : 8),
+        ...(role === "timestamp" ? { expires: fresh } : {}),
+        snapshotMeta: f.link(snapshot, snapshotVersion),
+      }),
+    );
+    const records = [
+      { name: "timestamp.json", bytes: timestamp },
+      { name: `${snapshotVersion}.snapshot.json`, bytes: snapshot },
+      { name: "4.targets.json", bytes: targets },
+    ];
+    // The new chain is signature/link-valid in isolation; the earlier binding
+    // is what makes reuse of the same version unacceptable.
+    expect(() => authenticateHistoricalRoles(f.anchor, records)).not.toThrow();
+    expect(() => continueHistoricalRoles(previous, records)).toThrow(
+      `${role} content changed at the same version`,
+    );
+    const candidate = parseTrustCheckpoint({
+      schemaVersion: 1,
+      metadata: { root: f.anchor, timestamp, snapshot, targets },
+    });
+    expect(() => assertCheckpointRetainsFloors(previous, candidate)).toThrow(
+      `${role} content changed at the same version`,
+    );
+    expect(JSON.stringify(previous)).toBe(before);
+  });
+}
+
+test("content bindings ignore JSON formatting but retain unknown signed fields", () => {
+  const f = fixture();
+  const previous = authenticateHistoricalRoles(f.anchor, f.records);
+  const metadata = {
+    root: f.anchor,
+    timestamp: f.records[0]?.bytes ?? "",
+    snapshot: f.records[1]?.bytes ?? "",
+    targets: f.records[2]?.bytes ?? "",
+  };
+  const candidate = parseTrustCheckpoint({ schemaVersion: 1, metadata });
+  const changed = JSON.parse(candidate.metadata.timestamp);
+  changed.signed = Object.fromEntries(Object.entries(changed.signed).reverse());
+  const formatted = {
+    ...candidate,
+    metadata: {
+      ...candidate.metadata,
+      timestamp: JSON.stringify(changed, null, 2),
+    },
+  };
+  expect(() =>
+    assertCheckpointRetainsFloors(previous, formatted),
+  ).not.toThrow();
+  changed.signed.customBinding = "new signed content";
+  const unknown = {
+    ...candidate,
+    metadata: { ...candidate.metadata, timestamp: JSON.stringify(changed) },
+  };
+  expect(() => assertCheckpointRetainsFloors(previous, unknown)).toThrow(
+    "timestamp content changed at the same version",
+  );
+});
+
 test("publication comparison refuses lost counters, omitted roles and root substitution", () => {
   const f = fixture();
   const checkpoint = parseTrustCheckpoint({
@@ -261,7 +378,23 @@ test("a later snapshot retains missing historical role floors without pretending
     { name: "timestamp.json", bytes: timestamp },
     { name: "9.snapshot.json", bytes: snapshot },
   ]);
-  const result = continueHistoricalRoles(initial, f.records);
+  const nextSnapshot = f.encode(
+    new Snapshot({
+      ...f.fields(10),
+      meta: { "targets.json": f.link(f.records[2]?.bytes ?? "", 4) },
+    }),
+  );
+  const nextTimestamp = f.encode(
+    new Timestamp({
+      ...f.fields(8),
+      snapshotMeta: f.link(nextSnapshot, 10),
+    }),
+  );
+  const result = continueHistoricalRoles(initial, [
+    { name: "timestamp.json", bytes: nextTimestamp },
+    { name: "10.snapshot.json", bytes: nextSnapshot },
+    { name: "4.targets.json", bytes: f.records[2]?.bytes ?? "" },
+  ]);
   expect(result.snapshotRoles).toEqual({
     "targets.json": 4,
     "retained.json": 12,

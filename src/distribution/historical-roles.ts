@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { Metadata, MetadataKind } from "@tufjs/models";
 import type { JSONObject } from "@tufjs/models/dist/utils";
 import { parseUniqueJson } from "../providers/unique-json";
@@ -16,12 +17,16 @@ export type HistoricalFloors = Readonly<{
 }>;
 // Restart recovery must reconstruct authentication from owner-bound signed
 // evidence, never adopt deserialized counters as another trust store.
-const authenticated = new WeakSet<HistoricalFloors>();
+type RoleBindings = Readonly<Partial<Record<Kind, string>>>;
+const authenticated = new WeakMap<HistoricalFloors, RoleBindings>();
 
-function seal(value: HistoricalFloors): HistoricalFloors {
+function seal(
+  value: HistoricalFloors,
+  bindings: RoleBindings,
+): HistoricalFloors {
   Object.freeze(value.snapshotRoles);
   Object.freeze(value);
-  authenticated.add(value);
+  authenticated.set(value, Object.freeze({ ...bindings }));
   return value;
 }
 
@@ -39,7 +44,8 @@ function seal(value: HistoricalFloors): HistoricalFloors {
 export function historicalFloorsFromTrustedCheckpoint(
   input: TrustCheckpoint,
 ): HistoricalFloors {
-  return seal(checkpointFloors(input));
+  const checkpoint = parseTrustCheckpoint(input);
+  return seal(checkpointFloors(checkpoint), checkpoint.metadata);
 }
 
 function checkpointFloors(input: TrustCheckpoint): HistoricalFloors {
@@ -89,7 +95,8 @@ export function assertCheckpointRetainsFloors(
 ): void {
   if (!authenticated.has(previous))
     throw new Error("Floor comparison requires reconstructed authentication");
-  const next = checkpointFloors(candidate);
+  const checked = parseTrustCheckpoint(candidate);
+  const next = checkpointFloors(checked);
   if (next.rootVersion < previous.rootVersion)
     throw new Error("Recovery root rollback");
   if (next.rootVersion === previous.rootVersion) {
@@ -119,6 +126,51 @@ export function assertCheckpointRetainsFloors(
     if (value === undefined || value < floor)
       throw new Error("Recovery snapshot role rollback or omission");
   }
+  assertEqualVersionBindings(
+    authenticated.get(previous) ?? {},
+    checked.metadata,
+    true,
+  );
+}
+
+function assertEqualVersionBindings(
+  previous: RoleBindings,
+  next: RoleBindings,
+  rejectOlder = false,
+) {
+  for (const role of kinds) {
+    const before = previous[role];
+    const after = next[role];
+    if (before === undefined || after === undefined) continue;
+    const a = envelope(before, role).signed as JSONObject;
+    const b = envelope(after, role).signed as JSONObject;
+    if (rejectOlder && (b.version as number) < (a.version as number))
+      throw new Error(`Recovery ${role} content version rollback`);
+    // Compare the complete signed JSON value, not envelope signatures or byte
+    // formatting. Unknown signed fields count; key ordering/whitespace do not.
+    if (a.version === b.version && !isDeepStrictEqual(a, b))
+      throw new Error(`Recovery ${role} content changed at the same version`);
+  }
+}
+
+function mergeBindings(
+  previous: RoleBindings,
+  next: RoleBindings,
+): RoleBindings {
+  assertEqualVersionBindings(previous, next);
+  const result = { ...previous };
+  for (const role of kinds) {
+    const before = previous[role];
+    const after = next[role];
+    if (after === undefined) continue;
+    if (
+      before === undefined ||
+      ((envelope(after, role).signed as JSONObject).version as number) >
+        ((envelope(before, role).signed as JSONObject).version as number)
+    )
+      result[role] = after;
+  }
+  return result;
 }
 
 function positiveVersion(version: number) {
@@ -162,6 +214,7 @@ export function authenticateHistoricalRoles(
   let root = Metadata.fromJSON(MetadataKind.Root, envelope(anchor, "root"));
   root.verifyDelegate("root", root);
   let rootBytes = anchor;
+  const bindings: Partial<Record<Kind, string>> = { root: anchor };
   let timestamp: ReturnType<typeof timestampFrom> | undefined;
   let snapshot: ReturnType<typeof snapshotFrom> | undefined;
   let targetsVersion: number | undefined;
@@ -192,6 +245,7 @@ export function authenticateHistoricalRoles(
       next.verifyDelegate("root", next);
       root = next;
       rootBytes = record.bytes;
+      bindings.root = record.bytes;
       continue;
     }
     if (ordinal !== phase + 1)
@@ -223,6 +277,7 @@ export function authenticateHistoricalRoles(
       targetsVersion = targets.signed.version;
     }
     phase = ordinal;
+    bindings[kind] = record.bytes;
   }
   const snapshotRoles: Record<string, number> = {};
   for (const [name, meta] of Object.entries(snapshot?.signed.meta ?? {})) {
@@ -239,15 +294,18 @@ export function authenticateHistoricalRoles(
     (!Number.isSafeInteger(snapshotVersion) || snapshotVersion < 1)
   )
     throw new Error("Invalid historical snapshot reference");
-  return seal({
-    kind: "historical-floors-only" as const,
-    root: rootBytes,
-    rootVersion: root.signed.version,
-    timestampVersion: timestamp?.signed.version,
-    snapshotVersion,
-    snapshotRoles: Object.freeze(snapshotRoles),
-    targetsVersion,
-  });
+  return seal(
+    {
+      kind: "historical-floors-only" as const,
+      root: rootBytes,
+      rootVersion: root.signed.version,
+      timestampVersion: timestamp?.signed.version,
+      snapshotVersion,
+      snapshotRoles: Object.freeze(snapshotRoles),
+      targetsVersion,
+    },
+    bindings,
+  );
 }
 
 /** Carry conservative floors across an authenticated subsequent chain. A partial
@@ -263,6 +321,10 @@ export function continueHistoricalRoles(
       "Historical continuation requires reconstructed authentication",
     );
   const next = authenticateHistoricalRoles(previous.root, records);
+  const bindings = mergeBindings(
+    authenticated.get(previous) ?? {},
+    authenticated.get(next) ?? {},
+  );
   const snapshotRoles: Record<string, number> = {};
   for (const name of new Set([
     ...Object.keys(previous.snapshotRoles),
@@ -273,15 +335,21 @@ export function continueHistoricalRoles(
       enumerable: true,
     });
   }
-  return seal({
-    kind: "historical-floors-only",
-    root: next.root,
-    rootVersion: next.rootVersion,
-    timestampVersion: maximum(previous.timestampVersion, next.timestampVersion),
-    snapshotVersion: maximum(previous.snapshotVersion, next.snapshotVersion),
-    snapshotRoles,
-    targetsVersion: maximum(previous.targetsVersion, next.targetsVersion),
-  });
+  return seal(
+    {
+      kind: "historical-floors-only",
+      root: next.root,
+      rootVersion: next.rootVersion,
+      timestampVersion: maximum(
+        previous.timestampVersion,
+        next.timestampVersion,
+      ),
+      snapshotVersion: maximum(previous.snapshotVersion, next.snapshotVersion),
+      snapshotRoles,
+      targetsVersion: maximum(previous.targetsVersion, next.targetsVersion),
+    },
+    bindings,
+  );
 }
 
 function maximum(a: number | undefined, b: number | undefined) {
