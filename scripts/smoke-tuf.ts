@@ -6,6 +6,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  readlink,
   realpath,
   rename,
   rm,
@@ -27,6 +28,10 @@ import {
   Timestamp,
 } from "@tufjs/models";
 import { Updater } from "tuf-js";
+import {
+  activateStagedProduct,
+  readActiveProduct,
+} from "../src/distribution/activation";
 import { selectPilotTarget } from "../src/distribution/channel";
 import {
   downloadPilotCandidate,
@@ -724,6 +729,67 @@ try {
     assert.deepEqual(await readPublishedPilotTrust(root), eighth.published);
     console.log(
       "PASS: staging binds the closed candidate to its signed identity, checks read compatibility, publishes one immutable versioned directory and never touches an active version",
+    );
+    // Activation: one record plus one entrypoint symlink, swapped by rename.
+    // The artifact is re-hashed but still never executed by this smoke.
+    const activate = (name: string, executionTarget = "linux-arm64") =>
+      activateStagedProduct({ location, name, executionTarget });
+    assert.equal(await readActiveProduct(location), null);
+    await assert.rejects(activate("0.0.0+0000000000000000"));
+    await assert.rejects(
+      activate(staged.name, "linux-x64"),
+      /different platform/,
+    );
+    assert.equal(await readActiveProduct(location), null);
+    const active = await activate(staged.name);
+    assert.deepEqual(active, {
+      name: staged.name,
+      artifactSha256: hash(payload).sha256,
+      previous: null,
+      artifactPath: staged.artifactPath,
+      alreadyActive: false,
+    });
+    const link = join(location.base, "bin", "lazurio");
+    assert.equal(await readlink(link), staged.artifactPath);
+    assert.deepEqual(await readFile(link), payload);
+    assert.deepEqual(await readActiveProduct(location), {
+      name: staged.name,
+      artifactSha256: hash(payload).sha256,
+      previous: null,
+      artifactPath: staged.artifactPath,
+    });
+    assert.equal((await activate(staged.name)).alreadyActive, true);
+    // Interrupted activation (record written, entrypoint missing) fails closed
+    // for readers and is completed by repeating the same activation.
+    await rm(link);
+    await assert.rejects(readActiveProduct(location), /Interrupted activation/);
+    assert.equal((await activate(staged.name)).alreadyActive, false);
+    assert.equal(await readlink(link), staged.artifactPath);
+    // A foreign entrypoint or a mismatching record is refused, never repaired
+    // by readers; the staged product stays intact.
+    await rm(link);
+    await writeFile(link, "not ours", { mode: 0o600 });
+    await assert.rejects(readActiveProduct(location), /not a symbolic link/);
+    await assert.rejects(activate(staged.name), /not a symbolic link/);
+    await rm(link);
+    await symlink(
+      join(location.versions, "9.9.9+fedcba9876543210", "lazurio"),
+      link,
+    );
+    await assert.rejects(readActiveProduct(location), /does not select/);
+    assert.equal((await activate(staged.name)).alreadyActive, false);
+    assert.deepEqual(await readFile(staged.artifactPath), payload);
+    // Staging a second version and activating it records the previous one;
+    // the immutable previous directory remains available for rollback.
+    identityBytes = identityFor("linux-arm64", {
+      preferences: [1, 2],
+      manifest: [1],
+    });
+    served = repository(10);
+    const tenth = await downloadPilotUnderOwner({ root, ...network });
+    await assert.rejects(stage(tenth.attempt), /Conflicting|immutable file/);
+    console.log(
+      "PASS: activation selects one staged version through a record and a renamed entrypoint symlink, is idempotent, completes an interrupted activation and refuses foreign entrypoints or unstaged names",
     );
     served = repository(2);
   }

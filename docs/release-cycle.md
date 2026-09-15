@@ -309,8 +309,24 @@ directory is not selectable for launch. The smoke covers a different platform
 label, a release that cannot read the required schemas, an occupied conflicting
 name and a leftover staging directory, on macOS and standalone Linux ARM64.
 
-Still open: activation through one stable entrypoint with the first clean-VM
-installed journey, recovery of an expired or inconsistent transcript via fresh
+`activateStagedProduct` (`src/distribution/activation.ts`) is the explicit
+activation under the same owner lock. It re-verifies the staged directory and
+re-hashes the artifact against its provenance and identity, then replaces the
+single owner-controlled record `active.json` (name, artifact digest, previous
+name) atomically and swaps the stable entrypoint `bin/lazurio`, a symlink to the
+immutable artifact, by rename so a running executable is never overwritten.
+`readActiveProduct` proves the record and the entrypoint agree; an interrupted
+activation (one without the other, or a link selecting something else) fails
+closed and is completed only by repeating the same activation. Foreign
+entrypoints, records or version directories are refused, never repaired. The
+previous name is retained for an explicit rollback, which is the same operation on
+the still-staged previous version. Activation changes only what future launches
+select. Windows activation is refused as unqualified.
+
+Still open: PATH integration of the entrypoint, draining or pinning running
+consumers before a switch, write compatibility and rollback checks before
+activation, the first clean-VM installed journey through the entrypoint,
+recovery of an expired or inconsistent transcript via fresh
 network metadata (such attempts stay pending and block new downloads until an
 explicit repair path exists), reclaiming a lock left by a dead process, write
 compatibility and rollback checks before activation, retention policy for staged

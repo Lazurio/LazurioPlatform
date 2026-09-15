@@ -16,6 +16,14 @@ export type InstallLocation = Readonly<{
 }>;
 
 const record = "location.json";
+const baseEntries = new Set([
+  "distribution",
+  record,
+  "versions",
+  "active.json",
+  "active.json.next",
+  "bin",
+]);
 const ownerEntries = new Set([
   ".operation-lock",
   "attempts",
@@ -90,8 +98,24 @@ export async function verifyInstallLocation(
   if (fields.schemaVersion !== 1 || fields.kind !== "lazurio-install-location")
     throw new Error("Unrecognized install location record");
   const entries = (await readdir(location.base)).sort();
-  if (entries.join(",") !== `distribution,${record},versions`)
-    throw new Error("Unknown content in install location");
+  for (const entry of entries)
+    if (!baseEntries.has(entry))
+      throw new Error("Unknown content in install location");
+  for (const required of ["distribution", record, "versions"])
+    if (!entries.includes(required))
+      throw new Error("Incomplete install location");
+  if (entries.includes("bin")) {
+    // The stable entrypoint directory holds only this product's symlink and
+    // rename leftovers; the active record proves what the link must select.
+    const bin = join(location.base, "bin");
+    await inspectOwnedDirectory(bin);
+    for (const entry of await readdir(bin)) {
+      if (entry !== "lazurio" && !/^\.lazurio-[0-9a-f]{16}$/.test(entry))
+        throw new Error("Unknown content in entrypoint directory");
+      if (!(await lstat(join(bin, entry))).isSymbolicLink())
+        throw new Error("Entrypoint entry is not a symbolic link");
+    }
+  }
   await inspectOwnedDirectory(location.owner);
   for (const entry of await readdir(location.owner))
     if (!ownerEntries.has(entry))
