@@ -55,7 +55,8 @@ export class MachineContextError extends Error {
       | "machine-context-invalid"
       | "machine-context-custody"
       | "machine-platform-unsupported"
-      | "machine-operator-mismatch",
+      | "machine-operator-mismatch"
+      | "machine-operator-unavailable",
   ) {
     super(code);
   }
@@ -116,7 +117,7 @@ export async function readMachineContext() {
 }
 
 // Pure binding check, also used with synthetic runtime evidence in tests.
-// Production evidence comes from os.userInfo(), never HOME/USER environment vars.
+// Production evidence comes from the UID's system record, never HOME/USER vars.
 export function bindMachineOperator(
   context: MachineContext,
   runtime: { platform: string; uid: number; username: string; homedir: string },

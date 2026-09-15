@@ -37,10 +37,17 @@ lazurio machine folder-init --locale cs --detail technical --coordination direct
 
 The second command is the narrow Linux/remote/human pilot entrypoint. Locale,
 detail and coordination are explicit choices, not inferred from identity. It binds
-the declared user/home to `os.userInfo()` (not `$USER`/`$HOME`) and requires
+the declared user/home to the actual UID's Linux NSS record (not `$USER`/`$HOME`) and requires
 `operator.lazurio_root` to be that user's `/home/<user>/Lazurio`. The wire name
 remains `lazurio_root`; the product concept is **Lazurio Folder**. There is no CLI
 override for the production identity path or UID.
+
+The Linux base system must provide root-owned `/usr/bin/getent`; it is called
+without a shell, with a fixed `passwd <uid>` query and sanitized environment.
+Missing/unsafe resolver or ambiguous output stops as `machine-operator-unavailable`.
+We deliberately do not use Bun 1.4.2 `os.userInfo()` here: native ARM64 qualification
+observed that its username depends on the ambient environment. No dependency on
+a separately installed Bun is introduced by the system account lookup.
 
 The shared Folder initializer accepts exactly a canonical operator-owned Folder
 with empty `organizations/` and `personalspace/`, both owned and non-shared. Their

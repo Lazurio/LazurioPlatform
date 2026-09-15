@@ -1,4 +1,3 @@
-import { userInfo } from "node:os";
 import { parseArgs } from "node:util";
 import { initializeHandoverFolder } from "../folder/initialize-folder";
 import { parseFolderProfile } from "../folder/profile";
@@ -7,6 +6,7 @@ import {
   MachineContextError,
   readMachineContext,
 } from "./context";
+import { readLinuxOperator } from "./operator";
 
 export const machineHelp = `machine inspect
 Read the root-issued /etc/lazurio/lazurio.machine.json on Linux only.
@@ -64,13 +64,10 @@ export async function runMachineCommand(args: string[]) {
           authority: "none",
         },
       };
-    const operator = userInfo();
-    const folder = bindMachineOperator(observed.context, {
-      platform: process.platform,
-      uid: operator.uid,
-      username: operator.username,
-      homedir: operator.homedir,
-    });
+    const folder = bindMachineOperator(
+      observed.context,
+      await readLinuxOperator(),
+    );
     const result = await initializeHandoverFolder(folder, profile);
     return {
       code: 0,
