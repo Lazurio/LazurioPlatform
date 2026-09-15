@@ -266,6 +266,11 @@ It must distinguish the signed-root key-rotation reset specified by
 from an unsafe reset to bootstrap; keeping every numeric floor forever is not a
 substitute for that protocol. No timestamp rewrite or clock backdating is allowed.
 
+The remaining owner integration is specified in the open
+[expired pending trust work package](expired-trust-recovery.md), including durable
+refresh cycles and repeated-failure acceptance. It is not implemented by the
+qualification tests below.
+
 `tests/expired-cache-refresh.test.ts` qualifies the separate fresh-refresh phase
 through the public client path: given a synthetic previously trusted complete
 cache whose role metadata has expired, a higher fresh generation succeeds while
