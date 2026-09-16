@@ -1,8 +1,10 @@
 # Decision proposals and convergence
 
-Status: review draft, updated 2026-09-13. These local identifiers are Platform proposals,
+Status: review draft, updated 2026-09-16. These local identifiers are Platform proposals,
 not new numbers in the maintained Lazurio decision register. They do not override
 legacy runtime contracts until the owning decision is amended and consumers migrate.
+Canonical decision 0144 has now accepted the Machines/Environment handover boundary
+and the Conglomerate graph meaning; those two points are no longer pending amendments.
 
 ## F0 — Confirmed vocabulary and responsibility split
 
@@ -149,7 +151,7 @@ have different transactions and compatibility checks. See [recovery](migration-a
 
 | Existing authority | Proposed precise change | Preserved invariant / retirement evidence |
 | --- | --- | --- |
-| Decision 0128 and existing `Conglomerate Host` terminology | Deprecation of the old Conglomerate root/product name remains in force; separately decide whether and how `Conglomerate` can become the fleet/graph term without colliding with the existing Machine profile | No silent canonical rewrite; explicit legacy terminology and consumer migration |
+| Decisions 0128 and 0144 / `Conglomerate Host` | Accepted: deprecated root/product name stays deprecated; Conglomerate means the Principal's Machine graph, Host is a specific infrastructure Machine | No new authority, ACL or registry; consumer terminology migration remains separate |
 | Decisions 0136 and resident-distribution knowledge | Platform source is optional development input; installed product owns runtime; Folder Factory preserves the canonical Lazurio Folder path | Legacy source-working directory supported until explicit migration and restore proof; no second active Lazurio Folder |
 | Decision 0137 and hosted Machine contract proposals | Replace shared Team workshop execution with a dedicated environment per Principal; manifest-derived eligibility remains | Existing shared environments retained only for bounded transition; stop new shared cohorts after approved cutoff |
 | Decisions 0091, 0092, 0094 and Machine architecture | Clarify dedicated use versus infrastructure ownership and custodian recovery | Personalspace remains private, Buddy not Principal, AI Colleague own identity, parent operator boundary explicit |

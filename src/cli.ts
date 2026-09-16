@@ -147,6 +147,7 @@ Requires canonical Organization and module inventory documents; no GEN3 fallback
 Output is local declaration evidence, not access, readiness or permission to launch.
 Per-module conflicts remain explicit even when other modules are observed.
 organization-conversion-preview --directory <permitted legacy Organization fixture>
+Experimental: canonical Organization adoption still requires its owning decision.
 Reads legacy declarations and inventory; outputs a lossless canonical JSON draft only.
 Refuses an occupied canonical target, conflicting declarations or observed drift.
 No files, locks, provider requests or applications are created. Output may contain

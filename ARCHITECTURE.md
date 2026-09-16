@@ -1,6 +1,6 @@
 # Lazurio Platform architecture
 
-Status: proposed implementation contract, updated 2026-09-14. Product direction is supplied
+Status: implementation contract aligned with decision 0144, updated 2026-09-16. Product direction is supplied
 by the Principal; this document does not claim that the target is deployed. Decision
 amendments and rollout gates are in [decisions](docs/decisions.md).
 
@@ -59,6 +59,16 @@ identity schema. Identity and Owner/Team names do not grant access. See the
 [handover consumer](docs/machine-handover.md) for the limited Linux/remote/human
 entrypoint and protected empty-layout initialization. Existing residents remain
 until their Platform replacement is qualified; current rollouts do not wait for it.
+
+This boundary is accepted in [canonical decision 0144](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/decision-register.md).
+Machines delivers the Machine online with its handover identity and selected installed
+Platform release. The local `lazurio` CLI and operator own Environment setup and
+updates afterwards; Machines is not a second Organization/module reconciler.
+The current increment is **foundation + Folder handover pilot, not Environment
+installation**. Machines must not remove its resident layer on that basis.
+Organization materialization, tools/sign-ins, the real release channel and gateway
+integration remain separate qualification gates. Organization conversion is explicitly
+experimental until its owning canonical decision; see [module adoption](docs/module-adoption.md).
 
 The nearest controlled pilot is one Machines-delivered Linux workspace through
 the real HTTPS/TUF channel, one agreed profile/Organization/module, agent work,
@@ -249,10 +259,10 @@ They do not share one live directory and are not required to hold identical stat
 The **Conglomerate** is the end-state fleet/graph of Machines and their Lazurio
 Environments across Organizations, including meaningful relationships and flows of
 data, information and work. It is not a directory, an Organization, an access boundary,
-an ACL or an authority. Canonical decision 0128 deprecated `Conglomerate` as the old
-root/product name, while `Conglomerate Host` already names a specific infrastructure
-Machine profile. The new fleet meaning therefore needs an explicit canonical amendment
-and legacy-terminology plan; this draft does not silently rewrite either decision.
+an ACL or an authority. Canonical decision 0144 accepts this graph meaning while
+preserving decision 0128's deprecation of the old root/product name. A `Conglomerate
+Host` is the distinct infrastructure Machine hosting the Conglomerate's services
+such as Headscale and Vaultwarden, not the graph itself or a shared permission grant.
 
 Dashboard initially presents the whole-system overview and reasoning surface. It owns
 neither access nor a parallel copy of truth. GitHub remains access authority for each

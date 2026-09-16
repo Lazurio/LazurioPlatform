@@ -121,12 +121,8 @@ export function parseCanonicalOrganization(input: unknown) {
       rootName.split("/")[0]?.toLowerCase() !== ownerName.toLowerCase()
     )
       throw new Error("Organization root binding mismatch");
-    // Existing verified GEN3 compatibility contract, not a newly invented root name.
-    if (
-      owner.binding_state === "verified" &&
-      rootName.toLowerCase() !== `${ownerName}/${ownerName}_GEN3`.toLowerCase()
-    )
-      throw new Error("Verified Organization root naming mismatch");
+    // The declared root locator is explicit, never derived from the owner's name.
+    // IDs and matching owner remain required; parsing does not verify GitHub rights.
   }
   if (object(value.manifests, ["modules"]).modules !== "modules.manifest.json")
     throw new Error("Unsupported modules pointer");

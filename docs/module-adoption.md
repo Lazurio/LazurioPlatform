@@ -803,10 +803,11 @@ Doctor data remain intact. Reserved-field collisions, unknown structural fields,
 wrong identity types, mixed binding states, mismatched owners, unsupported governance,
 bad projection pointers/digest syntax and invalid port pools are refused.
 
-The existing runtime compatibility check additionally requires a verified root to be
-`<owner>/<owner>_GEN3` on `main`; that rule was verified in
-`organization-scaffold-lib.mjs#validForgeBinding` at the pinned legacy commit. It is
-not generalized to unverified declarations. Unverified absent/null roots remain
+The explicit root locator may name any repository under the declared owner; Platform
+does not derive `<owner>/<owner>_GEN3`. Matching owner/binding state and valid declared
+IDs remain required, and this bounded schema still accepts only the declared `main`
+branch. The old name restriction in the legacy runtime is not a target rule.
+Unverified absent/null roots remain
 representable, without adopting the still-pending owner-local project contract.
 Team fields follow the published schema, including optional exact team forge binding;
 the older runtime's shape check only verifies that teams is an array. Malformed team
@@ -845,6 +846,12 @@ pinned commit above. No legacy source was copied or introduced as a dependency; 
 public tests are independent fixtures. No real Organization files were enumerated.
 
 ### Canonical Organization / inventory declaration binding
+
+**Experimental, not canonical adoption:** whether `lazurio.organization.json` replaces
+or coexists with `company.gen3.json` still requires an owning root decision and a
+consumer migration plan. Decision 0144 settles the Machines/Environment boundary,
+not this document transition. Do not silently convert real Organizations or count
+this preview as Organization materialization for the hosted pilot.
 
 `prepareOrganizationConversion` provides an explicit pure conversion draft from
 legacy GEN3 declarations and the existing module inventory. It preserves custom

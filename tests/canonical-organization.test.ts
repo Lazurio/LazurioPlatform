@@ -89,6 +89,20 @@ test("canonical Organization reader preserves owned metadata in an isolated froz
   );
 });
 
+test("verified root uses its explicit repository name without inventing a GEN3 suffix", () => {
+  const input = fixture();
+  input.root_repository.locator = "Fixture/company-workspace";
+  const parsed = parseCanonicalOrganization(input);
+  expect(parsed.root_repository).toEqual(input.root_repository);
+  input.root_repository.locator = "Other/company-workspace";
+  expect(() => parseCanonicalOrganization(input)).toThrow(
+    "Organization root binding mismatch",
+  );
+  input.root_repository.locator = "Fixture/company-workspace";
+  delete input.root_repository.repository_id;
+  expect(() => parseCanonicalOrganization(input)).toThrow();
+});
+
 // biome-ignore lint/suspicious/noExplicitAny: mutation cases deliberately violate the input schema; production API accepts unknown.
 const invalid: [string, (value: Record<string, any>) => void][] = [
   [
@@ -203,12 +217,6 @@ const invalid: [string, (value: Record<string, any>) => void][] = [
     "different owner",
     (v) => {
       v.root_repository.locator = "Other/Other_GEN3";
-    },
-  ],
-  [
-    "verified root name",
-    (v) => {
-      v.root_repository.locator = "Fixture/another";
     },
   ],
   [
