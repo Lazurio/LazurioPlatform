@@ -69,6 +69,8 @@ installation**. Machines must not remove its resident layer on that basis.
 Organization materialization, tools/sign-ins, the real release channel and gateway
 integration remain separate qualification gates. Organization conversion is explicitly
 experimental until its owning canonical decision; see [module adoption](docs/module-adoption.md).
+The [tool and sign-in proposal](docs/environment-tools.md) separates explicit local
+preparation from operator-owned provider authentication; it does not claim either is implemented.
 
 The nearest controlled pilot is one Machines-delivered Linux workspace through
 the real HTTPS/TUF channel, one agreed profile/Organization/module, agent work,
