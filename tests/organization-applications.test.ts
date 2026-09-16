@@ -570,6 +570,44 @@ posixTest(
 );
 
 posixTest(
+  "template roots are observable declarations but never executable Organization selections",
+  async () => {
+    await fixture(async (root) => {
+      const selection = {
+        company: "fixture",
+        module: "web",
+        package: "app/package.json",
+      };
+      expect(await resolveOrganizationApplication(root, selection)).toEqual({
+        moduleDirectory: join(root, "workspace/web"),
+      });
+      await writeFile(
+        join(root, "lazurio.organization.json"),
+        JSON.stringify({ ...canonical, kind: "template" }),
+      );
+      const before = await readFile(
+        join(root, "workspace/web/app/package.json"),
+      );
+      expect(await readOrganizationApplications(root)).toEqual({
+        kind: "template-not-runtime",
+      });
+      await expect(
+        resolveOrganizationApplication(root, selection),
+      ).rejects.toThrow("Selected Organization unavailable");
+      expect(
+        await readFile(join(root, "workspace/web/app/package.json")),
+      ).toEqual(before);
+      // A template result must not depend on inspecting its module descendants.
+      await rm(join(root, "workspace"), { recursive: true });
+      await symlink("/nonexistent-template-fixture", join(root, "workspace"));
+      expect(await readOrganizationApplications(root)).toEqual({
+        kind: "template-not-runtime",
+      });
+    });
+  },
+);
+
+posixTest(
   "conflicted slots are quarantined, missing siblings do not hide healthy modules, and runtime failure is not readiness",
   async () => {
     await fixture(async (root, inventory) => {
@@ -663,6 +701,14 @@ posixTest(
       expect(await run()).toMatchObject({
         code: 0,
         value: { kind: "applications-observed" },
+      });
+      await writeFile(
+        join(root, "lazurio.organization.json"),
+        JSON.stringify({ ...canonical, kind: "template" }),
+      );
+      expect(await run()).toEqual({
+        code: 2,
+        value: { kind: "template-not-runtime" },
       });
       await rm(join(root, "lazurio.organization.json"));
       expect(await run()).toEqual({

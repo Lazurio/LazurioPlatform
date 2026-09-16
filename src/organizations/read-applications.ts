@@ -53,6 +53,10 @@ export async function readOrganizationApplications(directory: string) {
       documents.canonical.value,
       documents.modules.value,
     );
+    // The canonical manifest family excludes template roots from runtime.
+    // Keep parsing/preview available, but do not inspect or authorize their apps.
+    if (inventory.canonical.kind !== "organization")
+      return Object.freeze({ kind: "template-not-runtime" as const });
     const company = (inventory.canonical.organization as { slug: string }).slug;
     const conflicted = new Set(
       inventory.inventory.issues.flatMap((issue) => issue.indices),

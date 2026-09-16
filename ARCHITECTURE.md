@@ -67,8 +67,10 @@ updates afterwards; Machines is not a second Organization/module reconciler.
 The current increment is **foundation + Folder handover pilot, not Environment
 installation**. Machines must not remove its resident layer on that basis.
 Organization materialization, tools/sign-ins, the real release channel and gateway
-integration remain separate qualification gates. Organization conversion is explicitly
-experimental until its owning canonical decision; see [module adoption](docs/module-adoption.md).
+integration remain separate qualification gates. Organization conversion remains an
+experimental preview until consumer/rollout qualification. The existing Core schema
+is already authoritative; see [contract convergence](docs/organization-contract.md)
+and [module adoption](docs/module-adoption.md).
 The [tool and sign-in proposal](docs/environment-tools.md) separates explicit local
 preparation from operator-owned provider authentication; it does not claim either is implemented.
 

@@ -847,11 +847,15 @@ public tests are independent fixtures. No real Organization files were enumerate
 
 ### Canonical Organization / inventory declaration binding
 
-**Experimental, not canonical adoption:** whether `lazurio.organization.json` replaces
-or coexists with `company.gen3.json` still requires an owning root decision and a
-consumer migration plan. Decision 0144 settles the Machines/Environment boundary,
-not this document transition. Do not silently convert real Organizations or count
-this preview as Organization materialization for the hosted pilot.
+**Experimental preview, not canonical adoption:** the existing Core manifest-family
+contract already defines canonical `lazurio.organization.json` and a temporary
+generated `company.gen3.json` projection. Platform still needs consumer convergence
+and a qualified owning rollout/finalization plan; it must not invent another schema.
+See [authority, provenance and current gaps](organization-contract.md). Decision 0144
+settles the Machines/Environment boundary, not completion of this migration.
+Do not silently convert real Organizations or count this preview as Organization
+materialization for the hosted pilot. Template roots are excluded from application
+discovery and executable selection through the shared `template-not-runtime` result.
 
 `prepareOrganizationConversion` provides an explicit pure conversion draft from
 legacy GEN3 declarations and the existing module inventory. It preserves custom
