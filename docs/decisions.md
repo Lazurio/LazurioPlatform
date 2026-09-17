@@ -147,6 +147,19 @@ Generation manifests identify owned files, expected previous digests and the
 active preference revision. Product upgrade, profile activation and data migration
 have different transactions and compatibility checks. See [recovery](migration-and-recovery.md).
 
+## F8 — Operator access to hosted Machines and the Conglomerate view
+
+**Proposal (2026-09-17):** access of an operator to a hosted Machine is declared by
+the Owner as "operator ↔ Machines ↔ level" (application user, operator, operator with
+SSH), sourced from GitHub Teams plus a Dashboard declaration, and projected by the
+Conglomerate into the private-network policy and the Machine gateway. Operators serve
+their own SSH setup and agent-workspace pairing from Launchpad or the CLI on their
+personal Machine; adding a personal Machine to the Conglomerate stays an Owner-level
+approval without a pull request. The Dashboard renders the Conglomerate view (Machines,
+assigned operators, directed SSH edges) as a projection of what the control plane
+enforces, never as a second truth (consistent with F0). Details, ownership per
+repository and open gates: [hosted Machine access](hosted-machine-access.md).
+
 ## Required amendments before production implementation
 
 | Existing authority | Proposed precise change | Preserved invariant / retirement evidence |
