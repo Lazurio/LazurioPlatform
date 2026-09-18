@@ -1,0 +1,29 @@
+{
+  "name": "lazurio-platform-foundation",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "bun@1.4.2",
+  "scripts": {
+    "check": "bun run lint && bun run typecheck && bun test && bun run check:public && bun run build:proof && bun run smoke:proof",
+    "test": "bun test",
+    "build:proof": "bun build proof/main.ts --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/platform-proof",
+    "smoke:proof": "bun run scripts/smoke-proof.ts",
+    "lint": "biome check --error-on-warnings .",
+    "format": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "check:public": "bun run scripts/check-public.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "@types/bun": "1.4.2",
+    "typescript": "5.9.3"
+  },
+  "license": "Elastic-2.0",
+  "dependencies": {
+    "@tufjs/models": "5.0.0",
+    "ajv": "8.20.0",
+    "minimatch": "10.2.6",
+    "tuf-js": "6.0.0"
+  }
+}

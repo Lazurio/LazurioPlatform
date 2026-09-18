@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio — Profile</title></head>
+<body>
+<main>
+<h1 data-message="title">Lazurio — Profile</h1>
+<p id="notice" data-message="notice">Development fixture only. No Lazurio installation or migration.</p>
+<form id="profile">
+<fieldset disabled id="choices">
+<legend id="legend" data-message="legend">Machine profile</legend>
+<p><label><span data-message="access">Access</span> <select name="access"><option value="local" data-message="local">Local</option><option value="remote" data-message="remote">Remote</option></select></label></p>
+<p><label><span data-message="purpose">Purpose</span> <select name="purpose"><option value="human" data-message="human">Human</option><option value="buddy" data-message="buddy">Buddy</option><option value="ai_colleague" data-message="ai_colleague">AI colleague</option></select></label></p>
+<p><label><span data-message="locale">Language</span> <select name="locale"><option value="en">English</option><option value="cs">Čeština</option></select></label></p>
+<p><label><span data-message="detail">Detail</span> <select name="detail"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></label></p>
+<p><label><span data-message="coordination">Coordination</span> <select name="coordination"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></label></p>
+<button type="submit" data-message="preview">Preview</button>
+<button type="button" id="reload" data-message="reload">Reload profile</button>
+<button type="button" id="apply" data-message="apply" disabled>Apply previewed change</button>
+</fieldset>
+</form>
+<p id="status" role="status">Loading…</p>
+<pre id="result"></pre>
+<section aria-labelledby="apps-heading">
+<h2 id="apps-heading" data-message="appsTitle">Application</h2>
+<p data-message="appsNotice">Explicit development selection. The server must authorize the declared application.</p>
+<button type="button" id="app-discover" data-message="appDiscover">Read declared applications</button>
+<label><span data-message="appDiscovered">Observed application</span>
+<select id="app-discovered" disabled><option value=""></option></select></label>
+<p id="app-discovery-status" role="status"></p>
+<pre id="app-discovery-result"></pre>
+<form id="application">
+<fieldset id="app-choices">
+<legend data-message="appSelection">Declared application</legend>
+<p><label><span data-message="appCompany">Organization</span> <input name="company" required maxlength="100" autocomplete="off"></label></p>
+<p><label><span data-message="appModule">Module</span> <input name="module" required maxlength="100" autocomplete="off"></label></p>
+<p><label><span data-message="appPackage">Package</span> <input name="package" required maxlength="500" placeholder="app/package.json" autocomplete="off"></label></p>
+<button type="submit" name="operation" value="prepare" data-message="appPrepare">Prepare dependencies</button>
+<button type="submit" name="operation" value="clean-prepare" data-message="appCleanPrepare">Reinstall dependencies (remove node_modules)</button>
+<button type="submit" name="operation" value="start" data-message="appStart">Start</button>
+<button type="submit" name="operation" value="status" data-message="appStatus">Status</button>
+<button type="submit" name="operation" value="open" data-message="appOpen">Get application link</button>
+<button type="submit" name="operation" value="stop" data-message="appStop">Stop</button>
+</fieldset>
+</form>
+<p id="app-status" role="status"></p>
+<a id="app-link" hidden target="_blank" rel="noopener noreferrer" data-message="appVisit">Open application on this machine</a>
+<pre id="app-result"></pre>
+</section>
+</main>
+<script type="module" src="./ui.ts"></script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+# Development standard — proposed foundation
+
+This standard is a reviewable recommendation, not an approved final product stack. It applies to the small executable proof now; extend it with the first real consumers. Optimize source for humans and agents to understand and change safely. Never minify source, shorten meaningful names or compress code to save prompt tokens. Distribution optimization, if later measured and adopted, happens only at build time and preserves debuggability.
+
+## Start and navigate
+
+Read `README.md`, `ARCHITECTURE.md` and the nearest `AGENTS.md`, then `docs/stack-evidence.md` for empirical limits. `proof/core.ts` owns the pure preview operation; `proof/main.ts` owns CLI and HTTP transport; `proof/ui.ts` consumes HTTP in the browser. `tests/` checks behavior and negative cases; `scripts/` contains development-only verification. The installed product must not depend on those developer scripts or on a Platform checkout.
+
+Follow ownership and consumers rather than arbitrary file-size limits. Keep a behavior with its state/validation owner. Extract a module when it gives a responsibility a clear home, eliminates duplicate logic or provides a useful test boundary. Avoid generic `manager`, `utils` or `service` layers with no specific invariant. A long coherent function may merit review; line count alone is not a defect and many tiny files can make navigation worse. Prefer named inputs, explicit return contracts at public seams, readable domain names and direct control flow. CLI and UI call the same operation; transport adapters must not duplicate business decisions.
+
+## Mechanical quality and commands
+
+Recommend one mechanical tool: exact `@biomejs/biome` 2.5.12 for formatting, import organization and the recommended lint preset. Keep `tsc` as the semantic type checker. Biome is a development dependency, absent from the runtime executable. The version was verified from the package registry on 2026-09-08 and is locked in `bun.lock`. The exact Bun pin is 1.4.2. [Biome installation and usage](https://biomejs.dev/guides/getting-started/).
+
+| Option | Fit for this foundation | Reconsider when |
+| --- | --- | --- |
+| Biome + tsc | One mechanical config and separate semantic checking; adequate for the current TypeScript proof | A concrete required rule or language integration cannot be covered cleanly |
+| ESLint + Prettier + tsc | Valid alternative, but introduces two mechanical configurations and dependency surfaces for the current consumer | Actual framework/plugin rules justify the extra moving parts |
+| Formatter only | Makes diffs consistent | Insufficient by itself: it does not replace lint, type checking or behavioral tests |
+
+`biome.json` scopes automation to src/proof/scripts/tests TypeScript and the three JSON config files. It deliberately does not reformat architecture documents, instructions or other contributors' prose. Review the configuration scope when adding product source; an excluded future directory must not silently miss lint. The current HTML asset is reviewed manually. [Biome configuration reference](https://biomejs.dev/reference/configuration/).
+
+```sh
+bun install --frozen-lockfile
+bun run check
+```
+
+`check` stops on the first failure and runs lint/format verification → strict typecheck → behavioral tests → public-input guard → standalone build → isolated CLI/HTTP smoke. It does not publish, install a product or activate a profile. `bun run format` applies formatting, import organization and safe mechanical fixes to the configured scope; review the diff. `bun run lint`, `bun run typecheck`, `bun test` and `bun run check:public` are available for focused iteration. Tests and build checks remain authoritative together: Bun compilation does not replace TypeScript checking.
+
+## Comments and contracts
+
+Comment why a choice exists, the invariant it protects, a non-obvious failure mode or a boundary the type system cannot enforce. Do not narrate each statement or repeat names in prose. Keep comments adjacent to the owning logic. A public operation should explain its inputs, side effects, rejection behavior and authority requirements where those are not obvious. Link a lasting architectural tradeoff to its decision instead of copying a second decision into comments. Temporary TODOs identify the owning issue or plan step; they are not permission to bypass safety.
+
+Examples already present explain why the preview has no IO and why the smoke omits runtime environment variables. They do not claim that either measure creates an OS security boundary. Avoid blanketing code with comments to satisfy a numeric coverage rule.
+
+## Tests and proposed CI acceptance
+
+Test consumer-visible behavior and meaningful rejection/recovery paths. Do not mirror implementation statements or assert source text except for a narrowly justified static policy. Pure tests cover deterministic combinations and invalid input. The binary smoke covers source-independent execution, shared CLI/HTTP output, embedded asset delivery and no working-directory writes. It does not execute the browser or exercise real Lazurio Folder mutations.
+
+Recommend PR CI on native macOS, Linux and Windows using the exact Bun pin and frozen lockfile; run `bun run check` on every matrix entry. Pin third-party actions to verified immutable commits, keep permissions read-only and avoid secrets in pull-request jobs. No workflow is included in this proof: native runner/action selection and provider setup require their own verified implementation. Every OS/CPU advertised as supported needs native acceptance evidence, not just successful cross-compilation or a generic OS matrix.
+
+The first real Launchpad consumer should add Playwright for browser flows, error states and accessibility checks. Profile activation and migration additionally need native filesystem/process fixtures, interruption, dirty Git/worktree preservation, concurrent invocation and rollback tests. Coordinator profiles need actual harness evals. Coverage percentages alone do not prove these invariants. Keep fixtures synthetic and scoped; never use live organization or Personalspace data.
+
+## Public inputs: implemented narrow guard
+
+`bun run check:public` reads Git-tracked and untracked, non-ignored publication candidates, checking both index blobs and worktree bytes. A safe unstaged replacement cannot conceal a staged credential; safe differences remain allowed. It rejects `.env` variants, conventional secret/private/Personalspace paths, key extensions, tracked dependency/build output, non-regular files and recognizable private-key/GitHub-token patterns. It emits paths and failure categories, never matching contents. The proof's four reviewed source/asset files are enumerated; unreviewed files, imports and obvious dynamic loaders fail the narrow static check. New intentional assets require a reviewed policy update. The fixture tests demonstrate rejected names, synthetic credential signatures and an unapproved asset import.
+
+This is not a general secret scanner: it does not inspect Git history, ignored files, dependencies, compiled binary contents, arbitrary provider token formats, encoded/fragmented values or organization confidentiality. Static TypeScript dependencies are read with Bun.Transpiler.scan, including side-effect imports, re-exports and import attributes. HTMLRewriter parses attributes independently of quoting or whitespace; only the small reviewed HTML vocabulary is allowed, so CSS, srcset, inline scripts and import maps require explicit policy expansion. Computed loading and arbitrary runtime IO are still a review boundary, not a security sandbox. The build embeds only the reviewed proof graph, and the smoke observes behavior; neither proves comprehensive absence of secrets. Review history, diffs, release inputs and artifact provenance before public release; add a maintained scanner when choosing the repository-wide release pipeline. Never treat a passing guard as permission to copy private data into this public repository.
+
+Observed locally on 2026-09-13: mechanical checks, strict types, twenty-two tests (208 assertions), the public-input guard, standalone build and native macOS arm64 smoke passed. The Linux ARM64 artifact also passed the isolated CLI/HTTP/asset runner in a clean Ubuntu 24.04.4 guest without Bun/Node or a source checkout. The macOS arm64 proof passed the same runner in two independent macOS 26.6.2 clean clones. This is bounded proof evidence, not installer or full Launchpad qualification. Windows, other architectures and full browser flows remain unverified.
+
+`src/folder/reconcile.ts` starts product development separately from the disposable
+proof: a pure planner for the generated `AGENTS.md` file. It consumes typed inventory
+and prior/desired digests, not ambient filesystem state. Unknown ownership, unsafe
+paths and drift block the plan. Its tests do not prove inventory accuracy, runtime
+input validation, write safety, locks, atomic generation or CLI/UI integration;
+the remaining adapters and consumers still require implementation. This is not a persisted
+manifest schema or a public API. Product source is included in lint and type checks.
+
+`src/folder/inventory.ts` adds read-only POSIX inspection of that one file in an
+explicit absolute directory. Its caller must validate ownership and maintain a stable
+parent directory; this snapshot is not a lock or defense against parent substitution.
+It rejects root symlinks, nonregular instruction files and hardlinks; IO failures
+propagate rather than masquerading as absent files. Tests use synthetic temporary
+directories on macOS, not personal data. Windows explicitly remains unsupported by
+this adapter. Linux proof results above do not qualify this new adapter on Linux.
+
+`src/folder/profile.ts` validates the internal composed profile input independently
+of the preview proof. Execution OS, access context, purpose, locale, detail and
+coordination are separate required fields. Configuration syntax is not a support
+matrix, identity check or authorization grant. The four launch journey fixtures in
+both languages exercise parsing only, not generated instructions, UI translation or
+native runtime support. Persistence, custom-source composition and capability checks
+remain subsequent consumers; do not store this internal shape as a supported schema.
+
+`src/folder/render.ts` renders the base instruction template in Czech or English
+from validated profile input. Template revision and normalized profile are included
+for deterministic provenance. Tests connect rendered-content digests to reconciliation
+and exercise all four launch configurations in both languages. These are text and
+planning tests, not live harness adoption. Custom instruction composition, packaged
+skills, CLI/UI integration and generation activation remain incomplete. The generator
+does not inspect, translate or relocate Organization/Personalspace content.
+
+`src/folder/preview.ts` is the shared read-only use case joining profile validation,
+rendering, digest calculation, injected inventory and reconciliation. Invalid profile
+or prior digest stops before inventory; inventory failure propagates. A real temporary
+directory test proves that preview preserves instructions and unrelated user files.
+Transport adapters still need to bind this operation to an explicitly validated owned
+directory. Repeated-call equality is not evidence of implemented CLI/UI parity.
+The preview is not authorization, a persisted transaction or a safe-to-apply token;
+future application must revalidate ownership, revisions and filesystem state under
+the mutation contract. No home-directory discovery or writer exists in this use case.
+
+Development entrypoint: `bun run src/cli.ts folder-preview --folder <canonical-fixture-path>
+--profile '<profile-json>' [--previous-digest <sha256>]`. Use only your own stable
+synthetic fixture, not a live Lazurio Folder. The directory must be canonical, owned
+by the current user and not group/world writable; symlink paths are rejected. These
+checks do not protect against hostile concurrent parent-directory replacement.
+The command prints a JSON preview, returns 0 for a valid proposal, 2 for a blocked
+plan, and 1 for invalid input or unavailable inventory. Errors omit raw input and
+private filesystem paths. No installed CLI, Windows support, mutation or UI parity
+is claimed. The full local check passed with 23 tests and 217 assertions after this
+entrypoint was added; this extends the earlier foundation evidence above.
+
+For readable profile selection, `bun run src/cli.ts --help` documents an alternative
+to JSON: pass all of `--access`, `--purpose`, `--locale`, `--detail` and
+`--coordination`. The execution OS is detected automatically. For example, append
+`--access remote --purpose human --locale cs --detail concise --coordination direct`
+to `folder-preview --folder <canonical-fixture-path>`. These choices go through the
+same profile validator and preview use case as JSON; mixing the two forms is rejected.
+This is a noninteractive development preview, not completed first-run onboarding.
+`--previous-digest` is a supplied test input, not evidence that a file is owned.
+
+`profile-preview --folder <canonical-fixture-path> --expected-revision <revision>`
+uses the same profile choices but reads the fixture's `.lazurio/preferences.json`
+and `.lazurio/instructions.json` under the common operation lock. There is no state
+directory override or previous-digest override. It returns the shared profile-change
+plan, unchanged result or blocking reason; it does not apply the plan. Unlike
+`folder-preview`, it temporarily creates/removes a lock and requires write access to
+the metadata directory. Missing/unknown state is refused, not initialized. This is
+an internal development CLI; creating a valid fixture manually is not the installed
+onboarding contract. Source-CLI parity with the shared operation is tested on macOS;
+native guest evidence for this newer command has not yet been collected.
+
+The subsequent compiled-CLI regression builds `src/cli.ts` into its own temporary
+artifact and executes it with an empty environment from a separate fixture directory.
+Its JSON result equals the shared preview and the fixture stays empty. The complete
+local check now passes 24 tests with 221 assertions. This proves native macOS
+standalone preview behavior, not source-unavailable OS sandboxing, a clean-system
+installation, signature trust or the other platform cells. No compiled artifact is
+checked into Git or installed by this test.
+
+The CLI also compares the requested profile OS with the actual execution process
+through `src/folder/platform.ts` before inventory. A remote client's OS cannot select
+the execution OS. Mapping Windows does not qualify the Windows filesystem adapter;
+that remains unsupported. With mismatch coverage the complete local check passes
+25 tests and 226 assertions. This is still development-fixture evidence, not a native
+three-OS acceptance result.
+
+Linux preview observation on 2026-09-13: source
+`f12d1bced878215293d9e8dd2c3dcc7a38cfb6c7`, Bun 1.4.2, compiled `src/cli.ts`
+with target `bun-linux-arm64` and both compile-autoload options disabled. Artifact
+SHA-256 `baef7e681422e741ae0cad08d9e7442bcc9a4fbe301b395c94267376945dcaba`
+matched before and after transfer to Ubuntu 24.04.4 LTS aarch64. With Bun/Node absent
+and an empty execution environment, the linux/remote/human/cs/concise/direct profile
+returned exit 0 and a create proposal while leaving its temporary Folder empty.
+This was one positive scenario in a reused test clone, not installation qualification,
+all Linux failure cases, UI adoption, mutation or migration evidence.
+
+Expanded native preview smoke on 2026-09-13 uses
+`scripts/check-folder-preview.sh /absolute/path/to/compiled-cli`. It needs POSIX
+shell/core utilities, not Bun or Node, creates and removes only its own synthetic
+temporary fixture, and runs the CLI with an empty environment. It checks both
+languages, unowned-file refusal, drift refusal, symlink refusal, malformed/missing
+input, non-disclosure of the fixture path in errors, and preservation of synthetic
+Organization/Personalspace bytes. This script is separate from the old proof smoke.
+
+Both runs passed against CLI source `12371edfa8b94a82fe41d7beba39d87094bc8e36`, built
+with Bun 1.4.2 and both compile-autoload options disabled:
+
+| Native execution | Artifact SHA-256 | Scope |
+| --- | --- | --- |
+| Ubuntu 24.04.4 aarch64 test VM | `2ae5fe5b3a7acec3ec9209b2d465ebd92adcc5e2e296b2067c23a24fe7de8702` | Reused clone; Bun/Node absent; transferred artifact digest matched |
+| macOS 26.6.2 arm64 development host | `8242ad6e21d37da690ef956f13aed0783a70b38bc58609ceb9979f6493d8d42d` | Empty process environment, not a clean-system installation |
+
+The Linux VM was stopped after testing. These are bounded preview/refusal results,
+not durable state, mutation/recovery, full OS support, signed installation or Windows
+qualification. Temporary fixture contents are invented; no live Lazurio Folder is used.
+
+Parser references verified for the regression fix: [Bun Transpiler scan](https://bun.sh/docs/runtime/transpiler) and [HTMLRewriter](https://bun.sh/docs/runtime/html-rewriter). Regression cases cover side-effect imports, re-exports, JSON/file attributes, CommonJS and dynamic imports, whitespace/unquoted HTML attributes and alternative asset forms.
+
+## Native profile transaction fixture smoke
+
+### Development CLI update consumer
+
+The experimental `folder-init` command accepts an absent canonical `--folder` path
+and the normal profile choices/JSON. It rejects every existing target, including an
+empty directory, and accepts no revision/digest inputs. Successful creation produces
+revision 1 using the shared initializer. The compiled macOS CLI fixture now starts
+through this command, then performs update, stale/no-op handling and prepared-update
+resume, without manually seeding preferences or ownership metadata.
+
+Initialization failure retains the partial Folder and is not automatically resumed
+or deleted. A second `folder-init` invocation refuses that occupied path.
+`folder-resume --folder <fixture>` explicitly completes a recognized initialization
+with valid creation receipts, or verifies its completed archive. It rejects all other
+options and does not reclaim locks, adopt unrecorded files or repair partial writes.
+This is development-only evidence, not completed onboarding: initial crash/repair handling,
+native qualification, harness use and signed distribution remain release gates.
+
+`profile-update` takes the same explicit canonical `--folder`, profile choices and
+`--expected-revision` as `profile-preview`, but **writes** via the shared `updateProfile`
+operation. Preview does not mutate profile state. Update holds one operation lock
+through preparation, application and finalization; stale revisions/drift are blocked,
+and pending transactions require explicit recovery rather than automatic adoption.
+There is no implicit discovery, initialization, migration or installed release here.
+Use newly created synthetic fixtures only, not an active daily Lazurio Folder.
+
+The compiled CLI test now covers successful revision 1→2, stale revision refusal,
+unchanged selection, missing expected revision and preservation of edited instructions
+and unrelated files, with an empty child environment. Exit 0 means completed/unchanged
+or preview success, 2 means a blocked plan, and 1 means failure that may require recovery.
+Errors do not expose raw paths or profile content. The command is a development API.
+Repeated options are rejected before filesystem operations, including identical
+values and mixed `--name value` / `--name=value` forms; no last-value-wins target selection.
+Complete headless recovery coverage, real Launchpad integration and installed acceptance remain
+unfinished. The native Linux fixture evidence below predates this CLI update entrypoint
+and does not qualify that command on Linux or Windows.
+
+`profile-resume --folder <canonical fixture> --target-revision <new revision>` now
+invokes the shared prepared-update recovery under one lock. Unlike update's expected
+old revision, this requires the transaction's target revision (at least 2) before
+any remaining replacement. No profile or update options are accepted. It resumes a
+valid prepared/partially applied transaction and finalizes it, or verifies the already
+completed archive against current active state. A wrong target, changed active file,
+incomplete preparation or blocking lock fails without forced repair. Compiled macOS
+CLI tests cover a prepared interruption, wrong target/options preserving old state,
+successful resume, repeat invocation and refusal after a manual edit. This is not
+stale-lock reclamation, arbitrary journal repair or installed migration recovery.
+
+`scripts/smoke-profile-transaction.ts` is an independently reviewed fixture runner,
+not the installed CLI. It accepts no paths or arguments and creates/removes only its
+own temporary data. Compile with the pinned Bun 1.4.2:
+
+```sh
+bun build scripts/smoke-profile-transaction.ts --compile --target=bun-linux-arm64 --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/profile-transaction-smoke
+```
+
+The runner source and all its imports are recorded at
+`1ed5324d746dfa270cf26141520126a3619558eb`. On 2026-09-13 its Linux ARM64 artifact
+SHA-256 `c2b1cb799deeee12c1e347fb5881d24d7b5b7e88ac3c0b906874a219e12957b6`
+matched after transfer and passed in the reused Ubuntu 24.04 ARM64 test VM. Neither
+Bun nor Node was on the guest PATH; execution used `env -i`, with no source checkout
+or user working-directory mounts. The VM was stopped after the run. The same runner
+also passed through the development Bun runtime on the macOS ARM64 host.
+
+Observed Linux cases: preparation interruption and preserved retirement, application
+interruption immediately after instruction rename, forward resume, finalization
+interruption after archive rename and retry, unchanged-profile inspection, manual-edit
+refusal and unchanged invented Organization/Personalspace bytes. The full host check
+also passed 80 tests / 595 assertions. This is native evidence for these selected
+filesystem operations, not power-loss durability, every failure boundary, stale-lock
+recovery, Git/worktree preservation, a clean install, full Linux qualification or an
+installed CLI/Launchpad journey. No Windows or x64 result is implied.
+
+### Native Linux CLI Folder lifecycle
+
+`scripts/check-folder-lifecycle.sh` accepts one absolute standalone CLI binary path,
+creates its own temporary fixture and invokes the binary with an empty environment.
+It checks fresh initialization, existing-target refusal, profile update, stale revision
+refusal, no-op, completed-archive verification and manual-edit preservation, including
+synthetic Organization and Personalspace files. It cleans up only its own fixture.
+
+On 2026-09-13 the actual CLI source at
+`93e8fd140899df5429a99db4bad77b7672a55f38` was compiled with Bun 1.4.2:
+
+```sh
+bun build src/cli.ts --compile --target=bun-linux-arm64 --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/folder-lifecycle-cli-linux-arm64
+sh scripts/check-folder-lifecycle.sh /absolute/path/to/folder-lifecycle-cli-linux-arm64
+```
+
+Artifact SHA-256
+`8e05649dd968b16b2dc7cc8123c7cdc4f20a57a8e959edf8ed674a0b2c24c011`
+matched after transfer into the reused Ubuntu ARM64 test VM. The runner passed there;
+neither Bun nor Node was found on the guest PATH. No user work directories were mounted.
+The same lifecycle runner also passed with a native macOS ARM64 build on the development
+host. This adds actual CLI evidence beyond the older embedded-core runner above.
+
+This is not an installer test or a clean-image qualification. The resume case verifies
+an already completed transaction, not a killed CLI process. Initialization recovery,
+stale-lock handling, power-loss durability, Windows/x64 and signed release acceptance
+remain unqualified; no existing working Lazurio Folder was migrated or modified.
