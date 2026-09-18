@@ -373,6 +373,12 @@ try {
       join(organizationDirectory, "modules.manifest.json"),
       inventory,
     );
+    // Only parity-valid `transition` is executable (decision 0145 finalization
+    // gate), so the runnable root carries the exact generated projection too.
+    await write(
+      join(organizationDirectory, "company.gen3.json"),
+      expectedLegacyProjection(declaration, inventory).projection,
+    );
     await write(join(moduleDirectory, "lazurio.module.json"), {
       schema_version: "lazurio.module.v1",
       id: selection.module,
