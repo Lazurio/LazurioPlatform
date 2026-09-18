@@ -44,10 +44,18 @@ interim implementation of the same compatibility-state table, not a second schem
   missing inventory is `conflict`. This recognizes drift only where parity is
   proven and is stricter than upstream, never looser.
 - Execution admission (`resolveOrganizationApplication`, hence Launchpad/CLI
-  `prepare`, `clean-prepare` and `start`) accepts only `current` or parity-valid
-  `transition`. `legacy`, `projection_drift`, `conflict`, `missing`, a template and
-  an unresolvable root refuse before descendant inspection, the owner lock,
-  preparation, script start or any write.
+  `prepare`, `clean-prepare` and `start`) accepts only parity-valid `transition`;
+  it is the single executable state. A canonical-only `current` root is observable
+  and inspection-only until a separately proven finalization: decision 0145 lets
+  the projection disappear only after the finalization gate has covered every
+  mutation-capable reader, and a valid digest proves the projection's content, not
+  that the gate ran. `current` becomes executable only once the pinned Core
+  envelope carries an explicit, verified finalization admission signal. `legacy`,
+  `projection_drift`, `conflict`, `missing`, a template and an unresolvable root
+  refuse before descendant inspection, the owner lock, preparation, script start
+  or any write. Every present document is normalized with the upstream issue codes
+  (slot path grammar and scope, `module_port_pool` range, legacy identity and
+  schema) before any state is assigned.
 - Discovery stays inspection-only: `applications-observed` carries the resolution
   state and an explicit `admission: executable | inspection-only`; a
   `projection_drift` root is still listed from the canonical file but is not
