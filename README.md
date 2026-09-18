@@ -26,6 +26,7 @@ their current supported implementation.
 - [Decisions, alternatives and required amendments](docs/decisions.md)
 - [Migration, upgrade and recovery](docs/migration-and-recovery.md)
 - [Proposed release cycle](docs/release-cycle.md)
+- [Product update contract](docs/update.md)
 - [Selective Launchpad adoption and Doctor direction](docs/legacy-adoption.md)
 - [Developer commands and conventions](docs/development.md)
 - [Future shared marketplace](docs/marketplace.md)
