@@ -91,6 +91,12 @@ try {
     join(organizationDirectory, "modules.manifest.json"),
     JSON.stringify(inventory),
   );
+  // Only parity-valid `transition` is executable (decision 0145 finalization
+  // gate), so the runnable root carries the exact generated projection too.
+  await writeFile(
+    join(organizationDirectory, "company.gen3.json"),
+    JSON.stringify(expectedLegacyProjection(declaration, inventory).projection),
+  );
   const reserve = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,

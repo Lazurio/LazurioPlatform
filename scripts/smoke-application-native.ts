@@ -104,6 +104,12 @@ if (process.argv[2] === "--fixture-app") {
       },
     });
     await json(join(organizationDirectory, "modules.manifest.json"), inventory);
+    // Only parity-valid `transition` is executable (decision 0145 finalization
+    // gate), so the runnable root carries the exact generated projection too.
+    await json(
+      join(organizationDirectory, "company.gen3.json"),
+      expectedLegacyProjection(declaration, inventory).projection,
+    );
     const reserve = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
