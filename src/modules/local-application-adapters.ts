@@ -30,6 +30,10 @@ export function localApplicationAdapters(input: {
   });
   const platformExecutable = input.platformExecutable;
   const owners = createOwnerOperations();
+  // Admission is the root resolution state, re-derived at every boundary: only a
+  // `current` canonical root or a `transition` root with exact projection parity
+  // resolves; drift, conflict, legacy-only, template or an unresolvable root throw
+  // here, before the owner lock, preparation, script start or any write.
   const authorize: Adapters["authorize"] = (selection) =>
     resolveOrganizationApplication(selected.cwd, selection);
   const preflight =

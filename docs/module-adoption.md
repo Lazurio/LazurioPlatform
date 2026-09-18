@@ -766,8 +766,11 @@ The existing resolution behavior was inspected in `organization-root-reader-lib.
 and `organization-activation-lib.mjs` at the legacy commit above. That historical
 resolution is reference material for a controlled one-time conversion, where legacy-only,
 transition, projection drift and conflicts may need inspection. It is not the target
-runtime contract: normal application discovery reads canonical documents only and
-refuses missing/invalid canonical state rather than adopting legacy state. Conversion
+runtime contract: normal application discovery reads the canonical document and
+resolves the root through the interim compatibility-state table in
+`root-resolution.ts` (see `organization-contract.md`); it refuses missing/invalid
+canonical state and never adopts legacy state, while a malformed, stale or
+conflicting legacy projection fails closed instead of being ignored. Conversion
 must preserve the owning Organization's work and has separate rollout/retirement gates.
 Provider identity, local Git binding and operation rules remain required for connected
 application control. Valid JSON or successful local discovery cannot authorize it.
@@ -966,7 +969,8 @@ preservation, optional roots, nullish fallback and invalid inputs. The legacy fu
 is not imported by the product or its committed tests. No implementation was copied.
 
 A matching expected digest is necessary but not sufficient for Organization resolution:
-the actual legacy document still needs normalization and semantic comparison to
-distinguish transition, projection drift and conflict. Existing slot diagnostics,
+`root-resolution.ts` additionally compares the actual legacy document (exact digest
+for `transition`, pure conversion round trip for `projection_drift`, otherwise
+`conflict`) before any application selection becomes executable. Existing slot diagnostics,
 provider rights and lifecycle policy remain separate; this function repairs nothing
 and grants no permission even when `declaredHashMatches` is true.

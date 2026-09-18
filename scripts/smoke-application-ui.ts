@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { messages } from "../src/launchpad/messages";
+import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 
 // Explicit local browser harness; Playwright and its Chromium are test tooling,
 // supplied externally, not dependencies of the distributed Platform executable.
@@ -44,39 +45,51 @@ try {
   const organizationDirectory = join(root, "Organization");
   const directory = join(organizationDirectory, "workspace/fixture");
   await mkdir(join(directory, "app"), { recursive: true, mode: 0o700 });
+  const inventory = {
+    company: "Example",
+    github_org: "Example",
+    module_slots: [{ path: "workspace/fixture", slug: "fixture" }],
+  };
+  const declaration = {
+    schema_version: "lazurio.organization.v1",
+    kind: "organization",
+    organization: {
+      slug: "Example",
+      display_name: "Example",
+      metadata: {},
+      forge_binding: {
+        forge: "github",
+        locator: "Example",
+        binding_state: "unverified",
+      },
+    },
+    manifests: { modules: "modules.manifest.json" },
+    extensions: { legacy: {} },
+    compatibility: {
+      legacy_projection: {
+        path: "company.gen3.json",
+        algorithm: "sha256-canonical-json-v1",
+        sha256: `sha256:${"0".repeat(64)}`,
+      },
+    },
+  };
+  // The declared digest must equal the deterministic projection of these same
+  // declarations; a placeholder digest is a `conflict`, not a usable root.
   await writeFile(
     join(organizationDirectory, "lazurio.organization.json"),
     JSON.stringify({
-      schema_version: "lazurio.organization.v1",
-      kind: "organization",
-      organization: {
-        slug: "Example",
-        display_name: "Example",
-        metadata: {},
-        forge_binding: {
-          forge: "github",
-          locator: "Example",
-          binding_state: "unverified",
-        },
-      },
-      manifests: { modules: "modules.manifest.json" },
-      extensions: { legacy: {} },
+      ...declaration,
       compatibility: {
         legacy_projection: {
-          path: "company.gen3.json",
-          algorithm: "sha256-canonical-json-v1",
-          sha256: `sha256:${"0".repeat(64)}`,
+          ...declaration.compatibility.legacy_projection,
+          sha256: expectedLegacyProjection(declaration, inventory).hash,
         },
       },
     }),
   );
   await writeFile(
     join(organizationDirectory, "modules.manifest.json"),
-    JSON.stringify({
-      company: "Example",
-      github_org: "Example",
-      module_slots: [{ path: "workspace/fixture", slug: "fixture" }],
-    }),
+    JSON.stringify(inventory),
   );
   const reserve = Bun.serve({
     hostname: "127.0.0.1",

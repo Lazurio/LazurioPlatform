@@ -47,7 +47,9 @@ async function readDocument(path: string): Promise<Readonly<Document>> {
 }
 
 // Acquisition only: no fallback, semantic resolution, discovery or authorization.
-// Consume all three states in the existing Organization resolution contract.
+// Every consumer, including runtime selection, acquires all three documents so the
+// root resolution can prove transition parity or fail closed on a malformed,
+// stale or conflicting legacy projection instead of ignoring it (see root-resolution).
 export async function readOrganizationDocuments(directory: string) {
   if (!["darwin", "linux"].includes(process.platform))
     return Object.freeze({ kind: "unavailable" as const });
@@ -63,28 +65,6 @@ export async function readOrganizationDocuments(directory: string) {
       kind: "documents-observed" as const,
       canonical,
       legacy,
-      modules,
-    });
-  } catch {
-    return Object.freeze({ kind: "unavailable" as const });
-  }
-}
-
-// Target runtime acquisition: legacy files are neither read nor used as fallback.
-// The three-document reader above remains available for explicit migration inspection.
-export async function readCanonicalDocuments(directory: string) {
-  if (!["darwin", "linux"].includes(process.platform))
-    return Object.freeze({ kind: "unavailable" as const });
-  try {
-    const before = await inspectOwnedDirectory(directory);
-    const canonical = await readDocument(join(directory, paths.canonical));
-    const modules = await readDocument(join(directory, paths.modules));
-    const after = await inspectOwnedDirectory(directory);
-    if (before.dev !== after.dev || before.ino !== after.ino)
-      return Object.freeze({ kind: "unavailable" as const });
-    return Object.freeze({
-      kind: "documents-observed" as const,
-      canonical,
       modules,
     });
   } catch {

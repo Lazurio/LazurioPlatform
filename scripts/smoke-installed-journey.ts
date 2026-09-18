@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { parseArgs } from "node:util";
 import { folderStateSchemas } from "../src/folder/state";
+import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import { artifactIdentity } from "./artifact-identity";
 import { createPilotFixture } from "./tuf-fixture";
 
@@ -329,7 +330,12 @@ try {
     await mkdir(join(moduleDirectory, "app"), { recursive: true, mode: 0o700 });
     const write = (path: string, value: unknown) =>
       writeFile(path, JSON.stringify(value), { mode: 0o600 });
-    await write(join(organizationDirectory, "lazurio.organization.json"), {
+    const inventory = {
+      company: "Example",
+      github_org: "Example",
+      module_slots: [{ path: "workspace/fixture", slug: "fixture" }],
+    };
+    const declaration = {
       schema_version: "lazurio.organization.v1",
       kind: "organization",
       organization: {
@@ -351,12 +357,22 @@ try {
           sha256: `sha256:${"0".repeat(64)}`,
         },
       },
+    };
+    // The declared digest must equal the deterministic projection of these same
+    // declarations; a placeholder digest is a `conflict`, not a usable root.
+    await write(join(organizationDirectory, "lazurio.organization.json"), {
+      ...declaration,
+      compatibility: {
+        legacy_projection: {
+          ...declaration.compatibility.legacy_projection,
+          sha256: expectedLegacyProjection(declaration, inventory).hash,
+        },
+      },
     });
-    await write(join(organizationDirectory, "modules.manifest.json"), {
-      company: "Example",
-      github_org: "Example",
-      module_slots: [{ path: "workspace/fixture", slug: "fixture" }],
-    });
+    await write(
+      join(organizationDirectory, "modules.manifest.json"),
+      inventory,
+    );
     await write(join(moduleDirectory, "lazurio.module.json"), {
       schema_version: "lazurio.module.v1",
       id: selection.module,

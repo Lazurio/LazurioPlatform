@@ -28,10 +28,30 @@ template into an actionable Organization.
 
 Upstream resolves legacy, transition, projection drift, conflict, current and missing
 states through one Core owner. Its normalized resource and resolution envelope are
-not the authored schema. Platform's canonical-only application reader and pure
-conversion preview do **not** implement that resolver, migration or finalization gate.
-Do not interpret their success as permission to operate on an unqualified transition
-or to remove `company.gen3.json`.
+not the authored schema. Until Platform consumes that resolver envelope directly
+(pinned provenance and conformance), `src/organizations/root-resolution.ts` is an
+interim implementation of the same compatibility-state table, not a second schema:
+
+- Canonical-first: `lazurio.organization.json` is the only authority. The deprecated
+  `company.gen3.json` is consulted only as the generated compatibility projection for
+  the parity gate while it still exists; it disappears at finalization and never
+  becomes a fallback, a second authority or a second schema.
+- The projection digest reuses the deterministic projection generator and
+  `sha256-canonical-json-v1` digest already pinned for conversion preview. Exact digest
+  equality proves `transition` parity; a legacy document that round-trips through the
+  pure conversion to the same projection is `projection_drift`; every other
+  divergence, an unreadable or malformed document, a stale declared digest or a
+  missing inventory is `conflict`. This recognizes drift only where parity is
+  proven and is stricter than upstream, never looser.
+- Execution admission (`resolveOrganizationApplication`, hence Launchpad/CLI
+  `prepare`, `clean-prepare` and `start`) accepts only `current` or parity-valid
+  `transition`. `legacy`, `projection_drift`, `conflict`, `missing`, a template and
+  an unresolvable root refuse before descendant inspection, the owner lock,
+  preparation, script start or any write.
+- Discovery stays inspection-only: `applications-observed` carries the resolution
+  state and an explicit `admission: executable | inspection-only`; a
+  `projection_drift` root is still listed from the canonical file but is not
+  executable. Conflict returns `organization-conflict` with issue codes only.
 
 The upstream contract already makes `lazurio.organization.json` canonical during a
 parity-valid transition, with the legacy file a generated projection, not a second

@@ -13,6 +13,7 @@ import { isAbsolute, join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
+import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import { readOrganizationApplications } from "../src/organizations/read-applications";
 
 // Compile this runner and the actual CLI for the guest. No source, Node, Bun,
@@ -63,7 +64,12 @@ if (process.argv[2] === "--fixture-app") {
     await mkdir(join(moduleDirectory, "app"), { recursive: true, mode: 0o700 });
     const json = (path: string, value: unknown) =>
       writeFile(path, JSON.stringify(value), { mode: 0o600 });
-    await json(join(organizationDirectory, "lazurio.organization.json"), {
+    const inventory = {
+      company: "Example",
+      github_org: "Example",
+      module_slots: [{ path: "workspace/fixture", slug: "fixture" }],
+    };
+    const declaration = {
       schema_version: "lazurio.organization.v1",
       kind: "organization",
       organization: {
@@ -85,12 +91,19 @@ if (process.argv[2] === "--fixture-app") {
           sha256: `sha256:${"0".repeat(64)}`,
         },
       },
+    };
+    // The declared digest must equal the deterministic projection of these same
+    // declarations; a placeholder digest is a `conflict`, not a usable root.
+    await json(join(organizationDirectory, "lazurio.organization.json"), {
+      ...declaration,
+      compatibility: {
+        legacy_projection: {
+          ...declaration.compatibility.legacy_projection,
+          sha256: expectedLegacyProjection(declaration, inventory).hash,
+        },
+      },
     });
-    await json(join(organizationDirectory, "modules.manifest.json"), {
-      company: "Example",
-      github_org: "Example",
-      module_slots: [{ path: "workspace/fixture", slug: "fixture" }],
-    });
+    await json(join(organizationDirectory, "modules.manifest.json"), inventory);
     const reserve = Bun.serve({
       hostname: "127.0.0.1",
       port: 0,
