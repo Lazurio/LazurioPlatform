@@ -2,6 +2,7 @@ import { organizationDocumentHash } from "./document-hash";
 import { expectedLegacyProjection } from "./legacy-projection";
 import { prepareOrganizationConversion } from "./prepare-conversion";
 import { readOrganizationDocuments } from "./read-documents";
+import { organizationSlotArea } from "./repository-slots";
 
 // Interim, canonical-first implementation of the upstream Lazurio Core root
 // resolution (manual/lazurio-manifest-family.md "Compatibility states";
@@ -68,7 +69,9 @@ export function modulesManifestIssues(value: unknown): string[] {
     issues.push("modules_manifest_slots_invalid");
   else
     value.module_slots.forEach((slot, index) => {
-      if (!isRecord(slot) || typeof slot.path !== "string" || slot.path === "")
+      // Upstream requires the canonical (already normalized) path form and a
+      // known slot scope; `organizationSlotArea` enforces both.
+      if (!isRecord(slot) || organizationSlotArea(slot.path) === null)
         issues.push(`modules_manifest_slot_${index}_path_invalid`);
     });
   const company = text(value.company);
@@ -98,9 +101,24 @@ export function legacyManifestIssues(value: unknown): string[] {
   const locator = text(company?.github_org);
   if (!company || !slug || !displayName || !locator)
     issues.push("legacy_organization_identity_invalid");
-  if (value.module_port_pool === null)
+  if (!validModulePortPool(value.module_port_pool))
     issues.push("legacy_module_port_pool_invalid");
   return issues;
+}
+
+// Mirror of upstream `normalizeOrganizationPortPool`: absent is fine, null is
+// not; otherwise an object with exactly `start`/`end` integers in 1024–65535
+// and `start <= end`.
+function validModulePortPool(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!isRecord(value)) return false;
+  if (Object.keys(value).some((key) => key !== "start" && key !== "end"))
+    return false;
+  const inRange = (port: unknown): port is number =>
+    Number.isInteger(port) &&
+    (port as number) >= 1024 &&
+    (port as number) <= 65_535;
+  return inRange(value.start) && inRange(value.end) && value.start <= value.end;
 }
 
 type Documents = Extract<

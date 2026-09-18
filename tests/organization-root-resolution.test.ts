@@ -120,14 +120,23 @@ test("legacy-only roots are normalized before the legacy state is assigned", () 
       legacy: present({ ...projection, organization_kind: "other" }),
     }),
   ).toMatchObject({ state: "conflict", issues: ["organization_kind_invalid"] });
+  for (const slot of [{}, { path: "../outside" }])
+    expect(
+      resolve({
+        legacy: present(projection),
+        modules: present({ ...modules, module_slots: [slot] }),
+      }),
+    ).toMatchObject({
+      state: "conflict",
+      issues: ["modules_manifest_slot_0_path_invalid"],
+    });
   expect(
     resolve({
-      legacy: present(projection),
-      modules: present({ ...modules, module_slots: [{}] }),
+      legacy: present({ ...projection, module_port_pool: "not-a-port-pool" }),
     }),
   ).toMatchObject({
     state: "conflict",
-    issues: ["modules_manifest_slot_0_path_invalid"],
+    issues: ["legacy_module_port_pool_invalid"],
   });
   // Unreadable documents stay the reader-level conflict.
   expect(resolve({ legacy: invalid })).toMatchObject({
@@ -145,9 +154,35 @@ test("normalization mirrors upstream defaults and codes without widening", () =>
   const { organization_kind: _kind, ...withoutKind } = projection;
   expect(legacyManifestIssues(withoutKind)).toEqual([]);
   expect(legacyManifestIssues([])).toEqual(["legacy_manifest_invalid"]);
+  for (const pool of [
+    null,
+    "not-a-port-pool",
+    [],
+    { start: 4000 },
+    { start: 1, end: 4000 },
+    { start: 5000, end: 4000 },
+    { start: 4000, end: 70_000 },
+    { start: 4000, end: 5000, extra: true },
+  ])
+    expect(
+      legacyManifestIssues({ ...projection, module_port_pool: pool }),
+    ).toEqual(["legacy_module_port_pool_invalid"]);
   expect(
-    legacyManifestIssues({ ...projection, module_port_pool: null }),
-  ).toEqual(["legacy_module_port_pool_invalid"]);
+    legacyManifestIssues({
+      ...projection,
+      module_port_pool: { start: 4000, end: 5000 },
+    }),
+  ).toEqual([]);
+  // Slot paths must be canonical and in a known scope, as upstream requires.
+  for (const path of [
+    "../outside",
+    "workspace/app/",
+    "elsewhere/app",
+    "./workspace/app",
+  ])
+    expect(
+      modulesManifestIssues({ ...modules, module_slots: [{ path }] }),
+    ).toEqual(["modules_manifest_slot_0_path_invalid"]);
   expect(
     legacyManifestIssues({ ...projection, company: { slug: " " } }),
   ).toEqual(["legacy_organization_identity_invalid"]);

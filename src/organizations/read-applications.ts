@@ -10,10 +10,11 @@ import { resolveOrganizationRoot } from "./root-resolution";
 // Resolve a selection against the live inventory, never a caller-supplied path.
 // Local composition must invoke this again at each operation boundary. The
 // result is not provider permission, a lock, or a durable execution capability.
-// Execution admission is bound to the root resolution state: only a `current`
-// canonical root or a `transition` root with exact projection parity resolves.
-// Every other state, an unresolvable root and a template refuse fail-closed
-// before any descendant inspection, lock, preparation, script start or write.
+// Execution admission is bound to the root resolution state: only a `transition`
+// root with exact projection parity resolves. A canonical-only `current` root
+// stays inspection-only until the finalization gate (root-resolution), and every
+// other state, an unresolvable root and a template refuse fail-closed before any
+// descendant inspection, lock, preparation, script start or write.
 export async function resolveOrganizationApplication(
   directory: string,
   input: unknown,
