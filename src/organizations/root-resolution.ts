@@ -23,14 +23,84 @@ export const organizationRootStates = Object.freeze([
 ] as const);
 export type OrganizationRootState = (typeof organizationRootStates)[number];
 
-// Execution admission policy, one home. `legacy` (only the deprecated projection)
-// is never executable here; `transition` requires exact projection parity;
-// `current` executes from the canonical file alone. Drift, conflict and missing
-// refuse. Consuming the upstream resolver envelope directly replaces this table.
+// Execution admission policy, one home. Only parity-valid `transition` executes
+// in this interim. `legacy` (only the deprecated projection) never executes
+// here. `current` (canonical file alone) stays diagnostically readable but is
+// not executable: the root contract (decision 0145, manual
+// lazurio-manifest-family "Compatibility states") lets the projection disappear
+// only after `lazurio migrate organization-manifest --finalize` has gated every
+// mutation-capable reader, and a valid digest proves the projection's content,
+// not that finalization happened. `current` becomes executable only once the
+// pinned Core envelope carries an explicit, verified finalization admission
+// signal. Drift, conflict and missing refuse.
 export function isExecutableOrganizationState(
   state: OrganizationRootState,
 ): boolean {
-  return state === "transition" || state === "current";
+  return state === "transition";
+}
+
+type Data = Readonly<Record<string, unknown>>;
+function isRecord(value: unknown): value is Data {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+function text(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+// Structural normalization gates mirrored from the upstream Core resolver
+// (`normalizeModulesManifest`, `normalizeLegacyOrganization`) with the same
+// issue codes: a parseable but structurally invalid document is `conflict`,
+// never a silently accepted root. Absent `organization_kind` defaults to
+// `organization` exactly as upstream does. Identity cross-checks and alias
+// validation stay with the conversion inventory; this gate is deliberately
+// narrower, never wider, than upstream.
+export function modulesManifestIssues(value: unknown): string[] {
+  if (!isRecord(value)) return ["modules_manifest_missing"];
+  const issues: string[] = [];
+  const generationSupported =
+    (value.organization_generation === undefined ||
+      value.organization_generation === "gen3") &&
+    (value.schema_version === undefined ||
+      value.schema_version === "companiesascode.modules.v1" ||
+      value.schema_version === "modules.manifest.v3");
+  if (!generationSupported) issues.push("modules_manifest_schema_unsupported");
+  if (!Array.isArray(value.module_slots))
+    issues.push("modules_manifest_slots_invalid");
+  else
+    value.module_slots.forEach((slot, index) => {
+      if (!isRecord(slot) || typeof slot.path !== "string" || slot.path === "")
+        issues.push(`modules_manifest_slot_${index}_path_invalid`);
+    });
+  const company = text(value.company);
+  if (!company || company !== value.company)
+    issues.push("modules_manifest_company_missing");
+  const locator = text(value.github_org);
+  if (!locator || locator !== value.github_org)
+    issues.push("modules_manifest_forge_locator_missing");
+  return issues;
+}
+
+export function legacyManifestIssues(value: unknown): string[] {
+  if (!isRecord(value)) return ["legacy_manifest_invalid"];
+  const issues: string[] = [];
+  if (
+    value.organization_generation !== "gen3" ||
+    (value.schema_version !== undefined &&
+      value.schema_version !== "company.gen3.v3")
+  )
+    issues.push("legacy_manifest_schema_unsupported");
+  const kind = value.organization_kind ?? "organization";
+  if (kind !== "organization" && kind !== "template")
+    issues.push("organization_kind_invalid");
+  const company = isRecord(value.company) ? value.company : null;
+  const slug = text(company?.slug);
+  const displayName = text(company?.display_name) || slug;
+  const locator = text(company?.github_org);
+  if (!company || !slug || !displayName || !locator)
+    issues.push("legacy_organization_identity_invalid");
+  if (value.module_port_pool === null)
+    issues.push("legacy_module_port_pool_invalid");
+  return issues;
 }
 
 type Documents = Extract<
@@ -54,7 +124,9 @@ export function resolveOrganizationRootDocuments(documents: Documents) {
   else if (modules.kind !== "present") {
     state = "conflict";
     issues.push("modules_manifest_missing");
-  } else if (canonical.kind !== "present") state = "legacy";
+  } else if (structuralIssues(legacy, modules.value, issues))
+    state = "conflict";
+  else if (canonical.kind !== "present") state = "legacy";
   else {
     let expected: ReturnType<typeof expectedLegacyProjection> | null = null;
     try {
@@ -82,6 +154,20 @@ export function resolveOrganizationRootDocuments(documents: Documents) {
     executable: isExecutableOrganizationState(state),
     issues: Object.freeze([...new Set(issues)].sort()),
   });
+}
+
+// Upstream normalizes every present document before assigning a state; a
+// structurally invalid modules or legacy document is `conflict` regardless of
+// which other documents exist.
+function structuralIssues(
+  legacy: Documents["legacy"],
+  modules: unknown,
+  issues: string[],
+): boolean {
+  issues.push(...modulesManifestIssues(modules));
+  if (legacy.kind === "present")
+    issues.push(...legacyManifestIssues(legacy.value));
+  return issues.length > 0;
 }
 
 // Interim semantic comparison: the legacy document must round-trip through the

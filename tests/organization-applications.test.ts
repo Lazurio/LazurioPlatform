@@ -408,7 +408,14 @@ posixTest(
             })
           ).status,
         ).toBe(503);
+        // A legacy-only root (projection without canonical) is not runnable
+        // either; both end as canonical-documents-required.
         await rm(join(root, "lazurio.organization.json"));
+        expect(await (await call("/api/apps/discover", {})).json()).toEqual({
+          kind: "canonical-documents-required",
+          resolution: { state: "legacy", issues: [] },
+        });
+        await rm(join(root, "company.gen3.json"));
         expect(await (await call("/api/apps/discover", {})).json()).toEqual({
           kind: "canonical-documents-required",
           resolution: { state: "missing", issues: [] },
@@ -492,9 +499,24 @@ async function writeInventory(root: string, inventory: Inventory) {
     join(root, "modules.manifest.json"),
     JSON.stringify(inventory),
   );
+  const document = declared(canonical, inventory);
   await writeFile(
     join(root, "lazurio.organization.json"),
-    JSON.stringify(declared(canonical, inventory)),
+    JSON.stringify(document),
+  );
+  await writeProjection(root, document, inventory);
+}
+// Interim admission executes only the parity-valid `transition` state (root
+// contract, decision 0145), so a runnable fixture root carries the exact
+// generated projection next to the canonical manifest.
+async function writeProjection(
+  root: string,
+  document: typeof canonical,
+  inventory: Inventory,
+) {
+  await writeFile(
+    join(root, "company.gen3.json"),
+    JSON.stringify(expectedLegacyProjection(document, inventory).projection),
   );
 }
 async function fixture(
@@ -566,7 +588,7 @@ async function fixture(
 }
 
 posixTest(
-  "current canonical root is observed without executing or scanning DBs; a hostile legacy projection is a fail-closed conflict, never ignored",
+  "transition root is observed without executing or scanning DBs; canonical-only current is inspection-only; a hostile legacy projection is a fail-closed conflict, never ignored",
   async () => {
     await fixture(async (root) => {
       const before = await readFile(
@@ -575,7 +597,7 @@ posixTest(
       const observed = {
         kind: "applications-observed",
         company: "fixture",
-        resolution: { state: "current", issues: [] },
+        resolution: { state: "transition", issues: [] },
         admission: "executable",
         issues: [],
         warnings: [],
@@ -593,6 +615,25 @@ posixTest(
       expect(await resolveOrganizationApplication(root, selection)).toEqual({
         moduleDirectory: join(root, "workspace/web"),
       });
+      // Canonical-only `current` stays readable but is not executable until the
+      // finalization gate of decision 0145 has run; a valid digest proves the
+      // projection content, not that the projection may already be gone.
+      await rm(join(root, "company.gen3.json"));
+      const current = {
+        ...observed,
+        resolution: { state: "current", issues: [] },
+        admission: "inspection-only",
+      } as const;
+      expect(await readOrganizationApplications(root)).toEqual(current);
+      expect(
+        await readOrganizationApplications(root, { admission: "executable" }),
+      ).toEqual({
+        kind: "organization-not-executable",
+        resolution: { state: "current", issues: [] },
+      });
+      await expect(
+        resolveOrganizationApplication(root, selection),
+      ).rejects.toThrow("Selected Organization unavailable");
       // An unreadable legacy projection is a conflict under the root contract
       // (any present document invalid), not an irrelevant file: it ends before
       // descendants are inspected and before executable selection.
@@ -618,7 +659,7 @@ posixTest(
         await readFile(join(root, "workspace/web/app/package.json")),
       ).toEqual(before);
       await rm(join(root, "company.gen3.json"));
-      expect(await readOrganizationApplications(root)).toEqual(observed);
+      expect(await readOrganizationApplications(root)).toEqual(current);
       await rm(join(root, "lazurio.organization.json"));
       expect(await readOrganizationApplications(root)).toEqual({
         kind: "canonical-documents-required",
@@ -652,7 +693,18 @@ posixTest(
           moduleDirectory: join(root, "workspace/web"),
         });
       };
-      await admitted("current");
+      // Canonical-only `current` is not executable in this interim (decision
+      // 0145 finalization gate), even though it is a valid canonical root.
+      await rm(join(root, "company.gen3.json"));
+      expect(
+        await readOrganizationApplications(root, { admission: "executable" }),
+      ).toEqual({
+        kind: "organization-not-executable",
+        resolution: { state: "current", issues: [] },
+      });
+      await expect(
+        resolveOrganizationApplication(root, selection),
+      ).rejects.toThrow("Selected Organization unavailable");
       // Exact generated projection: parity proven, formatting is not drift.
       await writeFile(
         join(root, "company.gen3.json"),
@@ -660,6 +712,7 @@ posixTest(
       );
       await admitted("transition");
       const { default_branch: _branch, ...company } = projection.company;
+      const { organization_kind: _kind, ...withoutKind } = projection;
       const cases = [
         {
           name: "projection drift",
@@ -667,6 +720,29 @@ posixTest(
           resolution: {
             state: "projection_drift",
             issues: ["legacy_projection_drift"],
+          },
+        },
+        {
+          // Absent organization_kind defaults to organization upstream: a
+          // repairable drift of the projection, never a conflict.
+          name: "absent organization_kind",
+          legacy: JSON.stringify(withoutKind),
+          resolution: {
+            state: "projection_drift",
+            issues: ["legacy_projection_drift"],
+          },
+        },
+        {
+          // Parseable but structurally invalid projection: normalized before any
+          // state is assigned, so it is a conflict with the upstream issue codes.
+          name: "structurally invalid projection",
+          legacy: JSON.stringify({}),
+          resolution: {
+            state: "conflict",
+            issues: [
+              "legacy_manifest_schema_unsupported",
+              "legacy_organization_identity_invalid",
+            ],
           },
         },
         {
@@ -938,6 +1014,7 @@ posixTest(
       expect(await resolveOrganizationApplication(root, selection)).toEqual({
         moduleDirectory: join(root, "workspace/web"),
       });
+      await rm(join(root, "company.gen3.json"));
       await writeFile(
         join(root, "lazurio.organization.json"),
         JSON.stringify(declared({ ...canonical, kind: "template" }, inventory)),
@@ -1053,6 +1130,7 @@ posixTest(
         code: 0,
         value: { kind: "applications-observed" },
       });
+      await rm(join(root, "company.gen3.json"));
       await writeFile(
         join(root, "lazurio.organization.json"),
         JSON.stringify(declared({ ...canonical, kind: "template" }, inventory)),

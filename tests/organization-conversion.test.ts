@@ -329,6 +329,27 @@ test("conversion retains declared stable IDs but refuses conflicting or augmente
     ).toThrow();
 });
 
+test("absent organization_kind is the listed upstream default, not a refusal", () => {
+  const { legacy, modules } = fixture();
+  const { organization_kind: _kind, ...withoutKind } = legacy;
+  const result = prepareOrganizationConversion(withoutKind, modules);
+  expect(result.kind).toBe("conversion-draft");
+  expect(result.canonical.kind).toBe("organization");
+  expect(result.normalizations).toEqual([
+    "organization_kind defaults to organization",
+  ]);
+  // The draft projects the materialized kind, so the on-disk legacy file is a
+  // repairable projection drift once the canonical manifest exists.
+  const projected = expectedLegacyProjection(result.canonical, modules);
+  expect(projected.declaredHashMatches).toBe(true);
+  expect(projected.projection).toEqual(
+    expectedLegacyProjection(
+      prepareOrganizationConversion(legacy, modules).canonical,
+      modules,
+    ).projection,
+  );
+});
+
 test("conversion refuses inventory drift, alias loss, malformed input and executable hooks", () => {
   const { legacy, modules } = fixture();
   for (const input of [

@@ -65,9 +65,17 @@ export function prepareOrganizationConversion(
   const branch = materializeBranch
     ? repository.default_branch
     : company.default_branch;
-  const projectedLegacy = materializeBranch
-    ? { ...legacy, company: { ...company, default_branch: branch } }
-    : legacy;
+  // Listed normalization mirrored from upstream Core: an absent
+  // `organization_kind` means `organization`, never a conversion refusal.
+  const materializeKind = !Object.hasOwn(legacy, "organization_kind");
+  const kind = materializeKind ? "organization" : legacy.organization_kind;
+  const projectedLegacy: Data = {
+    ...legacy,
+    ...(materializeKind ? { organization_kind: kind } : {}),
+    ...(materializeBranch
+      ? { company: { ...company, default_branch: branch } }
+      : {}),
+  };
   const excluded = new Set([
     "organization_generation",
     "organization_kind",
@@ -79,7 +87,7 @@ export function prepareOrganizationConversion(
   const legacyHash = organizationDocumentHash(legacy);
   const candidate = {
     schema_version: "lazurio.organization.v1",
-    kind: legacy.organization_kind,
+    kind,
     organization: {
       slug: company.slug,
       display_name: company.display_name,
@@ -162,12 +170,15 @@ export function prepareOrganizationConversion(
     canonical: inspected.canonical,
     legacyHash,
     modulesHash: organizationDocumentHash(modules),
-    normalizations: Object.freeze(
-      materializeBranch
+    normalizations: Object.freeze([
+      ...(materializeKind
+        ? ["organization_kind defaults to organization"]
+        : []),
+      ...(materializeBranch
         ? [
             "company.default_branch from forge_binding.repository.default_branch",
           ]
-        : [],
-    ),
+        : []),
+    ]),
   });
 }
