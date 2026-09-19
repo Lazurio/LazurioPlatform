@@ -498,8 +498,8 @@ Release of the public repository `Lazurio/LazurioPlatform`, built by one protect
 tag-driven workflow and carrying a Sigstore attestation (`actions/attest`) over its
 manifest and every binary. The installed product verifies that attestation with the
 maintained `sigstore` library against the workflow identity of the exact tag, the
-repository and owner IDs and the source commit, and keeps a durable highest-accepted
-version. The contract is [product update](update.md). This replaces the earlier
+repository and owner IDs and the source commit, and never goes below a durable
+version floor on any network path. The contract is [product update](update.md). This replaces the earlier
 selection of TUF.
 
 Motivation: the Principal asked for proven practice instead of our own machinery.
@@ -518,7 +518,10 @@ round found another gap. None of it had a second consumer.
 
 Knowingly accepted: no expiring freshness metadata (an attacker holding both the
 network and a valid `github.com` certificate can hold a client on its current
-version, never lower); trust rests on the governance of the repository, so the tag
+version, never lower, visible only as an ageing last check); GitHub Actions OIDC and
+Sigstore's certificate authority, transparency log and trust root are cryptographic
+dependencies outside Lazurio's control; authorization rests on the governance of the
+repository, so the tag
 ruleset, the protected `release` environment with a required reviewer, immutable
 releases and commit-pinned actions are part of the mechanism, not hygiene; update
 availability depends on Sigstore's trust root being reachable on a cold cache; a

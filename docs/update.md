@@ -13,11 +13,17 @@ to it must be compatible.
 
 1. Update is a **conscious step**. Lazurio never activates a new version behind
    the user's back.
-2. Availability is shown **continuously**: a Machine never silently stays on an
-   old version.
+2. Availability is shown **continuously**: a Machine that can reach GitHub shows
+   the newest release it has verified, and shows how old that knowledge is. It
+   cannot show a release that the network withholds from it (see *Knowingly not
+   covered*); that case is visible as an ageing last check, not as a version.
 3. When the user clicks, the update **dependably happens**: every failure is
    bounded, leaves the installed product working, and the same click works again
-   once the outside condition is restored. No failed attempt needs manual repair.
+   once the outside condition is restored. A crash at any point is reconciled by
+   the next command without manual repair. Two exceptions need a person and are
+   named where they arise: a new version that stays alive but unhealthy after a
+   power loss inside the activation window (`lazurio update rollback`), and update
+   state damaged from outside the product (`state-invalid`).
 4. **Proven practice instead of our own machinery.** Where a maintained standard
    exists (GitHub Releases, Sigstore attestations, systemd, `flock`, an atomic
    symlink) the product uses it and adds nothing beside it.
@@ -36,11 +42,14 @@ release that publishes every platform at once.
   download and activation start only from `lazurio update` or the Launchpad
   action.
 - **No wedge.** Every failure leaves the installed product usable and the next
-  attempt possible. Downloads are scratch files; there is no pending attempt,
-  no `recover` command and no journal.
-- **Versions only move forward over the network.** The highest version ever
-  accepted is durable. A network update is never lower than it, even after a
-  rollback.
+  attempt possible. Downloads are scratch files; there is no pending download, no
+  `recover` command and no journal. The only transaction record is the activation
+  marker `pending.json`, and every state it can be found in has one defined
+  outcome (*Reconciling the marker*).
+- **Versions only move forward over the network.** The floor is the higher of the
+  active version and the durable high-water mark, which records the highest
+  version whose activation was ever committed. No network path, `latest` or an
+  exact tag, installs a version below the floor, even after a rollback.
 - **Program rollback is not data rollback.** A version never rewrites Folder
   state into a form its predecessor cannot read before its activation is
   committed.
@@ -59,10 +68,15 @@ Lazurio signing keys, no metadata service and no second origin.
 It builds `lazurio-<target>` for every supported target, writes `manifest.json`,
 creates one Sigstore bundle with `actions/attest` whose subjects are the manifest
 and every binary, attaches everything to a draft release and publishes it once.
-Releases are immutable (GitHub immutable releases). The workflow refuses a final
-version that is not greater than every existing final release, marks the release
-as latest explicitly, pins every action by commit and runs its publishing job in
-the protected environment `release` with a required reviewer. The file name
+Releases are immutable (GitHub immutable releases). Publishing is serialized: the
+publishing job runs in one repository-wide concurrency group that queues and
+never cancels, in the protected environment `release` with a required reviewer.
+Inside that group, immediately before publishing, it lists the published final
+releases and refuses a final version that is not greater than every one of them;
+the draft is then deleted and nothing is published. Only after that check does it
+publish, with `latest` set explicitly for a final version and never for a
+prerelease. Two tags pushed together therefore publish one after the other, and
+the lower one fails closed. Every action is pinned by commit. The file name
 `release.yml` is permanent: it is the trust entry point of every installed
 client.
 
@@ -85,8 +99,8 @@ update. An older client reports `reinstall-required` and changes nothing.
 tag the redirect resolved to, and from then on uses only exact-tag URLs
 (`releases/download/<tag>/…`) for the bundle and the artifact. A manifest whose
 version differs from the resolved tag is refused. An update is available when
-the verified manifest version is greater than the running version and not lower
-than the durable high-water mark.
+the verified manifest version is greater than the active version and not lower
+than the floor.
 
 **Verify.** With the `sigstore` library (the verifier npm itself uses), against
 Sigstore's public trust root, refreshed through Sigstore's own client into a
@@ -104,10 +118,16 @@ cache under the install base. All of the following must hold:
 A cold trust cache during a Sigstore outage blocks the update; it never weakens
 verification.
 
-**Exact version.** `lazurio update --version vX.Y.Z-rc.N` installs one exact tag
-through the same verification. GitHub prereleases are invisible to `latest`, so
-a release candidate reaches only the Machines that ask for it. This is the whole
-canary mechanism; there are no channels.
+**Exact version.** `lazurio update --version vX.Y.Z-rc.N` installs one exact tag.
+The tag is normalized to a version, the manifest must carry exactly that version,
+verification is the same, and the same floor applies: a version below the floor
+is refused, a version equal to the high-water mark but not active (the retry
+after a rollback) is allowed. Going below the floor is only ever the local
+`update rollback`. GitHub prereleases are invisible to `latest`, so a release
+candidate reaches only the Machines that ask for it. This is the whole canary
+mechanism; there are no channels. A Machine that committed a release candidate
+follows that line: it takes the next version at or above it, and returning to an
+older line is a new installation.
 
 **First installation** is trusted through HTTPS, and says so. `install.sh`
 downloads the latest binary from the origin and checks it against the manifest.
@@ -118,9 +138,13 @@ before public release ([decisions](decisions.md)).
 
 **Knowingly not covered.** An attacker who controls both the network and a valid
 TLS certificate for `github.com` can hold a client on its current version; they
-cannot downgrade it or make it run foreign bytes. Trust rests on the governance
-of this repository: whoever can run the protected release workflow on a protected
-tag can publish. A private fork is a different product configuration with its
+cannot downgrade it or make it run foreign bytes. The last verified check time in
+`update status` is how that freeze becomes visible. The trust base is named in
+full: the governance of this repository is the authorization policy (whoever can
+run the protected release workflow on a protected tag can publish); GitHub
+Actions OIDC, which asserts the workflow identity, and Sigstore's certificate
+authority, transparency log and trust root, which the verifier relies on, are
+cryptographic dependencies outside Lazurio's control. A private fork is a different product configuration with its
 own compiled-in origin and IDs, not a runtime setting.
 
 ## State on disk
@@ -135,12 +159,14 @@ Everything lives under the per-user install base
 | `bin/lazurio` → `../versions/<v>/lazurio` | the only selector of the active version |
 | `previous` → `versions/<v>` | the rollback target |
 | `update/lock` | one kernel `flock` for every mutating update operation |
-| `update/high-water` | highest version ever accepted |
-| `update/pending.json` | `{from, to}`; present only between a switch and its commit on a supervised installation |
+| `update/high-water` | highest version whose activation was ever committed; only ever raised |
+| `update/pending.json` | `{from, to}` activation marker of a supervised installation; written before the switch, deleted by the commit or the undo |
 | `update/last-check.json` | cache of the last check for the pill and the CLI notice; disposable |
 | `sigstore/` | Sigstore's trust-root cache; disposable |
 
-Status is computed from these paths when asked; there is no observed-state file
+`high-water` and `pending.json` are written as a temporary file made durable,
+renamed over the target, with the directory made durable. A crash leaves the old
+or the new content, never a partial one. Status is computed from these paths when asked; there is no observed-state file
 and no configuration file. A supervised installation is one whose systemd user
 unit `lazurio-launchpad.service` exists; the Folder path lives in that unit.
 
@@ -153,16 +179,17 @@ unit `lazurio-launchpad.service` exists; the Folder path lives in that unit.
 2. Run the new binary's `self-check`: it reports the expected identity and can
    read the current install base and Folder state. A failure ends here; nothing
    was switched.
-3. Point `previous` at the active version; write the high-water mark; on a
-   supervised installation write `pending.json`. Each step is made durable before
-   the next.
+3. Point `previous` at the active version. On a supervised installation write
+   `pending.json {from, to}`. Each step is durable before the next.
 4. Replace `bin/lazurio` by rename and make the directory durable.
-5. **Unsupervised (macOS, no service):** done. The switch is the commit; a running
+5. **Unsupervised (macOS, no service):** raise the high-water mark to the new
+   version; done. The switch is the commit and there is no marker; a running
    Launchpad reports that a restart finishes the update.
    **Supervised:** restart `lazurio-launchpad.service` and poll its health
    endpoint until it reports the new version, for at most 30 seconds. On success
-   delete `pending.json` and prune. On failure switch back, restart, delete
-   `pending.json` and exit `activation-failed`. The high-water mark stays; the
+   commit: raise the high-water mark, delete `pending.json`, prune. On failure
+   undo: switch back, restart, delete `pending.json`, exit `activation-failed`.
+   A version whose activation was undone never raised the high-water mark; the
    pill returns to `available` with the failure, and a retry is the same click.
 
 The Launchpad action starts the same command as
@@ -170,22 +197,46 @@ The Launchpad action starts the same command as
 the Launchpad restart it causes. The pill follows that unit and
 `last-check.json`.
 
-**Interrupted activation.** If the updater dies after the switch (power loss),
-`pending.json` remains. A Launchpad of version `to` that starts healthy and can
-take the lock deletes it: the activation is committed. If instead the new
-version crash-loops, the unit's start limit triggers
-`OnFailure=lazurio-rollback.service`, which runs `previous/lazurio update
-rollback --auto`. That command does nothing unless `pending.json` is valid, the
-selector equals `to`, `previous` equals `from` and it holds the lock; then it
-switches back, resets the failed unit and restarts it. Every later mutating
-command reconciles a leftover marker the same way before it begins. A new
-version that stays alive but never becomes healthy after a power loss in that
-window is not recovered automatically; `lazurio update rollback` is the answer,
-and a watchdog is deliberately not built for it.
+### Reconciling the marker
+
+`pending.json` can outlive its updater only through a crash. Whoever next holds
+the lock reconciles it before doing anything else: every mutating update
+command, a starting Launchpad, and the rollback unit. The outcome depends only
+on what is on disk:
+
+| Marker | `bin/lazurio` selects | `previous` selects | Meaning | Outcome |
+| --- | --- | --- | --- | --- |
+| absent | any | any | nothing in flight | proceed |
+| valid | `from` | any | crashed before the switch, or after an undo | delete the marker; proceed. The next click starts a fresh activation |
+| valid | `to` | `from` | switched, not committed | decided by the reconciler, below |
+| valid | `to` | not `from` | cannot arise from a crash | `state-invalid` |
+| valid | neither | any | cannot arise from a crash | `state-invalid` |
+| unreadable or wrong schema | any | any | cannot arise from a crash | `state-invalid` |
+
+Switched, not committed:
+
+- A **Launchpad of version `to`** that has started healthy commits.
+- The **rollback unit** (`OnFailure=lazurio-rollback.service`, run from
+  `previous/lazurio update rollback --auto` when the start limit is hit) undoes. In
+  every other row it does nothing.
+- A **mutating update command** asks the service once: healthy at `to` commits,
+  anything else undoes. It then continues with what the user asked for.
+
+`state-invalid` never clears, rewrites or guesses: the product keeps running what
+the selector names, the high-water mark is untouched, mutating update commands
+refuse with the offending path, and `update status` shows it. It is reachable only
+by interference from outside the product and is resolved by a person. An
+unreadable `high-water` is `state-invalid` as well; a missing one means the floor
+is the active version.
+
+Not recovered automatically: a new version that stays alive but never becomes
+healthy after a power loss between the switch and the commit. systemd sees a live
+process, so the rollback unit never runs; the next `lazurio update` or `lazurio
+update rollback` undoes it. A watchdog is deliberately not built for it.
 
 `lazurio update rollback` switches to `previous` after that binary's own
-`self-check`, with the same restart and health rule. It never lowers the
-high-water mark.
+`self-check`, with the same marker, restart and health rule, after raising the
+high-water mark to the version it leaves. It never lowers the high-water mark.
 
 ## Surfaces
 
@@ -203,7 +254,7 @@ high-water mark.
   short list (`network-unavailable`, `release-invalid`, `attestation-invalid`,
   `trust-unavailable`, `target-unsupported`, `reinstall-required`, `busy`,
   `storage-unavailable`, `disk-full`, `not-installed`, `self-check-failed`,
-  `activation-failed`, `rollback-unavailable`, `internal`).
+  `activation-failed`, `rollback-unavailable`, `state-invalid`, `internal`).
 - **Identity in the binary.** Version, commit, target, origin and its numeric IDs
   are embedded at build time.
 
@@ -232,7 +283,8 @@ resumable download, no delta update, no OS-scheduled check and no watchdog.
 ## Evidence required before any Machine depends on this
 
 - Behavioural tests against a local fixture origin: forward update, refusal of
-  a version below the high-water mark after a rollback, tag/manifest
+  a version below the floor after a rollback through `latest` and through an
+  exact tag, the equal-high-water retry, every row of the reconcile table, tag/manifest
   mismatch, wrong identity, wrong repository ID, tampered artifact and manifest,
   raced `latest`, cold trust cache offline, disk full, concurrent runs, kill at
   every activation step.

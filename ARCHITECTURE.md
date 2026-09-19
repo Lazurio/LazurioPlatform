@@ -51,11 +51,11 @@ is inventory/provenance, not profile-branch delivery. Recovery proceeds forward;
 legacy-installation rollback is not required. See the migration contract for boundaries.
 
 Product updates have a separate failure contract: prepare beside the active version;
-failed preparation preserves the existing usable product and working data. For the
-controlled pilot, clear diagnosis and an explicit bounded repair/retry procedure are
-required, not general automatic recovery from every interruption or expired transcript.
-Repair must preserve accepted trust and cannot reset metadata or bypass signatures.
-See [product update](docs/update.md). One-way Folder migration does not weaken this
+failed preparation preserves the existing usable product and working data; an
+interrupted activation is reconciled by the next command from what is on disk. A
+release is accepted only with a verified attestation of the exact-tag release
+workflow and never below the durable version floor; nothing bypasses that check.
+See [product update](docs/update.md) and decision F13. One-way Folder migration does not weaken this
 product-update preservation requirement.
 
 This preparation does not rewrite legacy apps, migrate current hosts, implement
@@ -79,7 +79,8 @@ Platform release. The local `lazurio` CLI and operator own Environment setup and
 updates afterwards; Machines is not a second Organization/module reconciler.
 The current increment is **foundation + Folder handover pilot, not Environment
 installation**. Machines must not remove its resident layer on that basis.
-Organization materialization, tools/sign-ins, the real release channel and gateway
+Organization materialization, tools/sign-ins, the first real GitHub Release through the
+product update path and gateway
 integration remain separate qualification gates. Organization conversion remains an
 experimental preview until consumer/rollout qualification. The existing Core schema
 is already authoritative; see [contract convergence](docs/organization-contract.md)
@@ -88,7 +89,7 @@ The [tool and sign-in proposal](docs/environment-tools.md) separates explicit lo
 preparation from operator-owned provider authentication; it does not claim either is implemented.
 
 The nearest controlled pilot is one private canary VM, delivered by Machines, through
-the real release channel, with one agreed preset/Organization/module, a real agent
+a real GitHub Release, with one agreed preset/Organization/module, a real agent
 task and a repeated infrastructure apply that preserves identity, content and the
 selected version; the team preset follows. The ordered work is the
 [nearest-pilot sequence](docs/acceptance.md#nearest-pilot-sequence). Personal migration,

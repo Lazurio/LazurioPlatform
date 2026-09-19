@@ -21,9 +21,9 @@ implemented by the document that records it.
 2. **OS-owned applications on Linux.** Service-manager ownership with CLI/Launchpad
    parity, concurrent operations, dependency exclusion and application survival across
    a Launchpad restart ([module adoption](module-adoption.md#application-lifetime--accepted-direction-not-implemented)).
-3. **Durable update check.** Trust and availability state that survives interruption
-   (product update contract, `docs/update.md`, separate PR).
-4. **Publisher and release workflow.** The real channel produced by the real workflow.
+3. **Verified update check.** Attestation verification, the version floor and the
+   availability cache ([product update contract](update.md)).
+4. **Release workflow.** A real GitHub Release produced and attested by the real workflow.
 5. **Activation, rollback and the Launchpad update pill.** Two real versions, candidate
    failure, reboot, concurrent requests and an update while applications are in use.
 6. **Hosted entry adapter.** Unauthenticated denial, authenticated access, WebSockets,
@@ -31,7 +31,7 @@ implemented by the document that records it.
 7. **Materialization and content synchronization.** One real Organization and one
    standard module through explicit clone, prepare, start, functional check and stop
    ([content synchronization](content-sync.md)).
-8. **One private canary VM** through the real channel, with explicit tool and sign-in
+8. **One private canary VM** through a real GitHub Release, with explicit tool and sign-in
    preparation, a real agent task and a **repeated infrastructure apply that preserves
    identity, content and the selected version**. VM restart, failed-update preservation
    and the repeat on a second approved VM from the 2026-09-16 note remain required
@@ -60,8 +60,8 @@ apply/restart or access mandate.
 | Slice | Prerequisite | Smallest real consumer and exit criterion |
 | --- | --- | --- |
 | 0 — Foundation review | Product intent and repository routing | Public architecture, explicit decision amendments, stack comparison, working standalone proof, independent review |
-| 1a — Distribution decisions | Reviewed foundation and accepted stack | Distribution owner proposes and obtains acceptance of concrete bootstrap trust, hosting, signing/rotation, channel authorization, retention, platform support and installer layout contracts; record signed/tampered/offline behavior and test strategy |
-| 1b — Distribution implementation | Accepted slice 1a contracts | Clean machine runs full installed CLI + Launchpad without source; signed/tampered/offline artifact cases and artifact secret scan |
+| 1a — Distribution decisions | Reviewed foundation and accepted stack | **Accepted as decision F13 and the [product update contract](update.md):** HTTPS bootstrap, GitHub Releases as the only origin, Sigstore attestation of the exact-tag release workflow, a durable version floor, two retained versions, the narrow target list and the per-user layout. There are no product-held signing keys and no channels. Still open here: OS publisher signing (Apple Developer ID, notarization, Windows) before public release |
+| 1b — Distribution implementation | Accepted slice 1a contracts | Clean machine runs full installed CLI + Launchpad without source; the evidence list of the product update contract (attested, tampered, wrong-identity, below-floor and offline cases, the native activation journey, one real release candidate) and artifact secret scan |
 | 2 — Environment generation | Slice 1 and ownership/schema contract | Folder Factory produces only owned Lazurio Folder files through the shared CLI/Launchpad core; the shared core applies locally through CLI or Launchpad, starts full app; unknown/edited paths preserved; rollback drill |
 | 3 — Profile capability | Slice 2 and accepted behavior schema | CLI and Launchpad use the same profile use case; deterministic generation, stale revision refusal, session pin/restart and upgrade preservation |
 | 4 — Environment purposes | Slices 2–3 and the validated hosted presets | Private human, team, Buddy and AI Colleague acceptance with correct Principal or Team attribution, Owner, custody and unavailable-capability behavior |
@@ -69,10 +69,10 @@ apply/restart or access mandate.
 | 6 — Opt-in cohorts | Qualified consumer slices; rehearsal and explicit migration approval for migrating cohorts | Small native cohort on each supported OS, user completion evidence, observation and recovery; halt on data loss/identity ambiguity |
 | 7 — General availability and retirement | Successful cohorts, public release approval | Published support matrix and release provenance; legacy install/update paths retired by declared criteria, backups retained by policy |
 
-Slice 1 includes decision work, not only coding. The foundation does not claim those
-mechanisms are already selected. Acceptance of this foundation permits developing
-the concrete distribution proposal, not shipping an installer with invented trust
-roots. Slice 1 is complete only when both 1a and 1b pass; the owning distribution
+Slice 1 included decision work, not only coding. Its trust, hosting and update
+decisions are now selected (F13); what remains of 1a is OS publisher signing.
+Nothing here permits shipping an installer with invented trust roots: the only
+trust inputs are the ones the contract names. Slice 1 is complete only when both 1a and 1b pass; the owning distribution
 plan must record that ordering before implementation starts. Build/proof experiments
 without installation remain useful evidence but do not bypass 1a.
 
@@ -87,8 +87,9 @@ boundaries and keep the proof's evidence labels accurate.
 
 Unsigned fixture evidence cannot complete public-release slices 1–3, qualify a public installer,
 authorize daily-Machine activation or waive any native platform/harness gate. Installer
-trust decisions in 1a remain prerequisites for installer implementation; certificate
-availability is not a prerequisite for unrelated core or generation tests.
+trust decisions in 1a (F13) are prerequisites for installer implementation and are
+accepted; OS publisher certificate availability is not a prerequisite for the
+controlled pilot or for unrelated core or generation tests.
 
 The Principal explicitly permits a controlled internal pilot with HTTPS initial
 bootstrap and subsequent release attestation verification before Apple Developer ID, notarization
