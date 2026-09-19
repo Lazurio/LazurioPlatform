@@ -127,7 +127,10 @@ must be absent. The build installs frozen development dependencies without lifec
 scripts, runs the narrow publication guard, compiles the real CLI and emits
 `identity.json`. It refuses a dirty source or an existing output; partial failed
 output is retained, not cleaned automatically. The identity describes unsigned bytes,
-not a TUF target, release authorization or reproducibility proof.
+not a TUF target, release authorization or reproducibility proof. `--version <semver>`
+builds a release from its tag instead of the package version; when the committed
+`release/root.json` exists its text is embedded as the product's trust root
+(see [release keys](release-keys.md)), otherwise the product embeds none.
 
 The POSIX smoke accepts an existing executable, creates its own temporary Folder,
 initializes Czech instructions, changes to English, starts that executable's Launchpad,

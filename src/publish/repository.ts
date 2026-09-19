@@ -89,7 +89,7 @@ export type PublishOptions = Readonly<{
   now: Date;
   lifetimes?: Partial<Lifetimes>;
   /** Root to install first: the initial root of an empty tree, or the
-   * successor of the published one. The root currently published is a no-op.
+   * successor of the published one. A root the tree already holds is a no-op.
    */
   root?: Uint8Array;
 }>;
@@ -240,9 +240,14 @@ function planRoot(
   }
   const bytes = Buffer.from(offered);
   const next = parseMetadata("root", bytes);
-  if (current && next.signed.version === current.version) {
-    if (!bytes.equals(current.bytes))
-      throw new PublishError("root-chain", "same version, other bytes");
+  if (current && next.signed.version <= current.version) {
+    // A root the chain already holds — the current one, or an older one that
+    // a release tag from before a rotation still carries — changes nothing.
+    const published = repository?.roots.find(
+      (root) => root.version === next.signed.version,
+    );
+    if (!published?.bytes.equals(bytes))
+      throw new PublishError("root-chain", "published version, other bytes");
     return { root: current.metadata, write: undefined };
   }
   if (!verifiedLink(current?.metadata, next))

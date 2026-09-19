@@ -74,6 +74,7 @@ update/activation.json                                  # present only during an
 update/previous.json                                    # what the last confirmed activation replaced
 update/observed.json                                    # derived observation for UI, CLI and observers
 update/launchpad-readiness.json                         # written by a running Launchpad, removed at clean exit
+update/config.json                                      # the channel; missing or damaged means `stable`
 update/lock, update/activation.lock                     # flock files; content never read
 update/scratch-*/                                       # always safe to delete
 ```
@@ -168,7 +169,8 @@ activation. Disk is checked before download.
   and the single action appropriate to the status. The Launchpad shows when the
   running version differs from the active one.
 - **CLI.** `lazurio update` (check, download, activate), `lazurio update --check`,
-  `lazurio update status [--json]`, `lazurio update rollback`, `lazurio --version`.
+  `lazurio update status [--json]`, `lazurio update rollback`,
+  `lazurio update channel [stable|preview]`, `lazurio --version`.
   Other commands print a one-line notice from `observed.json`; they never touch the
   network for it. Every failure has a stable error code and a non-zero exit
   status that automation can classify.
@@ -230,10 +232,14 @@ tree published through GitHub Pages of this repository, where one deployment
 replaces the whole tree at once; the publisher uploads artifacts, verifies that
 everything the new metadata references is reachable, and only then publishes the
 tree, timestamp last. Old referenced objects are retained so a cached timestamp
-always describes a complete repository. The client maps `artifacts/<digest>/…`
-to the asset URL explicitly and qualifies the redirect origins by test. A second
-origin is added only when a real consumer (a private fork, an air-gapped
-customer) needs it; the transport already takes the origin as configuration.
+always describes a complete repository. The download location of an executable
+is part of its **signed** target metadata (`custom.url`); the client downloads
+from that signed URL, verifies the signed length and digest as before, and
+follows redirects only to origins on a short compiled-in list that is qualified
+by test. A second origin is added only when a real consumer (a private fork, an
+air-gapped customer) needs it; the transport already takes the origins as
+configuration. Key custody, the one-time ceremony, rotation and the expiry
+calendar are in [release keys](release-keys.md).
 
 ## Deliberately narrow
 
@@ -277,13 +283,23 @@ transport is shared). Two slices exist: **check** (embedded identity,
 activate → confirm or roll back** for the CLI (`lazurio update`,
 `--download-only`, `lazurio update rollback`, `lazurio self-check`, the internal
 `lazurio update apply-worker`). Not built: the Launchpad poller, pill and
-action, `restart-pending`, release notes, the one-line notice of other
-commands, the compiled-in root and default origins (origins, channel and
-bootstrap root are explicit options), `update/config.json`, an installer that
-creates the first `bin/lazurio` (without a selector every update command
-answers `not-installed`), launchd, the publisher, and every piece of native
-evidence listed above: the journeys below ran on the developer's macOS ARM64
-only, and the `systemd-user` adapter has never met a real systemd.
+action, `restart-pending`, showing release notes (they are published and
+signed, nothing reads them yet), the one-line notice of other commands, an
+installer that creates the first `bin/lazurio` (without a selector every update
+command answers `not-installed`), launchd, and every piece of native evidence
+listed above: the journeys below ran on the developer's macOS ARM64 only, and
+the `systemd-user` adapter has never met a real systemd.
+
+A third slice adds the **publishing side** and the client's defaults: the
+publisher core (`src/publish/`), the key tool and the publisher command line
+(`scripts/release-keys.ts`, `scripts/release-publish.ts`), the release and
+refresh workflows, the signed download location, the compiled-in repository,
+origins and trust root (`src/update/defaults.ts`), and `update/config.json`
+with `lazurio update channel`. **None of it has run against GitHub**: no key
+ceremony was performed, `release/root.json` does not exist, no secret,
+environment, Pages site, tag or release was created, and neither workflow has
+ever executed. Until the ceremony every build embeds no root and
+`lazurio update` answers `trust-missing` without `--bootstrap-root`.
 
 Concrete choices fixed so far:
 
@@ -406,7 +422,93 @@ Concrete choices fixed so far:
   process holds the step lock, `activating` only while a record exists, `ready`
   only while the staged version exists; otherwise the status collapses to the
   last stable one. `running` and `restart-pending` are still unwritten.
-- **Evidence in the repository.** `tests/update-journey.test.ts` compiles real
+- **Repository format.** One static tree: `metadata/<N>.root.json`,
+  `metadata/<N>.targets.json`, `metadata/<N>.snapshot.json`,
+  `metadata/timestamp.json`, and targets under their consistent-snapshot names
+  `targets/<directory>/<sha256>.<file>`: `channels/<channel>.json`,
+  `artifacts/<sha256>/identity.json`, `releases/<version>/notes.md` and, only
+  when an executable is hosted by the repository itself,
+  `artifacts/<sha256>/lazurio`. Each role has its own version counter. The
+  loopback fixture builds every signed byte with the publisher's builders
+  (`src/publish/metadata.ts`, `channel-document.ts`), so the format the client
+  tests prove is the format the publisher writes; the fixture keeps only what a
+  publisher must never do (expired, tampered, malformed, rewound).
+- **Publisher core.** Every operation reads the tree and returns a *plan*: files
+  to add, in order, the timestamp last. `applyPlan` decides for the whole plan
+  before the first byte is written that no existing immutable path would get
+  other bytes, then creates files exclusively and replaces only
+  `timestamp.json`. Nothing is deleted; a numbered file left by an interrupted
+  run is never planned again. Operations: `add-release` (repeatable: the same
+  release is a no-op; an equal or lower version, other bytes under a reached
+  version, the same artifact under another URL, or a dropped target are
+  refused; an identity the client would refuse is never signed), `promote`
+  (exact version required, same artifact paths, pre-releases refused), `refresh`
+  (targets / snapshot / timestamp, each pulling the roles below it), `status`
+  (margins root 60, targets 30, snapshot 20, timestamp 5 days; exit 3 below
+  one), `verify` (tree objects by length and digest; the signed URL of every
+  artifact a channel selects is downloaded through the client's own transport)
+  and root installation (the successor of the published root is verified as a
+  chain link and re-signs exactly the roles whose key changed; a root the tree
+  already holds is a no-op; a gap or other bytes are refused). Lifetimes
+  default to root 365, targets 90, snapshot 30, timestamp 7 days. A key is
+  needed only for a role that is actually signed and must be one the current
+  root names.
+- **Signed download location.** `artifacts/<sha256>/lazurio` keeps its target
+  path; the publisher puts the GitHub Release asset URL into the signed
+  target's `custom.url`. A check carries it to the download; without it the
+  repository-served consistent-snapshot name is used (fixture, mirrors). The
+  URL is only a location: origin and redirect policy stay with the transport.
+  Default origins (`src/update/defaults.ts`): `https://github.com`, and the
+  asset storage it redirects to — `https://release-assets.githubusercontent.com`
+  (observed 2026-09-19) and its predecessor
+  `https://objects.githubusercontent.com`. GitHub documents that storage only as
+  `*.githubusercontent.com`; the transport matches exact origins. An origin
+  outside the list is refused (`network-unavailable`), and the release workflow
+  downloads every new asset through the same list before it publishes, so a
+  host GitHub introduces later stops a release rather than installed Machines.
+- **Compiled-in defaults.** Repository
+  `https://lazurio.github.io/LazurioPlatform/{metadata,targets}/`, channel
+  `stable`, the origins above, and the text of `release/root.json` embedded by
+  `scripts/build-candidate.ts` through a build-time define (a root that does
+  not verify under its own keys fails the build). The embedded root enters the
+  check as its own input, not as the bootstrap root: it is used while `trust/`
+  holds no valid root and is simply unused afterwards, so it can never produce
+  `trust-conflict`; `--bootstrap-root` keeps its semantics and wins over it.
+  Naming another repository (`--metadata-url` with `--target-url`) replaces the
+  compiled-in origins entirely; only `--artifact-origin` values are added.
+- **Channel.** `update/config.json` is `{schemaVersion: 1, channel}`. Missing,
+  damaged or of another schema means `stable`; it is rewritten by
+  `lazurio update channel <name>`. `--channel` overrides it for one command.
+  Switching never downgrades because a check never offers a version that is
+  not newer than the running one.
+- **Workflows.** `release.yml`: tag `v*.*.*` → `bun run check` on Linux and
+  macOS → three native builds with the tag as version (each executable is asked
+  for its version, target and commit) → one GitHub Release with generated notes
+  against the previous tag of the same channel → `publish` in environment
+  `release`: signs exactly the assets the release serves into `preview`,
+  verifies, pushes one commit to `gh-pages`, waits until the published origin
+  serves the new timestamp. `promote` and `renew-targets` are manual dispatches
+  in the same environment; promotion never builds. An existing release is never
+  replaced. `update-metadata-refresh.yml`: daily; renews timestamp and snapshot
+  below their margins with only those two keys, deploys that first, and then
+  fails — with a summary table — when targets or root is below its margin or
+  when an artifact a channel selects can no longer be downloaded. Signing jobs
+  and the refresh do not share a concurrency group, because a job waiting for
+  approval would hold it; a rare race is decided by the never-forced push. `scripts/update-tree.sh` refuses to
+  push a commit that modifies or removes a published file other than the
+  timestamp.
+- **Evidence in the repository.** `tests/publish-repository.test.ts` (naming,
+  timestamp last, refusal to rewrite, retention, promotion, refresh, margins,
+  root rotation, the key tool, the append-only branch) and
+  `tests/update-publish-journey.test.ts`: the tree the publisher wrote is served
+  as static files on loopback and the real client checks and downloads release
+  A, sees B behind a signed URL on a second origin that redirects to a third,
+  is refused when that third origin is not listed, sees B on `stable` only
+  after promotion, resolves a complete older repository from a cached older
+  timestamp, and follows a rotated root and targets key; a real compiled CLI
+  without `release/root.json` answers `trust-missing`, one with it needs no
+  bootstrap root and meets no `trust-conflict` on the second run.
+  `tests/update-journey.test.ts` compiles real
   executables A, B and C of a TEST-ONLY product entry point (faults switched by
   a control file; product code has no test hook) and drives `bin/lazurio`
   against the signed loopback repository: A→B, rollback, retry without a
@@ -444,6 +546,27 @@ of this work, the rest open until reviewed:
 12. Superseded trust files are not pruned.
 13. `minimumUpdaterContract` is an optional member of the signed identity
     (default 1); the updater's contract number is `1`.
+14. "The client maps `artifacts/<digest>/…` to the asset URL explicitly" became
+    a **signed** URL in the target's `custom` metadata; "Publishing" now says
+    so. No mapping rule exists in the client.
+15. "One deployment replaces the whole tree" is one pushed commit on
+    `gh-pages` with Pages deploying from that branch, followed by waiting until
+    the origin serves the new timestamp. Between the commit and the end of the
+    Pages deployment clients see the complete previous tree.
+16. "The publisher uploads artifacts" is the release job; the publisher itself
+    never uploads. It signs what the GitHub Release already serves and proves
+    it by downloading it.
+17. Targets metadata keeps every artifact ever released (a channel may still
+    select it). Pruning old entries is not built.
+18. Release notes are a signed target (`releases/<version>/notes.md`, at most
+    256 KiB) rather than a member of the channel document, whose exact field
+    set is unchanged.
+19. Promotion refuses pre-release versions and requires the exact version;
+    a release may not drop a target its channel currently serves. Neither rule
+    is in the text above.
+20. `renew-targets` exists although the contract names only snapshot and
+    timestamp renewal: targets metadata expires after 90 days without a
+    release and only the protected environment can re-sign it.
 
 ## Removed by this contract
 

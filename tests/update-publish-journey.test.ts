@@ -322,8 +322,23 @@ test("publish A, the client downloads it; publish B as a release asset behind a 
 
   // Retention: somebody still served the timestamp of A — a CDN cache — gets a
   // COMPLETE older repository: snapshot, targets, document, identity, bytes.
+  const deployed = (seconds: string) =>
+    publish([
+      "await-deployment",
+      "--metadata-url",
+      `${pages.url}metadata/`,
+      "--timeout-seconds",
+      seconds,
+      "--loopback-fixture",
+    ]);
+  expect(await deployed("5")).toMatchObject({ code: 0 });
   cachedTimestamp = timestampOfA;
   try {
+    // The workflow waits for what clients see, not for what it pushed.
+    expect(await deployed("1")).toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining("Refused: unreachable"),
+    });
     const behind = await machine("preview");
     expect(await behind.check()).toMatchObject({
       kind: "available",

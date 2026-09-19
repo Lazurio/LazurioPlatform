@@ -10,6 +10,7 @@ import {
   type Signer,
   signerFromPem,
 } from "../src/publish/keys";
+import { timestampPath } from "../src/publish/metadata";
 import {
   addRelease,
   loadRepository,
@@ -23,7 +24,10 @@ import {
 } from "../src/publish/repository";
 import { applyPlan, directoryTree, hashFile } from "../src/publish/tree";
 import { isUpdateChannel } from "../src/update/channel";
-import { defaultArtifactOrigins } from "../src/update/defaults";
+import {
+  defaultArtifactOrigins,
+  defaultMetadataBaseUrl,
+} from "../src/update/defaults";
 import { updateTargets } from "../src/update/identity";
 
 /** Command line of the publisher core (`src/publish/`), run by the release and
@@ -66,7 +70,10 @@ status
 verify [--all-urls] [--artifact-origin <origin>]... [--loopback-fixture]
   Proves every object the current metadata references: files inside the tree by
   length and digest, and the signed download location of every artifact a
-  channel selects (--all-urls: of every artifact) over the network.`;
+  channel selects (--all-urls: of every artifact) over the network.
+await-deployment [--metadata-url <https://.../metadata/>] [--timeout-seconds <n>]
+  Waits until the published origin (default: the one compiled into the product)
+  serves the tree's timestamp.json, i.e. until the deployment is what clients see.`;
 
 type Output = Readonly<{ code: number; stdout: string; stderr: string }>;
 export const exitValidityLow = 3;
@@ -188,6 +195,8 @@ export async function runReleasePublish(
         "all-urls": { type: "boolean" },
         "artifact-origin": { type: "string", multiple: true },
         "loopback-fixture": { type: "boolean" },
+        "metadata-url": { type: "string" },
+        "timeout-seconds": { type: "string" },
       },
     });
     json = values.json === true;
@@ -349,6 +358,35 @@ export async function runReleasePublish(
         { verifiedUrls: urls.map((object) => object.url) },
         `verified: the tree and ${urls.length} download locations`,
       );
+    }
+    if (command === "await-deployment") {
+      const url = new URL(
+        "timestamp.json",
+        values["metadata-url"] ?? defaultMetadataBaseUrl,
+      );
+      const seconds = values["timeout-seconds"] ?? "1200";
+      if (!/^[1-9]\d{0,4}$/.test(seconds))
+        throw new PublishError("invalid-input", "timeout-seconds");
+      const expected = await tree.read(timestampPath);
+      if (!expected) throw new PublishError("repository-invalid", "empty");
+      const transport = new DistributionTransport(
+        [url.origin],
+        Number(seconds) * 1000 + 60_000,
+        new AbortController().signal,
+        loopback,
+      );
+      const deadline = performance.now() + Number(seconds) * 1000;
+      for (;;) {
+        const served = await transport
+          // A cache must not answer for the origin.
+          .downloadBytes(`${url.href}?t=${Date.now()}`, 1024 * 1024)
+          .catch(() => undefined);
+        if (served?.equals(expected))
+          return done({ deployed: true }, `deployed: ${url.href}`);
+        if (performance.now() >= deadline)
+          throw new PublishError("unreachable", url.href);
+        await Bun.sleep(loopback ? 50 : 10_000);
+      }
     }
     return { code: 2, stdout: "", stderr: releasePublishHelp };
   } catch (error) {

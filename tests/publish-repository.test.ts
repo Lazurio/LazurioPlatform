@@ -522,8 +522,15 @@ test("a rotated root is signed by the outgoing and the incoming key, continues t
       }),
     );
   expect(await resign(fourth)).toBe("root-chain");
-  expect(await resign(r.root)).toBe("root-chain");
   expect(await resign(second)).toBe("accepted");
+  // A release tag from before the rotation still carries root 1: a no-op.
+  expect(await resign(r.root)).toBe("accepted");
+  const forged = initialRoot({
+    keys,
+    rootSigner: incoming,
+    now: new Date(start.getTime() + day),
+  });
+  expect(await resign(forged)).toBe("root-chain");
   // An empty tree without a root is refused, never invented.
   const empty = await temporary("publish-empty-");
   expect(
@@ -653,4 +660,64 @@ test("the key tool writes a 0600 private key outside any repository, builds and 
     expect(body.length).toBeGreaterThan(40);
     expect(everything).not.toContain(body);
   }
+});
+
+test("the tree branch is append-only: one commit per deployment, a rewritten or removed file stops the push", async () => {
+  const r = await repository();
+  const work = await temporary("publish-branch-");
+  const remote = join(work, "remote.git");
+  const git = (args: string[]) =>
+    Bun.spawnSync(["git", ...args], { stdout: "pipe", stderr: "pipe" });
+  expect(git(["init", "--bare", "--quiet", remote]).exitCode).toBe(0);
+  const script = join(import.meta.dir, "../scripts/update-tree.sh");
+  const tool = (args: string[]) => {
+    const result = Bun.spawnSync(["bash", script, ...args], {
+      env: { PATH: process.env.PATH ?? "", UPDATE_TREE_REMOTE: remote },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    return { code: result.exitCode, stdout: result.stdout.toString() };
+  };
+  const commits = () =>
+    git(["-C", remote, "rev-list", "--count", "gh-pages"])
+      .stdout.toString()
+      .trim();
+  // First run: no branch yet. The publisher writes into the checkout.
+  const first = join(work, "first");
+  expect(tool(["checkout", first]).code).toBe(0);
+  const plan = await addRelease(
+    directoryTree(first),
+    {
+      channel: "preview",
+      version: "1.1.0",
+      notes: "",
+      artifacts: [artifact("1.1.0")],
+    },
+    r.options(),
+  );
+  await applyPlan(first, plan);
+  expect(tool(["push", first, "Release 1.1.0 to preview"]).code).toBe(0);
+  expect(commits()).toBe("1");
+  // Nothing changed: nothing is pushed.
+  expect(tool(["push", first, "again"]).stdout).toContain("Nothing changed");
+  expect(commits()).toBe("1");
+  // A later run starts from what is published and appends to it.
+  const second = join(work, "second");
+  expect(tool(["checkout", second]).code).toBe(0);
+  expect((await loadRepository(directoryTree(second)))?.targets?.version).toBe(
+    1,
+  );
+  await applyPlan(
+    second,
+    await refresh(directoryTree(second), ["snapshot"], r.options()),
+  );
+  expect(tool(["push", second, "Refresh update metadata"]).code).toBe(0);
+  expect(commits()).toBe("2");
+  // Whatever produced it, a changed or deleted published file never leaves.
+  await writeFile(join(second, "metadata/1.targets.json"), "rewritten");
+  expect(tool(["push", second, "rewrite"]).code).toBe(1);
+  git(["-C", second, "reset", "--quiet", "--hard"]);
+  await rm(join(second, "metadata/1.snapshot.json"));
+  expect(tool(["push", second, "remove"]).code).toBe(1);
+  expect(commits()).toBe("2");
 });
