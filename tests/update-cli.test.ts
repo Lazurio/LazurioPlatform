@@ -247,9 +247,12 @@ test.skipIf(process.platform === "win32")(
     const app = await startLaunchpad(folder, undefined, undefined, {
       base: world.base,
       version: "1.0.0",
+      commitDelayMs: 300,
     });
     try {
       expect(await launchpadHealth(world.base)).toBe("1.0.0");
+      // Reported at once; committed only after it stayed up for a while.
+      expect(await Bun.file(layout(world.base).pending).exists()).toBe(true);
       // Only one Launchpad serves an install base.
       await expect(
         startLaunchpad(folder, undefined, undefined, {

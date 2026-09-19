@@ -14,6 +14,8 @@ import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
 import index from "./index.html";
 
+export const launchpadCommitDelayMs = 15_000;
+
 // The installed service's health question (docs/update.md "Activation"): which
 // version is running. A Unix socket under the install base, so only this user
 // can ask and the updater needs no port or session token to find it. It states
@@ -43,7 +45,11 @@ export async function startLaunchpad(
   // The installed Launchpad service of this base (`launchpad --base`): it
   // answers the updater's health question and commits an activation whose
   // updater is gone.
-  installed?: Readonly<{ base: string; version: string }>,
+  installed?: Readonly<{
+    base: string;
+    version: string;
+    commitDelayMs?: number;
+  }>,
 ) {
   const organizationDirectory = discovery?.organizationDirectory;
   if (organizationDirectory !== undefined)
@@ -154,13 +160,21 @@ export async function startLaunchpad(
       }
     },
   });
-  // Healthy means: the listener above exists. Only now is the version
-  // reported, and only then may this instance commit a switched activation. A
-  // failure to reconcile never costs the Launchpad its start.
+  // The listener above exists: only now is the version reported, and a live
+  // updater commits on that. An activation whose updater is gone is committed
+  // by this instance itself — but only once it has stayed up longer than the
+  // unit's start limit could still undo it (5 starts in 60 s: a version that
+  // dies sooner must reach `OnFailure=lazurio-rollback.service` uncommitted).
+  // A failure to reconcile never costs the Launchpad its start.
   const health = installed
     ? await serveHealth(installed.base, installed.version)
     : null;
-  if (installed) void reconcileAsLaunchpad(installed).catch(() => undefined);
+  const reconcile = installed
+    ? setTimeout(
+        () => void reconcileAsLaunchpad(installed).catch(() => undefined),
+        installed.commitDelayMs ?? launchpadCommitDelayMs,
+      )
+    : undefined;
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -174,6 +188,7 @@ export async function startLaunchpad(
           // Close admission immediately, before waiting for HTTP requests to drain.
           // Existing requests and shutdown must share the same lifecycle queue.
           const applicationClose = applications?.close();
+          clearTimeout(reconcile);
           await server.stop(true);
           await health?.stop(true);
           const result = applicationClose
