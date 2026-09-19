@@ -1,29 +1,32 @@
+import { channelDocumentBytes } from "../src/publish/channel-document";
 import {
-  createHash,
-  generateKeyPairSync,
-  type KeyObject,
-  sign,
-} from "node:crypto";
+  generateSigner,
+  type RoleName,
+  type Signer,
+} from "../src/publish/keys";
 import {
-  Key,
-  Metadata,
-  MetaFile,
-  Root,
-  Signature,
-  Snapshot,
-  TargetFile,
-  Targets,
-  Timestamp,
-} from "@tufjs/models";
+  buildRoot,
+  buildSnapshot,
+  buildTargets,
+  buildTimestamp,
+  consistentTargetPath,
+  metadataPath,
+  sha256,
+  type TargetEntry,
+} from "../src/publish/metadata";
 
 /** Local synthetic signed repository for the update core: consistent
  * snapshots, one ephemeral key PER role, numbered immutable roots, snapshots
  * and targets, hash-addressed channel documents, and old objects retained —
  * the layout docs/update.md "Publishing" prescribes. Keys never leave this
- * process and the bytes never leave the loopback server. Not a publisher.
+ * process and the bytes never leave the loopback server.
+ *
+ * Every signed byte is built by the publisher's own builders
+ * (`src/publish/metadata.ts`, `channel-document.ts`), so the repository format
+ * the client tests prove is the format the publisher writes. What stays here
+ * is what a publisher must never do: expired or tampered metadata, malformed
+ * documents, rewinding, and a misbehaving server.
  */
-type RoleName = "root" | "targets" | "snapshot" | "timestamp";
-type Signer = { key: Key; secret: KeyObject };
 export type FixtureChannel = Readonly<{
   sequence: number;
   version: string;
@@ -45,26 +48,6 @@ export type FixtureFault =
   /** Answer a range request with the whole object and `200`. */
   | Readonly<{ kind: "ignore-range" }>;
 
-function signer(id: string): Signer {
-  const pair = generateKeyPairSync("ed25519");
-  return {
-    secret: pair.privateKey,
-    key: new Key({
-      keyID: id,
-      keyType: "ed25519",
-      scheme: "ed25519",
-      keyVal: {
-        public: pair.publicKey
-          .export({ type: "spki", format: "pem" })
-          .toString(),
-      },
-    }),
-  };
-}
-
-const sha256 = (bytes: Buffer) =>
-  createHash("sha256").update(bytes).digest("hex");
-
 export function createUpdateFixture(input: {
   executionTarget: string;
   artifact?: Buffer;
@@ -79,34 +62,18 @@ export function createUpdateFixture(input: {
   const rangeRequests: { path: string; range: string | null }[] = [];
   const future = () => new Date(Date.now() + 3600_000).toISOString();
   const signers: Record<RoleName, Signer> = {
-    root: signer("root-1"),
-    targets: signer("targets-1"),
-    snapshot: signer("snapshot-1"),
-    timestamp: signer("timestamp-1"),
+    root: generateSigner(),
+    targets: generateSigner(),
+    snapshot: generateSigner(),
+    timestamp: generateSigner(),
   };
   const served = new Map<string, Buffer>();
   const blocked = new Map<string, number>();
   const requests: string[] = [];
-  const channels = new Map<string, FixtureChannel>();
+  const channels = new Map<"stable" | "preview", FixtureChannel>();
   const timestamps = new Map<number, Buffer>();
   let rootVersion = 0;
   let version = 0;
-
-  const signedBy = (
-    value: Root | Targets | Snapshot | Timestamp,
-    by: readonly Signer[],
-  ) => {
-    const metadata = new Metadata(value);
-    for (const { key, secret } of by)
-      metadata.sign(
-        (bytes) =>
-          new Signature({
-            keyID: key.keyID,
-            sig: sign(null, bytes, secret).toString("hex"),
-          }),
-      );
-    return Buffer.from(JSON.stringify(metadata.toJSON()));
-  };
 
   /** Publish root N+1. A rotation replaces the root key and is signed by both
    * the outgoing and the incoming key, as the client requires.
@@ -116,22 +83,21 @@ export function createUpdateFixture(input: {
     expires?: string;
   }): Buffer => {
     const outgoing = signers.root;
-    for (const role of options.rotate ?? [])
-      signers[role] = signer(`${role}-${rootVersion + 2}`);
+    for (const role of options.rotate ?? []) signers[role] = generateSigner();
     rootVersion += 1;
-    const root = new Root({
+    const bytes = buildRoot({
       version: rootVersion,
-      specVersion: "1.0.0",
       expires: options.expires ?? future(),
-      consistentSnapshot: true,
+      keys: {
+        root: [signers.root.key],
+        targets: [signers.targets.key],
+        snapshot: [signers.snapshot.key],
+        timestamp: [signers.timestamp.key],
+      },
+      signers:
+        outgoing === signers.root ? [outgoing] : [outgoing, signers.root],
     });
-    for (const role of ["root", "targets", "snapshot", "timestamp"] as const)
-      root.addKey(signers[role].key, role);
-    const bytes = signedBy(
-      root,
-      outgoing === signers.root ? [outgoing] : [outgoing, signers.root],
-    );
-    served.set(`/metadata/${rootVersion}.root.json`, bytes);
+    served.set(`/${metadataPath("root", rootVersion)}`, bytes);
     return bytes;
   };
 
@@ -143,82 +109,55 @@ export function createUpdateFixture(input: {
     } = {},
   ) => {
     version += 1;
-    const files: Record<string, TargetFile> = {};
-    for (const [path, bytes] of artifactTargets) {
-      files[path] = new TargetFile({
-        path,
-        length: bytes.length,
-        hashes: { sha256: sha256(bytes) },
-      });
-      // Consistent-snapshot name: `<directory>/<sha256>.<file>`.
-      const slash = path.lastIndexOf("/");
-      served.set(
-        `/targets/${path.slice(0, slash + 1)}${sha256(bytes)}.${path.slice(slash + 1)}`,
-        bytes,
-      );
-    }
+    const entries = new Map<string, TargetEntry>();
+    const put = (path: string, bytes: Buffer) => {
+      entries.set(path, { length: bytes.length, sha256: sha256(bytes) });
+      served.set(`/${consistentTargetPath(path, sha256(bytes))}`, bytes);
+    };
+    for (const [path, bytes] of artifactTargets) put(path, bytes);
     for (const [name, channel] of channels) {
-      const document = Buffer.from(
-        channel.rawDocument ??
-          JSON.stringify({
-            schemaVersion: 1,
-            channel: name,
-            sequence: channel.sequence,
-            version: channel.version,
-            minimumVersion: channel.minimumVersion ?? "0.0.1",
-            targets: channel.withoutTarget
-              ? {}
-              : {
-                  [input.executionTarget]: channel.artifactSha256
-                    ? `artifacts/${channel.artifactSha256}/lazurio`
-                    : artifactPath,
-                },
-          }),
-      );
-      const path = `channels/${name}.json`;
-      files[path] = new TargetFile({
-        path,
-        length: document.length,
-        hashes: { sha256: sha256(document) },
-      });
-      served.set(
-        `/targets/channels/${sha256(document)}.${name}.json`,
-        document,
+      const targets: Record<string, string> = channel.withoutTarget
+        ? {}
+        : {
+            [input.executionTarget]: channel.artifactSha256
+              ? `artifacts/${channel.artifactSha256}/lazurio`
+              : artifactPath,
+          };
+      put(
+        `channels/${name}.json`,
+        channel.rawDocument !== undefined
+          ? Buffer.from(channel.rawDocument)
+          : channelDocumentBytes({
+              channel: name,
+              sequence: channel.sequence,
+              version: channel.version,
+              minimumVersion: channel.minimumVersion ?? "0.0.1",
+              targets,
+            }),
       );
     }
-    const fields = (role: "targets" | "snapshot" | "timestamp") => ({
+    const expires = (role: "targets" | "snapshot" | "timestamp") =>
+      options.expires?.[role] ?? future();
+    const targets = buildTargets({
       version,
-      specVersion: "1.0.0",
-      expires: options.expires?.[role] ?? future(),
+      expires: expires("targets"),
+      targets: entries,
+      signer: signers.targets,
     });
-    const targets = signedBy(
-      new Targets({ ...fields("targets"), targets: files }),
-      [signers.targets],
-    );
-    const snapshot = signedBy(
-      new Snapshot({
-        ...fields("snapshot"),
-        meta: {
-          "targets.json": new MetaFile({
-            version,
-            length: targets.length,
-            hashes: { sha256: sha256(targets) },
-          }),
-        },
-      }),
-      [signers.snapshot],
-    );
-    const timestamp = signedBy(
-      new Timestamp({
-        ...fields("timestamp"),
-        snapshotMeta: new MetaFile({
-          version,
-          length: snapshot.length,
-          hashes: { sha256: sha256(snapshot) },
-        }),
-      }),
-      [signers.timestamp],
-    );
+    const snapshot = buildSnapshot({
+      version,
+      expires: expires("snapshot"),
+      targetsVersion: version,
+      targetsBytes: targets,
+      signer: signers.snapshot,
+    });
+    const timestamp = buildTimestamp({
+      version,
+      expires: expires("timestamp"),
+      snapshotVersion: version,
+      snapshotBytes: snapshot,
+      signer: signers.timestamp,
+    });
     // Same length, different bytes: the signed hash no longer matches.
     const damaged = (bytes: Buffer) => {
       const copy = Buffer.from(bytes);
@@ -226,14 +165,14 @@ export function createUpdateFixture(input: {
       return copy;
     };
     served.set(
-      `/metadata/${version}.targets.json`,
+      `/${metadataPath("targets", version)}`,
       options.tamper === "targets" ? damaged(targets) : targets,
     );
     served.set(
-      `/metadata/${version}.snapshot.json`,
+      `/${metadataPath("snapshot", version)}`,
       options.tamper === "snapshot" ? damaged(snapshot) : snapshot,
     );
-    served.set("/metadata/timestamp.json", timestamp);
+    served.set(`/${metadataPath("timestamp", version)}`, timestamp);
     timestamps.set(version, timestamp);
   };
 
