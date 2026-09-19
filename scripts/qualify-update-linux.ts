@@ -5,7 +5,9 @@ import { identityDefines } from "../src/update/identity";
 
 /** Builds the bundle that `scripts/qualify-update-linux.sh` runs ON a Linux
  * Machine: three REAL product executables (`src/cli.ts`) that differ only in
- * their embedded version, the signed loopback fixture server, and the script.
+ * their embedded version, the loopback repository server — whose signed tree
+ * is produced by the publisher (`src/publish/`: add-release, then promote, per
+ * release) and served as static files — and the script.
  * Cross-compiles from any host; copying the bundle to the Machine and running
  * it there is the operator's step and needs nothing from this repository.
  *
