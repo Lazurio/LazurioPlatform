@@ -20,7 +20,10 @@ implemented by the document that records it.
    support. This is the documentation change that introduced this list.
 2. **OS-owned applications on Linux.** Service-manager ownership with CLI/Launchpad
    parity, concurrent operations, dependency exclusion and application survival across
-   a Launchpad restart ([module adoption](module-adoption.md#application-lifetime--accepted-direction-not-implemented)).
+   a Launchpad restart. Implemented 2026-09-19 as transient systemd user services and
+   natively qualified on `linux-arm64` for survival, rediscovery, dependency exclusion
+   and stop; two concurrent owners, `linux-x64` and survival across a product
+   activation remain ([module adoption](module-adoption.md#application-lifetime--implemented-for-linux-session-scoped-on-macos)).
 3. **Durable update check.** Trust and availability state that survives interruption
    (product update contract, `docs/update.md`, separate PR).
 4. **Publisher and release workflow.** The real channel produced by the real workflow.
@@ -123,7 +126,7 @@ fixes continue with their owners; selectively port proven contracts with provena
 | Public development | Source, build commands and sanitized evidence publicly reproducible | CI catches synthetic secret and `.env` in archive without printing values; placeholders stay valid |
 | Data preservation | Dirty index/worktree/untracked/ignored files, local refs/stashes and external linked worktrees match before/after | Disk full, permissions, interruption at every phase, path traversal, foreign Personalspace: stop safely |
 | Runtime | One selected version, managed process tree drained/restored through its owner | Port collision, stale locator, busy executable, active writer, failed healthcheck do not kill unrelated work |
-| Application lifetime (Linux, accepted direction) | A started application survives a Launchpad restart and a product activation; Stop stops the service; identity and readiness come from the service manager; reboot persistence only when explicitly set; CLI and Launchpad agree | Saved PID treated as identity, foreign service or process adopted or signalled, port collision accepted, dependency preparation beneath a running application, implicit persistence after Open |
+| Application lifetime (Linux; implemented 2026-09-19 for Launchpad restart, [native evidence](evidence/app-services-linux-arm64-2026-09-19.md); product activation, reboot persistence and `linux-x64` not yet exercised) | A started application survives a Launchpad restart and a product activation; Stop stops the service; identity and readiness come from the service manager; reboot persistence only when explicitly set; CLI and Launchpad agree | Saved PID treated as identity, foreign service or process adopted or signalled, port collision accepted, dependency preparation beneath a running application, implicit persistence after Open |
 | Content synchronization (accepted direction) | Root first, manifest re-read, declared children; absent destination materialized through a verified temporary sibling; existing checkout fast-forwarded to the inspected commit; siblings continue past one failure | Dirty or wrong-branch checkout stashed, switched or reset; occupied destination replaced; divergence merged; Production Space, Personalspace, worktree or repository database touched; product update cloning or stashing anything |
 | Hosted entry (accepted direction) | Authenticated browser reaches Launchpad and application hostnames; session revalidated at the configured auth endpoint; WebSocket reconnect re-enters admission | Forged identity headers honoured, unknown host served, cross-origin state change accepted, Account login treated as admission or repository access |
 | Workspace preset (accepted direction) | Immutable reference plus visible overrides survive upgrade; typed request with the expected revision is applied through the ordinary use case and reports the observed outcome | Unknown preset or version mutates; stale revision applied; remote intent overrides a concurrent local change; preset carries grants, tokens, mandates or analytics consent; preset derived from a name |

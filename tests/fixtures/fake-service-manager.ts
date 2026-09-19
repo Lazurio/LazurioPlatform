@@ -34,7 +34,9 @@ export function createFakeServiceManager(
   let invocations = 0;
   const behaviour = {
     // "fail-loaded": systemd-run exits non-zero and leaves a failed record.
-    start: "ok" as "ok" | "fail" | "fail-loaded",
+    // "timeout-loaded": the request is killed at its deadline (no exit code)
+    // while the manager still completes the start.
+    start: "ok" as "ok" | "fail" | "fail-loaded" | "timeout-loaded",
     // How many control-group observations stay populated after a stop.
     stopLeavesPopulatedFor: 0,
     stop: "ok" as "ok" | "stuck" | "timeout-failed",
@@ -78,6 +80,8 @@ export function createFakeServiceManager(
         type: option(args, "--service-type")[0] ?? "simple",
       });
       if (!failed) populated.add(controlGroup);
+      if (behaviour.start === "timeout-loaded")
+        return { code: null, stdout: "", stderr: "" };
       return failed ? { code: 1, stdout: "", stderr: "failed" } : ok();
     }
     if (args[0] === "--version")

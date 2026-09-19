@@ -161,6 +161,13 @@ export function createSystemdUserRunner(input: {
     )
   )
     throw new Error("Canonical Organization and runtime directories required");
+  const confirmStopMs = input.confirmStopMs ?? 5000;
+  if (
+    !Number.isInteger(confirmStopMs) ||
+    confirmStopMs < 1 ||
+    confirmStopMs > 30_000
+  )
+    throw new Error("Bounded stop confirmation required");
   const prefix = organizationUnitPrefix(organization);
   const identify = (application: ApplicationRef) =>
     applicationUnitName(organization, application);
@@ -376,6 +383,13 @@ export function createSystemdUserRunner(input: {
           return Object.freeze({ kind: "inspection-unavailable" as const });
         if (state.kind === "unrecognized")
           return Object.freeze({ kind: "launch-failed" as const });
+        // Validate everything before any effect, including clearing a record.
+        const refusal = await refuseOccupiedPorts(
+          request.ports,
+          input.observeBindings,
+        );
+        if (refusal) return refusal;
+        argv = await definition(unit, request);
         // The manager refuses a start while a failed record of this name remains.
         if (
           state.kind === "ended" &&
@@ -384,12 +398,6 @@ export function createSystemdUserRunner(input: {
           return Object.freeze({
             kind: "application-cleanup-required" as const,
           });
-        const refusal = await refuseOccupiedPorts(
-          request.ports,
-          input.observeBindings,
-        );
-        if (refusal) return refusal;
-        argv = await definition(unit, request);
       } catch {
         return Object.freeze({ kind: "launch-failed" as const });
       }
@@ -404,6 +412,15 @@ export function createSystemdUserRunner(input: {
       // A failed start must leave no half-owned service behind.
       const after = await observe(unit);
       if (after.kind === "ended") await clearFailed(unit, after.controlGroup);
+      if (after.kind === "running") {
+        // The manager refused because the name is taken: someone else's start won.
+        if (started && started.code !== null)
+          return Object.freeze({ kind: "already-managed" as const });
+        // Our own request outlived its deadline: withdraw it, never half-own it.
+        return (await runner.stop(request.application)).kind === "group-stopped"
+          ? Object.freeze({ kind: "launch-failed" as const })
+          : Object.freeze({ kind: "application-cleanup-required" as const });
+      }
       return Object.freeze({ kind: "launch-failed" as const });
     },
     async observeListener(application, listener, timeoutMs = 1500) {
@@ -472,7 +489,7 @@ export function createSystemdUserRunner(input: {
       } catch {
         /* the manager's view below decides */
       }
-      const deadline = performance.now() + (input.confirmStopMs ?? 5000);
+      const deadline = performance.now() + confirmStopMs;
       do {
         const current = await observe(unit);
         if (

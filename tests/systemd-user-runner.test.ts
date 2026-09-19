@@ -656,10 +656,16 @@ posixTest("a failed start leaves no half-owned service", async () => {
   expect(await lifecycle.start(selection)).toEqual({ kind: "launch-failed" });
   expect(manager.units.size).toBe(0);
   expect(await lifecycle.status(selection)).toEqual({ kind: "not-managed" });
+  // The request outlives its deadline while the manager completes the start:
+  // the service is withdrawn, never left running without a reported start.
+  manager.behaviour.start = "timeout-loaded";
+  expect(await lifecycle.start(selection)).toEqual({ kind: "launch-failed" });
+  expect(manager.commands("stop")).toHaveLength(1);
+  expect(manager.units.size).toBe(0);
   manager.behaviour.start = "ok";
   expect(await lifecycle.start(selection)).toEqual({ kind: "started" });
   expect(await lifecycle.start(selection)).toEqual({ kind: "already-managed" });
-  expect(manager.commands("systemd-run")).toHaveLength(3);
+  expect(manager.commands("systemd-run")).toHaveLength(4);
 });
 
 posixTest(
