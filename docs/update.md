@@ -135,10 +135,17 @@ for a bounded stability period; an old process answering, or a bare HTTP 200,
 proves nothing. It distinguishes a candidate that fails from a gateway that is
 down. Confirmed → record removed, retention applied. Not confirmed within the
 deadline → symlink restored to `previous`, service restarted, typed error
-reported; the user is back on a working version and the pill says why. After a
-reboot mid-activation the service manager restarts the worker, which finishes
-from the record. A CLI started meanwhile coordinates with the worker through the
-record and never undoes its switch.
+reported; the user is back on a working version and the pill says why. A worker
+that dies is started again by the service manager (`Restart=on-failure`, a
+bounded start limit) and continues its own record under the original deadline.
+A transient worker unit does not survive a **reboot**; what does is the record
+and the Launchpad service. Every `lazurio` start — each CLI command and the
+Launchpad service itself — resumes the record, and a Launchpad that starts with
+a record open keeps looking until it is settled: once it has been up for the
+stability period it confirms the activation itself, and past the deadline it
+restores the previous version and restarts onto it. No human command is needed
+in either direction. A CLI started meanwhile coordinates with a live worker
+through the record and never undoes its switch.
 
 The Launchpad restart is harmless because long-running module applications are
 owned by the OS service manager, not by the Launchpad process (see
@@ -282,8 +289,11 @@ commands, the compiled-in root and default origins (origins, channel and
 bootstrap root are explicit options), `update/config.json`, an installer that
 creates the first `bin/lazurio` (without a selector every update command
 answers `not-installed`), launchd, the publisher, and every piece of native
-evidence listed above: the journeys below ran on the developer's macOS ARM64
-only, and the `systemd-user` adapter has never met a real systemd.
+evidence listed above except the first native Linux run: the compiled journeys
+run on the developer's macOS ARM64 inside `bun run check`, and the
+`systemd-user` path was qualified on a real systemd 255 on Ubuntu ARM64
+([evidence](evidence/update-linux-arm64-2026-09-19.md)). Linux x64, a hosted
+canary and an actual reboot are still open.
 
 Concrete choices fixed so far:
 
@@ -301,10 +311,13 @@ Concrete choices fixed so far:
 - **Damaged trust never wedges.** A role file that cannot be read or is not
   JSON counts as absent: it is fetched again, verified under the root and
   replaced (a directory in its place is removed). A `root.json` that cannot be
-  read or does not verify falls back to the caller's bootstrap root, seeds no
-  older role, and is rewritten by promotion; without a bootstrap root the
-  answer is the typed `trust-invalid`. Cost, accepted: that one refresh runs
-  without the rollback protection of the damaged installation's older roles.
+  read or does not verify is restored from the retained chain: the newest
+  `<N>.root.json` that carries its version, verifies itself and — when its
+  predecessor is retained — verifies as that predecessor's successor. Nothing
+  is lost and no rotation is rewound. Only without a usable retained root does
+  a supplied root seed trust again (seeding no older role, so that one refresh
+  runs without the old roles' rollback protection); without either the answer
+  is the typed `trust-invalid`. Promotion rewrites `root.json` in every case.
 - **When the pinned client persists.** Verified in the `tuf-js` 6.0.0 source
   and recorded with line references in `src/update/trust.ts`: timestamp,
   snapshot and targets are persisted only after complete verification including
@@ -312,10 +325,15 @@ Concrete choices fixed so far:
   before the final-root expiry check, and is promoted regardless because a
   signed successor root must never be forgotten. Promotion re-verifies the root
   chain itself and withholds the role delivered last in a failed refresh.
-- **First trust.** The caller supplies the bootstrap root (later: the
-  compiled-in root). It becomes durable only together with the first role it
-  verified, so a wrong root can never wedge an installation; once `trust/` holds
-  a valid root, a supplied bootstrap root is refused (`trust-conflict`).
+- **Supplied root.** The caller supplies a root (today `--bootstrap-root`,
+  later the root compiled into the executable, which is then supplied on every
+  run). With no durable trust it seeds the first refresh and becomes durable
+  only together with the first role it verified, so a wrong root can never
+  wedge an installation. With durable trust it is **never a conflict**:
+  identical, older, unrelated or unreadable, it is ignored; only the direct
+  successor of the trusted root that verifies as its continuation is followed
+  — what a newer executable is for when the repository no longer serves an
+  old link. It can only move trust forward along the signed chain.
 - **Channel document.** `channels/<stable|preview>.json`, exact fields
   `schemaVersion: 1`, `channel`, `sequence`, `version`, `minimumVersion`,
   `targets` (execution target → `artifacts/<sha256>/lazurio`). A check reads
@@ -355,7 +373,10 @@ Concrete choices fixed so far:
   embedded identity and, for a named Folder, parses both state documents by
   plain reads — it takes no lock, because taking the Folder lock writes. There
   is no implicit Folder discovery in this product, so the Folder is checked
-  only when `--folder` is given to `lazurio update`. The updater runs the
+  only when `--folder` is given to `lazurio update` — the same rule as every
+  other command of this CLI (`folder-init`, `launchpad`, `profile-*` all take an
+  explicit `--folder`; there is no default Folder location to share). When the
+  product gains one, self-check follows it and `--folder` overrides. The updater runs the
   candidate at its own path inside scratch with an empty environment and a
   timeout that holds even against a grandchild keeping the pipe open, compares
   the answer with the signed identity, and only then renames the directory
@@ -366,8 +387,11 @@ Concrete choices fixed so far:
   `kind` (`update | rollback`), `previous`, `candidate`, `phase`
   (`switching | confirming`), `deadline` (wall clock), `switchedAt`, `service`
   and `folder` — everything a later process needs to finish or undo it without
-  the worker. `resumeActivation()` is called by `lazurio update …` and
-  `lazurio launchpad` at start; without a record it is one failed `readFile`.
+  the worker. `resumeActivation()` runs at the start of **every** CLI command
+  (for the base the environment resolves; `update …` for the base it was given;
+  `self-check` is exempt because it promises to write nothing). Without a
+  record it is one `lstat`; it prints one line on stderr only when it acted. A
+  Launchpad additionally keeps looking while a record exists (`watchActivation`).
   With one and no live worker it decides from the record and the disk alone:
   unreadable → removed, selector untouched; `switching`, candidate missing or
   deadline past → previous restored; `confirming` → confirmed if the candidate
@@ -380,8 +404,16 @@ Concrete choices fixed so far:
   exists. Without a service it is a detached process in its own session; under
   `systemd-user` it is a transient unit (`systemd-run --user --collect --wait
   --pipe`), because a child of the Launchpad would die with the Launchpad's
-  control group. The caller reads one JSON line; if the worker dies without
-  one, the caller converges through `resumeActivation()`.
+  control group. The unit has `Restart=on-failure`, `RestartSec=1` and a start
+  limit of 3 in 120 s. A worker that **answers** — a typed refusal included —
+  exits 0; only a worker that died is restarted. A restarted worker adopts its
+  own record (same operation and candidate) and continues under the original
+  deadline; a record it can no longer carry is settled like any abandoned one
+  and the operation is not begun again. Known window: a worker killed after it
+  settled and before it exited is restarted with no record and begins the same
+  requested activation once more, bounded by the start limit. The caller reads
+  one JSON line (`--wait --pipe` survive the restart); if the worker is gone
+  without one, the caller converges through `resumeActivation()`.
 - **Service adapters.** `none`: nothing is restarted; the activation is
   confirmed by running the new executable's self-check **through the selector**
   and comparing identities. `systemd-user`: `systemctl --user restart <unit>`,
@@ -391,11 +423,14 @@ Concrete choices fixed so far:
   and removes it at a clean exit; ready means that digest, a start time after
   the switch, a live pid, the same instance for the whole stability period. A
   failed activation restarts the service once more, onto the previous version.
-  launchd is not implemented.
+  Every restart is preceded by `systemctl --user reset-failed <unit>`: a
+  candidate that crash-looped leaves the unit in its start limit, where systemd
+  refuses even a manual restart. launchd is not implemented.
 - **`previous.json`.** The selector stays the only record of what is active.
   What the last confirmed activation replaced is remembered separately, for
   retention and for `update rollback`; missing or damaged means only that no
-  rollback is offered. Rollback is refused (`rollback-unavailable`) when that
+  rollback is offered. Writing it never blocks a confirmation: whatever
+  occupies its place is cleared, and a write that still fails is dropped. Rollback is refused (`rollback-unavailable`) when that
   version's signed identity cannot read the schemas the current product writes.
 - **Retention** after a confirmed activation: the active version, the previous
   one and the version whose digest a live Launchpad announces are kept; other
@@ -432,10 +467,10 @@ of this work, the rest open until reviewed:
    `versions/`": it is run at its final inode and own path **inside scratch**,
    then the directory is renamed. It is never run through the selector or from
    a copy.
-9. The worker is "under the OS service manager" only with `systemd-user`. "After
-   a reboot mid-activation the service manager restarts the worker" is **not**
-   implemented: the transient unit does not survive a reboot. Instead any
-   `lazurio update …` or `lazurio launchpad` start resumes the record.
+9. The worker is "under the OS service manager" only with `systemd-user`; with
+   `none` it is a detached process that nobody restarts, and the record waits
+   for the next `lazurio` start. The reboot case is carried by the Launchpad
+   service and every CLI start, not by a restarted worker (see "Activate").
 10. Readiness proves instance, digest, liveness and stability. It does not yet
     report "Folder and protocol compatibility", and nothing distinguishes "a
     candidate that fails from a gateway that is down": no gateway is involved.
@@ -444,6 +479,8 @@ of this work, the rest open until reviewed:
 12. Superseded trust files are not pruned.
 13. `minimumUpdaterContract` is an optional member of the signed identity
     (default 1); the updater's contract number is `1`.
+14. `--deadline-ms` and `--stability-ms` shorten the accepted defaults
+    (120 s, 10 s) for qualification and canary runs.
 
 ## Removed by this contract
 

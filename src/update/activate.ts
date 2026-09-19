@@ -359,6 +359,30 @@ export async function resumeActivation(input: {
   }
 }
 
+/** For a long-running process — the Launchpad — that started while a record
+ * exists: keep looking until the record is settled. This is what makes a
+ * reboot mid-activation converge without a person: the transient worker unit
+ * does not survive a reboot, the Launchpad service does, and once it has been
+ * up for the stability period it confirms itself (or, past the deadline,
+ * restores the previous version and restarts onto it). A live worker is left
+ * alone; the loop just ends when the worker has settled.
+ */
+export async function watchActivation(input: {
+  base: string;
+  intervalMs?: number;
+  effects?: Partial<ActivationEffects>;
+  policy?: Partial<ActivationPolicy>;
+}): Promise<ResumeResult> {
+  const sleep = input.effects?.sleep ?? systemActivationEffects.sleep;
+  for (;;) {
+    const result = await resumeActivation(input).catch(
+      () => ({ kind: "in-progress" }) as const,
+    );
+    if (result.kind !== "in-progress") return result;
+    await sleep(input.intervalMs ?? 2_000);
+  }
+}
+
 /** Under both locks. */
 async function settleAbandoned(
   base: string,

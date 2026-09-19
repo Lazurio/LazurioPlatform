@@ -17,6 +17,13 @@ export interface ServiceControl {
 export const systemdRestartCommand = (unit: string): readonly string[] =>
   Object.freeze(["systemctl", "--user", "restart", unit]);
 
+/** A candidate that crash-looped leaves the unit in `start-limit-hit`, and
+ * systemd then refuses even a manual restart ("Start request repeated too
+ * quickly") — exactly when the previous version must be brought back.
+ */
+export const systemdResetFailedCommand = (unit: string): readonly string[] =>
+  Object.freeze(["systemctl", "--user", "reset-failed", unit]);
+
 export const serviceCommandTimeoutMs = 60_000;
 
 /** The variables a user-session service manager client needs, and no others. */
@@ -55,6 +62,14 @@ export function createServiceControl(
   return Object.freeze({
     kind: "systemd-user" as const,
     async restartLaunchpad() {
+      // Its exit status says only whether there was anything to reset.
+      await input
+        .run(
+          systemdResetFailedCommand(spec.unit),
+          serviceCommandTimeoutMs,
+          serviceEnvironment(input.env),
+        )
+        .catch(() => undefined);
       const result = await input.run(
         systemdRestartCommand(spec.unit),
         serviceCommandTimeoutMs,

@@ -22,6 +22,7 @@ import {
   resumeActivation,
   runActivationWorker,
   type WorkerInput,
+  watchActivation,
 } from "../src/update/activate";
 import {
   type ActivationRecord,
@@ -281,6 +282,20 @@ test("the service adapter builds exact commands, passes only the session variabl
     },
   });
   await control.restartLaunchpad();
+  // `reset-failed` first: a crash-looped unit refuses even a manual restart.
+  expect(calls.shift()).toEqual({
+    command: [
+      "systemctl",
+      "--user",
+      "reset-failed",
+      "lazurio-launchpad.service",
+    ],
+    env: {
+      HOME: "/home/u",
+      PATH: "/usr/bin",
+      XDG_RUNTIME_DIR: "/run/user/1000",
+    },
+  });
   expect(calls).toEqual([
     {
       command: ["systemctl", "--user", "restart", "lazurio-launchpad.service"],
@@ -302,7 +317,7 @@ test("the service adapter builds exact commands, passes only the session variabl
   );
   await none.restartLaunchpad();
   expect(await none.launchpadReadiness()).toBeNull();
-  expect(calls).toHaveLength(2);
+  expect(calls).toHaveLength(3);
 });
 
 test("readiness needs a FRESH instance with the expected digest that is alive, for the whole stability period", () => {
@@ -717,6 +732,48 @@ test("previous.json is tolerant state: damaged it never blocks an activation, an
   expect((await readActivationRecord(i.base)).kind).toBe("absent");
   expect(await readSelector(i.base)).toBe(c.name);
   expect(await readPrevious(i.base)).toBeNull();
+});
+
+test("a Launchpad that starts with an open activation and no worker — a reboot — settles it by itself: confirmed once it has been stable, undone once the deadline passed", async () => {
+  for (const healthy of [true, false]) {
+    const i = await installation();
+    await swapSelector(i.base, i.b.name);
+    await writeActivationRecord(
+      i.base,
+      {
+        schemaVersion: 1,
+        operation: "op-1",
+        kind: "update",
+        previous: i.a.name,
+        candidate: i.b.name,
+        phase: "confirming",
+        deadline: new Date(i.time() + 60_000).toISOString(),
+        switchedAt: new Date(i.time()).toISOString(),
+        service: systemd,
+        folder: null,
+      },
+      writeDurableFile,
+    );
+    // Healthy: this very instance announces the candidate's digest.
+    if (healthy) i.setReadiness(i.fresh(i.b.sha256));
+    const started = i.time();
+    expect(
+      await watchActivation({
+        base: i.base,
+        intervalMs: 2_000,
+        effects: i.effects,
+        policy: { stabilityMs: 10_000, lockTimeoutMs: 200 },
+      }),
+    ).toEqual(
+      healthy
+        ? { kind: "confirmed", candidate: i.b.name }
+        : { kind: "rolled-back", previous: i.a.name },
+    );
+    expect(i.time() - started).toBe(healthy ? 10_000 : 62_000);
+    expect(await readSelector(i.base)).toBe(healthy ? i.b.name : i.a.name);
+    // Undone: the service is restarted onto the previous version.
+    expect(i.restarts).toHaveLength(healthy ? 0 : 1);
+  }
 });
 
 test("resumeActivation is free without a record, never touches a live worker's switch, and otherwise decides from the record alone", async () => {

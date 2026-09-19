@@ -55,7 +55,8 @@ update [--download-only] --metadata-url <https://.../metadata/> --target-url <ht
 update --check <same origin options> [--json]
   Verifies signed metadata and the channel document, records verified trust and
   rewrites the observation. Downloads and activates nothing. The bootstrap root
-  is accepted only while no valid trust exists and refused afterwards.
+  seeds trust while none exists; afterwards it is ignored unless it is the
+  verified direct successor of the trusted root.
   Exit 0 up to date, 10 update available; an error prints its stable code.
 update rollback [--base <absolute directory>] [--folder ...] [--service ... --unit ...] [--json]
   Activates the version the last confirmed activation replaced, through the same

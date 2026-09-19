@@ -20,7 +20,7 @@ import { localApplicationAdapters } from "./modules/local-application-adapters";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
-import { resumeActivation } from "./update/activate";
+import { resumeActivation, watchActivation } from "./update/activate";
 import { resolveInstallBase } from "./update/base";
 import {
   type CommandOutput,
@@ -299,6 +299,9 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(
       JSON.stringify({ url, scope: "local-development-profile-panel" }),
     );
+    // Started with an activation still open (its worker is waiting for this
+    // instance, or is gone — after a reboot): keep looking until it is settled.
+    if (base) void watchActivation({ base }).catch(() => undefined);
     for (const signal of ["SIGINT", "SIGTERM"] as const)
       process.once(signal, async () => {
         try {
