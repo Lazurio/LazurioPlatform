@@ -1,8 +1,13 @@
 # Lazurio Platform architecture
 
-Status: implementation contract aligned with decision 0144, updated 2026-09-16. Product direction is supplied
+Status: implementation contract aligned with decision 0144, updated 2026-09-19. Product direction is supplied
 by the Principal; this document does not claim that the target is deployed. Decision
 amendments and rollout gates are in [decisions](docs/decisions.md).
+
+The 2026-09-19 reconciliation (decisions F2 rewritten, F8–F12 added) records accepted
+direction for private and team hosted workspaces, OS-owned applications, content
+synchronization, workspace presets and hosted entry. None of it is implemented; each
+section below says so where it applies.
 
 ## Outcome and invariants
 
@@ -25,11 +30,19 @@ private data and credentials remain in their existing custody boundaries.
    Owner-local work uses the existing Machine/filesystem boundary; GitHub remains
    access authority for connected provider operations. Text, local paths and profile
    labels cannot grant provider access (proposed binding distinction in decision F6).
+   On a team workspace provider operations are attributed to the Team through the
+   brokered identity; a connected person is never presented as a named Principal
+   without an actual identity proof.
 4. CLI and UI invoke the same use cases, validation and errors. Each persistent fact has one owner.
 5. A failed operation preserves the last known usable generation or stops with recoverable evidence.
    Unknown state is a refusal to mutate, not permission to rebuild.
-6. The legacy source-working directory and shared hosted workshop are explicitly
-   transitional paths with retirement gates.
+6. The legacy source-working directory is an explicitly transitional path with a
+   retirement gate. A hosted workspace is either private (one Principal) or a team
+   workspace (Organization-owned, brokered identity); both are first-class. What
+   retires is ad-hoc sharing of a personal environment, not the team workspace.
+7. "Update Lazurio" (product bytes) and "Synchronize content" (Organization
+   repositories) are separate operations with separate commands, locks and outcomes.
+   Neither performs or implies the other.
 
 The legacy Folder conversion is one-way and in place: retain Organization/Personalspace
 paths and functional repositories/worktrees, apply a profile from the installed release,
@@ -74,12 +87,19 @@ and [module adoption](docs/module-adoption.md).
 The [tool and sign-in proposal](docs/environment-tools.md) separates explicit local
 preparation from operator-owned provider authentication; it does not claim either is implemented.
 
-The nearest controlled pilot is one Machines-delivered Linux workspace through
-the real HTTPS/TUF channel, one agreed profile/Organization/module, agent work,
-restart, bounded repair and a repeat on another approved VM. Personal migration,
-the full OS/purpose/language matrix, Dashboard identity and public release remain
-later gates, not prerequisites of this limited pilot. This does not waive public
-signing requirements or authorize infrastructure operations.
+The nearest controlled pilot is one private canary VM, delivered by Machines, through
+the real release channel, with one agreed preset/Organization/module, a real agent
+task and a repeated infrastructure apply that preserves identity, content and the
+selected version; the team preset follows. The ordered work is the
+[nearest-pilot sequence](docs/acceptance.md#nearest-pilot-sequence). Personal migration,
+the full OS/purpose/language matrix, Dashboard identity, analytics, marketplace and
+public release remain later gates, not prerequisites of this limited pilot. This does
+not waive public signing requirements or authorize infrastructure operations.
+
+Canonical-only Organizations are the target normal case. Today's admission of only
+parity-valid `transition` roots is an interim gate with a stated
+[exit criterion](docs/organization-contract.md#exit-from-transition-only-admission),
+not a permanent requirement to keep the deprecated projection.
 
 ### Product transition
 
@@ -88,7 +108,7 @@ signing requirements or authorize infrastructure operations.
 | Lazurio Folder | Supported source checkout also acts as the working directory | Installed product outside a thin generated non-Git Lazurio Folder |
 | Distribution | Legacy npm gate explicitly expects package-only Launchpad unavailable | Full CLI and Launchpad work from installed artifacts, with source absent |
 | Runtime | Existing CLI/core boundaries and extensive preservation fixtures are useful evidence | Port proven invariants into small owner-focused TypeScript modules |
-| Hosted work | Shared Hosted Team Workspace is current documented model | Environment dedicated to one Principal, with higher provider boundary stated |
+| Hosted work | Shared Hosted Team Workspace is current documented model | Two first-class kinds: a private workspace for one Principal and an Organization-owned team workspace with a brokered identity; higher provider boundary stated for both |
 | Profile | Existing resident build profiles and locale contracts; no complete profile switch capability | Versioned preferences regenerate only owned output through one core use case |
 | Dependency repair | Current decision 0133 rebuilds derived dependencies from the lockfile | Preserve that distinction: dependencies are rebuildable; user work is not |
 
@@ -116,6 +136,31 @@ Platform source → versioned build → installed Lazurio ─┬─ CLI
 Organization/Personalspace repos ← their own Git/data owners; never build output
 ```
 
+### Seven ownership boundaries
+
+This is the map of the product. Everything Platform does falls inside exactly one
+boundary; the fact table further below refines each boundary into individual facts.
+All seven live in one Platform package; a boundary is not a package, process or daemon.
+
+| # | Boundary | Owner | Platform's role | Platform never |
+| --- | --- | --- | --- | --- |
+| 1 | Installed product | Distribution: authenticated artifacts, trust, activation, rollback | Is the owner | Touches repositories, preferences, tools or data during update |
+| 2 | Environment configuration | The local core: accepted settings, preset reference, overrides and their revisions | Is the owner | Accepts a second writer or silent remote precedence |
+| 3 | Generated Folder content | Folder Factory: enumerated outputs and their provenance | Is the owner | Writes outside the enumerated owned paths |
+| 4 | Organization content | Organizations: manifests, repositories, application declarations. GitHub is the access authority | Coordinates explicit materialization and synchronization | Creates a second allowlist, schema or ACL; treats occupied paths as disposable |
+| 5 | Application execution | Modules own commands and preparation; the OS service manager owns persistent processes | Coordinates operations through one shared core | Runs its own supervisor; adopts or signals foreign processes |
+| 6 | Machine infrastructure | The hosting engine: provisioning, custody, network, gateway, descriptive handover | Reads the handover read-only | Provisions, changes access or rewrites Machine identity |
+| 7 | Optional services | Account authenticates the service user; Dashboard captures requests and shows observations; the private composition pins compatible components | Accepts typed, revisioned requests through the ordinary use case | Requires any of them for a self-hosted Environment; lets them grant repository access |
+
+"One core" means one implementation and one coordinated writer per resource, not one
+permanently running process required for every command. Folder and update operations
+execute directly from the CLI; application operations address the same OS-owned
+services through the same core. Boundary 5's service-manager ownership, boundary 4's
+synchronization and boundary 7's typed requests are accepted direction, not
+implemented; see [module adoption](docs/module-adoption.md#application-lifetime--accepted-direction-not-implemented),
+[content synchronization](docs/content-sync.md) and
+[workspace presets](docs/workspace-presets.md).
+
 TypeScript with pinned Bun development/build tooling is confirmed. The specific UI
 framework remains open. The target terminal bootstrap delivers a standalone executable
 without a separately installed user Bun/Node/npm prerequisite.
@@ -126,18 +171,22 @@ The application layer sequences operations. Adapters perform bounded filesystem,
 process and Git/provider work. The server is a long-lived invocation of the same
 installed executable, not a separate implementation of installation/profile logic.
 
-| Fact / capability | Canonical owner | Consumer and lifecycle |
-| --- | --- | --- |
-| Source, profile templates, skills, default rules | Reviewed Lazurio Platform source | Build produces immutable release artifacts; no runtime edits to source |
-| Installed executable and assets | Product installer/updater | Versioned OS-standard user installation location, manifest and retained rollback version |
-| Chosen collaboration profile, locale, detail preference | Machine-local versioned settings selected by its Principal | Profile use case validates then generates instructions; upgrade preserves preference |
-| Lazurio Folder generation and expected digests | Lazurio Folder Factory and its installed generation manifest | CLI or Launchpad invokes the shared core locally and replaces only listed owned paths |
-| Organization identity, repo and app declarations | Organization manifests | Discovery and lifecycle consume them; Platform source never creates a second allowlist |
-| Module-specific preparation, dependencies and database setup | Owning module under its Organization's standard | Explicit module preparation through the shared core; read-only status never provisions or repairs |
-| Git access, membership, publication permission | GitHub | Live checks for online mutations; offline state is not fresh authority |
-| Running app processes | Existing lifecycle owner, adapted once | One process tree and one state locator, bounded to the actual environment |
-| Secrets and provider recovery | Existing credential/provider custody | Reference/operation proof only; no secret material in manifests or logs |
-| Planning and delivery status | Owning Organization Mission Control | Links to code and knowledge; no product-local task ledger |
+| # | Fact / capability | Canonical owner | Consumer and lifecycle |
+| --- | --- | --- | --- |
+| 1 | Source, profile templates, skills, default rules | Reviewed Lazurio Platform source | Build produces immutable release artifacts; no runtime edits to source |
+| 1 | Installed executable and assets | Product installer/updater | Versioned OS-standard user installation location, manifest and retained rollback version |
+| 2 | Chosen collaboration profile, locale, detail preference | Machine-local versioned settings selected on that Machine | Profile use case validates then generates instructions; upgrade preserves preference |
+| 2 | Workspace preset reference and explicit local overrides | The same Machine-local settings owner | Immutable reference plus revisioned overrides; never grants, rosters, tokens, mandates or analytics consent (accepted direction) |
+| 3 | Lazurio Folder generation and expected digests | Lazurio Folder Factory and its installed generation manifest | CLI or Launchpad invokes the shared core locally and replaces only listed owned paths |
+| 4 | Organization identity, repo and app declarations | Organization manifests | Discovery and lifecycle consume them; Platform source never creates a second allowlist |
+| 4 | Organization repository checkouts | Their Organization and Git; Platform coordinates explicit synchronization | Absent destinations materialized atomically; existing ones fast-forwarded; dirty, wrong-branch or diverged state blocks (accepted direction) |
+| 4 | Git access, membership, publication permission | GitHub | Live checks for online mutations through the workspace's provider identity; offline state is not fresh authority |
+| 4 | Planning and delivery status | Owning Organization Mission Control | Links to code and knowledge; no product-local task ledger |
+| 5 | Module-specific preparation, dependencies and database setup | Owning module under its Organization's standard | Explicit module preparation through the shared core; read-only status never provisions or repairs |
+| 5 | Running app processes | Today: one in-memory lifecycle owner in the Launchpad session. Accepted direction: the OS service manager on Linux; session-scoped on macOS | One owner per application, identity queried from that owner, never from saved PIDs; bounded preparation subprocesses stay with the guarded-process owner |
+| 6 | Machine identity, gateway and admission | The hosting engine | Read-only handover; Launchpad revalidates the browser session at the gateway's configured auth endpoint (accepted direction) |
+| 7 | Service-user identity and managed requests | Lazurio Account and Dashboard, optional | Typed requests with an expected local revision; conflict on concurrent local change |
+| — | Secrets and provider recovery | Existing credential/provider custody | Reference/operation proof only; no secret material in manifests or logs |
 
 Installed executable location uses OS-standard per-user data/install conventions;
 the target Lazurio Folder remains `<home>/Lazurio`. The release activation mechanism
@@ -207,8 +256,17 @@ state. Existing databases must not be replaced with empty or test data to make a
 pass. Module scripts remain authorized code execution, not a sandbox or a self-certified
 proof of success; observable readiness and functional qualification are still required.
 
-The shared core owns scope checks, sequencing, cancellation, process ownership and
-consistent results. Conflicting preparation/install/start/update operations share the
+Application lifetime — accepted direction, not implemented: long-running module
+applications are owned by the OS service manager (Linux first, systemd user services
+generated from validated declarations), so Start survives a Launchpad restart and a
+product update never requires people to accept interruption of running work. Bounded
+preparation subprocesses keep the guarded-process ownership; macOS keeps
+session-scoped applications; no Lazurio supervisor is built. This changes the session
+semantics of upstream decision 0137 and needs an upstream amendment; see
+[module adoption](docs/module-adoption.md#application-lifetime--accepted-direction-not-implemented).
+
+The shared core owns scope checks, sequencing, cancellation, coordination of process
+ownership and consistent results. Conflicting preparation/install/start/update operations share the
 resolved dependency owner's coordination boundary. Frozen package installation and
 bounded cleanup remain reusable Platform effects, not application-specific DB logic.
 An explicit clean install may remove only the verified derived dependency tree; it must
@@ -273,7 +331,11 @@ neither access nor a parallel copy of truth. GitHub remains access authority for
 connected Organization, and Machine facts remain local. Personalspace, credentials and
 private content are not centralized or crossed. If Dashboard later originates a desired
 change, that intent must write through to the fact's natural owner and the target Machine
-must apply it through the local shared core exposed by CLI and Launchpad.
+must apply it through the local shared core exposed by CLI and Launchpad. The accepted
+shape is a typed, resource-specific request carrying an expected local revision; the
+core answers with the accepted or rejected revision and the observed outcome, and a
+concurrent local change is a conflict. There is no generic desired-state-to-Machine
+pipeline ([workspace presets](docs/workspace-presets.md#typed-requests-with-an-expected-revision)).
 
 This is intentionally a minimal projection/view, not a central control plane. Whether
 any central registry exists is open because it may conflict with the current
@@ -286,7 +348,10 @@ those choices is selected here.
 
 The public Lazurio Platform must remain independently installable and self-hostable for
 personal and internal Organization use. It does not require Lazurio Account, Dashboard
-or Human and Machine hosting to form a working Lazurio Environment.
+or Human and Machine hosting to form a working Lazurio Environment. On a hosted
+workspace the gateway authenticates admission, Account login only names the service
+user, and GitHub stays the only access authority; a self-hoster may supply their own
+qualified gateway configuration ([hosted entry](docs/hosted-entry.md)).
 An external implementer may help a customer deploy Lazurio for that customer's own
 internal use; that implementation work alone is not a competing managed Lazurio service.
 
@@ -335,14 +400,25 @@ fail before mutation. Keep legacy machine enums as migration input, not guessed
 aliases. Roles such as Steward/Admin/Builder remain per Organization and provider-
 verified. They are not Machine kinds or independent distributions.
 
-A hosted human environment may be owned by an Organization but is dedicated to
-one named Principal. It does not mount that human's private Personalspace. Buddy
+A hosted human environment is one of two first-class kinds (decision F2, upstream
+decisions 0147–0149). A **private hosted workspace** is dedicated to one named
+Principal, who signs in with their own provider identity; it may be owned by an
+Organization and then does not mount that human's private Personalspace. A **team
+hosted workspace** is an Organization-owned Machine with one OS account to which
+several Principals connect: it holds no personal credentials and no Personalspace, its
+provider identity is the brokered platform App identity, its changes go through pull
+requests, and attribution and revocation run through that brokered identity. A
+personal environment is never shared ad hoc. The kinds are selected by the
+[workspace presets](docs/workspace-presets.md) `hosted-private` and `hosted-team`,
+which configure the Environment and grant nothing. Buddy
 belongs to its human's private boundary and is not a new Principal. An AI Colleague
 has its own seat, identity, dedicated environment and one human custodian; custody
 does not create access to another Principal's Personalspace. Organization-owned
 work assets remain Organization-owned even when used by one person.
 
-An OS account or container is not sufficient proof of isolation. The supported
+An OS account or container is not sufficient proof of isolation, and the operator
+account named in the Machine identity is an OS execution account, not necessarily a
+human Principal. The supported
 hosting envelope must cover files, process control, credentials, network and
 recovery; a parent operator remains a higher compromise domain. No Machine registry
 or alternate ACL is added by this proposal.
