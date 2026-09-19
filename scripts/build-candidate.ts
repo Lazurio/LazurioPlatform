@@ -2,6 +2,7 @@ import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { folderStateSchemas } from "../src/folder/state";
+import { identityDefines, nativeTarget } from "../src/update/identity";
 import { artifactIdentity } from "./artifact-identity";
 import { candidateTarget } from "./candidate-target";
 
@@ -66,6 +67,13 @@ await run([
   ...(target.bunTarget ? [`--target=${target.bunTarget}`] : []),
   "--no-compile-autoload-dotenv",
   "--no-compile-autoload-bunfig",
+  // The executable states its own identity (docs/update.md "Identity in the
+  // binary"); the same three values go into identity.json below.
+  ...identityDefines({
+    version: pkg.version,
+    commit: sourceCommit,
+    target: target.target,
+  }),
   "--outfile",
   binary,
 ]);
@@ -87,6 +95,26 @@ const identity = artifactIdentity({
   lockfile,
   artifact: await readFile(binary),
 });
+// identity.json and the embedded identity must be one fact. A native build is
+// asked directly; a cross-build cannot run here and is covered by the shared
+// `identityDefines` input plus the target's own qualification.
+if (target.target === nativeTarget(process.platform, process.arch)) {
+  const reported = Bun.spawnSync([binary, "--version", "--json"], {
+    env: {},
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const embedded =
+    reported.exitCode === 0 ? JSON.parse(reported.stdout.toString()) : null;
+  if (
+    embedded?.version !== identity.version ||
+    embedded?.commit !== identity.sourceCommit ||
+    embedded?.target !== identity.target
+  )
+    throw new Error(
+      "Embedded identity differs from identity.json; retained output is not a qualified candidate",
+    );
+}
 await writeFile(
   join(output, "identity.json"),
   `${JSON.stringify(

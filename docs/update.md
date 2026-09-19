@@ -261,6 +261,50 @@ root rotation accepted during a failed download and retained, full disk, unknown
 files in the base, two concurrent updates, update while applications run. The
 same journey then runs on a hosted canary Machine.
 
+## Implemented so far
+
+The first slice lives in `src/update/` (the old installer in
+`src/distribution/` is untouched until the evidence above exists). It delivers
+the embedded identity and `lazurio --version`, the **Check** step with durable
+trust promotion, `update/observed.json`, `lazurio update --check` and
+`lazurio update status`. Download, activation, the compiled-in root and default
+origins are not built; plain `lazurio update` says so with `not-implemented`.
+Concrete choices this slice fixed:
+
+- **`trust/` layout.** `root.json` is the current trusted root and the only
+  anchor the TUF client is seeded with; `<N>.root.json` is the retained verified
+  chain; `timestamp.json`, `snapshot.json`, `targets.json`;
+  `channel-floors.json` (`schemaVersion`, per-channel `sequence` and
+  `documentSha256`). Only these names are read; anything else is ignored.
+  Promotion order is the numbered chain, `root.json`, timestamp, snapshot,
+  targets, then the floor, and `trust/` always holds a prefix of that order.
+- **When the pinned client persists.** Verified in the `tuf-js` 6.0.0 source
+  and recorded with line references in `src/update/trust.ts`: timestamp,
+  snapshot and targets are persisted only after complete verification including
+  expiry; a root is persisted after complete authenticity verification but
+  before the final-root expiry check, and is promoted regardless because a
+  signed successor root must never be forgotten. Promotion re-verifies the root
+  chain itself and withholds the role delivered last in a failed refresh.
+- **First trust.** The caller supplies the bootstrap root (later: the
+  compiled-in root). It becomes durable only together with the first role it
+  verified, so a wrong root can never wedge an installation; once `trust/` holds
+  a root, a supplied bootstrap root is refused (`trust-conflict`).
+- **Channel document.** `channels/<stable|preview>.json`, exact fields
+  `schemaVersion: 1`, `channel`, `sequence`, `version`, `minimumVersion`,
+  `targets` (execution target → `artifacts/<sha256>/lazurio`). A check reads
+  this one document and the signed length of the artifact, never the artifact.
+  An update is available only when the channel version has higher Semantic
+  Versioning precedence than the embedded version.
+- **Error codes** are defined once, in `src/update/errors.ts`, together with
+  their exit status and whether the same action can be retried. A check exits
+  `0` when up to date and `10` when an update is available.
+- **Lock.** `update/lock` is one regular file locked with `flock`, polled
+  until a timeout (`busy`). Creating it is atomic and its content is never
+  read, so there is no initialization to interrupt. The Folder operation lock
+  is unchanged; converging the two is separate work.
+- **Clock.** The injected clock stamps the observation only. Expiry is judged
+  by the pinned TUF client against the system clock; it has no clock input.
+
 ## Removed by this contract
 
 The write-ahead metadata journal, transcript replay, historical role floors,

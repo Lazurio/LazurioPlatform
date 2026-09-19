@@ -20,10 +20,25 @@ import { localApplicationAdapters } from "./modules/local-application-adapters";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import {
+  type CommandOutput,
+  runUpdateCommand,
+  updateHelp,
+  versionCommand,
+} from "./update/cli";
+
+// Update commands return their own typed output and stable exit status.
+function emit(output: CommandOutput): number {
+  if (output.stdout) console.log(output.stdout);
+  if (output.stderr) console.error(output.stderr);
+  return output.code;
+}
 
 // Development CLI entrypoint. No implicit folder discovery; the only
 // installer surface is the explicit `product` command group.
 export async function runCli(args: string[]): Promise<number> {
+  if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
+  if (args[0] === "update") return emit(await runUpdateCommand(args.slice(1)));
   if (args[0] === "machine") {
     const { code, result } = await runMachineCommand(args.slice(1));
     console.log(JSON.stringify(result));
@@ -154,6 +169,7 @@ No files, locks, provider requests or applications are created. Output may conta
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     console.log(productHelp);
+    console.log(updateHelp);
     console.log(machineHelp);
     return 0;
   }

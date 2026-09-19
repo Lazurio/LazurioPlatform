@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
+import { parseIdentity } from "../src/update/identity";
 
 // Tests the supplied bytes, never rebuilds or activates an installed product.
 // POSIX fixture smoke only; not Windows, browser UI or TUF qualification.
@@ -40,6 +41,21 @@ const cli = async (args: string[]) => {
   }
 };
 try {
+  // The executable states its own identity; beside a candidate build it must
+  // be the same fact as identity.json (docs/update.md "Identity in the binary").
+  const embedded = parseIdentity(await cli(["--version", "--json"]));
+  const declared = await readFile(
+    join(dirname(binary), "identity.json"),
+    "utf8",
+  ).catch(() => undefined);
+  if (declared !== undefined) {
+    const { identity } = JSON.parse(declared);
+    assert.deepEqual(embedded, {
+      version: identity.version,
+      commit: identity.sourceCommit,
+      target: identity.target,
+    });
+  }
   const choices = [
     "--access",
     "local",
