@@ -148,15 +148,26 @@ is compared with the whole vector before anything is promoted:
 2. the **same version with different signed content** is refused (equivocation),
    the same version with identical content is a no-op;
 3. a timestamp whose snapshot reference is lower than the floor's is refused;
+   one that names the **same** snapshot version must repeat the recorded length
+   and hashes exactly — a changed or omitted recorded length or hash is refused,
+   even though the timestamp itself is newer and the snapshot's bytes are not
+   delivered in that refresh;
 4. a snapshot in which any previously recorded `snapshot.meta` entry is missing
-   or lower is refused, as is one that disagrees with the newest authenticated
-   timestamp's reference;
+   or lower is refused; an entry that names the **same** role version must
+   repeat its recorded length and hashes exactly, whether or not that role is
+   fetched in the refresh; an entry may not fall below a role of that name that
+   was actually verified; and the snapshot must agree with the newest
+   authenticated timestamp's reference;
 5. a root is accepted only as the next link of the retained chain, signed by the
    thresholds of both the previous and the new root.
 
-A violation refuses the whole refresh result with a typed `metadata-rollback`
-error; only a valid root chain is still promoted. Otherwise the role files are
-promoted and the vector becomes the element-wise maximum of the old vector and
+The comparison covers every trusted role after a successful refresh, changed or
+not, because the client treats a replayed state equal to its files as "no
+change" and would authorize targets from it; after a failed refresh it covers
+the changed roles and the captured one. A violation refuses the whole refresh
+result with a typed `metadata-rollback` error; only a valid root chain is still
+promoted. Only after this exact link-equivalence check passes are the role files
+promoted and the vector set to the element-wise maximum of the old vector and
 the candidates' facts, so it survives expiry, interruption, repository advance
 and root rotation alike. Delegations stay disabled (`maxDelegations: 0`); the
 rule is written over role names so enabling them later cannot weaken it. A
@@ -178,7 +189,12 @@ Evidence pass against this path: every case the retained mechanism proves today
 (`tests/historical-roles.test.ts`: timestamp-to-snapshot reference, every
 `snapshot.meta` floor, same-version content binding, floors across root
 rotation and across interruption) is ported to the floor vector and extended
-with expiry carrying a newer authenticated floor and with repository advance. Then read the signed channel document,
+with expiry carrying a newer authenticated floor, with repository advance, and
+with the two cross-refresh link cases: a newer timestamp naming the same
+snapshot version under a different recorded binding, and a newer snapshot naming
+the same `targets.json` (or other role) version under a different recorded
+binding — both must end in `metadata-rollback` although the referenced role's
+bytes are not delivered in that refresh. Then read the signed channel document,
 compare with the embedded version and rewrite `observed.json`. Network or
 expiry failures produce a typed error and leave everything else untouched.
 
