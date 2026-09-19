@@ -14,6 +14,16 @@ export class TransferTooLargeError extends Error {
   }
 }
 
+/** The URL, or a redirect it answered with, names an origin outside this
+ * transport's list. Its own class because no retry can change the answer.
+ * `origin` carries scheme, host and port only — never a path or a query.
+ */
+export class OriginRefusedError extends Error {
+  constructor(readonly origin: string) {
+    super("Distribution origin refused");
+  }
+}
+
 export type RangeResponse = Readonly<{
   /** Offset of the first body byte: the requested one for `206`, `0` when the
    * server ignored the range and sent the whole object. */
@@ -82,7 +92,7 @@ export class DistributionTransport implements Fetcher {
     let url = this.parse(value);
     for (let redirects = 0; ; redirects++) {
       if (!this.origins.has(url.origin))
-        throw new Error("Distribution origin refused");
+        throw new OriginRefusedError(url.origin);
       if (signal.aborted) throw new Error("Distribution transfer cancelled");
       let response: Response;
       try {

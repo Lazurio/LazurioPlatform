@@ -16,10 +16,12 @@ import { runReleasePublish } from "../scripts/release-publish";
 import { DistributionTransport } from "../src/distribution/transport";
 import type { UpdateChannel } from "../src/update/channel";
 import { checkForUpdate } from "../src/update/check";
-import { runUpdateCommand } from "../src/update/cli";
-import { readChannel } from "../src/update/config";
+import { runInstallCommand, runUpdateCommand } from "../src/update/cli";
+import { changeUpdateConfig, readUpdateConfig } from "../src/update/config";
 import { trustRootDefines } from "../src/update/defaults";
+import { writeDurableFile } from "../src/update/durable-file";
 import { identityDefines } from "../src/update/identity";
+import { readObserved } from "../src/update/observed";
 import { performUpdate } from "../src/update/update";
 import {
   commit,
@@ -47,6 +49,8 @@ let storage: ReturnType<typeof Bun.serve>;
 /** Serve these bytes as `timestamp.json`: a CDN that still holds an old one. */
 let cachedTimestamp: Buffer | undefined;
 const assets = new Map<string, Buffer>();
+/** Every request any of the three origins received: `<origin> <path>`. */
+const requests: string[] = [];
 
 beforeAll(async () => {
   work = await realpath(await mkdtemp(join(tmpdir(), "publish-journey-")));
@@ -80,6 +84,7 @@ beforeAll(async () => {
     port: 0,
     async fetch(request) {
       const path = decodeURIComponent(new URL(request.url).pathname);
+      requests.push(`pages ${path}`);
       if (path.includes("..")) return new Response("refused", { status: 400 });
       if (path === "/metadata/timestamp.json" && cachedTimestamp)
         return new Response(new Uint8Array(cachedTimestamp));
@@ -93,6 +98,7 @@ beforeAll(async () => {
     hostname: "127.0.0.1",
     port: 0,
     fetch(request) {
+      requests.push(`storage ${new URL(request.url).pathname}`);
       const bytes = assets.get(new URL(request.url).pathname);
       return bytes
         ? new Response(new Uint8Array(bytes))
@@ -104,6 +110,7 @@ beforeAll(async () => {
     port: 0,
     fetch(request) {
       const path = new URL(request.url).pathname;
+      requests.push(`releases ${path}`);
       return assets.has(path)
         ? new Response(null, {
             status: 302,
@@ -191,8 +198,9 @@ async function machine(channel: UpdateChannel, origins?: string[]) {
     targetBaseUrl: `${pages.url}targets/`,
     channel,
     identity: { version: "1.0.0", commit, target },
-    // The compiled-in root: offered on every run, used only for first trust.
-    embeddedRoot: await readFile(rootFile),
+    // The compiled-in root is a SUPPLIED root: offered on every run, it seeds
+    // empty trust and is never a conflict afterwards.
+    bootstrapRoot: await readFile(rootFile),
     transport,
     clock,
     lockTimeoutMs: 10_000,
@@ -207,7 +215,6 @@ async function machine(channel: UpdateChannel, origins?: string[]) {
         openRange: (url, offset, signal) =>
           transport.openRange(url, offset, signal),
         downloadOnly: true,
-        downloadPolicy: { backoffMs: 1, stalledAttempts: 2 },
       });
     },
     trustedRootVersion: async () =>
@@ -289,11 +296,14 @@ test("publish A, the client downloads it; publish B as a release asset behind a 
     pages.url.origin,
     releases.url.origin,
   ]);
-  expect(await narrow.download()).toMatchObject({
+  const refusedAt = performance.now();
+  expect(await narrow.download()).toEqual({
     kind: "error",
-    code: "network-unavailable",
-    context: { resource: "artifact" },
+    code: "origin-refused",
+    context: { resource: "artifact", origin: storage.url.origin },
   });
+  // Policy, not weather: no retry, no backoff.
+  expect(performance.now() - refusedAt).toBeLessThan(5_000);
   expect(await readdir(join(narrow.base, "versions"))).toEqual([
     (await productBinary("1.0.0")).name,
   ]);
@@ -309,14 +319,29 @@ test("publish A, the client downloads it; publish B as a release asset behind a 
     code: 1,
     stderr: expect.stringContaining("version-mismatch"),
   });
-  expect(await publish(["promote", "--version", "1.2.0"])).toMatchObject({
-    code: 0,
-  });
+  // The approver also raises the signed minimum version: explicit, never
+  // automatic. A Machine below it learns that from its next check.
+  expect(
+    await publish([
+      "promote",
+      "--version",
+      "1.2.0",
+      "--minimum-version",
+      "1.1.0",
+    ]),
+  ).toMatchObject({ code: 0 });
   expect(await stable.check()).toMatchObject({
     kind: "available",
     version: "1.2.0",
     artifactSha256: b.sha256,
     sequence: 1,
+  });
+  expect(await readObserved(stable.base, clock())).toMatchObject({
+    belowMinimumVersion: true,
+    available: { version: "1.2.0", minimumVersion: "1.1.0" },
+  });
+  expect(await readObserved(preview.base, clock())).toMatchObject({
+    belowMinimumVersion: false,
   });
   expect(await stable.download()).toMatchObject({
     kind: "ready",
@@ -428,7 +453,8 @@ test("switching the channel is explicit, persisted in update/config.json, tolera
       identity: { version, commit, target },
       clock,
     });
-  expect(await readChannel(base)).toBe("stable");
+  const channel = async () => (await readUpdateConfig(base)).channel;
+  expect(await channel()).toBe("stable");
   expect(await run(["channel"], "1.0.0")).toMatchObject({
     code: 0,
     stdout: "Channel: stable",
@@ -441,15 +467,44 @@ test("switching the channel is explicit, persisted in update/config.json, tolera
   });
   expect(
     JSON.parse(await readFile(join(base, "update", "config.json"), "utf8")),
-  ).toEqual({ schemaVersion: 1, channel: "preview" });
+  ).toEqual({
+    schemaVersion: 1,
+    channel: "preview",
+    service: { kind: "none" },
+    folder: null,
+  });
   await writeFile(join(base, "update", "config.json"), "{ damaged");
-  expect(await readChannel(base)).toBe("stable");
+  expect(await channel()).toBe("stable");
   await writeFile(
     join(base, "update", "config.json"),
     JSON.stringify({ schemaVersion: 2, channel: "preview" }),
   );
-  expect(await readChannel(base)).toBe("stable");
+  expect(await channel()).toBe("stable");
+  // One file, one writer: what `lazurio install` recorded about the service
+  // and the Folder survives a channel switch, member by member.
+  const recorded = {
+    service: { kind: "systemd-user", unit: "lazurio-launchpad.service" },
+    folder: "/home/u/Lazurio",
+  } as const;
+  await changeUpdateConfig(base, recorded, writeDurableFile);
   await run(["channel", "preview"], "1.0.0");
+  expect(await readUpdateConfig(base)).toEqual({
+    channel: "preview",
+    ...recorded,
+  });
+  await writeFile(
+    join(base, "update", "config.json"),
+    JSON.stringify({ schemaVersion: 1, channel: "weekly", ...recorded }),
+  );
+  expect(await readUpdateConfig(base)).toEqual({
+    channel: "stable",
+    ...recorded,
+  });
+  await changeUpdateConfig(
+    base,
+    { channel: "preview", service: { kind: "none" }, folder: null },
+    writeDurableFile,
+  );
 
   // The repository of the journey above: preview and stable offer 1.2.0. A
   // Machine that already runs something newer is never offered a downgrade,
@@ -484,6 +539,84 @@ test("switching the channel is explicit, persisted in update/config.json, tolera
   // … and an older Machine on the configured channel is offered the update.
   expect((await run(origins, "1.0.0")).code).toBe(10);
 });
+
+test("lazurio install proves itself against the published repository with the compiled-in root, downloads nothing but signed metadata and its identity, and keeps a channel chosen before", async () => {
+  // B was published as a RELEASE ASSET: the tree holds its signed target entry
+  // (with `custom.url`) and its identity, never its bytes. Install locates
+  // both by the same target paths the updater uses.
+  const b = await productBinary("1.2.0");
+  const home = await realpath(await mkdtemp(join(work, "install-")));
+  const base = join(home, "base");
+  const environment = {
+    identity: { version: "1.2.0", commit, target },
+    embeddedRoot: await readFile(rootFile),
+    executable: b.path,
+    clock,
+    env: { HOME: home },
+  };
+  const repository = [
+    "--metadata-url",
+    `${pages.url}metadata/`,
+    "--target-url",
+    `${pages.url}targets/`,
+    "--loopback-fixture",
+    "--base",
+    base,
+    "--json",
+  ];
+  // Without a compiled-in root and without --bootstrap-root: nothing happens.
+  const { embeddedRoot: _none, ...rootless } = environment;
+  const refused = await runInstallCommand(repository, rootless);
+  expect(refused.code).toBe(25);
+  expect(await readdir(home)).toEqual([]);
+
+  await runUpdateCommand(["channel", "preview", "--base", base], environment);
+  const from = requests.length;
+  const installed = await runInstallCommand(repository, environment);
+  expect(JSON.parse(installed.stdout)).toMatchObject({
+    kind: "installed",
+    version: "1.2.0",
+    name: b.name,
+    available: null,
+  });
+  expect(installed.code).toBe(0);
+  const touched = requests.slice(from);
+  expect(touched.every((request) => request.startsWith("pages "))).toBe(true);
+  expect(
+    touched.filter((request) => request.startsWith("pages /targets/")),
+  ).toEqual([
+    expect.stringMatching(
+      /^pages \/targets\/channels\/[a-f0-9]{64}\.preview\.json$/,
+    ),
+    expect.stringMatching(
+      new RegExp(
+        `^pages /targets/artifacts/${b.sha256}/[a-f0-9]{64}\\.identity\\.json$`,
+      ),
+    ),
+  ]);
+  // The channel chosen before the installation was recorded with it.
+  expect(await readUpdateConfig(base)).toEqual({
+    channel: "preview",
+    service: { kind: "none" },
+    folder: null,
+  });
+  // An executable the repository never signed is not installed.
+  const stranger = await productBinary("1.2.1");
+  const other = join(home, "other-base");
+  const unsigned = await runInstallCommand(
+    repository.map((value) => (value === base ? other : value)),
+    {
+      ...environment,
+      identity: { version: "1.2.1", commit, target },
+      executable: stranger.path,
+    },
+  );
+  expect(JSON.parse(unsigned.stdout)).toMatchObject({
+    kind: "error",
+    code: "unverified-executable",
+  });
+  expect(await readdir(home)).toEqual(["base"]);
+}, 120_000);
 
 test("a product built without release/root.json embeds no root and fails closed; built with one it needs no bootstrap root", async () => {
   const build = async (name: string, rootText: string | undefined) => {
@@ -533,7 +666,7 @@ test("a product built without release/root.json embeds no root and fails closed;
   const withoutRoot = await build("lazurio-without-root", undefined);
   const closed = join(work, "closed-base");
   // Against the compiled-in repository AND against a named one: no root, no
-  // update. Nothing is fetched and no trust is written.
+  // update. Nothing is fetched and NOTHING is created.
   for (const args of [[], repository])
     expect(
       await withoutRoot(["update", "--check", "--base", closed, ...args]),
@@ -542,7 +675,16 @@ test("a product built without release/root.json embeds no root and fails closed;
       stdout: "",
       stderr: "Update failed: trust-missing",
     });
-  expect(await readdir(join(closed, "trust"))).toEqual([]);
+  expect(await readdir(work)).not.toContain("closed-base");
+  // The same holds for the installation itself.
+  expect(
+    await withoutRoot(["install", "--base", closed, ...repository]),
+  ).toEqual({
+    code: 25,
+    stdout: "",
+    stderr: "Install failed: trust-missing",
+  });
+  expect(await readdir(work)).not.toContain("closed-base");
   // The root of the journey's repository is version 1; its chain leads to 2.
   const withRoot = await build(
     "lazurio-with-root",
@@ -550,7 +692,8 @@ test("a product built without release/root.json embeds no root and fails closed;
   );
   const open = join(work, "open-base");
   for (let attempt = 0; attempt < 2; attempt++) {
-    // The second run proves the compiled-in root is no `trust-conflict`.
+    // On the second run the compiled-in root meets durable trust that has
+    // moved past it (root 2): ignored, never a conflict.
     const checked = await withRoot([
       "update",
       "--check",

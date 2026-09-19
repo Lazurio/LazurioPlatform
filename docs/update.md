@@ -2,11 +2,22 @@
 
 Status: **accepted direction of the Principal (2026-09-19), implementation in
 progress.** This document is the single contract for how an installed Lazurio
-learns about, obtains and activates a new product version. It supersedes the
-update-related *proposals* in [release cycle](release-cycle.md) and the deferred
-recovery designs in [pilot repair](pilot-repair.md) and
-[expired trust recovery](expired-trust-recovery.md); trust, signing and promotion
-requirements stated there remain binding. Nothing is deployed to real clients on
+learns about, obtains and activates a new product version.
+
+Authority boundary. Three older documents described this area and each now
+carries a banner pointing here:
+
+| Document | What stays binding there | What this contract supersedes |
+| --- | --- | --- |
+| [release cycle](release-cycle.md) | build, qualification and promotion lifecycle; the two test modes; signing, key-role, expiry and promotion requirements; install location | the proposed update commands, pending attempts, the metadata journal and replay, the double active record, "draining" as an unimplemented phase |
+| [pilot repair](pilot-repair.md) | the preservation principles: prepare beside the active version, never delete or reset trusted metadata, never bootstrap an established installation again | the `product recover` runbook and the bounded manual repair procedure |
+| [expired trust recovery](expired-trust-recovery.md) | its threat analysis of accepted-but-unpersisted role floors, which the Check step below answers | the deferred journal-reconstruction work package as a mechanism |
+
+Until the implementing changes replace it, the code on `main` is still the pilot
+installer (`product install|recover|status|activate`) with its journal and
+replay. That code is the *current implementation*, this document is the
+*accepted target*; the old mechanism is deleted only by the change that proves
+the equivalence tests listed under Evidence, never by this document alone. Nothing is deployed to real clients on
 this codebase yet, so this contract is written without a compatibility burden.
 After the first client deployment every change to it must be compatible.
 
@@ -74,7 +85,7 @@ update/activation.json                                  # present only during an
 update/previous.json                                    # what the last confirmed activation replaced
 update/observed.json                                    # derived observation for UI, CLI and observers
 update/launchpad-readiness.json                         # written by a running Launchpad, removed at clean exit
-update/config.json                                      # the channel; missing or damaged means `stable`
+update/config.json                                      # channel, recorded service and Folder; tolerant, member by member
 update/lock, update/activation.lock                     # flock files; content never read
 update/scratch-*/                                       # always safe to delete
 ```
@@ -101,15 +112,35 @@ logs only explain it.
 ## The three steps
 
 **Check** (automatic, cheap, no mutation of the product). The TUF client
-refreshes in a scratch copy seeded from `trust/`; it writes a role file only
-after verifying it. When the refresh ends — success or failure — every newly
-verified role is promoted into `trust/` by temporary file, file sync, rename and
-directory sync, root chain first, then timestamp, snapshot, targets. A crash
-before promotion equals a refresh that never ran; a crash between promotions
-leaves a newer root with older roles, which the next refresh re-verifies under
-that root. This needs no change to the pinned `tuf-js` and is proven by
-interruption, expiry, repository-advance and key-rotation tests before the old
-journal and replay code is deleted. Then read the signed channel document,
+refreshes in a scratch copy seeded from `trust/`. When the refresh ends —
+success or failure — trust is captured durably in two ways, by temporary file,
+file sync, rename and directory sync, root chain first, then timestamp,
+snapshot, targets:
+
+1. **Roles the client persisted.** The pinned `tuf-js` writes a role file only
+   after its store accepted it (root: after signature and version checks, before
+   expiry; the others: after all checks). Those files are promoted.
+2. **Authenticated failure-state floors.** The client also authenticates a newer
+   timestamp or snapshot *and then throws* when that role is expired; it keeps
+   the role only in memory as its rollback floor and never writes it. Losing it
+   would let a later, lower version pass. The fetcher therefore retains the raw
+   bytes of every role it delivered; after a failed refresh the role delivered
+   last is re-verified independently of the client — signature threshold under
+   the promoted root, version not below the trusted one, and for a snapshot the
+   version and hash recorded by the trusted timestamp — with expiry deliberately
+   ignored. A role that passes is promoted **as a floor only**. Anything that
+   fails re-verification is discarded.
+
+Expired metadata never authorizes a target: every refresh re-checks expiry
+before accepting the next role, and an expired local role is loaded only as a
+version floor, exactly as the TUF specification's intermediate metadata.
+
+A crash before promotion equals a refresh that never ran; a crash between
+promotions leaves a newer root with older roles, which the next refresh
+re-verifies under that root. This needs no change to the pinned `tuf-js`. The
+old journal and replay remain the mechanism until the equivalence tests under
+Evidence — interruption, expiry with a newer authenticated floor, repository
+advance and key rotation — pass against this path. Then read the signed channel document,
 compare with the embedded version and rewrite `observed.json`. Network or
 expiry failures produce a typed error and leave everything else untouched.
 
@@ -136,10 +167,17 @@ for a bounded stability period; an old process answering, or a bare HTTP 200,
 proves nothing. It distinguishes a candidate that fails from a gateway that is
 down. Confirmed → record removed, retention applied. Not confirmed within the
 deadline → symlink restored to `previous`, service restarted, typed error
-reported; the user is back on a working version and the pill says why. After a
-reboot mid-activation the service manager restarts the worker, which finishes
-from the record. A CLI started meanwhile coordinates with the worker through the
-record and never undoes its switch.
+reported; the user is back on a working version and the pill says why. A worker
+that dies is started again by the service manager (`Restart=on-failure`, a
+bounded start limit) and continues its own record under the original deadline.
+A transient worker unit does not survive a **reboot**; what does is the record
+and the Launchpad service. Every `lazurio` start — each CLI command and the
+Launchpad service itself — resumes the record, and a Launchpad that starts with
+a record open keeps looking until it is settled: once it has been up for the
+stability period it confirms the activation itself, and past the deadline it
+restores the previous version and restarts onto it. No human command is needed
+in either direction. A CLI started meanwhile coordinates with a live worker
+through the record and never undoes its switch.
 
 The Launchpad restart is harmless because long-running module applications are
 owned by the OS service manager, not by the Launchpad process (see
@@ -168,15 +206,20 @@ activation. Disk is checked before download.
   with jitter (the check is one small signed document). Pill with version, notes
   and the single action appropriate to the status. The Launchpad shows when the
   running version differs from the active one.
-- **CLI.** `lazurio update` (check, download, activate), `lazurio update --check`,
+- **CLI.** `lazurio install` (the running executable proves and stages itself
+  as the first version; optionally writes the Launchpad's systemd user unit),
+  `lazurio update` (check, download, activate), `lazurio update --check`,
   `lazurio update status [--json]`, `lazurio update rollback`,
-  `lazurio update channel [stable|preview]`, `lazurio --version`.
+  `lazurio update channel [stable|preview]`, `lazurio launchpad --base <dir>`
+  (the base a service-managed Launchpad announces readiness in),
+  `lazurio --version`.
   Other commands print a one-line notice from `observed.json`; they never touch the
   network for it. Every failure has a stable error code and a non-zero exit
   status that automation can classify.
 - **Identity in the binary.** Version, commit and target are embedded at build
   time, together with the TUF root and the default origin. A local
-  `update/config.json` holds only the channel.
+  `update/config.json` holds the channel and what `lazurio install` recorded
+  about this Machine: the service that owns the Launchpad and the Folder.
 
 ## Never silently stale
 
@@ -266,7 +309,9 @@ of every combination.
 ## Evidence required before any Machine depends on this
 
 CI builds two real versions and proves, against a fixture repository and then
-natively on Linux (x64, ARM64) and macOS ARM64: A→B, confirmed restart, automatic
+natively on Linux (x64, ARM64) and macOS ARM64 (including the floor case: an
+authenticated newer-but-expired timestamp and snapshot are retained and a later
+lower version is refused): A→B, confirmed restart, automatic
 rollback of an unhealthy B, explicit retry, `kill -9` of the worker and reboot at
 every step of every phase, expired timestamp, repository advancing mid-update,
 root rotation accepted during a failed download and retained, full disk, unknown
@@ -282,24 +327,31 @@ transport is shared). Two slices exist: **check** (embedded identity,
 `lazurio update --check`, `lazurio update status`) and **download → stage →
 activate → confirm or roll back** for the CLI (`lazurio update`,
 `--download-only`, `lazurio update rollback`, `lazurio self-check`, the internal
-`lazurio update apply-worker`). Not built: the Launchpad poller, pill and
-action, `restart-pending`, showing release notes (they are published and
-signed, nothing reads them yet), the one-line notice of other commands, an
-installer that creates the first `bin/lazurio` (without a selector every update
-command answers `not-installed`), launchd, and every piece of native evidence
-listed above: the journeys below ran on the developer's macOS ARM64 only, and
-the `systemd-user` adapter has never met a real systemd.
+`lazurio update apply-worker`), plus **`lazurio install`**. Not built: the
+Launchpad poller, pill and action, `restart-pending`, showing release notes
+(they are published and signed, nothing reads them yet), the one-line notice of
+other commands, `lazurio uninstall` and any repair of an existing installation,
+launchd, and every piece of native evidence listed above except the first
+native Linux run: the compiled journeys run on the developer's macOS ARM64
+inside `bun run check`, and the `systemd-user` path was qualified on a real
+systemd 255 on Ubuntu ARM64
+([evidence](evidence/update-linux-arm64-2026-09-19.md)). Linux x64, a hosted
+canary and an actual reboot are still open. That evidence run used the ad-hoc
+loopback fixture; the qualification bundle now serves a repository produced by
+the publisher (`scripts/update-fixture-server.ts`), and that bundle has **not**
+been run on a Linux Machine yet.
 
 A third slice adds the **publishing side** and the client's defaults: the
 publisher core (`src/publish/`), the key tool and the publisher command line
 (`scripts/release-keys.ts`, `scripts/release-publish.ts`), the release and
 refresh workflows, the signed download location, the compiled-in repository,
-origins and trust root (`src/update/defaults.ts`), and `update/config.json`
+origins and trust root (`src/update/defaults.ts`), and the recorded channel
 with `lazurio update channel`. **None of it has run against GitHub**: no key
 ceremony was performed, `release/root.json` does not exist, no secret,
-environment, Pages site, tag or release was created, and neither workflow has
-ever executed. Until the ceremony every build embeds no root and
-`lazurio update` answers `trust-missing` without `--bootstrap-root`.
+environment, Pages site, DNS record, tag or release was created, and neither
+workflow has ever executed. Until the ceremony every build embeds no root, and
+`lazurio install` and `lazurio update` answer `trust-missing` — creating
+nothing — without `--bootstrap-root`.
 
 Concrete choices fixed so far:
 
@@ -317,21 +369,51 @@ Concrete choices fixed so far:
 - **Damaged trust never wedges.** A role file that cannot be read or is not
   JSON counts as absent: it is fetched again, verified under the root and
   replaced (a directory in its place is removed). A `root.json` that cannot be
-  read or does not verify falls back to the caller's bootstrap root, seeds no
-  older role, and is rewritten by promotion; without a bootstrap root the
-  answer is the typed `trust-invalid`. Cost, accepted: that one refresh runs
-  without the rollback protection of the damaged installation's older roles.
+  read or does not verify is restored from the retained chain: the newest
+  `<N>.root.json` that carries its version, verifies itself and — when its
+  predecessor is retained — verifies as that predecessor's successor. Nothing
+  is lost and no rotation is rewound. Only without a usable retained root does
+  a supplied root seed trust again (seeding no older role, so that one refresh
+  runs without the old roles' rollback protection); without either the answer
+  is the typed `trust-invalid`. Promotion rewrites `root.json` in every case.
 - **When the pinned client persists.** Verified in the `tuf-js` 6.0.0 source
   and recorded with line references in `src/update/trust.ts`: timestamp,
   snapshot and targets are persisted only after complete verification including
   expiry; a root is persisted after complete authenticity verification but
   before the final-root expiry check, and is promoted regardless because a
   signed successor root must never be forgotten. Promotion re-verifies the root
-  chain itself and withholds the role delivered last in a failed refresh.
-- **First trust.** The caller supplies the bootstrap root (later: the
-  compiled-in root). It becomes durable only together with the first role it
-  verified, so a wrong root can never wedge an installation; once `trust/` holds
-  a valid root, a supplied bootstrap root is refused (`trust-conflict`).
+  chain itself.
+- **Authenticated failure-state floors.** The earlier rule "withhold the role
+  delivered last in a failed refresh" is replaced. The fetcher retains the raw
+  bytes of the role delivered last (only that one has a consumer); after a
+  failed refresh promotion re-verifies it without the client and without
+  expiry — timestamp: signature threshold under the promoted root, version
+  above and snapshot version not below the trusted timestamp; snapshot: length
+  and hashes recorded by the newest authenticated timestamp, signature
+  threshold, exactly the version that timestamp names, no targets version below
+  the trusted snapshot — and writes it as the ordinary role file. Verified in
+  the pinned source, with line references in `src/update/trust.ts`: an expired
+  LOCAL timestamp or snapshot is installed in memory before the expiry throw
+  and the throw is swallowed (`store.js:89-91`, `:133-136`;
+  `updater.js:195-206`, `:230-234`), so it acts as a version floor and nothing
+  else, and the final expiry checks (`store.js:102`, `:145`, `:172`) run again
+  before any target is looked up. Expired **targets** are different: the store
+  checks expiry before installing (`:172-175`), so an expired local targets
+  file is discarded without a trace and the floor of the targets version is the
+  snapshot's `meta`. A targets role delivered last is therefore never captured.
+  The floor is also captured on first contact and under an expired root: the
+  root authenticated a signature, and a floor can only raise the bar. A floor
+  that no longer verifies under a later root is not loaded by the client, so a
+  revoked key cannot wedge a Machine with a fast-forwarded version.
+- **Supplied root.** The caller supplies a root (today `--bootstrap-root`,
+  later the root compiled into the executable, which is then supplied on every
+  run). With no durable trust it seeds the first refresh and becomes durable
+  only together with the first role it verified, so a wrong root can never
+  wedge an installation. With durable trust it is **never a conflict**:
+  identical, older, unrelated or unreadable, it is ignored; only the direct
+  successor of the trusted root that verifies as its continuation is followed
+  — what a newer executable is for when the repository no longer serves an
+  old link. It can only move trust forward along the signed chain.
 - **Channel document.** `channels/<stable|preview>.json`, exact fields
   `schemaVersion: 1`, `channel`, `sequence`, `version`, `minimumVersion`,
   `targets` (execution target → `artifacts/<sha256>/lazurio`). A check reads
@@ -371,7 +453,10 @@ Concrete choices fixed so far:
   embedded identity and, for a named Folder, parses both state documents by
   plain reads — it takes no lock, because taking the Folder lock writes. There
   is no implicit Folder discovery in this product, so the Folder is checked
-  only when `--folder` is given to `lazurio update`. The updater runs the
+  only when `--folder` is given to `lazurio update` — the same rule as every
+  other command of this CLI (`folder-init`, `launchpad`, `profile-*` all take an
+  explicit `--folder`; there is no default Folder location to share). When the
+  product gains one, self-check follows it and `--folder` overrides. The updater runs the
   candidate at its own path inside scratch with an empty environment and a
   timeout that holds even against a grandchild keeping the pipe open, compares
   the answer with the signed identity, and only then renames the directory
@@ -382,8 +467,11 @@ Concrete choices fixed so far:
   `kind` (`update | rollback`), `previous`, `candidate`, `phase`
   (`switching | confirming`), `deadline` (wall clock), `switchedAt`, `service`
   and `folder` — everything a later process needs to finish or undo it without
-  the worker. `resumeActivation()` is called by `lazurio update …` and
-  `lazurio launchpad` at start; without a record it is one failed `readFile`.
+  the worker. `resumeActivation()` runs at the start of **every** CLI command
+  (for the base the environment resolves; `update …` for the base it was given;
+  `self-check` is exempt because it promises to write nothing). Without a
+  record it is one `lstat`; it prints one line on stderr only when it acted. A
+  Launchpad additionally keeps looking while a record exists (`watchActivation`).
   With one and no live worker it decides from the record and the disk alone:
   unreadable → removed, selector untouched; `switching`, candidate missing or
   deadline past → previous restored; `confirming` → confirmed if the candidate
@@ -396,8 +484,16 @@ Concrete choices fixed so far:
   exists. Without a service it is a detached process in its own session; under
   `systemd-user` it is a transient unit (`systemd-run --user --collect --wait
   --pipe`), because a child of the Launchpad would die with the Launchpad's
-  control group. The caller reads one JSON line; if the worker dies without
-  one, the caller converges through `resumeActivation()`.
+  control group. The unit has `Restart=on-failure`, `RestartSec=1` and a start
+  limit of 3 in 120 s. A worker that **answers** — a typed refusal included —
+  exits 0; only a worker that died is restarted. A restarted worker adopts its
+  own record (same operation and candidate) and continues under the original
+  deadline; a record it can no longer carry is settled like any abandoned one
+  and the operation is not begun again. Known window: a worker killed after it
+  settled and before it exited is restarted with no record and begins the same
+  requested activation once more, bounded by the start limit. The caller reads
+  one JSON line (`--wait --pipe` survive the restart); if the worker is gone
+  without one, the caller converges through `resumeActivation()`.
 - **Service adapters.** `none`: nothing is restarted; the activation is
   confirmed by running the new executable's self-check **through the selector**
   and comparing identities. `systemd-user`: `systemctl --user restart <unit>`,
@@ -407,11 +503,14 @@ Concrete choices fixed so far:
   and removes it at a clean exit; ready means that digest, a start time after
   the switch, a live pid, the same instance for the whole stability period. A
   failed activation restarts the service once more, onto the previous version.
-  launchd is not implemented.
+  Every restart is preceded by `systemctl --user reset-failed <unit>`: a
+  candidate that crash-looped leaves the unit in its start limit, where systemd
+  refuses even a manual restart. launchd is not implemented.
 - **`previous.json`.** The selector stays the only record of what is active.
   What the last confirmed activation replaced is remembered separately, for
   retention and for `update rollback`; missing or damaged means only that no
-  rollback is offered. Rollback is refused (`rollback-unavailable`) when that
+  rollback is offered. Writing it never blocks a confirmation: whatever
+  occupies its place is cleared, and a write that still fails is dropped. Rollback is refused (`rollback-unavailable`) when that
   version's signed identity cannot read the schemas the current product writes.
 - **Retention** after a confirmed activation: the active version, the previous
   one and the version whose digest a live Launchpad announces are kept; other
@@ -422,6 +521,55 @@ Concrete choices fixed so far:
   process holds the step lock, `activating` only while a record exists, `ready`
   only while the staged version exists; otherwise the status collapses to the
   last stable one. `running` and `restart-pending` are still unwritten.
+- **Install.** `lazurio install` is the running executable staging ITSELF as
+  the first version — "HTTPS bootstrap, then TUF": a person or the hosting
+  engine obtained the file over HTTPS; before it installs anything it proves
+  through an ordinary trust refresh that the SHA-256 of `process.execPath` is a
+  signed artifact (`unverified-executable` otherwise) and that the signed
+  `identity.json` of that artifact is the identity compiled into it — version,
+  target, commit, digest, length (`identity-invalid`). It need not be the
+  channel's current version; it must be published. Then it creates the base,
+  `bin/`, `versions/`, `trust/` and `update/` with an explicit `0700` whatever
+  the umask, stages a copy of itself through the same gate as any candidate
+  (re-hashed after copying, self-check of the copy, `0500`/`0400`, fsync,
+  rename), and swaps in the selector. `previous.json` stays absent;
+  `observed.json` is written by the check it ran. It refuses when anything
+  exists at the selector (`already-installed`): reinstall and repair are not
+  this command, versions change through `lazurio update`. **All or nothing:**
+  any refusal, no network, or a service manager that says no leaves no
+  selector, no version, no unit of ours, and — of the directories it created
+  itself — none that is empty. It prints the `PATH` hint and never edits a
+  shell profile.
+- **Install `--service systemd-user`** (Linux). The unit is rendered by a pure
+  function (`renderLaunchpadUnit`): `ExecStart` is the selector with the
+  Launchpad's explicit arguments — `--base` (a service manager's environment
+  need not be the person's, and the Launchpad announces readiness where the
+  updater looks), `--folder`, optionally `--organization-directory` and
+  `--bun-executable`; every argument is escaped for systemd's `%`, `$` and
+  quoting rules — `Restart=on-failure`, `WantedBy=default.target`. The
+  Launchpad has no port option today (it binds an ephemeral loopback port and
+  prints a private session URL), so none is taken; under a service that URL is
+  only in the journal. The unit goes to
+  `${XDG_CONFIG_HOME:-~/.config}/systemd/user/<unit>` (default name
+  `lazurio-launchpad.service`), then `daemon-reload` and `enable --now`. A
+  unit of that name with other content is `unit-conflict` and is never
+  touched, so the installer cannot fight a hosting engine's resident unit.
+- **`update/config.json`** is the one owned file of local update choices:
+  `{schemaVersion: 1, channel, service, folder}` — the channel
+  (`lazurio update channel <name>`, or the `--channel` an installation
+  verified against), and what the installer decided: the `ServiceSpec` and the
+  Folder. `lazurio install`, `lazurio update` and `update rollback` therefore
+  need no `--channel`, `--service` or `--folder` on that Machine; a flag
+  overrides each. One module reads and writes it (`src/update/config.ts`); the
+  writer changes only the members it is given, so choosing a channel keeps the
+  service and the Folder, and an installation keeps a channel chosen before it
+  (an undone installation puts back the bytes it replaced). Tolerant state,
+  member by member: missing, damaged or of another schema means `stable`, no
+  service, no Folder check. Switching the channel never downgrades, because a
+  check never offers a version that is not newer than the running one. This
+  also answers where self-check's Folder comes from: there is still no Folder
+  discovery in this CLI, but an installation with a service has one recorded
+  Folder.
 - **Repository format.** One static tree: `metadata/<N>.root.json`,
   `metadata/<N>.targets.json`, `metadata/<N>.snapshot.json`,
   `metadata/timestamp.json`, and targets under their consistent-snapshot names
@@ -467,30 +615,49 @@ Concrete choices fixed so far:
   (observed 2026-09-19) and its predecessor
   `https://objects.githubusercontent.com`. GitHub documents that storage only as
   `*.githubusercontent.com`; the transport matches exact origins. An origin
-  outside the list is refused (`network-unavailable`), and the release workflow
+  outside the list — in the signed URL or in a redirect from it — is refused at
+  once with the typed, non-retryable `origin-refused` (no retry, no backoff:
+  policy does not change by waiting), and the release workflow
   downloads every new asset through the same list before it publishes, so a
   host GitHub introduces later stops a release rather than installed Machines.
 - **Compiled-in defaults.** Repository
-  `https://lazurio.github.io/LazurioPlatform/{metadata,targets}/`, channel
-  `stable`, the origins above, and the text of `release/root.json` embedded by
-  `scripts/build-candidate.ts` through a build-time define (a root that does
-  not verify under its own keys fails the build). The embedded root enters the
-  check as its own input, not as the bootstrap root: it is used while `trust/`
-  holds no valid root and is simply unused afterwards, so it can never produce
-  `trust-conflict`; `--bootstrap-root` keeps its semantics and wins over it.
-  Naming another repository (`--metadata-url` with `--target-url`) replaces the
-  compiled-in origins entirely; only `--artifact-origin` values are added.
-- **Channel.** `update/config.json` is `{schemaVersion: 1, channel}`. Missing,
-  damaged or of another schema means `stable`; it is rewritten by
-  `lazurio update channel <name>`. `--channel` overrides it for one command.
-  Switching never downgrades because a check never offers a version that is
-  not newer than the running one.
+  `https://releases.lazurio.io/{metadata,targets}/` — a domain the project
+  controls, a CNAME to GitHub Pages of this repository, because the origin is
+  compiled into every executable for good; the static tree can move behind the
+  name, an installed Lazurio cannot be told another one. Further: channel
+  `stable`, the artifact origins above, and the text of `release/root.json`
+  embedded by `scripts/build-candidate.ts` through a build-time define (a root
+  that does not verify under its own keys fails the build). `lazurio install`,
+  `lazurio update` and `update --check` resolve all of it in one place
+  (`resolveRepository` in `src/update/cli.ts`); flags only override. The
+  compiled-in root is the **supplied root** of the seeding rule above — it
+  seeds empty trust, and beside durable trust it is ignored unless it is the
+  verified direct successor of the trusted root; never a conflict —
+  and `--bootstrap-root` replaces it. Naming another repository
+  (`--metadata-url` with `--target-url`) replaces the compiled-in origins
+  entirely; only `--artifact-origin` values are added. With no compiled-in root
+  and no `--bootstrap-root`, a Machine without a `trust/` directory gets
+  `trust-missing` before anything is created — no base, no observation.
+- **Install and the publisher agree on locations.** Install finds its own
+  bytes by the target path `artifacts/<sha256>/lazurio` and its identity by
+  `artifacts/<sha256>/identity.json`, fetched through the TUF client from the
+  static tree. The signed `custom.url` changes neither path, and install never
+  follows it: it downloads signed metadata, the channel document and its own
+  identity, nothing else (proven against a publisher-made repository whose
+  executable exists only as a release asset).
+- **Minimum version.** The signed `minimumVersion` of `stable` changes only
+  through the explicit `--minimum-version` of a promotion (workflow input
+  `minimum_version`): never taken from `preview`, never derived, carried over
+  otherwise. It can only rise and never above the promoted version; promoting
+  the version `stable` already offers with a higher value raises it between
+  releases.
 - **Workflows.** `release.yml`: tag `v*.*.*` → `bun run check` on Linux and
   macOS → three native builds with the tag as version (each executable is asked
   for its version, target and commit) → one GitHub Release with generated notes
   against the previous tag of the same channel → `publish` in environment
   `release`: signs exactly the assets the release serves into `preview`,
-  verifies, pushes one commit to `gh-pages`, waits until the published origin
+  verifies, pushes one commit to `gh-pages` (with the `CNAME` file of the
+  compiled-in domain; a tree published under another domain is refused), waits until the published origin
   answers the client's own `timestamp.json` URL with the new bytes (as seen from
   the runner; not a statement about every cache). `promote` and `renew-targets` are manual dispatches
   in the same environment; promotion never builds. An existing release is never
@@ -515,7 +682,9 @@ Concrete choices fixed so far:
   after promotion, resolves a complete older repository from a cached older
   timestamp, and follows a rotated root and targets key; a real compiled CLI
   without `release/root.json` answers `trust-missing`, one with it needs no
-  bootstrap root and meets no `trust-conflict` on the second run.
+  bootstrap root and is simply ignored on the second run, when durable trust
+  has moved past it; `lazurio install` proves itself against the same
+  repository; the client sees a raised minimum version.
   `tests/update-journey.test.ts` compiles real
   executables A, B and C of a TEST-ONLY product entry point (faults switched by
   a control file; product code has no test hook) and drives `bin/lazurio`
@@ -542,10 +711,10 @@ of this work, the rest open until reviewed:
    `versions/`": it is run at its final inode and own path **inside scratch**,
    then the directory is renamed. It is never run through the selector or from
    a copy.
-9. The worker is "under the OS service manager" only with `systemd-user`. "After
-   a reboot mid-activation the service manager restarts the worker" is **not**
-   implemented: the transient unit does not survive a reboot. Instead any
-   `lazurio update …` or `lazurio launchpad` start resumes the record.
+9. The worker is "under the OS service manager" only with `systemd-user`; with
+   `none` it is a detached process that nobody restarts, and the record waits
+   for the next `lazurio` start. The reboot case is carried by the Launchpad
+   service and every CLI start, not by a restarted worker (see "Activate").
 10. Readiness proves instance, digest, liveness and stability. It does not yet
     report "Folder and protocol compatibility", and nothing distinguishes "a
     candidate that fails from a gateway that is down": no gateway is involved.
@@ -554,27 +723,41 @@ of this work, the rest open until reviewed:
 12. Superseded trust files are not pruned.
 13. `minimumUpdaterContract` is an optional member of the signed identity
     (default 1); the updater's contract number is `1`.
-14. "The client maps `artifacts/<digest>/…` to the asset URL explicitly" became
+14. `--deadline-ms` and `--stability-ms` shorten the accepted defaults
+    (120 s, 10 s) for qualification and canary runs.
+15. The contract has the fetcher retain the raw bytes of **every** delivered
+    role; it retains the one delivered last, the only one promotion reads. The
+    first slice's rule "withhold the role delivered last in a failed refresh"
+    is gone: that role is now re-verified and, when authentic and newer, kept
+    as a floor. Expired targets are deliberately never kept.
+16. "The client maps `artifacts/<digest>/…` to the asset URL explicitly" became
     a **signed** URL in the target's `custom` metadata; "Publishing" now says
     so. No mapping rule exists in the client.
-15. "One deployment replaces the whole tree" is one pushed commit on
+17. "One deployment replaces the whole tree" is one pushed commit on
     `gh-pages` with Pages deploying from that branch, followed by waiting until
     the origin serves the new timestamp. Between the commit and the end of the
     Pages deployment clients see the complete previous tree.
-16. "The publisher uploads artifacts" is the release job; the publisher itself
+18. "The publisher uploads artifacts" is the release job; the publisher itself
     never uploads. It signs what the GitHub Release already serves and proves
     it by downloading it.
-17. Targets metadata keeps every artifact ever released (a channel may still
+19. Targets metadata keeps every artifact ever released (a channel may still
     select it). Pruning old entries is not built.
-18. Release notes are a signed target (`releases/<version>/notes.md`, at most
+20. Release notes are a signed target (`releases/<version>/notes.md`, at most
     256 KiB) rather than a member of the channel document, whose exact field
     set is unchanged.
-19. Promotion refuses pre-release versions and requires the exact version;
+21. Promotion refuses pre-release versions and requires the exact version;
     a release may not drop a target its channel currently serves. Neither rule
     is in the text above.
-20. `renew-targets` exists although the contract names only snapshot and
+22. `renew-targets` exists although the contract names only snapshot and
     timestamp renewal: targets metadata expires after 90 days without a
     release and only the protected environment can re-sign it.
+23. The contract has the client follow redirects "only to origins on a short
+    compiled-in list"; a refusal is its own error code, `origin-refused`
+    (exit 47, not retryable), which the contract's error vocabulary did not
+    name.
+24. `trust-missing` without any supplied root is answered before the base, the
+    lock or the observation exist, so that one failure leaves no
+    `observed.json` behind — unlike every other failed check.
 
 ## Removed by this contract
 

@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { folderStateSchemas } from "../folder/state";
 import {
   type ActivationRecord,
+  activationRecordPath,
+  clearPrevious,
   readActivationRecord,
   removeActivationRecord,
   type ServiceSpec,
@@ -197,7 +199,17 @@ async function confirm(
 ): Promise<Settled> {
   // `previous.json` first: a crash after it and before the record is removed
   // is a record that a later start confirms again, idempotently.
-  await writePrevious(base, record.previous, effects.write);
+  // It is tolerant state: if it cannot be written even after clearing whatever
+  // occupies its place, a rollback is simply not offered — a confirmed
+  // activation never fails, and never stays unconfirmed, because of it.
+  try {
+    await writePrevious(base, record.previous, effects.write);
+  } catch {
+    await clearPrevious(base);
+    await writePrevious(base, record.previous, effects.write).catch(
+      () => undefined,
+    );
+  }
   await removeActivationRecord(base);
   const version = parseVersionName(record.candidate)?.version as string;
   await observe(base, effects, (_, at) => ({
@@ -317,8 +329,8 @@ export async function resumeActivation(input: {
   policy?: Partial<ActivationPolicy>;
 }): Promise<ResumeResult> {
   const { base } = input;
-  if ((await readActivationRecord(base)).kind === "absent")
-    return { kind: "none" };
+  // The whole cost of a start without an activation: one `lstat`.
+  if (!(await exists(activationRecordPath(base)))) return { kind: "none" };
   const effects = { ...systemActivationEffects, ...input.effects };
   const policy = { ...defaultActivationPolicy, ...input.policy };
   const paths = layout(base);
@@ -344,6 +356,30 @@ export async function resumeActivation(input: {
     }
   } finally {
     await liveness.release();
+  }
+}
+
+/** For a long-running process — the Launchpad — that started while a record
+ * exists: keep looking until the record is settled. This is what makes a
+ * reboot mid-activation converge without a person: the transient worker unit
+ * does not survive a reboot, the Launchpad service does, and once it has been
+ * up for the stability period it confirms itself (or, past the deadline,
+ * restores the previous version and restarts onto it). A live worker is left
+ * alone; the loop just ends when the worker has settled.
+ */
+export async function watchActivation(input: {
+  base: string;
+  intervalMs?: number;
+  effects?: Partial<ActivationEffects>;
+  policy?: Partial<ActivationPolicy>;
+}): Promise<ResumeResult> {
+  const sleep = input.effects?.sleep ?? systemActivationEffects.sleep;
+  for (;;) {
+    const result = await resumeActivation(input).catch(
+      () => ({ kind: "in-progress" }) as const,
+    );
+    if (result.kind !== "in-progress") return result;
+    await sleep(input.intervalMs ?? 2_000);
   }
 }
 
@@ -464,6 +500,104 @@ export async function runActivationWorker(
   }
 }
 
+type Begun = Readonly<{ record: ActivationRecord; identity: SignedIdentity }>;
+
+/** Continue this worker's own record after a restart. Refuses (throws or
+ * returns undefined) when the record can no longer be carried forward; the
+ * caller then settles it like any abandoned record.
+ */
+async function adopt(
+  base: string,
+  own: ActivationRecord,
+  effects: ActivationEffects,
+): Promise<Begun | undefined> {
+  if (effects.clock().getTime() > Date.parse(own.deadline)) return undefined;
+  if (!(await exists(versionExecutable(base, own.previous)))) return undefined;
+  const identity = await readStagedIdentity(base, own.candidate);
+  if (own.phase === "confirming") return { record: own, identity };
+  await effects.swapSelector(base, own.candidate);
+  const record: ActivationRecord = Object.freeze({
+    ...own,
+    phase: "confirming",
+    switchedAt: effects.clock().toISOString(),
+  });
+  await writeActivationRecord(base, record, effects.write);
+  return { record, identity };
+}
+
+/** Decide, record, switch. Under the step lock. */
+async function begin(
+  input: WorkerInput,
+  effects: ActivationEffects,
+  policy: ActivationPolicy,
+  version: string,
+): Promise<Begun | ActivationOutcome> {
+  const { base } = input;
+  let record: ActivationRecord;
+  let identity: SignedIdentity;
+  const previous = await readSelector(base);
+  if (previous === null) return failed("not-installed");
+  if (previous === input.candidate)
+    return { kind: "already-active", version, candidate: input.candidate };
+  try {
+    identity = await readStagedIdentity(base, input.candidate);
+  } catch (error) {
+    if (input.kind === "rollback")
+      return failed("rollback-unavailable", { reason: "missing" });
+    throw error instanceof UpdateFailure
+      ? error
+      : new UpdateFailure("artifact-invalid", { reason: "staged" });
+  }
+  if (
+    (await sha256File(versionExecutable(base, input.candidate)).catch(
+      () => "",
+    )) !== identity.artifactSha256
+  )
+    return input.kind === "rollback"
+      ? failed("rollback-unavailable", { reason: "damaged" })
+      : failed("artifact-invalid", { reason: "staged" });
+  // Program rollback is not data rollback: only to a version that reads
+  // what the current one wrote.
+  if (
+    input.kind === "rollback" &&
+    !canRead(identity.schemas, input.requiredSchemas ?? writtenSchemas())
+  )
+    return failed("rollback-unavailable", { reason: "schema", version });
+  const at = effects.clock();
+  record = Object.freeze({
+    schemaVersion: 1,
+    operation: input.operation,
+    kind: input.kind,
+    previous,
+    candidate: input.candidate,
+    phase: "switching",
+    deadline: new Date(at.getTime() + policy.deadlineMs).toISOString(),
+    switchedAt: null,
+    service: input.service,
+    folder: input.folder ?? null,
+  });
+  try {
+    await writeActivationRecord(base, record, effects.write);
+    await effects.swapSelector(base, input.candidate);
+    record = Object.freeze({
+      ...record,
+      phase: "confirming",
+      switchedAt: effects.clock().toISOString(),
+    });
+    await writeActivationRecord(base, record, effects.write);
+  } catch {
+    // Still under the lock: undo what was done, in the recovery order.
+    await rollBack(
+      base,
+      record,
+      effects,
+      updateError("activation-failed", { reason: "switch" }),
+    ).catch(() => undefined);
+    return failed("activation-failed", { reason: "switch" });
+  }
+  return { record, identity };
+}
+
 async function work(
   input: WorkerInput,
   effects: ActivationEffects,
@@ -484,68 +618,37 @@ async function work(
   let step = await lockStep(policy.lockTimeoutMs);
   try {
     // A record here belongs to a dead worker (the activation lock is ours).
-    const abandoned = await settleAbandoned(base, effects, policy);
-    if (abandoned.kind === "in-progress")
-      return failed("busy", { reason: "activation" });
-    const previous = await readSelector(base);
-    if (previous === null) return failed("not-installed");
-    if (previous === input.candidate)
-      return { kind: "already-active", version, candidate: input.candidate };
-    try {
-      identity = await readStagedIdentity(base, input.candidate);
-    } catch (error) {
-      if (input.kind === "rollback")
-        return failed("rollback-unavailable", { reason: "missing" });
-      throw error instanceof UpdateFailure
-        ? error
-        : new UpdateFailure("artifact-invalid", { reason: "staged" });
-    }
-    if (
-      (await sha256File(versionExecutable(base, input.candidate)).catch(
-        () => "",
-      )) !== identity.artifactSha256
-    )
-      return input.kind === "rollback"
-        ? failed("rollback-unavailable", { reason: "damaged" })
-        : failed("artifact-invalid", { reason: "staged" });
-    // Program rollback is not data rollback: only to a version that reads
-    // what the current one wrote.
-    if (
-      input.kind === "rollback" &&
-      !canRead(identity.schemas, input.requiredSchemas ?? writtenSchemas())
-    )
-      return failed("rollback-unavailable", { reason: "schema", version });
-    const at = effects.clock();
-    record = Object.freeze({
-      schemaVersion: 1,
-      operation: input.operation,
-      kind: input.kind,
-      previous,
-      candidate: input.candidate,
-      phase: "switching",
-      deadline: new Date(at.getTime() + policy.deadlineMs).toISOString(),
-      switchedAt: null,
-      service: input.service,
-      folder: input.folder ?? null,
-    });
-    try {
-      await writeActivationRecord(base, record, effects.write);
-      await effects.swapSelector(base, input.candidate);
-      record = Object.freeze({
-        ...record,
-        phase: "confirming",
-        switchedAt: effects.clock().toISOString(),
-      });
-      await writeActivationRecord(base, record, effects.write);
-    } catch {
-      // Still under the lock: undo what was done, in the recovery order.
-      await rollBack(
-        base,
-        record,
-        effects,
-        updateError("activation-failed", { reason: "switch" }),
-      ).catch(() => undefined);
-      return failed("activation-failed", { reason: "switch" });
+    const found = await readActivationRecord(base);
+    const own =
+      found.kind === "record" &&
+      found.record.operation === input.operation &&
+      found.record.candidate === input.candidate
+        ? found.record
+        : undefined;
+    const adopted = own
+      ? await adopt(base, own, effects).catch(() => undefined)
+      : undefined;
+    if (adopted) {
+      // This worker was restarted by its supervisor after it died: the same
+      // operation continues under its original deadline.
+      ({ record, identity } = adopted);
+    } else {
+      const abandoned = await settleAbandoned(base, effects, policy);
+      if (abandoned.kind === "in-progress")
+        return failed("busy", { reason: "activation" });
+      // An operation is not begun a second time once it was settled.
+      if (own)
+        return abandoned.kind === "confirmed"
+          ? {
+              kind: "confirmed",
+              version,
+              candidate: own.candidate,
+              previous: own.previous,
+            }
+          : failed("activation-interrupted", { resumed: abandoned.kind });
+      const begun = await begin(input, effects, policy, version);
+      if ("kind" in begun) return begun;
+      ({ record, identity } = begun);
     }
     await observe(base, effects, () => ({
       status: "activating",

@@ -14,7 +14,7 @@ import { parseServiceSpec } from "./activation-record";
 import { resolveInstallBase } from "./base";
 import { isUpdateChannel } from "./channel";
 import { type CheckResult, checkForUpdate } from "./check";
-import { readChannel, writeChannel } from "./config";
+import { changeUpdateConfig, readUpdateConfig } from "./config";
 import {
   defaultArtifactOrigins,
   defaultMetadataBaseUrl,
@@ -32,9 +32,15 @@ import {
   updateErrors,
 } from "./errors";
 import { embeddedIdentity, type ProductIdentity } from "./identity";
+import {
+  defaultLaunchpadUnit,
+  type InstallResult,
+  performInstall,
+  userUnitDirectory,
+} from "./install";
 import { layout } from "./layout";
 import { type Observed, readObserved } from "./observed";
-import { selfCheckReport } from "./self-check";
+import { type ProcessRunner, selfCheckReport } from "./self-check";
 import { ensureOwnedDirectory } from "./trust";
 import {
   performRollback,
@@ -52,34 +58,58 @@ import {
  */
 export const updateHelp = `--version [--json]
   Prints the version, source commit and target this executable was built with.
-update [--download-only] [--channel <stable|preview>] [--base <absolute directory>]
-  [--folder <absolute Folder>] [--service <none|systemd-user> --unit <name.service>]
+install [--channel <stable|preview>] [--base <absolute directory>]
+  [--service systemd-user --folder <absolute Folder> [--unit <name.service>]
+   [--organization-directory <dir> [--bun-executable <bun>]]]
+  [<repository options>] [--json]
+  This executable installs ITSELF as the first version: it proves through signed
+  metadata that its own bytes are a published artifact with the identity
+  compiled into it, copies itself to versions/, and points bin/lazurio at it.
+  It downloads nothing but signed metadata and its own signed identity.
+  Refused when an installation exists (already-installed): versions change
+  through update. All or nothing; shell profiles are not edited. With --service
+  (Linux) it writes, enables and starts a systemd user unit for the Launchpad
+  (default lazurio-launchpad.service) and refuses a unit of that name it did not
+  write. The channel, the service and the Folder are recorded in
+  update/config.json, so update needs no flag for them.
+<repository options>, for install, update and update --check:
   [--metadata-url <https://.../metadata/> --target-url <https://.../targets/>
    [--artifact-origin <https://host>]...] [--bootstrap-root <owned file>]
-  [--loopback-fixture] [--json]
+  [--loopback-fixture]
+  The signed repository, the origins a download may touch and the trust root are
+  compiled into the executable; these flags only override them (a fork, a
+  mirror, a fixture). --metadata-url and --target-url come together and name
+  another repository as a whole: then only its origins and every
+  --artifact-origin are contacted, never the compiled-in ones.
+  --bootstrap-root replaces the compiled-in root as the supplied root. A supplied
+  root seeds trust while none exists; afterwards it is ignored unless it is the
+  verified direct successor of the trusted root. It is never a conflict. With no
+  compiled-in root and no --bootstrap-root the answer is trust-missing and
+  nothing is created.
+update [--download-only] [--channel <stable|preview>] [--base <absolute directory>]
+  [--folder <absolute Folder>] [--service <none|systemd-user> --unit <name.service>]
+  [--deadline-ms <n>] [--stability-ms <n>] [<repository options>] [--json]
   Checks, downloads, verifies and stages the channel's version and activates it:
   the selector bin/lazurio is switched and the new version must confirm itself,
   otherwise the previous version is selected again. --download-only stops after
   staging. With --folder the candidate must prove it can read that Folder's state.
   --service systemd-user restarts the named user unit and waits for a fresh,
   stable Launchpad of the new version; none (default) manages no service.
-  The signed repository, the origins a download may touch and the trust root are
-  compiled in; the channel comes from \`update channel\`. --metadata-url and
-  --target-url (always together) name another repository: then only its origins
-  and every --artifact-origin are contacted, never the compiled-in ones. A build
-  without a compiled-in root answers trust-missing unless --bootstrap-root is given.
+  Channel, service and Folder default to what update/config.json records.
+  The activation deadline (120000 ms) and stability period (10000 ms) can be
+  shortened for qualification runs.
   Exit 0 updated, staged or nothing to do; an error prints its stable code.
 update --check <same origin options> [--json]
   Verifies signed metadata and the channel document, records verified trust and
-  rewrites the observation. Downloads and activates nothing. The bootstrap root
-  is accepted only while no valid trust exists and refused afterwards.
+  rewrites the observation. Downloads and activates nothing.
   Exit 0 up to date, 10 update available; an error prints its stable code.
 update rollback [--base <absolute directory>] [--folder ...] [--service ... --unit ...] [--json]
   Activates the version the last confirmed activation replaced, through the same
   confirmation. Refused when that version cannot read the current state schemas.
 update channel [stable|preview] [--base <absolute directory>] [--json]
-  Prints the channel, or selects it for later checks. Switching never downgrades:
-  a channel whose version is not newer than the installed one reports up to date.
+  Prints the channel, or selects it for later checks; the recorded service and
+  Folder are kept. Switching never downgrades: a channel whose version is not
+  newer than the installed one reports up to date.
 update status [--base <absolute directory>] [--json]
   Prints the last observation without touching the network.
 self-check [--json] [--folder <absolute Folder>]
@@ -216,6 +246,88 @@ const positiveInteger = (value: string | undefined): number | undefined =>
     ? Number(value)
     : undefined;
 
+type RepositoryOptions = Readonly<{
+  "metadata-url"?: string | undefined;
+  "target-url"?: string | undefined;
+  "artifact-origin"?: string[] | undefined;
+  "bootstrap-root"?: string | undefined;
+  "loopback-fixture"?: boolean | undefined;
+}>;
+
+/** Where `install`, `update` and `update --check` look and whom they trust:
+ * the ONE place that turns the compiled-in defaults and their overriding
+ * flags into the inputs of a check.
+ *
+ * Another repository is named as a whole, and then ONLY what the caller named
+ * is contacted: a fixture or a mirror never falls back to the compiled-in
+ * origins, and the compiled-in repository never accepts extra origins. The
+ * supplied root is the caller's `--bootstrap-root`, else the compiled-in one,
+ * else none — and then a check without durable trust is `trust-missing`.
+ */
+async function resolveRepository(
+  values: RepositoryOptions,
+  timeoutMs: number,
+  embeddedRoot: Uint8Array | undefined = embeddedTrustRoot(),
+): Promise<
+  | Readonly<{ invalid: string }>
+  | Readonly<{
+      transport: DistributionTransport;
+      source: Readonly<{
+        metadataBaseUrl: string;
+        targetBaseUrl: string;
+        bootstrapRoot?: Uint8Array;
+      }>;
+    }>
+> {
+  const explicit =
+    values["metadata-url"] !== undefined || values["target-url"] !== undefined;
+  const metadataBaseUrl = explicit
+    ? values["metadata-url"]
+    : defaultMetadataBaseUrl;
+  const targetBaseUrl = explicit ? values["target-url"] : defaultTargetBaseUrl;
+  if (
+    !metadataBaseUrl ||
+    !targetBaseUrl ||
+    (!explicit && values["artifact-origin"] !== undefined)
+  )
+    return { invalid: "repository" };
+  let transport: DistributionTransport;
+  try {
+    transport = new DistributionTransport(
+      [
+        ...new Set([
+          new URL(metadataBaseUrl).origin,
+          new URL(targetBaseUrl).origin,
+          ...(explicit
+            ? (values["artifact-origin"] ?? [])
+            : defaultArtifactOrigins),
+        ]),
+      ],
+      timeoutMs,
+      new AbortController().signal,
+      values["loopback-fixture"] === true,
+    );
+  } catch {
+    return { invalid: "url" };
+  }
+  let bootstrapRoot = embeddedRoot;
+  if (values["bootstrap-root"] !== undefined)
+    try {
+      // A trust anchor is read only from a caller-owned, non-shared file.
+      bootstrapRoot = await readOwnedDeclarationBytes(values["bootstrap-root"]);
+    } catch {
+      return { invalid: "bootstrap-root" };
+    }
+  return {
+    transport,
+    source: {
+      metadataBaseUrl,
+      targetBaseUrl,
+      ...(bootstrapRoot === undefined ? {} : { bootstrapRoot }),
+    },
+  };
+}
+
 /** Never throws: every refusal is a typed result with a stable exit status. */
 export async function runUpdateCommand(
   args: readonly string[],
@@ -285,20 +397,32 @@ export async function runUpdateCommand(
       return render(failure("invalid-request", { option: "base" }), json);
     const only = (allowed: readonly string[]) =>
       [...supplied].every((name) => allowed.includes(name));
-    const folder = values.folder;
+    // What `lazurio install` recorded about this Machine; a flag overrides it.
+    const recorded = await readUpdateConfig(base);
+    const folder =
+      values.folder ??
+      (positionals[0] === "apply-worker" || positionals[0] === "status"
+        ? undefined
+        : (recorded.folder ?? undefined));
     if (
       folder !== undefined &&
       (!isAbsolute(folder) || resolve(folder) !== folder)
     )
       return render(failure("invalid-request", { option: "folder" }), json);
-    const service = parseServiceSpec(
-      values.unit === undefined
-        ? { kind: values.service ?? "none" }
-        : { kind: values.service, unit: values.unit },
-    );
+    const service =
+      values.service === undefined && values.unit === undefined
+        ? recorded.service
+        : parseServiceSpec(
+            values.unit === undefined
+              ? { kind: values.service }
+              : { kind: values.service, unit: values.unit },
+          );
     if (!service)
       return render(failure("invalid-request", { option: "service" }), json);
-    const activation = {
+    const activation: {
+      effects?: Partial<ActivationEffects>;
+      policy?: Partial<ActivationPolicy>;
+    } = {
       ...(environment.activationEffects || environment.clock
         ? {
             effects: {
@@ -311,7 +435,38 @@ export async function runUpdateCommand(
         ? { policy: environment.activationPolicy }
         : {}),
     };
-    const serviceOptions = ["service", "unit", "folder"];
+    const serviceOptions = [
+      "service",
+      "unit",
+      "folder",
+      "deadline-ms",
+      "stability-ms",
+    ];
+    // Qualification and canary runs shorten the accepted defaults.
+    const requested = {
+      deadlineMs: positiveInteger(values["deadline-ms"]),
+      stabilityMs: positiveInteger(values["stability-ms"]),
+    };
+    if (
+      (values["deadline-ms"] !== undefined &&
+        requested.deadlineMs === undefined) ||
+      (values["stability-ms"] !== undefined &&
+        requested.stabilityMs === undefined)
+    )
+      return render(failure("invalid-request", { option: "deadline" }), json);
+    if (
+      requested.deadlineMs !== undefined ||
+      requested.stabilityMs !== undefined
+    )
+      activation.policy = {
+        ...activation.policy,
+        ...(requested.deadlineMs === undefined
+          ? {}
+          : { deadlineMs: requested.deadlineMs }),
+        ...(requested.stabilityMs === undefined
+          ? {}
+          : { stabilityMs: requested.stabilityMs }),
+      };
 
     if (positionals.length === 1 && positionals[0] === "apply-worker") {
       // Internal: started by `requestActivation` from the selected version.
@@ -335,19 +490,24 @@ export async function runUpdateCommand(
         stabilityMs === undefined
       )
         return renderOperation(failure("invalid-request"), true);
-      return renderOperation(
-        await runActivationWorker({
-          base,
-          candidate: values.candidate,
-          operation: values.operation,
-          kind: values.kind,
-          service,
-          folder,
-          policy: { ...activation.policy, deadlineMs, stabilityMs },
-          effects: activation.effects,
-        }),
-        true,
-      );
+      // An answer — a typed refusal included — is a finished worker: exit 0.
+      // Only a worker that DIED is a failure its supervisor restarts.
+      return {
+        ...renderOperation(
+          await runActivationWorker({
+            base,
+            candidate: values.candidate,
+            operation: values.operation,
+            kind: values.kind,
+            service,
+            folder,
+            policy: { ...activation.policy, deadlineMs, stabilityMs },
+            effects: activation.effects,
+          }),
+          true,
+        ),
+        code: 0,
+      };
     }
     if (positionals[0] === "channel" && positionals.length <= 2) {
       if (!only(["json", "base"]))
@@ -362,7 +522,7 @@ export async function runUpdateCommand(
         try {
           await mkdir(base, { recursive: true, mode: 0o700 });
           await ensureOwnedDirectory(layout(base).update);
-          await writeChannel(base, wanted, writeDurableFile);
+          await changeUpdateConfig(base, { channel: wanted }, writeDurableFile);
         } catch {
           return render(
             failure("storage-unavailable", { stage: "config" }),
@@ -370,7 +530,7 @@ export async function runUpdateCommand(
           );
         }
       }
-      const selected = await readChannel(base);
+      const selected = (await readUpdateConfig(base)).channel;
       return {
         code: 0,
         stdout: json
@@ -417,69 +577,27 @@ export async function runUpdateCommand(
       ])
     )
       return render(failure("invalid-request"), json);
-    const channel = values.channel ?? (await readChannel(base));
-    // Another repository is named as a whole, and then ONLY what the caller
-    // named is contacted: a fixture or a mirror never falls back to the
-    // compiled-in origins.
-    const explicit =
-      values["metadata-url"] !== undefined ||
-      values["target-url"] !== undefined;
-    const metadataBaseUrl = explicit
-      ? values["metadata-url"]
-      : defaultMetadataBaseUrl;
-    const targetBaseUrl = explicit
-      ? values["target-url"]
-      : defaultTargetBaseUrl;
-    if (
-      !isUpdateChannel(channel) ||
-      !metadataBaseUrl ||
-      !targetBaseUrl ||
-      (!explicit && values["artifact-origin"] !== undefined)
-    )
+    const channel = values.channel ?? recorded.channel;
+    if (!isUpdateChannel(channel))
       return render(failure("invalid-request"), json);
-    let transport: DistributionTransport;
-    try {
-      transport = new DistributionTransport(
-        [
-          ...new Set([
-            new URL(metadataBaseUrl).origin,
-            new URL(targetBaseUrl).origin,
-            ...(explicit
-              ? (values["artifact-origin"] ?? [])
-              : defaultArtifactOrigins),
-          ]),
-        ],
-        // One transport per operation: a check is short, a download is
-        // bounded by its own deadline inside this outer limit.
-        checking ? 60_000 : defaultDownloadPolicy.deadlineMs + 300_000,
-        new AbortController().signal,
-        values["loopback-fixture"] === true,
+    const repository = await resolveRepository(
+      values,
+      // One transport per operation: a check is short, a download is bounded
+      // by its own deadline inside this outer limit.
+      checking ? 60_000 : defaultDownloadPolicy.deadlineMs + 300_000,
+      environment.embeddedRoot,
+    );
+    if ("invalid" in repository)
+      return render(
+        failure("invalid-request", { option: repository.invalid }),
+        json,
       );
-    } catch {
-      return render(failure("invalid-request", { option: "url" }), json);
-    }
-    let bootstrapRoot: Uint8Array | undefined;
-    if (values["bootstrap-root"] !== undefined)
-      try {
-        // A trust anchor is read only from a caller-owned, non-shared file.
-        bootstrapRoot = await readOwnedDeclarationBytes(
-          values["bootstrap-root"],
-        );
-      } catch {
-        return render(
-          failure("invalid-request", { option: "bootstrap-root" }),
-          json,
-        );
-      }
-    const embeddedRoot = environment.embeddedRoot ?? embeddedTrustRoot();
+    const { transport } = repository;
     const checkInput = {
       base,
-      metadataBaseUrl,
-      targetBaseUrl,
       channel,
       identity: environment.identity ?? embeddedIdentity(),
-      ...(bootstrapRoot === undefined ? {} : { bootstrapRoot }),
-      ...(embeddedRoot === undefined ? {} : { embeddedRoot }),
+      ...repository.source,
       transport,
       clock,
     };
@@ -528,4 +646,141 @@ export async function runUpdateCommand(
       String((error as { code: string }).code).startsWith("ERR_PARSE_ARGS");
     return render(failure(usage ? "invalid-request" : "internal"), json);
   }
+}
+
+/** `lazurio install`: see `install.ts`. Never throws. */
+export async function runInstallCommand(
+  args: readonly string[],
+  environment: Readonly<{
+    identity?: ProductIdentity;
+    /** Stands in for the compiled-in root (`defaults.ts`). */
+    embeddedRoot?: Uint8Array;
+    clock?: () => Date;
+    platform?: string;
+    env?: Readonly<Record<string, string | undefined>>;
+    executable?: string;
+    run?: ProcessRunner;
+  }> = {},
+): Promise<CommandOutput> {
+  let json = args.includes("--json");
+  const refuse = (code: UpdateErrorCode, context: ErrorContext = {}) =>
+    renderInstall(failure(code, context), json);
+  try {
+    const { values, tokens } = parseArgs({
+      args: [...args],
+      strict: true,
+      allowPositionals: false,
+      tokens: true,
+      options: {
+        json: { type: "boolean" },
+        "metadata-url": { type: "string" },
+        "target-url": { type: "string" },
+        channel: { type: "string" },
+        "bootstrap-root": { type: "string" },
+        "artifact-origin": { type: "string", multiple: true },
+        base: { type: "string" },
+        "loopback-fixture": { type: "boolean" },
+        service: { type: "string" },
+        unit: { type: "string" },
+        folder: { type: "string" },
+        "organization-directory": { type: "string" },
+        "bun-executable": { type: "string" },
+      },
+    });
+    json = values.json === true;
+    const names: string[] = tokens.flatMap((token) =>
+      token.kind === "option" ? [token.name] : [],
+    );
+    if (
+      new Set(names).size !==
+      names.filter((name) => name !== "artifact-origin").length +
+        (names.includes("artifact-origin") ? 1 : 0)
+    )
+      return refuse("invalid-request");
+    const env = environment.env ?? process.env;
+    const platform = environment.platform ?? process.platform;
+    const base =
+      values.base ?? resolveInstallBase({ platform, env, homedir: env.HOME });
+    if (!base || !isAbsolute(base) || resolve(base) !== base)
+      return refuse("invalid-request", { option: "base" });
+    // A channel chosen before the installation is kept; a flag overrides it
+    // and is what gets recorded.
+    const channel = values.channel ?? (await readUpdateConfig(base)).channel;
+    if (!isUpdateChannel(channel)) return refuse("invalid-request");
+    // The Launchpad's arguments belong to the service and to nothing else.
+    const wantsService = values.service !== undefined;
+    const unitDirectory = userUnitDirectory(env);
+    if (
+      (wantsService &&
+        (values.service !== "systemd-user" ||
+          values.folder === undefined ||
+          unitDirectory === undefined ||
+          (values["bun-executable"] !== undefined &&
+            values["organization-directory"] === undefined))) ||
+      (!wantsService &&
+        ["unit", "folder", "organization-directory", "bun-executable"].some(
+          (name) => names.includes(name),
+        ))
+    )
+      return refuse("invalid-request", { option: "service" });
+    const repository = await resolveRepository(
+      values,
+      120_000,
+      environment.embeddedRoot,
+    );
+    if ("invalid" in repository)
+      return refuse("invalid-request", { option: repository.invalid });
+    return renderInstall(
+      await performInstall({
+        base,
+        channel,
+        identity: environment.identity ?? embeddedIdentity(),
+        ...repository.source,
+        transport: repository.transport,
+        clock: environment.clock ?? (() => new Date()),
+        executable: environment.executable ?? process.execPath,
+        platform,
+        env,
+        run: environment.run,
+        service:
+          wantsService && unitDirectory !== undefined
+            ? {
+                unit: values.unit ?? defaultLaunchpadUnit,
+                unitDirectory,
+                folder: values.folder as string,
+                organizationDirectory: values["organization-directory"],
+                bunExecutable: values["bun-executable"],
+              }
+            : undefined,
+      }),
+      json,
+    );
+  } catch (error) {
+    const usage =
+      typeof (error as { code?: unknown } | undefined)?.code === "string" &&
+      String((error as { code: string }).code).startsWith("ERR_PARSE_ARGS");
+    return refuse(usage ? "invalid-request" : "internal");
+  }
+}
+
+function renderInstall(result: InstallResult, json: boolean): CommandOutput {
+  const code = result.kind === "error" ? updateErrors[result.code].exit : 0;
+  if (json) return { code, stdout: JSON.stringify(result), stderr: "" };
+  if (result.kind === "error")
+    return { code, stdout: "", stderr: `Install failed: ${result.code}` };
+  return {
+    code,
+    stdout: [
+      `Installed lazurio ${result.version}.`,
+      result.service.kind === "systemd-user"
+        ? `The Launchpad runs as the user service ${result.service.unit}.`
+        : "No Launchpad service is managed on this Machine.",
+      ...(result.available
+        ? [`Version ${result.available} is available: run \`lazurio update\`.`]
+        : []),
+      // A hint, not an edit: shell profiles belong to the person.
+      `Add it to your PATH: export PATH="${result.path}:$PATH"`,
+    ].join("\n"),
+    stderr: "",
+  };
 }

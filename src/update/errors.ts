@@ -12,10 +12,11 @@ export const updateErrors = {
   "metadata-expired": { exit: 21, retryable: true },
   "metadata-invalid": { exit: 22, retryable: true },
   // 23 was `channel-rollback`: rollback of the channel document is refused by
-  // TUF itself (`metadata-invalid`). 31 was `not-implemented`. Never reused.
+  // TUF itself (`metadata-invalid`). 26 was `trust-conflict`: a supplied root
+  // beside durable trust is ignored or followed, never a conflict. 31 was
+  // `not-implemented`. Never reused.
   "channel-invalid": { exit: 24, retryable: true },
   "trust-missing": { exit: 25, retryable: false },
-  "trust-conflict": { exit: 26, retryable: false },
   "trust-invalid": { exit: 27, retryable: false },
   "target-unsupported": { exit: 28, retryable: true },
   /** Another update step or a live activation worker owns the base. */
@@ -41,6 +42,17 @@ export const updateErrors = {
   /** The worker died; a later start rolled the activation back. */
   "activation-interrupted": { exit: 41, retryable: true },
   "rollback-unavailable": { exit: 42, retryable: false },
+  /** A selector exists. Versions change through `lazurio update`. */
+  "already-installed": { exit: 43, retryable: false },
+  /** The bytes of this executable are not a signed artifact of the repository. */
+  "unverified-executable": { exit: 44, retryable: false },
+  /** A service unit of that name exists and was not written by this product. */
+  "unit-conflict": { exit: 45, retryable: false },
+  /** The service manager refused; the installation was undone. */
+  "service-failed": { exit: 46, retryable: true },
+  /** A signed location, or a redirect from it, names an origin this product
+   * does not contact. Repeating the action cannot change that. */
+  "origin-refused": { exit: 47, retryable: false },
   internal: { exit: 70, retryable: false },
 } as const satisfies Record<string, { exit: number; retryable: boolean }>;
 

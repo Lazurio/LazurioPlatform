@@ -11,9 +11,13 @@ content, history and artifact contents before sharing. Follow `docs/public-devel
 Do not invent a secret store or hide harmless implementation details.
 
 Read `ARCHITECTURE.md`, `docs/decisions.md`, `docs/migration-and-recovery.md` and
-`docs/acceptance.md` before implementation. Read `docs/release-cycle.md` for the
-two distinct test/activation paths, `docs/profile-evidence.md` for optional measurement
-and `docs/hosted-assistance.md` before any hosted advice/execution work. This foundation is a proposal and bounded
+`docs/acceptance.md` before implementation. Read `docs/update.md`, the accepted
+contract for product update, before any distribution work, and `docs/release-cycle.md`
+for the build, qualification and promotion lifecycle and the two distinct test paths, `docs/profile-evidence.md` for optional measurement
+and `docs/hosted-assistance.md` before any hosted advice/execution work. Read
+`docs/content-sync.md`, `docs/workspace-presets.md` and `docs/hosted-entry.md` before
+work on repository synchronization, presets or hosted entry; they record accepted
+direction, not implemented behavior. This foundation is a proposal and bounded
 proof, not authorization to migrate an installation, transfer a repository, publish
 a release or change access. Distinguish proposed contracts from executable evidence.
 

@@ -1,3 +1,4 @@
+import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { productHelp, runProductCommand } from "./distribution/product-cli";
 import { initializeFolder } from "./folder/initialize-folder";
@@ -20,10 +21,11 @@ import { localApplicationAdapters } from "./modules/local-application-adapters";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
-import { resumeActivation } from "./update/activate";
+import { resumeActivation, watchActivation } from "./update/activate";
 import { resolveInstallBase } from "./update/base";
 import {
   type CommandOutput,
+  runInstallCommand,
   runUpdateCommand,
   selfCheckCommand,
   updateHelp,
@@ -39,10 +41,55 @@ function emit(output: CommandOutput): number {
 
 // Development CLI entrypoint. No implicit folder discovery; the only
 // installer surface is the explicit `product` command group.
+/** The install base of this start: an explicit `--base` (the Launchpad unit
+ * written by `lazurio install` carries one, because a service manager's
+ * environment need not be the person's), else the per-user default.
+ */
+function installBase(args: readonly string[]): string | undefined {
+  const explicit = args[args.indexOf("--base") + 1];
+  if (args.includes("--base"))
+    return explicit && isAbsolute(explicit) && resolve(explicit) === explicit
+      ? explicit
+      : undefined;
+  return resolveInstallBase({
+    platform: process.platform,
+    env: process.env,
+    homedir: process.env.HOME,
+  });
+}
+
+/** EVERY start converges an activation whose worker died (docs/update.md
+ * "Activate"); with no record this is one `lstat`. Silent unless it acted.
+ * Two commands are exempt: `self-check` promises to write nothing and is what
+ * a worker runs on an unconfirmed candidate, and `update …` resumes for the
+ * base it was given, which need not be this one.
+ */
+async function convergeActivation(args: readonly string[]): Promise<void> {
+  if (["self-check", "update", "install"].includes(args[0] ?? "")) return;
+  const base = installBase(args);
+  if (!base) return;
+  try {
+    const resumed = await resumeActivation({ base });
+    if (resumed.kind === "confirmed")
+      console.error(
+        `Lazurio finished an interrupted update: ${resumed.candidate} is active.`,
+      );
+    else if (resumed.kind === "rolled-back")
+      console.error(
+        `Lazurio undid an interrupted update: ${resumed.previous} is active. Run \`lazurio update\` to try again.`,
+      );
+  } catch {
+    // Never in the way of the command that was asked for.
+  }
+}
+
 export async function runCli(args: string[]): Promise<number> {
+  await convergeActivation(args);
   if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
   if (args[0] === "self-check")
     return emit(await selfCheckCommand(args.slice(1)));
+  if (args[0] === "install")
+    return emit(await runInstallCommand(args.slice(1)));
   if (args[0] === "update")
     return emit(
       await runUpdateCommand(args.slice(1), {
@@ -190,6 +237,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     tokens: true,
     options: {
       folder: { type: "string" },
+      base: { type: "string" },
       "organization-directory": { type: "string" },
       "bun-executable": { type: "string" },
       profile: { type: "string" },
@@ -227,9 +275,12 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       !values.folder ||
       Object.keys(values).some(
         (name) =>
-          !["folder", "organization-directory", "bun-executable"].includes(
-            name,
-          ),
+          ![
+            "folder",
+            "base",
+            "organization-directory",
+            "bun-executable",
+          ].includes(name),
       )
     )
       throw new Error("Explicit Launchpad fixture required");
@@ -251,14 +302,9 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         environment,
       });
     }
-    const base = resolveInstallBase({
-      platform: process.platform,
-      env: process.env,
-      homedir: process.env.HOME,
-    });
-    // Any start converges an activation whose worker died; a live worker —
-    // the one that just restarted this Launchpad — is left alone.
-    if (base) await resumeActivation({ base }).catch(() => undefined);
+    const base = installBase(args);
+    if (values.base !== undefined && !base)
+      throw new Error("Absolute canonical install base required");
     const { close, url } = await startLaunchpad(
       values.folder,
       applicationAdapters,
@@ -272,6 +318,9 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(
       JSON.stringify({ url, scope: "local-development-profile-panel" }),
     );
+    // Started with an activation still open (its worker is waiting for this
+    // instance, or is gone — after a reboot): keep looking until it is settled.
+    if (base) void watchActivation({ base }).catch(() => undefined);
     for (const signal of ["SIGINT", "SIGTERM"] as const)
       process.once(signal, async () => {
         try {
@@ -285,7 +334,8 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
   }
   if (
     values["organization-directory"] !== undefined ||
-    values["bun-executable"] !== undefined
+    values["bun-executable"] !== undefined ||
+    values.base !== undefined
   )
     throw new Error("Discovery option belongs only to Launchpad");
   if (positionals[0] === "folder-resume") {

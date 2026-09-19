@@ -1,14 +1,23 @@
 import type { Fetcher } from "tuf-js";
 // Pinned-client compatibility: the Updater recognizes this class for root 404.
 import { DownloadHTTPError } from "tuf-js/dist/error";
-import { TransferTooLargeError } from "../distribution/transport";
+import {
+  OriginRefusedError,
+  TransferTooLargeError,
+} from "../distribution/transport";
 
 export type TransferFailure = Readonly<{
   resource: string;
   httpStatus?: number;
   /** The response exceeded the limit the client asked for. */
   tooLarge?: true;
+  /** The transport's origin policy refused the URL or a redirect from it. */
+  originRefused?: true;
 }>;
+
+/** File name as kept in `trust/` (`timestamp.json`, `3.root.json`) and the
+ * bytes exactly as received. */
+export type DeliveredRole = Readonly<{ file: string; bytes: Buffer }>;
 
 /** Observes one refresh from the outside; it never alters a response.
  *
@@ -16,8 +25,12 @@ export type TransferFailure = Readonly<{
  *    its single `root.json` for every link of a rotation, but `trust/` retains
  *    the whole chain. The kept bytes are UNTRUSTED until promotion re-verifies
  *    them as a chain (`promoteVerified`).
- *  - It knows which role was delivered last without a later request having
- *    started: that role's verification is not known to have completed.
+ *  - It retains the RAW BYTES of the role delivered last without a later
+ *    request having started. When a refresh fails, that is the role the client
+ *    was judging: it may have authenticated it and thrown only on expiry
+ *    (store.js:89-91, :133-136), keeping it in memory as its rollback floor and
+ *    never writing it. Promotion re-verifies those bytes by itself
+ *    (`promoteVerified`); they are UNTRUSTED here.
  *  - It remembers the last failed transfer, so a network failure is classified
  *    from the transport, not by parsing the client's wrapped error messages.
  *
@@ -25,7 +38,7 @@ export type TransferFailure = Readonly<{
  */
 export class TrustFetcher implements Fetcher {
   readonly roots = new Map<number, string>();
-  private delivered: string | undefined;
+  private delivered: DeliveredRole | undefined;
   private failure: TransferFailure | undefined;
 
   constructor(
@@ -33,8 +46,8 @@ export class TrustFetcher implements Fetcher {
     private readonly metadataBaseUrl: string,
   ) {}
 
-  /** File name (e.g. `snapshot.json`, `3.root.json`) or undefined. */
-  get unsettledFile(): string | undefined {
+  /** The role delivered last with no later request started, or undefined. */
+  get lastDelivered(): DeliveredRole | undefined {
     return this.delivered;
   }
 
@@ -80,6 +93,9 @@ export class TrustFetcher implements Fetcher {
         this.failure = Object.freeze({
           resource: new URL(url).pathname.split("/").at(-1) ?? "",
           ...(status === undefined ? {} : { httpStatus: status }),
+          ...(error instanceof OriginRefusedError
+            ? { originRefused: true as const }
+            : {}),
           ...(error instanceof TransferTooLargeError
             ? { tooLarge: true as const }
             : {}),
@@ -87,8 +103,9 @@ export class TrustFetcher implements Fetcher {
       throw error;
     }
     this.failure = undefined;
-    this.delivered = file;
     const bytes = received(value);
+    this.delivered =
+      file !== undefined && bytes ? Object.freeze({ file, bytes }) : undefined;
     const root = /^([1-9]\d*)\.root\.json$/.exec(file ?? "");
     // Same decoding the client applies before it parses and persists
     // (updater.js:366, store.js:35).

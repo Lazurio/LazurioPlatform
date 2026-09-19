@@ -15,7 +15,11 @@ import { join } from "node:path";
 import { runReleaseKeys } from "../scripts/release-keys";
 import { exitValidityLow, runReleasePublish } from "../scripts/release-publish";
 import { PublishError } from "../src/publish/errors";
-import { generateSigner, type Signer } from "../src/publish/keys";
+import {
+  generateSigner,
+  privateKeyPem,
+  type Signer,
+} from "../src/publish/keys";
 import {
   buildSnapshot,
   buildTargets,
@@ -356,6 +360,103 @@ test("promotion signs a stable document that names the same digests as preview, 
   expect(
     await refusal(promote(r.tree, { version: "1.2.0-rc.1" }, r.options())),
   ).toBe("invalid-input");
+});
+
+test("the signed minimum version of stable changes only through the explicit input of a promotion, only upwards, and never above the promoted version", async () => {
+  const r = await repository();
+  const stable = async () => {
+    const name = (await readdir(join(r.directory, "targets/channels")))
+      .filter((entry) => entry.endsWith(".stable.json"))
+      .map((entry) => join(r.directory, "targets/channels", entry));
+    const documents = await Promise.all(
+      name.map(async (path) =>
+        parseChannelDocument(await readFile(path), "stable"),
+      ),
+    );
+    return documents.sort((a, b) => b.sequence - a.sequence)[0];
+  };
+  const run = async (version: string, minimumVersion?: string) => {
+    const plan = await promote(
+      r.tree,
+      { version, ...(minimumVersion ? { minimumVersion } : {}) },
+      r.options(),
+    );
+    await applyPlan(r.directory, plan);
+    return plan.result;
+  };
+  // A floor set on preview is preview's: promotion never adopts it.
+  await applyPlan(
+    r.directory,
+    await addRelease(
+      r.tree,
+      {
+        channel: "preview",
+        version: "1.1.0",
+        notes: "",
+        artifacts: [artifact("1.1.0")],
+        minimumVersion: "1.0.5",
+      },
+      r.options(),
+    ),
+  );
+  expect(await run("1.1.0")).toMatchObject({ kind: "published", sequence: 1 });
+  expect((await stable())?.minimumVersion).toBe("0.0.1");
+  // Raised between releases: same version, same digests, a new document.
+  expect(await run("1.1.0", "1.0.0")).toMatchObject({
+    kind: "published",
+    version: "1.1.0",
+    sequence: 2,
+  });
+  expect(await stable()).toMatchObject({
+    minimumVersion: "1.0.0",
+    targets: { "linux-x64": `artifacts/${artifact("1.1.0").sha256}/lazurio` },
+  });
+  expect(await run("1.1.0", "1.0.0")).toMatchObject({ kind: "unchanged" });
+  // Never lowered, never out of reach, never malformed.
+  for (const floor of ["0.9.0", "1.1.1", "2", "1.1.0-rc.1x!"])
+    expect(
+      await refusal(
+        promote(
+          r.tree,
+          { version: "1.1.0", minimumVersion: floor },
+          r.options(),
+        ),
+      ),
+    ).toBe("invalid-input");
+  // Carried over by a later promotion that does not name one.
+  await r.release("1.2.0");
+  expect(await run("1.2.0")).toMatchObject({ sequence: 3 });
+  expect((await stable())?.minimumVersion).toBe("1.0.0");
+  // The command line passes it through.
+  await r.release("1.3.0");
+  const keys = await temporary("publish-floor-keys-");
+  for (const role of ["targets", "snapshot", "timestamp"] as const)
+    await writeFile(
+      join(keys, `${role}.private.pem`),
+      privateKeyPem(r.signers[role]),
+      { mode: 0o600 },
+    );
+  expect(
+    await runReleasePublish(
+      [
+        "promote",
+        "--version",
+        "1.3.0",
+        "--minimum-version",
+        "1.2.0",
+        "--tree",
+        r.directory,
+        "--keys-dir",
+        keys,
+      ],
+      { env: {}, now: () => start },
+    ),
+  ).toMatchObject({ code: 0 });
+  expect(await stable()).toMatchObject({
+    version: "1.3.0",
+    minimumVersion: "1.2.0",
+    sequence: 4,
+  });
 });
 
 test("refresh re-signs only snapshot and timestamp, or only the timestamp; targets are untouched", async () => {
@@ -800,9 +901,13 @@ test("the tree branch is append-only: one commit per deployment, a rewritten or 
     Bun.spawnSync(["git", ...args], { stdout: "pipe", stderr: "pipe" });
   expect(git(["init", "--bare", "--quiet", remote]).exitCode).toBe(0);
   const script = join(import.meta.dir, "../scripts/update-tree.sh");
-  const tool = (args: string[], from = remote) => {
+  const tool = (args: string[], from = remote, domain = "releases.example") => {
     const result = Bun.spawnSync(["bash", script, ...args], {
-      env: { PATH: process.env.PATH ?? "", UPDATE_TREE_REMOTE: from },
+      env: {
+        PATH: process.env.PATH ?? "",
+        UPDATE_TREE_REMOTE: from,
+        UPDATE_TREE_CNAME: domain,
+      },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -834,6 +939,17 @@ test("the tree branch is append-only: one commit per deployment, a rewritten or 
   await applyPlan(first, plan);
   expect(tool(["push", first, "Release 1.1.0 to preview"]).code).toBe(0);
   expect(commits()).toBe("1");
+  // The custom domain of the Pages site travels with the tree; a tree that is
+  // published under another domain than the product is built for is refused.
+  expect(await readFile(join(first, "CNAME"), "utf8")).toBe(
+    "releases.example\n",
+  );
+  expect(tool(["push", first, "other"], remote, "elsewhere.example").code).toBe(
+    1,
+  );
+  expect((await runReleasePublish(["pages-domain"], { env: {} })).stdout).toBe(
+    "releases.lazurio.io",
+  );
   // Nothing changed: nothing is pushed.
   expect(tool(["push", first, "again"]).stdout).toContain("Nothing changed");
   expect(commits()).toBe("1");

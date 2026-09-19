@@ -41,12 +41,24 @@ have seen a newer one refuse it, and `gh-pages` history shows it.
 Settings of `Lazurio/LazurioPlatform`, created by an Organization Admin — no
 workflow or agent creates them:
 
-1. **Pages**: Source "Deploy from a branch", branch `gh-pages`, folder `/`.
-   The branch is created by the first release. The published origin compiled
-   into the product is `https://lazurio.github.io/LazurioPlatform/`
-   (`src/update/defaults.ts`). If a custom domain is ever wanted, it must be
-   decided **before** the first client installation: the origin is compiled
-   into every executable.
+1. **The published origin `https://releases.lazurio.io`.** It is compiled into
+   every executable (`src/update/defaults.ts`) and can never be changed for
+   an installed Lazurio, which is why it is a name the project controls and not
+   a GitHub host. Three parts, all done by people with the respective rights:
+   - **DNS** (whoever administers `lazurio.io`): a `CNAME` record
+     `releases.lazurio.io` → `lazurio.github.io`. Nothing else on that name.
+   - **Domain verification** (GitHub Organization `Lazurio` → Settings →
+     Pages → verified domains): verify `lazurio.io`, so that no other GitHub
+     account can ever claim `releases.lazurio.io` for its own Pages site if
+     this one is unpublished for a moment.
+   - **Pages** (repository settings): Source "Deploy from a branch", branch
+     `gh-pages`, folder `/`; custom domain `releases.lazurio.io`; "Enforce
+     HTTPS" once the certificate is issued. The branch is created by the first
+     release, and the workflows keep the `CNAME` file in it, so the custom
+     domain survives every deployment. The first release's "wait until the
+     published origin serves it" step can only succeed once DNS and the
+     certificate are live; run `publish-tag` again after that — it is a no-op
+     for the tree and only repeats the wait.
 2. **Environment `release`**: required reviewers (at least the Principal);
    "Deployment branches and tags" limited to branch `main` and tags `v*`;
    environment secret `LAZURIO_TUF_TARGETS_KEY`.
@@ -115,6 +127,11 @@ creates the `gh-pages` tree with `metadata/1.root.json`, and publishes to
 - **Promotion**: "Release" workflow → *Run workflow* → `promote`, with the exact
   version. Approve the environment. `stable` then names the same digests
   `preview` offers; nothing is built. Pre-releases cannot be promoted.
+- **Raising the minimum version**: the optional `minimum_version` input of the
+  same `promote` dispatch. It is the only way the signed minimum version of
+  `stable` changes; it can only rise, never above the promoted version.
+  Promoting the version `stable` already offers, with a higher value, raises
+  it without a release.
 - **Freshness**: "Update metadata refresh" runs daily and needs no person.
 
 ## Expiry calendar
@@ -136,8 +153,10 @@ refresh job's own commits to `gh-pages` count as activity has **not** been
 verified; treat GitHub's "scheduled workflow disabled" e-mail as an incident,
 because once the job stops, metadata lapses within a week.
 
-Put two reminders in the Principal's calendar on the day of the ceremony: root
-renewal at ten months, and a quarterly look at the refresh job's summary.
+Put three reminders in the Principal's calendar on the day of the ceremony:
+root renewal at ten months, a quarterly look at the refresh job's summary, and
+the renewal date of the `lazurio.io` domain registration — losing the domain
+loses the update origin of every installed Lazurio.
 
 ## Renewing or rotating the root
 

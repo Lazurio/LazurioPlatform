@@ -9,6 +9,9 @@
 #   update-tree.sh checkout <directory>   clone the branch, or start it
 #   update-tree.sh push <directory> <commit message>
 #
+# UPDATE_TREE_CNAME, when set, is the custom domain of the Pages site: `push`
+# adds the CNAME file GitHub Pages reads it from, and refuses another value.
+#
 # Needs GITHUB_REPOSITORY and GH_TOKEN (contents: write for `push`). A local
 # rehearsal names another remote — a bare repository — in UPDATE_TREE_REMOTE
 # and needs neither.
@@ -57,6 +60,14 @@ case "$command" in
     message="${3:?commit message}"
     # Served as plain files: no Jekyll build, no ignored names.
     touch "$tree/.nojekyll"
+    if [ -n "${UPDATE_TREE_CNAME:-}" ]; then
+      if [ ! -e "$tree/CNAME" ]; then
+        printf '%s\n' "$UPDATE_TREE_CNAME" >"$tree/CNAME"
+      elif [ "$(tr -d '[:space:]' <"$tree/CNAME")" != "$UPDATE_TREE_CNAME" ]; then
+        echo "::error::The tree is published under another domain than the product is built for."
+        exit 1
+      fi
+    fi
     git -C "$tree" add --all
     if git -C "$tree" diff --cached --quiet; then
       echo "Nothing changed; nothing to deploy."

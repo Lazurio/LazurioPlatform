@@ -1,5 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  copyFile,
+  lstat,
+  mkdir,
   mkdtemp,
   readdir,
   readFile,
@@ -36,7 +39,11 @@ afterEach(async () => {
 });
 
 async function journey(
-  options: { installedIdentity?: Record<string, unknown> } = {},
+  options: {
+    installedIdentity?: Record<string, unknown>;
+    /** Leave the base absent: the test installs through the product. */
+    bare?: boolean;
+  } = {},
 ) {
   const a = await productBinary("1.0.0");
   const b = await productBinary("1.1.0");
@@ -55,7 +62,8 @@ async function journey(
   }) as string;
   const bootstrap = join(root, "root.json");
   await writeFile(bootstrap, fixture.bootstrapRoot, { mode: 0o600 });
-  await installVersion(base, a, options.installedIdentity ?? identityOf(a));
+  if (!options.bare)
+    await installVersion(base, a, options.installedIdentity ?? identityOf(a));
   const publish = (binary: ProductBinary, sequence: number) => {
     fixture.addArtifact({
       bytes: binary.bytes,
@@ -133,6 +141,8 @@ async function journey(
     a,
     b,
     fixture,
+    origins,
+    bootstrap,
     root,
     base,
     publish,
@@ -384,9 +394,20 @@ for (const scenario of [
       previous: j.a.name,
       candidate: j.b.name,
     });
-    expect(await j.runningVersion()).toBe(scenario.during);
+    expect(await j.selected()).toBe(
+      scenario.during === "1.1.0" ? j.b.name : j.a.name,
+    );
     await setControl(scenario.afterwards);
-    // ANY start converges — here the cheapest one there is.
+    // ANY start converges — every command does, silently unless it acted.
+    // Through the selector this runs whatever the crash left selected.
+    const any = await j.lazurio(["--version"]);
+    expect(any.code).toBe(0);
+    expect(any.stderr).toBe(
+      scenario.end === "1.1.0"
+        ? `Lazurio finished an interrupted update: ${j.b.name} is active.`
+        : `Lazurio undid an interrupted update: ${j.a.name} is active. Run \`lazurio update\` to try again.`,
+    );
+    expect((await j.lazurio(["--version"])).stderr).toBe("");
     const first = await j.status();
     const confirmed = scenario.end === "1.1.0";
     expect(first).toMatchObject(
@@ -530,4 +551,78 @@ test("a Launchpad started from the selected version announces its readiness with
   }
   expect(await launchpad.exited).toBe(0);
   await expect(readFile(readiness, "utf8")).rejects.toThrow();
+}, 120_000);
+
+test("fresh HOME: a downloaded executable installs ITSELF after proving its bytes against signed metadata, then updates and rolls back like any installation", async () => {
+  const j = await journey({ bare: true });
+  // Both versions are signed artifacts; the channel already offers 1.1.0.
+  j.fixture.addArtifact({
+    bytes: j.a.bytes,
+    version: j.a.version,
+    identity: identityOf(j.a),
+  });
+  j.publish(j.b, 1);
+  // What a person has after the HTTPS download: a file somewhere.
+  const downloaded = join(j.root, "Downloads", "lazurio");
+  await mkdir(join(j.root, "Downloads"));
+  await copyFile(j.a.path, downloaded);
+  const run = async (executable: string, args: string[]) => {
+    const child = Bun.spawn([executable, ...args], {
+      env: { HOME: j.root },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const stdout = await new Response(child.stdout).text();
+    return { code: await child.exited, stdout: stdout.trim() };
+  };
+  // A tampered download proves nothing and installs nothing.
+  const tampered = join(j.root, "Downloads", "tampered");
+  await writeFile(tampered, Buffer.concat([j.a.bytes, Buffer.from("x")]), {
+    mode: 0o755,
+  });
+  const install = ["install", "--json", "--bootstrap-root", j.bootstrap];
+  const refused = await run(tampered, [...install, ...j.origins]);
+  expect(refused.code).toBe(updateErrors["unverified-executable"].exit);
+  expect(JSON.parse(refused.stdout)).toMatchObject({
+    code: "unverified-executable",
+  });
+  await expect(readdir(j.base)).rejects.toThrow();
+
+  const installed = await run(downloaded, [...install, ...j.origins]);
+  expect(JSON.parse(installed.stdout)).toEqual({
+    kind: "installed",
+    version: "1.0.0",
+    name: j.a.name,
+    path: join(j.base, "bin"),
+    service: { kind: "none" },
+    available: "1.1.0",
+  });
+  expect(installed.code).toBe(0);
+  expect(await j.selected()).toBe(j.a.name);
+  expect(await j.runningVersion()).toBe("1.0.0");
+  for (const directory of ["", "bin", "versions", "trust", "update"])
+    expect((await lstat(join(j.base, directory))).mode & 0o777).toBe(0o700);
+  expect(await j.observed()).toMatchObject({
+    status: "available",
+    selected: { version: "1.0.0" },
+    available: { version: "1.1.0" },
+  });
+  expect(
+    JSON.parse((await run(downloaded, [...install, ...j.origins])).stdout),
+  ).toMatchObject({ code: "already-installed" });
+  // From here on it is an ordinary installation. Trust exists, so the update
+  // needs no bootstrap root.
+  const update = await j.lazurio(["update", "--json", ...j.origins]);
+  expect(JSON.parse(update.stdout)).toEqual({
+    kind: "updated",
+    version: "1.1.0",
+    previous: "1.0.0",
+  });
+  expect(await j.runningVersion()).toBe("1.1.0");
+  const back = await j.lazurio(["update", "rollback", "--json"]);
+  expect(JSON.parse(back.stdout)).toMatchObject({
+    kind: "rolled-back",
+    version: "1.0.0",
+  });
+  expect(await j.runningVersion()).toBe("1.0.0");
 }, 120_000);

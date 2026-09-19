@@ -27,6 +27,7 @@ import { isUpdateChannel } from "../src/update/channel";
 import {
   defaultArtifactOrigins,
   defaultMetadataBaseUrl,
+  defaultRepositoryOrigin,
 } from "../src/update/defaults";
 import { updateTargets } from "../src/update/identity";
 
@@ -60,9 +61,11 @@ add-release --channel <preview|stable> --version <semver> --notes-file <file>
   --asset-url-base the executables stay release assets and their URL is signed;
   without it they are published inside the tree. Every supported target must be
   present unless --targets names the ones this release has. Repeating it is a no-op.
-promote --version <semver>
+promote --version <semver> [--minimum-version <semver>]
   New signed stable document naming the artifacts preview offers for exactly
-  this version: the same digests, never a rebuild.
+  this version: the same digests, never a rebuild. --minimum-version is the ONLY
+  way the signed minimum version of stable changes; it can only rise, never above
+  the promoted version. Repeating a promotion with a higher one raises it alone.
 refresh [--roles <targets,snapshot,timestamp>] [--when-low]
   Re-signs with a fresh expiry; no target changes. --when-low renews snapshot
   and timestamp only when below their margin. Without roles it only installs
@@ -73,6 +76,9 @@ verify [--all-urls] [--artifact-origin <origin>]... [--loopback-fixture]
   Proves every object the current metadata references: files inside the tree by
   length and digest, and the signed download location of every artifact a
   channel selects (--all-urls: of every artifact) over the network.
+pages-domain
+  Prints the host of the compiled-in repository origin: the content of the CNAME
+  file GitHub Pages needs in the tree. Needs no --tree.
 await-deployment [--metadata-url <https://.../metadata/>] [--timeout-seconds <n>]
   Waits until the published origin (default: the one compiled into the product)
   answers the client's own timestamp.json URL with the tree's bytes. It proves
@@ -214,6 +220,12 @@ export async function runReleasePublish(
     });
     json = values.json === true;
     const command = positionals[0];
+    if (command === "pages-domain" && positionals.length === 1)
+      return {
+        code: 0,
+        stdout: new URL(defaultRepositoryOrigin).host,
+        stderr: "",
+      };
     const directory = values.tree;
     if (
       positionals.length !== 1 ||
@@ -280,7 +292,12 @@ export async function runReleasePublish(
         return { code: 2, stdout: "", stderr: releasePublishHelp };
       const plan = await promote(
         tree,
-        { version: values.version },
+        {
+          version: values.version,
+          ...(values["minimum-version"] === undefined
+            ? {}
+            : { minimumVersion: values["minimum-version"] }),
+        },
         await options(),
       );
       const written = await applyPlan(directory, plan);

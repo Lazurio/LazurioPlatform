@@ -64,6 +64,9 @@ const isTime = (value: unknown): value is string =>
   value.length <= 40 &&
   !Number.isNaN(Date.parse(value));
 
+export const activationRecordPath = (base: string) =>
+  join(layout(base).update, recordName);
+
 export function parseActivationRecord(value: unknown): ActivationRecord {
   const record = value as Record<string, unknown> | null;
   const service = parseServiceSpec(record?.service);
@@ -157,6 +160,14 @@ export async function readPrevious(base: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Remove whatever occupies the place of `previous.json`. */
+export async function clearPrevious(base: string): Promise<void> {
+  await rm(join(layout(base).update, previousName), {
+    recursive: true,
+    force: true,
+  });
 }
 
 export async function writePrevious(

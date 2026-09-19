@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, readlink, rename, rm, symlink } from "node:fs/promises";
+import { chmod, mkdir, readlink, rename, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { removeAbandonedTemporaries, syncDirectory } from "./durable-file";
 import { isProductVersion } from "./identity";
@@ -67,6 +67,7 @@ export async function swapSelector(base: string, name: string): Promise<void> {
   if (!parseVersionName(name)) throw new Error("Invalid version name");
   const { bin, selector } = layout(base);
   await mkdir(bin, { recursive: true, mode: 0o700 });
+  await chmod(bin, 0o700);
   // Callers hold the step lock: a temporary link here is a killed swap's.
   await removeAbandonedTemporaries(bin);
   const temporary = join(

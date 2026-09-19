@@ -38,42 +38,134 @@ function repository() {
   return { fixture, text };
 }
 
-test("the role delivered last in a failed refresh is withheld together with everything after it", async () => {
-  const { trustDirectory, scratch } = await directories();
+test("after a failed refresh the role delivered last becomes a floor only when it re-verifies, by itself, as an authentic newer version", async () => {
   const { fixture, text } = repository();
-  const seed: Seed = {
-    established: false,
-    root: fixture.bootstrapRoot.toString(),
-    roles: new Map(),
+  const forged = createUpdateFixture({ executionTarget: "linux-x64" });
+  cleanups.push(() => forged.stop());
+  forged.release("stable", { sequence: 1, version: "1.0.0" });
+  const first = {
+    timestamp: text("/metadata/timestamp.json"),
+    snapshot: text("/metadata/1.snapshot.json"),
   };
-  await writeFile(join(scratch, "root.json"), seed.root);
-  await writeFile(
-    join(scratch, "timestamp.json"),
-    text("/metadata/timestamp.json"),
-  );
-  await writeFile(
-    join(scratch, "snapshot.json"),
-    text("/metadata/1.snapshot.json"),
-  );
-  await writeFile(
-    join(scratch, "targets.json"),
-    text("/metadata/1.targets.json"),
-  );
+  fixture.publish();
+  const second = {
+    timestamp: text("/metadata/timestamp.json"),
+    snapshot: text("/metadata/2.snapshot.json"),
+    targets: text("/metadata/2.targets.json"),
+  };
+  const seed = (roles: Record<string, string>): Seed => ({
+    established: true,
+    root: fixture.bootstrapRoot.toString(),
+    anchor: fixture.bootstrapRoot.toString(),
+    repairRoot: false,
+    roles: new Map(Object.entries(roles)),
+  });
+  const promote = async (input: {
+    seed: Seed;
+    scratch: Record<string, string>;
+    delivered: [string, string];
+  }) => {
+    const { trustDirectory, scratch } = await directories();
+    await writeFile(join(scratch, "root.json"), input.seed.root);
+    for (const [name, content] of Object.entries(input.scratch))
+      await writeFile(join(scratch, name), content);
+    // The retained chain (`1.root.json`) is written into the empty directory
+    // every time; this test is about the roles.
+    return (
+      await promoteVerified({
+        trustDirectory,
+        scratch,
+        seed: input.seed,
+        fetchedRoots: new Map(),
+        lastDelivered: {
+          file: input.delivered[0],
+          bytes: Buffer.from(input.delivered[1]),
+        },
+        write: writeDurableFile,
+      })
+    ).filter((name) => !name.endsWith("root.json"));
+  };
+  const trusted = { "timestamp.json": first.timestamp };
+  // The client never wrote the newer timestamp (it threw); the raw bytes
+  // verify under the root and are newer: kept.
   expect(
-    await promoteVerified({
-      trustDirectory,
-      scratch,
-      seed,
-      fetchedRoots: new Map(),
-      unsettledFile: "snapshot.json",
-      write: writeDurableFile,
+    await promote({
+      seed: seed(trusted),
+      scratch: trusted,
+      delivered: ["timestamp.json", second.timestamp],
     }),
-  ).toEqual(["1.root.json", "root.json", "timestamp.json"]);
-  expect((await readdir(trustDirectory)).sort()).toEqual([
-    "1.root.json",
-    "root.json",
-    "timestamp.json",
-  ]);
+  ).toEqual(["timestamp.json"]);
+  for (const [name, delivered] of [
+    // Signed by another repository's timestamp key.
+    [
+      "foreign signature",
+      forged.served("/metadata/timestamp.json")?.toString(),
+    ],
+    ["damaged signature", second.timestamp.replace(/"sig":"../, '"sig":"00')],
+    ["not metadata", "{}"],
+    ["not JSON", "\u0000"],
+  ] as const)
+    expect([
+      name,
+      await promote({
+        seed: seed(trusted),
+        scratch: trusted,
+        delivered: ["timestamp.json", delivered ?? ""],
+      }),
+    ]).toEqual([name, []]);
+  // Authentic but LOWER or EQUAL: a replay is no floor.
+  const newer = { "timestamp.json": second.timestamp };
+  for (const delivered of [first.timestamp, second.timestamp])
+    expect(
+      await promote({
+        seed: seed(newer),
+        scratch: newer,
+        delivered: ["timestamp.json", delivered],
+      }),
+    ).toEqual([]);
+
+  // Snapshot: held against the newest authenticated timestamp, which the
+  // client persisted before it asked for the snapshot.
+  const before = {
+    "timestamp.json": first.timestamp,
+    "snapshot.json": first.snapshot,
+  };
+  const moved = { ...before, "timestamp.json": second.timestamp };
+  expect(
+    await promote({
+      seed: seed(before),
+      scratch: moved,
+      delivered: ["snapshot.json", second.snapshot],
+    }),
+  ).toEqual(["timestamp.json", "snapshot.json"]);
+  for (const [name, scratch, delivered] of [
+    // Not the snapshot the timestamp names: wrong version and hash.
+    ["other version", moved, first.snapshot],
+    ["foreign", moved, forged.served("/metadata/1.snapshot.json")?.toString()],
+    ["damaged", moved, second.snapshot.replace(/"sig":"../, '"sig":"00')],
+    // Without an authenticated timestamp nothing vouches for a snapshot.
+    ["no timestamp", {}, second.snapshot],
+  ] as const)
+    expect([
+      name,
+      (
+        await promote({
+          seed: seed(before),
+          scratch,
+          delivered: ["snapshot.json", delivered ?? ""],
+        })
+      ).includes("snapshot.json"),
+    ]).toEqual([name, false]);
+  // Targets carry no floor in the pinned client and are never captured, even
+  // when they are perfectly authentic.
+  const complete = { ...moved, "snapshot.json": second.snapshot };
+  expect(
+    await promote({
+      seed: seed(before),
+      scratch: complete,
+      delivered: ["targets.json", second.targets],
+    }),
+  ).toEqual(["timestamp.json", "snapshot.json"]);
 });
 
 test("a root in scratch reaches trust/ only through a verified chain from the seed", async () => {
@@ -82,25 +174,21 @@ test("a root in scratch reaches trust/ only through a verified chain from the se
   const seed: Seed = {
     established: true,
     root: fixture.bootstrapRoot.toString(),
+    anchor: fixture.bootstrapRoot.toString(),
+    repairRoot: false,
     roles: new Map(),
   };
   const genuine = text("/metadata/2.root.json");
   const forged = createUpdateFixture({ executionTarget: "linux-x64" });
   cleanups.push(() => forged.stop());
   forged.rotateRoot();
-  const cases: [string, Map<number, string>, string | undefined][] = [
+  const cases: [string, Map<number, string>][] = [
     // Version 2 of ANOTHER repository: not signed by the seed's root key.
-    [
-      forged.served("/metadata/2.root.json")?.toString() ?? "",
-      new Map(),
-      undefined,
-    ],
+    [forged.served("/metadata/2.root.json")?.toString() ?? "", new Map()],
     // The genuine successor, but its bytes were never received.
-    [genuine, new Map(), undefined],
-    // Received, but delivered last in a refresh that then failed.
-    [genuine, new Map([[2, genuine]]), "2.root.json"],
+    [genuine, new Map()],
   ];
-  for (const [final, fetchedRoots, unsettledFile] of cases) {
+  for (const [final, fetchedRoots] of cases) {
     const { trustDirectory, scratch } = await directories();
     await writeFile(join(scratch, "root.json"), final);
     if (fetchedRoots.size === 0 && final !== genuine)
@@ -111,7 +199,7 @@ test("a root in scratch reaches trust/ only through a verified chain from the se
         scratch,
         seed,
         fetchedRoots,
-        unsettledFile,
+        lastDelivered: undefined,
         write: writeDurableFile,
       }),
     ).rejects.toThrow();
@@ -125,7 +213,9 @@ test("a root in scratch reaches trust/ only through a verified chain from the se
       scratch,
       seed,
       fetchedRoots: new Map([[2, genuine]]),
-      unsettledFile: undefined,
+      // A root delivered last needs no special case: the chain is verified
+      // link by link whatever the client did with it.
+      lastDelivered: { file: "2.root.json", bytes: Buffer.from(genuine) },
       write: writeDurableFile,
     }),
   ).toEqual(["1.root.json", "2.root.json", "root.json"]);

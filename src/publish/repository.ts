@@ -575,10 +575,19 @@ export async function addRelease(
  * the SAME artifact paths — the same digests, never a rebuild. The exact
  * version is part of the request, so an approval can never promote something
  * newer than what was reviewed. Pre-releases are never promoted.
+ *
+ * The signed `minimumVersion` of `stable` — below it an installed Lazurio
+ * shows its prominent notice — changes ONLY through the explicit
+ * `minimumVersion` of this request. It is never taken from `preview` and never
+ * derived; without the input the current value is carried over. It can only
+ * rise, and never above the version being promoted: a floor no published
+ * version can reach would put every Machine below it for good. Promoting the
+ * version `stable` already offers, with a higher floor, is how the floor is
+ * raised between releases.
  */
 export async function promote(
   tree: Tree,
-  input: Readonly<{ version: string }>,
+  input: Readonly<{ version: string; minimumVersion?: string }>,
   options: PublishOptions,
 ): Promise<Plan<ReleaseResult>> {
   const repository = await loadRepository(tree);
@@ -592,8 +601,17 @@ export async function promote(
   if (input.version.includes("-"))
     throw new PublishError("invalid-input", "pre-release");
   const stable = await channelDocument(tree, entries, "stable");
+  const minimumVersion =
+    input.minimumVersion ?? stable?.minimumVersion ?? "0.0.1";
+  if (
+    !isProductVersion(minimumVersion) ||
+    compareVersions(minimumVersion, preview.version) > 0 ||
+    (stable && compareVersions(minimumVersion, stable.minimumVersion) < 0)
+  )
+    throw new PublishError("invalid-input", "minimum-version");
   if (stable) {
-    if (sameRelease(stable, preview.version, preview.targets))
+    const same = sameRelease(stable, preview.version, preview.targets);
+    if (same && stable.minimumVersion === minimumVersion)
       return {
         writes: [],
         result: {
@@ -603,7 +621,7 @@ export async function promote(
           sequence: stable.sequence,
         },
       };
-    if (compareVersions(preview.version, stable.version) <= 0)
+    if (!same && compareVersions(preview.version, stable.version) <= 0)
       throw new PublishError("not-newer", `stable offers ${stable.version}`);
     for (const target of Object.keys(stable.targets))
       if (preview.targets[target] === undefined)
@@ -614,7 +632,7 @@ export async function promote(
     channel: "stable",
     sequence,
     version: preview.version,
-    minimumVersion: preview.minimumVersion,
+    minimumVersion,
     targets: preview.targets,
   });
   const path = channelTargetPath("stable");

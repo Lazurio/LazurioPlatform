@@ -22,9 +22,36 @@ defaults or fetches references. Missing context is not manufactured from hostnam
 environment variables or directory names.
 
 `owner`, `team`, `host` and `network` describe context, not permission. `account`
-remains null. Organization/provider binding, revision and live access must come
+remains null; a future Lazurio Account login does not change that until the upstream
+contract defines the field ([hosted entry](hosted-entry.md)). Organization/provider binding, revision and live access must come
 from the owner/provider; a slug is not a repository URL or access grant. Inspection
 output contains private context: keep it in the owner's scope, not public logs.
+
+## The operator is an OS account, not a person
+
+`operator` names the OS execution account that owns the Lazurio Folder on this
+Machine. It is not necessarily a human Principal, and the consumer never treats it as
+one. Reconciled 2026-09-19 with [decision F2](decisions.md#f2--private-and-team-hosted-workspaces);
+this section is accepted direction, and the implemented consumer below remains the
+narrow Linux/remote/human pilot entrypoint.
+
+- **Private hosted workspace:** one Principal uses the operator account and signs in
+  with their own provider identity inside it.
+- **Team hosted workspace:** the operator account is shared by the Principals who
+  connect. It must never acquire anyone's personal credentials, sessions or
+  Personalspace. Its provider identity is the brokered Organization identity; `team`
+  in the handover is context for that, not a grant and not a roster.
+
+The handover has no selected-preset field. Platform does not derive `hosted-private`
+or `hosted-team` from the presence of `team`, the Machine name, the hostname or the
+operator name. The [workspace preset](workspace-presets.md) is chosen explicitly at
+setup and stored in the Environment configuration. If preset provenance must appear in
+this file, that is an upstream schema change in Machines followed by a re-pin and
+conformance test here, exactly like any other field.
+
+A repeated infrastructure apply must preserve the Machine identity, the Folder
+content and the Platform-selected product version; Machines does not reselect the
+version after handover, and Platform does not rewrite the identity.
 
 ## Consumer commands
 
@@ -79,7 +106,8 @@ edited output, damaged journal, partial write without a receipt or abandoned loc
 requires operator diagnosis. No automatic cleanup or universal recovery is
 promised. Recreating a disposable VM requires separate infrastructure approval.
 
-Product update repair follows [pilot repair](pilot-repair.md): retain accepted TUF
+Product update follows the [product update contract](update.md); until it is
+implemented the pilot installer's [repair runbook](pilot-repair.md) applies: retain accepted TUF
 trust and the previous working product. Folder handover does not change that rule.
 The local filesystem boundary assumes no hostile concurrent same-user/root
 directory replacement; ownership checks are not a sandbox.

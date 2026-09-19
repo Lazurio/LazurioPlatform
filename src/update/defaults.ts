@@ -7,10 +7,14 @@ import { verifiedRoot } from "./trust";
  * configuration with a default — a fork or a fixture passes its own through
  * the explicit options of `lazurio update`.
  */
-export const defaultMetadataBaseUrl =
-  "https://lazurio.github.io/LazurioPlatform/metadata/";
-export const defaultTargetBaseUrl =
-  "https://lazurio.github.io/LazurioPlatform/targets/";
+/** The published origin is a domain the project controls, a CNAME to GitHub
+ * Pages of this repository (docs/release-keys.md). It is compiled into every
+ * executable and therefore outlives any hosting choice: the static tree can
+ * move behind the name; an installed Lazurio cannot be told a new name.
+ */
+export const defaultRepositoryOrigin = "https://releases.lazurio.io";
+export const defaultMetadataBaseUrl = `${defaultRepositoryOrigin}/metadata/`;
+export const defaultTargetBaseUrl = `${defaultRepositoryOrigin}/targets/`;
 export const defaultChannel: UpdateChannel = "stable";
 
 /** Origins an executable download may touch besides the repository's own.

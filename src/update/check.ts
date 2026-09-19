@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, rm } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { type Fetcher, Updater } from "tuf-js";
 import { ExpiredMetadataError } from "tuf-js/dist/error";
@@ -50,12 +50,12 @@ export type CheckInput = Readonly<{
   targetBaseUrl: string;
   channel: UpdateChannel;
   identity: ProductIdentity;
-  /** Trust anchor for the very first check only; refused once `trust/` holds a
-   * root. The compiled-in root of a later slice enters through this input. */
+  /** The SUPPLIED root: the root compiled into this executable
+   * (`defaults.ts`), or the caller's `--bootstrap-root`, which overrides it.
+   * Supplied on every run and never a conflict: it seeds empty trust, and
+   * beside durable trust it is ignored unless it is the verified direct
+   * successor of the trusted root (see `readSeed`). */
   bootstrapRoot?: Uint8Array;
-  /** The root compiled into this executable; used only while `trust/` holds
-   * no valid root and never a conflict afterwards (see `readSeed`). */
-  embeddedRoot?: Uint8Array;
   /** Owns origins, redirects, size and time limits of every transfer. */
   transport: Fetcher;
   /** Times written into the observation. Metadata expiry is judged by the
@@ -140,9 +140,13 @@ function expired(error: unknown): boolean {
 function classify(error: unknown, fetcher: TrustFetcher): UpdateError {
   if (error instanceof UpdateFailure) return error.failure;
   if (fetcher.lastFailure) {
-    const { tooLarge, ...context } = fetcher.lastFailure;
+    const { tooLarge, originRefused, ...context } = fetcher.lastFailure;
     return updateError(
-      tooLarge ? "response-too-large" : "network-unavailable",
+      originRefused
+        ? "origin-refused"
+        : tooLarge
+          ? "response-too-large"
+          : "network-unavailable",
       context,
     );
   }
@@ -235,6 +239,10 @@ async function refreshAndReadChannel(
 export async function checkForUpdate(
   input: CheckInput,
   step?: AvailableStep,
+  /** `always`: run the step after ANY verified check, not only when an update
+   * is available, and do not treat what it returns as a staged candidate.
+   * `lazurio install` verifies and stages the running executable this way. */
+  options: Readonly<{ always?: boolean }> = {},
 ): Promise<CheckResult> {
   const fail = (code: UpdateErrorCode, context: ErrorContext = {}) =>
     Object.freeze({ kind: "error" as const, ...updateError(code, context) });
@@ -250,6 +258,17 @@ export async function checkForUpdate(
   const operationId = input.operationId ?? randomUUID();
   const trustDirectory = join(input.base, "trust");
   const updateDirectory = join(input.base, "update");
+  // No supplied root and no trust directory at all: there is nothing to
+  // verify with and nothing to repair. Refused before anything is created — a
+  // build without a compiled-in root leaves no trace on a Machine.
+  if (
+    input.bootstrapRoot === undefined &&
+    !(await lstat(trustDirectory).then(
+      () => true,
+      () => false,
+    ))
+  )
+    return fail("trust-missing");
   let lock: Awaited<ReturnType<typeof acquireUpdateLock>>;
   try {
     await mkdir(input.base, { recursive: true, mode: 0o700 });
@@ -270,6 +289,7 @@ export async function checkForUpdate(
       { trustDirectory, updateDirectory, operationId },
       write,
       step,
+      options.always === true,
     );
     try {
       await writeObserved(
@@ -303,6 +323,7 @@ async function checkUnderLock(
   },
   write: DurableWriter,
   step: AvailableStep | undefined,
+  always: boolean,
 ): Promise<Outcome> {
   const { trustDirectory, updateDirectory } = owned;
   const fetcher = new TrustFetcher(input.transport, input.metadataBaseUrl);
@@ -317,11 +338,7 @@ async function checkUnderLock(
         await rm(join(updateDirectory, entry), { recursive: true });
     await removeAbandonedTemporaries(trustDirectory);
     await removeAbandonedTemporaries(updateDirectory);
-    const seed = await readSeed(
-      trustDirectory,
-      input.bootstrapRoot,
-      input.embeddedRoot,
-    );
+    const seed = await readSeed(trustDirectory, input.bootstrapRoot);
     await mkdir(scratch, { mode: 0o700 });
     await seedScratch(scratch, seed);
     let refreshed = false;
@@ -340,7 +357,7 @@ async function checkUnderLock(
         scratch,
         seed,
         fetchedRoots: fetcher.roots,
-        unsettledFile: refreshed ? undefined : fetcher.unsettledFile,
+        lastDelivered: refreshed ? undefined : fetcher.lastDelivered,
         write,
       });
     } catch (error) {
@@ -371,7 +388,10 @@ async function checkUnderLock(
         ...(url === undefined ? {} : { url }),
       },
     };
-    if (!step || result(input.identity, verified).kind !== "available")
+    if (
+      !step ||
+      (!always && result(input.identity, verified).kind !== "available")
+    )
       return verified;
     // The verified availability is recorded before the long step, so a crash
     // inside it leaves a true observation behind.
@@ -403,7 +423,7 @@ async function checkUnderLock(
         progress: (percent) =>
           record({ status: "downloading", downloadPercent: percent }),
       });
-      return { ...verified, staged };
+      return always ? verified : { ...verified, staged };
     } catch (error) {
       return {
         ...verified,

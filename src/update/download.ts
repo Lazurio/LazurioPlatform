@@ -3,7 +3,10 @@ import { constants } from "node:fs";
 import { open, readFile, rm, statfs } from "node:fs/promises";
 import { join } from "node:path";
 import { DownloadHTTPError } from "tuf-js/dist/error";
-import type { RangeResponse } from "../distribution/transport";
+import {
+  OriginRefusedError,
+  type RangeResponse,
+} from "../distribution/transport";
 import type { AvailableSession, SignedArtifact } from "./check";
 import { UpdateFailure } from "./errors";
 import {
@@ -212,6 +215,12 @@ export async function downloadArtifact(input: {
         }
       } catch (error) {
         if (error instanceof UpdateFailure) throw error;
+        // Policy, not weather: refused now is refused after every backoff.
+        if (error instanceof OriginRefusedError)
+          throw new UpdateFailure("origin-refused", {
+            resource: "artifact",
+            origin: error.origin,
+          });
         lastStatus =
           error instanceof DownloadHTTPError ? error.statusCode : undefined;
         if (lastStatus === 416 && received > 0) await restart();
@@ -261,9 +270,17 @@ export async function downloadSignedIdentity(
     AvailableSession,
     "updater" | "scratch" | "artifact" | "document"
   >,
-  expected: Readonly<{ target: string; requiredSchemas: StateSchemas }>,
+  expected: Readonly<{
+    target: string;
+    requiredSchemas: StateSchemas;
+    /** Default: the channel's artifact and version. `lazurio install` asks
+     * about the running executable instead. */
+    artifact?: SignedArtifact;
+    version?: string;
+  }>,
 ): Promise<Readonly<{ bytes: Buffer; identity: SignedIdentity }>> {
-  const path = identityTargetPath(session.artifact.path);
+  const artifact = expected.artifact ?? session.artifact;
+  const path = identityTargetPath(artifact.path);
   const info = await session.updater.getTargetInfo(path);
   if (!info) throw new UpdateFailure("identity-invalid", { reason: "absent" });
   if (info.length > maxIdentityBytes)
@@ -281,9 +298,9 @@ export async function downloadSignedIdentity(
   const identity = parseSignedIdentity(bytes);
   assertCandidateIdentity(identity, {
     target: expected.target,
-    version: session.document.version,
-    artifactSha256: session.artifact.sha256,
-    artifactBytes: session.artifact.length,
+    version: expected.version ?? session.document.version,
+    artifactSha256: artifact.sha256,
+    artifactBytes: artifact.length,
     requiredSchemas: expected.requiredSchemas,
   });
   return Object.freeze({ bytes, identity });

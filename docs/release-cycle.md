@@ -1,5 +1,9 @@
 # Build, qualification and activation lifecycle
 
+> **Superseded for product update (2026-09-19).** The accepted contract for
+> checking, downloading, activating and rolling back a product version is
+> [product update](update.md). This document stays binding for the build, qualification and promotion lifecycle, the two test modes, install location and the signing, key-role and expiry requirements. Its update command proposals, pending attempts, metadata journal and replay, and the double active record describe the pilot installer still on `main` and are superseded as the target.
+
 ## Controlled-pilot scope decision — 2026-09-15
 
 Preparation is side-by-side; failed preparation preserves the currently usable
