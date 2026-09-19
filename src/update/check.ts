@@ -252,7 +252,6 @@ async function checkUnderLock(
     await removeAbandonedTemporaries(trustDirectory);
     await removeAbandonedTemporaries(updateDirectory);
     const seed = await readSeed(trustDirectory, input.bootstrapRoot);
-    const floors = await readChannelFloors(trustDirectory);
     await mkdir(scratch, { mode: 0o700 });
     await seedScratch(scratch, seed);
     let refreshed = false;
@@ -279,6 +278,9 @@ async function checkUnderLock(
     }
     if (failure || !received)
       return { failure: failure ?? updateError("internal") };
+    // Read only now: unreadable floors refuse the channel decision, but they
+    // must not stop verified TUF roles above from becoming durable.
+    const floors = await readChannelFloors(trustDirectory);
     const document = parseChannelDocument(received.bytes, input.channel);
     assertNotRolledBack(document, floors[input.channel]);
     try {

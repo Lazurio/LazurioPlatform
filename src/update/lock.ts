@@ -12,12 +12,17 @@ import { UpdateFailure } from "./errors";
  *
  * TODO(docs/update.md, lock paragraph): converge with `src/folder/lock.ts` in
  * its own change. That helper cannot serve this contract today because it
- * (a) refuses every filesystem except APFS and ext (lock.ts:15-20),
+ * (a) refuses every filesystem except APFS and ext (lock.ts:14-19),
  * (b) wedges forever when a process dies between `mkdir` of the lock
- *     directory and the durable `protocol` marker (lock.ts:22-33, 58-68), and
- *     equally on any stray entry inside it (lock.ts:72-76), and
- * (c) never waits: a concurrent holder is an immediate failure
- *     (native-lock.ts:18).
+ *     directory (lock.ts:23) and the durable `protocol` marker
+ *     (lock.ts:57-67): every later acquisition takes the "unrecognized lock"
+ *     refusal at lock.ts:29-32, deliberately ("never adopted on retry",
+ *     lock.ts:58). A second process that arrives inside that same window
+ *     while the first is alive and healthy gets the same hard refusal. Any
+ *     stray entry in the directory, or a half-written marker, refuses equally
+ *     (lock.ts:70-74, 84-92), and
+ * (c) never waits: `flock` is called with LOCK_NB only, so a concurrent
+ *     holder is an immediate failure (native-lock.ts:16-18).
  *
  * This acquisition has no initialization to interrupt: `O_CREAT` of one
  * regular file is atomic and idempotent, the file's content is never read, and

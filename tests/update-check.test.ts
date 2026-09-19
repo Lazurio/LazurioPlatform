@@ -610,18 +610,22 @@ test("unknown entries in the base, in trust/ and in update/ never stop a check a
 });
 
 test("owned security state of a newer schema is refused, not guessed", async () => {
-  const { fixture, base, check } = await scenario();
+  const { fixture, base, check, roleVersion } = await scenario();
   fixture.release("stable", { sequence: 1, version: "1.2.0" });
   await check({ bootstrapRoot: fixture.bootstrapRoot });
   await writeFile(
     join(base, "trust", "channel-floors.json"),
     '{"schemaVersion":2,"floors":[]}',
   );
+  fixture.rotateRoot();
   expect(await check()).toMatchObject({
     kind: "error",
     code: "trust-invalid",
     context: { subject: "channel-floors", reason: "newer-schema" },
   });
+  // The channel decision is refused; verified TUF trust still moved forward.
+  expect(await roleVersion("root.json")).toBe(2);
+  expect(await roleVersion("targets.json")).toBe(2);
 });
 
 test("two concurrent checks serialize on the lock and neither corrupts trust; a held lock times out as busy", async () => {
