@@ -262,6 +262,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The gate before every deployment: held against what is published
+          # (the checked-out commit) with the CLIENT's floor-vector rules. A tree
+          # installed Machines would refuse as metadata-rollback is never pushed.
+          scripts/update-tree.sh baseline "$RUNNER_TEMP/tree" "$RUNNER_TEMP/published"
+          bun run scripts/release-publish.ts status --rollback-only \
+            --tree "$RUNNER_TEMP/tree" --against "$RUNNER_TEMP/published"
           domain="$(bun run scripts/release-publish.ts pages-domain)"
           UPDATE_TREE_CNAME="$domain" scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Release $VERSION to preview"
       - name: Wait until the published origin serves it
@@ -305,6 +311,12 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The gate before every deployment: held against what is published
+          # (the checked-out commit) with the CLIENT's floor-vector rules. A tree
+          # installed Machines would refuse as metadata-rollback is never pushed.
+          scripts/update-tree.sh baseline "$RUNNER_TEMP/tree" "$RUNNER_TEMP/published"
+          bun run scripts/release-publish.ts status --rollback-only \
+            --tree "$RUNNER_TEMP/tree" --against "$RUNNER_TEMP/published"
           domain="$(bun run scripts/release-publish.ts pages-domain)"
           UPDATE_TREE_CNAME="$domain" scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Promote $VERSION to stable"
       - run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
@@ -341,6 +353,12 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # The gate before every deployment: held against what is published
+          # (the checked-out commit) with the CLIENT's floor-vector rules. A tree
+          # installed Machines would refuse as metadata-rollback is never pushed.
+          scripts/update-tree.sh baseline "$RUNNER_TEMP/tree" "$RUNNER_TEMP/published"
+          bun run scripts/release-publish.ts status --rollback-only \
+            --tree "$RUNNER_TEMP/tree" --against "$RUNNER_TEMP/published"
           domain="$(bun run scripts/release-publish.ts pages-domain)"
           UPDATE_TREE_CNAME="$domain" scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Renew targets metadata"
       - run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
