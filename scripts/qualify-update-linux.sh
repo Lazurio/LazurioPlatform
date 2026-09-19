@@ -38,6 +38,7 @@ ROLLBACK_UNIT=lazurio-rollback.service
 UNIT_DIR=$HOME/.config/systemd/user
 L=$BASE/bin/lazurio
 FAILED=0
+SCRIPT_STARTED=$(date '+%H:%M:%S.%N' | cut -c1-12)
 
 say() { printf '%s\n' "$*"; }
 step() { say ""; say "== $* =="; STEP_STARTED=$(date +%s%N); }
@@ -214,7 +215,7 @@ wait_for 30 launchpad_on 1.2.0 && pass "Launchpad active on 1.2.0 after boot" ||
 say "   system boot: $(who -b | sed 's/^ *system boot *//')"
 say "   Launchpad started: $(journalctl --user -b -u "$UNIT" -o short-precise --no-pager | grep -m 1 'Started' | cut -d' ' -f1-3)"
 say "   high-water written: $(stat -c %y "$BASE/update/high-water")  (the Launchpad commits once it outlived its first 15 s)"
-say "   commands run by anyone since boot until then: none (this script started at $(date '+%H:%M:%S'))"
+say "   update commands run by anyone between the boot and that commit: none (this script started at $SCRIPT_STARTED and only reads until here)"
 expect "previous" "$(previous)" 1.1.0
 lz update status | sed 's/^/   > /'
 took
