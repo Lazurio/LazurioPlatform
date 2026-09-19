@@ -1,5 +1,9 @@
 # Controlled pilot: bounded update failure and explicit repair
 
+> **Superseded for product update (2026-09-19).** The accepted contract for
+> checking, downloading, activating and rolling back a product version is
+> [product update](update.md). This runbook and `product recover` describe the pilot installer that is still the code on `main`; they are not the target mechanism. The preservation principles below (prepare beside the active version, never reset trusted metadata, never bootstrap an established installation again) remain binding.
+
 Accepted scope decision, 2026-09-15. This replaces a requirement to finish general
 automatic expired/inconsistent-transcript recovery before the first usable pilot.
 It is a contract and runbook boundary, not evidence that all scenarios already pass.

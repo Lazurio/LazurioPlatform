@@ -2,11 +2,22 @@
 
 Status: **accepted direction of the Principal (2026-09-19), implementation in
 progress.** This document is the single contract for how an installed Lazurio
-learns about, obtains and activates a new product version. It supersedes the
-update-related *proposals* in [release cycle](release-cycle.md) and the deferred
-recovery designs in [pilot repair](pilot-repair.md) and
-[expired trust recovery](expired-trust-recovery.md); trust, signing and promotion
-requirements stated there remain binding. Nothing is deployed to real clients on
+learns about, obtains and activates a new product version.
+
+Authority boundary. Three older documents described this area and each now
+carries a banner pointing here:
+
+| Document | What stays binding there | What this contract supersedes |
+| --- | --- | --- |
+| [release cycle](release-cycle.md) | build, qualification and promotion lifecycle; the two test modes; signing, key-role, expiry and promotion requirements; install location | the proposed update commands, pending attempts, the metadata journal and replay, the double active record, "draining" as an unimplemented phase |
+| [pilot repair](pilot-repair.md) | the preservation principles: prepare beside the active version, never delete or reset trusted metadata, never bootstrap an established installation again | the `product recover` runbook and the bounded manual repair procedure |
+| [expired trust recovery](expired-trust-recovery.md) | its threat analysis of accepted-but-unpersisted role floors, which the Check step below answers | the deferred journal-reconstruction work package as a mechanism |
+
+Until the implementing changes replace it, the code on `main` is still the pilot
+installer (`product install|recover|status|activate`) with its journal and
+replay. That code is the *current implementation*, this document is the
+*accepted target*; the old mechanism is deleted only by the change that proves
+the equivalence tests listed under Evidence, never by this document alone. Nothing is deployed to real clients on
 this codebase yet, so this contract is written without a compatibility burden.
 After the first client deployment every change to it must be compatible.
 
@@ -100,15 +111,35 @@ logs only explain it.
 ## The three steps
 
 **Check** (automatic, cheap, no mutation of the product). The TUF client
-refreshes in a scratch copy seeded from `trust/`; it writes a role file only
-after verifying it. When the refresh ends — success or failure — every newly
-verified role is promoted into `trust/` by temporary file, file sync, rename and
-directory sync, root chain first, then timestamp, snapshot, targets. A crash
-before promotion equals a refresh that never ran; a crash between promotions
-leaves a newer root with older roles, which the next refresh re-verifies under
-that root. This needs no change to the pinned `tuf-js` and is proven by
-interruption, expiry, repository-advance and key-rotation tests before the old
-journal and replay code is deleted. Then read the signed channel document,
+refreshes in a scratch copy seeded from `trust/`. When the refresh ends —
+success or failure — trust is captured durably in two ways, by temporary file,
+file sync, rename and directory sync, root chain first, then timestamp,
+snapshot, targets:
+
+1. **Roles the client persisted.** The pinned `tuf-js` writes a role file only
+   after its store accepted it (root: after signature and version checks, before
+   expiry; the others: after all checks). Those files are promoted.
+2. **Authenticated failure-state floors.** The client also authenticates a newer
+   timestamp or snapshot *and then throws* when that role is expired; it keeps
+   the role only in memory as its rollback floor and never writes it. Losing it
+   would let a later, lower version pass. The fetcher therefore retains the raw
+   bytes of every role it delivered; after a failed refresh the role delivered
+   last is re-verified independently of the client — signature threshold under
+   the promoted root, version not below the trusted one, and for a snapshot the
+   version and hash recorded by the trusted timestamp — with expiry deliberately
+   ignored. A role that passes is promoted **as a floor only**. Anything that
+   fails re-verification is discarded.
+
+Expired metadata never authorizes a target: every refresh re-checks expiry
+before accepting the next role, and an expired local role is loaded only as a
+version floor, exactly as the TUF specification's intermediate metadata.
+
+A crash before promotion equals a refresh that never ran; a crash between
+promotions leaves a newer root with older roles, which the next refresh
+re-verifies under that root. This needs no change to the pinned `tuf-js`. The
+old journal and replay remain the mechanism until the equivalence tests under
+Evidence — interruption, expiry with a newer authenticated floor, repository
+advance and key rotation — pass against this path. Then read the signed channel document,
 compare with the embedded version and rewrite `observed.json`. Network or
 expiry failures produce a typed error and leave everything else untouched.
 
@@ -267,7 +298,9 @@ of every combination.
 ## Evidence required before any Machine depends on this
 
 CI builds two real versions and proves, against a fixture repository and then
-natively on Linux (x64, ARM64) and macOS ARM64: A→B, confirmed restart, automatic
+natively on Linux (x64, ARM64) and macOS ARM64 (including the floor case: an
+authenticated newer-but-expired timestamp and snapshot are retained and a later
+lower version is refused): A→B, confirmed restart, automatic
 rollback of an unhealthy B, explicit retry, `kill -9` of the worker and reboot at
 every step of every phase, expired timestamp, repository advancing mid-update,
 root rotation accepted during a failed download and retained, full disk, unknown
@@ -324,7 +357,29 @@ Concrete choices fixed so far:
   expiry; a root is persisted after complete authenticity verification but
   before the final-root expiry check, and is promoted regardless because a
   signed successor root must never be forgotten. Promotion re-verifies the root
-  chain itself and withholds the role delivered last in a failed refresh.
+  chain itself.
+- **Authenticated failure-state floors.** The earlier rule "withhold the role
+  delivered last in a failed refresh" is replaced. The fetcher retains the raw
+  bytes of the role delivered last (only that one has a consumer); after a
+  failed refresh promotion re-verifies it without the client and without
+  expiry — timestamp: signature threshold under the promoted root, version
+  above and snapshot version not below the trusted timestamp; snapshot: length
+  and hashes recorded by the newest authenticated timestamp, signature
+  threshold, exactly the version that timestamp names, no targets version below
+  the trusted snapshot — and writes it as the ordinary role file. Verified in
+  the pinned source, with line references in `src/update/trust.ts`: an expired
+  LOCAL timestamp or snapshot is installed in memory before the expiry throw
+  and the throw is swallowed (`store.js:89-91`, `:133-136`;
+  `updater.js:195-206`, `:230-234`), so it acts as a version floor and nothing
+  else, and the final expiry checks (`store.js:102`, `:145`, `:172`) run again
+  before any target is looked up. Expired **targets** are different: the store
+  checks expiry before installing (`:172-175`), so an expired local targets
+  file is discarded without a trace and the floor of the targets version is the
+  snapshot's `meta`. A targets role delivered last is therefore never captured.
+  The floor is also captured on first contact and under an expired root: the
+  root authenticated a signature, and a floor can only raise the bar. A floor
+  that no longer verifies under a later root is not loaded by the client, so a
+  revoked key cannot wedge a Machine with a fast-forwarded version.
 - **Supplied root.** The caller supplies a root (today `--bootstrap-root`,
   later the root compiled into the executable, which is then supplied on every
   run). With no durable trust it seeds the first refresh and becomes durable
@@ -481,6 +536,11 @@ of this work, the rest open until reviewed:
     (default 1); the updater's contract number is `1`.
 14. `--deadline-ms` and `--stability-ms` shorten the accepted defaults
     (120 s, 10 s) for qualification and canary runs.
+15. The contract has the fetcher retain the raw bytes of **every** delivered
+    role; it retains the one delivered last, the only one promotion reads. The
+    first slice's rule "withhold the role delivered last in a failed refresh"
+    is gone: that role is now re-verified and, when authentic and newer, kept
+    as a floor. Expired targets are deliberately never kept.
 
 ## Removed by this contract
 

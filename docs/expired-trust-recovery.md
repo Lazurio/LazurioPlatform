@@ -1,5 +1,9 @@
 # Expired pending trust: implementation work package
 
+> **Superseded for product update (2026-09-19).** The accepted contract for
+> checking, downloading, activating and rolling back a product version is
+> [product update](update.md). The journal-reconstruction work package below is not continued. Its threat analysis of authenticated-but-unpersisted role floors stays valid and is answered by the Check step of the new contract.
+
 Status: deferred automatic-recovery work, not a prerequisite for the controlled
 pilot (scope decision 2026-09-15; see [pilot repair](pilot-repair.md)). Stop expanding
 this work package for pilot readiness. Preserve completed safety checks and retained

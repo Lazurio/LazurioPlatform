@@ -2,7 +2,11 @@
 
 The next Launchpad consumer is permitted-module discovery followed by app
 start/status/stop through one shared lifecycle owner. It must not invent a second
-module catalog, port registry or process supervisor.
+module catalog, port registry or process supervisor. The accepted direction of
+2026-09-19 hands long-running applications to the operating system's service manager
+([application lifetime](#application-lifetime--accepted-direction-not-implemented));
+using the OS's standard capability is not a Lazurio supervisor, and everything below
+that describes the in-memory owner is the current development state.
 
 ## Integrated consumer draft — current boundary
 
@@ -324,6 +328,11 @@ source commits. Repeat qualification after the integrated source is committed/re
 
 ## Workspace standards and versioned presets — accepted direction
 
+The presets in this section are **application presets**: versioned inputs that produce
+a conforming starting application inside an Organization. They are a different concept
+from [workspace presets](workspace-presets.md), which configure a Lazurio Environment
+(`hosted-private`, `hosted-team`). Neither kind grants access.
+
 Keep three responsibilities separate: the Platform's shared operational
 install/lifecycle/Doctor contract, each application's concrete requirements, and
 versioned preset inputs that produce a conforming starting application. Organizations
@@ -377,7 +386,73 @@ the existing process locator, and full qualification with real modules. Local-fo
 binding still requires the F6 amendment. Synthetic evidence does not authorize
 contacting a running legacy Server or controlling a customer's module.
 
+## Application lifetime — accepted direction, not implemented
+
+Accepted by the Principal on 2026-09-19 ([decision F8](decisions.md#f8--the-os-service-manager-owns-long-running-applications)).
+Nothing in this section exists in the code; the next section describes what does.
+
+**Motivation.** A product that updates itself must not make people accept interruption
+of their work. While applications are children of the Launchpad process, every product
+activation and every Launchpad restart stops them.
+
+**Owner.** Long-running module applications are owned by the operating system's
+service manager, not by the Launchpad process. No Lazurio supervisor or daemon is built.
+
+**Linux first: systemd user services.**
+
+- A service definition is generated from the validated module and runtime declarations
+  and nothing else: exact working directory, command, data-only environment and source
+  selection (exact `main` or a named worktree). No browser-supplied command, no
+  ambient credentials, no shell interpretation. The definition is bounded output owned
+  by Platform under the operator account; it is regenerated, never hand-merged.
+- Identity and readiness are **queried from the service manager** (unit identity,
+  state, control group) together with the existing declared-listener health
+  observation. Ownership is never reconstructed from a saved PID, a port or a name.
+- **Start** survives a Launchpad restart and a product activation. **Stop** stops the
+  service and its control group. Status reports the service manager's view.
+- **Persistence across reboot is an explicit per-application setting.** It is never a
+  consequence of clicking Open or Start, and its default is off.
+- Ports stay module-defined. A collision with a foreign listener or another service is
+  refused; no foreign process or unit is adopted, replaced or signalled.
+- Authorization and declaration are rechecked at each operation boundary, as today;
+  moving process ownership does not relax any authorization rule.
+- CLI and Launchpad address the same services through the same core and return
+  equivalent results; the CLI does not need a running Launchpad for status or stop.
+
+**Unchanged.** Bounded preparation subprocesses (frozen install, declared preparation
+and check scripts) keep the existing guarded-process ownership: they are short,
+deadline-bound and must die with their operation. Preparation, content
+synchronization and running services share the dependency owner's coordination
+boundary: changing dependencies beneath a running application stays refused even
+though the Launchpad itself can now restart harmlessly.
+
+**macOS** keeps session-scoped applications under the in-memory owner until a
+workstation consumer needs more; launchd agents are the expected route then, not now.
+Windows is unqualified for either model.
+
+**Upstream.** This changes the session semantics of upstream decision 0137, under
+which hosted applications live in the current Launchpad session. It is a [required
+upstream amendment](decisions.md#required-amendments-before-production-implementation).
+The rest of 0137 is preserved: nothing starts at cold start; health, catalog and
+background browser requests are not an Open; production accepts only a reproducible
+Build and uses neither the Launchpad nor worktrees.
+
+**What this does not mean.** It does not authorize installing units on any real
+Machine, does not make applications production deployments, does not make a service
+definition an access grant, and does not remove the functional-qualification
+requirement: a running unit is not a working module.
+
+Required evidence: CLI/Launchpad parity, concurrent operations, dependency exclusion,
+survival across a Launchpad restart and a product activation, reboot with persistence
+off and on, port collision, a unit edited by hand, and a failed start that leaves no
+half-owned service.
+
 ## Shared application lifecycle — development integration boundary
+
+Current development state. Under the accepted direction above, this in-memory owner
+remains the owner of session-scoped applications on macOS and of bounded preparation;
+on Linux its process ownership moves behind the same adapter interface to the service
+manager. It is not extended into a persistent supervisor.
 
 `createApplicationLifecycle` composes the module reader, guarded launch, listener
 observation and owned stop into one in-memory owner. It is intended to be instantiated
@@ -634,7 +709,10 @@ see the dated evidence below. Concurrent-stop observation and HTTP 503 remain
 Mac-host source tests, not Linux qualification. Windows and the UI remain unqualified.
 
 `startGuardedProcess` replaces the provisional numeric-group signaling adapter;
-there is only one maintained launch/stop implementation. The caller supplies a
+there is only one maintained launch/stop implementation. Tying the guard to a control
+pipe is the right ownership for bounded preparation subprocesses and session-scoped
+applications, and deliberately not the owner of long-running hosted applications
+([application lifetime](#application-lifetime--accepted-direction-not-implemented)). The caller supplies a
 verified Platform executable and explicit app executable, args, owned cwd and data-only
 environment. No ambient credentials or shell interpretation are added. Application
 stdout/stderr is currently discarded; diagnostics/log integration remains unfinished.
