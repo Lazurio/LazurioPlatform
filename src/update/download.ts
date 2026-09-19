@@ -256,9 +256,17 @@ export async function downloadSignedIdentity(
     AvailableSession,
     "updater" | "scratch" | "artifact" | "document"
   >,
-  expected: Readonly<{ target: string; requiredSchemas: StateSchemas }>,
+  expected: Readonly<{
+    target: string;
+    requiredSchemas: StateSchemas;
+    /** Default: the channel's artifact and version. `lazurio install` asks
+     * about the running executable instead. */
+    artifact?: SignedArtifact;
+    version?: string;
+  }>,
 ): Promise<Readonly<{ bytes: Buffer; identity: SignedIdentity }>> {
-  const path = identityTargetPath(session.artifact.path);
+  const artifact = expected.artifact ?? session.artifact;
+  const path = identityTargetPath(artifact.path);
   const info = await session.updater.getTargetInfo(path);
   if (!info) throw new UpdateFailure("identity-invalid", { reason: "absent" });
   if (info.length > maxIdentityBytes)
@@ -276,9 +284,9 @@ export async function downloadSignedIdentity(
   const identity = parseSignedIdentity(bytes);
   assertCandidateIdentity(identity, {
     target: expected.target,
-    version: session.document.version,
-    artifactSha256: session.artifact.sha256,
-    artifactBytes: session.artifact.length,
+    version: expected.version ?? session.document.version,
+    artifactSha256: artifact.sha256,
+    artifactBytes: artifact.length,
     requiredSchemas: expected.requiredSchemas,
   });
   return Object.freeze({ bytes, identity });

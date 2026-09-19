@@ -13,6 +13,7 @@ import { parseServiceSpec } from "./activation-record";
 import { resolveInstallBase } from "./base";
 import { isUpdateChannel } from "./channel";
 import { type CheckResult, checkForUpdate } from "./check";
+import { readUpdateConfig } from "./config";
 import { defaultDownloadPolicy } from "./download";
 import {
   type ErrorContext,
@@ -23,8 +24,14 @@ import {
   updateErrors,
 } from "./errors";
 import { embeddedIdentity, type ProductIdentity } from "./identity";
+import {
+  defaultLaunchpadUnit,
+  type InstallResult,
+  performInstall,
+  userUnitDirectory,
+} from "./install";
 import { type Observed, readObserved } from "./observed";
-import { selfCheckReport } from "./self-check";
+import { type ProcessRunner, selfCheckReport } from "./self-check";
 import {
   performRollback,
   performUpdate,
@@ -39,6 +46,18 @@ import {
  */
 export const updateHelp = `--version [--json]
   Prints the version, source commit and target this executable was built with.
+install --metadata-url <https://.../metadata/> --target-url <https://.../targets/>
+  --channel <stable|preview> [--bootstrap-root <owned file>] [--base <absolute directory>]
+  [--service systemd-user --folder <absolute Folder> [--unit <name.service>]
+   [--organization-directory <dir> [--bun-executable <bun>]]] [--loopback-fixture] [--json]
+  This executable installs ITSELF as the first version: it proves through signed
+  metadata that its own bytes are a published artifact with the identity
+  compiled into it, copies itself to versions/, and points bin/lazurio at it.
+  Refused when an installation exists (already-installed): versions change
+  through update. All or nothing; shell profiles are not edited. With --service
+  (Linux) it writes, enables and starts a systemd user unit for the Launchpad
+  (default lazurio-launchpad.service) and refuses a unit of that name it did not
+  write. The service and Folder are recorded, so update needs no flag for them.
 update [--download-only] --metadata-url <https://.../metadata/> --target-url <https://.../targets/>
   --channel <stable|preview> [--bootstrap-root <owned file>] [--base <absolute directory>]
   [--folder <absolute Folder>] [--service <none|systemd-user> --unit <name.service>]
@@ -263,17 +282,26 @@ export async function runUpdateCommand(
       return render(failure("invalid-request", { option: "base" }), json);
     const only = (allowed: readonly string[]) =>
       [...supplied].every((name) => allowed.includes(name));
-    const folder = values.folder;
+    // What `lazurio install` recorded about this Machine; a flag overrides it.
+    const recorded = await readUpdateConfig(base);
+    const folder =
+      values.folder ??
+      (positionals[0] === "apply-worker" || positionals[0] === "status"
+        ? undefined
+        : (recorded.folder ?? undefined));
     if (
       folder !== undefined &&
       (!isAbsolute(folder) || resolve(folder) !== folder)
     )
       return render(failure("invalid-request", { option: "folder" }), json);
-    const service = parseServiceSpec(
-      values.unit === undefined
-        ? { kind: values.service ?? "none" }
-        : { kind: values.service, unit: values.unit },
-    );
+    const service =
+      values.service === undefined && values.unit === undefined
+        ? recorded.service
+        : parseServiceSpec(
+            values.unit === undefined
+              ? { kind: values.service }
+              : { kind: values.service, unit: values.unit },
+          );
     if (!service)
       return render(failure("invalid-request", { option: "service" }), json);
     const activation: {
@@ -496,4 +524,156 @@ export async function runUpdateCommand(
       String((error as { code: string }).code).startsWith("ERR_PARSE_ARGS");
     return render(failure(usage ? "invalid-request" : "internal"), json);
   }
+}
+
+/** `lazurio install`: see `install.ts`. Never throws. */
+export async function runInstallCommand(
+  args: readonly string[],
+  environment: Readonly<{
+    identity?: ProductIdentity;
+    clock?: () => Date;
+    platform?: string;
+    env?: Readonly<Record<string, string | undefined>>;
+    executable?: string;
+    run?: ProcessRunner;
+  }> = {},
+): Promise<CommandOutput> {
+  let json = args.includes("--json");
+  const refuse = (code: UpdateErrorCode, context: ErrorContext = {}) =>
+    renderInstall(failure(code, context), json);
+  try {
+    const { values, tokens } = parseArgs({
+      args: [...args],
+      strict: true,
+      allowPositionals: false,
+      tokens: true,
+      options: {
+        json: { type: "boolean" },
+        "metadata-url": { type: "string" },
+        "target-url": { type: "string" },
+        channel: { type: "string" },
+        "bootstrap-root": { type: "string" },
+        base: { type: "string" },
+        "loopback-fixture": { type: "boolean" },
+        service: { type: "string" },
+        unit: { type: "string" },
+        folder: { type: "string" },
+        "organization-directory": { type: "string" },
+        "bun-executable": { type: "string" },
+      },
+    });
+    json = values.json === true;
+    const names: string[] = tokens.flatMap((token) =>
+      token.kind === "option" ? [token.name] : [],
+    );
+    if (new Set(names).size !== names.length) return refuse("invalid-request");
+    const env = environment.env ?? process.env;
+    const platform = environment.platform ?? process.platform;
+    const base =
+      values.base ?? resolveInstallBase({ platform, env, homedir: env.HOME });
+    if (!base || !isAbsolute(base) || resolve(base) !== base)
+      return refuse("invalid-request", { option: "base" });
+    const channel = values.channel;
+    if (
+      !isUpdateChannel(channel) ||
+      !values["metadata-url"] ||
+      !values["target-url"]
+    )
+      return refuse("invalid-request");
+    // The Launchpad's arguments belong to the service and to nothing else.
+    const wantsService = values.service !== undefined;
+    const unitDirectory = userUnitDirectory(env);
+    if (
+      (wantsService &&
+        (values.service !== "systemd-user" ||
+          values.folder === undefined ||
+          unitDirectory === undefined ||
+          (values["bun-executable"] !== undefined &&
+            values["organization-directory"] === undefined))) ||
+      (!wantsService &&
+        ["unit", "folder", "organization-directory", "bun-executable"].some(
+          (name) => names.includes(name),
+        ))
+    )
+      return refuse("invalid-request", { option: "service" });
+    let transport: DistributionTransport;
+    try {
+      transport = new DistributionTransport(
+        [
+          ...new Set([
+            new URL(values["metadata-url"]).origin,
+            new URL(values["target-url"]).origin,
+          ]),
+        ],
+        120_000,
+        new AbortController().signal,
+        values["loopback-fixture"] === true,
+      );
+    } catch {
+      return refuse("invalid-request", { option: "url" });
+    }
+    let bootstrapRoot: Uint8Array | undefined;
+    if (values["bootstrap-root"] !== undefined)
+      try {
+        bootstrapRoot = await readOwnedDeclarationBytes(
+          values["bootstrap-root"],
+        );
+      } catch {
+        return refuse("invalid-request", { option: "bootstrap-root" });
+      }
+    return renderInstall(
+      await performInstall({
+        base,
+        metadataBaseUrl: values["metadata-url"],
+        targetBaseUrl: values["target-url"],
+        channel,
+        identity: environment.identity ?? embeddedIdentity(),
+        ...(bootstrapRoot === undefined ? {} : { bootstrapRoot }),
+        transport,
+        clock: environment.clock ?? (() => new Date()),
+        executable: environment.executable ?? process.execPath,
+        platform,
+        env,
+        run: environment.run,
+        service:
+          wantsService && unitDirectory !== undefined
+            ? {
+                unit: values.unit ?? defaultLaunchpadUnit,
+                unitDirectory,
+                folder: values.folder as string,
+                organizationDirectory: values["organization-directory"],
+                bunExecutable: values["bun-executable"],
+              }
+            : undefined,
+      }),
+      json,
+    );
+  } catch (error) {
+    const usage =
+      typeof (error as { code?: unknown } | undefined)?.code === "string" &&
+      String((error as { code: string }).code).startsWith("ERR_PARSE_ARGS");
+    return refuse(usage ? "invalid-request" : "internal");
+  }
+}
+
+function renderInstall(result: InstallResult, json: boolean): CommandOutput {
+  const code = result.kind === "error" ? updateErrors[result.code].exit : 0;
+  if (json) return { code, stdout: JSON.stringify(result), stderr: "" };
+  if (result.kind === "error")
+    return { code, stdout: "", stderr: `Install failed: ${result.code}` };
+  return {
+    code,
+    stdout: [
+      `Installed lazurio ${result.version}.`,
+      result.service.kind === "systemd-user"
+        ? `The Launchpad runs as the user service ${result.service.unit}.`
+        : "No Launchpad service is managed on this Machine.",
+      ...(result.available
+        ? [`Version ${result.available} is available: run \`lazurio update\`.`]
+        : []),
+      // A hint, not an edit: shell profiles belong to the person.
+      `Add it to your PATH: export PATH="${result.path}:$PATH"`,
+    ].join("\n"),
+    stderr: "",
+  };
 }

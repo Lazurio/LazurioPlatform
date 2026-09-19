@@ -1,3 +1,4 @@
+import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { productHelp, runProductCommand } from "./distribution/product-cli";
 import { initializeFolder } from "./folder/initialize-folder";
@@ -24,6 +25,7 @@ import { resumeActivation, watchActivation } from "./update/activate";
 import { resolveInstallBase } from "./update/base";
 import {
   type CommandOutput,
+  runInstallCommand,
   runUpdateCommand,
   selfCheckCommand,
   updateHelp,
@@ -39,6 +41,23 @@ function emit(output: CommandOutput): number {
 
 // Development CLI entrypoint. No implicit folder discovery; the only
 // installer surface is the explicit `product` command group.
+/** The install base of this start: an explicit `--base` (the Launchpad unit
+ * written by `lazurio install` carries one, because a service manager's
+ * environment need not be the person's), else the per-user default.
+ */
+function installBase(args: readonly string[]): string | undefined {
+  const explicit = args[args.indexOf("--base") + 1];
+  if (args.includes("--base"))
+    return explicit && isAbsolute(explicit) && resolve(explicit) === explicit
+      ? explicit
+      : undefined;
+  return resolveInstallBase({
+    platform: process.platform,
+    env: process.env,
+    homedir: process.env.HOME,
+  });
+}
+
 /** EVERY start converges an activation whose worker died (docs/update.md
  * "Activate"); with no record this is one `lstat`. Silent unless it acted.
  * Two commands are exempt: `self-check` promises to write nothing and is what
@@ -46,12 +65,8 @@ function emit(output: CommandOutput): number {
  * base it was given, which need not be this one.
  */
 async function convergeActivation(args: readonly string[]): Promise<void> {
-  if (args[0] === "self-check" || args[0] === "update") return;
-  const base = resolveInstallBase({
-    platform: process.platform,
-    env: process.env,
-    homedir: process.env.HOME,
-  });
+  if (["self-check", "update", "install"].includes(args[0] ?? "")) return;
+  const base = installBase(args);
   if (!base) return;
   try {
     const resumed = await resumeActivation({ base });
@@ -73,6 +88,8 @@ export async function runCli(args: string[]): Promise<number> {
   if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
   if (args[0] === "self-check")
     return emit(await selfCheckCommand(args.slice(1)));
+  if (args[0] === "install")
+    return emit(await runInstallCommand(args.slice(1)));
   if (args[0] === "update")
     return emit(
       await runUpdateCommand(args.slice(1), {
@@ -220,6 +237,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     tokens: true,
     options: {
       folder: { type: "string" },
+      base: { type: "string" },
       "organization-directory": { type: "string" },
       "bun-executable": { type: "string" },
       profile: { type: "string" },
@@ -257,9 +275,12 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       !values.folder ||
       Object.keys(values).some(
         (name) =>
-          !["folder", "organization-directory", "bun-executable"].includes(
-            name,
-          ),
+          ![
+            "folder",
+            "base",
+            "organization-directory",
+            "bun-executable",
+          ].includes(name),
       )
     )
       throw new Error("Explicit Launchpad fixture required");
@@ -281,11 +302,9 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         environment,
       });
     }
-    const base = resolveInstallBase({
-      platform: process.platform,
-      env: process.env,
-      homedir: process.env.HOME,
-    });
+    const base = installBase(args);
+    if (values.base !== undefined && !base)
+      throw new Error("Absolute canonical install base required");
     const { close, url } = await startLaunchpad(
       values.folder,
       applicationAdapters,
@@ -315,7 +334,8 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
   }
   if (
     values["organization-directory"] !== undefined ||
-    values["bun-executable"] !== undefined
+    values["bun-executable"] !== undefined ||
+    values.base !== undefined
   )
     throw new Error("Discovery option belongs only to Launchpad");
   if (positionals[0] === "folder-resume") {

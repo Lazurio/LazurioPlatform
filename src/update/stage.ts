@@ -60,6 +60,9 @@ export async function stageCandidate(input: StageInput): Promise<string> {
   );
   const candidate = join(input.scratch, "candidate");
   await mkdir(candidate, { mode: 0o700 });
+  // Explicit: a umask may clear bits of `mode`, never the other way round,
+  // but the owned layout states its modes instead of inheriting them.
+  await chmod(candidate, 0o700);
   const executable = join(candidate, executableName);
   await rename(input.artifactFile, executable);
   // Read-only and executable for the owner: the bytes are final.
@@ -79,6 +82,7 @@ export async function stageCandidate(input: StageInput): Promise<string> {
   });
   const { versions } = layout(input.base);
   await mkdir(versions, { recursive: true, mode: 0o700 });
+  await chmod(versions, 0o700);
   await rename(candidate, versionDirectory(input.base, name));
   await syncDirectory(versions);
   return name;

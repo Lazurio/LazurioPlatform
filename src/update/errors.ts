@@ -42,6 +42,14 @@ export const updateErrors = {
   /** The worker died; a later start rolled the activation back. */
   "activation-interrupted": { exit: 41, retryable: true },
   "rollback-unavailable": { exit: 42, retryable: false },
+  /** A selector exists. Versions change through `lazurio update`. */
+  "already-installed": { exit: 43, retryable: false },
+  /** The bytes of this executable are not a signed artifact of the repository. */
+  "unverified-executable": { exit: 44, retryable: false },
+  /** A service unit of that name exists and was not written by this product. */
+  "unit-conflict": { exit: 45, retryable: false },
+  /** The service manager refused; the installation was undone. */
+  "service-failed": { exit: 46, retryable: true },
   internal: { exit: 70, retryable: false },
 } as const satisfies Record<string, { exit: number; retryable: boolean }>;
 

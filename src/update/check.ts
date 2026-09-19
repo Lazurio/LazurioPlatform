@@ -210,6 +210,10 @@ async function refreshAndReadChannel(
 export async function checkForUpdate(
   input: CheckInput,
   step?: AvailableStep,
+  /** `always`: run the step after ANY verified check, not only when an update
+   * is available, and do not treat what it returns as a staged candidate.
+   * `lazurio install` verifies and stages the running executable this way. */
+  options: Readonly<{ always?: boolean }> = {},
 ): Promise<CheckResult> {
   const fail = (code: UpdateErrorCode, context: ErrorContext = {}) =>
     Object.freeze({ kind: "error" as const, ...updateError(code, context) });
@@ -245,6 +249,7 @@ export async function checkForUpdate(
       { trustDirectory, updateDirectory, operationId },
       write,
       step,
+      options.always === true,
     );
     try {
       await writeObserved(
@@ -278,6 +283,7 @@ async function checkUnderLock(
   },
   write: DurableWriter,
   step: AvailableStep | undefined,
+  always: boolean,
 ): Promise<Outcome> {
   const { trustDirectory, updateDirectory } = owned;
   const fetcher = new TrustFetcher(input.transport, input.metadataBaseUrl);
@@ -332,7 +338,10 @@ async function checkUnderLock(
       document,
       artifact: { path, sha256, length: artifact.length },
     };
-    if (!step || result(input.identity, verified).kind !== "available")
+    if (
+      !step ||
+      (!always && result(input.identity, verified).kind !== "available")
+    )
       return verified;
     // The verified availability is recorded before the long step, so a crash
     // inside it leaves a true observation behind.
@@ -364,7 +373,7 @@ async function checkUnderLock(
         progress: (percent) =>
           record({ status: "downloading", downloadPercent: percent }),
       });
-      return { ...verified, staged };
+      return always ? verified : { ...verified, staged };
     } catch (error) {
       return {
         ...verified,

@@ -13,11 +13,12 @@
 #
 # Everything lives under the work directory with its OWN HOME, so the user's
 # real install base and Folder are never touched. The only things outside it
-# are one unit file in $XDG_RUNTIME_DIR/systemd/user (removed at the end; gone
-# after a reboot anyway) and the transient worker units. The user manager must
-# outlive the login session that starts this script when it is run over
-# several sessions: `loginctl enable-linger` is the operator's decision and is
-# NOT made here.
+# are what `lazurio install --service` really writes — one uniquely named unit
+# in the user's systemd directory, enabled — plus this harness's drop-in next
+# to it, and the transient worker units. All of it is disabled and removed at
+# the end. The user manager must outlive the login session that starts this
+# script when it is run over several sessions: `loginctl enable-linger` is the
+# operator's decision and is NOT made here.
 #
 # Exit status 0 only when every journey passed. KEEP=1 keeps the work directory.
 set -uo pipefail
@@ -36,7 +37,9 @@ QHOME=$WORK/home
 BASE=$QHOME/.local/share/lazurio
 FOLDER=$QHOME/Lazurio
 UNIT=lazurio-qualify-$$.service
-UNIT_FILE=$XDG_RUNTIME_DIR/systemd/user/$UNIT
+# Where the REAL user manager reads units: the installer must write there.
+CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+UNIT_FILE=$CONFIG_HOME/systemd/user/$UNIT
 L=$BASE/bin/lazurio
 FAILED=0
 FIXTURE_PID=
@@ -49,8 +52,9 @@ fail() { say "   FAIL  $*"; FAILED=$((FAILED + 1)); }
 expect() { # expect <description> <actual> <expected>
   if [ "$2" = "$3" ]; then pass "$1: $2"; else fail "$1: got '$2', expected '$3'"; fi
 }
-# First string or number value of a JSON member; enough for the flat documents here.
-field() { sed -n "s/.*\"$1\": *\"\{0,1\}\([^\",}]*\)\"\{0,1\}.*/\1/p" | head -n 1; }
+# FIRST string, number or boolean value of a JSON member; enough for the flat
+# documents read here.
+field() { grep -o "\"$1\": *\"\{0,1\}[^\",}]*" | head -n 1 | sed 's/^[^:]*: *"\{0,1\}//'; }
 wait_for() { # wait_for <seconds> <command…>
   local deadline=$(($(date +%s) + $1)); shift
   until "$@" >/dev/null 2>&1; do
@@ -59,8 +63,9 @@ wait_for() { # wait_for <seconds> <command…>
   done
 }
 # The product, run the way a person's shell would: through the selector.
-lz() { env -i HOME="$QHOME" PATH="$PATH" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
-  ${DBUS_SESSION_BUS_ADDRESS:+DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"} "$L" "$@"; }
+product() { env -i HOME="$QHOME" XDG_CONFIG_HOME="$CONFIG_HOME" PATH="$PATH" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+  ${DBUS_SESSION_BUS_ADDRESS:+DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"} "$@"; }
+lz() { product "$L" "$@"; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 name_of() { echo "$1+$(sha "$BUNDLE/lazurio-$1" | cut -c1-16)"; }
 selected() { readlink "$L" | cut -d/ -f3; }
@@ -74,11 +79,12 @@ launchpad_on() { # launchpad_on <version>: a live instance announcing that versi
     [ "$(ready_field pid)" = "$(unit_pid)" ]
 }
 ORIGINS=()
-SERVICE=(--service systemd-user --unit "$UNIT")
+# No --service flag anywhere below: `lazurio install` recorded the service.
 
 cleanup() {
-  systemctl --user stop "$UNIT" 'lazurio-update-*' >/dev/null 2>&1
-  rm -f "$UNIT_FILE"
+  systemctl --user stop 'lazurio-update-*' >/dev/null 2>&1
+  systemctl --user disable --now "$UNIT" >/dev/null 2>&1
+  rm -rf "$UNIT_FILE" "$UNIT_FILE.d"
   systemctl --user daemon-reload >/dev/null 2>&1
   systemctl --user reset-failed >/dev/null 2>&1
   [ -n "$FIXTURE_PID" ] && kill "$FIXTURE_PID" 2>/dev/null
@@ -91,7 +97,8 @@ say "linger: $(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)"
 
 step "a. signed fixture repository on loopback, served from this Machine"
 "$BUNDLE/update-fixture-server" serve --state "$WORK/state" --target "$TARGET" --commit "$COMMIT" \
-  --artifact "1.1.0=$BUNDLE/lazurio-1.1.0" --artifact "1.2.0=$BUNDLE/lazurio-1.2.0" >"$WORK/fixture.log" 2>&1 &
+  --artifact "1.0.0=$BUNDLE/lazurio-1.0.0" --artifact "1.1.0=$BUNDLE/lazurio-1.1.0" \
+  --artifact "1.2.0=$BUNDLE/lazurio-1.2.0" >"$WORK/fixture.log" 2>&1 &
 FIXTURE_PID=$!
 wait_for 30 test -s "$WORK/state/fixture.env" || { fail "fixture did not start"; exit 1; }
 # shellcheck disable=SC1091
@@ -102,21 +109,39 @@ for v in 1.0.0 1.1.0 1.2.0; do say "   $v  $(env -i "$BUNDLE/lazurio-$v" --versi
 pass "three real product executables run natively"
 took
 
-step "b. install 1.0.0 the way an installer would: versions/<name> + the selector"
+step "b. lazurio install --service systemd-user: the downloaded executable proves and installs ITSELF"
 A=$(name_of 1.0.0); B=$(name_of 1.1.0); C=$(name_of 1.2.0)
-mkdir -p "$BASE/versions/$A" "$BASE/bin"
-cp "$BUNDLE/lazurio-1.0.0" "$BASE/versions/$A/lazurio" && chmod 500 "$BASE/versions/$A/lazurio"
-printf '{"schemaVersion":1,"version":"1.0.0","target":"%s","sourceCommit":"%s","toolchain":"%s","schemas":{"preferences":[1],"manifest":[1]},"artifactSha256":"%s","artifactBytes":%s}' \
-  "$TARGET" "$COMMIT" "$TOOLCHAIN" "$(sha "$BUNDLE/lazurio-1.0.0")" "$(stat -c %s "$BUNDLE/lazurio-1.0.0")" >"$BASE/versions/$A/identity.json"
-ln -s "../versions/$A/lazurio" "$L"
-expect "version through the selector" "$(lz --version --json | field version)" 1.0.0
+release 1.0.0 1 | sed 's/^/   /'
+DOWNLOADED=$WORK/Downloads/lazurio
+mkdir -p "$WORK/Downloads" && cp "$BUNDLE/lazurio-1.0.0" "$DOWNLOADED"
+# The Launchpad needs an initialized Folder; there is no Folder discovery.
+product "$DOWNLOADED" folder-init --folder "$FOLDER" --access local --purpose human --locale en --detail concise --coordination direct >/dev/null ||
+  fail "folder-init"
+# A tampered download proves nothing and installs nothing.
+cp "$DOWNLOADED" "$WORK/Downloads/tampered" && printf x >>"$WORK/Downloads/tampered"
+product "$WORK/Downloads/tampered" install --bootstrap-root "$WORK/state/root.json" "${ORIGINS[@]}" >"$WORK/install.out"
+expect "tampered executable" "$(field code <"$WORK/install.out")" unverified-executable
+[ ! -e "$QHOME/.local" ] && pass "nothing was created" || fail "something was created"
+# Ubuntu's default umask: the layout must be owner-only regardless.
+(umask 002; product "$DOWNLOADED" install --service systemd-user --unit "$UNIT" --folder "$FOLDER" \
+  --bootstrap-root "$WORK/state/root.json" "${ORIGINS[@]}" >"$WORK/install.out"; echo "exit=$?" >>"$WORK/install.out")
+sed "s|$WORK|<work>|g;s/^/   > /" "$WORK/install.out"
+expect "result" "$(field kind <"$WORK/install.out")" installed
+expect "selector" "$(selected)" "$A"
+expect "modes of base bin versions trust update (umask 002)" \
+  "$(stat -c %a "$BASE" "$BASE/bin" "$BASE/versions" "$BASE/trust" "$BASE/update" | tr '\n' ' ')" "700 700 700 700 700 "
+expect "modes of the executable and its identity" "$(stat -c %a "$BASE/versions/$A/lazurio" "$BASE/versions/$A/identity.json" | tr '\n' ' ')" "500 400 "
+say "   unit written by the installer:"
+sed "s|$WORK|<work>|g;s/^/   | /" "$UNIT_FILE"
+expect "unit enabled" "$(systemctl --user is-enabled "$UNIT")" enabled
+product "$DOWNLOADED" install "${ORIGINS[@]}" >"$WORK/install.out"
+expect "a second install" "$(field code <"$WORK/install.out")" already-installed
 took
 
-step "c. the Launchpad as a systemd user service whose ExecStart is the selector"
-lz folder-init --folder "$FOLDER" --access local --purpose human --locale en --detail concise --coordination direct >/dev/null ||
-  fail "folder-init"
-# The harness's faults live in the UNIT, not in the product: a gate script that
-# refuses, or kills, the Launchpad of version 1.2.0 while a fault is switched on.
+step "c. the Launchpad runs as the systemd user service the installer wrote; ExecStart is the selector"
+# The harness's faults live in a DROP-IN next to the installer's unit, not in
+# the product and not in the unit: a gate script that refuses, or kills, the
+# Launchpad of version 1.2.0 while a fault is switched on.
 cat >"$WORK/unit-gate.sh" <<GATE
 #!/bin/sh
 fault=\$(cat "$WORK/fault" 2>/dev/null)
@@ -126,20 +151,14 @@ case "\$(readlink "$L")" in *1.2.0+*) ;; *) exit 0 ;; esac
 exit 0
 GATE
 chmod 700 "$WORK/unit-gate.sh"
-mkdir -p "$(dirname "$UNIT_FILE")"
-cat >"$UNIT_FILE" <<UNITFILE
-[Unit]
-Description=Lazurio Launchpad (update qualification)
+mkdir -p "$UNIT_FILE.d"
+cat >"$UNIT_FILE.d/qualification-gate.conf" <<DROPIN
 [Service]
-Environment=HOME=$QHOME
 ExecStartPre=$WORK/unit-gate.sh pre
-ExecStart=$L launchpad --folder $FOLDER
 ExecStartPost=$WORK/unit-gate.sh post \$MAINPID
-Restart=on-failure
 RestartSec=1
-UNITFILE
+DROPIN
 systemctl --user daemon-reload
-systemctl --user start "$UNIT" || fail "unit start"
 if wait_for 30 launchpad_on 1.0.0; then
   pass "readiness announced: digest of 1.0.0, pid $(ready_field pid) = MainPID"
 else
@@ -157,9 +176,9 @@ finish_update() { wait "$UPDATE_JOB" 2>/dev/null; sed 's/^/   > /' "$UPDATE_OUT"
 confirming() { [ "$(record_phase)" = confirming ] && [ -n "$(worker_unit)" ]; }
 
 step "d. 1.0.0 -> 1.1.0 under systemd: transient worker outside the Launchpad's control group, fresh stable instance"
-release 1.1.0 1 | sed 's/^/   /'
+release 1.1.0 2 | sed 's/^/   /'
 OLD_PID=$(unit_pid)
-start_update "${SERVICE[@]}" --stability-ms 5000 --deadline-ms 60000 --bootstrap-root "$WORK/state/root.json" "${ORIGINS[@]}"
+start_update --stability-ms 5000 --deadline-ms 60000 "${ORIGINS[@]}"
 if wait_for 60 confirming; then
   W=$(worker_unit)
   WORKER_GROUP=$(systemctl --user show "$W" -p ControlGroup --value)
@@ -185,9 +204,9 @@ expect "observation" "$(field status <"$BASE/update/observed.json")" up-to-date
 took
 
 step "e1. 1.2.0 whose Launchpad is refused at start -> automatic rollback to 1.1.0"
-release 1.2.0 2 | sed 's/^/   /'
+release 1.2.0 3 | sed 's/^/   /'
 echo refuse-1.2.0 >"$WORK/fault"
-start_update "${SERVICE[@]}" --stability-ms 5000 --deadline-ms 60000 "${ORIGINS[@]}"
+start_update --stability-ms 5000 --deadline-ms 60000 "${ORIGINS[@]}"
 finish_update
 expect "typed error" "$(field code <"$UPDATE_OUT")" activation-failed
 expect "exit status" "$(grep -o 'exit=.*' "$UPDATE_OUT")" exit=40
@@ -200,7 +219,7 @@ took
 
 step "e2. 1.2.0 whose Launchpad starts and is killed, again and again -> deadline, rollback, unit restartable"
 echo crash-1.2.0 >"$WORK/fault"
-start_update "${SERVICE[@]}" --stability-ms 5000 --deadline-ms 25000 "${ORIGINS[@]}"
+start_update --stability-ms 5000 --deadline-ms 25000 "${ORIGINS[@]}"
 finish_update
 expect "typed error" "$(field code <"$UPDATE_OUT")" activation-failed
 expect "selector" "$(selected)" "$B"
@@ -211,7 +230,7 @@ expect "a later check offers the retry (exit 10)" "$CHECK" 10
 took
 
 step "f. kill -9 of the worker while confirming -> systemd restarts it and it finishes ITS record"
-start_update "${SERVICE[@]}" --stability-ms 8000 --deadline-ms 90000 "${ORIGINS[@]}"
+start_update --stability-ms 8000 --deadline-ms 90000 "${ORIGINS[@]}"
 if wait_for 60 confirming; then
   W=$(worker_unit); OPERATION=$(field operation <"$BASE/update/activation.json")
   systemctl --user kill --signal=SIGKILL "$W" && say "   SIGKILL -> worker (record: $(record_phase))"
@@ -230,7 +249,7 @@ expect "previous.json" "$(field name <"$BASE/update/previous.json")" "$B"
 took
 
 step "h. lazurio update rollback 1.2.0 -> 1.1.0 through the same worker path"
-start_update rollback "${SERVICE[@]}" --stability-ms 5000 --deadline-ms 60000 --json
+start_update rollback --stability-ms 5000 --deadline-ms 60000 --json
 finish_update
 expect "result" "$(field kind <"$UPDATE_OUT")" rolled-back
 expect "selector" "$(selected)" "$B"
@@ -239,7 +258,7 @@ expect "previous.json" "$(field name <"$BASE/update/previous.json")" "$C"
 took
 
 step "g. reboot-equivalent: worker gone, Launchpad unit (re)started with a record present -> it settles the record itself"
-start_update "${SERVICE[@]}" --stability-ms 8000 --deadline-ms 90000 "${ORIGINS[@]}"
+start_update --stability-ms 8000 --deadline-ms 90000 "${ORIGINS[@]}"
 if wait_for 60 confirming; then
   systemctl --user stop "$(worker_unit)" && say "   worker unit stopped (a transient unit does not survive a reboot)"
   systemctl --user restart "$UNIT" && say "   Launchpad unit restarted with record phase=$(record_phase)"
@@ -255,7 +274,7 @@ expect "observation" "$(field status <"$BASE/update/observed.json")" up-to-date
 took
 
 step "f2. worker AND Launchpad gone past the deadline -> a plain later 'lazurio --version' undoes it"
-start_update rollback "${SERVICE[@]}" --stability-ms 8000 --deadline-ms 12000 --json
+start_update rollback --stability-ms 8000 --deadline-ms 12000 --json
 if wait_for 60 confirming; then
   systemctl --user stop "$(worker_unit)" "$UNIT" && say "   worker and Launchpad stopped; selector names $(selected | cut -d+ -f1), record phase=$(record_phase)"
 else
