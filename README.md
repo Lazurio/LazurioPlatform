@@ -32,13 +32,20 @@ their current supported implementation.
 - [Elastic License 2.0 and output boundaries](docs/licensing.md)
 - [Profile evidence and voluntary measurement](docs/profile-evidence.md)
 - [Scoped hosted advice and draft execution](docs/hosted-assistance.md)
+- [Content synchronization](docs/content-sync.md)
+- [Workspace presets](docs/workspace-presets.md)
+- [Hosted entry: admission versus identity](docs/hosted-entry.md)
 - [Acceptance and implementation slices](docs/acceptance.md)
 - [Stack experiment and evidence](docs/stack-evidence.md)
 - [Agent contribution contract](AGENTS.md)
 
 The target includes local and hosted human work, Buddy and AI Colleague environments.
-Each working environment is dedicated to one Principal. OS/CPU, purpose and
+A hosted workspace is either private, dedicated to one Principal, or an
+Organization-owned team workspace that several Principals connect to without personal
+credentials; a personal environment is never shared ad hoc. OS/CPU, purpose and
 collaboration preferences are separate axes; they do not create product forks.
+"Update Lazurio" (product) and "Synchronize content" (Organization repositories) are
+separate operations.
 
 This repository is public from its foundation, by explicit instruction. Architecture,
 decisions, code, tests and build procedures are openly reviewable. Secrets and private

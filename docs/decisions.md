@@ -1,10 +1,16 @@
 # Decision proposals and convergence
 
-Status: review draft, updated 2026-09-16. These local identifiers are Platform proposals,
+Status: review draft, updated 2026-09-19. These local identifiers are Platform proposals,
 not new numbers in the maintained Lazurio decision register. They do not override
 legacy runtime contracts until the owning decision is amended and consumers migrate.
 Canonical decision 0144 has now accepted the Machines/Environment handover boundary
 and the Conglomerate graph meaning; those two points are no longer pending amendments.
+
+The 2026-09-19 reconciliation rewrote F2 and added F8–F12 from the Principal's
+direction and an architecture review. Where a canonical upstream decision contradicts
+a Platform proposal, upstream wins and the proposal is rewritten; where the Principal's
+direction changes upstream behaviour, the change is listed as a required upstream
+amendment below. F8–F12 are accepted direction; none of them is implemented.
 
 ## F0 — Confirmed vocabulary and responsibility split
 
@@ -96,7 +102,7 @@ cost of larger OS/CPU artifacts and native signing/upgrade work. The bounded
 Do not maintain npm and standalone as two independently implemented update channels.
 If a package-manager shim is later needed, it must select the same verified release.
 
-## F2 — A dedicated environment per Principal
+## F2 — Private and team hosted workspaces
 
 The team's first development prerequisite is a working HumanAndMachineEmpire composition
 in the owning Organization's Production Space, preserving existing checkouts and work.
@@ -105,20 +111,45 @@ preparation. Component repositories retain source/review ownership; the public P
 must remain independently buildable and usable without the private composition.
 This prerequisite is not a requirement to finish Dashboard/Auth or deploy hosted services.
 
-**Direction accepted in the request:** retire the shared multi-Principal workshop
-as the target execution topology. Collaboration occurs through authorized repos,
-review and explicit handoffs. Infrastructure ownership may remain organizational.
+**Rewritten 2026-09-19.** The earlier text of this decision retired the shared
+multi-Principal workshop as a target topology. That conflicts with canonical upstream
+decisions 0147–0149, which define the Hosted Team Workspace as an Organization-owned
+Machine without an assigned operator. Upstream wins. Both hosted kinds are first-class:
 
-Baseline shared workspace costs less infrastructure but combines credentials,
-processes and recovery. A Unix-user-only split provides insufficient independence
-unless the supported host envelope proves the missing controls. Dedicated provider
-environments simplify attribution and failure scope; the cost is more provisioning,
-per-seat updates and capacity management. Do not label this choice a new IAM system.
+| | Private hosted workspace | Team hosted workspace |
+| --- | --- | --- |
+| Used by | One named Principal | Several Principals of one Team connect |
+| Machine Owner | The Organization, or the Principal under upstream rules | The Organization |
+| OS account | One | One, shared; not a human Principal |
+| Provider identity | The Principal's own sign-in | Brokered platform App identity; short-lived repository-scoped tokens |
+| Personal credentials | The Principal's own, in their custody | None, ever |
+| Personalspace | Not mounted on an Organization-owned Machine | Never present |
+| Attribution | The Principal's own provider identity | Bot committer, Team author pseudo-identity and workspace trailer (upstream 0148) |
+| How changes land | The Principal's live rights | Pull requests; an authorized person reviews, merges and takes responsibility |
+| Revocation | The Principal's grants and sign-in | Live GitHub Team grant checked at each token issue (upstream 0149) |
+| Workspace preset | `hosted-private` | `hosted-team` |
 
-The hosting owner must specify and prove the isolation envelope. Dedicated placement
-does not prove the Git pusher: verify GitHub identity and exact repo grants at the
-operation boundary. Existing shared-App attribution must be disclosed and retired
-or explicitly resolved before the dedicated cohort's acceptance.
+**Intent that remains.** A personal environment is never shared ad hoc. Nobody adds a
+second person to a private workspace, a workstation or a Buddy host; nobody copies a
+session, token or Personalspace onto a shared Machine to make it convenient. Sharing
+happens only on a Machine that was delivered as a team workspace, with the credential
+and attribution contract above. Individual isolation is a private workspace (or,
+upstream, a single-member Team Workspace), never a Unix-user split inside a shared one.
+
+A shared workspace combines files, processes and recovery by design; its members accept
+that common scope knowingly, and the Organization owns it. Private workspaces simplify
+attribution and failure scope at the cost of more provisioning, per-seat updates and
+capacity. Neither choice is a new IAM system, and the preset never grants access.
+
+The hosting owner must specify and prove the isolation envelope of each kind; a parent
+operator remains a higher compromise domain. Placement never proves the Git pusher:
+verify the provider identity and exact repository grants at the operation boundary.
+On a team workspace, a change that cannot be attributed to the Team through the
+brokered identity fails closed. Live Team-grant verification in the broker is a target
+contract upstream, not deployed behaviour; it is an external dependency of `hosted-team`
+acceptance. Platform consequences: [workspace presets](workspace-presets.md),
+[content synchronization](content-sync.md), [hosted entry](hosted-entry.md),
+[tools and sign-ins](environment-tools.md) and [machine handover](machine-handover.md).
 
 ## F3 — Profile is behavior, not authority
 
@@ -153,9 +184,13 @@ have different transactions and compatibility checks. See [recovery](migration-a
 | --- | --- | --- |
 | Decisions 0128 and 0144 / `Conglomerate Host` | Accepted: deprecated root/product name stays deprecated; Conglomerate means the Principal's Machine graph, Host is a specific infrastructure Machine | No new authority, ACL or registry; consumer terminology migration remains separate |
 | Decisions 0136 and resident-distribution knowledge | Platform source is optional development input; installed product owns runtime; Folder Factory preserves the canonical Lazurio Folder path | Legacy source-working directory supported until explicit migration and restore proof; no second active Lazurio Folder |
-| Decision 0137 and hosted Machine contract proposals | Replace shared Team workshop execution with a dedicated environment per Principal; manifest-derived eligibility remains | Existing shared environments retained only for bounded transition; stop new shared cohorts after approved cutoff |
-| Decisions 0091, 0092, 0094 and Machine architecture | Clarify dedicated use versus infrastructure ownership and custodian recovery | Personalspace remains private, Buddy not Principal, AI Colleague own identity, parent operator boundary explicit |
-| Decision 0129 | In Managed installations product upgrade uses artifacts, Organization Git synchronization keeps its own existing semantics | No product updater scanning/rewriting repositories; Source update retired by cohort |
+| Decision 0137, session semantics (F8) | **Required upstream amendment.** Long-running module applications are owned by the OS service manager (Linux first), not by the Launchpad process: Start survives a Launchpad restart, Stop stops the service, persistence across reboot is an explicit per-application setting. macOS workstations keep session-scoped applications | Module-owned ports and collision refusal; no foreign process adopted or signalled; health, catalog and background requests start nothing; production still accepts only a reproducible Build; no Lazurio supervisor or daemon |
+| Decisions 0147–0149 and the Hosted Team Workspace | No amendment: Platform's former F2 proposal to retire shared Team execution is withdrawn. Platform consumes the brokered identity, attribution and live-grant contract as written | No personal credentials or Personalspace on a team workspace; live Team-grant verification remains a broker change upstream |
+| Decisions 0091, 0092, 0094 and Machine architecture | Clarify private versus team hosted use, infrastructure ownership and custodian recovery | Personalspace remains private, Buddy not Principal, AI Colleague own identity, parent operator boundary explicit |
+| Decision 0129 (F9) | **Required upstream amendment.** Product upgrade uses artifacts and is a separate operation from content synchronization. Content synchronization keeps 0129's hierarchy, atomic materialization, fast-forward-only rule, sibling quarantine and exclusions, but dirty or wrong-branch checkouts **block** instead of being stashed and switched to `main` | No product updater scanning/rewriting repositories; no reset or auto-merge; Source update retired by cohort; an explicit separate preservation operation replaces the implicit stash |
+| Decision 0144 and the Machine identity schema (F10) | **Conditional upstream amendment.** Only if preset provenance must appear in `lazurio.machine.json`: add the field upstream in the hosting engine, then re-pin and conformance-test here | Identity stays descriptive and grants nothing; nothing is derived from names; `account` stays `null` until its contract exists |
+| Decision 0145 (F12) | No amendment to the decision; Platform needs the upstream finalization readiness to expose a trusted, live-verifiable identity continuity proof before canonical-only roots become executable | Transition-only admission stays the interim gate; no fallback to the deprecated projection; no second schema |
+| Decision 0146 (F11) | No amendment: Platform consumes the per-application hostname, catalog and session model through a hosted request adapter | Gateway authenticates; forwarded identity headers are not trusted; unknown hosts refused |
 | Decisions 0134, 0140 | Installed executable carries its runtime; development/module toolchain checks remain capability-specific | No automatic machine-wide PATH/tool upgrades; packaging does not claim third-party app dependencies bundled |
 | Decision 0142 | Lazurio Folder Factory composes purpose, behavior and locale from versioned inputs | Organization language ownership and stable locale-neutral reason codes preserved |
 | Collaboration constitution / 0132 | Define coordinator acceptance with real harness capability and independent verification | Principal retains scope, access and publication authority |
@@ -166,9 +201,10 @@ host policy nor assigns new global decision IDs. Owner-specific migration and
 infrastructure details stay outside this repository.
 
 Open decisions are: possible conflict with the no-central-registry/no-global-sync rule;
-the natural owner of topology; discovery, projection and freshness; any future
-Dashboard write-through path; privacy and observability; legacy local-checkout migration;
-and migration of legacy terminology. None is an implied implementation task.
+the natural owner of topology; discovery, projection and freshness; the transport,
+requester authentication and acknowledgement of Dashboard-originated typed requests
+(their shape is decided in F10); privacy and observability; legacy local-checkout
+migration; and migration of legacy terminology. None is an implied implementation task.
 
 ## Provenance and publication
 
@@ -212,7 +248,7 @@ semantics, trust mechanism and automatic update detection remain implementation 
 | Decision amendment acceptance | Product Principal and maintained decision owner | Reviewed canonical amendments, explicit migration scope |
 | License/IP and product release | Authorized repository/IP owner | Reused-source inventory, license disposition, explicit product-release instruction; repository visibility is already public by request |
 | Native supported platform floor | Lazurio Platform maintainer | Native OS/CPU/ABI tests; build success alone insufficient |
-| Hosting envelope and shared-workshop cutoff | Infrastructure owner | Dedicated isolation and identity smoke, recovery and decommission plan |
+| Hosting envelope for private and team workspaces | Infrastructure owner | Isolation and identity smoke per kind, brokered attribution and revocation on the team kind, recovery plan; legacy shared workshops converge to one of the two kinds |
 | Release signing and recovery | Distribution owner | Verified candidate, tamper denial, key rotation drill and offline restore |
 | Coordinator capability | Harness integration owner | Actual delegated and unavailable-tool scenarios, not generated text assertions |
 
@@ -366,3 +402,90 @@ role/persona and work on your project. Exact copy remains a draft. Build the pro
 using the product; publish deliberately selected reusable profiles and sanitized evidence
 of outcomes and failures. A profile alone cannot guarantee autonomy, runtime availability
 or task success. Sharing/streams do not relax private-data or publication boundaries.
+
+## F8 — The OS service manager owns long-running applications
+
+**Accepted direction (2026-09-19), not implemented.** Long-running module applications
+are owned by the operating system's service manager, not by the Launchpad process.
+Linux first: systemd user services generated from validated module declarations with
+the exact working directory, command, environment and source selection. Identity and
+readiness are queried from the service manager, never reconstructed from saved PIDs.
+Start survives a Launchpad restart; Stop stops the service; persistence across reboot
+is an explicit per-application setting, never a consequence of clicking Open. Ports
+stay module-defined and collisions are refused. Bounded preparation subprocesses keep
+the existing guarded-process ownership. macOS keeps session-scoped applications until
+a workstation consumer needs more. No Lazurio supervisor or daemon is built.
+
+Motivation: a product that updates itself must not make people accept interruption of
+their work. While applications are children of the Launchpad, every product activation
+or Launchpad restart stops them, and availability of the product depends on people
+repeatedly agreeing to lose running work. This changes the session semantics of
+upstream decision 0137 and requires the amendment listed above. The contract is in
+[module adoption](module-adoption.md#application-lifetime--accepted-direction-not-implemented).
+
+| Alternative | Assessment |
+| --- | --- |
+| Keep applications as Launchpad session children | Simplest and current; couples application availability to product update and Launchpad restarts; rejected for hosted Linux |
+| Build a Lazurio supervisor or daemon | A second lifecycle to install, update, secure and recover; duplicates the OS; rejected |
+| OS service manager, Linux first | Recommended: standard capability, survives the Launchpad, queryable identity; cost is one adapter per OS and an upstream amendment |
+
+## F9 — Update Lazurio and Synchronize content are separate operations
+
+**Accepted direction (2026-09-19), not implemented.** "Update Lazurio" changes product
+bytes; its contract is the product update document (`docs/update.md`, separate PR).
+"Synchronize content" changes Organization repositories; its contract is
+[content synchronization](content-sync.md). They have separate commands, buttons,
+locks and outcomes. Product update never clones, stashes, regenerates preferences,
+upgrades tools or runs data migrations. Content synchronization is explicit only and
+blocks on dirty or wrong-branch checkouts instead of stashing and switching, a
+deliberate change from the legacy engine that requires the 0129 amendment above.
+
+## F10 — Workspace presets and typed owner requests
+
+**Accepted direction (2026-09-19), not implemented.** A named, versioned, declarative
+[workspace preset](workspace-presets.md) composes purpose, collaboration defaults,
+required capabilities, enabled surfaces, supervision policy and default update channel.
+Exactly two hosted presets are validated first, `hosted-private` and `hosted-team`,
+next to the existing local default. The Environment stores the immutable preset
+reference plus explicit local overrides under the existing environment-configuration
+owner; the instruction axes of the profile renderer are not extended into a universal
+infrastructure configuration.
+
+A user-facing "Machine profile" choice has two effects with two owners: infrastructure
+custody and topology belong to the hosting engine, Environment configuration to
+Platform. A managed Dashboard may present one choice and dispatch typed,
+resource-specific requests carrying an expected local revision to each owner. The local
+core validates, applies through the ordinary use case and returns the accepted or
+rejected revision plus the observed outcome. A concurrent local change is a conflict,
+never silent cloud precedence. A generic desired-state-to-Machine pipeline is rejected.
+Access grants, rosters, tokens, mandates and analytics consent are never part of a
+preset.
+
+## F11 — Hosted admission is not identity
+
+**Accepted direction (2026-09-19), not implemented.** The hosted gateway authenticates.
+The Launchpad does not trust forwarded identity headers and revalidates the browser
+session against the gateway's configured auth endpoint. Lazurio Account login (OIDC) is
+added when the Launchpad needs a named person or managed-service enrollment; it
+identifies the service user and neither admits to a workspace nor supplies repository
+rights. GitHub stays the only access authority. Self-hosted needs neither Account nor
+Dashboard. The loopback protocol gets an explicit hosted request adapter as required
+work. Contract: [hosted entry](hosted-entry.md).
+
+## F12 — Canonical-only Organizations and a deliberately narrow first delivery
+
+**Accepted direction (2026-09-19), not implemented.** Canonical-only Organizations are
+the target normal case. Admitting only parity-valid `transition` roots is an interim
+gate tied to upstream finalization readiness (decision 0145); requiring the deprecated
+projection forever would institutionalize migration machinery. Exit criterion: a
+trusted, live-verifiable identity continuity proof accepted upstream. See
+[organization contract](organization-contract.md#exit-from-transition-only-admission).
+
+The first hosted delivery is deliberately narrow: `linux-x64` and `darwin-arm64` are
+the supported targets, `linux-arm64` is built for the qualification VM, installation
+is per-user, and Windows, musl and Intel macOS wait for a real user. The launch matrix
+in [acceptance](acceptance.md#platform-matrix-and-truth-labels) stays the
+general-availability target; the canary path is narrower and says so. Internal usage
+analytics, marketplace, hosted advice, legacy personal migration and generic remote
+reconciliation are outside the canary path. Analytics stays default-off and
+consent-bound per [profile evidence](profile-evidence.md) and can never block an update.
