@@ -20,6 +20,13 @@ export const updateErrors = {
   busy: { exit: 29, retryable: true },
   "storage-unavailable": { exit: 30, retryable: true },
   "not-implemented": { exit: 31, retryable: false },
+  /** Authentic metadata that goes BELOW the floor vector: a lower version, the
+   * same version with other signed content, a lowered snapshot reference or
+   * `snapshot.meta` entry. Nothing but a valid root chain was kept. Retryable
+   * in the sense of this table — it ends when the repository (or whoever
+   * stands in front of it) serves metadata at or above the floors again, with
+   * no repair on the Machine — but it is a security signal: watch the CODE. */
+  "metadata-rollback": { exit: 47, retryable: true },
   internal: { exit: 70, retryable: false },
 } as const satisfies Record<string, { exit: number; retryable: boolean }>;
 

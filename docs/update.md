@@ -363,25 +363,64 @@ Concrete choices this slice fixed:
 - **Authenticated failure-state floors.** The earlier rule "withhold the role
   delivered last in a failed refresh" is replaced. The fetcher retains the raw
   bytes of the role delivered last (only that one has a consumer); after a
-  failed refresh promotion re-verifies it without the client and without
-  expiry — timestamp: signature threshold under the promoted root, version
-  above and snapshot version not below the trusted timestamp; snapshot: length
-  and hashes recorded by the newest authenticated timestamp, signature
-  threshold, exactly the version that timestamp names, no targets version below
-  the trusted snapshot — and writes it as the ordinary role file. Verified in
-  the pinned source, with line references in `src/update/trust.ts`: an expired
-  LOCAL timestamp or snapshot is installed in memory before the expiry throw
-  and the throw is swallowed (`store.js:89-91`, `:133-136`;
-  `updater.js:195-206`, `:230-234`), so it acts as a version floor and nothing
-  else, and the final expiry checks (`store.js:102`, `:145`, `:172`) run again
-  before any target is looked up. Expired **targets** are different: the store
-  checks expiry before installing (`:172-175`), so an expired local targets
-  file is discarded without a trace and the floor of the targets version is the
-  snapshot's `meta`. A targets role delivered last is therefore never captured.
-  The floor is also captured on first contact and under an expired root: the
-  root authenticated a signature, and a floor can only raise the bar. A floor
-  that no longer verifies under a later root is not loaded by the client, so a
-  revoked key cannot wedge a Machine with a fast-forwarded version.
+  failed refresh promotion AUTHENTICATES it without the client and without
+  expiry — timestamp: signature threshold under the promoted root; snapshot:
+  length and hashes recorded by the newest authenticated timestamp, signature
+  threshold, exactly the version that timestamp names — and hands it to the
+  floor vector like any other candidate. Verified in the pinned source, with
+  line references in `src/update/trust.ts`: an expired LOCAL timestamp or
+  snapshot is installed in memory before the expiry throw and the throw is
+  swallowed (`store.js:89-91`, `:133-136`; `updater.js:195-206`, `:230-234`),
+  so the role file acts as a version floor and nothing else, and the final
+  expiry checks (`store.js:102`, `:145`, `:172`) run again before any target is
+  looked up. Expired **targets** are different: the store checks expiry before
+  installing (`:172-175`), so an expired local targets file is discarded
+  without a trace; a targets role delivered last is therefore never captured,
+  and its floor lives in the vector. The floor is also captured on first
+  contact and under an expired root: the root authenticated a signature, and a
+  floor can only raise the bar.
+- **The floor vector** (`src/update/floors.ts`, `trust/floors.json`). Exactly
+  the facts of the contract's table, keyed as in `snapshot.meta`
+  (`targets.json`). *Signed-content digest* = SHA-256 of
+  `canonicalize(metadata.signed.toJSON())` from `@tufjs/canonical-json` (now a
+  declared dependency, the version `@tufjs/models` pins): byte for byte what a
+  signature is verified over (`@tufjs/models` `dist/key.js:39-41` →
+  `dist/utils/verify.js:10`), so formatting, key order and signatures do not
+  count and every signed member, known or not, does.
+  *Who is compared:* after a failed refresh the roles that changed and the
+  captured one; after a **successful** refresh every role the client now
+  trusts, changed or not — the pinned client treats a replayed state that
+  equals its files as "no change" and would authorize targets under it even
+  when the vector is ahead. *Write order:* `floors.json` first (element-wise
+  maximum), then root chain, `root.json`, timestamp, snapshot, targets, each
+  atomic, the first failed write stopping the rest. The vector is therefore
+  never lower than what the files prove; a vector that is ahead cannot wedge,
+  because it refuses only what is lower or different — the same repository
+  state is a no-op and any later valid state exceeds it. *Violation:*
+  `metadata-rollback` (exit 47) with `role`, `rule`, `floor`, `offered`; only
+  the valid root chain (and its part of the vector) is kept; a root that
+  contradicts a retained one keeps nothing. It outranks whatever else went
+  wrong in that refresh, and an authentic LOWER role that the client itself
+  refused is reported under the same code. `retryable` is true in the sense of
+  the error table — it ends when metadata at or above the floors is served
+  again, with no repair on the Machine — but it is a security signal: observers
+  watch the code. *Targets* (channel document, later identity and artifact)
+  are looked up only after a refresh that completed without error and
+  satisfied the vector. *Rebuild:* a missing, damaged or newer-schema
+  `floors.json` is rebuilt from the retained numbered roots (walked as a
+  verified chain) and the role files, each under the newest retained root that
+  verifies it, and is written back; it never blocks a check. Where the pinned
+  client forced MORE than the contract states: (a) the client loads a local
+  snapshot without holding it against the timestamp's hashes
+  (`updater.js:231-232`, `store.js:107`), so a reference — the timestamp's
+  snapshot reference, a `snapshot.meta` entry — that names the **same version
+  with other recorded length or hashes** is refused too; (b) a snapshot entry
+  may not fall below a role of that name that was actually verified, and a
+  snapshot not below the newest reference, whichever file is lost; (c) the
+  comparison after a successful refresh covers unchanged roles, see above.
+  Proven blind spots of the client, by switching the comparison off: after a
+  rotation of every role key, and after an interruption between vector and
+  files, the client accepts the lower state and reports an update.
 - **First trust.** The caller supplies the bootstrap root (later: the
   compiled-in root). It becomes durable only together with the first role it
   verified, so a wrong root can never wedge an installation; once `trust/` holds

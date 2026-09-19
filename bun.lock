@@ -5,6 +5,7 @@
     "": {
       "name": "lazurio-platform-foundation",
       "dependencies": {
+        "@tufjs/canonical-json": "2.0.0",
         "@tufjs/models": "5.0.0",
         "ajv": "8.20.0",
         "minimatch": "10.2.6",

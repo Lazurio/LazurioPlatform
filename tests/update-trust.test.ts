@@ -64,24 +64,30 @@ test("after a failed refresh the role delivered last becomes a floor only when i
     delivered: [string, string];
   }) => {
     const { trustDirectory, scratch } = await directories();
+    // What an established installation holds: the seed IS its files.
+    await writeFile(join(trustDirectory, "1.root.json"), input.seed.root);
+    await writeFile(join(trustDirectory, "root.json"), input.seed.root);
+    for (const [name, content] of input.seed.roles)
+      await writeFile(join(trustDirectory, name), content);
     await writeFile(join(scratch, "root.json"), input.seed.root);
     for (const [name, content] of Object.entries(input.scratch))
       await writeFile(join(scratch, name), content);
-    // The retained chain (`1.root.json`) is written into the empty directory
-    // every time; this test is about the roles.
+    // The vector is (re)built and written every time; this test is about the
+    // roles.
     return (
       await promoteVerified({
         trustDirectory,
         scratch,
         seed: input.seed,
         fetchedRoots: new Map(),
+        refreshed: false,
         lastDelivered: {
           file: input.delivered[0],
           bytes: Buffer.from(input.delivered[1]),
         },
         write: writeDurableFile,
       })
-    ).filter((name) => !name.endsWith("root.json"));
+    ).filter((name) => !name.endsWith("root.json") && name !== "floors.json");
   };
   const trusted = { "timestamp.json": first.timestamp };
   // The client never wrote the newer timestamp (it threw); the raw bytes
@@ -111,16 +117,28 @@ test("after a failed refresh the role delivered last becomes a floor only when i
         delivered: ["timestamp.json", delivered ?? ""],
       }),
     ]).toEqual([name, []]);
-  // Authentic but LOWER or EQUAL: a replay is no floor.
+  // Authentic and EQUAL is nothing new; authentic and LOWER is a rollback,
+  // named as one by the floor vector.
   const newer = { "timestamp.json": second.timestamp };
-  for (const delivered of [first.timestamp, second.timestamp])
-    expect(
-      await promote({
-        seed: seed(newer),
-        scratch: newer,
-        delivered: ["timestamp.json", delivered],
-      }),
-    ).toEqual([]);
+  expect(
+    await promote({
+      seed: seed(newer),
+      scratch: newer,
+      delivered: ["timestamp.json", second.timestamp],
+    }),
+  ).toEqual([]);
+  await expect(
+    promote({
+      seed: seed(newer),
+      scratch: newer,
+      delivered: ["timestamp.json", first.timestamp],
+    }),
+  ).rejects.toMatchObject({
+    failure: {
+      code: "metadata-rollback",
+      context: { role: "timestamp", rule: "version", floor: 2, offered: 1 },
+    },
+  });
 
   // Snapshot: held against the newest authenticated timestamp, which the
   // client persisted before it asked for the snapshot.
@@ -195,6 +213,7 @@ test("a root in scratch reaches trust/ only through a verified chain from the se
         scratch,
         seed,
         fetchedRoots,
+        refreshed: true,
         lastDelivered: undefined,
         write: writeDurableFile,
       }),
@@ -209,10 +228,11 @@ test("a root in scratch reaches trust/ only through a verified chain from the se
       scratch,
       seed,
       fetchedRoots: new Map([[2, genuine]]),
+      refreshed: false,
       // A root delivered last needs no special case: the chain is verified
       // link by link whatever the client did with it.
       lastDelivered: { file: "2.root.json", bytes: Buffer.from(genuine) },
       write: writeDurableFile,
     }),
-  ).toEqual(["1.root.json", "2.root.json", "root.json"]);
+  ).toEqual(["floors.json", "1.root.json", "2.root.json", "root.json"]);
 });
