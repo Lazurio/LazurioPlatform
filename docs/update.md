@@ -316,12 +316,11 @@ transport is shared). Two slices exist: **check** (embedded identity,
 `lazurio update --check`, `lazurio update status`) and **download → stage →
 activate → confirm or roll back** for the CLI (`lazurio update`,
 `--download-only`, `lazurio update rollback`, `lazurio self-check`, the internal
-`lazurio update apply-worker`). Not built: the Launchpad poller, pill and
+`lazurio update apply-worker`), plus **`lazurio install`**. Not built: the Launchpad poller, pill and
 action, `restart-pending`, release notes, the one-line notice of other
 commands, the compiled-in root and default origins (origins, channel and
-bootstrap root are explicit options), `update/config.json`, an installer that
-creates the first `bin/lazurio` (without a selector every update command
-answers `not-installed`), launchd, the publisher, and every piece of native
+bootstrap root are explicit options), a recorded channel, `lazurio uninstall`
+and any repair of an existing installation, launchd, the publisher, and every piece of native
 evidence listed above except the first native Linux run: the compiled journeys
 run on the developer's macOS ARM64 inside `bun run check`, and the
 `systemd-user` path was qualified on a real systemd 255 on Ubuntu ARM64
@@ -496,6 +495,46 @@ Concrete choices fixed so far:
   process holds the step lock, `activating` only while a record exists, `ready`
   only while the staged version exists; otherwise the status collapses to the
   last stable one. `running` and `restart-pending` are still unwritten.
+- **Install.** `lazurio install` is the running executable staging ITSELF as
+  the first version — "HTTPS bootstrap, then TUF": a person or the hosting
+  engine obtained the file over HTTPS; before it installs anything it proves
+  through an ordinary trust refresh that the SHA-256 of `process.execPath` is a
+  signed artifact (`unverified-executable` otherwise) and that the signed
+  `identity.json` of that artifact is the identity compiled into it — version,
+  target, commit, digest, length (`identity-invalid`). It need not be the
+  channel's current version; it must be published. Then it creates the base,
+  `bin/`, `versions/`, `trust/` and `update/` with an explicit `0700` whatever
+  the umask, stages a copy of itself through the same gate as any candidate
+  (re-hashed after copying, self-check of the copy, `0500`/`0400`, fsync,
+  rename), and swaps in the selector. `previous.json` stays absent;
+  `observed.json` is written by the check it ran. It refuses when anything
+  exists at the selector (`already-installed`): reinstall and repair are not
+  this command, versions change through `lazurio update`. **All or nothing:**
+  any refusal, no network, or a service manager that says no leaves no
+  selector, no version, no unit of ours, and — of the directories it created
+  itself — none that is empty. It prints the `PATH` hint and never edits a
+  shell profile.
+- **Install `--service systemd-user`** (Linux). The unit is rendered by a pure
+  function (`renderLaunchpadUnit`): `ExecStart` is the selector with the
+  Launchpad's explicit arguments — `--base` (a service manager's environment
+  need not be the person's, and the Launchpad announces readiness where the
+  updater looks), `--folder`, optionally `--organization-directory` and
+  `--bun-executable`; every argument is escaped for systemd's `%`, `$` and
+  quoting rules — `Restart=on-failure`, `WantedBy=default.target`. The
+  Launchpad has no port option today (it binds an ephemeral loopback port and
+  prints a private session URL), so none is taken; under a service that URL is
+  only in the journal. The unit goes to
+  `${XDG_CONFIG_HOME:-~/.config}/systemd/user/<unit>` (default name
+  `lazurio-launchpad.service`), then `daemon-reload` and `enable --now`. A
+  unit of that name with other content is `unit-conflict` and is never
+  touched, so the installer cannot fight a hosting engine's resident unit.
+- **`update/config.json`** records what the installer decided — the
+  `ServiceSpec` and the Folder — so `lazurio update` and `update rollback`
+  need no `--service` or `--folder` on that Machine; a flag overrides it.
+  Tolerant state: missing or damaged means "no service, no Folder check".
+  This also answers where self-check's Folder comes from: there is still no
+  Folder discovery in this CLI, but an installation with a service has one
+  recorded Folder.
 - **Evidence in the repository.** `tests/update-journey.test.ts` compiles real
   executables A, B and C of a TEST-ONLY product entry point (faults switched by
   a control file; product code has no test hook) and drives `bin/lazurio`
@@ -541,6 +580,10 @@ of this work, the rest open until reviewed:
     first slice's rule "withhold the role delivered last in a failed refresh"
     is gone: that role is now re-verified and, when authentic and newer, kept
     as a floor. Expired targets are deliberately never kept.
+16. `update/config.json` holds the service and the Folder, not "only the
+    channel" as "Surfaces" says; the channel is still a flag until the
+    publisher slice brings defaults. `lazurio install` and `launchpad --base`
+    are surfaces the contract text does not list yet.
 
 ## Removed by this contract
 

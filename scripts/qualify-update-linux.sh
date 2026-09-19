@@ -89,6 +89,9 @@ cleanup() {
   systemctl --user reset-failed >/dev/null 2>&1
   [ -n "$FIXTURE_PID" ] && kill "$FIXTURE_PID" 2>/dev/null
   if [ "${KEEP:-0}" = 1 ]; then say "kept $WORK"; else chmod -R u+w "$WORK" 2>/dev/null; rm -rf "$WORK"; fi
+  # A disposable Machine is often powered off hard right after this script:
+  # without a sync the removals above are not on disk and come back.
+  sync
 }
 trap cleanup EXIT
 
