@@ -156,7 +156,8 @@ All seven live in one Platform package; a boundary is not a package, process or 
 permanently running process required for every command. Folder and update operations
 execute directly from the CLI; application operations address the same OS-owned
 services through the same core. Boundary 5's service-manager ownership is implemented
-for Linux (systemd user services; a direct CLI path without a Launchpad is not);
+for Linux (systemd user services; status and stop also work from the CLI without a
+Launchpad, start and preparation do not);
 boundary 4's synchronization and boundary 7's typed requests are accepted direction,
 not implemented; see [module adoption](docs/module-adoption.md#application-lifetime--implemented-for-linux-session-scoped-on-macos),
 [content synchronization](docs/content-sync.md) and
@@ -184,7 +185,7 @@ installed executable, not a separate implementation of installation/profile logi
 | 4 | Git access, membership, publication permission | GitHub | Live checks for online mutations through the workspace's provider identity; offline state is not fresh authority |
 | 4 | Planning and delivery status | Owning Organization Mission Control | Links to code and knowledge; no product-local task ledger |
 | 5 | Module-specific preparation, dependencies and database setup | Owning module under its Organization's standard | Explicit module preparation through the shared core; read-only status never provisions or repairs |
-| 5 | Running app processes | Linux with a reachable user service manager: systemd, as transient user services (implemented). macOS and everywhere else: the session-scoped guarded process group of the Launchpad. One `ApplicationRunner` seam, selected explicitly | One owner per application, identity and state queried from that owner (`InvocationID`, control group), never from saved PIDs; a Launchpad exit never stops a service-owned application; bounded preparation subprocesses stay with the guarded-process owner; reboot persistence is a separate explicit setting, not built |
+| 5 | Running app processes | Linux with a reachable user service manager: systemd, as transient user services (implemented). macOS and everywhere else: the session-scoped guarded process group of the Launchpad. One `ApplicationRunner` seam, selected explicitly | One owner per application, identity and state queried from that owner (`InvocationID`, control group), never from saved PIDs; a Launchpad exit never stops a service-owned application and a Launchpad crash never blocks operating it (coordination by a kernel lock that dies with its holder; the retained transactional lock covers dependency preparation only); bounded preparation subprocesses stay with the guarded-process owner; reboot persistence is a separate explicit setting, not built |
 | 6 | Machine identity, gateway and admission | The hosting engine | Read-only handover; Launchpad revalidates the browser session at the gateway's configured auth endpoint (accepted direction) |
 | 7 | Service-user identity and managed requests | Lazurio Account and Dashboard, optional | Typed requests with an expected local revision; conflict on concurrent local change |
 | — | Secrets and provider recovery | Existing credential/provider custody | Reference/operation proof only; no secret material in manifests or logs |
