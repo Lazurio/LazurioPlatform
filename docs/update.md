@@ -43,9 +43,9 @@ that publishes every platform at once.
   later start can finish or undo on its own.
 - **Trust never rewinds.** TUF metadata verified during any attempt — above all
   a rotated root — is promoted into the durable trust directory whether or not
-  the rest of the attempt succeeds. Channel sequence and document-digest floors
-  are security state too and live beside it, not in the presentation state.
-  Program rollback never touches either.
+  the rest of the attempt succeeds. The channel document is a TUF target, so
+  its rollback is refused by the timestamp, snapshot and targets versions held
+  there; it needs no floor of its own. Program rollback never touches trust.
 - **Program rollback is not data rollback.** A version is staged only when the
   signed identity proves it can read the current Folder state; rollback is
   offered only to a version that can still read what the newer one wrote.
@@ -69,9 +69,12 @@ the current one.
 ```text
 bin/lazurio -> ../versions/<version>+<sha16>/lazurio   # the only active selector
 versions/<version>+<sha16>/{lazurio,identity.json}      # immutable
-trust/                                                  # durable verified TUF metadata + channel floors
+trust/                                                  # durable verified TUF metadata
 update/activation.json                                  # present only during an activation
+update/previous.json                                    # what the last confirmed activation replaced
 update/observed.json                                    # derived observation for UI, CLI and observers
+update/launchpad-readiness.json                         # written by a running Launchpad, removed at clean exit
+update/lock, update/activation.lock                     # flock files; content never read
 update/scratch-*/                                       # always safe to delete
 ```
 
@@ -150,7 +153,9 @@ the rollback window never needs a data downgrade.
 One lock covers a step, acquired blocking with a timeout; lock initialization is
 crash-safe; the lock works on any local filesystem that provides `flock`. The
 lock is released before the worker waits for the restarted Launchpad, which
-needs it to start.
+needs it to start. A second `flock`, held by the worker for its whole life and
+released by the kernel when it dies, is how every other process tells a live
+activation from an abandoned one.
 
 Retention: active, previous and any version still running are kept; everything
 else, all scratch and superseded trust files are pruned after a confirmed
@@ -206,7 +211,8 @@ Tag-driven workflow modelled on T3 Code: quality gates, deterministic builds for
 the supported targets, one GitHub Release with all artifacts and generated
 notes, then publication of signed metadata.
 Channels are `stable` and `preview`; promotion edits the signed channel document
-to point at the same bytes. Each channel has its own sequence floor; switching
+to point at the same bytes. The document's `sequence` is ordering information
+for people and tools; replay of an older document is refused by TUF. Switching
 channel is explicit and never downgrades.
 
 TUF stays (accepted decision; rotation, expiry and rollback protection are not
@@ -263,21 +269,42 @@ same journey then runs on a hosted canary Machine.
 
 ## Implemented so far
 
-The first slice lives in `src/update/` (the old installer in
-`src/distribution/` is untouched until the evidence above exists). It delivers
-the embedded identity and `lazurio --version`, the **Check** step with durable
-trust promotion, `update/observed.json`, `lazurio update --check` and
-`lazurio update status`. Download, activation, the compiled-in root and default
-origins are not built; plain `lazurio update` says so with `not-implemented`.
-Concrete choices this slice fixed:
+The implementation lives in `src/update/` (the old installer in
+`src/distribution/` is untouched until the evidence above exists; only its
+transport is shared). Two slices exist: **check** (embedded identity,
+`lazurio --version`, durable trust promotion, `update/observed.json`,
+`lazurio update --check`, `lazurio update status`) and **download → stage →
+activate → confirm or roll back** for the CLI (`lazurio update`,
+`--download-only`, `lazurio update rollback`, `lazurio self-check`, the internal
+`lazurio update apply-worker`). Not built: the Launchpad poller, pill and
+action, `restart-pending`, release notes, the one-line notice of other
+commands, the compiled-in root and default origins (origins, channel and
+bootstrap root are explicit options), `update/config.json`, an installer that
+creates the first `bin/lazurio` (without a selector every update command
+answers `not-installed`), launchd, the publisher, and every piece of native
+evidence listed above: the journeys below ran on the developer's macOS ARM64
+only, and the `systemd-user` adapter has never met a real systemd.
+
+Concrete choices fixed so far:
 
 - **`trust/` layout.** `root.json` is the current trusted root and the only
   anchor the TUF client is seeded with; `<N>.root.json` is the retained verified
-  chain; `timestamp.json`, `snapshot.json`, `targets.json`;
-  `channel-floors.json` (`schemaVersion`, per-channel `sequence` and
-  `documentSha256`). Only these names are read; anything else is ignored.
-  Promotion order is the numbered chain, `root.json`, timestamp, snapshot,
-  targets, then the floor, and `trust/` always holds a prefix of that order.
+  chain; `timestamp.json`, `snapshot.json`, `targets.json`. Only these names are
+  read; anything else is ignored. Promotion order is the numbered chain,
+  `root.json`, timestamp, snapshot, targets, and `trust/` always holds a prefix
+  of that order.
+- **No channel floors.** An earlier revision kept `channel-floors.json`. It was
+  removed: an older channel document can only arrive under older targets
+  metadata, which the TUF client refuses against `trust/` (proven by replaying
+  a once-valid repository state and by substituting the older document alone).
+  `sequence` stays in the signed document as ordering information.
+- **Damaged trust never wedges.** A role file that cannot be read or is not
+  JSON counts as absent: it is fetched again, verified under the root and
+  replaced (a directory in its place is removed). A `root.json` that cannot be
+  read or does not verify falls back to the caller's bootstrap root, seeds no
+  older role, and is rewritten by promotion; without a bootstrap root the
+  answer is the typed `trust-invalid`. Cost, accepted: that one refresh runs
+  without the rollback protection of the damaged installation's older roles.
 - **When the pinned client persists.** Verified in the `tuf-js` 6.0.0 source
   and recorded with line references in `src/update/trust.ts`: timestamp,
   snapshot and targets are persisted only after complete verification including
@@ -288,7 +315,7 @@ Concrete choices this slice fixed:
 - **First trust.** The caller supplies the bootstrap root (later: the
   compiled-in root). It becomes durable only together with the first role it
   verified, so a wrong root can never wedge an installation; once `trust/` holds
-  a root, a supplied bootstrap root is refused (`trust-conflict`).
+  a valid root, a supplied bootstrap root is refused (`trust-conflict`).
 - **Channel document.** `channels/<stable|preview>.json`, exact fields
   `schemaVersion: 1`, `channel`, `sequence`, `version`, `minimumVersion`,
   `targets` (execution target → `artifacts/<sha256>/lazurio`). A check reads
@@ -297,13 +324,126 @@ Concrete choices this slice fixed:
   Versioning precedence than the embedded version.
 - **Error codes** are defined once, in `src/update/errors.ts`, together with
   their exit status and whether the same action can be retried. A check exits
-  `0` when up to date and `10` when an update is available.
-- **Lock.** `update/lock` is one regular file locked with `flock`, polled
-  until a timeout (`busy`). Creating it is atomic and its content is never
-  read, so there is no initialization to interrupt. The Folder operation lock
-  is unchanged; converging the two is separate work.
-- **Clock.** The injected clock stamps the observation only. Expiry is judged
-  by the pinned TUF client against the system clock; it has no clock input.
+  `0` when up to date and `10` when an update is available; `update`,
+  `update --download-only` and `update rollback` exit `0` when they did what
+  was asked. A response over its length limit (`response-too-large`) and a
+  filesystem without `flock` (`lock-unsupported`, read from `errno`) have their
+  own codes.
+- **Locks.** `update/lock` (one step) and `update/activation.lock` (a live
+  worker) are regular files locked with `flock`; creating them is atomic and
+  their content is never read, so there is no initialization to interrupt. The
+  step lock is polled until a timeout (`busy`). The Folder operation lock is
+  unchanged; converging them is separate work.
+- **Clock.** The injected clock stamps observations and activation deadlines.
+  Metadata expiry is judged by the pinned TUF client against the system clock.
+- **Download.** One step under the step lock together with the check, because
+  its scratch directory is what the next lock holder deletes: resuming means
+  resuming inside one operation (a broken connection continues with `Range`
+  from the bytes on disk; a server that ignores the range restarts from zero),
+  never across processes — delivery state stays disposable. The signed
+  `artifacts/<sha256>/identity.json` (the document `scripts/artifact-identity.ts`
+  writes, plus an optional `minimumUpdaterContract`) is fetched through the TUF
+  client and checked **before** the large transfer: target, version, artifact
+  digest and length, updater contract, and that the release reads the Folder
+  state schemas the running product writes. Artifact URLs are TUF
+  consistent-snapshot names; the mapping to release assets is one function
+  (`artifactUrl`). Free space is checked first; `ENOSPC` later is the same
+  `disk-full`. One deadline covers the transfer, retries and waits; an idle
+  connection is retried; only attempts without progress count against the
+  retry bound.
+- **Self-check.** `lazurio self-check [--json] [--folder <dir>]` prints the
+  embedded identity and, for a named Folder, parses both state documents by
+  plain reads — it takes no lock, because taking the Folder lock writes. There
+  is no implicit Folder discovery in this product, so the Folder is checked
+  only when `--folder` is given to `lazurio update`. The updater runs the
+  candidate at its own path inside scratch with an empty environment and a
+  timeout that holds even against a grandchild keeping the pipe open, compares
+  the answer with the signed identity, and only then renames the directory
+  into `versions/`. A version that is already staged is not downloaded again,
+  but its bytes are re-hashed against the signed digest and the self-check is
+  run again: an explicit retry is the whole gate.
+- **Activation record.** `update/activation.json`: `schemaVersion`, `operation`,
+  `kind` (`update | rollback`), `previous`, `candidate`, `phase`
+  (`switching | confirming`), `deadline` (wall clock), `switchedAt`, `service`
+  and `folder` — everything a later process needs to finish or undo it without
+  the worker. `resumeActivation()` is called by `lazurio update …` and
+  `lazurio launchpad` at start; without a record it is one failed `readFile`.
+  With one and no live worker it decides from the record and the disk alone:
+  unreadable → removed, selector untouched; `switching`, candidate missing or
+  deadline past → previous restored; `confirming` → confirmed if the candidate
+  confirms now, else (no service) previous restored or (service) left for a
+  later start until the deadline. Undo is always selector first, record second;
+  confirm is `previous.json` first, record second.
+- **Worker.** `requestActivation` starts `versions/<selected>/lazurio update
+  apply-worker …` — the selected immutable executable, never the candidate and
+  never the binary that happens to run the command, and never while a record
+  exists. Without a service it is a detached process in its own session; under
+  `systemd-user` it is a transient unit (`systemd-run --user --collect --wait
+  --pipe`), because a child of the Launchpad would die with the Launchpad's
+  control group. The caller reads one JSON line; if the worker dies without
+  one, the caller converges through `resumeActivation()`.
+- **Service adapters.** `none`: nothing is restarted; the activation is
+  confirmed by running the new executable's self-check **through the selector**
+  and comparing identities. `systemd-user`: `systemctl --user restart <unit>`,
+  then the readiness contract of `src/update/readiness.ts` — a Launchpad that
+  runs from `versions/` writes `update/launchpad-readiness.json` with the
+  SHA-256 of its own executable (computed, not copied), its pid and start time,
+  and removes it at a clean exit; ready means that digest, a start time after
+  the switch, a live pid, the same instance for the whole stability period. A
+  failed activation restarts the service once more, onto the previous version.
+  launchd is not implemented.
+- **`previous.json`.** The selector stays the only record of what is active.
+  What the last confirmed activation replaced is remembered separately, for
+  retention and for `update rollback`; missing or damaged means only that no
+  rollback is offered. Rollback is refused (`rollback-unavailable`) when that
+  version's signed identity cannot read the schemas the current product writes.
+- **Retention** after a confirmed activation: the active version, the previous
+  one and the version whose digest a live Launchpad announces are kept; other
+  version directories and all scratch are removed. Superseded numbered roots
+  are **not** pruned: the verified chain is small and is kept.
+- **Observation.** Reading `observed.json` makes it true now: `selected` is
+  re-read from the selector; `checking`/`downloading` survive only while some
+  process holds the step lock, `activating` only while a record exists, `ready`
+  only while the staged version exists; otherwise the status collapses to the
+  last stable one. `running` and `restart-pending` are still unwritten.
+- **Evidence in the repository.** `tests/update-journey.test.ts` compiles real
+  executables A, B and C of a TEST-ONLY product entry point (faults switched by
+  a control file; product code has no test hook) and drives `bin/lazurio`
+  against the signed loopback repository: A→B, rollback, retry without a
+  second download, retention, failed self-check, failed confirmation with
+  automatic rollback and retry, `kill -9` of caller and worker before and after
+  the swap and while confirming, two concurrent updates, a refused rollback,
+  and the Launchpad's readiness file. It runs inside `bun run check`.
+
+Deviations from the contract text above — the first five accepted by the owner
+of this work, the rest open until reviewed:
+
+1. A rotated root is promoted before its own expiry is judged (see "When the
+   pinned client persists").
+2. The bootstrap root becomes durable only with the first role it verified.
+3. The channel document has its own parser with `version` and
+   `minimumVersion`, not the pilot's.
+4. `running` is reported only by the Launchpad; a CLI check leaves it alone.
+5. `checking` is never persisted: a check is short and ends in a stable status.
+6. Channel floors were removed (see above); the invariants now say so.
+7. "Resumable" means inside one operation. A killed download starts again;
+   nothing about a download survives its process.
+8. "Run the staged executable by its immutable path … only then rename into
+   `versions/`": it is run at its final inode and own path **inside scratch**,
+   then the directory is renamed. It is never run through the selector or from
+   a copy.
+9. The worker is "under the OS service manager" only with `systemd-user`. "After
+   a reboot mid-activation the service manager restarts the worker" is **not**
+   implemented: the transient unit does not survive a reboot. Instead any
+   `lazurio update …` or `lazurio launchpad` start resumes the record.
+10. Readiness proves instance, digest, liveness and stability. It does not yet
+    report "Folder and protocol compatibility", and nothing distinguishes "a
+    candidate that fails from a gateway that is down": no gateway is involved.
+11. `update/previous.json` and `update/activation.lock` are state the layout
+    above did not list. Neither selects what runs.
+12. Superseded trust files are not pruned.
+13. `minimumUpdaterContract` is an optional member of the signed identity
+    (default 1); the updater's contract number is `1`.
 
 ## Removed by this contract
 
