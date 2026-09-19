@@ -1,0 +1,334 @@
+name: Release
+
+# Tag-driven release (docs/update.md "Publishing", docs/release-keys.md):
+#
+#   tag vX.Y.Z  ->  gates -> build every target in parallel -> ONE GitHub Release
+#               ->  publish: signed metadata for channel `preview`
+#
+# Promotion to `stable` is a separate, manually dispatched job. It signs a new
+# channel document that names the bytes `preview` already offers; it never
+# builds. Nothing here reads a signing key except the jobs in the protected
+# `release` environment, and they read it from a secret, by name.
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "publish-tag: run the release for an existing tag again. promote: preview -> stable. renew-targets: re-sign targets metadata before it expires."
+        type: choice
+        required: true
+        options: [publish-tag, promote, renew-targets]
+      tag:
+        description: "publish-tag: the tag, e.g. v1.2.3"
+        type: string
+        required: false
+      version:
+        description: "promote: the exact version preview offers, e.g. 1.2.3"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # `bash -eo pipefail`: a failing command in a pipeline fails the step.
+    shell: bash
+
+env:
+  BUN_VERSION: 1.4.2
+
+jobs:
+  prepare:
+    name: Resolve the release
+    # Only the repository whose Pages origin is compiled into the product
+    # (src/update/defaults.ts) publishes; a fork builds and tests, never signs.
+    if: github.repository == 'Lazurio/LazurioPlatform' && (github.event_name == 'push' || inputs.operation == 'publish-tag')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+      previous: ${{ steps.resolve.outputs.previous }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: resolve
+        env:
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED_TAG:-$GITHUB_REF_NAME}"
+          pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if ! [[ "$tag" =~ $pattern ]]; then
+            echo "::error::Not a release tag: expected vMAJOR.MINOR.PATCH[-prerelease]"
+            exit 1
+          fi
+          git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || {
+            echo "::error::Tag does not exist"
+            exit 1
+          }
+          prerelease=false
+          if [[ "$tag" == *-* ]]; then prerelease=true; fi
+          # Notes are generated against the previous tag OF THE SAME CHANNEL: a
+          # stable candidate is compared with the previous plain tag, a
+          # pre-release with whatever tag precedes it.
+          previous=""
+          while read -r candidate; do
+            [[ "$candidate" =~ $pattern ]] || continue
+            if [ "$prerelease" = false ] && [[ "$candidate" == *-* ]]; then continue; fi
+            if [ "$candidate" = "$tag" ]; then break; fi
+            previous="$candidate"
+          done < <(git -c versionsort.suffix=- tag --list 'v*' --sort=v:refname)
+          {
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+            echo "prerelease=$prerelease"
+            echo "previous=$previous"
+          } >>"$GITHUB_OUTPUT"
+
+  gates:
+    name: gates (${{ matrix.os }})
+    needs: prepare
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+
+  build:
+    name: build (${{ matrix.target }})
+    needs: prepare
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Native runners only: every executable reports its own identity
+          # before it becomes a release asset.
+          - target: linux-x64
+            os: ubuntu-24.04
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+          - target: darwin-arm64
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - name: Build the candidate with the tag as its version
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          test -f release/root.json || {
+            echo "::error::release/root.json is missing: the key ceremony of docs/release-keys.md has not been performed. A release without a compiled-in trust root cannot update itself."
+            exit 1
+          }
+          output="$(cd "$RUNNER_TEMP" && pwd -P)/candidate"
+          bun run scripts/build-candidate.ts "$output" --version "$VERSION"
+          reported="$("$output/lazurio" --version --json)"
+          test "$(jq -r .version <<<"$reported")" = "$VERSION"
+          test "$(jq -r .target <<<"$reported")" = "$TARGET"
+          test "$(jq -r .commit <<<"$reported")" = "$(git rev-parse HEAD)"
+          mkdir assets
+          cp "$output/lazurio" "assets/lazurio-$TARGET"
+          cp "$output/identity.json" "assets/lazurio-$TARGET.identity.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: lazurio-${{ matrix.target }}
+          path: assets/
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Create the GitHub Release
+    needs: [prepare, gates, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: lazurio-*
+          path: assets
+          merge-multiple: true
+      - name: One release with every target and generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          PREVIOUS: ${{ needs.prepare.outputs.previous }}
+        run: |
+          set -euo pipefail
+          ls -l assets
+          for target in linux-x64 linux-arm64 darwin-arm64; do
+            test -s "assets/lazurio-$target"
+            test -s "assets/lazurio-$target.identity.json"
+          done
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Published assets are immutable: what clients may already have
+            # verified is never replaced. The publish job signs what is there.
+            echo "::notice::Release $TAG already exists; its assets are kept as they are."
+            exit 0
+          fi
+          arguments=(--verify-tag --title "Lazurio $VERSION" --generate-notes)
+          if [ -n "$PREVIOUS" ]; then arguments+=(--notes-start-tag "$PREVIOUS"); fi
+          if [ "$PRERELEASE" = true ]; then arguments+=(--prerelease); fi
+          gh release create "$TAG" assets/* "${arguments[@]}"
+
+  publish:
+    name: Publish signed metadata to preview
+    needs: [prepare, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    # Required reviewer; the only place the targets key exists.
+    environment: release
+    # No concurrency group: a job waiting for approval would hold it, and a
+    # newer pending run would cancel an older one. Two runs that race are
+    # decided by Git — the push is never forced, the loser fails, and every
+    # operation here is repeatable.
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      # The token and the keys exist only in the steps that name them.
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Check out the published tree
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/update-tree.sh checkout "$RUNNER_TEMP/tree"
+      - name: Download exactly what the release serves
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --dir "$RUNNER_TEMP/assets" --pattern 'lazurio-*'
+          gh release view "$TAG" --json body --jq .body >"$RUNNER_TEMP/notes.md"
+      - name: Sign the release into preview
+        env:
+          LAZURIO_TUF_TARGETS_KEY: ${{ secrets.LAZURIO_TUF_TARGETS_KEY }}
+          LAZURIO_TUF_SNAPSHOT_KEY: ${{ secrets.LAZURIO_TUF_SNAPSHOT_KEY }}
+          LAZURIO_TUF_TIMESTAMP_KEY: ${{ secrets.LAZURIO_TUF_TIMESTAMP_KEY }}
+        run: |
+          bun run scripts/release-publish.ts add-release \
+            --tree "$RUNNER_TEMP/tree" --root release/root.json \
+            --channel preview --version "$VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --assets-dir "$RUNNER_TEMP/assets" \
+            --asset-url-base "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/"
+      - name: Prove every referenced object before anything is visible
+        run: bun run scripts/release-publish.ts verify --tree "$RUNNER_TEMP/tree"
+      - name: Deploy the tree in one commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Release $VERSION to preview"
+      - name: Wait until the published origin serves it
+        run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
+      - name: Validity of every role
+        run: bun run scripts/release-publish.ts status --tree "$RUNNER_TEMP/tree" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  promote:
+    name: Promote preview to stable
+    if: github.repository == 'Lazurio/LazurioPlatform' && github.event_name == 'workflow_dispatch' && inputs.operation == 'promote'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/update-tree.sh checkout "$RUNNER_TEMP/tree"
+      - name: Sign the stable channel document (same digests, no build)
+        env:
+          LAZURIO_TUF_TARGETS_KEY: ${{ secrets.LAZURIO_TUF_TARGETS_KEY }}
+          LAZURIO_TUF_SNAPSHOT_KEY: ${{ secrets.LAZURIO_TUF_SNAPSHOT_KEY }}
+          LAZURIO_TUF_TIMESTAMP_KEY: ${{ secrets.LAZURIO_TUF_TIMESTAMP_KEY }}
+        run: |
+          bun run scripts/release-publish.ts promote \
+            --tree "$RUNNER_TEMP/tree" --root release/root.json --version "$VERSION"
+      - run: bun run scripts/release-publish.ts verify --tree "$RUNNER_TEMP/tree"
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Promote $VERSION to stable"
+      - run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
+      - run: bun run scripts/release-publish.ts status --tree "$RUNNER_TEMP/tree" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  renew-targets:
+    name: Renew targets metadata
+    if: github.repository == 'Lazurio/LazurioPlatform' && github.event_name == 'workflow_dispatch' && inputs.operation == 'renew-targets'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/update-tree.sh checkout "$RUNNER_TEMP/tree"
+      - name: Re-sign targets, snapshot and timestamp; no target changes
+        env:
+          LAZURIO_TUF_TARGETS_KEY: ${{ secrets.LAZURIO_TUF_TARGETS_KEY }}
+          LAZURIO_TUF_SNAPSHOT_KEY: ${{ secrets.LAZURIO_TUF_SNAPSHOT_KEY }}
+          LAZURIO_TUF_TIMESTAMP_KEY: ${{ secrets.LAZURIO_TUF_TIMESTAMP_KEY }}
+        run: |
+          bun run scripts/release-publish.ts refresh --roles targets \
+            --tree "$RUNNER_TEMP/tree" --root release/root.json
+      - run: bun run scripts/release-publish.ts verify --tree "$RUNNER_TEMP/tree"
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Renew targets metadata"
+      - run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
+      - run: bun run scripts/release-publish.ts status --tree "$RUNNER_TEMP/tree" | tee -a "$GITHUB_STEP_SUMMARY"
