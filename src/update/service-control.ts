@@ -87,6 +87,13 @@ export function workerCommand(
     "--quiet",
     "--wait",
     "--pipe",
+    // A worker that dies (not one that answers: it always exits 0) is started
+    // again and continues its own record. Bounded, so a worker that cannot
+    // live does not spin; the record then waits for any later start.
+    "--property=Restart=on-failure",
+    "--property=RestartSec=1",
+    "--property=StartLimitIntervalSec=120",
+    "--property=StartLimitBurst=3",
     `--unit=lazurio-update-${operation}`,
     "--",
     ...worker,

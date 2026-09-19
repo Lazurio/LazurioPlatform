@@ -60,7 +60,7 @@ import {
   systemdRestartCommand,
   workerCommand,
 } from "../src/update/service-control";
-import { workerArguments } from "../src/update/update";
+import { performRollback, workerArguments } from "../src/update/update";
 
 // The activation state machine with INJECTED service manager, process and
 // clock adapters: no real systemd exists in CI. Versions here are synthetic
@@ -205,6 +205,10 @@ test("the service adapter builds exact commands, passes only the session variabl
     "--quiet",
     "--wait",
     "--pipe",
+    "--property=Restart=on-failure",
+    "--property=RestartSec=1",
+    "--property=StartLimitIntervalSec=120",
+    "--property=StartLimitBurst=3",
     "--unit=lazurio-update-op-1",
     "--",
     ...worker,
@@ -568,6 +572,153 @@ test("a worker refuses, without touching anything, when another worker is alive,
   expect(await i.worker()).toMatchObject({ code: "not-installed" });
 });
 
+test("a worker that its supervisor restarts continues ITS OWN record under the original deadline, and never begins a settled operation again", async () => {
+  for (const phase of ["switching", "confirming"] as const) {
+    const i = await installation();
+    i.setReadiness(i.fresh(i.b.sha256));
+    const deadline = new Date(i.time() + 60_000).toISOString();
+    // What the killed first run of operation op-1 left behind.
+    await writeActivationRecord(
+      i.base,
+      {
+        schemaVersion: 1,
+        operation: "op-1",
+        kind: "update",
+        previous: i.a.name,
+        candidate: i.b.name,
+        phase,
+        deadline,
+        switchedAt:
+          phase === "confirming" ? new Date(i.time()).toISOString() : null,
+        service: systemd,
+        folder: null,
+      },
+      writeDurableFile,
+    );
+    if (phase === "confirming") await swapSelector(i.base, i.b.name);
+    expect(await i.worker()).toEqual({
+      kind: "confirmed",
+      version: "1.1.0",
+      candidate: i.b.name,
+      previous: i.a.name,
+    });
+    expect(await readSelector(i.base)).toBe(i.b.name);
+    expect(await readPrevious(i.base)).toBe(i.a.name);
+    expect(i.restarts).toHaveLength(1);
+    // Restarted once more after everything is settled: nothing to do.
+    expect(await i.worker()).toMatchObject({ kind: "already-active" });
+  }
+  // Past its deadline the own record is undone, and the operation is NOT
+  // started afresh: a failed activation is retried by a person, not a loop.
+  const late = await installation();
+  await swapSelector(late.base, late.b.name);
+  await writeActivationRecord(
+    late.base,
+    {
+      schemaVersion: 1,
+      operation: "op-1",
+      kind: "update",
+      previous: late.a.name,
+      candidate: late.b.name,
+      phase: "confirming",
+      deadline: new Date(late.time() - 1).toISOString(),
+      switchedAt: new Date(late.time() - 120_000).toISOString(),
+      service: systemd,
+      folder: null,
+    },
+    writeDurableFile,
+  );
+  expect(await late.worker()).toEqual({
+    kind: "error",
+    code: "activation-interrupted",
+    context: { resumed: "rolled-back" },
+  });
+  expect(await readSelector(late.base)).toBe(late.a.name);
+  expect((await readActivationRecord(late.base)).kind).toBe("absent");
+  // Another operation's abandoned record is settled first, then this one runs.
+  late.setReadiness(late.fresh(late.b.sha256));
+  await writeActivationRecord(
+    late.base,
+    {
+      schemaVersion: 1,
+      operation: "someone-else",
+      kind: "update",
+      previous: late.a.name,
+      candidate: late.b.name,
+      phase: "switching",
+      deadline: new Date(late.time() + 60_000).toISOString(),
+      switchedAt: null,
+      service: systemd,
+      folder: null,
+    },
+    writeDurableFile,
+  );
+  expect(await late.worker({ operation: "op-2" })).toMatchObject({
+    kind: "confirmed",
+  });
+});
+
+test("previous.json is tolerant state: damaged it never blocks an activation, and a rollback is simply not offered", async () => {
+  const i = await installation();
+  i.setReadiness(i.fresh(i.b.sha256));
+  // Something else sits where previous.json belongs.
+  await mkdir(join(i.base, "update", "previous.json", "stray"), {
+    recursive: true,
+  });
+  expect(await readPrevious(i.base)).toBeNull();
+  expect(await i.worker()).toMatchObject({ kind: "confirmed" });
+  expect((await readActivationRecord(i.base)).kind).toBe("absent");
+  expect(await readPrevious(i.base)).toBe(i.a.name);
+  const launches: string[][] = [];
+  const rollback = () =>
+    performRollback({
+      base: i.base,
+      service: systemd,
+      effects: i.effects,
+      launchWorker: async (command) => {
+        launches.push([...command]);
+        return { exitCode: 0, stdout: "" };
+      },
+    });
+  for (const damaged of [
+    "{ not json",
+    '{"schemaVersion":2,"name":"x"}',
+    JSON.stringify({ schemaVersion: 1, name: "../../etc" }),
+    // Names the active version, or one that is gone.
+    JSON.stringify({ schemaVersion: 1, name: i.b.name }),
+    JSON.stringify({
+      schemaVersion: 1,
+      name: versionName("0.1.0", "d".repeat(64)),
+    }),
+  ]) {
+    await writeFile(join(i.base, "update", "previous.json"), damaged);
+    expect(await rollback()).toMatchObject({
+      kind: "error",
+      code: "rollback-unavailable",
+    });
+  }
+  await rm(join(i.base, "update", "previous.json"));
+  expect(await rollback()).toMatchObject({ code: "rollback-unavailable" });
+  // Refused before any worker was started, and nothing moved.
+  expect(launches).toEqual([]);
+  expect(await readSelector(i.base)).toBe(i.b.name);
+  // A write that cannot succeed at all still confirms the activation.
+  const c = await i.stage("1.2.0");
+  const refusing = Object.assign({}, i.effects, {
+    write: async (directory: string, name: string, bytes: Uint8Array) => {
+      if (name === "previous.json") throw new Error("read-only");
+      await writeDurableFile(directory, name, bytes);
+    },
+  });
+  i.setReadiness(i.fresh(c.sha256));
+  expect(
+    await i.worker({ candidate: c.name, operation: "op-2", effects: refusing }),
+  ).toMatchObject({ kind: "confirmed" });
+  expect((await readActivationRecord(i.base)).kind).toBe("absent");
+  expect(await readSelector(i.base)).toBe(c.name);
+  expect(await readPrevious(i.base)).toBeNull();
+});
+
 test("resumeActivation is free without a record, never touches a live worker's switch, and otherwise decides from the record alone", async () => {
   const i = await installation();
   // No record: nothing is created, not even the lock files.
@@ -740,10 +891,12 @@ test("a durable write that fails at any point of an activation never leaves a ha
     const selected = await readSelector(i.base);
     expect((await readActivationRecord(i.base)).kind).toBe("absent");
     // Never a half state: the selector names a complete version, and
-    // `previous` exists exactly when the candidate was confirmed.
+    // `previous` is never set without a confirmed candidate. (The one write
+    // that may be lost without consequence is `previous.json` itself: then a
+    // rollback is simply not offered.)
     expect([i.a.name, i.b.name]).toContain(selected as string);
-    expect(await readPrevious(i.base)).toBe(
-      selected === i.b.name ? i.a.name : null,
+    expect([selected === i.b.name ? i.a.name : null, null]).toContain(
+      await readPrevious(i.base),
     );
     expect(await readlink(join(i.base, "bin", "lazurio"))).toBe(
       `../versions/${selected}/lazurio`,

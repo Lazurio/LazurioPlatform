@@ -384,9 +384,20 @@ for (const scenario of [
       previous: j.a.name,
       candidate: j.b.name,
     });
-    expect(await j.runningVersion()).toBe(scenario.during);
+    expect(await j.selected()).toBe(
+      scenario.during === "1.1.0" ? j.b.name : j.a.name,
+    );
     await setControl(scenario.afterwards);
-    // ANY start converges — here the cheapest one there is.
+    // ANY start converges — every command does, silently unless it acted.
+    // Through the selector this runs whatever the crash left selected.
+    const any = await j.lazurio(["--version"]);
+    expect(any.code).toBe(0);
+    expect(any.stderr).toBe(
+      scenario.end === "1.1.0"
+        ? `Lazurio finished an interrupted update: ${j.b.name} is active.`
+        : `Lazurio undid an interrupted update: ${j.a.name} is active. Run \`lazurio update\` to try again.`,
+    );
+    expect((await j.lazurio(["--version"])).stderr).toBe("");
     const first = await j.status();
     const confirmed = scenario.end === "1.1.0";
     expect(first).toMatchObject(

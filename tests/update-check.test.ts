@@ -147,8 +147,8 @@ test("an equal or older channel version is up to date, never a downgrade", async
   });
 });
 
-test("later checks need no bootstrap root; a bootstrap root beside established trust is refused; no trust and no root is typed", async () => {
-  const { fixture, check, trustSnapshot } = await scenario();
+test("a supplied root seeds empty trust and is never a conflict afterwards: identical, older, unrelated and unreadable ones are ignored, a verified direct successor is followed", async () => {
+  const { fixture, check, trustSnapshot, roleVersion } = await scenario();
   fixture.release("stable", { sequence: 1, version: "1.2.0" });
   expect(await check()).toMatchObject({ kind: "error", code: "trust-missing" });
   expect(await check({ bootstrapRoot: fixture.bootstrapRoot })).toMatchObject({
@@ -156,14 +156,41 @@ test("later checks need no bootstrap root; a bootstrap root beside established t
   });
   const established = await trustSnapshot();
   expect(await check()).toMatchObject({ kind: "available" });
-  expect(await check({ bootstrapRoot: fixture.bootstrapRoot })).toMatchObject({
-    kind: "error",
-    code: "trust-conflict",
+  // What a compiled-in root does on every run: supplied again, identical.
+  const stranger = createUpdateFixture({ executionTarget: target });
+  cleanups.push(() => stranger.stop());
+  stranger.rotateRoot();
+  for (const supplied of [
+    fixture.bootstrapRoot,
+    Buffer.from('{"signed":{}}'),
+    Buffer.from([0xff, 0xfe]),
+    // Version 2 of ANOTHER chain: higher, but no continuation of this one.
+    stranger.served("/metadata/2.root.json") as Buffer,
+  ]) {
+    expect(await check({ bootstrapRoot: supplied })).toMatchObject({
+      kind: "available",
+    });
+    expect(await trustSnapshot()).toEqual(established);
+  }
+  // The repository rotated its root but no longer serves the link: only a
+  // newer executable's root can carry this Machine forward.
+  fixture.rotateRoot();
+  const successor = fixture.served("/metadata/2.root.json") as Buffer;
+  fixture.block("/metadata/2.root.json", 404);
+  expect(await check()).toMatchObject({ kind: "available" });
+  expect(await roleVersion("root.json")).toBe(1);
+  expect(await check({ bootstrapRoot: successor })).toMatchObject({
+    kind: "available",
   });
-  expect(await trustSnapshot()).toEqual(established);
-  expect(
-    await check({ bootstrapRoot: Buffer.from('{"signed":{}}') }),
-  ).toMatchObject({ kind: "error", code: "trust-conflict" });
+  expect(await roleVersion("root.json")).toBe(2);
+  expect(Object.keys(await trustSnapshot())).toContain("2.root.json");
+  // Now the OLDER root is the supplied one — an old executable on a Machine
+  // whose trust moved on: ignored, never a downgrade, never an error.
+  const newest = await trustSnapshot();
+  expect(await check({ bootstrapRoot: fixture.bootstrapRoot })).toMatchObject({
+    kind: "available",
+  });
+  expect(await trustSnapshot()).toEqual(newest);
 });
 
 test("a bootstrap root that verified nothing is not kept, so it can never wedge the first check", async () => {
@@ -621,44 +648,70 @@ test("a damaged role file in trust/ counts as absent: it is fetched again under 
   expect(await trust("snapshot.json")).toBe(healthy);
 });
 
-test("a damaged root.json falls back to a supplied bootstrap root and is repaired; without one it is a typed refusal that a later bootstrap heals", async () => {
+test("a damaged root.json is restored from the retained chain without losing a rotation; without a usable chain a supplied root heals it, and without either the refusal is typed", async () => {
   const { fixture, base, check, trust, roleVersion } = await scenario();
   fixture.release("stable", { sequence: 1, version: "1.2.0" });
   await check({ bootstrapRoot: fixture.bootstrapRoot });
   fixture.rotateRoot();
   expect(await check()).toMatchObject({ kind: "available" });
   expect(await roleVersion("root.json")).toBe(2);
-  for (const damage of [
-    () => writeFile(join(base, "trust", "root.json"), "{ not json"),
+  const healthy = await trust("root.json");
+  const root = join(base, "trust", "root.json");
+  const damages = [
+    () => writeFile(root, "{ not json"),
     // A well-formed root that is not signed by its own keys.
-    async () =>
-      writeFile(
-        join(base, "trust", "root.json"),
-        ((await trust("root.json")) ?? "").replace(/"sig":"../g, '"sig":"00'),
-      ),
+    () => writeFile(root, (healthy ?? "").replace(/"sig":"../g, '"sig":"00')),
     async () => {
-      await rm(join(base, "trust", "root.json"));
-      await mkdir(join(base, "trust", "root.json"));
+      await rm(root);
+      await mkdir(join(root, "stray"), { recursive: true });
     },
-  ]) {
+    () => rm(root),
+  ];
+  for (const damage of damages) {
     await damage();
+    // The rotated root 2 is kept: no bootstrap root, no rewind to root 1.
+    fixture.requests.length = 0;
+    expect(await check()).toMatchObject({ kind: "available" });
+    expect(fixture.requests).not.toContain("/metadata/2.root.json");
+    expect(await trust("root.json")).toBe(healthy);
+  }
+  // A retained file that only signs itself does not outrank the chain next
+  // to it: a forged `3.root.json` is passed over for the genuine root 2.
+  const forger = createUpdateFixture({ executionTarget: target });
+  cleanups.push(() => forger.stop());
+  forger.rotateRoot();
+  forger.rotateRoot();
+  await writeFile(
+    join(base, "trust", "3.root.json"),
+    forger.served("/metadata/3.root.json") as Buffer,
+  );
+  await writeFile(root, "{ not json");
+  expect(await check()).toMatchObject({ kind: "available" });
+  expect(await trust("root.json")).toBe(healthy);
+  await rm(join(base, "trust", "3.root.json"));
+
+  // No usable retained root at all.
+  for (const damage of damages) {
+    await damage();
+    for (const name of ["1.root.json", "2.root.json"])
+      await writeFile(join(base, "trust", name), "{ not json");
     // Typed, never silent, and nothing else in trust/ is touched.
     expect(await check()).toMatchObject({
       kind: "error",
-      code: "trust-invalid",
-      context: { subject: "root" },
+      code: present(damage) ? "trust-invalid" : "trust-missing",
     });
     expect(await roleVersion("targets.json")).toBe(2);
-    // The same command with the bootstrap root walks the chain again and
-    // rewrites root.json; afterwards no bootstrap root is needed or accepted.
+    // The same command with a supplied root walks the chain again and
+    // rewrites root.json and the retained chain.
     expect(await check({ bootstrapRoot: fixture.bootstrapRoot })).toMatchObject(
       { kind: "available" },
     );
-    expect(await roleVersion("root.json")).toBe(2);
+    expect(await trust("root.json")).toBe(healthy);
+    expect(await roleVersion("2.root.json")).toBe(2);
     expect(await check()).toMatchObject({ kind: "available" });
-    expect(await check({ bootstrapRoot: fixture.bootstrapRoot })).toMatchObject(
-      { kind: "error", code: "trust-conflict" },
-    );
+  }
+  function present(damage: () => Promise<void>) {
+    return damage !== damages[3];
   }
 });
 

@@ -12,10 +12,11 @@ export const updateErrors = {
   "metadata-expired": { exit: 21, retryable: true },
   "metadata-invalid": { exit: 22, retryable: true },
   // 23 was `channel-rollback`: rollback of the channel document is refused by
-  // TUF itself (`metadata-invalid`). 31 was `not-implemented`. Never reused.
+  // TUF itself (`metadata-invalid`). 26 was `trust-conflict`: a supplied root
+  // beside durable trust is ignored or followed, never a conflict. 31 was
+  // `not-implemented`. Never reused.
   "channel-invalid": { exit: 24, retryable: true },
   "trust-missing": { exit: 25, retryable: false },
-  "trust-conflict": { exit: 26, retryable: false },
   "trust-invalid": { exit: 27, retryable: false },
   "target-unsupported": { exit: 28, retryable: true },
   /** Another update step or a live activation worker owns the base. */

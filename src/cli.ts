@@ -39,7 +39,37 @@ function emit(output: CommandOutput): number {
 
 // Development CLI entrypoint. No implicit folder discovery; the only
 // installer surface is the explicit `product` command group.
+/** EVERY start converges an activation whose worker died (docs/update.md
+ * "Activate"); with no record this is one `lstat`. Silent unless it acted.
+ * Two commands are exempt: `self-check` promises to write nothing and is what
+ * a worker runs on an unconfirmed candidate, and `update …` resumes for the
+ * base it was given, which need not be this one.
+ */
+async function convergeActivation(args: readonly string[]): Promise<void> {
+  if (args[0] === "self-check" || args[0] === "update") return;
+  const base = resolveInstallBase({
+    platform: process.platform,
+    env: process.env,
+    homedir: process.env.HOME,
+  });
+  if (!base) return;
+  try {
+    const resumed = await resumeActivation({ base });
+    if (resumed.kind === "confirmed")
+      console.error(
+        `Lazurio finished an interrupted update: ${resumed.candidate} is active.`,
+      );
+    else if (resumed.kind === "rolled-back")
+      console.error(
+        `Lazurio undid an interrupted update: ${resumed.previous} is active. Run \`lazurio update\` to try again.`,
+      );
+  } catch {
+    // Never in the way of the command that was asked for.
+  }
+}
+
 export async function runCli(args: string[]): Promise<number> {
+  await convergeActivation(args);
   if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
   if (args[0] === "self-check")
     return emit(await selfCheckCommand(args.slice(1)));
@@ -256,9 +286,6 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       env: process.env,
       homedir: process.env.HOME,
     });
-    // Any start converges an activation whose worker died; a live worker —
-    // the one that just restarted this Launchpad — is left alone.
-    if (base) await resumeActivation({ base }).catch(() => undefined);
     const { close, url } = await startLaunchpad(
       values.folder,
       applicationAdapters,

@@ -42,13 +42,15 @@ export const updateHelp = `--version [--json]
 update [--download-only] --metadata-url <https://.../metadata/> --target-url <https://.../targets/>
   --channel <stable|preview> [--bootstrap-root <owned file>] [--base <absolute directory>]
   [--folder <absolute Folder>] [--service <none|systemd-user> --unit <name.service>]
-  [--loopback-fixture] [--json]
+  [--deadline-ms <n>] [--stability-ms <n>] [--loopback-fixture] [--json]
   Checks, downloads, verifies and stages the channel's version and activates it:
   the selector bin/lazurio is switched and the new version must confirm itself,
   otherwise the previous version is selected again. --download-only stops after
   staging. With --folder the candidate must prove it can read that Folder's state.
   --service systemd-user restarts the named user unit and waits for a fresh,
   stable Launchpad of the new version; none (default) manages no service.
+  The activation deadline (120000 ms) and stability period (10000 ms) can be
+  shortened for qualification runs.
   Exit 0 updated, staged or nothing to do; an error prints its stable code.
 update --check <same origin options> [--json]
   Verifies signed metadata and the channel document, records verified trust and
@@ -273,7 +275,10 @@ export async function runUpdateCommand(
     );
     if (!service)
       return render(failure("invalid-request", { option: "service" }), json);
-    const activation = {
+    const activation: {
+      effects?: Partial<ActivationEffects>;
+      policy?: Partial<ActivationPolicy>;
+    } = {
       ...(environment.activationEffects || environment.clock
         ? {
             effects: {
@@ -286,7 +291,38 @@ export async function runUpdateCommand(
         ? { policy: environment.activationPolicy }
         : {}),
     };
-    const serviceOptions = ["service", "unit", "folder"];
+    const serviceOptions = [
+      "service",
+      "unit",
+      "folder",
+      "deadline-ms",
+      "stability-ms",
+    ];
+    // Qualification and canary runs shorten the accepted defaults.
+    const requested = {
+      deadlineMs: positiveInteger(values["deadline-ms"]),
+      stabilityMs: positiveInteger(values["stability-ms"]),
+    };
+    if (
+      (values["deadline-ms"] !== undefined &&
+        requested.deadlineMs === undefined) ||
+      (values["stability-ms"] !== undefined &&
+        requested.stabilityMs === undefined)
+    )
+      return render(failure("invalid-request", { option: "deadline" }), json);
+    if (
+      requested.deadlineMs !== undefined ||
+      requested.stabilityMs !== undefined
+    )
+      activation.policy = {
+        ...activation.policy,
+        ...(requested.deadlineMs === undefined
+          ? {}
+          : { deadlineMs: requested.deadlineMs }),
+        ...(requested.stabilityMs === undefined
+          ? {}
+          : { stabilityMs: requested.stabilityMs }),
+      };
 
     if (positionals.length === 1 && positionals[0] === "apply-worker") {
       // Internal: started by `requestActivation` from the selected version.
@@ -310,19 +346,24 @@ export async function runUpdateCommand(
         stabilityMs === undefined
       )
         return renderOperation(failure("invalid-request"), true);
-      return renderOperation(
-        await runActivationWorker({
-          base,
-          candidate: values.candidate,
-          operation: values.operation,
-          kind: values.kind,
-          service,
-          folder,
-          policy: { ...activation.policy, deadlineMs, stabilityMs },
-          effects: activation.effects,
-        }),
-        true,
-      );
+      // An answer — a typed refusal included — is a finished worker: exit 0.
+      // Only a worker that DIED is a failure its supervisor restarts.
+      return {
+        ...renderOperation(
+          await runActivationWorker({
+            base,
+            candidate: values.candidate,
+            operation: values.operation,
+            kind: values.kind,
+            service,
+            folder,
+            policy: { ...activation.policy, deadlineMs, stabilityMs },
+            effects: activation.effects,
+          }),
+          true,
+        ),
+        code: 0,
+      };
     }
     if (positionals.length === 1 && positionals[0] === "status") {
       if (!only(["json", "base"]))

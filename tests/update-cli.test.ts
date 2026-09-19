@@ -102,19 +102,17 @@ test("every refusal prints its stable code and exits with that code's distinct s
     stderr: "Update failed: trust-missing",
   });
   await run(["--check", "--bootstrap-root", bootstrap, ...origins]);
-  const conflict = await run([
+  // Supplying the same root again is what a compiled-in root will do on
+  // every run: not a conflict.
+  const again = await run([
     "--check",
     "--json",
     "--bootstrap-root",
     bootstrap,
     ...origins,
   ]);
-  expect(conflict.code).toBe(26);
-  expect(JSON.parse(conflict.stdout)).toEqual({
-    kind: "error",
-    code: "trust-conflict",
-    context: {},
-  });
+  expect(again.code).toBe(10);
+  expect(JSON.parse(again.stdout)).toMatchObject({ kind: "available" });
   await fixture.stop();
   expect(await run(["--check", ...origins])).toMatchObject({
     code: 20,

@@ -44,6 +44,8 @@ test("the role delivered last in a failed refresh is withheld together with ever
   const seed: Seed = {
     established: false,
     root: fixture.bootstrapRoot.toString(),
+    anchor: fixture.bootstrapRoot.toString(),
+    repairRoot: false,
     roles: new Map(),
   };
   await writeFile(join(scratch, "root.json"), seed.root);
@@ -82,6 +84,8 @@ test("a root in scratch reaches trust/ only through a verified chain from the se
   const seed: Seed = {
     established: true,
     root: fixture.bootstrapRoot.toString(),
+    anchor: fixture.bootstrapRoot.toString(),
+    repairRoot: false,
     roles: new Map(),
   };
   const genuine = text("/metadata/2.root.json");

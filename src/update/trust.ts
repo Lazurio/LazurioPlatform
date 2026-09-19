@@ -1,4 +1,11 @@
-import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { Metadata, MetadataKind, type Root } from "@tufjs/models";
 import { parseUniqueJson } from "../providers/unique-json";
@@ -74,9 +81,15 @@ export const roleFiles = [
 ] as const;
 
 export type Seed = Readonly<{
-  /** Whether `trust/root.json` existed; false means a caller-supplied root. */
+  /** Whether durable trust existed: `root.json` or the retained chain. */
   established: boolean;
+  /** The durable trusted root: where chain verification starts. */
   root: string;
+  /** What the TUF client starts from: `root`, or a supplied direct successor
+   * that verified as a continuation of it. */
+  anchor: string;
+  /** `root.json` was damaged; promotion rewrites it whatever the refresh does. */
+  repairRoot: boolean;
   roles: ReadonlyMap<string, string>;
 }>;
 
@@ -113,86 +126,163 @@ function parseRoot(text: string): Metadata<Root> {
   return root;
 }
 
-/** Decide the trust anchor of this refresh. The bootstrap root is accepted
- * only while no VALID root is held; an established installation never falls
- * back to it, and missing trust is never silently converted into one.
+function verifiedRoot(text: string): Metadata<Root> | undefined {
+  try {
+    const parsed = parseRoot(text);
+    parsed.verifyDelegate(MetadataKind.Root, parsed);
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+/** `next` is the direct successor of `current`: signed by the threshold of
+ * `current`, exactly one version ahead, and self-signed (store.js:42-48).
+ */
+function continues(current: Metadata<Root>, next: Metadata<Root>): boolean {
+  try {
+    current.verifyDelegate(MetadataKind.Root, next);
+    next.verifyDelegate(MetadataKind.Root, next);
+    return next.signed.version === current.signed.version + 1;
+  } catch {
+    return false;
+  }
+}
+
+/** The newest usable root of the retained chain `<N>.root.json`, for a
+ * `root.json` that is damaged or gone. Newest first; a candidate must carry
+ * the version its name states and verify itself, and when its predecessor is
+ * retained and readable it must also verify as that predecessor's successor —
+ * a file that merely signs itself does not outrank the chain beside it.
+ */
+async function newestRetainedRoot(
+  trustDirectory: string,
+): Promise<string | undefined> {
+  const versions = (await readdir(trustDirectory).catch(() => []))
+    .map((name) => /^([1-9]\d*)\.root\.json$/.exec(name)?.[1])
+    .filter((version): version is string => version !== undefined)
+    .map(Number)
+    .sort((left, right) => right - left);
+  const read = async (version: number) => {
+    const text = await readOptional(
+      join(trustDirectory, `${version}.root.json`),
+    ).catch(() => undefined);
+    const parsed = text === undefined ? undefined : verifiedRoot(text);
+    return text !== undefined && parsed?.signed.version === version
+      ? { text, parsed }
+      : undefined;
+  };
+  for (const version of versions) {
+    const candidate = await read(version);
+    if (!candidate) continue;
+    const predecessor = await read(version - 1);
+    if (!predecessor || continues(predecessor.parsed, candidate.parsed))
+      return candidate.text;
+  }
+  return undefined;
+}
+
+/** Decide the trust anchor of this refresh.
+ *
+ * A SUPPLIED root (today the caller's bootstrap root, later the root compiled
+ * into the executable, which is therefore supplied on every run) is never a
+ * conflict:
+ *  - with no durable trust it seeds the first refresh, and becomes durable
+ *    only together with the first role it verified;
+ *  - with durable trust it is ignored — identical, older, unrelated or
+ *    unreadable alike — unless it is the DIRECT successor of the trusted root
+ *    and verifies as its continuation. Then the client starts from it, which
+ *    is what a newer executable is for when the repository no longer serves
+ *    an old link. It can only move trust forward along the signed chain.
  *
  * Damaged owned state must not wedge the Machine (docs/update.md "No wedge"):
  *  - a role file that cannot be read or is not JSON counts as absent. The
  *    client fetches that role again and verifies it under the root, and
  *    promotion replaces the damaged file;
  *  - a `root.json` that cannot be read or does not verify is replaced by the
- *    caller's bootstrap root when one is supplied — as on a first check, and
- *    without seeding any older role, so every role is verified from that root
- *    again and `root.json` is rewritten by promotion. Without a bootstrap root
- *    this is the typed `trust-invalid`; nothing is guessed.
+ *    newest usable root of the retained chain (`newestRetainedRoot`), which
+ *    loses nothing; only without one by the supplied root, seeding no older
+ *    role; and without either this is the typed `trust-invalid`. Promotion
+ *    rewrites `root.json` in every one of these cases.
  */
 export async function readSeed(
   trustDirectory: string,
-  bootstrapRoot: Uint8Array | undefined,
+  suppliedRoot: Uint8Array | undefined,
 ): Promise<Seed> {
-  const verifiedRoot = (text: string): string | undefined => {
-    try {
-      const parsed = parseRoot(text);
-      parsed.verifyDelegate(MetadataKind.Root, parsed);
-      return text;
-    } catch {
-      return undefined;
-    }
-  };
   const rootPath = join(trustDirectory, "root.json");
   let present = true;
   let durable: string | undefined;
   try {
     const text = await readOptional(rootPath);
     present = text !== undefined;
-    durable = text === undefined ? undefined : verifiedRoot(text);
+    durable = text !== undefined && verifiedRoot(text) ? text : undefined;
   } catch {
     // Unreadable (not a regular file, permissions): damaged, not absent.
   }
-  if (durable !== undefined) {
-    if (bootstrapRoot !== undefined) throw new UpdateFailure("trust-conflict");
-    const roles = new Map<string, string>();
-    for (const name of roleFiles) {
-      const path = join(trustDirectory, name);
-      try {
-        const text = await readOptional(path);
-        if (text === undefined) continue;
-        JSON.parse(text);
-        roles.set(name, text);
-      } catch {
-        // Only a regular file can be replaced by the promoting rename.
-        const stat = await lstat(path).catch(() => undefined);
-        if (stat && !stat.isFile())
-          await rm(path, { recursive: true, force: true });
-      }
-    }
-    return Object.freeze({ established: true, root: durable, roles });
-  }
-  if (bootstrapRoot === undefined)
-    throw present
-      ? new UpdateFailure("trust-invalid", { subject: "root" })
-      : new UpdateFailure("trust-missing");
-  let root: string | undefined;
-  try {
-    root = verifiedRoot(
-      new TextDecoder("utf-8", { fatal: true }).decode(bootstrapRoot),
-    );
-  } catch {
-    // Not UTF-8.
-  }
-  if (root === undefined)
-    throw new UpdateFailure("trust-invalid", { subject: "bootstrap-root" });
-  if (present) {
+  let repairRoot = false;
+  if (durable === undefined) {
+    durable = await newestRetainedRoot(trustDirectory);
+    repairRoot = durable !== undefined;
+    // Only a regular file can be replaced by the promoting rename.
     const stat = await lstat(rootPath).catch(() => undefined);
     if (stat && !stat.isFile())
       await rm(rootPath, { recursive: true, force: true });
   }
-  return Object.freeze({ established: false, root, roles: new Map() });
+  let supplied: string | undefined;
+  try {
+    if (suppliedRoot !== undefined)
+      supplied = new TextDecoder("utf-8", { fatal: true }).decode(suppliedRoot);
+  } catch {
+    // Not UTF-8: treated like any other unusable supplied root below.
+  }
+  const suppliedParsed =
+    supplied === undefined ? undefined : verifiedRoot(supplied);
+  if (durable === undefined) {
+    if (suppliedRoot === undefined)
+      throw present
+        ? new UpdateFailure("trust-invalid", { subject: "root" })
+        : new UpdateFailure("trust-missing");
+    if (supplied === undefined || !suppliedParsed)
+      throw new UpdateFailure("trust-invalid", { subject: "bootstrap-root" });
+    return Object.freeze({
+      established: false,
+      root: supplied,
+      anchor: supplied,
+      repairRoot: false,
+      roles: new Map(),
+    });
+  }
+  const roles = new Map<string, string>();
+  for (const name of roleFiles) {
+    const path = join(trustDirectory, name);
+    try {
+      const text = await readOptional(path);
+      if (text === undefined) continue;
+      JSON.parse(text);
+      roles.set(name, text);
+    } catch {
+      const stat = await lstat(path).catch(() => undefined);
+      if (stat && !stat.isFile())
+        await rm(path, { recursive: true, force: true });
+    }
+  }
+  const trusted = verifiedRoot(durable) as Metadata<Root>;
+  return Object.freeze({
+    established: true,
+    root: durable,
+    anchor:
+      supplied !== undefined &&
+      suppliedParsed &&
+      continues(trusted, suppliedParsed)
+        ? supplied
+        : durable,
+    repairRoot,
+    roles,
+  });
 }
 
 export async function seedScratch(scratch: string, seed: Seed): Promise<void> {
-  await writeFile(join(scratch, "root.json"), seed.root, { mode: 0o600 });
+  await writeFile(join(scratch, "root.json"), seed.anchor, { mode: 0o600 });
   for (const [name, text] of seed.roles)
     await writeFile(join(scratch, name), text, { mode: 0o600 });
 }
@@ -270,13 +360,16 @@ export async function promoteVerified(input: {
     input.unsettledFile ?? "",
   );
   if (unsettledRoot) settledRoots.delete(Number(unsettledRoot[1]));
+  // A supplied successor was verified by `readSeed`, not received unsettled.
+  if (seed.anchor !== seed.root)
+    settledRoots.set(parseRoot(seed.anchor).signed.version, seed.anchor);
   const chain = verifiedRootChain(seed.root, finalRoot, settledRoots);
   for (const { version, text } of chain) {
     const name = `${version}.root.json`;
     if ((await readOptional(join(trustDirectory, name))) !== text)
       await put(name, text);
   }
-  if (!seed.established || finalRoot !== seed.root)
+  if (!seed.established || seed.repairRoot || finalRoot !== seed.root)
     await put("root.json", finalRoot);
   for (const { name, text } of changedRoles) await put(name, text);
   return promoted;
