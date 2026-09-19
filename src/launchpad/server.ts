@@ -8,6 +8,8 @@ import { stateFields } from "../folder/state";
 import { updateProfile } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
+import { writeDurableFile } from "../update/durable-file";
+import { announceLaunchpadReady } from "../update/readiness";
 import index from "./index.html";
 
 // One local owner. Optional application adapters are trusted composition, never
@@ -16,7 +18,11 @@ export async function startLaunchpad(
   folder: string,
   applicationAdapters?: Parameters<typeof createApplicationLifecycle>[0],
   discovery?: Readonly<{ organizationDirectory: string }>,
+  // Install base and the executable of this process: lets an activation
+  // worker recognize THIS instance as the fresh Launchpad it waits for.
+  update?: Readonly<{ base: string; executable: string }>,
 ) {
+  const startedAt = new Date();
   const organizationDirectory = discovery?.organizationDirectory;
   if (organizationDirectory !== undefined)
     await inspectOwnedDirectory(organizationDirectory);
@@ -126,6 +132,16 @@ export async function startLaunchpad(
       }
     },
   });
+  // Announced only now that the listener exists. A failure to announce costs
+  // an activation its confirmation, never the Launchpad its start.
+  const withdrawReadiness = update
+    ? await announceLaunchpadReady({
+        ...update,
+        pid: process.pid,
+        startedAt,
+        write: writeDurableFile,
+      }).catch(() => null)
+    : null;
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -140,6 +156,7 @@ export async function startLaunchpad(
           // Existing requests and shutdown must share the same lifecycle queue.
           const applicationClose = applications?.close();
           await server.stop(true);
+          await withdrawReadiness?.().catch(() => undefined);
           const result = applicationClose
             ? await applicationClose
             : Object.freeze({ kind: "closed" as const });

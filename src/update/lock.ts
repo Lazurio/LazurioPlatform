@@ -1,9 +1,6 @@
 import { constants } from "node:fs";
 import { type FileHandle, lstat, open } from "node:fs/promises";
-import {
-  closeOnExecFlag,
-  lockDirectoryDescriptor,
-} from "../folder/native-lock";
+import { closeOnExecFlag, tryLockDescriptor } from "../folder/native-lock";
 import { UpdateFailure } from "./errors";
 
 /** One lock covers one update step (docs/update.md "The three steps": acquired
@@ -38,17 +35,7 @@ export type UpdateLock = Readonly<{ release(): Promise<void> }>;
 // here until `release`.
 const heldHandles = new Set<FileHandle>();
 
-// The pinned FFI helper reports every failure alike (it cannot read errno), so
-// a filesystem without `flock` surfaces as `busy` after the timeout rather
-// than as its own code.
-function tryLock(descriptor: number): boolean {
-  try {
-    lockDirectoryDescriptor(descriptor);
-    return true;
-  } catch {
-    return false;
-  }
-}
+type LockAttempt = (descriptor: number) => ReturnType<typeof tryLockDescriptor>;
 
 export async function acquireUpdateLock(
   path: string,
@@ -57,6 +44,8 @@ export async function acquireUpdateLock(
     pollMs?: number;
     sleep?: (ms: number) => Promise<void>;
     now?: () => number;
+    /** The native call; injected only to prove the classification. */
+    tryLock?: LockAttempt;
   }>,
 ): Promise<UpdateLock> {
   if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs < 0)
@@ -66,6 +55,7 @@ export async function acquireUpdateLock(
     options.sleep ??
     ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const pollMs = options.pollMs ?? 50;
+  const tryLock = options.tryLock ?? tryLockDescriptor;
   // Throws on a platform without the qualified native call; that is a product
   // defect (`internal`), not contention.
   const cloexec = closeOnExecFlag();
@@ -77,7 +67,12 @@ export async function acquireUpdateLock(
       0o600,
     );
     try {
-      if (tryLock(handle.fd)) {
+      const attempt = tryLock(handle.fd);
+      // A filesystem without `flock` can never become free: waiting for the
+      // timeout and reporting `busy` would invite a pointless retry.
+      if (attempt === "unsupported")
+        throw new UpdateFailure("lock-unsupported");
+      if (attempt === "locked") {
         const opened = await handle.stat();
         const current = await lstat(path).catch(() => undefined);
         // Otherwise an inode that is no longer the lock was locked: retry.
@@ -102,5 +97,29 @@ export async function acquireUpdateLock(
     await handle.close();
     if (now() >= deadline) throw new UpdateFailure("busy");
     await sleep(Math.min(pollMs, Math.max(1, deadline - now())));
+  }
+}
+
+/** Whether some process holds the lock right now, without creating the file
+ * and without waiting. Only an observation: the answer can be stale as soon as
+ * it is returned, so nothing but presentation may depend on it.
+ */
+export async function probeUpdateLock(path: string): Promise<"held" | "free"> {
+  let handle: FileHandle;
+  try {
+    handle = await open(
+      path,
+      constants.O_RDWR | constants.O_NOFOLLOW | closeOnExecFlag(),
+    );
+  } catch {
+    return "free";
+  }
+  try {
+    // Closing the descriptor releases a lock this probe may have taken.
+    return tryLockDescriptor(handle.fd) === "contended" ? "held" : "free";
+  } catch {
+    return "free";
+  } finally {
+    await handle.close();
   }
 }

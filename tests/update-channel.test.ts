@@ -1,8 +1,5 @@
 import { expect, test } from "bun:test";
-import {
-  assertNotRolledBack,
-  parseChannelDocument,
-} from "../src/update/channel";
+import { parseChannelDocument } from "../src/update/channel";
 import { UpdateFailure } from "../src/update/errors";
 import { compareVersions } from "../src/update/version";
 
@@ -69,29 +66,6 @@ test("the channel parser accepts exactly the documented shape for the requested 
     "channel-invalid:malformed",
   );
   expect(reason(Buffer.from([0xff, 0xfe]))).toBe("channel-invalid:malformed");
-});
-
-test("the floor refuses a lower sequence and a reused sequence with other bytes, and accepts a repeat", () => {
-  const parsed = parseChannelDocument(document(), "stable");
-  const rollback = (floor: { sequence: number; documentSha256: string }) => {
-    try {
-      assertNotRolledBack(parsed, floor);
-      return "accepted";
-    } catch (error) {
-      return (error as UpdateFailure).failure.code;
-    }
-  };
-  assertNotRolledBack(parsed, undefined);
-  expect(rollback({ sequence: 2, documentSha256: sha })).toBe("accepted");
-  expect(rollback({ sequence: 3, documentSha256: parsed.documentSha256 })).toBe(
-    "accepted",
-  );
-  expect(rollback({ sequence: 3, documentSha256: sha })).toBe(
-    "channel-rollback",
-  );
-  expect(rollback({ sequence: 4, documentSha256: sha })).toBe(
-    "channel-rollback",
-  );
 });
 
 test("version precedence follows Semantic Versioning, so 'never downgrade' is exact", () => {

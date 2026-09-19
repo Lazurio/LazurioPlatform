@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readdir,
@@ -87,22 +88,12 @@ test("first check with a bootstrap root promotes trust, writes the observation a
   });
   expect((await readdir(join(base, "trust"))).sort()).toEqual([
     "1.root.json",
-    "channel-floors.json",
     "root.json",
     "snapshot.json",
     "targets.json",
     "timestamp.json",
   ]);
   expect(await trust("root.json")).toBe(fixture.bootstrapRoot.toString());
-  expect(JSON.parse((await trust("channel-floors.json")) ?? "")).toEqual({
-    schemaVersion: 1,
-    channels: {
-      stable: {
-        sequence: 1,
-        documentSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
-      },
-    },
-  });
   // Scratch is always deleted; no artifact was requested.
   expect(await readdir(join(base, "update"))).toEqual(
     expect.arrayContaining(["lock", "observed.json"]),
@@ -293,8 +284,8 @@ test("a crash between any two promotions converges on the next check", async () 
   };
   await counting.check({ writeDurable: counted });
   const converged = await counting.trustSnapshot();
-  // 2.root.json, root.json, timestamp, snapshot, targets, floors, observed.
-  expect(writes).toBe(7);
+  // 2.root.json, root.json, timestamp, snapshot, targets, observed.
+  expect(writes).toBe(6);
 
   for (let survive = 0; survive < writes; survive++) {
     const { fixture, check, trustSnapshot, base } = await scenario();
@@ -310,10 +301,10 @@ test("a crash between any two promotions converges on the next check", async () 
       await writeDurableFile(...args);
     };
     const interrupted = await check({ writeDurable: dying });
-    if (survive < 6)
+    if (survive < 5)
       expect(interrupted).toMatchObject({ kind: "error", code: "internal" });
     // Promotion order is an invariant, not a habit: whatever survived is a
-    // PREFIX of root chain → root → timestamp → snapshot → targets → floor, so
+    // PREFIX of root chain → root → timestamp → snapshot → targets, so
     // trust/ never holds a role newer than the root that verifies it.
     const partial = await trustSnapshot();
     const at = (name: string): number =>
@@ -322,11 +313,6 @@ test("a crash between any two promotions converges on the next check", async () 
     if (at("timestamp.json") > 1) expect(at("root.json")).toBe(2);
     if (at("snapshot.json") > 1) expect(at("timestamp.json")).toBe(3);
     if (at("targets.json") > 1) expect(at("snapshot.json")).toBe(3);
-    if (
-      JSON.parse(partial["channel-floors.json"] ?? "").channels.stable
-        .sequence === 2
-    )
-      expect(at("targets.json")).toBe(3);
     // Exactly `survive` promotions happened before the kill.
     expect(
       [
@@ -335,10 +321,8 @@ test("a crash between any two promotions converges on the next check", async () 
         at("timestamp.json") === 3,
         at("snapshot.json") === 3,
         at("targets.json") === 3,
-        JSON.parse(partial["channel-floors.json"] ?? "").channels.stable
-          .sequence === 2,
       ].filter(Boolean).length,
-    ).toBe(Math.min(survive, 6));
+    ).toBe(Math.min(survive, 5));
     // Whatever prefix survived, a plain next check finishes the job.
     expect(await check()).toMatchObject({
       kind: "available",
@@ -351,9 +335,6 @@ test("a crash between any two promotions converges on the next check", async () 
       expect(JSON.parse(after[name] ?? "").signed.version).toBe(
         JSON.parse(converged[name] ?? "").signed.version,
       );
-    expect(
-      JSON.parse(after["channel-floors.json"] ?? "").channels.stable,
-    ).toMatchObject({ sequence: 2 });
     expect((await readObserved(base, clock())).status).toBe("available");
   }
 }, 60_000);
@@ -451,53 +432,67 @@ test("a role that fails verification is never promoted, while the roles verified
   expect(await roleVersion("snapshot.json")).toBe(3);
 });
 
-test("channel floors only move forward; a lower sequence or reused sequence is a rollback", async () => {
-  const { fixture, check, trust } = await scenario();
-  const floor = async () =>
-    JSON.parse((await trust("channel-floors.json")) ?? "").channels.stable;
+test("rollback of the channel document is refused by TUF itself: an older document under older metadata never replaces a newer one", async () => {
+  const { fixture, base, check, trustSnapshot } = await scenario();
   fixture.release("stable", { sequence: 5, version: "1.2.0" });
   await check({ bootstrapRoot: fixture.bootstrapRoot });
-  const five = await floor();
-  expect(five.sequence).toBe(5);
+  const older = fixture.version();
   // Identical authenticated bytes in a newer generation are a normal repeat.
   fixture.publish();
   expect(await check()).toMatchObject({ kind: "available", sequence: 5 });
-  expect(await floor()).toEqual(five);
   fixture.release("stable", { sequence: 7, version: "1.3.0" });
+  expect(await check()).toMatchObject({
+    kind: "available",
+    version: "1.3.0",
+    sequence: 7,
+  });
+  const newest = await trustSnapshot();
+  // An attacker replays the once-valid older repository state: its timestamp,
+  // snapshot, targets and the older channel document are all correctly signed.
+  fixture.rewindTo(older);
+  expect(await check()).toMatchObject({
+    kind: "error",
+    code: "metadata-invalid",
+  });
+  // Nothing in trust/ moved back, and the newer verified target is still the
+  // one on offer.
+  expect(await trustSnapshot()).toEqual(newest);
+  expect(await readObserved(base, clock())).toMatchObject({
+    status: "error",
+    error: { code: "metadata-invalid" },
+    available: { version: "1.3.0", sequence: 7 },
+  });
+  // The older DOCUMENT alone, served in place of the newer one while the
+  // metadata is current, fails the signed hash of the target.
+  fixture.rewindTo(fixture.version());
+  const current = [...fixture.requests]
+    .reverse()
+    .find((path) => path.startsWith("/targets/channels/")) as string;
   expect(await check()).toMatchObject({ kind: "available", sequence: 7 });
-  const seven = await floor();
-  expect(seven.sequence).toBe(7);
-  // TUF accepts both generations below (their metadata versions rise); only
-  // the channel floor refuses them.
+  fixture.substitute(
+    current,
+    fixture.served(
+      fixture.requests.find((path) =>
+        path.startsWith("/targets/channels/"),
+      ) as string,
+    ) as Buffer,
+  );
+  expect(await check()).toMatchObject({
+    kind: "error",
+    code: "metadata-invalid",
+  });
+  // `sequence` is ordering information only: a publisher may lower it, and a
+  // correctly signed NEWER generation is what decides.
   fixture.release("stable", { sequence: 6, version: "1.4.0" });
   expect(await check()).toMatchObject({
-    kind: "error",
-    code: "channel-rollback",
-    context: { channel: "stable", floorSequence: 7, offeredSequence: 6 },
-  });
-  expect(await floor()).toEqual(seven);
-  fixture.release("stable", { sequence: 7, version: "1.4.0" });
-  expect(await check()).toMatchObject({
-    kind: "error",
-    code: "channel-rollback",
-  });
-  expect(await floor()).toEqual(seven);
-  // Each channel has its own floor.
-  fixture.release("preview", { sequence: 1, version: "2.0.0-rc.1" });
-  fixture.release("stable", { sequence: 8, version: "1.4.0" });
-  expect(await check({ channel: "preview" })).toMatchObject({
     kind: "available",
-    version: "2.0.0-rc.1",
-    sequence: 1,
+    version: "1.4.0",
+    sequence: 6,
   });
-  expect(
-    JSON.parse((await trust("channel-floors.json")) ?? "").channels,
-  ).toMatchObject({ stable: { sequence: 7 }, preview: { sequence: 1 } });
-  expect(await check()).toMatchObject({ kind: "available", sequence: 8 });
 });
 
-test("channel document problems and an unsupported target are typed; the floor still advances for a verified document", async () => {
-  const { fixture, check, trust } = await scenario();
+test("channel document problems and an unsupported target are typed", async () => {
+  const { fixture, check } = await scenario();
   fixture.release("stable", { sequence: 1, version: "1.2.0" });
   await check({ bootstrapRoot: fixture.bootstrapRoot });
   expect(await check({ channel: "preview" })).toMatchObject({
@@ -515,10 +510,6 @@ test("channel document problems and an unsupported target are typed; the floor s
     code: "target-unsupported",
     context: { target },
   });
-  expect(
-    JSON.parse((await trust("channel-floors.json")) ?? "").channels.stable
-      .sequence,
-  ).toBe(2);
   fixture.release("stable", {
     sequence: 3,
     version: "1.3.0",
@@ -609,23 +600,85 @@ test("unknown entries in the base, in trust/ and in update/ never stop a check a
     expect(await readFile(path, "utf8")).toBe("unrelated");
 });
 
-test("owned security state of a newer schema is refused, not guessed", async () => {
-  const { fixture, base, check, roleVersion } = await scenario();
+test("a damaged role file in trust/ counts as absent: it is fetched again under the still-valid root and replaced", async () => {
+  const { fixture, base, check, trust, roleVersion } = await scenario();
   fixture.release("stable", { sequence: 1, version: "1.2.0" });
   await check({ bootstrapRoot: fixture.bootstrapRoot });
-  await writeFile(
-    join(base, "trust", "channel-floors.json"),
-    '{"schemaVersion":2,"floors":[]}',
-  );
+  const healthy = await trust("snapshot.json");
+  for (const name of ["timestamp.json", "snapshot.json", "targets.json"]) {
+    // Garbage, an empty file, a directory with content, an unreadable file.
+    await writeFile(join(base, "trust", name), "{ not json");
+    expect(await check()).toMatchObject({ kind: "available" });
+    await writeFile(join(base, "trust", name), "");
+    expect(await check()).toMatchObject({ kind: "available" });
+    await rm(join(base, "trust", name));
+    await mkdir(join(base, "trust", name, "stray"), { recursive: true });
+    expect(await check()).toMatchObject({ kind: "available" });
+    await chmod(join(base, "trust", name), 0o000);
+    expect(await check()).toMatchObject({ kind: "available" });
+    expect(await roleVersion(name)).toBe(1);
+  }
+  expect(await trust("snapshot.json")).toBe(healthy);
+});
+
+test("a damaged root.json falls back to a supplied bootstrap root and is repaired; without one it is a typed refusal that a later bootstrap heals", async () => {
+  const { fixture, base, check, trust, roleVersion } = await scenario();
+  fixture.release("stable", { sequence: 1, version: "1.2.0" });
+  await check({ bootstrapRoot: fixture.bootstrapRoot });
   fixture.rotateRoot();
+  expect(await check()).toMatchObject({ kind: "available" });
+  expect(await roleVersion("root.json")).toBe(2);
+  for (const damage of [
+    () => writeFile(join(base, "trust", "root.json"), "{ not json"),
+    // A well-formed root that is not signed by its own keys.
+    async () =>
+      writeFile(
+        join(base, "trust", "root.json"),
+        ((await trust("root.json")) ?? "").replace(/"sig":"../g, '"sig":"00'),
+      ),
+    async () => {
+      await rm(join(base, "trust", "root.json"));
+      await mkdir(join(base, "trust", "root.json"));
+    },
+  ]) {
+    await damage();
+    // Typed, never silent, and nothing else in trust/ is touched.
+    expect(await check()).toMatchObject({
+      kind: "error",
+      code: "trust-invalid",
+      context: { subject: "root" },
+    });
+    expect(await roleVersion("targets.json")).toBe(2);
+    // The same command with the bootstrap root walks the chain again and
+    // rewrites root.json; afterwards no bootstrap root is needed or accepted.
+    expect(await check({ bootstrapRoot: fixture.bootstrapRoot })).toMatchObject(
+      { kind: "available" },
+    );
+    expect(await roleVersion("root.json")).toBe(2);
+    expect(await check()).toMatchObject({ kind: "available" });
+    expect(await check({ bootstrapRoot: fixture.bootstrapRoot })).toMatchObject(
+      { kind: "error", code: "trust-conflict" },
+    );
+  }
+});
+
+test("a response larger than the limit the client asked for has its own code", async () => {
+  const { fixture, check } = await scenario();
+  fixture.release("stable", { sequence: 1, version: "1.2.0" });
+  await check({ bootstrapRoot: fixture.bootstrapRoot });
+  // The snapshot names the targets length; more bytes than that are refused
+  // while they arrive, not after.
+  fixture.release("stable", { sequence: 2, version: "1.3.0" });
+  const path = `/metadata/${fixture.version()}.targets.json`;
+  fixture.substitute(
+    path,
+    Buffer.concat([fixture.served(path) as Buffer, Buffer.alloc(4096, 0x20)]),
+  );
   expect(await check()).toMatchObject({
     kind: "error",
-    code: "trust-invalid",
-    context: { subject: "channel-floors", reason: "newer-schema" },
+    code: "response-too-large",
+    context: { resource: `${fixture.version()}.targets.json` },
   });
-  // The channel decision is refused; verified TUF trust still moved forward.
-  expect(await roleVersion("root.json")).toBe(2);
-  expect(await roleVersion("targets.json")).toBe(2);
 });
 
 test("two concurrent checks serialize on the lock and neither corrupts trust; a held lock times out as busy", async () => {

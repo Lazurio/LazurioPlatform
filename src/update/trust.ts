@@ -1,25 +1,20 @@
-import { lstat, mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Metadata, MetadataKind, type Root } from "@tufjs/models";
 import { parseUniqueJson } from "../providers/unique-json";
-import {
-  type ChannelDocument,
-  type ChannelFloor,
-  isChannelFloor,
-  isUpdateChannel,
-  type UpdateChannel,
-} from "./channel";
 import type { DurableWriter } from "./durable-file";
 import { UpdateFailure } from "./errors";
 
-/** Durable trust: `<base>/trust/` holds the verified TUF metadata and the
- * channel floors (docs/update.md "State on disk", "Trust never rewinds").
+/** Durable trust: `<base>/trust/` holds the verified TUF metadata
+ * (docs/update.md "State on disk", "Trust never rewinds"). Rollback of the
+ * channel document needs no state of its own: the document is a TUF target and
+ * the timestamp, snapshot and targets versions kept here already refuse older
+ * metadata.
  *
  *   root.json            the current trusted root — the only file the TUF
  *                        client is seeded with as its anchor
  *   <N>.root.json        the retained, verified root chain
  *   timestamp.json, snapshot.json, targets.json
- *   channel-floors.json  owned, schema-versioned channel high-water marks
  *
  * The directory tolerates unrelated entries: only these names are ever read.
  *
@@ -77,7 +72,6 @@ export const roleFiles = [
   "snapshot.json",
   "targets.json",
 ] as const;
-const floorsFile = "channel-floors.json";
 
 export type Seed = Readonly<{
   /** Whether `trust/root.json` existed; false means a caller-supplied root. */
@@ -120,40 +114,81 @@ function parseRoot(text: string): Metadata<Root> {
 }
 
 /** Decide the trust anchor of this refresh. The bootstrap root is accepted
- * only while no root was ever promoted; an established installation never
- * falls back to it, and missing trust is never silently converted into one.
+ * only while no VALID root is held; an established installation never falls
+ * back to it, and missing trust is never silently converted into one.
+ *
+ * Damaged owned state must not wedge the Machine (docs/update.md "No wedge"):
+ *  - a role file that cannot be read or is not JSON counts as absent. The
+ *    client fetches that role again and verifies it under the root, and
+ *    promotion replaces the damaged file;
+ *  - a `root.json` that cannot be read or does not verify is replaced by the
+ *    caller's bootstrap root when one is supplied — as on a first check, and
+ *    without seeding any older role, so every role is verified from that root
+ *    again and `root.json` is rewritten by promotion. Without a bootstrap root
+ *    this is the typed `trust-invalid`; nothing is guessed.
  */
 export async function readSeed(
   trustDirectory: string,
   bootstrapRoot: Uint8Array | undefined,
 ): Promise<Seed> {
-  const durable = await readOptional(join(trustDirectory, "root.json"));
-  if (durable !== undefined && bootstrapRoot !== undefined)
-    throw new UpdateFailure("trust-conflict");
-  if (durable === undefined && bootstrapRoot === undefined)
-    throw new UpdateFailure("trust-missing");
-  let root: string;
+  const verifiedRoot = (text: string): string | undefined => {
+    try {
+      const parsed = parseRoot(text);
+      parsed.verifyDelegate(MetadataKind.Root, parsed);
+      return text;
+    } catch {
+      return undefined;
+    }
+  };
+  const rootPath = join(trustDirectory, "root.json");
+  let present = true;
+  let durable: string | undefined;
   try {
-    root =
-      durable ??
-      new TextDecoder("utf-8", { fatal: true }).decode(
-        bootstrapRoot as Uint8Array,
-      );
-    const parsed = parseRoot(root);
-    parsed.verifyDelegate(MetadataKind.Root, parsed);
+    const text = await readOptional(rootPath);
+    present = text !== undefined;
+    durable = text === undefined ? undefined : verifiedRoot(text);
   } catch {
-    throw new UpdateFailure("trust-invalid", {
-      subject: durable === undefined ? "bootstrap-root" : "root",
-    });
+    // Unreadable (not a regular file, permissions): damaged, not absent.
   }
-  const roles = new Map<string, string>();
-  for (const name of roleFiles) {
-    // An unreadable older role is not fatal: the client discards what it
-    // cannot verify under the current root and fetches it again.
-    const text = await readOptional(join(trustDirectory, name));
-    if (text !== undefined) roles.set(name, text);
+  if (durable !== undefined) {
+    if (bootstrapRoot !== undefined) throw new UpdateFailure("trust-conflict");
+    const roles = new Map<string, string>();
+    for (const name of roleFiles) {
+      const path = join(trustDirectory, name);
+      try {
+        const text = await readOptional(path);
+        if (text === undefined) continue;
+        JSON.parse(text);
+        roles.set(name, text);
+      } catch {
+        // Only a regular file can be replaced by the promoting rename.
+        const stat = await lstat(path).catch(() => undefined);
+        if (stat && !stat.isFile())
+          await rm(path, { recursive: true, force: true });
+      }
+    }
+    return Object.freeze({ established: true, root: durable, roles });
   }
-  return Object.freeze({ established: durable !== undefined, root, roles });
+  if (bootstrapRoot === undefined)
+    throw present
+      ? new UpdateFailure("trust-invalid", { subject: "root" })
+      : new UpdateFailure("trust-missing");
+  let root: string | undefined;
+  try {
+    root = verifiedRoot(
+      new TextDecoder("utf-8", { fatal: true }).decode(bootstrapRoot),
+    );
+  } catch {
+    // Not UTF-8.
+  }
+  if (root === undefined)
+    throw new UpdateFailure("trust-invalid", { subject: "bootstrap-root" });
+  if (present) {
+    const stat = await lstat(rootPath).catch(() => undefined);
+    if (stat && !stat.isFile())
+      await rm(rootPath, { recursive: true, force: true });
+  }
+  return Object.freeze({ established: false, root, roles: new Map() });
 }
 
 export async function seedScratch(scratch: string, seed: Seed): Promise<void> {
@@ -245,73 +280,4 @@ export async function promoteVerified(input: {
     await put("root.json", finalRoot);
   for (const { name, text } of changedRoles) await put(name, text);
   return promoted;
-}
-
-type Floors = Partial<Record<UpdateChannel, ChannelFloor>>;
-
-/** A missing file means no floor yet. Anything unreadable is refused rather
- * than treated as absent: forgetting a floor is a rewind. A newer schema is
- * refused rather than guessed (docs/update.md "State on disk").
- */
-export async function readChannelFloors(
-  trustDirectory: string,
-): Promise<Floors> {
-  const text = await readOptional(join(trustDirectory, floorsFile));
-  if (text === undefined) return {};
-  const invalid = (reason: string) =>
-    new UpdateFailure("trust-invalid", { subject: "channel-floors", reason });
-  let value: unknown;
-  try {
-    value = parseUniqueJson(text);
-  } catch {
-    throw invalid("malformed");
-  }
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw invalid("malformed");
-  const record = value as Record<string, unknown>;
-  if (
-    typeof record.schemaVersion === "number" &&
-    Number.isSafeInteger(record.schemaVersion) &&
-    record.schemaVersion > 1
-  )
-    throw invalid("newer-schema");
-  const channels = record.channels;
-  if (
-    record.schemaVersion !== 1 ||
-    Object.keys(record).sort().join(",") !== "channels,schemaVersion" ||
-    !channels ||
-    typeof channels !== "object" ||
-    Array.isArray(channels)
-  )
-    throw invalid("malformed");
-  const floors: Floors = {};
-  for (const [channel, floor] of Object.entries(channels)) {
-    if (!isUpdateChannel(channel) || !isChannelFloor(floor))
-      throw invalid("malformed");
-    floors[channel] = Object.freeze({ ...floor });
-  }
-  return floors;
-}
-
-/** Only after the signed document was verified, and only forward. */
-export async function advanceChannelFloor(input: {
-  trustDirectory: string;
-  floors: Floors;
-  document: ChannelDocument;
-  write: DurableWriter;
-}): Promise<void> {
-  const floor = input.floors[input.document.channel];
-  if (floor && input.document.sequence <= floor.sequence) return;
-  const channels: Floors = {
-    ...input.floors,
-    [input.document.channel]: {
-      sequence: input.document.sequence,
-      documentSha256: input.document.documentSha256,
-    },
-  };
-  await input.write(
-    input.trustDirectory,
-    floorsFile,
-    Buffer.from(`${JSON.stringify({ schemaVersion: 1, channels })}\n`),
-  );
 }

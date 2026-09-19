@@ -20,9 +20,12 @@ import { localApplicationAdapters } from "./modules/local-application-adapters";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import { resumeActivation } from "./update/activate";
+import { resolveInstallBase } from "./update/base";
 import {
   type CommandOutput,
   runUpdateCommand,
+  selfCheckCommand,
   updateHelp,
   versionCommand,
 } from "./update/cli";
@@ -38,7 +41,14 @@ function emit(output: CommandOutput): number {
 // installer surface is the explicit `product` command group.
 export async function runCli(args: string[]): Promise<number> {
   if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
-  if (args[0] === "update") return emit(await runUpdateCommand(args.slice(1)));
+  if (args[0] === "self-check")
+    return emit(await selfCheckCommand(args.slice(1)));
+  if (args[0] === "update")
+    return emit(
+      await runUpdateCommand(args.slice(1), {
+        progress: (line) => console.error(line),
+      }),
+    );
   if (args[0] === "machine") {
     const { code, result } = await runMachineCommand(args.slice(1));
     console.log(JSON.stringify(result));
@@ -241,6 +251,14 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         environment,
       });
     }
+    const base = resolveInstallBase({
+      platform: process.platform,
+      env: process.env,
+      homedir: process.env.HOME,
+    });
+    // Any start converges an activation whose worker died; a live worker —
+    // the one that just restarted this Launchpad — is left alone.
+    if (base) await resumeActivation({ base }).catch(() => undefined);
     const { close, url } = await startLaunchpad(
       values.folder,
       applicationAdapters,
@@ -249,6 +267,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         : {
             organizationDirectory: values["organization-directory"],
           },
+      base ? { base, executable: process.execPath } : undefined,
     );
     console.log(
       JSON.stringify({ url, scope: "local-development-profile-panel" }),

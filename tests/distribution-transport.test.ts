@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
 import { access, readFile } from "node:fs/promises";
 import { DownloadHTTPError } from "tuf-js/dist/error";
-import { DistributionTransport } from "../src/distribution/transport";
+import {
+  DistributionTransport,
+  TransferTooLargeError,
+} from "../src/distribution/transport";
 
 test("transport policy rejects insecure, credentialed and noncanonical origins", () => {
   for (const origin of [
@@ -65,7 +68,7 @@ test("real transfers bound bytes, redirects and temp lifetime without exposing U
       transport.downloadFile(`${server.url}ok`, 8, async () => {
         called = true;
       }),
-    ).rejects.toThrow("body refused");
+    ).rejects.toBeInstanceOf(TransferTooLargeError);
     expect(called).toBe(false);
     await expect(
       transport.downloadBytes(`${server.url}foreign`, 100),

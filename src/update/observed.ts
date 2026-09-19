@@ -1,4 +1,4 @@
-import { readFile, readlink, stat } from "node:fs/promises";
+import { lstat, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { isUpdateChannel, type UpdateChannel } from "./channel";
 import type { DurableWriter } from "./durable-file";
@@ -9,6 +9,15 @@ import {
   updateError,
 } from "./errors";
 import { isProductVersion, type ProductIdentity } from "./identity";
+import {
+  layout,
+  parseVersionName,
+  readSelector,
+  versionExecutable,
+  versionName,
+} from "./layout";
+import { probeUpdateLock } from "./lock";
+import { compareVersions } from "./version";
 
 /** `update/observed.json`: an OBSERVATION for the UI, the CLI and outside
  * observers — never an authority (docs/update.md "State on disk"). Nothing
@@ -85,19 +94,15 @@ export async function readSelected(
   base: string,
   now: Date,
 ): Promise<Observed["selected"]> {
-  try {
-    const link = await readlink(join(base, "bin", "lazurio"));
-    const match =
-      /^\.\.\/versions\/([0-9A-Za-z.-]+)\+([0-9a-f]{16})\/lazurio$/.exec(link);
-    if (!match || !isProductVersion(match[1])) return null;
-    return Object.freeze({
-      version: match[1],
-      artifactSha16: match[2] as string,
-      observedAt: now.toISOString(),
-    });
-  } catch {
-    return null;
-  }
+  const name = await readSelector(base);
+  const parsed = name === null ? undefined : parseVersionName(name);
+  return parsed
+    ? Object.freeze({
+        version: parsed.version,
+        artifactSha16: parsed.sha16,
+        observedAt: now.toISOString(),
+      })
+    : null;
 }
 
 export async function rebuiltObservation(
@@ -268,14 +273,86 @@ export function parseObserved(value: unknown): Observed {
   });
 }
 
-/** Never throws and never blocks: anything other than a well-formed file of a
+const exists = (path: string) =>
+  lstat(path).then(
+    () => true,
+    () => false,
+  );
+
+/** The file is a snapshot taken by some operation; this makes it true NOW
+ * (docs/update.md: "rebuilt from the selector, the verified artifacts and the
+ * service manager after any crash, so a stale `downloading` can never stick").
+ *
+ *  - `selected` is always re-read from the selector.
+ *  - A transient status is kept only while its operation is alive: `checking`
+ *    and `downloading` while some process holds the step lock, `activating`
+ *    while an activation record exists (any start finishes or undoes it).
+ *  - `ready` is kept only while the staged version exists.
+ * Otherwise the status collapses to the last stable one the facts support.
+ */
+async function settled(
+  base: string,
+  observed: Observed,
+  now: Date,
+): Promise<Observed> {
+  const selected = await readSelected(base, now);
+  const paths = layout(base);
+  // While a record exists the selector may name an unconfirmed candidate.
+  const activating = await exists(join(paths.update, "activation.json"));
+  // What was available is no longer news once it, or something newer, is
+  // selected AND confirmed.
+  const available =
+    !activating &&
+    observed.available &&
+    selected &&
+    compareVersions(observed.available.version, selected.version) <= 0
+      ? null
+      : observed.available;
+  const staged =
+    available !== null &&
+    (await exists(
+      versionExecutable(
+        base,
+        versionName(available.version, available.artifactSha256),
+      ),
+    ));
+  const live =
+    observed.status === "checking" || observed.status === "downloading"
+      ? (await probeUpdateLock(paths.stepLock)) === "held"
+      : observed.status === "activating"
+        ? activating
+        : observed.status !== "ready" || staged;
+  if (live && available === observed.available)
+    return Object.freeze({ ...observed, selected });
+  return Object.freeze({
+    ...observed,
+    selected,
+    available,
+    status: observed.error
+      ? "error"
+      : available
+        ? staged
+          ? "ready"
+          : "available"
+        : observed.lastAuthenticatedCheckAt
+          ? "up-to-date"
+          : "idle",
+    downloadPercent: null,
+  });
+}
+
+/** Never throws and never waits: anything other than a well-formed file of a
  * known schema yields a rebuilt minimal observation.
  */
 export async function readObserved(base: string, now: Date): Promise<Observed> {
   try {
     const path = observedPath(base);
     if ((await stat(path)).size > 64 * 1024) throw new Error("Too large");
-    return parseObserved(JSON.parse(await readFile(path, "utf8")));
+    return await settled(
+      base,
+      parseObserved(JSON.parse(await readFile(path, "utf8"))),
+      now,
+    );
   } catch {
     // `rebuiltObservation` cannot fail: reading the selector swallows errors.
     return rebuiltObservation(base, now);

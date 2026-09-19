@@ -1,10 +1,13 @@
 import type { Fetcher } from "tuf-js";
 // Pinned-client compatibility: the Updater recognizes this class for root 404.
 import { DownloadHTTPError } from "tuf-js/dist/error";
+import { TransferTooLargeError } from "../distribution/transport";
 
 export type TransferFailure = Readonly<{
   resource: string;
   httpStatus?: number;
+  /** The response exceeded the limit the client asked for. */
+  tooLarge?: true;
 }>;
 
 /** Observes one refresh from the outside; it never alters a response.
@@ -77,6 +80,9 @@ export class TrustFetcher implements Fetcher {
         this.failure = Object.freeze({
           resource: new URL(url).pathname.split("/").at(-1) ?? "",
           ...(status === undefined ? {} : { httpStatus: status }),
+          ...(error instanceof TransferTooLargeError
+            ? { tooLarge: true as const }
+            : {}),
         });
       throw error;
     }

@@ -87,13 +87,15 @@ test("update --check exits 10 when an update is available, 0 when up to date, an
 test("every refusal prints its stable code and exits with that code's distinct status", async () => {
   const { fixture, base, bootstrap, origins, run } = await scenario();
   fixture.release("stable", { sequence: 1, version: "1.2.0" });
-  // Plain `update` is explicit about what this build cannot do, and did
-  // nothing: no base was created.
-  expect(await run(["--base", base])).toEqual({
-    code: 31,
-    stdout: "",
-    stderr: "Update failed: not-implemented",
-  });
+  // `update` and `update rollback` act on an installation. Without a selector
+  // there is none: refused before the network, and no base was created.
+  for (const args of [origins, ["rollback", "--base", base]])
+    expect(await run(args)).toEqual({
+      code: 34,
+      stdout: "",
+      stderr: "Update failed: not-installed",
+    });
+  expect(fixture.requests).toEqual([]);
   expect(await readdir(join(base, ".."))).not.toContain("base");
   expect(await run(["--check", ...origins])).toMatchObject({
     code: 25,
@@ -133,13 +135,25 @@ test("every refusal prints its stable code and exits with that code's distinct s
     ],
     ["status", "--check", "--base", base],
     ["status", "extra"],
-    ["rollback"],
+    ["rollback", "--check", "--base", base],
+    ["rollback", "--download-only", "--base", base],
+    ["--check", "--download-only", ...origins],
+    ["--service", "launchd", ...origins],
+    ["--service", "systemd-user", ...origins],
+    ["--service", "systemd-user", "--unit", "../evil", ...origins],
+    ["--folder", "relative", ...origins],
     ["--unknown"],
   ])
     expect(await run(args)).toMatchObject({
       code: 2,
       stderr: "Update failed: invalid-request",
     });
+  // The internal worker always answers its caller in JSON.
+  expect(await run(["apply-worker", "--base", base])).toEqual({
+    code: 2,
+    stdout: '{"kind":"error","code":"invalid-request","context":{}}',
+    stderr: "",
+  });
   // Exit statuses are a contract: distinct per code and never 0 or 10.
   const statuses = Object.values(updateErrors).map((entry) => entry.exit);
   expect(new Set(statuses).size).toBe(statuses.length);

@@ -19,13 +19,12 @@ export function channelTargetPath(channel: UpdateChannel): string {
 /** A channel document is one small signed file, so a check stays cheap. */
 export const maxChannelDocumentBytes = 64 * 1024;
 
-export type ChannelFloor = Readonly<{
-  sequence: number;
-  documentSha256: string;
-}>;
-
 export type ChannelDocument = Readonly<{
   channel: UpdateChannel;
+  /** Ordering information of the publisher inside the signed document. It is
+   * not a second rollback floor: the document is a TUF target, so an older
+   * document can only arrive under older targets metadata, which the TUF
+   * client refuses against the versions held in `trust/`. */
   sequence: number;
   documentSha256: string;
   version: string;
@@ -42,19 +41,6 @@ const fields = [
   "targets",
   "version",
 ];
-
-export function isChannelFloor(value: unknown): value is ChannelFloor {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  return (
-    Object.keys(record).sort().join(",") === "documentSha256,sequence" &&
-    typeof record.sequence === "number" &&
-    Number.isSafeInteger(record.sequence) &&
-    record.sequence >= 1 &&
-    typeof record.documentSha256 === "string" &&
-    /^[a-f0-9]{64}$/.test(record.documentSha256)
-  );
-}
 
 /** Parse ONLY bytes that TUF already verified against signed targets; this
  * function authenticates nothing. It keeps the invariants of the pilot parser
@@ -126,24 +112,4 @@ export function parseChannelDocument(
     minimumVersion: record.minimumVersion,
     targets: Object.freeze(targets),
   });
-}
-
-/** Monotonic floor: a lower sequence, or the same sequence with different
- * bytes, is refused. Identical authenticated bytes are a normal repeat.
- */
-export function assertNotRolledBack(
-  document: ChannelDocument,
-  floor: ChannelFloor | undefined,
-): void {
-  if (!floor) return;
-  if (
-    document.sequence < floor.sequence ||
-    (document.sequence === floor.sequence &&
-      document.documentSha256 !== floor.documentSha256)
-  )
-    throw new UpdateFailure("channel-rollback", {
-      channel: document.channel,
-      floorSequence: floor.sequence,
-      offeredSequence: document.sequence,
-    });
 }

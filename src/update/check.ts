@@ -4,7 +4,6 @@ import { isAbsolute, join, resolve } from "node:path";
 import { type Fetcher, Updater } from "tuf-js";
 import { ExpiredMetadataError } from "tuf-js/dist/error";
 import {
-  assertNotRolledBack,
   type ChannelDocument,
   channelTargetPath,
   isUpdateChannel,
@@ -35,10 +34,8 @@ import {
   writeObserved,
 } from "./observed";
 import {
-  advanceChannelFloor,
   ensureOwnedDirectory,
   promoteVerified,
-  readChannelFloors,
   readSeed,
   seedScratch,
 } from "./trust";
@@ -81,12 +78,44 @@ export type CheckResult =
       artifactSha256: string;
       length: number;
       sequence: number;
+      /** Name under `versions/` when a step staged the candidate. */
+      staged?: string;
     }>
   | (Readonly<{ kind: "error" }> & UpdateError);
 
+export type SignedArtifact = Readonly<{
+  /** Signed target path, `artifacts/<sha256>/lazurio`. */
+  path: string;
+  sha256: string;
+  length: number;
+}>;
+
+/** What a step after the check works with: the refreshed client, whose
+ * metadata is already verified and promoted, and the scratch directory of
+ * this operation, which is deleted when the operation ends.
+ */
+export type AvailableSession = Readonly<{
+  base: string;
+  scratch: string;
+  operationId: string;
+  updater: Updater;
+  document: ChannelDocument;
+  artifact: SignedArtifact;
+  /** Record `downloading` with a percentage in the observation. */
+  progress(percent: number): Promise<void>;
+}>;
+
+/** Runs under the same lock as the check when an update is available. Returns
+ * the staged version name; refusals are thrown as `UpdateFailure`.
+ */
+export type AvailableStep = (session: AvailableSession) => Promise<string>;
+
 type Verified = Readonly<{
   document: ChannelDocument;
-  artifact: Readonly<{ sha256: string; length: number }> | undefined;
+  artifact: SignedArtifact | undefined;
+  staged?: string;
+  /** The check succeeded; the step after it did not. */
+  stepFailure?: UpdateError;
 }>;
 
 /** Pinned-client compatibility (tuf-js 6.0.0): snapshot and targets failures
@@ -104,8 +133,13 @@ function expired(error: unknown): boolean {
 
 function classify(error: unknown, fetcher: TrustFetcher): UpdateError {
   if (error instanceof UpdateFailure) return error.failure;
-  if (fetcher.lastFailure)
-    return updateError("network-unavailable", fetcher.lastFailure);
+  if (fetcher.lastFailure) {
+    const { tooLarge, ...context } = fetcher.lastFailure;
+    return updateError(
+      tooLarge ? "response-too-large" : "network-unavailable",
+      context,
+    );
+  }
   if (expired(error)) return updateError("metadata-expired");
   return updateError("metadata-invalid");
 }
@@ -173,7 +207,10 @@ async function refreshAndReadChannel(
  * (docs/update.md "Check"). It advances only durable trust and rewrites the
  * observation. Expected failures are returned, never thrown.
  */
-export async function checkForUpdate(input: CheckInput): Promise<CheckResult> {
+export async function checkForUpdate(
+  input: CheckInput,
+  step?: AvailableStep,
+): Promise<CheckResult> {
   const fail = (code: UpdateErrorCode, context: ErrorContext = {}) =>
     Object.freeze({ kind: "error" as const, ...updateError(code, context) });
   if (
@@ -207,6 +244,7 @@ export async function checkForUpdate(input: CheckInput): Promise<CheckResult> {
       input,
       { trustDirectory, updateDirectory, operationId },
       write,
+      step,
     );
     try {
       await writeObserved(
@@ -217,9 +255,11 @@ export async function checkForUpdate(input: CheckInput): Promise<CheckResult> {
     } catch {
       // Derived state: failing to write it must not change the result.
     }
-    return "failure" in outcome
-      ? fail(outcome.failure.code, outcome.failure.context)
-      : result(input.identity, outcome);
+    if ("failure" in outcome)
+      return fail(outcome.failure.code, outcome.failure.context);
+    if (outcome.stepFailure)
+      return fail(outcome.stepFailure.code, outcome.stepFailure.context);
+    return result(input.identity, outcome);
   } catch {
     return fail("internal");
   } finally {
@@ -237,6 +277,7 @@ async function checkUnderLock(
     operationId: string;
   },
   write: DurableWriter,
+  step: AvailableStep | undefined,
 ): Promise<Outcome> {
   const { trustDirectory, updateDirectory } = owned;
   const fetcher = new TrustFetcher(input.transport, input.metadataBaseUrl);
@@ -278,16 +319,7 @@ async function checkUnderLock(
     }
     if (failure || !received)
       return { failure: failure ?? updateError("internal") };
-    // Read only now: unreadable floors refuse the channel decision, but they
-    // must not stop verified TUF roles above from becoming durable.
-    const floors = await readChannelFloors(trustDirectory);
     const document = parseChannelDocument(received.bytes, input.channel);
-    assertNotRolledBack(document, floors[input.channel]);
-    try {
-      await advanceChannelFloor({ trustDirectory, floors, document, write });
-    } catch (error) {
-      return { failure: updateError(...storageOrInternal(error, "floor")) };
-    }
     const path = document.targets[input.identity.target];
     if (path === undefined) return { document, artifact: undefined };
     const artifact = await received.updater.getTargetInfo(path);
@@ -296,7 +328,52 @@ async function checkUnderLock(
       return {
         failure: updateError("metadata-invalid", { subject: "artifact" }),
       };
-    return { document, artifact: { sha256, length: artifact.length } };
+    const verified: Verified = {
+      document,
+      artifact: { path, sha256, length: artifact.length },
+    };
+    if (!step || result(input.identity, verified).kind !== "available")
+      return verified;
+    // The verified availability is recorded before the long step, so a crash
+    // inside it leaves a true observation behind.
+    const observation = await observe(input, owned.operationId, verified);
+    const record = async (change: Partial<Observed>) => {
+      try {
+        await writeObserved(
+          input.base,
+          Object.freeze({
+            ...observation,
+            ...change,
+            observedAt: input.clock().toISOString(),
+          }),
+          write,
+        );
+      } catch {
+        // Derived state never decides the step.
+      }
+    };
+    await record({});
+    try {
+      const staged = await step({
+        base: input.base,
+        scratch,
+        operationId: owned.operationId,
+        updater: received.updater,
+        document,
+        artifact: verified.artifact as SignedArtifact,
+        progress: (percent) =>
+          record({ status: "downloading", downloadPercent: percent }),
+      });
+      return { ...verified, staged };
+    } catch (error) {
+      return {
+        ...verified,
+        stepFailure:
+          error instanceof UpdateFailure
+            ? error.failure
+            : updateError(...storageOrInternal(error, "step")),
+      };
+    }
   } catch (error) {
     return {
       failure:
@@ -317,6 +394,7 @@ function storageOrInternal(
   stage: string,
 ): [UpdateErrorCode, ErrorContext] {
   const errno = (error as NodeJS.ErrnoException | undefined)?.code;
+  if (errno === "ENOSPC" || errno === "EDQUOT") return ["disk-full", { stage }];
   return typeof errno === "string" && /^E[A-Z]+$/.test(errno)
     ? ["storage-unavailable", { stage, errno }]
     : ["internal", { stage }];
@@ -346,6 +424,7 @@ function result(identity: ProductIdentity, verified: Verified): CheckResult {
     artifactSha256: artifact.sha256,
     length: artifact.length,
     sequence: document.sequence,
+    ...(verified.staged === undefined ? {} : { staged: verified.staged }),
   });
 }
 
@@ -366,9 +445,10 @@ async function observe(
   const error: UpdateError | null =
     "failure" in outcome
       ? outcome.failure
-      : checked?.kind === "error"
-        ? updateError(checked.code, checked.context)
-        : null;
+      : (outcome.stepFailure ??
+        (checked?.kind === "error"
+          ? updateError(checked.code, checked.context)
+          : null));
   let available: ObservedAvailable | null = null;
   if (!("failure" in outcome)) {
     if (checked?.kind === "available")
@@ -393,7 +473,9 @@ async function observe(
     status: error
       ? "error"
       : checked?.kind === "available"
-        ? "available"
+        ? checked.staged === undefined
+          ? "available"
+          : "ready"
         : "up-to-date",
     channel: input.channel,
     lastAuthenticatedCheckAt:

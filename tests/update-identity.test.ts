@@ -99,11 +99,17 @@ test.skipIf(process.platform === "win32")(
       expect(run(["--version"]).stdout).toBe(
         `lazurio 3.1.4-rc.2 (commit ${identity.commit}, target ${identity.target})`,
       );
-      // The same executable states plainly what it cannot do yet.
+      // The self-check an updater runs on a candidate reports the same
+      // embedded identity, and an update without an installation is refused.
+      expect(JSON.parse(run(["self-check", "--json"]).stdout)).toMatchObject({
+        schemaVersion: 1,
+        identity,
+        folder: null,
+      });
       expect(run(["update", "--base", join(directory, "base")])).toEqual({
-        code: 31,
+        code: 2,
         stdout: "",
-        stderr: "Update failed: not-implemented",
+        stderr: "Update failed: invalid-request",
       });
     } finally {
       await rm(directory, { recursive: true });
