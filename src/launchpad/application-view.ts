@@ -102,8 +102,16 @@ export function applicationMessage(
     case "started":
     case "already-managed":
       return "appStarted";
+    case "application-running":
+      return "appApplicationRunning";
+    case "service-unrecognized":
+      return "appServiceUnrecognized";
     case "status":
-      return value.observedHealthy === true ? "appHealthy" : "appNotReady";
+      if (value.state === "ended") return "appEnded";
+      if (value.observedHealthy !== true) return "appNotReady";
+      return value.survivesLaunchpadRestart === true
+        ? "appHealthyPersistent"
+        : "appHealthy";
     case "not-ready":
       return "appNotReady";
     case "not-managed":

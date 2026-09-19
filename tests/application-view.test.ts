@@ -52,6 +52,27 @@ test("application presentation distinguishes start, health, stop and failed prep
       [{ kind: "started" }, "appStarted"],
       [{ kind: "status", observedHealthy: true }, "appHealthy"],
       [{ kind: "status", observedHealthy: false }, "appNotReady"],
+      [
+        {
+          kind: "status",
+          runner: "systemd-user",
+          survivesLaunchpadRestart: true,
+          observedHealthy: true,
+        },
+        "appHealthyPersistent",
+      ],
+      [
+        {
+          kind: "status",
+          runner: "session",
+          survivesLaunchpadRestart: false,
+          observedHealthy: true,
+        },
+        "appHealthy",
+      ],
+      [{ kind: "status", state: "ended", observedHealthy: false }, "appEnded"],
+      [{ kind: "application-running" }, "appApplicationRunning"],
+      [{ kind: "service-unrecognized" }, "appServiceUnrecognized"],
       [{ kind: "group-stopped" }, "appStopped"],
       [{ kind: "denied" }, "appDenied"],
       [{ error: "applications-unavailable" }, "appUnavailable"],

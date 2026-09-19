@@ -16,6 +16,7 @@ import { createApplicationLifecycle } from "../src/modules/lifecycle";
 import { localApplicationAdapters } from "../src/modules/local-application-adapters";
 import { createOwnerOperations } from "../src/modules/owner-operations";
 import { inspectPreparationBinding } from "../src/modules/preparation-binding";
+import { createSessionRunner } from "../src/modules/session-runner";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import {
   readOrganizationApplications,
@@ -65,6 +66,7 @@ posixTest(
         bunExecutable: process.execPath,
         platformExecutable: process.execPath,
         environment: env,
+        runner: createSessionRunner(process.execPath),
       });
       const coordinate = adapters.coordinateMutation;
       if (!coordinate) throw new Error("Expected local coordinator");
@@ -946,6 +948,7 @@ posixTest(
               bunExecutable: process.execPath,
               platformExecutable,
               environment: env,
+              runner: createSessionRunner(platformExecutable),
             }),
           );
           lifecycles.push(lifecycle);
@@ -975,6 +978,7 @@ posixTest(
             bunExecutable: process.execPath,
             platformExecutable,
             environment: env,
+            runner: createSessionRunner(platformExecutable),
           }),
         );
         lifecycles.push(absent);
@@ -992,6 +996,7 @@ posixTest(
             bunExecutable: process.execPath,
             platformExecutable,
             environment: env,
+            runner: createSessionRunner(platformExecutable),
           }),
         );
         lifecycles.push(admitted);

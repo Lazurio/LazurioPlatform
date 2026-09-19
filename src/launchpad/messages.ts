@@ -18,9 +18,17 @@ const en = {
   appPreparationCleanupRequired:
     "Previous process cleanup could not be confirmed. Further preparation and starts are blocked; resolve cleanup through the existing lifecycle owner before retrying.",
   appOtherAppManaged:
-    "Another application is managed by this session. Explicitly stop it before preparing dependencies; preparation will not stop it for you.",
+    "Another application of this Organization is running or awaits cleanup. Explicitly stop it before preparing dependencies; preparation will not stop it for you.",
   appDeclarationChanged:
     "The application declaration or its location changed. Refresh the selection and verify the intended module before retrying.",
+  appApplicationRunning:
+    "This application is running under the operating system's service manager and may be in use. Dependencies are not changed beneath a running application; explicitly stop it first.",
+  appServiceUnrecognized:
+    "A service with this application's name exists but was not created by Lazurio in its expected form. It was not started, stopped or changed; inspect it with the operating system's service manager.",
+  appHealthyPersistent:
+    "Declared health checks passed. This application keeps running when the Launchpad restarts; it does not survive a reboot. Verify the application's function after opening it.",
+  appEnded:
+    "The application is no longer running; its owner reports it ended. Inspect the result, then start it again or stop it to clear the record.",
   appsTitle: "Application",
   appsNotice:
     "Explicit development selection. The server must authorize the declared application.",
@@ -101,9 +109,17 @@ const cs: Record<MessageKey, string> = {
   appPreparationCleanupRequired:
     "Nelze potvrdit úklid předchozích procesů. Další příprava a spouštění jsou zablokované; před opakováním vyřešte úklid přes stávajícího správce procesů.",
   appOtherAppManaged:
-    "Tato relace spravuje jinou aplikaci. Před přípravou závislostí ji výslovně zastavte; příprava ji sama nezastaví.",
+    "Jiná aplikace této Organizace běží nebo čeká na úklid. Před přípravou závislostí ji výslovně zastavte; příprava ji sama nezastaví.",
   appDeclarationChanged:
     "Změnila se deklarace aplikace nebo její umístění. Obnovte výběr a před opakováním ověřte zamýšlený modul.",
+  appApplicationRunning:
+    "Tato aplikace běží pod správcem služeb operačního systému a někdo ji může používat. Závislosti se pod běžící aplikací nemění; nejdřív ji výslovně zastavte.",
+  appServiceUnrecognized:
+    "Existuje služba se jménem této aplikace, kterou ale Lazurio v očekávané podobě nevytvořilo. Nebyla spuštěna, zastavena ani změněna; prověřte ji správcem služeb operačního systému.",
+  appHealthyPersistent:
+    "Deklarované zdravotní kontroly prošly. Tato aplikace běží dál i při restartu Launchpadu; restart počítače nepřežije. Po otevření ověřte funkci aplikace.",
+  appEnded:
+    "Aplikace už neběží; její vlastník hlásí, že skončila. Prohlédněte výsledek a pak ji znovu spusťte, nebo ji zastavte a záznam tím uvolněte.",
   appsTitle: "Aplikace",
   appsNotice:
     "Výslovný vývojový výběr. Server musí povolit práci s deklarovanou aplikací.",

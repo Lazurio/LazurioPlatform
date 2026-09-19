@@ -16,8 +16,18 @@ import {
 } from "./launchpad/application-client";
 import { startLaunchpad } from "./launchpad/server";
 import { machineHelp, runMachineCommand } from "./machine/cli";
+import {
+  type ApplicationRunner,
+  selectApplicationRunnerKind,
+} from "./modules/application-runner";
 import { localApplicationAdapters } from "./modules/local-application-adapters";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
+import {
+  createServiceManagerProcess,
+  userManagerState,
+} from "./modules/service-manager-process";
+import { createSessionRunner } from "./modules/session-runner";
+import { createSystemdUserRunner } from "./modules/systemd-user-runner";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
 
@@ -127,6 +137,15 @@ Additionally --bun-executable <absolute trusted Bun> enables local module operat
 for that explicitly selected Organization. Module check/prepare scripts execute as
 your local account, not in a sandbox. No provider rights or hosted service are granted.
 Only declared self-owned Bun packages are currently supported. No Bun is downloaded.
+Optional --application-runner <auto|session|systemd-user> (default auto) selects who
+owns started applications. auto: Linux with a reachable user service manager
+(XDG_RUNTIME_DIR set and \`systemctl --user is-system-running\` answering) uses
+systemd-user; everything else uses session. systemd-user applications are transient
+user services: they keep running when this Launchpad exits or restarts and are
+rediscovered from the service manager; they do not survive a reboot, and without
+user lingering they end with the account's last login session. session applications
+are children of this Launchpad and stop with it. An explicit systemd-user request
+fails instead of falling back. Status reports the owning runner.
 Open its private session URL from this terminal; do not share the URL/token.
 The panel uses the same preview/update core, not a separate writer or full app launcher.
 app-request reads one JSON object from stdin: sessionUrl, operation and selection.
@@ -166,6 +185,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       folder: { type: "string" },
       "organization-directory": { type: "string" },
       "bun-executable": { type: "string" },
+      "application-runner": { type: "string" },
       profile: { type: "string" },
       "previous-digest": { type: "string" },
       "expected-revision": { type: "string" },
@@ -201,15 +221,21 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       !values.folder ||
       Object.keys(values).some(
         (name) =>
-          !["folder", "organization-directory", "bun-executable"].includes(
-            name,
-          ),
-      )
+          ![
+            "folder",
+            "organization-directory",
+            "bun-executable",
+            "application-runner",
+          ].includes(name),
+      ) ||
+      (values["application-runner"] !== undefined &&
+        values["bun-executable"] === undefined)
     )
       throw new Error("Explicit Launchpad fixture required");
     let applicationAdapters:
       | ReturnType<typeof localApplicationAdapters>
       | undefined;
+    let applicationRunner: string | undefined;
     if (values["bun-executable"] !== undefined) {
       if (!values["organization-directory"] || !process.env.HOME)
         throw new Error("Local Organization and account home required");
@@ -218,12 +244,33 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         PATH: process.env.PATH ?? "/usr/bin:/bin",
       };
       if (process.env.TMPDIR) environment.TMPDIR = process.env.TMPDIR;
+      // Explicit and narrow: no detection beyond the user manager answering.
+      const runtimeDirectory = process.env.XDG_RUNTIME_DIR;
+      const kind = await selectApplicationRunnerKind({
+        platform: process.platform,
+        environment: { XDG_RUNTIME_DIR: runtimeDirectory },
+        ...(values["application-runner"] === undefined
+          ? {}
+          : { requested: values["application-runner"] }),
+        userManagerState: () =>
+          userManagerState(createServiceManagerProcess(runtimeDirectory ?? "")),
+      });
+      const runner: ApplicationRunner =
+        kind === "systemd-user"
+          ? createSystemdUserRunner({
+              organizationDirectory: values["organization-directory"],
+              runtimeDirectory: runtimeDirectory as string,
+              run: createServiceManagerProcess(runtimeDirectory as string),
+            })
+          : createSessionRunner(process.execPath);
       applicationAdapters = localApplicationAdapters({
         organizationDirectory: values["organization-directory"],
         bunExecutable: values["bun-executable"],
         platformExecutable: process.execPath,
         environment,
+        runner,
       });
+      applicationRunner = kind;
     }
     const { close, url } = await startLaunchpad(
       values.folder,
@@ -235,7 +282,11 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
           },
     );
     console.log(
-      JSON.stringify({ url, scope: "local-development-profile-panel" }),
+      JSON.stringify({
+        url,
+        scope: "local-development-profile-panel",
+        ...(applicationRunner === undefined ? {} : { applicationRunner }),
+      }),
     );
     for (const signal of ["SIGINT", "SIGTERM"] as const)
       process.once(signal, async () => {
@@ -250,7 +301,8 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
   }
   if (
     values["organization-directory"] !== undefined ||
-    values["bun-executable"] !== undefined
+    values["bun-executable"] !== undefined ||
+    values["application-runner"] !== undefined
   )
     throw new Error("Discovery option belongs only to Launchpad");
   if (positionals[0] === "folder-resume") {

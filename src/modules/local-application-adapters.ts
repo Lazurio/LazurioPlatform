@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { resolveOrganizationApplication } from "../organizations/read-applications";
+import type { ApplicationRunner } from "./application-runner";
 import { inspectBunToolchain } from "./bun-toolchain";
 import {
   preflightDeclaredBunCheck,
@@ -21,6 +22,9 @@ export function localApplicationAdapters(input: {
   bunExecutable: string;
   platformExecutable: string;
   environment: Record<string, string>;
+  // The explicitly selected owner of running applications. Bounded preparation
+  // subprocesses below always keep the guarded-process ownership instead.
+  runner: ApplicationRunner;
 }): Adapters {
   const selected = parseProcessLaunch({
     executable: input.bunExecutable,
@@ -72,7 +76,7 @@ export function localApplicationAdapters(input: {
         : preflightDeclaredBunPreparation({ ...options, cleanInstall });
     };
   return {
-    platformExecutable,
+    runner: input.runner,
     authorize,
     preflightPreparation: preflight(false),
     preflightCleanPreparation: preflight(false, true),

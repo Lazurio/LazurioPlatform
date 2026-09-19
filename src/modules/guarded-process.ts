@@ -1,10 +1,7 @@
 import { isAbsolute } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { parseHealthListener, probeListenerHealth } from "./health";
-import {
-  compareListenerGroup,
-  observeListenerBindings,
-} from "./listener-ownership";
+import { observeOwnedListener } from "./listener-observation";
+import { compareListenerGroup } from "./listener-ownership";
 import { object } from "./manifest";
 import { processGuardCommand } from "./process-guard";
 import { parseProcessLaunch } from "./process-launch";
@@ -158,59 +155,20 @@ export async function startGuardedProcess(
       }),
     // One bounded observation tied to this retained launch handle, never an
     // imported PID. Not authorization or a continuous readiness guarantee.
-    async observeListener(input: unknown, timeoutMs = 1500) {
-      const listener = parseHealthListener(input);
-      if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000)
-        throw new Error("Bounded health timeout required");
-      if (!active())
-        return Object.freeze({ kind: "lifecycle-inactive" as const });
-      const before = await observeListenerBindings(listener.port);
-      if (!active())
-        return Object.freeze({ kind: "lifecycle-inactive" as const });
-      const ownership = compareListenerGroup(
-        before,
-        listener.host,
-        listener.port,
-        guard.pid,
-      );
-      if (ownership !== "matches-process-group")
-        return Object.freeze({
-          kind: "ownership-unconfirmed" as const,
-          reason: ownership,
-        });
-      const health = await probeListenerHealth(listener, timeoutMs);
-      if (!active())
-        return Object.freeze({ kind: "lifecycle-inactive" as const });
-      const after = await observeListenerBindings(listener.port);
-      if (!active())
-        return Object.freeze({ kind: "lifecycle-inactive" as const });
-      const finalOwnership = compareListenerGroup(
-        after,
-        listener.host,
-        listener.port,
-        guard.pid,
-      );
-      if (finalOwnership !== "matches-process-group")
-        return Object.freeze({
-          kind: "ownership-unconfirmed" as const,
-          reason: finalOwnership,
-        });
-      // Refuse even an in-group replacement between observations. Snapshots
-      // cannot exclude a replacement and restoration between the two reads.
-      const fingerprint = (value: typeof before) =>
-        value.kind === "observed"
-          ? JSON.stringify(
-              value.bindings.map((binding) => JSON.stringify(binding)).sort(),
-            )
-          : "";
-      if (fingerprint(before) !== fingerprint(after))
-        return Object.freeze({ kind: "bindings-changed" as const });
-      return Object.freeze({
-        kind:
-          health.kind === "responding"
-            ? ("observed-healthy" as const)
-            : ("health-failed" as const),
-        health,
+    observeListener(input: unknown, timeoutMs = 1500) {
+      return observeOwnedListener({
+        listener: input,
+        timeoutMs,
+        active,
+        ownership: (bindings, listener) => {
+          const ownership = compareListenerGroup(
+            bindings,
+            listener.host,
+            listener.port,
+            guard.pid,
+          );
+          return ownership === "matches-process-group" ? null : ownership;
+        },
       });
     },
     stop(graceMs = 1000): Promise<StopResult> {
