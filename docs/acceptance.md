@@ -8,15 +8,54 @@ the other slices are complete.
 
 ## Ordered consumer slices
 
-Nearest limited pilot (2026-09-16 priority): a Machines-delivered Linux remote-human
-workspace, using its [read-only handover](machine-handover.md), a pinned standalone
-CLI via the real controlled HTTPS/TUF channel, a standard Folder, agent work and
-one agreed real module lifecycle. Then VM restart, failed-update diagnosis/explicit
-repair and the same journey on a second approved VM. This is not acceptance of the
-full matrix below. Migration of personal installations, other OS/purpose/language
-cohorts and public release remain in the roadmap without blocking this narrow
-pilot. Machines retains infrastructure execution; Platform qualification is not an
+### Nearest-pilot sequence
+
+Accepted order of work for the canary (2026-09-19), replacing the 2026-09-16 priority
+note. Each step is a bounded increment with executable acceptance; a later step does
+not start on the claim that an earlier one is "mostly done". Nothing in this list is
+implemented by the document that records it.
+
+1. **Reconcile contracts.** Private versus team hosted workspaces, OS-owned application
+   lifetime, canonical Organization admission, canary versus general-availability
+   support. This is the documentation change that introduced this list.
+2. **OS-owned applications on Linux.** Service-manager ownership with CLI/Launchpad
+   parity, concurrent operations, dependency exclusion and application survival across
+   a Launchpad restart ([module adoption](module-adoption.md#application-lifetime--accepted-direction-not-implemented)).
+3. **Durable update check.** Trust and availability state that survives interruption
+   (product update contract, `docs/update.md`, separate PR).
+4. **Publisher and release workflow.** The real channel produced by the real workflow.
+5. **Activation, rollback and the Launchpad update pill.** Two real versions, candidate
+   failure, reboot, concurrent requests and an update while applications are in use.
+6. **Hosted entry adapter.** Unauthenticated denial, authenticated access, WebSockets,
+   unknown hosts and module links ([hosted entry](hosted-entry.md)).
+7. **Materialization and content synchronization.** One real Organization and one
+   standard module through explicit clone, prepare, start, functional check and stop
+   ([content synchronization](content-sync.md)).
+8. **One private canary VM** through the real channel, with explicit tool and sign-in
+   preparation, a real agent task and a **repeated infrastructure apply that preserves
+   identity, content and the selected version**. VM restart, failed-update preservation
+   and the repeat on a second approved VM from the 2026-09-16 note remain required
+   evidence of this journey; the reordering does not drop them.
+9. **Team preset** with shared-use, conflict, attribution and revocation evidence
+   ([workspace presets](workspace-presets.md)). Live Team-grant verification in the
+   identity broker is an external dependency.
+
+Supported targets of this first hosted delivery are `linux-x64` and `darwin-arm64`;
+`linux-arm64` is built for the qualification VM and is not a support claim.
+Installation is per-user. Windows, musl and Intel macOS wait for a real user. The
+[platform matrix](#platform-matrix-and-truth-labels) and the first usable transition
+gate below remain the general-availability target; the canary path is narrower and
+every canary record says so. Passing the canary qualifies none of the wider cells.
+
+Outside the canary path: internal usage analytics, marketplace, hosted advice, legacy
+personal migration, generic remote reconciliation and any new supervisor. Analytics
+stays default-off and consent-bound per [profile evidence](profile-evidence.md) and
+can never block an update. Account login and Dashboard preset selection remain product
+commitments; neither blocks proving the local installation and update foundation.
+Machines retains infrastructure execution; Platform qualification is not an
 apply/restart or access mandate.
+
+### Slices toward general availability
 
 | Slice | Prerequisite | Smallest real consumer and exit criterion |
 | --- | --- | --- |
@@ -25,8 +64,8 @@ apply/restart or access mandate.
 | 1b — Distribution implementation | Accepted slice 1a contracts | Clean machine runs full installed CLI + Launchpad without source; signed/tampered/offline artifact cases and artifact secret scan |
 | 2 — Environment generation | Slice 1 and ownership/schema contract | Folder Factory produces only owned Lazurio Folder files through the shared CLI/Launchpad core; the shared core applies locally through CLI or Launchpad, starts full app; unknown/edited paths preserved; rollback drill |
 | 3 — Profile capability | Slice 2 and accepted behavior schema | CLI and Launchpad use the same profile use case; deterministic generation, stale revision refusal, session pin/restart and upgrade preservation |
-| 4 — Environment purposes | Slices 2–3 and hosting amendment | Dedicated human/Buddy/AI Colleague acceptance with correct Principal, Owner, custody and unavailable-capability behavior |
-| 5 — Migration rehearsal | Relevant slices 1–4, legacy compatibility and restore mapping | Faithful dirty legacy source-working fixtures plus shared-workshop transition prove preservation, interrupted recovery and no-op unknown state |
+| 4 — Environment purposes | Slices 2–3 and the validated hosted presets | Private human, team, Buddy and AI Colleague acceptance with correct Principal or Team attribution, Owner, custody and unavailable-capability behavior |
+| 5 — Migration rehearsal | Relevant slices 1–4, legacy compatibility and restore mapping | Faithful dirty legacy source-working fixtures plus legacy shared-workshop convergence to a private or team workspace prove preservation, interrupted recovery and no-op unknown state |
 | 6 — Opt-in cohorts | Qualified consumer slices; rehearsal and explicit migration approval for migrating cohorts | Small native cohort on each supported OS, user completion evidence, observation and recovery; halt on data loss/identity ambiguity |
 | 7 — General availability and retirement | Successful cohorts, public release approval | Published support matrix and release provenance; legacy install/update paths retired by declared criteria, backups retained by policy |
 
@@ -60,9 +99,9 @@ before promotion. Remaining technical distribution details are delegated for des
 verification; they must be documented, not repeatedly treated as pending founder choices.
 
 Fresh local cohorts qualify distribution, generation, profile and local-founder behavior;
-they do not wait for unrelated hosted/shared-workshop migration. Existing-environment migration
-cohorts must pass their preservation/recovery gate; hosted cohorts additionally need the
-hosting amendment and envelope proof. Broad support/retirement claims require every
+they do not wait for unrelated hosted or legacy shared-workshop migration. Existing-environment migration
+cohorts must pass their preservation/recovery gate; hosted cohorts additionally need their
+validated preset and the envelope proof of their kind. Broad support/retirement claims require every
 claimed cohort's evidence. The three-OS/two-harness first-transition gate stays binding.
 
 Do not silently fold ongoing legacy maintenance into a new Platform rewrite. Existing
@@ -84,7 +123,11 @@ fixes continue with their owners; selectively port proven contracts with provena
 | Public development | Source, build commands and sanitized evidence publicly reproducible | CI catches synthetic secret and `.env` in archive without printing values; placeholders stay valid |
 | Data preservation | Dirty index/worktree/untracked/ignored files, local refs/stashes and external linked worktrees match before/after | Disk full, permissions, interruption at every phase, path traversal, foreign Personalspace: stop safely |
 | Runtime | One selected version, managed process tree drained/restored through its owner | Port collision, stale locator, busy executable, active writer, failed healthcheck do not kill unrelated work |
-| Access | Live identity and exact repo operation attributable to correct Principal | Revoked membership, wrong account, shared-App ambiguity, peer credential access fail closed |
+| Application lifetime (Linux, accepted direction) | A started application survives a Launchpad restart and a product activation; Stop stops the service; identity and readiness come from the service manager; reboot persistence only when explicitly set; CLI and Launchpad agree | Saved PID treated as identity, foreign service or process adopted or signalled, port collision accepted, dependency preparation beneath a running application, implicit persistence after Open |
+| Content synchronization (accepted direction) | Root first, manifest re-read, declared children; absent destination materialized through a verified temporary sibling; existing checkout fast-forwarded to the inspected commit; siblings continue past one failure | Dirty or wrong-branch checkout stashed, switched or reset; occupied destination replaced; divergence merged; Production Space, Personalspace, worktree or repository database touched; product update cloning or stashing anything |
+| Hosted entry (accepted direction) | Authenticated browser reaches Launchpad and application hostnames; session revalidated at the configured auth endpoint; WebSocket reconnect re-enters admission | Forged identity headers honoured, unknown host served, cross-origin state change accepted, Account login treated as admission or repository access |
+| Workspace preset (accepted direction) | Immutable reference plus visible overrides survive upgrade; typed request with the expected revision is applied through the ordinary use case and reports the observed outcome | Unknown preset or version mutates; stale revision applied; remote intent overrides a concurrent local change; preset carries grants, tokens, mandates or analytics consent; preset derived from a name |
+| Access | Live identity and exact repo operation attributable to the correct Principal, or on a team workspace to the Team through the brokered identity | Revoked membership or Team grant, wrong account, unattributed brokered change, personal credential on a team workspace, peer credential access fail closed |
 | Rollback | Exact old compatible product/profile with verified checkpoint and retained work | New schema/data or new user writes block blind downgrade and produce forward-repair plan |
 | Retirement | Old route/process/credential/profile inventory empty after accepted cutover | Recovery dependencies or unattributed drafts prevent deletion |
 
@@ -98,6 +141,13 @@ execution-Machine OS detection rather than the connecting client's OS. Changing 
 does not relocate or translate user data. Record the selected virtual-Machine OS and
 qualified support; no unspecified OS/hosting combination is implicitly supported.
 These are future acceptance scenarios, not completed tests or four template forks.
+
+This matrix is the general-availability target. The
+[nearest-pilot sequence](#nearest-pilot-sequence) deliberately qualifies a narrower set
+first (`linux-x64`, `darwin-arm64`, per-user install, one private hosted preset, then
+the team preset). That narrowing orders the work; it does not retire a cell, a journey
+or a language from this matrix, and no canary result may be reported as matrix evidence
+beyond the cells it actually exercised.
 
 Target native acceptance: macOS arm64/x64, Linux glibc arm64/x64 and Windows x64/arm64.
 Each cell is independently `not qualified`, `compiled`, `native tested` or `supported`.
@@ -235,6 +285,8 @@ denominators, freshness and unknown values. Prove opt-out use still works, no co
 sent, no anonymous event is automatically joined to CRM identity, and benchmarking is
 separate. An existing analytics/CRM proposal is sufficient for design; actual collection
 needs the consent/transport gate in profile-evidence.md. No fabricated zero fills gaps.
+This gate belongs to the first public product version, not to the canary path; missing
+or declined measurement never blocks installation, update or use.
 
 The first AI Colleague pilot uses the same pinned transferable analyst profile without
 waiting for a marketplace backend. Prove installation → profile adoption → actual own-seat

@@ -61,10 +61,36 @@ interim implementation of the same compatibility-state table, not a second schem
   `projection_drift` root is still listed from the canonical file but is not
   executable. Conflict returns `organization-conflict` with issue codes only.
 
+## Exit from transition-only admission
+
+Accepted direction (2026-09-19, [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)),
+not implemented. **Canonical-only Organizations are the target normal case.** Upstream
+decision 0145 deprecates the legacy projection and makes `current` the end state of
+every Organization. Admitting only parity-valid `transition` roots, as described above,
+is an **interim gate** tied to upstream finalization readiness. It is not a product
+requirement that an Organization keep a deprecated file: requiring the projection
+forever would institutionalize migration machinery and make every new Organization
+start in a migration state.
+
+Exit criterion, stated generically: `current` roots become executable once upstream
+accepts a **trusted, live-verifiable identity continuity proof**, that is, evidence the
+consumer can check at the operation boundary that this canonical-only root is the same
+Organization that passed the finalization gate, without consulting the removed
+projection and without trusting a locally stored claim alone. When the pinned Core
+contract carries that signal, Platform admits `current` as the normal executable state,
+keeps `transition` executable while it still exists, and deletes nothing itself.
+
+Until then nothing changes: no fallback to the projection, no second schema, no
+locally invented finalization marker, and no admission from a digest that only proves
+the projection's content.
+
+## Relation to the upstream contract
+
 The upstream contract already makes `lazurio.organization.json` canonical during a
 parity-valid transition, with the legacy file a generated projection, not a second
 authority. Removal waits for the separate reader/update/finalization gate and an
 authorized per-Organization change. A later decision to finish the rollout does not
 waive those existing gates. Real Organization materialization remains blocked on
 consumer convergence and its owning rollout, not on inventing another filename or
-schema. No real conversion, cloning or legacy removal occurs in this increment.
+schema; its future operation is [content synchronization](content-sync.md). No real
+conversion, cloning or legacy removal occurs in this increment.
