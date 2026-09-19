@@ -27,7 +27,14 @@ is evaluated again; the root format already supports it.
 Snapshot and timestamp keys are deliberately less protected: they cannot make a
 Machine accept an artifact that the targets key did not sign. Stolen, they allow
 freezing clients on an old but genuine state until their metadata expires — that
-is what the short lifetimes bound.
+is what the short lifetimes bound. This holds for the publisher too, and only
+because it verifies before it signs: the published tree is storage that anyone
+with write access to the branch can change, so every run first verifies the
+published timestamp, snapshot and targets under the published root and refuses
+to continue otherwise. It never adopts unverified entries and signs them again
+with the targets key (`tests/publish-repository.test.ts` forges exactly that).
+What such a person can still do is present an older genuine state; clients that
+have seen a newer one refuse it, and `gh-pages` history shows it.
 
 ## What must exist on GitHub (names only)
 
@@ -124,9 +131,10 @@ updating. The daily job prints the remaining validity of every role into its
 run summary and **fails** as soon as targets or root is below its margin — 30
 and 60 days before anything breaks. A failing "Update metadata refresh" run is
 therefore a calendar reminder with a deadline, not noise. GitHub disables
-scheduled workflows in repositories without activity for 60 days; the refresh
-job's own commits to `gh-pages` count as activity, but if the job is ever
-disabled by hand, metadata lapses within a week.
+scheduled workflows in a repository without activity for 60 days. Whether the
+refresh job's own commits to `gh-pages` count as activity has **not** been
+verified; treat GitHub's "scheduled workflow disabled" e-mail as an incident,
+because once the job stops, metadata lapses within a week.
 
 Put two reminders in the Principal's calendar on the day of the ceremony: root
 renewal at ten months, and a quarterly look at the refresh job's summary.

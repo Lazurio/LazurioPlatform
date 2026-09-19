@@ -24,8 +24,11 @@ else
   remote="https://github.com/$GITHUB_REPOSITORY.git"
   authenticated() {
     local header
-    header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
-    git -c "http.https://github.com/.extraheader=$header" "$@"
+    local encoded
+    encoded="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+    # GitHub masks the token itself, not its encoded form.
+    if [ -n "${GITHUB_ACTIONS:-}" ]; then echo "::add-mask::$encoded"; fi
+    git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $encoded" "$@"
   }
 fi
 
@@ -34,11 +37,20 @@ case "$command" in
     mkdir -p "$tree"
     git -C "$tree" init --quiet --initial-branch gh-pages
     git -C "$tree" remote add origin "$remote"
-    if authenticated -C "$tree" ls-remote --exit-code --heads origin gh-pages >/dev/null; then
+    # Exit status 2 is the ONLY answer that means "no such branch". A failed
+    # login, an outage or anything else must stop the run: read as "nothing
+    # published yet", it would let the daily refresh go green while the
+    # timestamp runs out.
+    status=0
+    authenticated -C "$tree" ls-remote --exit-code --heads origin gh-pages >/dev/null || status=$?
+    if [ "$status" -eq 0 ]; then
       authenticated -C "$tree" fetch --quiet --depth 1 origin gh-pages
       git -C "$tree" reset --quiet --hard FETCH_HEAD
-    else
+    elif [ "$status" -eq 2 ]; then
       echo "::notice::No gh-pages branch yet; this run starts the published tree."
+    else
+      echo "::error::Cannot read the published tree (git ls-remote exit $status)."
+      exit 1
     fi
     ;;
   push)

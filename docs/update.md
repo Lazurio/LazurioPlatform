@@ -437,8 +437,12 @@ Concrete choices fixed so far:
   to add, in order, the timestamp last. `applyPlan` decides for the whole plan
   before the first byte is written that no existing immutable path would get
   other bytes, then creates files exclusively and replaces only
-  `timestamp.json`. Nothing is deleted; a numbered file left by an interrupted
-  run is never planned again. Operations: `add-release` (repeatable: the same
+  `timestamp.json`. Nothing is deleted. The tree is storage, not authority:
+  before anything is planned, the published timestamp, snapshot and targets must
+  verify under the published root, and numbered metadata above what the
+  timestamp references is refused — forged entries are never adopted and signed
+  again with the real targets key, and an interrupted local run is cleaned up by
+  a person, not guessed around. Operations: `add-release` (repeatable: the same
   release is a no-op; an equal or lower version, other bytes under a reached
   version, the same artifact under another URL, or a dropped target are
   refused; an identity the client would refuse is never signed), `promote`
@@ -487,14 +491,18 @@ Concrete choices fixed so far:
   against the previous tag of the same channel → `publish` in environment
   `release`: signs exactly the assets the release serves into `preview`,
   verifies, pushes one commit to `gh-pages`, waits until the published origin
-  serves the new timestamp. `promote` and `renew-targets` are manual dispatches
+  answers the client's own `timestamp.json` URL with the new bytes (as seen from
+  the runner; not a statement about every cache). `promote` and `renew-targets` are manual dispatches
   in the same environment; promotion never builds. An existing release is never
   replaced. `update-metadata-refresh.yml`: daily; renews timestamp and snapshot
   below their margins with only those two keys, deploys that first, and then
   fails — with a summary table — when targets or root is below its margin or
-  when an artifact a channel selects can no longer be downloaded. Signing jobs
-  and the refresh do not share a concurrency group, because a job waiting for
-  approval would hold it; a rare race is decided by the never-forced push. `scripts/update-tree.sh` refuses to
+  when an artifact a channel selects can no longer be downloaded. No job uses a
+  concurrency group: a job waiting for approval would hold it and a newer
+  pending run would cancel an older one. A race between two runs is decided by
+  the never-forced push; the loser fails and every operation is repeatable. All
+  publishing jobs run only in `Lazurio/LazurioPlatform`, the repository whose
+  Pages origin is compiled into the product. `scripts/update-tree.sh` refuses to
   push a commit that modifies or removes a published file other than the
   timestamp.
 - **Evidence in the repository.** `tests/publish-repository.test.ts` (naming,

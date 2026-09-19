@@ -159,6 +159,9 @@ async function release(
     notes,
     "--assets-dir",
     directory,
+    // This journey builds for the Machine it runs on only.
+    "--targets",
+    target,
     ...(hosting === "release-asset"
       ? [
           "--asset-url-base",

@@ -16,7 +16,14 @@ import { runReleaseKeys } from "../scripts/release-keys";
 import { exitValidityLow, runReleasePublish } from "../scripts/release-publish";
 import { PublishError } from "../src/publish/errors";
 import { generateSigner, type Signer } from "../src/publish/keys";
-import { parseMetadata, verifiesUnder } from "../src/publish/metadata";
+import {
+  buildSnapshot,
+  buildTargets,
+  buildTimestamp,
+  parseMetadata,
+  type TargetEntry,
+  verifiesUnder,
+} from "../src/publish/metadata";
 import {
   addRelease,
   loadRepository,
@@ -395,10 +402,133 @@ test("refresh re-signs only snapshot and timestamp, or only the timestamp; targe
       }),
     ),
   ).toBe("key-unauthorized");
-  // A numbered file left behind by an interrupted run is never planned again.
+});
+
+test("the tree is storage, not authority: metadata that does not verify under the published root is refused, never adopted and re-signed with the real keys", async () => {
+  const r = await repository();
+  await r.release("1.1.0");
+  await applyPlan(
+    r.directory,
+    await promote(r.tree, { version: "1.1.0" }, r.options()),
+  );
+  const before = await r.files();
+  const every = async () => [
+    await refusal(refresh(r.tree, ["targets"], r.options())),
+    await refusal(refresh(r.tree, ["timestamp"], r.options())),
+    await refusal(promote(r.tree, { version: "1.1.0" }, r.options())),
+    await refusal(
+      addRelease(
+        r.tree,
+        {
+          channel: "preview",
+          version: "1.2.0",
+          notes: "",
+          artifacts: [artifact("1.2.0")],
+        },
+        r.options(),
+      ),
+    ),
+    await refusal(loadRepository(r.tree)),
+  ];
+  const restore = async () => {
+    for (const path of Object.keys(await r.files()))
+      if (!(path in before)) await rm(join(r.directory, path));
+    await writeFile(
+      join(r.directory, "metadata/timestamp.json"),
+      timestampBefore,
+    );
+    expect(await r.files()).toEqual(before);
+  };
+  const timestampBefore = await readFile(
+    join(r.directory, "metadata/timestamp.json"),
+  );
+
+  // Somebody who can write to the branch — but holds no real key — publishes
+  // a complete generation of their own with one more artifact in it. The next
+  // approved run must not launder that entry through the real targets key.
+  const forger = {
+    targets: generateSigner(),
+    snapshot: generateSigner(),
+    timestamp: generateSigner(),
+  };
+  const entries = new Map<string, TargetEntry>();
+  const published = (await loadRepository(r.tree))?.targets?.metadata.signed
+    .targets;
+  for (const [path, file] of Object.entries(published ?? {}))
+    entries.set(path, {
+      length: file.length,
+      sha256: file.hashes.sha256 as string,
+    });
+  entries.set(`artifacts/${"e".repeat(64)}/lazurio`, {
+    length: 1,
+    sha256: "e".repeat(64),
+    custom: { url: "https://github.com/attacker/x/releases/download/v9/x" },
+  });
+  const expires = "2030-01-01T00:00:00Z";
+  const forge = async (signers: typeof forger) => {
+    const targets = buildTargets({
+      version: 3,
+      expires,
+      targets: entries,
+      signer: signers.targets,
+    });
+    const snapshot = buildSnapshot({
+      version: 3,
+      expires,
+      targetsVersion: 3,
+      targetsBytes: targets,
+      signer: signers.snapshot,
+    });
+    const timestamp = buildTimestamp({
+      version: 3,
+      expires,
+      snapshotVersion: 3,
+      snapshotBytes: snapshot,
+      signer: signers.timestamp,
+    });
+    await writeFile(join(r.directory, "metadata/3.targets.json"), targets);
+    await writeFile(join(r.directory, "metadata/3.snapshot.json"), snapshot);
+    await writeFile(join(r.directory, "metadata/timestamp.json"), timestamp);
+  };
+  await forge(forger);
+  expect(new Set(await every())).toEqual(new Set(["repository-invalid"]));
+  await restore();
+  // The holder of the REAL snapshot and timestamp keys (the daily job) still
+  // cannot add a target: targets metadata needs the targets key.
+  await forge({
+    ...forger,
+    snapshot: r.signers.snapshot,
+    timestamp: r.signers.timestamp,
+  });
+  expect(new Set(await every())).toEqual(new Set(["repository-invalid"]));
+  await restore();
+  // … and pointing the timestamp back at an older, genuine state is noticed:
+  // numbered metadata above what the timestamp references is never ignored.
+  const first = parseMetadata(
+    "snapshot",
+    await readFile(join(r.directory, "metadata/1.snapshot.json")),
+  );
+  expect(first.signed.version).toBe(1);
+  await writeFile(
+    join(r.directory, "metadata/timestamp.json"),
+    buildTimestamp({
+      version: 9,
+      expires,
+      snapshotVersion: 1,
+      snapshotBytes: await readFile(
+        join(r.directory, "metadata/1.snapshot.json"),
+      ),
+      signer: r.signers.timestamp,
+    }),
+  );
+  expect(new Set(await every())).toEqual(new Set(["repository-invalid"]));
+  await restore();
+  // The leftover of an interrupted local run is the same case: a person
+  // removes it; the publisher never guesses.
   await writeFile(join(r.directory, "metadata/3.snapshot.json"), "leftover");
-  const afterLeftover = await refresh(r.tree, ["snapshot"], r.options(later));
-  expect(afterLeftover.result.rewritten[0]).toBe("metadata/4.snapshot.json");
+  expect(new Set(await every())).toEqual(new Set(["repository-invalid"]));
+  await restore();
+  expect(new Set(await every())).not.toContain("repository-invalid");
 });
 
 test("status reports the remaining validity of every role and the command exits non-zero below a margin", async () => {
@@ -670,9 +800,9 @@ test("the tree branch is append-only: one commit per deployment, a rewritten or 
     Bun.spawnSync(["git", ...args], { stdout: "pipe", stderr: "pipe" });
   expect(git(["init", "--bare", "--quiet", remote]).exitCode).toBe(0);
   const script = join(import.meta.dir, "../scripts/update-tree.sh");
-  const tool = (args: string[]) => {
+  const tool = (args: string[], from = remote) => {
     const result = Bun.spawnSync(["bash", script, ...args], {
-      env: { PATH: process.env.PATH ?? "", UPDATE_TREE_REMOTE: remote },
+      env: { PATH: process.env.PATH ?? "", UPDATE_TREE_REMOTE: from },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -682,6 +812,12 @@ test("the tree branch is append-only: one commit per deployment, a rewritten or 
     git(["-C", remote, "rev-list", "--count", "gh-pages"])
       .stdout.toString()
       .trim();
+  // A remote that cannot be read is an error, never "nothing published yet":
+  // that reading would let the daily refresh go green while metadata lapses.
+  expect(
+    tool(["checkout", join(work, "unreachable")], join(work, "absent.git"))
+      .code,
+  ).toBe(1);
   // First run: no branch yet. The publisher writes into the checkout.
   const first = join(work, "first");
   expect(tool(["checkout", first]).code).toBe(0);

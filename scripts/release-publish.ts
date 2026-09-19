@@ -54,10 +54,12 @@ export const releasePublishHelp = `Common: --tree <absolute directory> [--root <
   Keys: ${Object.values(keyEnvironment).join(", ")} (PKCS#8 PEM) or --keys-dir.
 add-release --channel <preview|stable> --version <semver> --notes-file <file>
   --assets-dir <directory with lazurio-<target> and lazurio-<target>.identity.json>
-  [--asset-url-base <https://.../releases/download/<tag>/>] [--minimum-version <semver>]
+  [--targets <target,...>] [--asset-url-base <https://.../releases/download/<tag>/>]
+  [--minimum-version <semver>]
   Signs the artifacts, identities, notes and the channel document. With
   --asset-url-base the executables stay release assets and their URL is signed;
-  without it they are published inside the tree. Repeating it is a no-op.
+  without it they are published inside the tree. Every supported target must be
+  present unless --targets names the ones this release has. Repeating it is a no-op.
 promote --version <semver>
   New signed stable document naming the artifacts preview offers for exactly
   this version: the same digests, never a rebuild.
@@ -73,7 +75,8 @@ verify [--all-urls] [--artifact-origin <origin>]... [--loopback-fixture]
   channel selects (--all-urls: of every artifact) over the network.
 await-deployment [--metadata-url <https://.../metadata/>] [--timeout-seconds <n>]
   Waits until the published origin (default: the one compiled into the product)
-  serves the tree's timestamp.json, i.e. until the deployment is what clients see.`;
+  answers the client's own timestamp.json URL with the tree's bytes. It proves
+  the origin as seen from where it runs, not every cache in the world.`;
 
 type Output = Readonly<{ code: number; stdout: string; stderr: string }>;
 export const exitValidityLow = 3;
@@ -116,13 +119,22 @@ async function loadSigners(
 async function releaseArtifacts(
   directory: string,
   urlBase: string | undefined,
+  targets: readonly string[],
 ): Promise<ReleaseArtifact[]> {
-  if (urlBase !== undefined && !urlBase.endsWith("/"))
-    throw new PublishError("invalid-input", "asset-url-base");
+  if (
+    (urlBase !== undefined && !urlBase.endsWith("/")) ||
+    targets.length === 0 ||
+    targets.some(
+      (target) => !(updateTargets as readonly string[]).includes(target),
+    )
+  )
+    throw new PublishError("invalid-input", "targets or asset-url-base");
   const artifacts: ReleaseArtifact[] = [];
-  for (const target of updateTargets) {
+  for (const target of targets) {
     const file = join(directory, `lazurio-${target}`);
-    if (!(await lstat(file).catch(() => undefined))?.isFile()) continue;
+    // A target that silently went missing would strand its Machines.
+    if (!(await lstat(file).catch(() => undefined))?.isFile())
+      throw new PublishError("invalid-input", `missing lazurio-${target}`);
     const built = JSON.parse(
       await readFile(`${file}.identity.json`, "utf8"),
     ) as { identity?: unknown } | null;
@@ -190,6 +202,7 @@ export async function runReleasePublish(
         "assets-dir": { type: "string" },
         "asset-url-base": { type: "string" },
         "minimum-version": { type: "string" },
+        targets: { type: "string" },
         roles: { type: "string" },
         "when-low": { type: "boolean" },
         "all-urls": { type: "boolean" },
@@ -247,6 +260,7 @@ export async function runReleasePublish(
           artifacts: await releaseArtifacts(
             values["assets-dir"],
             values["asset-url-base"],
+            values.targets?.split(",") ?? updateTargets,
           ),
           ...(values["minimum-version"] === undefined
             ? {}
@@ -377,9 +391,10 @@ export async function runReleasePublish(
       );
       const deadline = performance.now() + Number(seconds) * 1000;
       for (;;) {
+        // The exact URL a client asks for, caches included: a cache that
+        // still answers with the previous timestamp is what clients see.
         const served = await transport
-          // A cache must not answer for the origin.
-          .downloadBytes(`${url.href}?t=${Date.now()}`, 1024 * 1024)
+          .downloadBytes(url.href, 1024 * 1024)
           .catch(() => undefined);
         if (served?.equals(expected))
           return done({ deployed: true }, `deployed: ${url.href}`);

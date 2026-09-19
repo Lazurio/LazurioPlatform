@@ -79,9 +79,6 @@ export type Repository = Readonly<{
   timestamp: Loaded<Metadata<Timestamp>> | undefined;
   snapshot: Loaded<Metadata<Snapshot>> | undefined;
   targets: Loaded<Metadata<Targets>> | undefined;
-  /** Highest numbered file per role, referenced or not: a file left by an
-   * interrupted run is never planned again under the same name. */
-  highest: Readonly<Record<"targets" | "snapshot", number>>;
 }>;
 
 export type PublishOptions = Readonly<{
@@ -110,10 +107,20 @@ function verifiedLink(
   );
 }
 
-/** Read and verify what the tree publishes. Integrity links (versions,
- * lengths, digests, the root chain) are strict; whether a role still verifies
- * under the current root is decided later, because a freshly installed root
- * may legitimately have replaced its key.
+/** Read and VERIFY what the tree publishes, as strictly as a client would.
+ *
+ * The tree is storage, not authority: whoever can write to the branch can put
+ * anything there. Everything a plan builds on — above all the target entries
+ * that the next run signs again with the real targets key — must therefore
+ * carry valid signatures under the PUBLISHED current root. Metadata that does
+ * not is refused (`repository-invalid`), never adopted and re-signed. Re-signing
+ * happens only when the caller offers a legitimate successor root that replaces
+ * a key, and then from content that verified under the root before it.
+ *
+ * A numbered targets or snapshot file above the referenced version is refused
+ * as well: it is either the leftover of an interrupted local run, which a
+ * person removes, or a sign that the timestamp was pointed back at an older
+ * state.
  */
 export async function loadRepository(
   tree: Tree,
@@ -142,20 +149,25 @@ export async function loadRepository(
       throw new PublishError("repository-invalid", `${version}.root.json`);
     roots.push({ version, bytes, metadata });
   }
-  const highest = {
-    targets: numbered("targets").at(-1) ?? 0,
-    snapshot: numbered("snapshot").at(-1) ?? 0,
-  };
+  const root = (roots.at(-1) as Loaded<Metadata<Root>>).metadata;
   const timestampBytes = await tree.read(timestampPath);
-  if (!timestampBytes)
+  if (!timestampBytes) {
+    // Only a root: nothing was published yet, and nothing else may be here.
+    if (names.some((name) => !/^[1-9]\d*\.root\.json$/.test(name)))
+      throw new PublishError(
+        "repository-invalid",
+        "metadata without timestamp",
+      );
     return {
       roots,
       timestamp: undefined,
       snapshot: undefined,
       targets: undefined,
-      highest,
     };
+  }
   const timestamp = parseMetadata("timestamp", timestampBytes);
+  if (!verifiesUnder(root, "timestamp", timestamp))
+    throw new PublishError("repository-invalid", "timestamp signature");
   const linked = async <R extends "snapshot" | "targets">(
     role: R,
     meta: { version: number; length?: number; hashes?: Record<string, string> },
@@ -174,6 +186,16 @@ export async function loadRepository(
         "repository-invalid",
         `${meta.version}.${role}.json`,
       );
+    if (!verifiesUnder(root, role, metadata))
+      throw new PublishError("repository-invalid", `${role} signature`);
+    const unreferenced = numbered(role).find(
+      (version) => version > meta.version,
+    );
+    if (unreferenced !== undefined)
+      throw new PublishError(
+        "repository-invalid",
+        `unreferenced ${unreferenced}.${role}.json`,
+      );
     return { version: meta.version, bytes, metadata };
   };
   const snapshot = await linked("snapshot", timestamp.signed.snapshotMeta);
@@ -189,7 +211,6 @@ export async function loadRepository(
     },
     snapshot,
     targets,
-    highest,
   };
 }
 
@@ -270,7 +291,8 @@ type Change = Readonly<{
 /** The ONE place that turns a change into ordered writes: target files, root,
  * targets, snapshot and the timestamp LAST. A role is rebuilt when its
  * content changes, when the role above it was rebuilt, when asked, or when
- * what is published no longer verifies under the root of this plan.
+ * what is published — verified under the published root by `loadRepository` —
+ * does not verify under the successor root this plan installs.
  */
 function assemble(
   repository: Repository | undefined,
@@ -300,8 +322,7 @@ function assemble(
   let targets = repository?.targets;
   const rebuiltTargets = change.targets !== undefined || stale("targets");
   if (rebuiltTargets) {
-    const version =
-      Math.max(repository?.highest.targets ?? 0, targets?.version ?? 0) + 1;
+    const version = (targets?.version ?? 0) + 1;
     const bytes = buildTargets({
       version,
       expires: expiryAfter(options.now, lifetimes.targets),
@@ -316,8 +337,7 @@ function assemble(
   let snapshot = repository?.snapshot;
   const rebuiltSnapshot = rebuiltTargets || stale("snapshot");
   if (rebuiltSnapshot) {
-    const version =
-      Math.max(repository?.highest.snapshot ?? 0, snapshot?.version ?? 0) + 1;
+    const version = (snapshot?.version ?? 0) + 1;
     const bytes = buildSnapshot({
       version,
       expires: expiryAfter(options.now, lifetimes.snapshot),
@@ -703,14 +723,9 @@ export async function referencedObjects(tree: Tree): Promise<
     selected: readonly string[];
   }>
 > {
+  // Signatures of every role were verified by `loadRepository`.
   const repository = await loadRepository(tree);
   if (!repository?.targets) throw new PublishError("repository-invalid");
-  const root = currentRoot(repository).metadata;
-  for (const role of ["targets", "snapshot", "timestamp"] as const) {
-    const loaded = repository[role];
-    if (!loaded || !verifiesUnder(root, role, loaded.metadata))
-      throw new PublishError("repository-invalid", `${role} signature`);
-  }
   const entries = targetEntries(repository);
   const external = [];
   for (const [path, entry] of entries) {
