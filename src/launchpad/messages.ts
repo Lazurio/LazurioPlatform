@@ -21,6 +21,10 @@ const en = {
     "Another application of this Organization is running or awaits cleanup. Explicitly stop it before preparing dependencies; preparation will not stop it for you.",
   appDeclarationChanged:
     "The application declaration or its location changed. Refresh the selection and verify the intended module before retrying.",
+  appCoordinationBusy:
+    "Another Lazurio process is operating this Organization's applications right now. Nothing was changed; retry when it finishes.",
+  appPreparationRecoveryRequired:
+    "An earlier dependency preparation of this module did not finish or its cleanup is unconfirmed. Preparing and starting stay blocked until that is explicitly recovered; stopping and status are unaffected.",
   appApplicationRunning:
     "This application is running under the operating system's service manager and may be in use. Dependencies are not changed beneath a running application; explicitly stop it first.",
   appServiceUnrecognized:
@@ -112,6 +116,10 @@ const cs: Record<MessageKey, string> = {
     "Jiná aplikace této Organizace běží nebo čeká na úklid. Před přípravou závislostí ji výslovně zastavte; příprava ji sama nezastaví.",
   appDeclarationChanged:
     "Změnila se deklarace aplikace nebo její umístění. Obnovte výběr a před opakováním ověřte zamýšlený modul.",
+  appCoordinationBusy:
+    "S aplikacemi této Organizace právě pracuje jiný proces Lazuria. Nic se nezměnilo; zkuste to znovu, až skončí.",
+  appPreparationRecoveryRequired:
+    "Dřívější příprava závislostí tohoto modulu nedoběhla nebo není potvrzen její úklid. Příprava i spuštění zůstávají zablokované, dokud se to výslovně nevyřeší; zastavení a stav fungují dál.",
   appApplicationRunning:
     "Tato aplikace běží pod správcem služeb operačního systému a někdo ji může používat. Závislosti se pod běžící aplikací nemění; nejdřív ji výslovně zastavte.",
   appServiceUnrecognized:

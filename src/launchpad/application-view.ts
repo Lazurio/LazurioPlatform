@@ -102,6 +102,10 @@ export function applicationMessage(
     case "started":
     case "already-managed":
       return "appStarted";
+    case "coordination-busy":
+      return "appCoordinationBusy";
+    case "preparation-recovery-required":
+      return "appPreparationRecoveryRequired";
     case "application-running":
       return "appApplicationRunning";
     case "service-unrecognized":

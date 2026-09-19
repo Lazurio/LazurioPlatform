@@ -72,6 +72,11 @@ test("application presentation distinguishes start, health, stop and failed prep
       ],
       [{ kind: "status", state: "ended", observedHealthy: false }, "appEnded"],
       [{ kind: "application-running" }, "appApplicationRunning"],
+      [{ kind: "coordination-busy" }, "appCoordinationBusy"],
+      [
+        { kind: "preparation-recovery-required" },
+        "appPreparationRecoveryRequired",
+      ],
       [{ kind: "service-unrecognized" }, "appServiceUnrecognized"],
       [{ kind: "group-stopped" }, "appStopped"],
       [{ kind: "denied" }, "appDenied"],

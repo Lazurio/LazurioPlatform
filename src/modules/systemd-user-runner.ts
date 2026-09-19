@@ -91,6 +91,23 @@ export function organizationUnitPrefix(organizationDirectory: string) {
   ]).slice(0, 16)}-`;
 }
 
+// Coordination lock of one Organization directory, inside the user manager's own
+// runtime directory: the same scope and lifetime as the transient units, never
+// inside a module checkout, and gone with the last session like they are.
+export function applicationCoordinationLockFile(
+  runtimeDirectory: string,
+  organizationDirectory: string,
+) {
+  if (
+    !runtimeDirectory.startsWith("/") ||
+    hasControlCharacter(runtimeDirectory)
+  )
+    throw new Error("Absolute user runtime directory required");
+  return `${runtimeDirectory}/lazurio/${organizationUnitPrefix(
+    organizationDirectory,
+  )}coordination.lock`;
+}
+
 // Deterministic, sanitized and length-bounded. The readable part is lossy and
 // for people only; uniqueness comes from the digest of the exact identity.
 export function applicationUnitName(

@@ -25,7 +25,9 @@ import { expectedLegacyProjection } from "../src/organizations/legacy-projection
 // manager, through the real compiled CLI: start a declared Bun module through
 // `app-request`, end the Launchpad (gracefully, then by SIGKILL), prove that the
 // application keeps answering under the SAME service invocation, rediscover it
-// from a new Launchpad, stop it there and prove that its control group is gone.
+// from a new Launchpad, stop and start it there WITHOUT any recovery step, prove
+// that its control group is gone, operate it with no Launchpad at all, and prove
+// that an interrupted dependency preparation still requires explicit recovery.
 // Compile this runner for a source-free guest and supply that guest's module Bun.
 // It creates only transient units and a temporary home; it installs nothing.
 const { values, positionals } = parseArgs({
@@ -165,8 +167,15 @@ async function launchpad() {
     assert.equal(status.observedHealthy, true, JSON.stringify(status));
     return status;
   };
-  return { child, operation, healthy };
+  return { child, operation, healthy, sessionUrl: ready.url as string };
 }
+const retainedRecord = async () => {
+  try {
+    return (await lstat(join(owner, ".operation-lock"))).isDirectory();
+  } catch {
+    return false;
+  }
+};
 const answers = async (port: number) =>
   (
     await fetch(`http://127.0.0.1:${port}/`, {
@@ -304,7 +313,7 @@ try {
   );
   await writeFile(
     join(owner, "prepare-data.ts"),
-    "if (!(await Bun.file('module-data').exists())) await Bun.write('module-data', 'prepared');\n",
+    "if (await Bun.file('slow').exists()) { await Bun.write('preparing', '1'); await Bun.sleep(120000); } if (!(await Bun.file('module-data').exists())) await Bun.write('module-data', 'prepared');\n",
     { mode: 0o600 },
   );
   await mkdir(join(owner, "dependency"), { mode: 0o700 });
@@ -368,25 +377,14 @@ try {
   assert.equal(await answers(port), "service-owned module");
   assert.equal(await show("InvocationID"), invocation);
 
-  // D. Third Launchpad: status is rediscovered again. Mutations after a CRASH
-  // meet the crashed owner's retained dependency lock, which is never reclaimed
-  // automatically (documented, pre-existing). The application is unaffected.
+  // D. Third Launchpad after the CRASH: no recovery step of any kind. Application
+  // operations are coordinated by a kernel lock that died with its holder.
   const third = await launchpad();
   assert.equal((await third.healthy()).service.invocationId, invocation);
-  let stopped = await timed("stopMs", () => third.operation("stop"));
-  let crashRecovery = "not-needed";
-  if (stopped.kind !== "group-stopped") {
-    assert.equal(stopped.error, "operation-failed", JSON.stringify(stopped));
-    assert.equal(await answers(port), "service-owned module");
-    const lock = join(owner, ".operation-lock");
-    assert.ok((await lstat(lock)).isDirectory());
-    // Operator recovery in this synthetic fixture only: the crashed owner is
-    // known to be gone (this script killed it) and the lock directory is empty.
-    await rmdir(lock);
-    crashRecovery =
-      "stale dependency-owner lock of the killed Launchpad removed by the operator";
-    stopped = await timed("stopMs", () => third.operation("stop"));
-  }
+  assert.equal(await retainedRecord(), false);
+  const stopped = await timed("stopAfterCrashMs", () =>
+    third.operation("stop"),
+  );
   assert.equal(stopped.kind, "group-stopped", JSON.stringify(stopped));
 
   // E. The manager and the kernel agree that nothing is left.
@@ -395,12 +393,92 @@ try {
   assert.equal((await third.operation("status")).kind, "not-managed");
   await assert.rejects(answers(port));
   // A new start is a new invocation, never the old identity.
-  assert.equal((await third.operation("start")).kind, "started");
+  assert.equal(
+    (await timed("startAfterCrashMs", () => third.operation("start"))).kind,
+    "started",
+  );
   const again = await third.healthy();
   assert.notEqual(again.service.invocationId, invocation);
-  assert.equal((await third.operation("stop")).kind, "group-stopped");
-  third.child.kill("SIGTERM");
-  assert.equal(await third.child.exited, 0);
+  third.child.kill("SIGKILL");
+  await third.child.exited;
+
+  // F. No Launchpad at all: the CLI reads and stops the service through the same
+  // core, runner and coordination lock.
+  const direct = async (name: string) => {
+    const result = await run([cli as string, "app-request"], {
+      organizationDirectory,
+      operation: name,
+      selection,
+    });
+    return { code: result.code, ...JSON.parse(result.output || "{}") };
+  };
+  const directStatus = await direct("status");
+  assert.equal(directStatus.code, 0, JSON.stringify(directStatus));
+  assert.equal(directStatus.runner, "systemd-user");
+  assert.equal(directStatus.observedHealthy, true);
+  assert.equal(directStatus.service.invocationId, again.service.invocationId);
+  assert.equal(
+    (await timed("directStopMs", () => direct("stop"))).kind,
+    "group-stopped",
+  );
+  assert.equal((await direct("status")).kind, "not-managed");
+  assert.equal(await show("LoadState"), "not-found");
+
+  // G. The other kind of exclusion is NOT weakened: a dependency preparation
+  // whose owner dies mid-transaction keeps its retained record, and neither
+  // preparing nor starting proceeds until an operator recovers it explicitly.
+  await rm(join(owner, "module-data"));
+  await writeFile(join(owner, "slow"), "1", { mode: 0o600 });
+  const fourth = await launchpad();
+  const interrupted = Bun.spawn([cli, "app-request"], {
+    cwd: home,
+    env,
+    stdin: new Blob([
+      JSON.stringify({
+        sessionUrl: fourth.sessionUrl,
+        operation: "prepare",
+        selection,
+      }),
+    ]),
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  for (let attempt = 0; attempt < 600; attempt++) {
+    if (await Bun.file(join(owner, "preparing")).exists()) break;
+    await Bun.sleep(100);
+  }
+  assert.ok(await Bun.file(join(owner, "preparing")).exists());
+  assert.equal(await retainedRecord(), true);
+  fourth.child.kill("SIGKILL");
+  await fourth.child.exited;
+  await interrupted.exited;
+  const fifth = await launchpad();
+  assert.equal(await retainedRecord(), true);
+  const blockedStart = await fifth.operation("start");
+  assert.equal(blockedStart.kind, "preparation-recovery-required");
+  assert.equal(
+    (await fifth.operation("prepare")).kind,
+    "preparation-recovery-required",
+  );
+  assert.equal((await fifth.operation("status")).kind, "not-managed");
+  assert.equal((await fifth.operation("stop")).kind, "not-managed");
+  assert.equal(await show("LoadState"), "not-found");
+  // Explicit operator recovery in this synthetic fixture: the script killed the
+  // owner itself and the guard ended the preparation subprocess with it.
+  await rmdir(join(owner, ".operation-lock"));
+  await rm(join(owner, "slow"));
+  await rm(join(owner, "preparing"));
+  // The interrupted tree is still not started: its declared check fails.
+  const unprepared = await fifth.operation("start");
+  assert.equal(unprepared.kind, "prerequisites-not-ready");
+  assert.equal((await fifth.operation("prepare")).kind, "prepared");
+  // A completed preparation releases its record; nothing is retained.
+  assert.equal(await retainedRecord(), false);
+  assert.equal((await fifth.operation("start")).kind, "started");
+  await fifth.healthy();
+  assert.equal((await fifth.operation("stop")).kind, "group-stopped");
+  fifth.child.kill("SIGTERM");
+  assert.equal(await fifth.child.exited, 0);
   assert.equal(await show("LoadState"), "not-found");
   console.log(
     JSON.stringify({
@@ -420,9 +498,16 @@ try {
         "Launchpad crash (SIGKILL)",
         "third Launchpad",
       ],
+      newInvocationAcross: ["second Launchpad crash (SIGKILL)", "CLI alone"],
       applicationEnvironment: environment,
       preparationWhileRunning: refused.kind,
-      crashRecovery,
+      afterLaunchpadCrash:
+        "stop and start through a new Launchpad succeeded with no recovery step and no retained record",
+      withoutLaunchpad: "status and stop through the CLI alone",
+      interruptedPreparation: {
+        start: blockedStart.kind,
+        afterOperatorRecovery: unprepared.kind,
+      },
       controlGroupGoneAfterStop: true,
       timings,
       note: "real systemd user manager and compiled CLI with a declared Bun module; transient units only. Not reboot persistence, lingering, product activation, hosted entry or a real Organization module.",

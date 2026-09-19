@@ -12,6 +12,9 @@ type Operation =
   | "stop"
   | "prepare"
   | "clean-prepare";
+export type CoordinationRefusal = Readonly<{
+  kind: "coordination-busy" | "preparation-recovery-required" | "closing";
+}>;
 type Plan = Extract<
   Awaited<ReturnType<typeof readModuleApplication>>,
   { kind: "declared-runtime-plan" }
@@ -59,12 +62,17 @@ export function createApplicationLifecycle(adapters: {
   // Separate explicit capability: never substitute ordinary preparation when
   // the caller asks to discard and regenerate derived dependencies.
   preflightCleanPreparation?: PreparationFactory;
-  // Trusted composition boundary for the shared install/pull/start owner lock.
-  // null selects owner shutdown; the coordinator must drain its accepted mutations.
+  // Trusted composition boundary for cross-process exclusion. null selects owner
+  // shutdown; the coordinator must drain its accepted mutations. `intent` lets the
+  // composition choose the KIND of exclusion: a transaction that can die
+  // half-written (preparation) versus coordination of operations whose truth
+  // lives in the application's owner. It may refuse with a typed result instead
+  // of running the action; it never runs the action more than once.
   coordinateMutation?: <T>(
     selection: Selection | null,
     action: () => Promise<T>,
-  ) => Promise<T>;
+    intent?: Operation,
+  ) => Promise<T | CoordinationRefusal>;
 }) {
   const runner = adapters.runner;
   let queue = Promise.resolve();
@@ -97,7 +105,7 @@ export function createApplicationLifecycle(adapters: {
       if (!directory) return Object.freeze({ kind: "denied" as const });
     }
     return adapters.coordinateMutation
-      ? adapters.coordinateMutation(value, () => exclusive(operation))
+      ? adapters.coordinateMutation(value, () => exclusive(operation), intent)
       : exclusive(operation);
   }
   async function authorized(value: Selection, operation: Operation) {
