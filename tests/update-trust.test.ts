@@ -105,7 +105,13 @@ test("after a failed refresh the role delivered last becomes a floor only when i
       "foreign signature",
       forged.served("/metadata/timestamp.json")?.toString(),
     ],
-    ["damaged signature", second.timestamp.replace(/"sig":"../, '"sig":"00')],
+    [
+      "damaged signature",
+      second.timestamp.replace(
+        /"sig":"[0-9a-f]+"/,
+        `"sig":"${"0".repeat(128)}"`,
+      ),
+    ],
     ["not metadata", "{}"],
     ["not JSON", "\u0000"],
   ] as const)
@@ -158,7 +164,14 @@ test("after a failed refresh the role delivered last becomes a floor only when i
     // Not the snapshot the timestamp names: wrong version and hash.
     ["other version", moved, first.snapshot],
     ["foreign", moved, forged.served("/metadata/1.snapshot.json")?.toString()],
-    ["damaged", moved, second.snapshot.replace(/"sig":"../, '"sig":"00')],
+    [
+      "damaged",
+      moved,
+      second.snapshot.replace(
+        /"sig":"[0-9a-f]+"/,
+        `"sig":"${"0".repeat(128)}"`,
+      ),
+    ],
     // Without an authenticated timestamp nothing vouches for a snapshot.
     ["no timestamp", {}, second.snapshot],
   ] as const)

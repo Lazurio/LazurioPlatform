@@ -529,7 +529,11 @@ test("a role delivered last that is not authentic or not newer is never kept, an
   const genuine = fixture.served("/metadata/timestamp.json") as Buffer;
   fixture.substitute(
     "/metadata/timestamp.json",
-    Buffer.from(genuine.toString().replace(/"sig":"../, '"sig":"00')),
+    Buffer.from(
+      genuine
+        .toString()
+        .replace(/"sig":"[0-9a-f]+"/, `"sig":"${"0".repeat(128)}"`),
+    ),
   );
   expect(await check()).toMatchObject({
     kind: "error",
