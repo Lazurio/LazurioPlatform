@@ -83,11 +83,14 @@ update() { lz update "$@" >"$OUT" 2>"$WORK/update.err"; echo "exit=$?" >>"$OUT";
 # names <version>: what a power loss right after the switch leaves behind.
 # With `boot`, the Machine "comes back": the unit starts what the selector names.
 update_killed_after_switch() {
-  lz update --json >"$OUT" 2>&1 &
-  local updater=$!
+  # The executable itself, not a shell function: `$!` must be the updater.
+  "$L" update --json >"$OUT" 2>&1 &
+  local updater=$! exe
+  exe=$(readlink "/proc/$updater/exe" | sed "s|$BASE|<base>|")
   until [ "$(selected)" = "$1" ] || ! kill -0 "$updater" 2>/dev/null; do sleep 0.02; done
-  kill -9 "$updater" 2>/dev/null && say "   SIGKILL -> updater (pid $updater) right after the switch to $1"
+  kill -9 "$updater" 2>/dev/null && say "   SIGKILL -> updater (pid $updater, $exe) right after the switch to $1"
   wait "$updater" 2>/dev/null
+  if pgrep -f "lazurio update" >/dev/null; then fail "an updater is still alive"; else pass "no updater is alive"; fi
   if [ "${2:-}" = boot ]; then systemctl --user --no-block restart "$UNIT"; fi
 }
 
@@ -112,7 +115,6 @@ if [ "$PHASE" = before-reboot ]; then
   say "   units written by the installer:"
   sed 's/^/   | /' "$UNIT_DIR/$UNIT" "$UNIT_DIR/$ROLLBACK_UNIT"
   expect "unit enabled" "$(systemctl --user is-enabled "$UNIT")" enabled
-  expect "systemd understands the units (verify)" "$(systemd-analyze --user verify "$UNIT_DIR/$UNIT" "$UNIT_DIR/$ROLLBACK_UNIT" 2>&1 | grep -c -v '^$')" 0
   wait_for 30 launchpad_on 1.0.0 && pass "Launchpad active; the kernel runs versions/1.0.0/lazurio through the selector; health socket present" || fail "Launchpad is not on 1.0.0"
   expect "no high-water mark yet: the floor is the active version" "$(high_water)" ""
   # The harness's faults live in a DROP-IN next to the installer's unit, not in
@@ -148,6 +150,10 @@ DROPIN
   expect "high-water raised at commit" "$(high_water)" 1.1.0
   expect "marker deleted by the commit" "$(marker)" ""
   launchpad_on 1.1.0 && pass "Launchpad active on 1.1.0 (pid $OLD_PID -> $(unit_pid))" || fail "Launchpad is not on 1.1.0"
+  # Only now does `previous` exist, which the rollback unit's ExecStart names.
+  systemd-analyze --user verify "$UNIT_DIR/$UNIT" "$UNIT_DIR/$ROLLBACK_UNIT" >"$WORK/verify.out" 2>&1
+  expect "systemd-analyze verify accepts both units (exit status)" "$?" 0
+  sed 's/^/   | /' "$WORK/verify.out"
   say "   \$ lazurio --version"; lz --version | sed 's/^/   > /'
   took
 
@@ -166,7 +172,7 @@ DROPIN
   lz update --check >/dev/null 2>&1; expect "the retry is the same action (check exit 10)" "$?" 10
   took
 
-  step "4. power loss after the switch + crash-looping 1.2.0 -> start limit -> OnFailure=lazurio-rollback.service undoes"
+  step "4. power loss after the switch + crashing 1.2.0 -> OnFailure=lazurio-rollback.service undoes (no updater, no command)"
   echo crash-1.2.0 >"$WORK/fault"
   update_killed_after_switch 1.2.0 boot
   state
@@ -205,6 +211,10 @@ committed() { [ -z "$(marker)" ] && [ "$(high_water)" = 1.2.0 ]; }
 wait_for 90 committed && pass "marker deleted and mark raised to 1.2.0 without any command" || fail "not committed"
 state
 wait_for 30 launchpad_on 1.2.0 && pass "Launchpad active on 1.2.0 after boot" || fail "Launchpad is not on 1.2.0"
+say "   system boot: $(who -b | sed 's/^ *system boot *//')"
+say "   Launchpad started: $(journalctl --user -b -u "$UNIT" -o short-precise --no-pager | grep -m 1 'Started' | cut -d' ' -f1-3)"
+say "   high-water written: $(stat -c %y "$BASE/update/high-water")  (the Launchpad commits once it outlived its first 15 s)"
+say "   commands run by anyone since boot until then: none (this script started at $(date '+%H:%M:%S'))"
 expect "previous" "$(previous)" 1.1.0
 lz update status | sed 's/^/   > /'
 took
