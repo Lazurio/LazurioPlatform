@@ -27,6 +27,10 @@ on:
         description: "promote: the exact version preview offers, e.g. 1.2.3"
         type: string
         required: false
+      minimum_version:
+        description: "promote, optional: raise the signed minimum version of stable, e.g. 1.2.0. Never changes otherwise."
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -257,7 +261,9 @@ jobs:
       - name: Deploy the tree in one commit
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Release $VERSION to preview"
+        run: |
+          domain="$(bun run scripts/release-publish.ts pages-domain)"
+          UPDATE_TREE_CNAME="$domain" scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Release $VERSION to preview"
       - name: Wait until the published origin serves it
         run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
       - name: Validity of every role
@@ -273,6 +279,7 @@ jobs:
       contents: write
     env:
       VERSION: ${{ inputs.version }}
+      MINIMUM_VERSION: ${{ inputs.minimum_version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -290,12 +297,16 @@ jobs:
           LAZURIO_TUF_SNAPSHOT_KEY: ${{ secrets.LAZURIO_TUF_SNAPSHOT_KEY }}
           LAZURIO_TUF_TIMESTAMP_KEY: ${{ secrets.LAZURIO_TUF_TIMESTAMP_KEY }}
         run: |
-          bun run scripts/release-publish.ts promote \
-            --tree "$RUNNER_TEMP/tree" --root release/root.json --version "$VERSION"
+          arguments=(--tree "$RUNNER_TEMP/tree" --root release/root.json --version "$VERSION")
+          # Explicit and optional: the floor never moves on its own.
+          if [ -n "$MINIMUM_VERSION" ]; then arguments+=(--minimum-version "$MINIMUM_VERSION"); fi
+          bun run scripts/release-publish.ts promote "${arguments[@]}"
       - run: bun run scripts/release-publish.ts verify --tree "$RUNNER_TEMP/tree"
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Promote $VERSION to stable"
+        run: |
+          domain="$(bun run scripts/release-publish.ts pages-domain)"
+          UPDATE_TREE_CNAME="$domain" scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Promote $VERSION to stable"
       - run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
       - run: bun run scripts/release-publish.ts status --tree "$RUNNER_TEMP/tree" | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -329,6 +340,8 @@ jobs:
       - run: bun run scripts/release-publish.ts verify --tree "$RUNNER_TEMP/tree"
       - env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Renew targets metadata"
+        run: |
+          domain="$(bun run scripts/release-publish.ts pages-domain)"
+          UPDATE_TREE_CNAME="$domain" scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Renew targets metadata"
       - run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
       - run: bun run scripts/release-publish.ts status --tree "$RUNNER_TEMP/tree" | tee -a "$GITHUB_STEP_SUMMARY"

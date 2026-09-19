@@ -69,7 +69,9 @@ jobs:
         if: steps.tree.outputs.published == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Refresh update metadata"
+        run: |
+          domain="$(bun run scripts/release-publish.ts pages-domain)"
+          UPDATE_TREE_CNAME="$domain" scripts/update-tree.sh push "$RUNNER_TEMP/tree" "Refresh update metadata"
       - name: Wait until the published origin serves it
         if: steps.deploy.outputs.changed == 'true'
         run: bun run scripts/release-publish.ts await-deployment --tree "$RUNNER_TEMP/tree"
