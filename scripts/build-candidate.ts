@@ -2,6 +2,11 @@ import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { folderStateSchemas } from "../src/folder/state";
+import {
+  identityDefines,
+  isProductVersion,
+  nativeTarget,
+} from "../src/update/identity";
 import { artifactIdentity } from "./artifact-identity";
 import { candidateTarget } from "./candidate-target";
 
@@ -27,17 +32,20 @@ const { values, positionals, tokens } = parseArgs({
   strict: true,
   allowPositionals: true,
   tokens: true,
-  options: { target: { type: "string" } },
+  options: { target: { type: "string" }, version: { type: "string" } },
 });
 const output = positionals[0];
 if (
   !output ||
   positionals.length !== 1 ||
   !isAbsolute(output) ||
-  tokens.filter((token) => token.kind === "option").length > 1
+  new Set(
+    tokens.flatMap((token) => (token.kind === "option" ? [token.name] : [])),
+  ).size !== tokens.filter((token) => token.kind === "option").length ||
+  (values.version !== undefined && !isProductVersion(values.version))
 )
   throw new Error(
-    "Supply one absolute, absent output directory and optional Linux --target",
+    "Supply one absolute, absent output directory, optional Linux --target and optional --version <semver>",
   );
 const target = candidateTarget(values.target, process.platform, process.arch);
 if (
@@ -53,6 +61,9 @@ const sourceCommit = git(["rev-parse", "HEAD"]);
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 if (pkg.packageManager !== `bun@${Bun.version}`)
   throw new Error("Pinned Bun toolchain required");
+// A release is built from its tag: the workflow passes the tag as the version.
+// Without it this is a development candidate of the package version.
+const version: string = values.version ?? pkg.version;
 const lockfile = await readFile("bun.lock");
 await run(["install", "--frozen-lockfile", "--ignore-scripts"]);
 await run(["run", "check:public"]);
@@ -66,6 +77,13 @@ await run([
   ...(target.bunTarget ? [`--target=${target.bunTarget}`] : []),
   "--no-compile-autoload-dotenv",
   "--no-compile-autoload-bunfig",
+  // The executable states its own identity (docs/update.md "Identity in the
+  // binary"); the same three values go into identity.json below.
+  ...identityDefines({
+    version,
+    commit: sourceCommit,
+    target: target.target,
+  }),
   "--outfile",
   binary,
 ]);
@@ -79,7 +97,7 @@ if (
 if (!lockfile.equals(await readFile("bun.lock")))
   throw new Error("Lock changed during build");
 const identity = artifactIdentity({
-  version: pkg.version,
+  version,
   target: target.target,
   sourceCommit,
   toolchain: pkg.packageManager,
@@ -87,6 +105,26 @@ const identity = artifactIdentity({
   lockfile,
   artifact: await readFile(binary),
 });
+// identity.json and the embedded identity must be one fact. A native build is
+// asked directly; a cross-build cannot run here and is covered by the shared
+// `identityDefines` input plus the target's own qualification.
+if (target.target === nativeTarget(process.platform, process.arch)) {
+  const reported = Bun.spawnSync([binary, "--version", "--json"], {
+    env: {},
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const embedded =
+    reported.exitCode === 0 ? JSON.parse(reported.stdout.toString()) : null;
+  if (
+    embedded?.version !== identity.version ||
+    embedded?.commit !== identity.sourceCommit ||
+    embedded?.target !== identity.target
+  )
+    throw new Error(
+      "Embedded identity differs from identity.json; retained output is not a qualified candidate",
+    );
+}
 await writeFile(
   join(output, "identity.json"),
   `${JSON.stringify(
@@ -100,5 +138,5 @@ await writeFile(
   { flag: "wx", mode: 0o600 },
 );
 console.log(
-  "Built unsigned development CLI candidate; not installed or release-qualified.",
+  `Built CLI candidate ${version} (${target.target}). Not attested, installed or release-qualified.`,
 );

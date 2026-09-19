@@ -20,10 +20,46 @@ import { localApplicationAdapters } from "./modules/local-application-adapters";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import {
+  type CommandOutput,
+  installBase,
+  noticeAfterCommand,
+  processContext,
+  runInstallCommand,
+  runUpdateCommand,
+  selfCheckCommand,
+  updateHelp,
+  versionCommand,
+} from "./update/cli";
+import { embeddedIdentity } from "./update/identity";
+
+// Update commands return their own typed output and stable exit status.
+function emit(output: CommandOutput): number {
+  if (output.stdout) console.log(output.stdout);
+  if (output.stderr) console.error(output.stderr);
+  return output.code;
+}
 
 // Development CLI entrypoint. No implicit folder discovery; the only
 // installer surface is the explicit `product` command group.
 export async function runCli(args: string[]): Promise<number> {
+  if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
+  if (args[0] === "self-check")
+    return emit(await selfCheckCommand(args.slice(1)));
+  if (args[0] === "install")
+    return emit(await runInstallCommand(args.slice(1)));
+  if (args[0] === "update") return emit(await runUpdateCommand(args.slice(1)));
+  const code = await runOtherCommand(args);
+  // Every other command ends with the one-line notice (docs/update.md
+  // "Surfaces"): from `last-check.json` only, on stderr, never the network.
+  if (args[0] !== "launchpad") {
+    const notice = await noticeAfterCommand();
+    if (notice) console.error(notice);
+  }
+  return code;
+}
+
+async function runOtherCommand(args: string[]): Promise<number> {
   if (args[0] === "machine") {
     const { code, result } = await runMachineCommand(args.slice(1));
     console.log(JSON.stringify(result));
@@ -154,6 +190,7 @@ No files, locks, provider requests or applications are created. Output may conta
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     console.log(productHelp);
+    console.log(updateHelp);
     console.log(machineHelp);
     return 0;
   }
@@ -164,6 +201,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     tokens: true,
     options: {
       folder: { type: "string" },
+      base: { type: "string" },
       "organization-directory": { type: "string" },
       "bun-executable": { type: "string" },
       profile: { type: "string" },
@@ -201,9 +239,12 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       !values.folder ||
       Object.keys(values).some(
         (name) =>
-          !["folder", "organization-directory", "bun-executable"].includes(
-            name,
-          ),
+          ![
+            "folder",
+            "base",
+            "organization-directory",
+            "bun-executable",
+          ].includes(name),
       )
     )
       throw new Error("Explicit Launchpad fixture required");
@@ -233,6 +274,14 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         : {
             organizationDirectory: values["organization-directory"],
           },
+      // `--base` is what the installed service unit passes: this instance is
+      // the Launchpad of that installation.
+      values.base === undefined
+        ? undefined
+        : {
+            base: installBase(processContext(), values.base),
+            version: embeddedIdentity().version,
+          },
     );
     console.log(
       JSON.stringify({ url, scope: "local-development-profile-panel" }),
@@ -250,7 +299,8 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
   }
   if (
     values["organization-directory"] !== undefined ||
-    values["bun-executable"] !== undefined
+    values["bun-executable"] !== undefined ||
+    values.base !== undefined
   )
     throw new Error("Discovery option belongs only to Launchpad");
   if (positionals[0] === "folder-resume") {
