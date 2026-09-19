@@ -1,0 +1,203 @@
+name: Release
+
+# Tag-driven release (docs/update.md "Publishing"):
+#
+#   tag vX.Y.Z[-rc.N] -> check -> build every target on its own runner
+#                     -> publish: manifest, ONE Sigstore attestation over the
+#                        manifest and every executable, a draft release with
+#                        everything attached, the ordering gate, publish once.
+#
+# THE NAME OF THIS FILE IS PERMANENT. Every installed client accepts a release
+# only when its attestation names `.github/workflows/release.yml` at the exact
+# tag; renaming or moving it strands them all. Refactor behind it, never it.
+#
+# There are no signing keys and no secrets. Authorization is governance of this
+# repository: the tag ruleset, the protected `release` environment with a
+# required reviewer, immutable releases, and actions pinned by commit.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # `bash -eo pipefail`: a failing command in a pipeline fails the step.
+    shell: bash
+
+env:
+  BUN_VERSION: 1.4.2
+
+jobs:
+  resolve:
+    name: Resolve the release
+    # A fork builds and tests; only the compiled-in origin publishes.
+    if: github.repository == 'Lazurio/LazurioPlatform'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+    steps:
+      - id: resolve
+        run: |
+          tag="$GITHUB_REF_NAME"
+          pattern='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if [[ "$GITHUB_REF" != "refs/tags/$tag" ]] || ! [[ "$tag" =~ $pattern ]]; then
+            echo "::error::Not a release tag: expected vMAJOR.MINOR.PATCH[-prerelease]"
+            exit 1
+          fi
+          prerelease=false
+          if [[ "$tag" == *-* ]]; then prerelease=true; fi
+          {
+            echo "tag=$tag"
+            echo "version=${tag#v}"
+            echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+  check:
+    name: Check the tagged source
+    needs: resolve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: [resolve, check]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Each executable is built on a runner of its own target, so it is
+          # run and asked for its identity before it is uploaded.
+          - target: linux-x64
+            os: ubuntu-24.04
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+          - target: darwin-arm64
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - name: Build lazurio-${{ matrix.target }}
+        env:
+          VERSION: ${{ needs.resolve.outputs.version }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          bun run scripts/release-build.ts --version "$VERSION" --commit "$GITHUB_SHA" \
+            --target "$TARGET" --out "$RUNNER_TEMP/release"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lazurio-${{ matrix.target }}
+          path: ${{ runner.temp }}/release/lazurio-${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Attest and publish
+    needs: [resolve, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # The required reviewer of this environment is the release authorization.
+    environment: release
+    # ONE repository-wide group that queues and never cancels: two tags pushed
+    # together publish one after the other, so the ordering gate below always
+    # sees every release published before it.
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
+    permissions:
+      id-token: write # Sigstore: the workflow identity in the certificate
+      attestations: write # actions/attest stores the attestation
+      contents: write # create and publish the GitHub Release
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.resolve.outputs.tag }}
+      VERSION: ${{ needs.resolve.outputs.version }}
+      PRERELEASE: ${{ needs.resolve.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/release
+          pattern: lazurio-*
+          merge-multiple: true
+      - name: Write manifest.json
+        run: |
+          bun run scripts/release-manifest.ts --version "$VERSION" --commit "$GITHUB_SHA" \
+            --directory "$RUNNER_TEMP/release"
+          cat "$RUNNER_TEMP/release/manifest.json"
+      # ONE attestation whose subjects are the manifest and every executable.
+      - id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/release/manifest.json
+            ${{ runner.temp }}/release/lazurio-linux-x64
+            ${{ runner.temp }}/release/lazurio-linux-arm64
+            ${{ runner.temp }}/release/lazurio-darwin-arm64
+      - name: The bundle is a release asset
+        env:
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: cp "$BUNDLE" "$RUNNER_TEMP/release/lazurio.sigstore.json"
+      - name: Draft release with every asset attached
+        run: |
+          # A published release is immutable and is never touched again; a
+          # draft left by a failed run of this tag is ours to replace.
+          if state=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [[ "$state" != "true" ]]; then
+              echo "::error::$TAG is already published"
+              exit 1
+            fi
+            gh release delete "$TAG" --yes
+          fi
+          flags=(--draft --verify-tag --title "$TAG" --generate-notes)
+          if [[ "$PRERELEASE" == "true" ]]; then flags+=(--prerelease); fi
+          gh release create "$TAG" "${flags[@]}" \
+            "$RUNNER_TEMP/release/manifest.json" \
+            "$RUNNER_TEMP/release/lazurio.sigstore.json" \
+            "$RUNNER_TEMP/release/lazurio-linux-x64" \
+            "$RUNNER_TEMP/release/lazurio-linux-arm64" \
+            "$RUNNER_TEMP/release/lazurio-darwin-arm64"
+      - name: Ordering gate, immediately before publishing
+        run: |
+          # A final version must be greater than every published final
+          # release. Otherwise the draft is deleted and nothing is published.
+          if ! gh release list --limit 1000 --json tagName,isDraft,isPrerelease \
+            | bun run scripts/release-gate.ts "$VERSION"; then
+            gh release delete "$TAG" --yes
+            exit 1
+          fi
+      - name: Publish once
+        run: |
+          # `latest` is set explicitly: for a final version, never for a
+          # prerelease, which stays invisible to `releases/latest`.
+          if [[ "$PRERELEASE" == "true" ]]; then
+            gh release edit "$TAG" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$TAG" --draft=false --latest
+          fi
