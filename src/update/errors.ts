@@ -11,8 +11,9 @@ export const updateErrors = {
   "network-unavailable": { exit: 20, retryable: true },
   "metadata-expired": { exit: 21, retryable: true },
   "metadata-invalid": { exit: 22, retryable: true },
-  // 23 was `channel-rollback`: rollback of the channel document is refused by
-  // TUF itself (`metadata-invalid`). 26 was `trust-conflict`: a supplied root
+  // 23 was `channel-rollback`: the channel document is a TUF target, so its
+  // rollback is a rollback of metadata (`metadata-rollback`), and the older
+  // document alone fails its signed hash (`metadata-invalid`). 26 was `trust-conflict`: a supplied root
   // beside durable trust is ignored or followed, never a conflict. 31 was
   // `not-implemented`. Never reused.
   "channel-invalid": { exit: 24, retryable: true },
@@ -50,6 +51,13 @@ export const updateErrors = {
   "unit-conflict": { exit: 45, retryable: false },
   /** The service manager refused; the installation was undone. */
   "service-failed": { exit: 46, retryable: true },
+  /** Authentic metadata that goes BELOW the floor vector: a lower version, the
+   * same version with other signed content, a lowered snapshot reference or
+   * `snapshot.meta` entry. Nothing but a valid root chain was kept. Retryable
+   * in the sense of this table — it ends when the repository (or whoever
+   * stands in front of it) serves metadata at or above the floors again, with
+   * no repair on the Machine — but it is a security signal: watch the CODE. */
+  "metadata-rollback": { exit: 47, retryable: true },
   internal: { exit: 70, retryable: false },
 } as const satisfies Record<string, { exit: number; retryable: boolean }>;
 

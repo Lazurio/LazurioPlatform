@@ -140,9 +140,18 @@ export function createUpdateFixture(input: {
     options: {
       expires?: Partial<Record<"targets" | "snapshot" | "timestamp", string>>;
       tamper?: "snapshot" | "targets";
+      /** Publish THIS generation number instead of the next one, signed by
+       * the current keys: a publisher (or whoever holds its keys) going back,
+       * or saying something else at a version it already used. */
+      at?: number;
+      /** Further `snapshot.meta` entries, by file name → version. */
+      extraMeta?: Readonly<Record<string, number>>;
+      /** Let the timestamp name the snapshot of an OLDER generation that is
+       * still served, instead of the one published now. */
+      timestampReferences?: number;
     } = {},
   ) => {
-    version += 1;
+    version = options.at ?? version + 1;
     const files: Record<string, TargetFile> = {};
     for (const [path, bytes] of artifactTargets) {
       files[path] = new TargetFile({
@@ -204,17 +213,28 @@ export function createUpdateFixture(input: {
             length: targets.length,
             hashes: { sha256: sha256(targets) },
           }),
+          ...Object.fromEntries(
+            Object.entries(options.extraMeta ?? {}).map(([name, entry]) => [
+              name,
+              new MetaFile({ version: entry }),
+            ]),
+          ),
         },
       }),
       [signers.snapshot],
     );
+    const referenced =
+      options.timestampReferences === undefined
+        ? snapshot
+        : served.get(`/metadata/${options.timestampReferences}.snapshot.json`);
+    if (!referenced) throw new Error("Unknown fixture generation");
     const timestamp = signedBy(
       new Timestamp({
         ...fields("timestamp"),
         snapshotMeta: new MetaFile({
-          version,
-          length: snapshot.length,
-          hashes: { sha256: sha256(snapshot) },
+          version: options.timestampReferences ?? version,
+          length: referenced.length,
+          hashes: { sha256: sha256(referenced) },
         }),
       }),
       [signers.timestamp],

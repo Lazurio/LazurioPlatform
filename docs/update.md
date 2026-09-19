@@ -80,7 +80,7 @@ the current one.
 ```text
 bin/lazurio -> ../versions/<version>+<sha16>/lazurio   # the only active selector
 versions/<version>+<sha16>/{lazurio,identity.json}      # immutable
-trust/                                                  # durable verified TUF metadata
+trust/                                                  # durable verified TUF metadata + floors.json (floor vector)
 update/activation.json                                  # present only during an activation
 update/previous.json                                    # what the last confirmed activation replaced
 update/observed.json                                    # derived observation for UI, CLI and observers
@@ -130,16 +130,58 @@ snapshot, targets:
    ignored. A role that passes is promoted **as a floor only**. Anything that
    fails re-verification is discarded.
 
+**The floor vector.** What must never go backwards is more than each role's own
+version, and the client's in-memory checks die with the process and with a key
+rotation (a retained role file signed by a revoked key no longer loads, so its
+floor would silently vanish). The floors are therefore kept as an owned,
+schema-versioned record `trust/floors.json`, merged monotonically and written
+atomically, independent of who signed the roles:
+
+| Floor | Facts kept |
+| --- | --- |
+| root | highest trusted version; digest of each retained numbered root |
+| timestamp | version; digest of its signed content; the snapshot reference it names (version, and length and hashes when recorded) |
+| snapshot | version; digest of its signed content; **every** entry of `snapshot.meta` by role name (version, and length and hashes when recorded) |
+| targets and any other role named in `snapshot.meta` | version and signed-content digest of the last role actually verified |
+
+Every candidate — a role the client persisted or a captured failure-state role —
+is compared with the whole vector before anything is promoted:
+
+1. a version lower than its floor is refused;
+2. the **same version with different signed content** is refused (equivocation),
+   the same version with identical content is a no-op;
+3. a timestamp whose snapshot reference is lower than the floor's is refused;
+4. a snapshot in which any previously recorded `snapshot.meta` entry is missing
+   or lower is refused, as is one that disagrees with the newest authenticated
+   timestamp's reference;
+5. a root is accepted only as the next link of the retained chain, signed by the
+   thresholds of both the previous and the new root.
+
+A violation refuses the whole refresh result with a typed `metadata-rollback`
+error; only a valid root chain is still promoted. Otherwise the role files are
+promoted and the vector becomes the element-wise maximum of the old vector and
+the candidates' facts, so it survives expiry, interruption, repository advance
+and root rotation alike. Delegations stay disabled (`maxDelegations: 0`); the
+rule is written over role names so enabling them later cannot weaken it. A
+missing or unreadable `floors.json` is rebuilt from the retained role files,
+each verified under the retained numbered root that was valid for it; it never
+blocks a check and never resets to empty while those files exist.
+
 Expired metadata never authorizes a target: every refresh re-checks expiry
-before accepting the next role, and an expired local role is loaded only as a
-version floor, exactly as the TUF specification's intermediate metadata.
+before accepting the next role, a target is looked up only after a refresh that
+completed without error and satisfied the vector, and an expired local role is
+loaded only as a version floor, exactly as the TUF specification's intermediate
+metadata.
 
 A crash before promotion equals a refresh that never ran; a crash between
 promotions leaves a newer root with older roles, which the next refresh
 re-verifies under that root. This needs no change to the pinned `tuf-js`. The
 old journal and replay remain the mechanism until the equivalence tests under
-Evidence — interruption, expiry with a newer authenticated floor, repository
-advance and key rotation — pass against this path. Then read the signed channel document,
+Evidence pass against this path: every case the retained mechanism proves today
+(`tests/historical-roles.test.ts`: timestamp-to-snapshot reference, every
+`snapshot.meta` floor, same-version content binding, floors across root
+rotation and across interruption) is ported to the floor vector and extended
+with expiry carrying a newer authenticated floor and with repository advance. Then read the signed channel document,
 compare with the embedded version and rewrite `observed.json`. Network or
 expiry failures produce a typed error and leave everything else untouched.
 
@@ -337,7 +379,7 @@ Concrete choices fixed so far:
   of that order.
 - **No channel floors.** An earlier revision kept `channel-floors.json`. It was
   removed: an older channel document can only arrive under older targets
-  metadata, which the TUF client refuses against `trust/` (proven by replaying
+  metadata, which the floor vector and the TUF client refuse (proven by replaying
   a once-valid repository state and by substituting the older document alone).
   `sequence` stays in the signed document as ordering information.
 - **Damaged trust never wedges.** A role file that cannot be read or is not
@@ -360,25 +402,64 @@ Concrete choices fixed so far:
 - **Authenticated failure-state floors.** The earlier rule "withhold the role
   delivered last in a failed refresh" is replaced. The fetcher retains the raw
   bytes of the role delivered last (only that one has a consumer); after a
-  failed refresh promotion re-verifies it without the client and without
-  expiry — timestamp: signature threshold under the promoted root, version
-  above and snapshot version not below the trusted timestamp; snapshot: length
-  and hashes recorded by the newest authenticated timestamp, signature
-  threshold, exactly the version that timestamp names, no targets version below
-  the trusted snapshot — and writes it as the ordinary role file. Verified in
-  the pinned source, with line references in `src/update/trust.ts`: an expired
-  LOCAL timestamp or snapshot is installed in memory before the expiry throw
-  and the throw is swallowed (`store.js:89-91`, `:133-136`;
-  `updater.js:195-206`, `:230-234`), so it acts as a version floor and nothing
-  else, and the final expiry checks (`store.js:102`, `:145`, `:172`) run again
-  before any target is looked up. Expired **targets** are different: the store
-  checks expiry before installing (`:172-175`), so an expired local targets
-  file is discarded without a trace and the floor of the targets version is the
-  snapshot's `meta`. A targets role delivered last is therefore never captured.
-  The floor is also captured on first contact and under an expired root: the
-  root authenticated a signature, and a floor can only raise the bar. A floor
-  that no longer verifies under a later root is not loaded by the client, so a
-  revoked key cannot wedge a Machine with a fast-forwarded version.
+  failed refresh promotion AUTHENTICATES it without the client and without
+  expiry — timestamp: signature threshold under the promoted root; snapshot:
+  length and hashes recorded by the newest authenticated timestamp, signature
+  threshold, exactly the version that timestamp names — and hands it to the
+  floor vector like any other candidate. Verified in the pinned source, with
+  line references in `src/update/trust.ts`: an expired LOCAL timestamp or
+  snapshot is installed in memory before the expiry throw and the throw is
+  swallowed (`store.js:89-91`, `:133-136`; `updater.js:195-206`, `:230-234`),
+  so the role file acts as a version floor and nothing else, and the final
+  expiry checks (`store.js:102`, `:145`, `:172`) run again before any target is
+  looked up. Expired **targets** are different: the store checks expiry before
+  installing (`:172-175`), so an expired local targets file is discarded
+  without a trace; a targets role delivered last is therefore never captured,
+  and its floor lives in the vector. The floor is also captured on first
+  contact and under an expired root: the root authenticated a signature, and a
+  floor can only raise the bar.
+- **The floor vector** (`src/update/floors.ts`, `trust/floors.json`). Exactly
+  the facts of the contract's table, keyed as in `snapshot.meta`
+  (`targets.json`). *Signed-content digest* = SHA-256 of
+  `canonicalize(metadata.signed.toJSON())` from `@tufjs/canonical-json` (now a
+  declared dependency, the version `@tufjs/models` pins): byte for byte what a
+  signature is verified over (`@tufjs/models` `dist/key.js:39-41` →
+  `dist/utils/verify.js:10`), so formatting, key order and signatures do not
+  count and every signed member, known or not, does.
+  *Who is compared:* after a failed refresh the roles that changed and the
+  captured one; after a **successful** refresh every role the client now
+  trusts, changed or not — the pinned client treats a replayed state that
+  equals its files as "no change" and would authorize targets under it even
+  when the vector is ahead. *Write order:* `floors.json` first (element-wise
+  maximum), then root chain, `root.json`, timestamp, snapshot, targets, each
+  atomic, the first failed write stopping the rest. The vector is therefore
+  never lower than what the files prove; a vector that is ahead cannot wedge,
+  because it refuses only what is lower or different — the same repository
+  state is a no-op and any later valid state exceeds it. *Violation:*
+  `metadata-rollback` (exit 47) with `role`, `rule`, `floor`, `offered`; only
+  the valid root chain (and its part of the vector) is kept; a root that
+  contradicts a retained one keeps nothing. It outranks whatever else went
+  wrong in that refresh, and an authentic LOWER role that the client itself
+  refused is reported under the same code. `retryable` is true in the sense of
+  the error table — it ends when metadata at or above the floors is served
+  again, with no repair on the Machine — but it is a security signal: observers
+  watch the code. *Targets* (channel document, later identity and artifact)
+  are looked up only after a refresh that completed without error and
+  satisfied the vector. *Rebuild:* a missing, damaged or newer-schema
+  `floors.json` is rebuilt from the retained numbered roots (walked as a
+  verified chain) and the role files, each under the newest retained root that
+  verifies it, and is written back; it never blocks a check. Where the pinned
+  client forced MORE than the contract states: (a) the client loads a local
+  snapshot without holding it against the timestamp's hashes
+  (`updater.js:231-232`, `store.js:107`), so a reference — the timestamp's
+  snapshot reference, a `snapshot.meta` entry — that names the **same version
+  with other recorded length or hashes** is refused too; (b) a snapshot entry
+  may not fall below a role of that name that was actually verified, and a
+  snapshot not below the newest reference, whichever file is lost; (c) the
+  comparison after a successful refresh covers unchanged roles, see above.
+  Proven blind spots of the client, by switching the comparison off: after a
+  rotation of every role key, and after an interruption between vector and
+  files, the client accepts the lower state and reports an update.
 - **Supplied root.** The caller supplies a root (today `--bootstrap-root`,
   later the root compiled into the executable, which is then supplied on every
   run). With no durable trust it seeds the first refresh and becomes durable
@@ -578,12 +659,20 @@ of this work, the rest open until reviewed:
 15. The contract has the fetcher retain the raw bytes of **every** delivered
     role; it retains the one delivered last, the only one promotion reads. The
     first slice's rule "withhold the role delivered last in a failed refresh"
-    is gone: that role is now re-verified and, when authentic and newer, kept
-    as a floor. Expired targets are deliberately never kept.
+    is gone: that role is authenticated and handed to the floor vector.
+    Expired targets are deliberately never kept as a file; their floor lives
+    in the vector.
 16. `update/config.json` holds the service and the Folder, not "only the
     channel" as "Surfaces" says; the channel is still a flag until the
     publisher slice brings defaults. `lazurio install` and `launchpad --base`
     are surfaces the contract text does not list yet.
+17. The floor vector refuses MORE than the five rules state, because of how
+    the pinned client behaves (see "The floor vector" above): a reference that
+    names the same version with other recorded length or hashes; a
+    `snapshot.meta` entry below a role that was verified; and, after a
+    successful refresh, unchanged roles are compared too. `metadata-rollback`
+    is `retryable: true` in the sense of the error table. A `floors.json` of a
+    newer schema is rebuilt like a damaged one, not refused.
 
 ## Removed by this contract
 
