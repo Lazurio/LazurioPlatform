@@ -2,7 +2,7 @@
 
 > **Superseded for product update (2026-09-19).** The accepted contract for
 > checking, downloading, activating and rolling back a product version is
-> [product update](update.md). The journal-reconstruction work package below is not continued. Its threat analysis of authenticated-but-unpersisted role floors stays valid and is answered by the Check step of the new contract.
+> [product update](update.md). The journal-reconstruction work package below is not continued. Decision F13 removes the product's own TUF client, so the threat it analyses (authenticated-but-unpersisted role floors) no longer has a subject; this document is removed together with the pilot installer.
 
 Status: deferred automatic-recovery work, not a prerequisite for the controlled
 pilot (scope decision 2026-09-15; see [pilot repair](pilot-repair.md)). Stop expanding

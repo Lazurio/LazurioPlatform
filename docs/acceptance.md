@@ -91,7 +91,7 @@ trust decisions in 1a remain prerequisites for installer implementation; certifi
 availability is not a prerequisite for unrelated core or generation tests.
 
 The Principal explicitly permits a controlled internal pilot with HTTPS initial
-bootstrap and subsequent TUF verification before Apple Developer ID, notarization
+bootstrap and subsequent release attestation verification before Apple Developer ID, notarization
 and Windows publisher signing are available. Record that limitation in pilot evidence.
 Do not disable OS protections, waive integrity/recovery tests or infer public release
 readiness. Later OS signing changes artifact bytes: qualify those final signed artifacts

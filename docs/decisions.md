@@ -81,7 +81,8 @@ strict TypeScript with pinned Bun tooling. Distribute a standalone executable co
 its required runtime; users do not need a separately installed Bun, Node or npm. First
 installation starts with a terminal command and a thin bootstrap that verifies and
 installs Lazurio; environment setup belongs to the shared core. HTTPS delivery from
-the official source followed by TUF verification is accepted. A controlled internal
+the official source followed by verification of the release attestation is accepted
+(F13; this replaces the earlier selection of TUF). A controlled internal
 pilot may precede Apple Developer ID, notarization and Windows publisher signing;
 these remain mandatory before public release. Remaining technical details are delegated
 to the implementer to specify and verify, without disabling OS protections.
@@ -232,7 +233,7 @@ lockfile, toolchain pin, target, artifact digest and signed release metadata. A 
 alone detects corruption but does not authenticate its publisher. Trust bootstrap,
 signing-key rotation, rollback retention and Windows/macOS distribution signing
 must be implemented and exercised before public release. The controlled pilot exception
-above defers OS publisher signing only, not TUF verification, preservation or recovery.
+above defers OS publisher signing only, not release verification, preservation or recovery.
 No keys or workflows
 are created by this draft.
 
@@ -249,7 +250,7 @@ semantics, trust mechanism and automatic update detection remain implementation 
 | License/IP and product release | Authorized repository/IP owner | Reused-source inventory, license disposition, explicit product-release instruction; repository visibility is already public by request |
 | Native supported platform floor | Lazurio Platform maintainer | Native OS/CPU/ABI tests; build success alone insufficient |
 | Hosting envelope for private and team workspaces | Infrastructure owner | Isolation and identity smoke per kind, brokered attribution and revocation on the team kind, recovery plan; legacy shared workshops converge to one of the two kinds |
-| Release signing and recovery | Distribution owner | Verified candidate, tamper denial, key rotation drill and offline restore |
+| Release trust and recovery | Distribution owner | One real release candidate verified by a compiled client, tamper and wrong-identity denial, protected tag and release environment in place (F13) |
 | Coordinator capability | Harness integration owner | Actual delegated and unavailable-tool scenarios, not generated text assertions |
 
 Function labels describe required responsibility, not granted permissions. Concrete
@@ -489,3 +490,44 @@ general-availability target; the canary path is narrower and says so. Internal u
 analytics, marketplace, hosted advice, legacy personal migration and generic remote
 reconciliation are outside the canary path. Analytics stays default-off and
 consent-bound per [profile evidence](profile-evidence.md) and can never block an update.
+
+## F13 — Release trust is GitHub artifact attestation
+
+**Accepted direction (2026-09-19), not implemented.** A product release is a GitHub
+Release of the public repository `Lazurio/LazurioPlatform`, built by one protected
+tag-driven workflow and carrying a Sigstore attestation (`actions/attest`) over its
+manifest and every binary. The installed product verifies that attestation with the
+maintained `sigstore` library against the workflow identity of the exact tag, the
+repository and owner IDs and the source commit, and keeps a durable highest-accepted
+version. The contract is [product update](update.md). This replaces the earlier
+selection of TUF.
+
+Motivation: the Principal asked for proven practice instead of our own machinery.
+The TUF path was secure on paper, but the maintained JavaScript client does not
+persist what it verifies, so the product had grown its own role promotion, floor
+vector, link rules, a four-key publisher, a metadata tree on a second origin with a
+daily refresh job, and a key ceremony — several thousand lines whose every review
+round found another gap. None of it had a second consumer.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep TUF and finish the persistence layer around `tuf-js` | Strongest freeze and key-compromise model; we own a security-critical client layer and a publisher nobody else maintains; operating cost (keys, refresh, two origins) from day one; rejected for this product stage |
+| Own signed manifest (offline root key signs an online release key, Tailscale `distsign` style) | Small and independent of GitHub and Sigstore; still our own protocol, keys and rotation drill; kept as the fallback if attestation proves unworkable |
+| HTTPS and a checksum only (what most self-updating CLIs ship) | Simplest; a digest does not authenticate its publisher; rejected |
+| GitHub Releases with Sigstore attestation | No keys, no ceremony, no second origin, maintained verifier and signer; selected |
+
+Knowingly accepted: no expiring freshness metadata (an attacker holding both the
+network and a valid `github.com` certificate can hold a client on its current
+version, never lower); trust rests on the governance of the repository, so the tag
+ruleset, the protected `release` environment with a required reviewer, immutable
+releases and commit-pinned actions are part of the mechanism, not hygiene; update
+availability depends on Sigstore's trust root being reachable on a cold cache; a
+private fork is a separately compiled product configuration. First installation is
+authenticated by HTTPS only and says so; OS publisher signing remains a gate before
+public release.
+
+Evidence before acceptance as implemented: a spike on 2026-09-19 verified a real
+GitHub CLI provenance bundle with `sigstore@5.0.0` inside a `bun build --compile`
+binary (wrong identity and a tampered artifact refused). Still required: one real
+release candidate of this repository verified by a compiled client, and the native
+Linux activation journey listed in the contract.

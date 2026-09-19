@@ -55,7 +55,7 @@ failed preparation preserves the existing usable product and working data. For t
 controlled pilot, clear diagnosis and an explicit bounded repair/retry procedure are
 required, not general automatic recovery from every interruption or expired transcript.
 Repair must preserve accepted trust and cannot reset metadata or bypass signatures.
-See [pilot repair](docs/pilot-repair.md). One-way Folder migration does not weaken this
+See [product update](docs/update.md). One-way Folder migration does not weaken this
 product-update preservation requirement.
 
 This preparation does not rewrite legacy apps, migrate current hosts, implement
