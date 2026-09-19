@@ -139,6 +139,10 @@ export function buildSnapshot(input: {
   expires: string;
   targetsVersion: number;
   targetsBytes: Buffer;
+  /** Further `snapshot.meta` entries, file name → version. The publisher has
+   * no delegations and passes none; the fixture uses it to prove the client's
+   * rule that an entry, once listed, never disappears or goes down. */
+  extraMeta?: Readonly<Record<string, number>>;
   signer: Signer;
 }): Buffer {
   return signMetadata(
@@ -146,6 +150,12 @@ export function buildSnapshot(input: {
       ...signedFields(input.version, input.expires),
       meta: {
         "targets.json": metaFile(input.targetsVersion, input.targetsBytes),
+        ...Object.fromEntries(
+          Object.entries(input.extraMeta ?? {}).map(([name, version]) => [
+            name,
+            new MetaFile({ version }),
+          ]),
+        ),
       },
     }),
     [input.signer],

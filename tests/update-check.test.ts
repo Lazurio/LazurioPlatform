@@ -88,6 +88,7 @@ test("first check with a bootstrap root promotes trust, writes the observation a
   });
   expect((await readdir(join(base, "trust"))).sort()).toEqual([
     "1.root.json",
+    "floors.json",
     "root.json",
     "snapshot.json",
     "targets.json",
@@ -313,8 +314,9 @@ test("a crash between any two promotions converges on the next check", async () 
   };
   await counting.check({ writeDurable: counted });
   const converged = await counting.trustSnapshot();
-  // 2.root.json, root.json, timestamp, snapshot, targets, observed.
-  expect(writes).toBe(6);
+  // floors.json (the vector, FIRST), 2.root.json, root.json, timestamp,
+  // snapshot, targets, observed.
+  expect(writes).toBe(7);
 
   for (let survive = 0; survive < writes; survive++) {
     const { fixture, check, trustSnapshot, base } = await scenario();
@@ -330,14 +332,26 @@ test("a crash between any two promotions converges on the next check", async () 
       await writeDurableFile(...args);
     };
     const interrupted = await check({ writeDurable: dying });
-    if (survive < 5)
+    if (survive < 6)
       expect(interrupted).toMatchObject({ kind: "error", code: "internal" });
     // Promotion order is an invariant, not a habit: whatever survived is a
-    // PREFIX of root chain → root → timestamp → snapshot → targets, so
-    // trust/ never holds a role newer than the root that verifies it.
+    // PREFIX of vector → root chain → root → timestamp → snapshot → targets,
+    // so trust/ never holds a role newer than the root that
+    // verifies it, and the vector is never LOWER than what the files prove.
     const partial = await trustSnapshot();
     const at = (name: string): number =>
       JSON.parse(partial[name] ?? "").signed.version;
+    const vector = JSON.parse(partial["floors.json"] ?? "");
+    expect(vector.root.version).toBeGreaterThanOrEqual(at("root.json"));
+    expect(vector.timestamp.version).toBeGreaterThanOrEqual(
+      at("timestamp.json"),
+    );
+    expect(vector.snapshot.version).toBeGreaterThanOrEqual(at("snapshot.json"));
+    expect(vector.roles["targets.json"].version).toBeGreaterThanOrEqual(
+      at("targets.json"),
+    );
+    // Written first: ahead of the files from the first surviving write on.
+    expect(vector.timestamp.version).toBe(survive === 0 ? 1 : 3);
     if (at("root.json") === 2) expect(partial["2.root.json"]).toBeDefined();
     if (at("timestamp.json") > 1) expect(at("root.json")).toBe(2);
     if (at("snapshot.json") > 1) expect(at("timestamp.json")).toBe(3);
@@ -345,13 +359,14 @@ test("a crash between any two promotions converges on the next check", async () 
     // Exactly `survive` promotions happened before the kill.
     expect(
       [
+        vector.timestamp.version === 3,
         partial["2.root.json"] !== undefined,
         at("root.json") === 2,
         at("timestamp.json") === 3,
         at("snapshot.json") === 3,
         at("targets.json") === 3,
       ].filter(Boolean).length,
-    ).toBe(Math.min(survive, 5));
+    ).toBe(Math.min(survive, 6));
     // Whatever prefix survived, a plain next check finishes the job.
     expect(await check()).toMatchObject({
       kind: "available",
@@ -364,6 +379,13 @@ test("a crash between any two promotions converges on the next check", async () 
       expect(JSON.parse(after[name] ?? "").signed.version).toBe(
         JSON.parse(converged[name] ?? "").signed.version,
       );
+    // A vector that was ahead did not wedge, and ends where the files are.
+    expect(JSON.parse(after["floors.json"] ?? "")).toMatchObject({
+      root: { version: 2 },
+      timestamp: { version: 3, snapshot: { version: 3 } },
+      snapshot: { version: 3, meta: { "targets.json": { version: 3 } } },
+      roles: { "targets.json": { version: 3 } },
+    });
     expect((await readObserved(base, clock())).status).toBe("available");
   }
 }, 60_000);
@@ -400,6 +422,7 @@ test("an expired timestamp is a typed error that never wedges; the newer version
   });
   expect((await readdir(join(base, "trust"))).sort()).toEqual([
     "1.root.json",
+    "floors.json",
     "root.json",
     "timestamp.json",
   ]);
@@ -424,9 +447,17 @@ test("an expired timestamp is a typed error that never wedges; the newer version
     code: "metadata-expired",
   });
   expect(await roleVersion("timestamp.json")).toBe(valid + 1);
-  expect({ ...(await trustSnapshot()), "timestamp.json": "" }).toEqual({
-    ...before,
+  // Only the timestamp and the vector that remembers it moved.
+  expect({
+    ...(await trustSnapshot()),
     "timestamp.json": "",
+    "floors.json": "",
+  }).toEqual({ ...before, "timestamp.json": "", "floors.json": "" });
+  expect(
+    JSON.parse((await trustSnapshot())["floors.json"] ?? ""),
+  ).toMatchObject({
+    timestamp: { version: valid + 1, snapshot: { version: valid + 1 } },
+    snapshot: { version: valid },
   });
   // The verified target stays visible while the error is shown.
   expect(await readObserved(base, clock())).toMatchObject({
@@ -442,7 +473,8 @@ test("an expired timestamp is a typed error that never wedges; the newer version
   fixture.rewindTo(valid);
   expect(await check()).toMatchObject({
     kind: "error",
-    code: "metadata-invalid",
+    code: "metadata-rollback",
+    context: { role: "timestamp", rule: "version", floor: valid + 1 },
   });
   expect(await trustSnapshot()).toEqual(floor);
   // (c) No wedge: a fresh higher generation is accepted.
@@ -475,15 +507,16 @@ test("an expired snapshot: the newer version the timestamp names is kept as a fl
   fixture.rewindTo(valid);
   expect(await check()).toMatchObject({
     kind: "error",
-    code: "metadata-invalid",
+    code: "metadata-rollback",
+    context: { role: "timestamp", rule: "version" },
   });
   expect(await trustSnapshot()).toEqual(floor);
-  // …and by the snapshot floor ALONE when the timestamp file is lost: the
-  // older snapshot names a lower targets version than the floor does.
+  // …and still when the timestamp FILE is lost: the vector remembers it, and
+  // so does the expired snapshot the client loads as a floor.
   await rm(join(base, "trust", "timestamp.json"));
   expect(await check()).toMatchObject({
     kind: "error",
-    code: "metadata-invalid",
+    code: "metadata-rollback",
   });
   expect(await roleVersion("snapshot.json")).toBe(valid + 1);
   expect(await roleVersion("targets.json")).toBe(valid);
@@ -504,7 +537,11 @@ test("a role delivered last that is not authentic or not newer is never kept, an
   const genuine = fixture.served("/metadata/timestamp.json") as Buffer;
   fixture.substitute(
     "/metadata/timestamp.json",
-    Buffer.from(genuine.toString().replace(/"sig":"../, '"sig":"00')),
+    Buffer.from(
+      genuine
+        .toString()
+        .replace(/"sig":"[0-9a-f]+"/, `"sig":"${"0".repeat(128)}"`),
+    ),
   );
   expect(await check()).toMatchObject({
     kind: "error",
@@ -517,9 +554,10 @@ test("a role delivered last that is not authentic or not newer is never kept, an
   expect(await check()).toMatchObject({ code: "metadata-invalid" });
   expect(await roleVersion("snapshot.json")).toBe(1);
   const moved = await trustSnapshot();
-  // An authentic LOWER version delivered last (a replay) is no floor.
+  // An authentic LOWER version delivered last (a replay) is no floor: it is
+  // named for what it is.
   fixture.rewindTo(1);
-  expect(await check()).toMatchObject({ code: "metadata-invalid" });
+  expect(await check()).toMatchObject({ code: "metadata-rollback" });
   expect(await trustSnapshot()).toEqual(moved);
 
   // (f) The process dies between capture and promotion, at every write:
@@ -598,14 +636,15 @@ test("rollback of the channel document is refused by TUF itself: an older docume
   fixture.rewindTo(older);
   expect(await check()).toMatchObject({
     kind: "error",
-    code: "metadata-invalid",
+    code: "metadata-rollback",
+    context: { role: "timestamp", rule: "version" },
   });
   // Nothing in trust/ moved back, and the newer verified target is still the
   // one on offer.
   expect(await trustSnapshot()).toEqual(newest);
   expect(await readObserved(base, clock())).toMatchObject({
     status: "error",
-    error: { code: "metadata-invalid" },
+    error: { code: "metadata-rollback" },
     available: { version: "1.3.0", sequence: 7 },
   });
   // The older DOCUMENT alone, served in place of the newer one while the
@@ -779,7 +818,14 @@ test("a damaged root.json is restored from the retained chain without losing a r
   const damages = [
     () => writeFile(root, "{ not json"),
     // A well-formed root that is not signed by its own keys.
-    () => writeFile(root, (healthy ?? "").replace(/"sig":"../g, '"sig":"00')),
+    () =>
+      writeFile(
+        root,
+        (healthy ?? "").replace(
+          /"sig":"[0-9a-f]+"/g,
+          `"sig":"${"0".repeat(128)}"`,
+        ),
+      ),
     async () => {
       await rm(root);
       await mkdir(join(root, "stray"), { recursive: true });

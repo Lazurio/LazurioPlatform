@@ -7,6 +7,10 @@
 # becomes part of a remote URL, a config file or the log.
 #
 #   update-tree.sh checkout <directory>   clone the branch, or start it
+#   update-tree.sh baseline <directory> <absent directory>
+#                                         what is PUBLISHED: `metadata/` of the
+#                                         checked-out commit, untouched by this
+#                                         run, for `release-publish status --against`
 #   update-tree.sh push <directory> <commit message>
 #
 # UPDATE_TREE_CNAME, when set, is the custom domain of the Pages site: `push`
@@ -17,16 +21,15 @@
 # and needs neither.
 set -euo pipefail
 
-command="${1:?checkout or push}"
+command="${1:?checkout, baseline or push}"
 tree="${2:?tree directory}"
 if [ -n "${UPDATE_TREE_REMOTE:-}" ]; then
   remote="$UPDATE_TREE_REMOTE"
   authenticated() { git "$@"; }
 else
-  : "${GITHUB_REPOSITORY:?}" "${GH_TOKEN:?}"
-  remote="https://github.com/$GITHUB_REPOSITORY.git"
+  remote="https://github.com/${GITHUB_REPOSITORY:-}.git"
   authenticated() {
-    local header
+    : "${GITHUB_REPOSITORY:?}" "${GH_TOKEN:?}"
     local encoded
     encoded="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
     # GitHub masks the token itself, not its encoded form.
@@ -54,6 +57,15 @@ case "$command" in
     else
       echo "::error::Cannot read the published tree (git ls-remote exit $status)."
       exit 1
+    fi
+    ;;
+  baseline)
+    # Needs no remote and no token: it reads the local commit.
+    destination="${3:?baseline directory}"
+    mkdir "$destination"
+    if git -C "$tree" rev-parse --verify --quiet HEAD >/dev/null &&
+      [ -n "$(git -C "$tree" ls-tree HEAD metadata)" ]; then
+      git -C "$tree" archive HEAD metadata | tar -x -C "$destination"
     fi
     ;;
   push)

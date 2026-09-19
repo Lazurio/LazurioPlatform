@@ -106,9 +106,18 @@ export function createUpdateFixture(input: {
     options: {
       expires?: Partial<Record<"targets" | "snapshot" | "timestamp", string>>;
       tamper?: "snapshot" | "targets";
+      /** Publish THIS generation number instead of the next one, signed by
+       * the current keys: a publisher (or whoever holds its keys) going back,
+       * or saying something else at a version it already used. */
+      at?: number;
+      /** Further `snapshot.meta` entries, by file name → version. */
+      extraMeta?: Readonly<Record<string, number>>;
+      /** Let the timestamp name the snapshot of an OLDER generation that is
+       * still served, instead of the one published now. */
+      timestampReferences?: number;
     } = {},
   ) => {
-    version += 1;
+    version = options.at ?? version + 1;
     const entries = new Map<string, TargetEntry>();
     const put = (path: string, bytes: Buffer) => {
       entries.set(path, { length: bytes.length, sha256: sha256(bytes) });
@@ -149,13 +158,21 @@ export function createUpdateFixture(input: {
       expires: expires("snapshot"),
       targetsVersion: version,
       targetsBytes: targets,
+      ...(options.extraMeta ? { extraMeta: options.extraMeta } : {}),
       signer: signers.snapshot,
     });
+    const referenced =
+      options.timestampReferences === undefined
+        ? snapshot
+        : served.get(
+            `/${metadataPath("snapshot", options.timestampReferences)}`,
+          );
+    if (!referenced) throw new Error("Unknown fixture generation");
     const timestamp = buildTimestamp({
       version,
       expires: expires("timestamp"),
-      snapshotVersion: version,
-      snapshotBytes: snapshot,
+      snapshotVersion: options.timestampReferences ?? version,
+      snapshotBytes: referenced,
       signer: signers.timestamp,
     });
     // Same length, different bytes: the signed hash no longer matches.

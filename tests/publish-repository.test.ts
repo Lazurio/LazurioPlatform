@@ -28,6 +28,7 @@ import {
   type TargetEntry,
   verifiesUnder,
 } from "../src/publish/metadata";
+import { rollbackViolations } from "../src/publish/monotonic";
 import {
   addRelease,
   loadRepository,
@@ -963,6 +964,19 @@ test("the tree branch is append-only: one commit per deployment, a rewritten or 
     second,
     await refresh(directoryTree(second), ["snapshot"], r.options()),
   );
+  // What the workflows hold the tree against before a deployment: the
+  // published commit, whatever this run has written into the checkout since.
+  const published = join(work, "published");
+  expect(tool(["baseline", second, published]).code).toBe(0);
+  expect(
+    (await loadRepository(directoryTree(published)))?.snapshot?.version,
+  ).toBe(1);
+  expect((await loadRepository(directoryTree(second)))?.snapshot?.version).toBe(
+    2,
+  );
+  expect(
+    await rollbackViolations(directoryTree(published), directoryTree(second)),
+  ).toEqual([]);
   expect(tool(["push", second, "Refresh update metadata"]).code).toBe(0);
   expect(commits()).toBe("2");
   // Whatever produced it, a changed or deleted published file never leaves.

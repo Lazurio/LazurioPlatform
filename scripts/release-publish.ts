@@ -11,6 +11,7 @@ import {
   signerFromPem,
 } from "../src/publish/keys";
 import { timestampPath } from "../src/publish/metadata";
+import { rollbackViolations } from "../src/publish/monotonic";
 import {
   addRelease,
   loadRepository,
@@ -70,8 +71,14 @@ refresh [--roles <targets,snapshot,timestamp>] [--when-low]
   Re-signs with a fresh expiry; no target changes. --when-low renews snapshot
   and timestamp only when below their margin. Without roles it only installs
   --root and re-signs what that root requires.
-status
+status [--against <directory of the currently published tree>] [--rollback-only]
   Remaining validity of every role. Exit 3 when a role is below its margin.
+  With --against, the tree is also held against the published one with the
+  CLIENT's floor-vector rules: a lower version, the same version with other
+  signed content, a lowered snapshot reference or snapshot.meta entry, a root
+  that contradicts or drops a published one. Any of them is exit 4, whatever the
+  validity says: installed Machines would refuse this tree as metadata-rollback.
+  --rollback-only reports and judges only that (the gate before a deployment).
 verify [--all-urls] [--artifact-origin <origin>]... [--loopback-fixture]
   Proves every object the current metadata references: files inside the tree by
   length and digest, and the signed download location of every artifact a
@@ -86,6 +93,7 @@ await-deployment [--metadata-url <https://.../metadata/>] [--timeout-seconds <n>
 
 type Output = Readonly<{ code: number; stdout: string; stderr: string }>;
 export const exitValidityLow = 3;
+export const exitRollback = 4;
 
 function roleDays(value: string | undefined, option: string) {
   const days: Partial<Record<RoleName, number>> = {};
@@ -214,6 +222,8 @@ export async function runReleasePublish(
         "all-urls": { type: "boolean" },
         "artifact-origin": { type: "string", multiple: true },
         "loopback-fixture": { type: "boolean" },
+        against: { type: "string" },
+        "rollback-only": { type: "boolean" },
         "metadata-url": { type: "string" },
         "timeout-seconds": { type: "string" },
       },
@@ -334,24 +344,59 @@ export async function runReleasePublish(
     if (command === "status") {
       const repository = await loadRepository(tree);
       if (!repository) throw new PublishError("repository-invalid", "empty");
+      if (
+        values.against !== undefined &&
+        (!isAbsolute(values.against) ||
+          resolve(values.against) !== values.against)
+      )
+        throw new PublishError("invalid-input", "against");
+      if (values["rollback-only"] === true && values.against === undefined)
+        throw new PublishError("invalid-input", "rollback-only needs against");
+      const rollback =
+        values.against === undefined
+          ? []
+          : await rollbackViolations(directoryTree(values.against), tree);
       const status = repositoryStatus(repository, now, margins);
+      const validityOnly = values["rollback-only"] !== true;
       const lines = [
-        "| role | version | expires | days left | margin | state |",
-        "| --- | --- | --- | --- | --- | --- |",
-        ...status.roles.map(
-          (role) =>
-            `| ${role.role} | ${role.version} | ${role.expires} | ${role.remainingDays} | ${role.marginDays} | ${role.low ? "LOW" : "ok"} |`,
-        ),
-        ...(status.low.length
+        ...(validityOnly
           ? [
-              "",
-              `Below margin: ${status.low.join(", ")}. Snapshot and timestamp are renewed by the scheduled refresh; targets needs the protected \`release\` environment; root needs the offline root key (docs/release-keys.md).`,
+              "| role | version | expires | days left | margin | state |",
+              "| --- | --- | --- | --- | --- | --- |",
+              ...status.roles.map(
+                (role) =>
+                  `| ${role.role} | ${role.version} | ${role.expires} | ${role.remainingDays} | ${role.marginDays} | ${role.low ? "LOW" : "ok"} |`,
+              ),
+              ...(status.low.length
+                ? [
+                    "",
+                    `Below margin: ${status.low.join(", ")}. Snapshot and timestamp are renewed by the scheduled refresh; targets needs the protected \`release\` environment; root needs the offline root key (docs/release-keys.md).`,
+                  ]
+                : []),
             ]
           : []),
+        ...(values.against === undefined
+          ? []
+          : rollback.length
+            ? [
+                "",
+                "ROLLBACK: installed Machines would refuse this tree as `metadata-rollback`:",
+                ...rollback.map(
+                  (violation) =>
+                    `- ${violation.role}: rule ${violation.rule}, published ${violation.floor}, offered ${violation.offered}`,
+                ),
+              ]
+            : ["", "Monotonic against the published tree: ok"]),
       ];
       return {
-        code: status.low.length ? exitValidityLow : 0,
-        stdout: json ? JSON.stringify(status) : lines.join("\n"),
+        code: rollback.length
+          ? exitRollback
+          : validityOnly && status.low.length
+            ? exitValidityLow
+            : 0,
+        stdout: json
+          ? JSON.stringify({ ...(validityOnly ? status : {}), rollback })
+          : lines.join("\n").trim(),
         stderr: "",
       };
     }

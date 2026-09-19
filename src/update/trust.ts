@@ -11,12 +11,23 @@ import {
   Metadata,
   MetadataKind,
   type Root,
-  type Snapshot,
   type Timestamp,
 } from "@tufjs/models";
 import { parseUniqueJson } from "../providers/unique-json";
 import type { DurableWriter } from "./durable-file";
 import { UpdateFailure } from "./errors";
+import {
+  type FloorViolation,
+  factsOf,
+  mergeFloors,
+  type RoleFacts,
+  readFloors,
+  rollback,
+  serializeFloors,
+  floorsFile as vectorFile,
+  violationOf,
+  writeFloors,
+} from "./floors";
 
 /** Durable trust: `<base>/trust/` holds the verified TUF metadata
  * (docs/update.md "State on disk", "Trust never rewinds"). Rollback of the
@@ -28,6 +39,7 @@ import { UpdateFailure } from "./errors";
  *                        client is seeded with as its anchor
  *   <N>.root.json        the retained, verified root chain
  *   timestamp.json, snapshot.json, targets.json
+ *   floors.json          the floor vector (`floors.ts`)
  *
  * The directory tolerates unrelated entries: only these names are ever read.
  *
@@ -84,8 +96,10 @@ import { UpdateFailure } from "./errors";
  * (→ :209-215) — and `Updater` never reaches `persistMetadata`
  * (updater.js:225, :251). For the life of that process the role is the
  * client's rollback floor; on disk it would be lost, and a later replay of a
- * LOWER, still valid version would pass. `capturedFloor` below closes that
- * gap from the raw bytes the fetcher retained.
+ * LOWER, still valid version would pass. `authenticatedLastDelivered` below
+ * closes that gap from the raw bytes the fetcher retained, and the floor
+ * vector (`floors.ts`) keeps the facts even when the file itself is lost or
+ * no longer loads.
  *
  * Why a plain role file in `trust/` is a floor and nothing more — how the
  * pinned client loads an expired LOCAL role:
@@ -353,26 +367,22 @@ function verifiedRootChain(
   return chain;
 }
 
-/** A role the client was judging when the refresh failed, re-verified WITHOUT
- * the client and WITHOUT looking at expiry: is it an authentic, newer version
- * that must be remembered as a rollback floor? Returns the text to keep, or
- * undefined to discard. Every check the store makes before it installs the
- * role in memory is repeated here with the same `@tufjs/models` primitives:
+/** A role the client was judging when the refresh failed, AUTHENTICATED
+ * without the client and without looking at expiry. Returns its text, or
+ * undefined when it is not authentic. Whether it is a rollback, an
+ * equivocation, a no-op or a newer floor is NOT decided here: that is the
+ * floor vector's comparison, the same one every other candidate goes through.
  *
  *   timestamp  signature threshold of the trusted root's timestamp role
- *              (store.js:68); version and snapshot version not below the
- *              trusted timestamp's (:72, :83). An equal version is nothing new.
+ *              (store.js:68).
  *   snapshot   length and hashes recorded by the newest authenticated
- *              timestamp (:108), signature threshold (:118), exactly the
- *              version that timestamp names (:214), and no targets version
- *              below the trusted snapshot's (:122-131).
+ *              timestamp (:108), signature threshold (:118), and exactly the
+ *              version that timestamp names (:214).
  */
-function capturedFloor(input: {
+function authenticatedLastDelivered(input: {
   delivered: Readonly<{ file: string; bytes: Buffer }>;
   root: Metadata<Root>;
-  /** Text of the role as currently trusted (seed), if any. */
-  trusted: string | undefined;
-  /** Newest authenticated timestamp: the client's, or a just captured floor. */
+  /** Newest authenticated timestamp: the client's, or a just captured one. */
   timestamp: string | undefined;
 }): string | undefined {
   const { delivered, root } = input;
@@ -389,47 +399,20 @@ function capturedFloor(input: {
       root.verifyDelegate(MetadataKind.Timestamp, metadata);
       return metadata;
     };
-    const snapshotOf = (source: string): Metadata<Snapshot> => {
-      const metadata = Metadata.fromJSON(MetadataKind.Snapshot, json(source));
-      if (metadata.signed.type !== MetadataKind.Snapshot)
-        throw new Error("Not a snapshot");
-      root.verifyDelegate(MetadataKind.Snapshot, metadata);
-      return metadata;
-    };
-    // A trusted file that no longer verifies under this root is no floor.
-    const orNone = <T>(read: (source: string) => T, source?: string) => {
-      try {
-        return source === undefined ? undefined : read(source);
-      } catch {
-        return undefined;
-      }
-    };
     if (delivered.file === "timestamp.json") {
-      const next = timestampOf(text);
-      const trusted = orNone(timestampOf, input.trusted);
-      if (
-        trusted &&
-        (next.signed.version <= trusted.signed.version ||
-          next.signed.snapshotMeta.version <
-            trusted.signed.snapshotMeta.version)
-      )
-        return undefined;
+      timestampOf(text);
       return text;
     }
-    if (delivered.file === "snapshot.json") {
-      const timestamp = orNone(timestampOf, input.timestamp);
-      if (!timestamp) return undefined;
+    if (delivered.file === "snapshot.json" && input.timestamp !== undefined) {
+      const timestamp = timestampOf(input.timestamp);
       timestamp.signed.snapshotMeta.verify(delivered.bytes);
-      const next = snapshotOf(text);
-      if (next.signed.version !== timestamp.signed.snapshotMeta.version)
-        return undefined;
-      const trusted = orNone(snapshotOf, input.trusted);
-      for (const [name, info] of Object.entries(trusted?.signed.meta ?? {})) {
-        const replacement = next.signed.meta[name];
-        if (!replacement || replacement.version < info.version)
-          return undefined;
-      }
-      return text;
+      const next = Metadata.fromJSON(MetadataKind.Snapshot, json(text));
+      if (next.signed.type !== MetadataKind.Snapshot)
+        throw new Error("Not a snapshot");
+      root.verifyDelegate(MetadataKind.Snapshot, next);
+      return next.signed.version === timestamp.signed.snapshotMeta.version
+        ? text
+        : undefined;
     }
   } catch {
     // Not authentic, or not metadata at all.
@@ -439,28 +422,43 @@ function capturedFloor(input: {
 }
 
 /** Capture trust when the refresh ENDS — success or failure — and before the
- * scratch is deleted, in the two ways of docs/update.md "Check":
+ * scratch is deleted (docs/update.md "Check"):
  *  1. role files the client persisted in scratch (complete verification);
- *  2. after a FAILED refresh, the role delivered last, when `capturedFloor`
- *     authenticates it as a newer version. It is written as the ordinary role
- *     file: for the client an expired local role is a version floor and
- *     nothing else (see the top of this file).
+ *  2. after a FAILED refresh, the role delivered last, when it is authentic.
+ *     It is written as the ordinary role file: for the client an expired local
+ *     role is a version floor and nothing else (see the top of this file).
  *
- * Order: numbered root chain ascending, `root.json`, timestamp, snapshot,
- * targets; each file by temporary file + sync + rename + directory sync. The
- * first failed write stops promotion, so `trust/` always holds a PREFIX of
- * that order. Every prefix is a state the client recovers from by itself: a
+ * THE FLOOR VECTOR decides. Every candidate is compared with `floors.json`
+ * (`floors.ts`) first: after a failed refresh the roles that changed and the
+ * captured one; after a SUCCESSFUL refresh every role the client now trusts,
+ * changed or not — a refresh that "succeeds" on a replayed, unchanged state
+ * below the vector must not authorize a target either. One violation refuses
+ * the whole result with `metadata-rollback`; only a valid root chain is kept.
+ *
+ * WRITE ORDER, and why any interruption is safe:
+ *   (1) `floors.json`, the element-wise maximum of the old vector and the
+ *       accepted candidates; (2) numbered root chain ascending; (3) `root.json`;
+ *       (4) timestamp, snapshot, targets.
+ * Each write is temporary file + sync + rename + directory sync, and the first
+ * failed write stops everything after it. The vector is therefore NEVER lower
+ * than what the files prove: a fact reaches a file only after it reached the
+ * vector. Interrupted after (1), the vector is ahead of the files — which
+ * cannot wedge, because the vector only refuses what is LOWER or DIFFERENT:
+ * the same repository state yields candidates that equal it (a no-op) and any
+ * later valid state exceeds it. Interrupted inside (2)–(4), `trust/` holds a
+ * PREFIX of that order, each of which the client recovers from by itself: a
  * newer root with older roles is re-verified under that root, and a newer
  * timestamp with an older snapshot makes the client fetch the snapshot the
- * timestamp names (updater.js:231-256). A crash before the first write equals
- * a refresh that never ran — a floor included: the same repository state
- * yields the same floor at the next check.
+ * timestamp names (updater.js:231-256). Interrupted before (1), the refresh
+ * never ran.
  */
 export async function promoteVerified(input: {
   trustDirectory: string;
   scratch: string;
   seed: Seed;
   fetchedRoots: ReadonlyMap<number, string>;
+  /** The refresh completed without error. */
+  refreshed: boolean;
   /** Only after a FAILED refresh: the role the client was judging. */
   lastDelivered: Readonly<{ file: string; bytes: Buffer }> | undefined;
   write: DurableWriter;
@@ -469,36 +467,67 @@ export async function promoteVerified(input: {
   const finalRoot = await readFile(join(scratch, "root.json"), "utf8");
   // A supplied successor was verified by `readSeed`; it is a link of the chain
   // like any root the client received.
-  const roots = new Map(input.fetchedRoots);
+  const links = new Map(input.fetchedRoots);
   if (seed.anchor !== seed.root)
-    roots.set(parseRoot(seed.anchor).signed.version, seed.anchor);
-  const chain = verifiedRootChain(seed.root, finalRoot, roots);
+    links.set(parseRoot(seed.anchor).signed.version, seed.anchor);
+  const chain = verifiedRootChain(seed.root, finalRoot, links);
   const changedRoles: { name: string; text: string }[] = [];
+  const compared: RoleFacts[] = [];
+  let timestamp = await readOptional(join(scratch, "timestamp.json"));
   for (const name of roleFiles) {
     let text = await readOptional(join(scratch, name));
     if (input.lastDelivered?.file === name)
       text =
-        capturedFloor({
+        authenticatedLastDelivered({
           delivered: input.lastDelivered,
           root: parseRoot(finalRoot),
-          trusted: seed.roles.get(name),
-          timestamp:
-            changedRoles.find((role) => role.name === "timestamp.json")?.text ??
-            (await readOptional(join(scratch, "timestamp.json"))),
+          timestamp,
         }) ?? text;
-    if (text !== undefined && text !== seed.roles.get(name))
-      changedRoles.push({ name, text });
+    if (text === undefined) continue;
+    if (name === "timestamp.json") timestamp = text;
+    const changed = text !== seed.roles.get(name);
+    if (changed) changedRoles.push({ name, text });
+    if (changed || input.refreshed)
+      try {
+        compared.push(factsOf(name, text));
+      } catch {
+        // An unchanged seed file that is not metadata states nothing.
+      }
   }
   // A caller-supplied root that verified nothing carries no accepted trust:
   // keeping it out means a wrong or mistyped bootstrap root can never wedge
   // the installation, and the same command can simply be repeated.
   if (!seed.established && finalRoot === seed.root && !changedRoles.length)
     return [];
+  const { vector, stored } = await readFloors(trustDirectory);
+  const roots = chain.map(({ text }) => factsOf("root.json", text));
+  // A root that contradicts a retained one ends everything: nothing is kept.
+  for (const facts of roots) {
+    const violation = violationOf(vector, facts);
+    if (violation) throw rollback(violation);
+  }
+  // Candidates are compared in promotion order, each against the vector as
+  // the ones before it leave it: a snapshot is held against the timestamp of
+  // THIS refresh too.
+  let violation: FloorViolation | undefined;
+  let accepted = mergeFloors(vector, roots);
+  for (const facts of compared) {
+    violation = violationOf(accepted, facts);
+    if (violation) break;
+    accepted = mergeFloors(accepted, [facts]);
+  }
+  const next = violation ? mergeFloors(vector, roots) : accepted;
   const promoted: string[] = [];
   const put = async (name: string, text: string) => {
     await write(trustDirectory, name, Buffer.from(text, "utf8"));
     promoted.push(name);
   };
+  // (1) The vector first. An unchanged vector is not rewritten; a rebuilt one
+  // (`stored` undefined) is.
+  if (serializeFloors(next) !== stored) {
+    await writeFloors(trustDirectory, next, write);
+    promoted.push(vectorFile);
+  }
   for (const { version, text } of chain) {
     const name = `${version}.root.json`;
     if ((await readOptional(join(trustDirectory, name))) !== text)
@@ -506,6 +535,7 @@ export async function promoteVerified(input: {
   }
   if (!seed.established || seed.repairRoot || finalRoot !== seed.root)
     await put("root.json", finalRoot);
+  if (violation) throw rollback(violation);
   for (const { name, text } of changedRoles) await put(name, text);
   return promoted;
 }

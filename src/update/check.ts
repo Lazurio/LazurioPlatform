@@ -189,15 +189,14 @@ function validArtifactUrl(value: unknown): value is string {
   }
 }
 
-/** Refresh in scratch, then read the signed channel document. Throws on the
- * first failure; the caller promotes whatever was verified before it.
+/** Refresh in scratch. Throws on the first failure; the caller captures
+ * whatever was verified before it. NO target is looked up here.
  */
-async function refreshAndReadChannel(
+async function refresh(
   input: CheckInput,
   scratch: string,
   fetcher: TrustFetcher,
-  onRefreshed: () => void,
-): Promise<{ bytes: Buffer; updater: Updater }> {
+): Promise<Updater> {
   const updater = new Updater({
     fetcher,
     metadataDir: scratch,
@@ -214,7 +213,17 @@ async function refreshAndReadChannel(
     },
   });
   await updater.refresh();
-  onRefreshed();
+  return updater;
+}
+
+/** Targets are looked up only after a refresh that completed without error
+ * AND satisfied the floor vector (docs/update.md "The floor vector").
+ */
+async function readChannel(
+  input: CheckInput,
+  scratch: string,
+  updater: Updater,
+): Promise<Buffer> {
   const path = channelTargetPath(input.channel);
   const target = await updater.getTargetInfo(path);
   if (!target)
@@ -229,7 +238,7 @@ async function refreshAndReadChannel(
     });
   const file = join(scratch, "channel-document");
   await updater.downloadTarget(target, file);
-  return { bytes: await readFile(file), updater };
+  return readFile(file);
 }
 
 /** Check for an update: automatic, cheap, and no mutation of the product
@@ -328,7 +337,7 @@ async function checkUnderLock(
   const { trustDirectory, updateDirectory } = owned;
   const fetcher = new TrustFetcher(input.transport, input.metadataBaseUrl);
   const scratch = join(updateDirectory, `scratch-${owned.operationId}`);
-  let received: Awaited<ReturnType<typeof refreshAndReadChannel>> | undefined;
+  let updater: Updater | undefined;
   let failure: UpdateError | undefined;
   try {
     // Holding the lock proves no writer is alive: every scratch directory and
@@ -341,30 +350,41 @@ async function checkUnderLock(
     const seed = await readSeed(trustDirectory, input.bootstrapRoot);
     await mkdir(scratch, { mode: 0o700 });
     await seedScratch(scratch, seed);
-    let refreshed = false;
     try {
-      received = await refreshAndReadChannel(input, scratch, fetcher, () => {
-        refreshed = true;
-      });
+      updater = await refresh(input, scratch, fetcher);
     } catch (error) {
       failure = classify(error, fetcher);
     }
-    // Trust never rewinds: promote on success AND on failure, before anything
-    // else can go wrong with this attempt.
+    // Trust never rewinds: capture on success AND on failure, before anything
+    // else can go wrong with this attempt. A floor-vector violation outranks
+    // whatever else went wrong: it is the one that must be seen.
     try {
       await promoteVerified({
         trustDirectory,
         scratch,
         seed,
         fetchedRoots: fetcher.roots,
-        lastDelivered: refreshed ? undefined : fetcher.lastDelivered,
+        refreshed: updater !== undefined,
+        lastDelivered: updater ? undefined : fetcher.lastDelivered,
         write,
       });
     } catch (error) {
-      return { failure: updateError(...storageOrInternal(error, "trust")) };
+      return {
+        failure:
+          error instanceof UpdateFailure
+            ? error.failure
+            : updateError(...storageOrInternal(error, "trust")),
+      };
     }
-    if (failure || !received)
+    if (failure || !updater)
       return { failure: failure ?? updateError("internal") };
+    let bytes: Buffer;
+    try {
+      bytes = await readChannel(input, scratch, updater);
+    } catch (error) {
+      return { failure: classify(error, fetcher) };
+    }
+    const received = { bytes, updater };
     const document = parseChannelDocument(received.bytes, input.channel);
     const path = document.targets[input.identity.target];
     if (path === undefined) return { document, artifact: undefined };
