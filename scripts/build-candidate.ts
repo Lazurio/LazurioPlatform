@@ -2,7 +2,12 @@ import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { folderStateSchemas } from "../src/folder/state";
-import { identityDefines, nativeTarget } from "../src/update/identity";
+import { trustRootDefines } from "../src/update/defaults";
+import {
+  identityDefines,
+  isProductVersion,
+  nativeTarget,
+} from "../src/update/identity";
 import { artifactIdentity } from "./artifact-identity";
 import { candidateTarget } from "./candidate-target";
 
@@ -28,17 +33,20 @@ const { values, positionals, tokens } = parseArgs({
   strict: true,
   allowPositionals: true,
   tokens: true,
-  options: { target: { type: "string" } },
+  options: { target: { type: "string" }, version: { type: "string" } },
 });
 const output = positionals[0];
 if (
   !output ||
   positionals.length !== 1 ||
   !isAbsolute(output) ||
-  tokens.filter((token) => token.kind === "option").length > 1
+  new Set(
+    tokens.flatMap((token) => (token.kind === "option" ? [token.name] : [])),
+  ).size !== tokens.filter((token) => token.kind === "option").length ||
+  (values.version !== undefined && !isProductVersion(values.version))
 )
   throw new Error(
-    "Supply one absolute, absent output directory and optional Linux --target",
+    "Supply one absolute, absent output directory, optional Linux --target and optional --version <semver>",
   );
 const target = candidateTarget(values.target, process.platform, process.arch);
 if (
@@ -54,6 +62,15 @@ const sourceCommit = git(["rev-parse", "HEAD"]);
 const pkg = JSON.parse(await readFile("package.json", "utf8"));
 if (pkg.packageManager !== `bun@${Bun.version}`)
   throw new Error("Pinned Bun toolchain required");
+// A release is built from its tag: the workflow passes the tag as the version.
+// Without it this is a development candidate of the package version.
+const version: string = values.version ?? pkg.version;
+// The trust root is a committed release input (docs/release-keys.md). Until
+// the key ceremony it does not exist and the product embeds NO root.
+const trustRoot = await readFile("release/root.json", "utf8").catch((error) => {
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+  throw error;
+});
 const lockfile = await readFile("bun.lock");
 await run(["install", "--frozen-lockfile", "--ignore-scripts"]);
 await run(["run", "check:public"]);
@@ -70,10 +87,11 @@ await run([
   // The executable states its own identity (docs/update.md "Identity in the
   // binary"); the same three values go into identity.json below.
   ...identityDefines({
-    version: pkg.version,
+    version,
     commit: sourceCommit,
     target: target.target,
   }),
+  ...trustRootDefines(trustRoot),
   "--outfile",
   binary,
 ]);
@@ -87,7 +105,7 @@ if (
 if (!lockfile.equals(await readFile("bun.lock")))
   throw new Error("Lock changed during build");
 const identity = artifactIdentity({
-  version: pkg.version,
+  version,
   target: target.target,
   sourceCommit,
   toolchain: pkg.packageManager,
@@ -128,5 +146,7 @@ await writeFile(
   { flag: "wx", mode: 0o600 },
 );
 console.log(
-  "Built unsigned development CLI candidate; not installed or release-qualified.",
+  `Built unsigned CLI candidate ${version} (${target.target}); trust root ${
+    trustRoot === undefined ? "NOT embedded (no release/root.json)" : "embedded"
+  }. Not installed or release-qualified.`,
 );

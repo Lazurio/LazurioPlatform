@@ -95,15 +95,20 @@ export const defaultDownloadPolicy: DownloadPolicy = Object.freeze({
   reserveBytes: 32 * 1024 * 1024,
 });
 
-/** The ONE mapping from a signed artifact target to its URL. The fixture and
- * the first publisher serve TUF consistent-snapshot names
- * (`artifacts/<sha256>/<sha256>.lazurio`); mapping to release assets
- * (docs/update.md "Publishing") changes only this function.
+/** The ONE mapping from a signed artifact target to its URL. A release names
+ * the download location of its executable in the SIGNED target metadata
+ * (`custom.url`, a GitHub Release asset — docs/update.md "Publishing"); the
+ * bytes are verified against the signed length and digest wherever they came
+ * from, and the transport decides which origins may be contacted at all. A
+ * target without a location is served by the repository itself under its TUF
+ * consistent-snapshot name (`artifacts/<sha256>/<sha256>.lazurio`): the
+ * loopback fixture, or a mirror that hosts everything in one tree.
  */
 export function artifactUrl(
   targetBaseUrl: string,
   artifact: SignedArtifact,
 ): string {
+  if (artifact.url !== undefined) return artifact.url;
   const slash = artifact.path.lastIndexOf("/");
   return `${targetBaseUrl}${artifact.path.slice(0, slash + 1)}${artifact.sha256}.${artifact.path.slice(slash + 1)}`;
 }

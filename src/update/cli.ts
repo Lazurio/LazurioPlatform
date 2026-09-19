@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { DistributionTransport } from "../distribution/transport";
@@ -13,7 +14,15 @@ import { parseServiceSpec } from "./activation-record";
 import { resolveInstallBase } from "./base";
 import { isUpdateChannel } from "./channel";
 import { type CheckResult, checkForUpdate } from "./check";
+import { readChannel, writeChannel } from "./config";
+import {
+  defaultArtifactOrigins,
+  defaultMetadataBaseUrl,
+  defaultTargetBaseUrl,
+  embeddedTrustRoot,
+} from "./defaults";
 import { defaultDownloadPolicy } from "./download";
+import { writeDurableFile } from "./durable-file";
 import {
   type ErrorContext,
   exitUpdateAvailable,
@@ -23,8 +32,10 @@ import {
   updateErrors,
 } from "./errors";
 import { embeddedIdentity, type ProductIdentity } from "./identity";
+import { layout } from "./layout";
 import { type Observed, readObserved } from "./observed";
 import { selfCheckReport } from "./self-check";
+import { ensureOwnedDirectory } from "./trust";
 import {
   performRollback,
   performUpdate,
@@ -34,14 +45,17 @@ import {
 } from "./update";
 
 /** `lazurio update …` and `lazurio --version`: terminal surface of the one
- * update core (docs/update.md "Surfaces"). Origins, channel and the bootstrap
- * root are explicit in this build; defaults arrive with the publisher.
+ * update core (docs/update.md "Surfaces"). The repository, the download
+ * origins and the trust root are compiled in (`defaults.ts`), the channel is
+ * read from `update/config.json`; every one of them has an explicit option
+ * for a fork, a mirror or a fixture.
  */
 export const updateHelp = `--version [--json]
   Prints the version, source commit and target this executable was built with.
-update [--download-only] --metadata-url <https://.../metadata/> --target-url <https://.../targets/>
-  --channel <stable|preview> [--bootstrap-root <owned file>] [--base <absolute directory>]
+update [--download-only] [--channel <stable|preview>] [--base <absolute directory>]
   [--folder <absolute Folder>] [--service <none|systemd-user> --unit <name.service>]
+  [--metadata-url <https://.../metadata/> --target-url <https://.../targets/>
+   [--artifact-origin <https://host>]...] [--bootstrap-root <owned file>]
   [--loopback-fixture] [--json]
   Checks, downloads, verifies and stages the channel's version and activates it:
   the selector bin/lazurio is switched and the new version must confirm itself,
@@ -49,6 +63,11 @@ update [--download-only] --metadata-url <https://.../metadata/> --target-url <ht
   staging. With --folder the candidate must prove it can read that Folder's state.
   --service systemd-user restarts the named user unit and waits for a fresh,
   stable Launchpad of the new version; none (default) manages no service.
+  The signed repository, the origins a download may touch and the trust root are
+  compiled in; the channel comes from \`update channel\`. --metadata-url and
+  --target-url (always together) name another repository: then only its origins
+  and every --artifact-origin are contacted, never the compiled-in ones. A build
+  without a compiled-in root answers trust-missing unless --bootstrap-root is given.
   Exit 0 updated, staged or nothing to do; an error prints its stable code.
 update --check <same origin options> [--json]
   Verifies signed metadata and the channel document, records verified trust and
@@ -58,6 +77,9 @@ update --check <same origin options> [--json]
 update rollback [--base <absolute directory>] [--folder ...] [--service ... --unit ...] [--json]
   Activates the version the last confirmed activation replaced, through the same
   confirmation. Refused when that version cannot read the current state schemas.
+update channel [stable|preview] [--base <absolute directory>] [--json]
+  Prints the channel, or selects it for later checks. Switching never downgrades:
+  a channel whose version is not newer than the installed one reports up to date.
 update status [--base <absolute directory>] [--json]
   Prints the last observation without touching the network.
 self-check [--json] [--folder <absolute Folder>]
@@ -199,6 +221,8 @@ export async function runUpdateCommand(
   args: readonly string[],
   environment: Readonly<{
     identity?: ProductIdentity;
+    /** Stands in for the compiled-in root (`defaults.ts`). */
+    embeddedRoot?: Uint8Array;
     clock?: () => Date;
     platform?: string;
     env?: Readonly<Record<string, string | undefined>>;
@@ -226,6 +250,7 @@ export async function runUpdateCommand(
         "target-url": { type: "string" },
         channel: { type: "string" },
         "bootstrap-root": { type: "string" },
+        "artifact-origin": { type: "string", multiple: true },
         base: { type: "string" },
         folder: { type: "string" },
         service: { type: "string" },
@@ -243,7 +268,7 @@ export async function runUpdateCommand(
     const supplied = new Set<string>();
     for (const token of tokens) {
       if (token.kind !== "option") continue;
-      if (supplied.has(token.name))
+      if (supplied.has(token.name) && token.name !== "artifact-origin")
         return render(failure("invalid-request"), json);
       supplied.add(token.name);
     }
@@ -324,6 +349,36 @@ export async function runUpdateCommand(
         true,
       );
     }
+    if (positionals[0] === "channel" && positionals.length <= 2) {
+      if (!only(["json", "base"]))
+        return render(failure("invalid-request"), json);
+      const wanted = positionals[1];
+      if (wanted !== undefined) {
+        if (!isUpdateChannel(wanted))
+          return render(
+            failure("invalid-request", { option: "channel" }),
+            json,
+          );
+        try {
+          await mkdir(base, { recursive: true, mode: 0o700 });
+          await ensureOwnedDirectory(layout(base).update);
+          await writeChannel(base, wanted, writeDurableFile);
+        } catch {
+          return render(
+            failure("storage-unavailable", { stage: "config" }),
+            json,
+          );
+        }
+      }
+      const selected = await readChannel(base);
+      return {
+        code: 0,
+        stdout: json
+          ? JSON.stringify({ channel: selected })
+          : `Channel: ${selected}`,
+        stderr: "",
+      };
+    }
     if (positionals.length === 1 && positionals[0] === "status") {
       if (!only(["json", "base"]))
         return render(failure("invalid-request"), json);
@@ -356,16 +411,30 @@ export async function runUpdateCommand(
         "target-url",
         "channel",
         "bootstrap-root",
+        "artifact-origin",
         "loopback-fixture",
         ...(checking ? ["check"] : ["download-only", ...serviceOptions]),
       ])
     )
       return render(failure("invalid-request"), json);
-    const channel = values.channel;
+    const channel = values.channel ?? (await readChannel(base));
+    // Another repository is named as a whole, and then ONLY what the caller
+    // named is contacted: a fixture or a mirror never falls back to the
+    // compiled-in origins.
+    const explicit =
+      values["metadata-url"] !== undefined ||
+      values["target-url"] !== undefined;
+    const metadataBaseUrl = explicit
+      ? values["metadata-url"]
+      : defaultMetadataBaseUrl;
+    const targetBaseUrl = explicit
+      ? values["target-url"]
+      : defaultTargetBaseUrl;
     if (
       !isUpdateChannel(channel) ||
-      !values["metadata-url"] ||
-      !values["target-url"]
+      !metadataBaseUrl ||
+      !targetBaseUrl ||
+      (!explicit && values["artifact-origin"] !== undefined)
     )
       return render(failure("invalid-request"), json);
     let transport: DistributionTransport;
@@ -373,8 +442,11 @@ export async function runUpdateCommand(
       transport = new DistributionTransport(
         [
           ...new Set([
-            new URL(values["metadata-url"]).origin,
-            new URL(values["target-url"]).origin,
+            new URL(metadataBaseUrl).origin,
+            new URL(targetBaseUrl).origin,
+            ...(explicit
+              ? (values["artifact-origin"] ?? [])
+              : defaultArtifactOrigins),
           ]),
         ],
         // One transport per operation: a check is short, a download is
@@ -399,13 +471,15 @@ export async function runUpdateCommand(
           json,
         );
       }
+    const embeddedRoot = environment.embeddedRoot ?? embeddedTrustRoot();
     const checkInput = {
       base,
-      metadataBaseUrl: values["metadata-url"],
-      targetBaseUrl: values["target-url"],
+      metadataBaseUrl,
+      targetBaseUrl,
       channel,
       identity: environment.identity ?? embeddedIdentity(),
       ...(bootstrapRoot === undefined ? {} : { bootstrapRoot }),
+      ...(embeddedRoot === undefined ? {} : { embeddedRoot }),
       transport,
       clock,
     };

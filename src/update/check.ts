@@ -53,6 +53,9 @@ export type CheckInput = Readonly<{
   /** Trust anchor for the very first check only; refused once `trust/` holds a
    * root. The compiled-in root of a later slice enters through this input. */
   bootstrapRoot?: Uint8Array;
+  /** The root compiled into this executable; used only while `trust/` holds
+   * no valid root and never a conflict afterwards (see `readSeed`). */
+  embeddedRoot?: Uint8Array;
   /** Owns origins, redirects, size and time limits of every transfer. */
   transport: Fetcher;
   /** Times written into the observation. Metadata expiry is judged by the
@@ -88,6 +91,9 @@ export type SignedArtifact = Readonly<{
   path: string;
   sha256: string;
   length: number;
+  /** Download location from the signed target's `custom.url` (a release
+   * asset). Absent: the repository serves the bytes itself. */
+  url?: string;
 }>;
 
 /** What a step after the check works with: the refreshed client, whose
@@ -154,6 +160,25 @@ function validUrl(value: string): boolean {
       !url.search &&
       !url.hash &&
       url.pathname.endsWith("/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** A signed download location is still only a location: scheme, origin and
+ * redirects are the transport's policy, length and digest the download's.
+ */
+function validArtifactUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return (
+      ["https:", "http:"].includes(url.protocol) &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      url.href === value
     );
   } catch {
     return false;
@@ -292,7 +317,11 @@ async function checkUnderLock(
         await rm(join(updateDirectory, entry), { recursive: true });
     await removeAbandonedTemporaries(trustDirectory);
     await removeAbandonedTemporaries(updateDirectory);
-    const seed = await readSeed(trustDirectory, input.bootstrapRoot);
+    const seed = await readSeed(
+      trustDirectory,
+      input.bootstrapRoot,
+      input.embeddedRoot,
+    );
     await mkdir(scratch, { mode: 0o700 });
     await seedScratch(scratch, seed);
     let refreshed = false;
@@ -328,9 +357,19 @@ async function checkUnderLock(
       return {
         failure: updateError("metadata-invalid", { subject: "artifact" }),
       };
+    const url = artifact.custom.url;
+    if (url !== undefined && !validArtifactUrl(url))
+      return {
+        failure: updateError("metadata-invalid", { subject: "artifact-url" }),
+      };
     const verified: Verified = {
       document,
-      artifact: { path, sha256, length: artifact.length },
+      artifact: {
+        path,
+        sha256,
+        length: artifact.length,
+        ...(url === undefined ? {} : { url }),
+      },
     };
     if (!step || result(input.identity, verified).kind !== "available")
       return verified;

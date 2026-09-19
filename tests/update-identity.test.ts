@@ -107,9 +107,9 @@ test.skipIf(process.platform === "win32")(
         folder: null,
       });
       expect(run(["update", "--base", join(directory, "base")])).toEqual({
-        code: 2,
+        code: 34,
         stdout: "",
-        stderr: "Update failed: invalid-request",
+        stderr: "Update failed: not-installed",
       });
     } finally {
       await rm(directory, { recursive: true });

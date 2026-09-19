@@ -24,6 +24,10 @@ async function scenario() {
   const environment = {
     identity: { version: "1.0.0", commit: "b".repeat(40), target: "linux-x64" },
     clock: () => new Date("2026-09-19T10:00:00.000Z"),
+    // A command without `--base` resolves the per-user base from HOME: it must
+    // land inside this test's directory, never in the developer's own base.
+    platform: "linux",
+    env: { HOME: root },
   };
   const origins = [
     "--metadata-url",
@@ -120,8 +124,19 @@ test("every refusal prints its stable code and exits with that code's distinct s
     code: 20,
     stderr: "Update failed: network-unavailable",
   });
+  // Without options the compiled-in repository is asked — but a run from
+  // source has no compiled-in root, so it fails closed before any transfer.
+  expect(await run(["--check"])).toMatchObject({
+    code: 25,
+    stderr: "Update failed: trust-missing",
+  });
+  const repository = origins.slice(0, 4);
   for (const args of [
-    ["--check"],
+    // Another repository is named as a whole, or not at all.
+    ["--check", ...origins.filter((_, index) => index > 1)],
+    ["--check", "--base", base, "--artifact-origin", "https://example.org"],
+    ["--check", ...origins, "--artifact-origin", "https://example.org/path"],
+    ["--check", ...repository, "--base", base, "--channel", "pilot"],
     ["--check", ...origins, "--channel", "stable"],
     [
       "--check",

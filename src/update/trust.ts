@@ -113,6 +113,19 @@ function parseRoot(text: string): Metadata<Root> {
   return root;
 }
 
+/** The text itself when it is root metadata that verifies under its own
+ * keys; otherwise undefined.
+ */
+export function verifiedRoot(text: string): string | undefined {
+  try {
+    const parsed = parseRoot(text);
+    parsed.verifyDelegate(MetadataKind.Root, parsed);
+    return text;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Decide the trust anchor of this refresh. The bootstrap root is accepted
  * only while no VALID root is held; an established installation never falls
  * back to it, and missing trust is never silently converted into one.
@@ -130,16 +143,13 @@ function parseRoot(text: string): Metadata<Root> {
 export async function readSeed(
   trustDirectory: string,
   bootstrapRoot: Uint8Array | undefined,
+  /** The root compiled into the executable (`defaults.ts`). Unlike the
+   * caller's bootstrap root it is present on EVERY run, so it is simply
+   * unused once `trust/` holds a valid root — the durable chain is never older
+   * than what it started from — and it anchors a first or a damaged
+   * installation exactly as a bootstrap root does. */
+  embeddedRoot?: Uint8Array,
 ): Promise<Seed> {
-  const verifiedRoot = (text: string): string | undefined => {
-    try {
-      const parsed = parseRoot(text);
-      parsed.verifyDelegate(MetadataKind.Root, parsed);
-      return text;
-    } catch {
-      return undefined;
-    }
-  };
   const rootPath = join(trustDirectory, "root.json");
   let present = true;
   let durable: string | undefined;
@@ -169,20 +179,23 @@ export async function readSeed(
     }
     return Object.freeze({ established: true, root: durable, roles });
   }
-  if (bootstrapRoot === undefined)
+  const anchor = bootstrapRoot ?? embeddedRoot;
+  if (anchor === undefined)
     throw present
       ? new UpdateFailure("trust-invalid", { subject: "root" })
       : new UpdateFailure("trust-missing");
   let root: string | undefined;
   try {
     root = verifiedRoot(
-      new TextDecoder("utf-8", { fatal: true }).decode(bootstrapRoot),
+      new TextDecoder("utf-8", { fatal: true }).decode(anchor),
     );
   } catch {
     // Not UTF-8.
   }
   if (root === undefined)
-    throw new UpdateFailure("trust-invalid", { subject: "bootstrap-root" });
+    throw new UpdateFailure("trust-invalid", {
+      subject: bootstrapRoot === undefined ? "embedded-root" : "bootstrap-root",
+    });
   if (present) {
     const stat = await lstat(rootPath).catch(() => undefined);
     if (stat && !stat.isFile())
