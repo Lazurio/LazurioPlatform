@@ -201,7 +201,9 @@ workspace input capture, remote browser access, provider operations and installe
 consumer qualification remain open. Do not run competing development owners against
 the same dependency tree or use this as daily-environment activation.
 
-The local dependency owner now retains the existing cooperative directory lock at
+The following describes the `session` composition; service-owned applications split
+this exclusion in two ([two kinds of exclusion](#two-kinds-of-exclusion)).
+The local dependency owner retains the existing cooperative directory lock at
 the resolved dependency root across operations, including after start returns.
 The lifecycle first closes admission and drains accepted operations, then stops its
 owned processes. Only a confirmed closed result releases the dependency locks.
@@ -526,6 +528,74 @@ Launchpad restarts". `started`, `group-stopped` and `not-managed` are unchanged.
   preparation): a session application belongs to the person operating that Launchpad.
 - Authorization and declaration are rechecked at each operation boundary, as before.
 
+### Two kinds of exclusion
+
+Applications now outlive their Launchpad, so a crashed Launchpad must never block
+operating them. Exclusion is therefore split by what it protects.
+
+| | Transactional (retained) lock | Coordination lock |
+| --- | --- | --- |
+| Protects | A mutation with intermediate state on disk: dependency preparation and clean preparation (a half-installed tree); Folder and profile writes keep their own lock unchanged | Nothing on disk. It only serializes concurrent application operations whose truth lives in the service manager |
+| Mechanism | `acquireRetainedOperationLock`: the `.operation-lock` record in the dependency owner's directory | One kernel `flock` on one empty regular file (`src/platform/flock.ts`), acquired blocking with a bounded wait (30 s, polled), in-process requests queued in order |
+| Holder dies | The record stays. Owner death never admits a new writer; recovery is explicit | The kernel releases it. There is no owner record, nothing to recover, nothing to reclaim |
+| Used for | `prepare`, `clean-prepare` under `systemd-user`; **every** mutation under `session` | `start`, `stop` (and the whole of `prepare`, around its transaction) under `systemd-user`; `status` and `open` take no lock |
+| Refusal | `preparation-recovery-required` | `coordination-busy` |
+
+Why coordination suffices for service-owned start/stop: after any crash the next owner
+re-inspects the service manager and converges. An active unit refuses a second start
+(the manager itself refuses a loaded name), Stop is idempotent, a half-started unit is
+visible as activating/failed and handled by the paths above, and the start-time check
+is read-only by contract and dies with its owner through the guard.
+
+What changed in the locked sections (`local-application-adapters.ts`,
+`coordinateMutation`, which now receives the operation's intent):
+
+- **Stop**: coordination lock only. It does not resolve the preparation binding and
+  is never blocked by a crashed Launchpad or an interrupted preparation.
+- **Start**: coordination lock only. Start contains no install or repair — only the
+  declared check and the runner operation — so nothing had to be split out of it. It
+  refuses with `preparation-recovery-required` when a retained record that this owner
+  does not hold exists on its dependency tree: an application is never started on a
+  tree whose preparation died.
+- **Prepare / clean-prepare**: the coordination lock around the whole operation, so
+  "no active unit" stays true for its duration and `application-running` is decided
+  under it; inside it, the retained lock around the transaction. The record is now
+  **released as soon as the transaction completes with confirmed cleanup** (success or
+  a reported failure) instead of being held until the Launchpad closes; it stays after
+  a throw, after `preparation-cleanup-required`, and after the death of the process. A
+  crash between the two sections converges: the kernel lock is gone, the record remains,
+  and the next owner refuses to prepare or start until recovery.
+- **`session` runner: unchanged, deliberately.** Every mutation keeps the retained lock
+  until the Launchpad closes. The same reasoning does not hold there: a session
+  application is known only to its own process, so the retained record is also what
+  keeps another process from reinstalling beneath an application nobody else can see;
+  and after an owner crash a session application is dead with its owner, so there is
+  nothing left to operate that the lock could block.
+
+The lock file is `$XDG_RUNTIME_DIR/lazurio/lazurio-app-<org16>-coordination.lock`: the
+user manager's own runtime directory, the same scope and lifetime as the transient
+units, one file per canonical Organization directory, never inside a module checkout
+(a persistent untracked file there would make every checkout dirty). The empty files
+are never unlinked — a waiter may hold a descriptor, and unlinking would create two
+lock domains — and disappear with the runtime directory.
+
+`src/platform/flock.ts` is one neutral primitive (`acquireFileLock(path, { timeoutMs })`
+→ `release()`, `FileLockError` with `busy` / `unsupported`): no filesystem allowlist
+(a filesystem that cannot `flock` is classified from `errno` instead of guessed from
+its type), no initialization to interrupt, handles rooted against garbage collection.
+The product-update slice carries an equivalent private copy on its own branch and can
+adopt this one. Known defects of `src/folder/lock.ts` that this change did **not**
+need and did not touch (follow-up): it refuses every filesystem except APFS and ext;
+a process that dies between `mkdir` and writing the `protocol` marker wedges the lock
+permanently; it never waits (`LOCK_NB` only); a lock whose handle becomes unreachable
+is silently released by garbage collection.
+
+**Without a Launchpad.** `app-request` with `{organizationDirectory, operation,
+selection}` and operation `status` or `stop` builds a short-lived owner over the same
+core, the same runner and the same coordination lock (`serviceApplicationAdapters`),
+with the same root admission. It answers `launchpad-required` wherever applications
+are session-scoped and can neither start nor prepare anything.
+
 ### Transient units versus written unit files
 
 | | Transient unit (chosen) | Written unit file |
@@ -547,19 +617,20 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
   with the account's last login session. That is a Machine setting Lazurio does not
   change; a hosted workspace preset must decide it.
 - **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
-- **CLI without a Launchpad.** `app-request` still goes through a running Launchpad.
-  A direct status/stop command is now possible because the runner holds no memory, but
-  it must share the dependency owner's lock with a running Launchpad and is not built.
+- **Start and preparation without a Launchpad.** `app-request` status and stop work
+  from the CLI alone for service-owned applications (below); start, open and
+  preparation still need a configured Launchpad, because they need its toolchain and
+  launch composition.
 - **Survival across a product activation** is not yet exercised (there is no activation
   of a running Launchpad yet); a graceful and a killed Launchpad are.
-- **Launchpad crash and the dependency-owner lock.** The pre-existing retained
-  `.operation-lock` of a *killed* Launchpad is never reclaimed automatically, so after
-  a crash Stop/Start through a new Launchpad fail until the operator recovers the lock.
-  Status, the application itself and `systemctl --user stop <unit>` are unaffected. A
-  graceful exit releases the lock. Operator recovery of that lock remains unqualified.
+- **Operator recovery of an interrupted preparation** stays explicit and unqualified:
+  the retained record of a preparation whose owner died is never reclaimed
+  automatically. It blocks preparing and starting that tree only; status and Stop are
+  never blocked by it.
 - Application output is still discarded (no journal capture decision), source selection
-  beyond the authorized module directory (named worktrees) is not part of the unit, and
-  concurrent operations from **two** live owners rely on that same cooperative lock.
+  beyond the authorized module directory (named worktrees) is not part of the unit.
+  Two live owners are serialized by the coordination lock; that is unit-tested, not
+  yet natively qualified under load.
 - Upstream decision 0137 is **not amended yet** (below).
 
 **Unchanged.** Bounded preparation subprocesses (frozen install, declared preparation
@@ -585,15 +656,22 @@ requirement: a running unit is not a working module.
   name derivation, exact `systemd-run` argv, state mapping, unrecognized shapes,
   control-group ownership, port collision, bounded stop, failed-unit reset, failed
   start, preparation refusal, rediscovery by a new lifecycle, Launchpad server close,
-  runner selection. The session tests are unchanged and remain the macOS contract.
+  runner selection. `tests/file-lock.test.ts` covers the coordination primitive
+  (exclusion, bounded wait, release after `SIGKILL` of a child holder, no retained
+  record, garbage collection, `unsupported`), and `tests/organization-applications.test.ts`
+  the real composition: a holder killed inside a coordinated operation never blocks the
+  next owner, a preparation that died still requires explicit recovery, and the CLI
+  path without a Launchpad. The session tests are unchanged and remain the macOS contract.
 - `tests/systemd-user-integration.test.ts` uses the **real** user manager when one
   answers and skips with an explicit message otherwise (never a CI failure).
 - `scripts/smoke-application-service.ts` is the native qualification through the
   compiled CLI: start, graceful Launchpad exit, new Launchpad, Launchpad SIGKILL, third
-  Launchpad, same `InvocationID` throughout, stop, control group gone. Transcript:
+  Launchpad, same `InvocationID` throughout, stop and start there with **no recovery
+  step**, control group gone, status and stop with no Launchpad at all, and an
+  interrupted preparation that still requires explicit recovery. Transcript:
   [Linux ARM64, 2026-09-19](evidence/app-services-linux-arm64-2026-09-19.md).
 
-Still required before acceptance: concurrent operations from two owners, survival
+Still required before acceptance: two live owners under load, survival
 across a product activation, reboot with persistence off and on, `linux-x64`.
 
 ## Shared application lifecycle — development integration boundary
