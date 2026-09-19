@@ -12,8 +12,12 @@ installer. Each future mutator must refuse unrecognized state before its first w
 | Profile update | Current preferences, expected revision, installed templates and ownership manifest | Versioned preferences and enumerated generated instructions/config | Installed software, credentials, repositories, runtime data, grants |
 | Legacy source-working → Lazurio Environment migration | Exact source inventory, mount/Git/process state, supported destination, approved plan | Lazurio Folder placement and ownership transition using a dedicated migration procedure | Work loss, silent branch reset, remote rewrite, secret copying or automatic publish |
 
-Organization Git synchronization remains an explicit existing operation. Do not hide
-fetch, checkout, stash creation or reset inside product/profile update.
+Organization Git synchronization is a fourth, separate and explicit operation with its
+own command, lock and outcome: [content synchronization](content-sync.md) (accepted
+direction, not implemented). Do not hide clone, fetch, checkout, stash creation or reset
+inside product/profile update. Product update never clones, stashes, regenerates
+preferences, upgrades tools or runs data migrations; content synchronization itself
+never stashes, switches branches or resets.
 
 A working profile belongs to the individual Machine installation. Changing it here
 does not update any other Machine used by the same Principal. Profile transport or
@@ -505,7 +509,7 @@ An unresolved dependency or unattributed work blocks the affected destructive st
 
 Recovery means protecting data and resuming or repairing forward. Returning the whole
 Folder to a legacy Git checkout is not an acceptance requirement. This does not relax
-product-version rollback or the separate shared-workshop migration contract.
+product-version rollback or the separate legacy shared-workshop convergence contract.
 
 ### Organization declaration adoption is a separate prerequisite
 
@@ -544,20 +548,31 @@ selection. Preserve unique legacy work and provenance; old product worktrees may
 retired under the checks above, unlike protected Organization worktrees. Do not redirect
 its remote to Platform because the names look related. Platform is a separate repo.
 
-## Shared workshop → dedicated environments
+## Legacy shared workshop → private or team workspace
 
-This is an owner-led infrastructure migration, separate from local environment migration.
-Approve the amendment and stop creating new shared cohorts at a named rollout gate.
-Inventory sessions, working copies, dirty branches, stashes, jobs, credentials and
-organization-owned data with the authorized owner; do not inspect foreign Personalspace.
-Attribute work to its owner instead of copying the shared directory to every seat.
+Reconciled 2026-09-19 with [decision F2](decisions.md#f2--private-and-team-hosted-workspaces):
+the team workspace is a first-class target, so this is a convergence, not a retirement
+of shared use. It is an owner-led infrastructure migration, separate from local
+environment migration. What ends is the legacy form: a shared directory with personal
+or ambiguous credentials and unattributed work.
 
-Provision one isolated target per Principal using the existing infrastructure owner.
-Re-establish each identity through its provider flow; never clone another person's
-credentials. Preserve attributable drafts through authorized Git branches or explicit
-scoped data handoff. Verify peer denial for files, process signals, network and
-credential use, and disclose parent-operator access. Prove actual Git operation
-attribution and effective repo grants from each target.
+For each legacy shared workshop the owner chooses the target kind explicitly: a
+delivered team workspace (one OS account, brokered identity, no personal credentials,
+no Personalspace, changes through pull requests) or private workspaces, one per
+Principal. Inventory sessions, working copies, dirty branches, stashes, jobs,
+credentials and Organization-owned data with the authorized owner; do not inspect
+foreign Personalspace. Attribute work to its owner or Team instead of copying the
+shared directory to every seat.
+
+Provision targets using the existing infrastructure owner. On a private target,
+re-establish the Principal's identity through its provider flow; on a team target,
+establish only the brokered identity. Never clone another person's credentials, and
+remove personal credentials and sessions found on a shared Machine through their
+owner rather than carrying them over. Preserve attributable drafts through authorized
+Git branches or explicit scoped data handoff. Verify, per kind: peer denial for files,
+process signals, network and credential use between separate workspaces; on a team
+target, attribution of every change to the Team and revocation on GitHub blocking the
+next provider operation. Disclose parent-operator access.
 
 Drain the old workshop, prevent concurrent writers, redirect only owner-approved
 entrypoints and verify the human/AI Colleague flows. After the agreed observation
