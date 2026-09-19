@@ -73,6 +73,7 @@ export function createUpdateFixture(input: {
   const blocked = new Map<string, number>();
   const requests: string[] = [];
   const channels = new Map<string, FixtureChannel>();
+  const timestamps = new Map<number, Buffer>();
   let rootVersion = 0;
   let version = 0;
 
@@ -207,6 +208,7 @@ export function createUpdateFixture(input: {
       options.tamper === "snapshot" ? damaged(snapshot) : snapshot,
     );
     served.set("/metadata/timestamp.json", timestamp);
+    timestamps.set(version, timestamp);
   };
 
   const bootstrapRoot = publishRoot({});
@@ -232,6 +234,14 @@ export function createUpdateFixture(input: {
     targetBaseUrl: `${server.url}targets/`,
     origin: server.url.origin,
     requests,
+    /** Serve the timestamp of an OLDER generation again: what an attacker
+     * replaying a once-valid repository state would do. Every numbered object
+     * of that generation is still served. */
+    rewindTo(generation: number) {
+      const timestamp = timestamps.get(generation);
+      if (!timestamp) throw new Error("Unknown fixture generation");
+      served.set("/metadata/timestamp.json", timestamp);
+    },
     /** Set a channel's document and publish a new generation. */
     release(
       channel: "stable" | "preview",
@@ -259,6 +269,10 @@ export function createUpdateFixture(input: {
       blocked.delete(path);
     },
     served: (path: string) => served.get(path),
+    /** Serve other bytes under an existing path. */
+    substitute(path: string, bytes: Buffer) {
+      served.set(path, bytes);
+    },
     async stop() {
       await server.stop(true);
     },

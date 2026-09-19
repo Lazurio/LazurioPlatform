@@ -270,7 +270,7 @@ async function checkUnderLock(
         scratch,
         seed,
         fetchedRoots: fetcher.roots,
-        unsettledFile: refreshed ? undefined : fetcher.unsettledFile,
+        lastDelivered: refreshed ? undefined : fetcher.lastDelivered,
         write,
       });
     } catch (error) {

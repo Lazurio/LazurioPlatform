@@ -317,7 +317,29 @@ Concrete choices this slice fixed:
   expiry; a root is persisted after complete authenticity verification but
   before the final-root expiry check, and is promoted regardless because a
   signed successor root must never be forgotten. Promotion re-verifies the root
-  chain itself and withholds the role delivered last in a failed refresh.
+  chain itself.
+- **Authenticated failure-state floors.** The earlier rule "withhold the role
+  delivered last in a failed refresh" is replaced. The fetcher retains the raw
+  bytes of the role delivered last (only that one has a consumer); after a
+  failed refresh promotion re-verifies it without the client and without
+  expiry — timestamp: signature threshold under the promoted root, version
+  above and snapshot version not below the trusted timestamp; snapshot: length
+  and hashes recorded by the newest authenticated timestamp, signature
+  threshold, exactly the version that timestamp names, no targets version below
+  the trusted snapshot — and writes it as the ordinary role file. Verified in
+  the pinned source, with line references in `src/update/trust.ts`: an expired
+  LOCAL timestamp or snapshot is installed in memory before the expiry throw
+  and the throw is swallowed (`store.js:89-91`, `:133-136`;
+  `updater.js:195-206`, `:230-234`), so it acts as a version floor and nothing
+  else, and the final expiry checks (`store.js:102`, `:145`, `:172`) run again
+  before any target is looked up. Expired **targets** are different: the store
+  checks expiry before installing (`:172-175`), so an expired local targets
+  file is discarded without a trace and the floor of the targets version is the
+  snapshot's `meta`. A targets role delivered last is therefore never captured.
+  The floor is also captured on first contact and under an expired root: the
+  root authenticated a signature, and a floor can only raise the bar. A floor
+  that no longer verifies under a later root is not loaded by the client, so a
+  revoked key cannot wedge a Machine with a fast-forwarded version.
 - **First trust.** The caller supplies the bootstrap root (later: the
   compiled-in root). It becomes durable only together with the first role it
   verified, so a wrong root can never wedge an installation; once `trust/` holds
