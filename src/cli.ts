@@ -1,5 +1,4 @@
 import { parseArgs } from "node:util";
-import { productHelp, runProductCommand } from "./distribution/product-cli";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
@@ -40,8 +39,8 @@ function emit(output: CommandOutput): number {
   return output.code;
 }
 
-// Development CLI entrypoint. No implicit folder discovery; the only
-// installer surface is the explicit `product` command group.
+// CLI entrypoint. No implicit folder discovery; installation and update are the
+// `install` and `update` commands of the one update core (docs/update.md).
 export async function runCli(args: string[]): Promise<number> {
   if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
   if (args[0] === "self-check")
@@ -62,11 +61,6 @@ export async function runCli(args: string[]): Promise<number> {
 async function runOtherCommand(args: string[]): Promise<number> {
   if (args[0] === "machine") {
     const { code, result } = await runMachineCommand(args.slice(1));
-    console.log(JSON.stringify(result));
-    return code;
-  }
-  if (args[0] === "product") {
-    const { code, result } = await runProductCommand(args.slice(1));
     console.log(JSON.stringify(result));
     return code;
   }
@@ -189,7 +183,6 @@ Refuses an occupied canonical target, conflicting declarations or observed drift
 No files, locks, provider requests or applications are created. Output may contain
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
-    console.log(productHelp);
     console.log(updateHelp);
     console.log(machineHelp);
     return 0;
@@ -404,11 +397,7 @@ if (import.meta.main) {
     else process.exitCode = await runCli(process.argv.slice(2));
   } catch {
     // Do not echo profile input, private paths or raw filesystem errors.
-    if (process.argv[2] === "product") {
-      console.error(
-        "Product operation failed. Installation state may be incomplete; this message does not prove whether activation changed the active record or entrypoint. Run `product status` and follow the documented repair procedure. Preserve pending attempts and accepted trust; do not reset metadata or bootstrap an established installation again. No automatic retry or repair was performed.",
-      );
-    } else if (process.argv[2] === "app-request") {
+    if (process.argv[2] === "app-request") {
       console.error(
         "Application request could not be completed or its result confirmed. A submitted operation may still be running; this is not confirmation of cancellation. Check the existing Launchpad lifecycle owner before retrying a mutation. Verify the request and local session without sharing its private token.",
       );

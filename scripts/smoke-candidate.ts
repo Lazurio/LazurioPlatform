@@ -6,7 +6,7 @@ import { dirname, isAbsolute, join } from "node:path";
 import { parseIdentity } from "../src/update/identity";
 
 // Tests the supplied bytes, never rebuilds or activates an installed product.
-// POSIX fixture smoke only; not Windows, browser UI or TUF qualification.
+// POSIX fixture smoke only; not Windows, browser UI or update qualification.
 const binary = process.argv[2];
 assert.equal(process.argv.length, 3);
 assert.ok(binary && isAbsolute(binary));
