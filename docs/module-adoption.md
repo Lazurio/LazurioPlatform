@@ -301,6 +301,15 @@ adapter. This runner covers canonical discovery parity and shared CLI/HTTP
 start/status/entrypoint/HTTP-function/stop, not package preparation, browser interaction,
 DB acquisition, installation, or the two real candidate modules.
 
+It selects the `session` runner explicitly, on every platform. Service-manager
+ownership has its own Linux runner, `scripts/smoke-application-service.ts`: compile it
+and `src/cli.ts` for the guest and run `<runner> <absolute CLI> --module-bun <absolute
+Bun>` inside one login session of an account with a reachable user manager. It exits 2
+with an explicit message, and starts nothing, where no user manager answers. It uses
+the real `launchpad --application-runner systemd-user` and `app-request`, creates only
+transient units and a temporary home, and removes both
+([application lifetime](#application-lifetime--implemented-for-linux-session-scoped-on-macos)).
+
 On 2026-09-14 it passed on the macOS ARM64 host (`en`) and Ubuntu 24.04.4 LTS ARM64,
 kernel `7.0.0-30-generic` (`en` and `cs`). The Linux guest was a reused disposable Tart
 2.32.1 test clone, not a fresh-install qualification; Bun, Node and Lazurio were absent
