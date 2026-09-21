@@ -29,11 +29,11 @@ import {
 import { type LastCheck, readLastCheck, writeLastCheck } from "./last-check";
 import {
   layout,
-  markerState,
   raiseHighWater,
   readHighWater,
   readPrevious,
   readSelector,
+  readUpdateState,
   versionFloor,
 } from "./layout";
 import {
@@ -426,7 +426,7 @@ export async function readStatus(
     }
   };
   const highWater = await guarded(() => readHighWater(base));
-  const marker = await guarded(() => markerState(base));
+  const marker = (await guarded(() => readUpdateState(base)))?.marker;
   const floor = await guarded(() => versionFloor(base));
   const lastCheck = await readLastCheck(base);
   const active = await readSelector(base);

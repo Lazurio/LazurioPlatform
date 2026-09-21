@@ -5,13 +5,12 @@ import {
   deletePending,
   ensureLayout,
   layout,
-  markerState,
   pruneVersions,
   raiseHighWater,
-  readHighWater,
   readPending,
   readPrevious,
   readSelector,
+  readUpdateState,
   setPrevious,
   swapSelector,
   versionExecutable,
@@ -156,9 +155,7 @@ export async function reconcilePending(input: {
   base: string;
   service: ServiceControl | null;
 }): Promise<Reconciled> {
-  // An unreadable mark is `state-invalid` too, whatever the marker says.
-  await readHighWater(input.base);
-  const state = await markerState(input.base);
+  const { marker: state } = await readUpdateState(input.base);
   if (state.kind === "absent") return "none";
   if (state.kind === "not-switched") {
     await deletePending(input.base);
@@ -183,7 +180,7 @@ export async function automaticRollback(input: {
 }): Promise<Reconciled> {
   try {
     return await withUpdateLock(input.base, 0, async () => {
-      const state = await markerState(input.base);
+      const { marker: state } = await readUpdateState(input.base);
       if (state.kind !== "switched") return "none";
       await undo(input.base, state.pending.from, input.service);
       return "undone";
@@ -206,7 +203,7 @@ export async function reconcileAsLaunchpad(input: {
 }): Promise<Reconciled> {
   if ((await readPending(input.base)) === null) return "none";
   return withUpdateLock(input.base, input.lockTimeoutMs ?? 45_000, async () => {
-    const state = await markerState(input.base);
+    const { marker: state } = await readUpdateState(input.base);
     if (state.kind === "absent") return "none";
     if (state.kind === "not-switched") {
       await deletePending(input.base);

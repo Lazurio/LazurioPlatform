@@ -318,6 +318,71 @@ for (const [name, state] of Object.entries(invalidStates))
     );
   });
 
+// Every reconciler reads and validates the WHOLE state before it decides: a
+// switched marker that would otherwise be committed or undone is not touched
+// while the high-water mark is unreadable.
+test("a valid switched marker beside an unreadable high-water mark: every reconciler answers state-invalid and changes nothing", async () => {
+  await arrange({ ...switched, highWater: "\u0000garbage" });
+  await world.release("1.2.0");
+  const before = await snapshot();
+  const calls: string[] = [];
+  // Healthy at `to`: without the validation a command would commit, the
+  // Launchpad would commit and the rollback unit would undo.
+  const service = {
+    folder: undefined,
+    async restartLaunchpad() {
+      calls.push("restart");
+    },
+    async launchpadVersion() {
+      calls.push("health");
+      return "1.1.0";
+    },
+  };
+  const environment = world.environment("1.1.0", { service });
+  const refusal = {
+    kind: "error",
+    code: "state-invalid",
+    context: { path: "update/high-water" },
+  } as const;
+  // The rollback unit …
+  expect(await performAutomaticRollback({ base: world.base, service })).toEqual(
+    refusal,
+  );
+  expect(await snapshot()).toEqual(before);
+  // … every mutating update command …
+  for (const result of [
+    await performUpdate(environment),
+    await performUpdate(environment, "1.2.0"),
+    await performRollback(environment),
+  ])
+    expect(result).toEqual(refusal);
+  expect(await snapshot()).toEqual(before);
+  // … and a starting Launchpad of `to`.
+  const launchpad = await reconcileAsLaunchpad({
+    base: world.base,
+    version: "1.1.0",
+  }).catch((error: unknown) => error);
+  expect((launchpad as UpdateFailure).failure).toEqual({
+    code: "state-invalid",
+    context: { path: "update/high-water" },
+  });
+  // Selector, previous, marker and mark byte-identical; no service call at all.
+  expect(await snapshot()).toEqual(before);
+  expect(calls).toEqual([]);
+  expect(world.origin.requests).toEqual([]);
+  expect(await readStatus(environment)).toMatchObject({
+    active: "1.1.0",
+    stateInvalid: "update/high-water",
+    updateAvailable: false,
+  });
+  // A person removes the unreadable mark; the marker is then decided as usual.
+  await rm(layout(world.base).highWater);
+  expect(await performAutomaticRollback({ base: world.base, service })).toEqual(
+    { kind: "reconciled", outcome: "undone" },
+  );
+  expect(calls).toEqual(["restart"]);
+});
+
 test("a missing high-water mark means the floor is the active version", async () => {
   await arrange({ active: "1.1.0", previous: "1.0.0" });
   await world.release("1.0.0");

@@ -213,7 +213,7 @@ export type MarkerState =
   | Readonly<{ kind: "not-switched"; pending: PendingActivation }>
   | Readonly<{ kind: "switched"; pending: PendingActivation }>;
 
-export async function markerState(base: string): Promise<MarkerState> {
+async function markerState(base: string): Promise<MarkerState> {
   const pending = await readPending(base);
   if (pending === null) return Object.freeze({ kind: "absent" });
   const active = await readSelector(base);
@@ -222,6 +222,22 @@ export async function markerState(base: string): Promise<MarkerState> {
   if (active === pending.to && (await readPrevious(base)) === pending.from)
     return Object.freeze({ kind: "switched", pending });
   throw stateInvalid("update/pending.json");
+}
+
+/** The ONE step every reconciler begins with — a mutating update command, a
+ * starting Launchpad and the rollback unit alike: read and validate the WHOLE
+ * update state, and only then decide. An unreadable high-water mark is
+ * `state-invalid` whatever the marker says, so nothing is undone, restarted or
+ * deleted on top of state a person must look at first.
+ */
+export type UpdateState = Readonly<{
+  highWater: string | null;
+  marker: MarkerState;
+}>;
+
+export async function readUpdateState(base: string): Promise<UpdateState> {
+  const highWater = await readHighWater(base);
+  return Object.freeze({ highWater, marker: await markerState(base) });
 }
 
 export const writePending = (
