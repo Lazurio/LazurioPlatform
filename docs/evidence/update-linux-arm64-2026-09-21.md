@@ -7,12 +7,17 @@ Sigstore path, `linux-x64`, macOS or the Spectoda canary.
 
 | | |
 | --- | --- |
-| Source commit | `0b86a18f8a4a6316be899c2e63d0d4d895c11a5b` (branch `claude/DEV-6594-update-impl`) |
+| Source commit | `665fa744755bf036d98aabe6c7c00725e0df2760` (branch `claude/DEV-6594-update-impl`); a first run on `0b86a18` with a single-listener fixture gave the same 47/47 and is superseded by this one |
 | Machine | fresh disposable clone of the Ubuntu base image (Tart, Apple Silicon host), deleted afterwards |
 | OS | Ubuntu 24.04.4 LTS, kernel 7.0.0-30-generic, `aarch64` |
 | systemd | 255 (255.4-1ubuntu8.17), user manager with `Linger=yes` (enabled by the operator before the run) |
 | Harness | `scripts/qualify-update-linux.ts` (bundle built on the host) and `scripts/qualify-update-linux.sh` (run on the Machine) |
 | Result | **47 checks passed, 0 failed**; phase `before-reboot` 30, phase `after-reboot` 17; a real `systemctl reboot` between them |
+
+The fixture origin serves the real redirect shape on two listeners: `latest` → the
+origin's exact-tag URL (port 38917) → asset storage on another port (38918) whose URL
+names neither the repository nor the tag. Every check and download in the journeys
+below went through that chain; the client takes the tag from the first hop only.
 
 The four executables are the real product entry point (`src/cli.ts`) compiled for
 `linux-arm64`, differing only in the embedded version (1.0.0, 1.1.0, 1.1.5,
@@ -63,12 +68,12 @@ is the real sigstore-js verifier.
 ## Transcript: `before-reboot`
 
 ```text
-phase before-reboot: target linux-arm64, commit 0b86a18f8a4a6316be899c2e63d0d4d895c11a5b, systemd 255 (255.4-1ubuntu8.17), 7.0.0-30-generic
+phase before-reboot: target linux-arm64, commit 665fa744755bf036d98aabe6c7c00725e0df2760, systemd 255 (255.4-1ubuntu8.17), 7.0.0-30-generic
 linger: yes
-   lazurio 1.0.0 (commit 0b86a18f8a4a6316be899c2e63d0d4d895c11a5b, target linux-arm64) FIXTURE BUILD: not a release
-   lazurio 1.1.0 (commit 0b86a18f8a4a6316be899c2e63d0d4d895c11a5b, target linux-arm64) FIXTURE BUILD: not a release
-   lazurio 1.1.5 (commit 0b86a18f8a4a6316be899c2e63d0d4d895c11a5b, target linux-arm64) FIXTURE BUILD: not a release
-   lazurio 1.2.0 (commit 0b86a18f8a4a6316be899c2e63d0d4d895c11a5b, target linux-arm64) FIXTURE BUILD: not a release
+   lazurio 1.0.0 (commit 665fa744755bf036d98aabe6c7c00725e0df2760, target linux-arm64) FIXTURE BUILD: not a release
+   lazurio 1.1.0 (commit 665fa744755bf036d98aabe6c7c00725e0df2760, target linux-arm64) FIXTURE BUILD: not a release
+   lazurio 1.1.5 (commit 665fa744755bf036d98aabe6c7c00725e0df2760, target linux-arm64) FIXTURE BUILD: not a release
+   lazurio 1.2.0 (commit 665fa744755bf036d98aabe6c7c00725e0df2760, target linux-arm64) FIXTURE BUILD: not a release
 
 == 1. install --service systemd-user: the downloaded executable installs ITSELF and the units ==
    > {"kind":"installed","active":"1.0.0","path":"/home/admin/.local/share/lazurio/bin","serviceInstalled":true}
@@ -105,7 +110,7 @@ linger: yes
    PASS  unit enabled: enabled
    PASS  Launchpad active; the kernel runs versions/1.0.0/lazurio through the selector; health socket present
    PASS  no high-water mark yet: the floor is the active version:
-   took 3.0 s
+   took 1.9 s
 
 == 2. A -> B (1.0.0 -> 1.1.0): attested release, restart, health at the new version, commit ==
    latest -> v1.1.0
@@ -117,11 +122,11 @@ linger: yes
    PASS  previous: 1.0.0
    PASS  high-water raised at commit: 1.1.0
    PASS  marker deleted by the commit:
-   PASS  Launchpad active on 1.1.0 (pid 1404 -> 1498)
+   PASS  Launchpad active on 1.1.0 (pid 1278 -> 1372)
    PASS  systemd-analyze verify accepts both units (exit status): 0
    $ lazurio --version
-   > lazurio 1.1.0 (commit 0b86a18f8a4a6316be899c2e63d0d4d895c11a5b, target linux-arm64) FIXTURE BUILD: not a release
-   took 1.4 s
+   > lazurio 1.1.0 (commit 665fa744755bf036d98aabe6c7c00725e0df2760, target linux-arm64) FIXTURE BUILD: not a release
+   took 0.8 s
 
 == 3. failed B (1.2.0 refused at start): automatic switch-back within the health deadline ==
    latest -> v1.2.0
@@ -138,10 +143,10 @@ linger: yes
    | Interrupted activation: none.
    | Finished lazurio-rollback.service - Lazurio rollback of an interrupted activation.
    PASS  the retry is the same action (check exit 10): 10
-   took 1.3 s
+   took 0.8 s
 
 == 4. power loss after the switch + crashing 1.2.0 -> OnFailure=lazurio-rollback.service undoes (no updater, no command) ==
-   SIGKILL -> updater (pid 1655, <base>/versions/1.1.0/lazurio) right after the switch to 1.2.0
+   SIGKILL -> updater (pid 1530, <base>/versions/1.1.0/lazurio) right after the switch to 1.2.0
    PASS  no updater is alive
    state: selector=1.2.0 previous=1.1.0 high-water=1.1.0 marker={"from":"1.1.0","to":"1.2.0"}
    PASS  the dead updater left the marker: {"from":"1.1.0","to":"1.2.0"}
@@ -154,16 +159,16 @@ linger: yes
    | Starting lazurio-rollback.service - Lazurio rollback of an interrupted activation...
    | Interrupted activation: undone.
    | Finished lazurio-rollback.service - Lazurio rollback of an interrupted activation.
-   took 0.7 s
+   took 1.4 s
 
 == 5a. power loss after the switch to a HEALTHY 1.2.0 — followed by a REAL reboot ==
-   SIGKILL -> updater (pid 1864, <base>/versions/1.1.0/lazurio) right after the switch to 1.2.0
+   SIGKILL -> updater (pid 1723, <base>/versions/1.1.0/lazurio) right after the switch to 1.2.0
    PASS  no updater is alive
    state: selector=1.2.0 previous=1.1.0 high-water=1.1.0 marker={"from":"1.1.0","to":"1.2.0"}
    PASS  selector: 1.2.0
    PASS  the dead updater left the marker: {"from":"1.1.0","to":"1.2.0"}
    PASS  not committed: the mark is still: 1.1.0
-   took 0.7 s
+   took 0.6 s
 
 NOW: sudo reboot, then run this script with after-reboot. Checks failed so far: 0
 ```
@@ -171,24 +176,24 @@ NOW: sudo reboot, then run this script with after-reboot. Checks failed so far: 
 ## Transcript: `after-reboot`
 
 ```text
-phase after-reboot: target linux-arm64, commit 0b86a18f8a4a6316be899c2e63d0d4d895c11a5b, systemd 255 (255.4-1ubuntu8.17), 7.0.0-30-generic
+phase after-reboot: target linux-arm64, commit 665fa744755bf036d98aabe6c7c00725e0df2760, systemd 255 (255.4-1ubuntu8.17), 7.0.0-30-generic
 linger: yes
-uptime: up 0 minutes; boot id c39dd22c-74c0-44be-bc8d-ac6d579494b9
+uptime: up 0 minutes; boot id 2535a251-3b89-482e-a91a-22f62237ea9d
 
 == 5b. after the reboot: the Launchpad of 1.2.0 started healthy by itself and committed the marker ==
    PASS  marker deleted and mark raised to 1.2.0 without any command
    state: selector=1.2.0 previous=1.1.0 high-water=1.2.0 marker=
    PASS  Launchpad active on 1.2.0 after boot
-   system boot: 2026-09-21 21:31
-   Launchpad started: Sep 21 21:31:29.933845
-   high-water written: 2026-09-21 21:31:45.241000009 +0000  (the Launchpad commits once it outlived its first 15 s)
-   update commands run by anyone between the boot and that commit: none (this script started at 21:31:53.278 and only reads until here)
+   system boot: 2026-09-21 23:39
+   Launchpad started: Sep 21 23:39:52.745871
+   high-water written: 2026-09-21 23:40:07.841000009 +0000  (the Launchpad commits once it outlived its first 15 s)
+   update commands run by anyone between the boot and that commit: none (this script started at 23:39:53.418 and only reads until here)
    PASS  previous: 1.1.0
    > running 1.2.0
    > active 1.2.0
    > previous 1.1.0
-   > latest known 1.2.0 (checked 2026-09-21T21:31:10.676Z)
-   took 0.0 s
+   > latest known 1.2.0 (checked 2026-09-21T23:39:37.797Z)
+   took 14.6 s
 
 == 6. explicit rollback 1.2.0 -> 1.1.0: previous after its own self-check, same restart and health rule ==
    > {"kind":"rolled-back","from":"1.2.0","to":"1.1.0"}
@@ -199,7 +204,7 @@ uptime: up 0 minutes; boot id c39dd22c-74c0-44be-bc8d-ac6d579494b9
    PASS  the version left stays the floor: 1.2.0
    PASS  marker:
    PASS  Launchpad active on 1.1.0
-   took 0.7 s
+   took 0.6 s
 
 == 7. the floor: no network path goes below the high-water mark; the equal retry is allowed ==
    latest -> v1.1.5
@@ -217,8 +222,8 @@ uptime: up 0 minutes; boot id c39dd22c-74c0-44be-bc8d-ac6d579494b9
    PASS  equal to the mark, not active: allowed: updated
    PASS  selector: 1.2.0
    PASS  Launchpad active on 1.2.0
-   > {"kind":"status","running":"1.2.0","active":"1.2.0","previous":"1.1.0","highWater":"1.2.0","supervised":true,"pending":null,"stateInvalid":null,"lastCheck":{"checkedAt":"2026-09-21T21:31:54.339Z","latest":"1.1.5","notesUrl":"https://github.com/Lazurio/LazurioPlatform/releases/tag/v1.1.5"},"updateAvailable":false}
-   took 0.8 s
+   > {"kind":"status","running":"1.2.0","active":"1.2.0","previous":"1.1.0","highWater":"1.2.0","supervised":true,"pending":null,"stateInvalid":null,"lastCheck":{"checkedAt":"2026-09-21T23:40:08.932Z","latest":"1.1.5","notesUrl":"https://github.com/Lazurio/LazurioPlatform/releases/tag/v1.1.5"},"updateAvailable":false}
+   took 0.7 s
 
 QUALIFIED: every journey passed
 ```
