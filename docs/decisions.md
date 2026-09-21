@@ -100,7 +100,7 @@ An npm distribution could reuse current tooling but still requires correct runti
 and asset resolution. Standalone packaging reduces end-user runtime setup, at the
 cost of larger OS/CPU artifacts and native signing/upgrade work. The bounded
 [stack proof](stack-evidence.md) qualifies the choice only for its tested behavior.
-Do not maintain npm and standalone as two independently implemented update channels.
+Do not maintain npm and standalone as two independently implemented update paths.
 If a package-manager shim is later needed, it must select the same verified release.
 
 ## F2 — Private and team hosted workspaces
@@ -240,9 +240,9 @@ are created by this draft.
 ## Open gates, owners and resolution evidence
 
 The [release cycle proposal](release-cycle.md) recommends one product version,
-immutable candidates and channel promotion without rebuild. Its two test paths, explicit Machine-wide candidate activation and promotion of the
-same qualified artifact are accepted requirements. Concrete verbs, version/transport
-semantics, trust mechanism and automatic update detection remain implementation proposals.
+immutable candidates and promotion without rebuild. Its two test paths, explicit Machine-wide candidate activation and promotion of the
+same qualified artifact are accepted requirements. How a release is selected, trusted, detected and activated is decided by F13 and the
+[product update contract](update.md): `latest` or one explicit exact tag selects a GitHub Release; there is no update channel and no channel promotion.
 
 | Gate | Accountable function | Evidence needed |
 | --- | --- | --- |
@@ -445,7 +445,8 @@ deliberate change from the legacy engine that requires the 0129 amendment above.
 
 **Accepted direction (2026-09-19), not implemented.** A named, versioned, declarative
 [workspace preset](workspace-presets.md) composes purpose, collaboration defaults,
-required capabilities, enabled surfaces, supervision policy and default update channel.
+required capabilities, enabled surfaces and supervision policy. A preset does not
+select product releases: F13 has no update channel to configure.
 Exactly two hosted presets are validated first, `hosted-private` and `hosted-team`,
 next to the existing local default. The Environment stores the immutable preset
 reference plus explicit local overrides under the existing environment-configuration
@@ -500,7 +501,9 @@ manifest and every binary. The installed product verifies that attestation with 
 maintained `sigstore` library against the workflow identity of the exact tag, the
 repository and owner IDs and the source commit, and never goes below a durable
 version floor on any network path. The contract is [product update](update.md). This replaces the earlier
-selection of TUF.
+selection of TUF. `latest` or one explicit exact tag selects a release; no document,
+preset, local configuration or typed request carries an update channel, and there is
+no channel promotion.
 
 Motivation: the Principal asked for proven practice instead of our own machinery.
 The TUF path was secure on paper, but the maintained JavaScript client does not
