@@ -256,6 +256,101 @@ test("a tampered artifact and a tampered manifest are refused", async () => {
   );
 });
 
+test("the tag comes from the FIRST redirect of latest; assets are followed into storage on another host", async () => {
+  world = await createWorld();
+  await world.release("1.1.0");
+  // GitHub's shape: latest -> the exact-tag URL of the origin -> signed asset
+  // storage elsewhere, whose URL names neither the repository nor the tag.
+  expect(new URL(world.origin.storageUrl).port).not.toBe(
+    new URL(world.origin.baseUrl).port,
+  );
+  const hops: string[] = [];
+  const result = await performUpdate(
+    world.environment("1.0.0", {
+      fetcher: (url, init) => {
+        hops.push(url);
+        return fetch(url, init);
+      },
+    }),
+  );
+  expect(result).toMatchObject({ kind: "updated", to: "1.1.0" });
+  const storage = hops.filter((url) => url.startsWith(world.origin.storageUrl));
+  expect(storage).toHaveLength(3); // manifest, bundle, artifact
+  for (const url of storage) expect(url).not.toMatch(/v1\.1\.0|releases/);
+  expect(hops[0]).toBe(
+    `${world.origin.baseUrl}/releases/latest/download/manifest.json`,
+  );
+  // `latest` itself is never followed: the next request is the exact tag.
+  expect(hops[1]).toBe(
+    `${world.origin.baseUrl}/releases/download/v1.1.0/manifest.json`,
+  );
+});
+
+test("a first redirect that is not a release of the compiled-in origin is refused before anything else is asked", async () => {
+  let location: string | null = null;
+  world = await createWorld({
+    intercept: (path) =>
+      path.startsWith("/releases/latest/")
+        ? location === null
+          ? new Response("a page, not a redirect")
+          : new Response(null, { status: 302, headers: { location } })
+        : undefined,
+  });
+  await world.release("1.1.0");
+  const base = world.origin.baseUrl;
+  const cases: Record<string, [string | null, object]> = {
+    "no redirect at all": [
+      null,
+      {
+        code: "network-unavailable",
+        context: { reason: "http", httpStatus: 200 },
+      },
+    ],
+    "another repository": [
+      `${base.replace("127.0.0.1", "localhost")}/releases/download/v1.1.0/manifest.json`,
+      { code: "release-invalid", context: { reason: "redirect" } },
+    ],
+    "another path of the same host": [
+      `${base}/Other/Repository/releases/download/v1.1.0/manifest.json`,
+      { code: "release-invalid", context: { reason: "redirect" } },
+    ],
+    "straight into asset storage": [
+      `${world.origin.storageUrl}/release-asset/00?sig=fixture`,
+      { code: "release-invalid", context: { reason: "redirect" } },
+    ],
+    "a tag that is not v<semver>": [
+      `${base}/releases/download/nightly/manifest.json`,
+      { code: "release-invalid", context: { reason: "redirect" } },
+    ],
+    "a tag with a path in it": [
+      `${base}/releases/download/v1.1.0/x/manifest.json`,
+      { code: "release-invalid", context: { reason: "redirect" } },
+    ],
+    "another asset": [
+      `${base}/releases/download/v1.1.0/other.json`,
+      { code: "release-invalid", context: { reason: "redirect" } },
+    ],
+    "plain HTTP elsewhere": [
+      "http://example.com/releases/download/v1.1.0/manifest.json",
+      { code: "release-invalid", context: { reason: "redirect" } },
+    ],
+  };
+  for (const [name, [first, refusal]] of Object.entries(cases)) {
+    location = first;
+    const before = world.origin.requests.length;
+    const result = await performUpdate(world.environment("1.0.0"));
+    expect({ name, result }).toMatchObject({
+      name,
+      result: { kind: "error", ...refusal },
+    });
+    // `latest` was the only request.
+    expect(world.origin.requests.slice(before)).toEqual([
+      "/releases/latest/download/manifest.json",
+    ]);
+  }
+  expect(await readSelector(world.base)).toBe("1.0.0");
+});
+
 test("latest moving while an update runs cannot mix two releases", async () => {
   let flipped = false;
   world = await createWorld({

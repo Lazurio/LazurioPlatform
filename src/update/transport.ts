@@ -5,7 +5,9 @@ import { type ReleaseOrigin, versionOfTag } from "./identity";
  * exactly once, only to learn the tag its redirect names; everything else is
  * requested by exact tag. What arrives is authenticated by the attestation, so
  * a redirect decides only where bytes come from — but never over plain HTTP,
- * except back to a loopback fixture origin that is itself plain HTTP.
+ * except within the host of a loopback fixture origin that is itself plain
+ * HTTP. The tag is read from the FIRST redirect of `latest` and nowhere else:
+ * GitHub's final URL is signed asset storage on another host and names no tag.
  */
 export type Fetcher = (
   url: string,
@@ -50,9 +52,17 @@ function redirectTarget(
   if (!location || !URL.canParse(location, from))
     throw unavailable(resource, "redirect");
   const target = new URL(location, from);
+  // HTTPS, always. The one exception is a plain-HTTP loopback FIXTURE origin,
+  // whose asset storage is another port of the same host; a product origin is
+  // HTTPS, so for it this branch can never be taken.
+  const base = new URL(origin.baseUrl);
   if (
     target.protocol !== "https:" &&
-    target.origin !== new URL(origin.baseUrl).origin
+    !(
+      base.protocol === "http:" &&
+      target.protocol === "http:" &&
+      target.hostname === base.hostname
+    )
   )
     throw unavailable(resource, "redirect");
   return target.href;
@@ -83,7 +93,11 @@ export async function resolveLatestTag(
     });
   if (!isRedirect(response.status))
     throw unavailable("latest", "http", response.status);
-  const target = redirectTarget(origin, url, response, "latest");
+  // THE FIRST redirect, and only it, names the tag: it must be the exact-tag
+  // URL of this very asset on the compiled-in origin. It is read, not followed.
+  const location = response.headers.get("location");
+  const target =
+    location && URL.canParse(location, url) ? new URL(location, url).href : "";
   const prefix = `${origin.baseUrl}/releases/download/`;
   const [tag, name, ...rest] = target.startsWith(prefix)
     ? target.slice(prefix.length).split("/")

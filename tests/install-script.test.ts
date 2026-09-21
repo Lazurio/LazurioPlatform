@@ -81,20 +81,42 @@ async function scene(options: { gh?: "accepts" | "refuses" } = {}) {
     }),
   );
   const origin = "https://github.com/Lazurio/LazurioPlatform";
+  // `curl` in GitHub's real multi-hop shape (verified read-only against a
+  // public release): latest -> 302 to the exact-tag URL of the repository ->
+  // 302 into signed asset storage on ANOTHER host, whose URL names no tag.
+  // Not followed, a redirect has no body; `first-hop` overrides the first one.
   await writeFile(
     join(tools, "curl"),
     `#!/bin/sh
 echo "$@" >> "${root}/curl.log"
-out=; head=
+out=/dev/null; follow=; format=
 while [ $# -gt 1 ]; do
-  case "$1" in --output) out=$2; shift ;; --head) head=1 ;; esac
+  case "$1" in
+    --output) out=$2; shift ;;
+    --write-out) format=$2; shift ;;
+    --location) follow=1 ;;
+  esac
   shift
 done
 url=$1
-if [ -n "$head" ]; then printf '%s' "${origin}/releases/download/v1.1.0/manifest.json"; exit 0; fi
-file="${root}/tree/\${url#${origin}/releases/download/}"
-[ -f "$file" ] || exit 22
-cp "$file" "$out"
+storage="https://release-assets.githubusercontent.com/github-production-release-asset/1/0a1b?sig=fixture"
+redirect=; effective=$url; file=
+case "$url" in
+  ${origin}/releases/latest/download/*)
+    redirect="${origin}/releases/download/v1.1.0/\${url##*/}"
+    if [ -f "${root}/first-hop" ]; then IFS= read -r redirect < "${root}/first-hop" || true; fi
+    [ "$redirect" = none ] && redirect=
+    if [ -n "$follow" ] && [ -n "$redirect" ]; then effective=$storage; redirect=; file="${root}/tree/v1.1.0/\${url##*/}"; fi ;;
+  ${origin}/releases/download/*)
+    if [ -n "$follow" ]; then effective=$storage; file="${root}/tree/\${url#${origin}/releases/download/}"
+    else redirect=$storage; fi ;;
+  *) exit 6 ;;
+esac
+if [ -n "$file" ]; then [ -f "$file" ] || exit 22; cp "$file" "$out"; fi
+case "$format" in
+  *redirect_url*) printf '%s' "$redirect" ;;
+  *url_effective*) printf '%s' "$effective" ;;
+esac
 `,
     { mode: 0o755 },
   );
@@ -134,11 +156,19 @@ test.skipIf(!supported)(
     expect(existsSync(join(root, "gh.log"))).toBe(false);
     expect(await ran()).toBe("install --service systemd-user --folder /F\n");
     const log = await readFile(join(root, "curl.log"), "utf8");
-    // `latest` once, for the tag; HTTPS enforced on every request.
-    expect(log.match(/releases\/latest\//g)).toHaveLength(1);
-    expect(log.split("\n").filter(Boolean)).toHaveLength(3);
-    for (const line of log.split("\n").filter(Boolean))
-      expect(line).toContain("--proto =https --tlsv1.2 --fail");
+    // `latest` once, for the tag, and NOT followed; the two assets by exact
+    // tag, followed into storage over HTTPS only. HTTPS on every request.
+    const requests = log.split("\n").filter(Boolean);
+    expect(requests).toHaveLength(3);
+    expect(requests[0]).toContain("/releases/latest/download/manifest.json");
+    expect(requests[0]).toContain("--head");
+    expect(requests[0]).not.toContain("--location");
+    for (const line of requests.slice(1)) {
+      expect(line).toContain("/releases/download/v1.1.0/");
+      expect(line).toContain("--proto-redir =https");
+      expect(line).toContain("--location");
+    }
+    for (const line of requests) expect(line).toContain("--proto =https");
 
     // A download that differs from the manifest is never executed.
     await rm(join(root, "ran"));
@@ -190,5 +220,59 @@ test.skipIf(!supported)(
     expect(existsSync(join(root, ".local"))).toBe(false);
     expect(existsSync(join(root, "Library"))).toBe(false);
     expect((await refusing({ LAZURIO_VERSION: "latest" })).code).toBe(1);
+  },
+);
+
+test.skipIf(!supported)(
+  "the tag is read from the FIRST redirect of latest, which must be a release of this repository",
+  async () => {
+    const run = await scene();
+    const origin = "https://github.com/Lazurio/LazurioPlatform";
+    for (const [firstHop, said] of [
+      // The final URL of the chain: signed storage, no repository, no tag.
+      [
+        "https://release-assets.githubusercontent.com/github-production-release-asset/1/0a1b?sig=fixture",
+        "did not redirect to a release of Lazurio/LazurioPlatform",
+      ],
+      [
+        "https://github.com/Other/Repository/releases/download/v1.1.0/manifest.json",
+        "did not redirect to a release of Lazurio/LazurioPlatform",
+      ],
+      [
+        `${origin}.evil.example/releases/download/v1.1.0/manifest.json`,
+        "did not redirect to a release of Lazurio/LazurioPlatform",
+      ],
+      [`${origin}/releases/download/v1.1.0/other.json`, "did not redirect"],
+      [
+        `${origin}/releases/download/nightly/manifest.json`,
+        "could not resolve a release tag",
+      ],
+      [
+        `${origin}/releases/download/v1.1.0/x/manifest.json`,
+        "could not resolve a release tag",
+      ],
+      [
+        `${origin}/releases/download/v1.1/manifest.json`,
+        "could not resolve a release tag",
+      ],
+      // No redirect at all.
+      ["none", "did not redirect to a release of Lazurio/LazurioPlatform"],
+    ] as const) {
+      await writeFile(join(root, "first-hop"), firstHop);
+      await rm(join(root, "curl.log"), { force: true });
+      const result = await run();
+      expect({ firstHop, code: result.code, stderr: result.stderr }).toEqual({
+        firstHop,
+        code: 1,
+        stderr: expect.stringContaining(said),
+      });
+      // Refused after the one request for the tag: nothing downloaded or run.
+      expect(
+        (await readFile(join(root, "curl.log"), "utf8"))
+          .split("\n")
+          .filter(Boolean),
+      ).toHaveLength(1);
+      expect(await ran()).toBeNull();
+    }
   },
 );

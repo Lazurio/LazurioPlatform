@@ -36,16 +36,26 @@ elif command -v shasum >/dev/null 2>&1; then
 else
   fail "sha256sum or shasum is required"
 fi
-fetch() { curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location "$@"; }
+# An exact-tag asset redirects into GitHub's asset storage: followed, HTTPS only.
+fetch() { curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --silent --show-error --location "$@"; }
 
-# `latest` is asked once, only for the tag; everything else by exact tag.
+# `latest` is asked once, only for the tag, and is NOT followed: the tag is read
+# from GitHub's FIRST redirect, which must be the exact-tag URL of this very
+# repository. (Followed to the end, the URL is signed asset storage on another
+# host and names no tag.) Everything else is requested by exact tag.
 if [ -n "${LAZURIO_VERSION:-}" ]; then
   TAG=$LAZURIO_VERSION
 else
-  RESOLVED=$(fetch --head --output /dev/null --write-out '%{url_effective}' \
+  FIRST=$(curl --proto '=https' --tlsv1.2 --fail --silent --show-error --head \
+    --output /dev/null --write-out '%{redirect_url}' \
     "$ORIGIN/releases/latest/download/manifest.json") || fail "cannot reach $ORIGIN"
-  TAG=${RESOLVED#"$ORIGIN/releases/download/"}
-  TAG=${TAG%%/*}
+  case "$FIRST" in
+    "$ORIGIN/releases/download/"*/manifest.json)
+      TAG=${FIRST#"$ORIGIN/releases/download/"}
+      TAG=${TAG%/manifest.json}
+      ;;
+    *) fail "latest did not redirect to a release of $REPOSITORY" ;;
+  esac
 fi
 printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' ||
   fail "could not resolve a release tag"
