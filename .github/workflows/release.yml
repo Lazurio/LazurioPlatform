@@ -185,9 +185,13 @@ jobs:
             "$RUNNER_TEMP/release/lazurio-darwin-arm64"
       - name: Ordering gate, immediately before publishing
         run: |
-          # A final version must be greater than every published final
-          # release. Otherwise the draft is deleted and nothing is published.
-          if ! gh release list --limit 1000 --json tagName,isDraft,isPrerelease \
+          # A final version must be greater than EVERY published final
+          # release: the whole paginated history, never a finite prefix. The
+          # comparison is scripts/release-gate.ts, which fails closed; a failed
+          # query fails the pipeline the same way. Then the draft is deleted
+          # and nothing is published.
+          if ! gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | {tag_name, draft, prerelease}' \
             | bun run scripts/release-gate.ts "$VERSION"; then
             gh release delete "$TAG" --yes
             exit 1
