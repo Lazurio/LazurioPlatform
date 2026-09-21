@@ -97,7 +97,11 @@ update. An older client reports `reinstall-required` and changes nothing.
 **Check.** The client requests
 `https://github.com/<origin>/releases/latest/download/manifest.json`, records the
 tag the redirect resolved to, and from then on uses only exact-tag URLs
-(`releases/download/<tag>/…`) for the bundle and the artifact. A manifest whose
+(`releases/download/<tag>/…`) for the bundle and the artifact. The tag is taken from that first redirect only, which must name
+exactly this asset of a `v<version>` tag on the compiled-in origin; anything else is
+refused before another request is made. Exact-tag URLs are then followed over HTTPS
+wherever GitHub stores the bytes: there is no host allow-list, because the bytes are
+authenticated by the attestation and not by where they came from. A manifest whose
 version differs from the resolved tag is refused. An update is available when
 the verified manifest version is greater than the active version and not lower
 than the floor.
