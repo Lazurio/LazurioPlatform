@@ -1,362 +1,304 @@
 # Product update
 
-Status: **accepted direction of the Principal (2026-09-19), implementation in
-progress.** This document is the single contract for how an installed Lazurio
-learns about, obtains and activates a new product version.
-
-Authority boundary. Three older documents described this area and each now
-carries a banner pointing here:
-
-| Document | What stays binding there | What this contract supersedes |
-| --- | --- | --- |
-| [release cycle](release-cycle.md) | build, qualification and promotion lifecycle; the two test modes; signing, key-role, expiry and promotion requirements; install location | the proposed update commands, pending attempts, the metadata journal and replay, the double active record, "draining" as an unimplemented phase |
-| [pilot repair](pilot-repair.md) | the preservation principles: prepare beside the active version, never delete or reset trusted metadata, never bootstrap an established installation again | the `product recover` runbook and the bounded manual repair procedure |
-| [expired trust recovery](expired-trust-recovery.md) | its threat analysis of accepted-but-unpersisted role floors, which the Check step below answers | the deferred journal-reconstruction work package as a mechanism |
-
-Until the implementing changes replace it, the code on `main` is still the pilot
-installer (`product install|recover|status|activate`) with its journal and
-replay. That code is the *current implementation*, this document is the
-*accepted target*; the old mechanism is deleted only by the change that proves
-the equivalence tests listed under Evidence, never by this document alone. Nothing is deployed to real clients on
-this codebase yet, so this contract is written without a compatibility burden.
-After the first client deployment every change to it must be compatible.
+Status: **accepted direction of the Principal (2026-09-19, simplified the same
+day), implementation in progress.** This document is the single contract for how
+an installed Lazurio learns about, obtains and activates a new product version.
+It replaces the earlier TUF-based contract and the pilot installer documents
+(decision [F13](decisions.md#f13--release-trust-is-github-artifact-attestation)).
+Nothing is deployed to real clients on this codebase yet, so it is written
+without a compatibility burden. After the first client deployment every change
+to it must be compatible.
 
 ## What the Principal asked for
 
 1. Update is a **conscious step**. Lazurio never activates a new version behind
    the user's back.
-2. Availability is shown **continuously**: a Machine never silently stays on an
-   old version.
+2. Availability is shown **continuously**: a Machine that can reach GitHub shows
+   the newest release it has verified, and shows how old that knowledge is. It
+   cannot show a release that the network withholds from it (see *Knowingly not
+   covered*); that case is visible as an ageing last check, not as a version.
 3. When the user clicks, the update **dependably happens**: every failure is
    bounded, leaves the installed product working, and the same click works again
-   once the outside condition (network, disk, a published compatible release)
-   is restored. No failed attempt needs manual repair first.
-4. Small, clean mechanism. No machinery without a consumer.
+   once the outside condition is restored. A crash at any point is reconciled by
+   the next command without manual repair. Two exceptions need a person and are
+   named where they arise: a new version that stays alive but unhealthy after a
+   power loss inside the activation window (`lazurio update rollback`), and update
+   state damaged from outside the product (`state-invalid`).
+4. **Proven practice instead of our own machinery.** Where a maintained standard
+   exists (GitHub Releases, Sigstore attestations, systemd, `flock`, an atomic
+   symlink) the product uses it and adds nothing beside it.
 
-The model for the user experience and the release workflow is T3 Code's desktop
-updater: a small explicit state machine, a poller in the long-running app, a
-pill in the UI (`available → downloading → ready → restart`), release notes,
-failures that fall back to `available` with a retry, and a tag-driven CI release
-that publishes every platform at once.
+The model for the user experience and the release flow is T3 Code's updater: a
+small explicit state machine, a poller in the long-running app, a pill in the
+UI, failures that fall back to `available` with a retry, and a tag-driven CI
+release that publishes every platform at once.
 
 ## Invariants
 
-- **One core.** CLI and Launchpad call the same update use case. There is no
-  second updater and no shell-script installer logic outside the product.
+- **One core, one command.** CLI and Launchpad run the same `lazurio update`.
+  There is no second updater, no worker entrypoint and no installer logic
+  outside the product.
 - **Explicit activation.** Checking and showing availability are automatic;
   download and activation start only from `lazurio update` or the Launchpad
-  action. A managed policy may later request an update, never silently perform
-  one on a Machine with a working person.
+  action.
 - **No wedge.** Every failure leaves the installed product usable and the next
-  attempt possible. Delivery state is disposable: no pending download attempt,
-  no `recover` command, no journal to replay. The only transaction record is
-  the small activation record below, with a fixed set of transitions that any
-  later start can finish or undo on its own.
-- **Trust never rewinds.** TUF metadata verified during any attempt — above all
-  a rotated root — is promoted into the durable trust directory whether or not
-  the rest of the attempt succeeds. Channel sequence and document-digest floors
-  are security state too and live beside it, not in the presentation state.
-  Program rollback never touches either.
-- **Program rollback is not data rollback.** A version is staged only when the
-  signed identity proves it can read the current Folder state; rollback is
-  offered only to a version that can still read what the newer one wrote.
-- **Running work is never killed to finish an update.** The switch changes what
-  future launches select; a running Launchpad keeps its immutable executable
-  (`process.execPath` resolves to the versioned path, verified on macOS and
-  Linux) until it restarts.
-- **Self-hosted works alone.** No Human and Machine service is needed to check,
-  download, verify or activate. Managed policy, fleet visibility and analytics
-  are additive consumers of the same local state.
+  attempt possible. Downloads are scratch files; there is no pending download, no
+  `recover` command and no journal. The only transaction record is the activation
+  marker `pending.json`, and every state it can be found in has one defined
+  outcome (*Reconciling the marker*).
+- **Versions only move forward over the network.** The floor is the higher of the
+  active version and the durable high-water mark, which records the highest
+  version whose activation was ever committed. No network path, `latest` or an
+  exact tag, installs a version below the floor, even after a rollback.
+- **Program rollback is not data rollback.** A version never rewrites Folder
+  state into a form its predecessor cannot read before its activation is
+  committed.
+- **Running work is never killed to finish an update.** Applications belong to
+  the OS service manager ([F8](decisions.md)); only the Launchpad restarts.
+- **Self-hosted works alone.** No Human and Machine service takes part in
+  checking, downloading, verifying or activating.
+
+## Release and trust
+
+The origin is the public GitHub repository `Lazurio/LazurioPlatform`, compiled
+into the binary together with its numeric repository and owner IDs. There are no
+Lazurio signing keys, no metadata service and no second origin.
+
+**Publishing.** A protected tag `vX.Y.Z` starts `.github/workflows/release.yml`.
+It builds `lazurio-<target>` for every supported target, writes `manifest.json`,
+creates one Sigstore bundle with `actions/attest` whose subjects are the manifest
+and every binary, attaches everything to a draft release and publishes it once.
+Releases are immutable (GitHub immutable releases). Publishing is serialized: the
+publishing job runs in one repository-wide concurrency group that queues and
+never cancels, in the protected environment `release` with a required reviewer.
+Inside that group, immediately before publishing, it lists the published final
+releases and refuses a final version that is not greater than every one of them;
+the draft is then deleted and nothing is published. Only after that check does it
+publish, with `latest` set explicitly for a final version and never for a
+prerelease. Two tags pushed together therefore publish one after the other, and
+the lower one fails closed. Every action is pinned by commit. The file name
+`release.yml` is permanent: it is the trust entry point of every installed
+client.
+
+```json
+{
+  "schema": 1,
+  "version": "1.4.0",
+  "source_commit": "<40 hex>",
+  "minimum_updater_version": "1.0.0",
+  "notes_url": "https://github.com/Lazurio/LazurioPlatform/releases/tag/v1.4.0",
+  "targets": { "linux-x64": { "file": "lazurio-linux-x64", "sha256": "<hex>", "size": 0 } }
+}
+```
+
+`minimum_updater_version` is the oldest installed version able to perform this
+update. An older client reports `reinstall-required` and changes nothing.
+
+**Check.** The client requests
+`https://github.com/<origin>/releases/latest/download/manifest.json`, records the
+tag the redirect resolved to, and from then on uses only exact-tag URLs
+(`releases/download/<tag>/…`) for the bundle and the artifact. A manifest whose
+version differs from the resolved tag is refused. An update is available when
+the verified manifest version is greater than the active version and not lower
+than the floor.
+
+**Verify.** With the `sigstore` library (the verifier npm itself uses), against
+Sigstore's public trust root, refreshed through Sigstore's own client into a
+cache under the install base. All of the following must hold:
+
+- issuer is exactly `https://token.actions.githubusercontent.com`;
+- certificate identity matches the anchored, escaped pattern
+  `^https://github\.com/<origin>/\.github/workflows/release\.yml@refs/tags/v<version>$`,
+  which binds the bytes to the tag;
+- the certificate's repository ID and owner ID equal the compiled-in IDs, and its
+  source ref and commit equal the tag and the manifest's `source_commit`;
+- the attested subjects contain the SHA-256 of the manifest and of the
+  downloaded artifact; size and digest of the artifact match the manifest.
+
+A cold trust cache during a Sigstore outage blocks the update; it never weakens
+verification.
+
+**Exact version.** `lazurio update --version vX.Y.Z-rc.N` installs one exact tag.
+The tag is normalized to a version, the manifest must carry exactly that version,
+verification is the same, and the same floor applies: a version below the floor
+is refused, a version equal to the high-water mark but not active (the retry
+after a rollback) is allowed. Going below the floor is only ever the local
+`update rollback`. GitHub prereleases are invisible to `latest`, so a release
+candidate reaches only the Machines that ask for it. This is the whole canary
+mechanism; there are no channels. A Machine that committed a release candidate
+follows that line: it takes the next version at or above it, and returning to an
+older line is a new installation.
+
+**First installation** is trusted through HTTPS, and says so. `install.sh`
+downloads the latest binary from the origin and checks it against the manifest.
+When `gh` is present it runs `gh attestation verify` before executing anything.
+An attestation check performed by the downloaded binary itself is not
+authentication and is not presented as one. OS publisher signing stays a gate
+before public release ([decisions](decisions.md)).
+
+**Knowingly not covered.** An attacker who controls both the network and a valid
+TLS certificate for `github.com` can hold a client on its current version; they
+cannot downgrade it or make it run foreign bytes. The last verified check time in
+`update status` is how that freeze becomes visible. The trust base is named in
+full: the governance of this repository is the authorization policy (whoever can
+run the protected release workflow on a protected tag can publish); GitHub
+Actions OIDC, which asserts the workflow identity, and Sigstore's certificate
+authority, transparency log and trust root, which the verifier relies on, are
+cryptographic dependencies outside Lazurio's control. A private fork is a different product configuration with its
+own compiled-in origin and IDs, not a runtime setting.
 
 ## State on disk
 
-The install base stays per user and outside the Folder (see release cycle). It
-tolerates unrelated entries: it verifies only what it owns, so a stray file or a
-neighbouring legacy runtime can never stop product commands. Owned security
-state carries a schema version; a binary refuses a newer schema it cannot read
-rather than guessing, and a version is offered for rollback only if it can read
-the current one.
+Everything lives under the per-user install base
+(`${XDG_DATA_HOME:-~/.local/share}/lazurio` on Linux,
+`~/Library/Application Support/Lazurio` on macOS). Unknown entries are tolerated.
 
-```text
-bin/lazurio -> ../versions/<version>+<sha16>/lazurio   # the only active selector
-versions/<version>+<sha16>/{lazurio,identity.json}      # immutable
-trust/                                                  # durable verified TUF metadata + floors.json (floor vector)
-update/activation.json                                  # present only during an activation
-update/observed.json                                    # derived observation for UI, CLI and observers
-update/scratch-*/                                       # always safe to delete
-```
-
-`update/observed.json` is an observation, never an authority. It is shaped
-like T3 Code's update state — `status` (`idle | checking | up-to-date |
-available | downloading | ready | activating | restart-pending | error`),
-`channel`, `releaseNotes`, `downloadPercent`, `error` (`code`, `context`) and
-`canRetry` — and keeps four facts apart because a successful check does not
-imply a converged Machine: the **selected** artifact (the symlink), the
-**running** Launchpad artifact, the **verified available** target and the
-**last healthy activation**, each with its time. It carries a schema version,
-an observation time and the operation identity, holds error codes rather than
-localized prose, and is rebuilt from the selector, the verified artifacts and
-the service manager after any crash, so a stale `downloading` can never stick.
-Fleet observers read a sanitized subset.
-
-The active version is recorded once, by the symlink. `update/activation.json`
-(`previous`, `candidate`, `phase`, `deadline`) exists only between the decision
-to switch and the confirmed health of the new version. Its transitions are
-fixed: `switching → confirming → confirmed | rolled-back`. It decides recovery;
-logs only explain it.
-
-## The three steps
-
-**Check** (automatic, cheap, no mutation of the product). The TUF client
-refreshes in a scratch copy seeded from `trust/`. When the refresh ends —
-success or failure — trust is captured durably in two ways, by temporary file,
-file sync, rename and directory sync, root chain first, then timestamp,
-snapshot, targets:
-
-1. **Roles the client persisted.** The pinned `tuf-js` writes a role file only
-   after its store accepted it (root: after signature and version checks, before
-   expiry; the others: after all checks). Those files are promoted.
-2. **Authenticated failure-state floors.** The client also authenticates a newer
-   timestamp or snapshot *and then throws* when that role is expired; it keeps
-   the role only in memory as its rollback floor and never writes it. Losing it
-   would let a later, lower version pass. The fetcher therefore retains the raw
-   bytes of every role it delivered; after a failed refresh the role delivered
-   last is re-verified independently of the client — signature threshold under
-   the promoted root, version not below the trusted one, and for a snapshot the
-   version and hash recorded by the trusted timestamp — with expiry deliberately
-   ignored. A role that passes is promoted **as a floor only**. Anything that
-   fails re-verification is discarded.
-
-**The floor vector.** What must never go backwards is more than each role's own
-version, and the client's in-memory checks die with the process and with a key
-rotation (a retained role file signed by a revoked key no longer loads, so its
-floor would silently vanish). The floors are therefore kept as an owned,
-schema-versioned record `trust/floors.json`, merged monotonically and written
-atomically, independent of who signed the roles:
-
-| Floor | Facts kept |
+| Path | Meaning |
 | --- | --- |
-| root | highest trusted version; digest of each retained numbered root |
-| timestamp | version; digest of its signed content; the snapshot reference it names (version, and length and hashes when recorded) |
-| snapshot | version; digest of its signed content; **every** entry of `snapshot.meta` by role name (version, and length and hashes when recorded) |
-| targets and any other role named in `snapshot.meta` | version and signed-content digest of the last role actually verified |
+| `versions/<version>/lazurio` | immutable installed versions; the active and the previous one are kept, older ones are pruned after a committed activation |
+| `bin/lazurio` → `../versions/<v>/lazurio` | the only selector of the active version |
+| `previous` → `versions/<v>` | the rollback target |
+| `update/lock` | one kernel `flock` for every mutating update operation |
+| `update/high-water` | highest version whose activation was ever committed; only ever raised |
+| `update/pending.json` | `{from, to}` activation marker of a supervised installation; written before the switch, deleted by the commit or the undo |
+| `update/last-check.json` | cache of the last check for the pill and the CLI notice; disposable |
+| `sigstore/` | Sigstore's trust-root cache; disposable |
 
-Every candidate — a role the client persisted or a captured failure-state role —
-is compared with the whole vector before anything is promoted:
+`high-water` and `pending.json` are written as a temporary file made durable,
+renamed over the target, with the directory made durable. A crash leaves the old
+or the new content, never a partial one. Status is computed from these paths when asked; there is no observed-state file
+and no configuration file. A supervised installation is one whose systemd user
+unit `lazurio-launchpad.service` exists; the Folder path lives in that unit.
 
-1. a version lower than its floor is refused;
-2. the **same version with different signed content** is refused (equivocation),
-   the same version with identical content is a no-op;
-3. a timestamp whose snapshot reference is lower than the floor's is refused;
-   one that names the **same** snapshot version must repeat the recorded length
-   and hashes exactly — a changed or omitted recorded length or hash is refused,
-   even though the timestamp itself is newer and the snapshot's bytes are not
-   delivered in that refresh;
-4. a snapshot in which any previously recorded `snapshot.meta` entry is missing
-   or lower is refused; an entry that names the **same** role version must
-   repeat its recorded length and hashes exactly, whether or not that role is
-   fetched in the refresh; an entry may not fall below a role of that name that
-   was actually verified; and the snapshot must agree with the newest
-   authenticated timestamp's reference;
-5. a root is accepted only as the next link of the retained chain, signed by the
-   thresholds of both the previous and the new root.
+## Activation
 
-The comparison covers every trusted role after a successful refresh, changed or
-not, because the client treats a replayed state equal to its files as "no
-change" and would authorize targets from it; after a failed refresh it covers
-the changed roles and the captured one. A violation refuses the whole refresh
-result with a typed `metadata-rollback` error; only a valid root chain is still
-promoted. Only after this exact link-equivalence check passes are the role files
-promoted and the vector set to the element-wise maximum of the old vector and
-the candidates' facts, so it survives expiry, interruption, repository advance
-and root rotation alike. Delegations stay disabled (`maxDelegations: 0`); the
-rule is written over role names so enabling them later cannot weaken it. A
-missing or unreadable `floors.json` is rebuilt from the retained role files,
-each verified under the retained numbered root that was valid for it; it never
-blocks a check and never resets to empty while those files exist.
+`lazurio update` under the lock:
 
-Expired metadata never authorizes a target: every refresh re-checks expiry
-before accepting the next role, a target is looked up only after a refresh that
-completed without error and satisfied the vector, and an expired local role is
-loaded only as a version floor, exactly as the TUF specification's intermediate
-metadata.
+1. Reconcile a leftover `pending.json` (below). Check, download into scratch,
+   verify, place into `versions/<version>/`, all on the same filesystem.
+2. Run the new binary's `self-check`: it reports the expected identity and can
+   read the current install base and Folder state. A failure ends here; nothing
+   was switched.
+3. Point `previous` at the active version. On a supervised installation write
+   `pending.json {from, to}`. Each step is durable before the next.
+4. Replace `bin/lazurio` by rename and make the directory durable.
+5. **Unsupervised (macOS, no service):** raise the high-water mark to the new
+   version; done. The switch is the commit and there is no marker; a running
+   Launchpad reports that a restart finishes the update.
+   **Supervised:** restart `lazurio-launchpad.service` and poll its health
+   endpoint until it reports the new version, for at most 30 seconds. On success
+   commit: raise the high-water mark, delete `pending.json`, prune. On failure
+   undo: switch back, restart, delete `pending.json`, exit `activation-failed`.
+   A version whose activation was undone never raised the high-water mark; the
+   pill returns to `available` with the failure, and a retry is the same click.
 
-A crash before promotion equals a refresh that never ran; a crash between
-promotions leaves a newer root with older roles, which the next refresh
-re-verifies under that root. This needs no change to the pinned `tuf-js`. The
-old journal and replay remain the mechanism until the equivalence tests under
-Evidence pass against this path: every case the retained mechanism proves today
-(`tests/historical-roles.test.ts`: timestamp-to-snapshot reference, every
-`snapshot.meta` floor, same-version content binding, floors across root
-rotation and across interruption) is ported to the floor vector and extended
-with expiry carrying a newer authenticated floor, with repository advance, and
-with the two cross-refresh link cases: a newer timestamp naming the same
-snapshot version under a different recorded binding, and a newer snapshot naming
-the same `targets.json` (or other role) version under a different recorded
-binding — both must end in `metadata-rollback` although the referenced role's
-bytes are not delivered in that refresh. Then read the signed channel document,
-compare with the embedded version and rewrite `observed.json`. Network or
-expiry failures produce a typed error and leave everything else untouched.
+The Launchpad action starts the same command as
+`systemd-run --user --unit lazurio-update … update --version <v>`, so it outlives
+the Launchpad restart it causes. The pill follows that unit and
+`last-check.json`.
 
-**Download** (explicit). Resumable ranged download with bounded retries and one
-total deadline, into scratch. Verify length and digest against signed targets,
-verify the signed identity (target, version, schema read-compatibility, minimum
-updater contract). Run the **staged executable by its immutable path** in
-self-check mode: it must report the embedded identity that matches the signed
-one and read the current Folder state without writing. Only then rename into
-`versions/`. A candidate that failed its gate is not offered again
-automatically; an explicit retry re-runs the full cryptographic and readiness
-gate, so a transient environmental failure is not a permanent verdict and bad
-bytes still never pass.
+### Reconciling the marker
 
-**Activate** (explicit, part of the same click unless the user chose "download
-only"). The activation is driven by a short-lived **activation worker started
-from the previous, known-good immutable binary**, outside the Launchpad's
-termination group and under the OS service manager, because a candidate that
-cannot start cannot supervise its own rollback. The worker writes the activation
-record, swaps the symlink by rename and restarts the Launchpad service. It then
-requires readiness from a **fresh instance**: a new process that reports the
-expected artifact digest, Folder and protocol compatibility, and stays healthy
-for a bounded stability period; an old process answering, or a bare HTTP 200,
-proves nothing. It distinguishes a candidate that fails from a gateway that is
-down. Confirmed → record removed, retention applied. Not confirmed within the
-deadline → symlink restored to `previous`, service restarted, typed error
-reported; the user is back on a working version and the pill says why. After a
-reboot mid-activation the service manager restarts the worker, which finishes
-from the record. A CLI started meanwhile coordinates with the worker through the
-record and never undoes its switch.
+`pending.json` can outlive its updater only through a crash. Whoever next holds
+the lock reconciles it before doing anything else: every mutating update
+command, a starting Launchpad, and the rollback unit. The outcome depends only
+on what is on disk:
 
-The Launchpad restart is harmless because long-running module applications are
-owned by the OS service manager, not by the Launchpad process (see
-[module adoption](module-adoption.md); on Linux systemd user services). Where
-that ownership is not yet available (macOS workstations run applications for
-the Launchpad session), running applications turn the step into
-`restart-pending` and the UI offers "Restart now" naming what will stop.
+| Marker | `bin/lazurio` selects | `previous` selects | Meaning | Outcome |
+| --- | --- | --- | --- | --- |
+| absent | any | any | nothing in flight | proceed |
+| valid | `from` | any | crashed before the switch, or after an undo | delete the marker; proceed. The next click starts a fresh activation |
+| valid | `to` | `from` | switched, not committed | decided by the reconciler, below |
+| valid | `to` | not `from` | cannot arise from a crash | `state-invalid` |
+| valid | neither | any | cannot arise from a crash | `state-invalid` |
+| unreadable or wrong schema | any | any | cannot arise from a crash | `state-invalid` |
 
-No Folder data is written in a new format until the activation is confirmed, so
-the rollback window never needs a data downgrade.
+Switched, not committed:
 
-One lock covers a step, acquired blocking with a timeout; lock initialization is
-crash-safe; the lock works on any local filesystem that provides `flock`. The
-lock is released before the worker waits for the restarted Launchpad, which
-needs it to start.
+- A **Launchpad of version `to`** that has started healthy commits.
+- The **rollback unit** (`OnFailure=lazurio-rollback.service`, run from
+  `previous/lazurio update rollback --auto` when the start limit is hit) undoes. In
+  every other row it does nothing.
+- A **mutating update command** asks the service once: healthy at `to` commits,
+  anything else undoes. It then continues with what the user asked for.
 
-Retention: active, previous and any version still running are kept; everything
-else, all scratch and superseded trust files are pruned after a confirmed
-activation. Disk is checked before download.
+`state-invalid` never clears, rewrites or guesses: the product keeps running what
+the selector names, the high-water mark is untouched, mutating update commands
+refuse with the offending path, and `update status` shows it. It is reachable only
+by interference from outside the product and is resolved by a person. An
+unreadable `high-water` is `state-invalid` as well; a missing one means the floor
+is the active version.
+
+Not recovered automatically: a new version that stays alive but never becomes
+healthy after a power loss between the switch and the commit. systemd sees a live
+process, so the rollback unit never runs; the next `lazurio update` or `lazurio
+update rollback` undoes it. A watchdog is deliberately not built for it.
+
+`lazurio update rollback` switches to `previous` after that binary's own
+`self-check`, with the same marker, restart and health rule, after raising the
+high-water mark to the version it leaves. It never lowers the high-water mark.
 
 ## Surfaces
 
 - **Launchpad.** Poller: first check shortly after start, then every few minutes
-  with jitter (the check is one small signed document). Pill with version, notes
-  and the single action appropriate to the status. The Launchpad shows when the
-  running version differs from the active one.
-- **CLI.** `lazurio update` (check, download, activate), `lazurio update --check`,
-  `lazurio update status [--json]`, `lazurio update rollback`, `lazurio --version`.
-  Other commands print a one-line notice from `observed.json`; they never touch the
-  network for it. Every failure has a stable error code and a non-zero exit
-  status that automation can classify.
-- **Identity in the binary.** Version, commit and target are embedded at build
-  time, together with the TUF root and the default origin. A local
-  `update/config.json` holds only the channel.
+  with jitter. Pill states `idle`, `checking`, `available`, `downloading`,
+  `activating`, and failures that return to `available` with the error and a
+  retry. It shows version, a link to the release notes and the single action
+  appropriate to the state.
+- **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
+  [--json]`, `update rollback`, `lazurio install [--service systemd-user]`,
+  `lazurio --version`. Other commands print a one-line notice from
+  `last-check.json` and never touch the network for it.
+- **Exit status.** `0` success or up to date, `10` update available (`--check`),
+  `2` usage, `1` failure or busy. `--json` carries one stable error code from a
+  short list (`network-unavailable`, `release-invalid`, `attestation-invalid`,
+  `trust-unavailable`, `target-unsupported`, `reinstall-required`, `busy`,
+  `storage-unavailable`, `disk-full`, `not-installed`, `self-check-failed`,
+  `activation-failed`, `rollback-unavailable`, `state-invalid`, `internal`).
+- **Identity in the binary.** Version, commit, target, origin and its numeric IDs
+  are embedded at build time.
 
 ## Never silently stale
 
 1. Local: the pill and the CLI notice, fed by the poller.
-2. Signed: the channel document carries `minimum_version`; below it the
-   Launchpad shows a prominent, non-blocking notice. A disconnected Machine
-   cannot learn newer policy, therefore:
-3. Observed: `observed.json` is the contract that an outside observer reads. A
-   missing or old `lastAuthenticatedCheckAt`, a version behind the channel, or a
-   long `restart-pending` is a failure for whoever watches the fleet. Today that
-   observer is the Machines readback on hosted Machines; later it is the
-   managed service once a Machine is enrolled through Lazurio Account. An
-   unused installation that nobody observes gets an OS-scheduled check only when
-   a real consumer needs it; it is not part of the first delivery.
+2. Observed: `lazurio update status --json` is what an outside observer reads:
+   running, active and latest known version and the time of the last verified
+   check. Today that observer is the Machines readback on hosted Machines; later
+   it is the managed service once a Machine is enrolled through Lazurio Account.
+   An unused installation that nobody observes gets an OS-scheduled check only
+   when a real consumer needs it.
 
-## Foundations for the managed product (not built now)
-
-Lazurio Account login in the Launchpad, a Machine profile selected in the
-Dashboard and internal usage analytics all use one direction of authority:
-the service sends **typed, resource-specific requests with an expected local
-revision** (a profile revision, a channel, never a generic desired-state
-document), the Machine-local core
-pulls it, validates it like any other input and applies it through the same use
-cases the CLI uses; the Machine reports **observed state** (`observed.json`, profile
-digest, coarse consented usage). Login never becomes local authority, analytics
-can never block an update, and measurement stays default-off and consent-bound
-as in [profile evidence](profile-evidence.md). The update work lays exactly two
-foundations for this: the observed-state document and typed, revisioned inputs.
-It adds no enrollment, no heartbeat and no generic maintenance framework.
-
-## Publishing
-
-Tag-driven workflow modelled on T3 Code: quality gates, deterministic builds for
-the supported targets, one GitHub Release with all artifacts and generated
-notes, then publication of signed metadata.
-Channels are `stable` and `preview`; promotion edits the signed channel document
-to point at the same bytes. Each channel has its own sequence floor; switching
-channel is explicit and never downgrades.
-
-TUF stays (accepted decision; rotation, expiry and rollback protection are not
-worth re-implementing). Root is offline with the Principal. The targets key
-authorizes releases and lives behind a protected CI environment with a required
-approver. Snapshot and timestamp keys serve freshness only and are renewed by a
-scheduled job **well before** expiry, with monitoring of every role's remaining
-validity; a lapsed timestamp would stop every Machine from updating.
-
-Publishing is atomic and needs no new infrastructure. The TUF repository uses
-**consistent snapshots**: numbered roots, snapshots and targets and
-hash-addressed artifacts are immutable and never replaced. Artifacts are assets
-of the product's GitHub Release. Metadata and channel documents are a static
-tree published through GitHub Pages of this repository, where one deployment
-replaces the whole tree at once; the publisher uploads artifacts, verifies that
-everything the new metadata references is reachable, and only then publishes the
-tree, timestamp last. Old referenced objects are retained so a cached timestamp
-always describes a complete repository. The client maps `artifacts/<digest>/…`
-to the asset URL explicitly and qualifies the redirect origins by test. A second
-origin is added only when a real consumer (a private fork, an air-gapped
-customer) needs it; the transport already takes the origin as configuration.
+Lazurio Account login, a Dashboard-selected Machine profile and internal
+analytics stay additive consumers as described in
+[F10](decisions.md) and [F11](decisions.md): typed, revisioned requests in, status
+out. Login never becomes local authority and analytics can never block an update.
 
 ## Deliberately narrow
 
-Elegance here means a small number of paths that are each proven, not coverage
-of every combination.
-
-- **Targets:** `linux-x64` (hosted Machines) and `darwin-arm64` (workstations)
-  are supported; `linux-arm64` is built because the local qualification VM is
-  ARM64. Intel macOS, musl and Windows are not built until a real user needs
-  them; Windows gets its own activation design then, not a port of this one.
-- **Install scope:** per user only. No system-wide install, no multi-user
-  sharing of one base. A hosted Team Workspace is one Machine with one OS user,
-  so it is the same case as a private workspace.
-- **One channel document format, two channels, one origin.**
-- **One supervisor per OS:** systemd user services on Linux own the Launchpad,
-  the activation worker and module applications. On macOS the Launchpad and its
-  applications are session-scoped until a workstation consumer needs more.
-- **No automatic activation, no OS scheduler, no enrollment, no heartbeat** in
-  this delivery. Each arrives with its first real consumer.
-- **No migration of the legacy installer state.** Nothing is deployed, so the
-  pilot layout (`active.json`, attempts, history, generations) is removed, not
-  adopted.
+`linux-x64` and `darwin-arm64` are supported; `linux-arm64` is built for the
+qualification VM. Installation is per-user. Supervision exists only as a systemd
+user service. There is no Windows, no automatic activation, no channel, no
+resumable download, no delta update, no OS-scheduled check and no watchdog.
 
 ## Evidence required before any Machine depends on this
 
-CI builds two real versions and proves, against a fixture repository and then
-natively on Linux (x64, ARM64) and macOS ARM64 (including the floor case: an
-authenticated newer-but-expired timestamp and snapshot are retained and a later
-lower version is refused): A→B, confirmed restart, automatic
-rollback of an unhealthy B, explicit retry, `kill -9` of the worker and reboot at
-every step of every phase, expired timestamp, repository advancing mid-update,
-root rotation accepted during a failed download and retained, full disk, unknown
-files in the base, two concurrent updates, update while applications run. The
-same journey then runs on a hosted canary Machine.
+- Behavioural tests against a local fixture origin: forward update, refusal of
+  a version below the floor after a rollback through `latest` and through an
+  exact tag, the equal-high-water retry, every row of the reconcile table, tag/manifest
+  mismatch, wrong identity, wrong repository ID, tampered artifact and manifest,
+  raced `latest`, cold trust cache offline, disk full, concurrent runs, kill at
+  every activation step.
+- One real release candidate published by `release.yml` and verified by a
+  compiled client, because a fixture cannot prove the GitHub and Sigstore path.
+- Native qualification on Linux with systemd: A → B, failed B with automatic
+  rollback, crash-looping B after a simulated power loss, explicit rollback, a
+  real reboot. Then the same journey on the Spectoda canary.
 
 ## Removed by this contract
 
-The write-ahead metadata journal, transcript replay, historical role floors,
-recovery cycles, attempt history, `product recover`, the double active record and
-the refusal of unrelated base entries — **after** the interruption, expiry and
-rotation tests above prove that durable per-role promotion preserves the same
-trust. Their security purpose is kept by a mechanism that is smaller and cannot
-wedge.
+The pilot installer (`src/distribution`, `product install|recover|status|activate`)
+with its journal and replay; TUF roles, keys, floors and the publisher; the
+metadata tree on GitHub Pages and its refresh job; channel documents; the signed
+identity document; the activation worker, the readiness file and the stability
+period; `activation.json`, `previous.json`, `observed.json`, `config.json`; the
+documents `pilot-repair.md` and `expired-trust-recovery.md`.

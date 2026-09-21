@@ -20,7 +20,6 @@ A named, versioned, declarative composition of:
 | Required capabilities | Tools, harness capabilities and the provider identity mode (own sign-in or brokered Organization identity) the Environment must diagnose as present |
 | Enabled surfaces | Which installed surfaces are offered, for example Launchpad and hosted entry |
 | Supervision policy | How long-running applications are owned, for example OS service manager or session-scoped |
-| Default update channel | The channel the product update check follows unless overridden |
 
 A preset is data shipped with a release. It carries no scripts, no infrastructure and
 no authority. An unknown preset, an unknown version or an unsupported combination
@@ -51,7 +50,7 @@ reinterprets them.
 Do not extend the instruction axes in `src/folder/profile.ts` into a universal
 infrastructure configuration. Those axes describe generated instructions. A preset may
 supply their defaults; it does not turn the profile renderer into the owner of
-supervision, surfaces or channels.
+supervision or surfaces.
 
 ## One choice, two effects, two owners
 
@@ -60,7 +59,7 @@ A user-facing "Machine profile" choice has two distinct effects:
 | Effect | Owner | Examples |
 | --- | --- | --- |
 | Infrastructure custody and topology | The hosting engine | Placement, network, gateway, custody, recovery, OS account |
-| Environment configuration | Platform | Preset reference, overrides, surfaces, supervision policy, channel |
+| Environment configuration | Platform | Preset reference, overrides, surfaces, supervision policy |
 
 The hosting engine's reusable Machine profiles remain its own; Platform gains no
 authority to redefine them. A managed Dashboard may present one choice and dispatch a
@@ -69,7 +68,7 @@ separate request to each owner. Neither owner applies the other's half.
 ## Typed requests with an expected revision
 
 A managed service that wants to change Environment configuration sends a **typed,
-resource-specific request**: for example "set preset reference", "set update channel"
+resource-specific request**: for example "set preset reference", "update the product"
 or "start this application". Each request carries the requester's identity, the
 **expected local revision** of that resource and the requested change.
 
