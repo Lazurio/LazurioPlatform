@@ -107,8 +107,8 @@ requires operator diagnosis. No automatic cleanup or universal recovery is
 promised. Recreating a disposable VM requires separate infrastructure approval.
 
 Product update follows the [product update contract](update.md); until it is
-implemented the pilot installer's [repair runbook](pilot-repair.md) applies: retain accepted TUF
-trust and the previous working product. Folder handover does not change that rule.
+implemented nothing installs a product release on a Machine: retain the previous
+working product. Folder handover does not change that rule.
 The local filesystem boundary assumes no hostile concurrent same-user/root
 directory replacement; ownership checks are not a sandbox.
 
@@ -123,7 +123,7 @@ it does not qualify either architecture. See [Bun's executable targets](https://
 
 Unit fixtures prove parsing/refusal, directory preservation and recognized
 interruption completion. They do not prove actual Machines delivery, official
-HTTPS/TUF hosting, native Linux x64 execution, Organization/module authorization,
+release hosting and attestation, native Linux x64 execution, Organization/module authorization,
 gateway operation, agent work, VM restart or the second-VM repeat. Record those
 separately at exact source/artifact revisions. The real pilot must exercise the
 installed binary and root-issued file under the non-root operator account.
