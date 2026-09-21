@@ -14,6 +14,8 @@ type Unit = {
   dropIns: string;
   transient: string;
   type: string;
+  flags: string[];
+  fragmentPath?: string;
 };
 
 // In-memory stand-in for the systemd user manager behind the injected process
@@ -48,9 +50,51 @@ export function createFakeServiceManager(
     args
       .filter((value) => value.startsWith(`${name}=`))
       .map((value) => value.slice(name.length + 1));
+  const unitOfBusPath = (path: string) =>
+    path
+      .slice(path.lastIndexOf("/") + 1)
+      .replace(/_([0-9a-f]{2})/g, (_match, hex: string) =>
+        String.fromCharCode(Number.parseInt(hex, 16)),
+      );
   const run: ServiceManagerProcess = async (program, args) => {
     calls.push({ program, args: [...args] });
     if (behaviour.unavailable) return { code: null, stdout: "", stderr: "" };
+    if (program === "busctl") {
+      const state = units.get(unitOfBusPath(args[4] as string));
+      if (!state) return { code: 1, stdout: "", stderr: "no such unit" };
+      const values: Record<string, unknown> = {
+        ExecStartEx: {
+          type: "a(sasasttttuii)",
+          data: [
+            [
+              state.command[0],
+              state.command,
+              state.flags,
+              0,
+              0,
+              0,
+              0,
+              4242,
+              0,
+              0,
+            ],
+          ],
+        },
+        Environment: { type: "as", data: state.environment },
+        UnsetEnvironment: {
+          type: "as",
+          data: (state.properties.UnsetEnvironment ?? "")
+            .split(" ")
+            .filter((name) => name),
+        },
+      };
+      return ok(
+        `${args
+          .slice(6)
+          .map((name) => JSON.stringify(values[name]))
+          .join("\n")}\n`,
+      );
+    }
     if (program === "systemd-run") {
       const unit = option(args, "--unit")[0] as string;
       if (units.has(unit))
@@ -78,6 +122,9 @@ export function createFakeServiceManager(
         dropIns: "",
         transient: "yes",
         type: option(args, "--service-type")[0] ?? "simple",
+        flags: args.includes("--expand-environment=no")
+          ? ["no-env-expand"]
+          : [],
       });
       if (!failed) populated.add(controlGroup);
       if (behaviour.start === "timeout-loaded")
@@ -114,11 +161,18 @@ export function createFakeServiceManager(
             ControlGroup: state.controlGroup,
             WorkingDirectory: state.cwd,
             KillMode: state.properties.KillMode ?? "",
+            UMask: state.properties.UMask ?? "0022",
+            TimeoutStopUSec: state.properties.TimeoutStopSec ?? "1min 30s",
+            StandardInput: state.properties.StandardInput ?? "null",
+            StandardOutput: state.properties.StandardOutput ?? "journal",
+            StandardError: state.properties.StandardError ?? "inherit",
             Description: state.description,
             LoadState: "loaded",
             ActiveState: state.active,
             SubState: state.sub,
-            FragmentPath: `${runtimeDirectory}/systemd/transient/${unit}`,
+            FragmentPath:
+              state.fragmentPath ??
+              `${runtimeDirectory}/systemd/transient/${unit}`,
             DropInPaths: state.dropIns,
             Transient: state.transient,
             InvocationID: state.invocationId,
@@ -132,6 +186,11 @@ export function createFakeServiceManager(
             ControlGroup: "",
             WorkingDirectory: "",
             KillMode: "control-group",
+            UMask: "0022",
+            TimeoutStopUSec: "1min 30s",
+            StandardInput: "null",
+            StandardOutput: "journal",
+            StandardError: "inherit",
             Description: unit,
             LoadState: "not-found",
             ActiveState: "inactive",
@@ -204,21 +263,23 @@ export function createFakeServiceManager(
       return !populated.has(controlGroup);
     },
     // The application's main process exits by itself with a failure.
-    crash(unit: string, result = "exit-code") {
+    // `lingering`: the manager already reports the unit failed while the kernel
+    // still holds processes in its group for a while.
+    crash(unit: string, result = "exit-code", lingering = false) {
       const state = units.get(unit);
       if (!state) throw new Error("No such unit");
-      populated.delete(state.controlGroup);
+      if (!lingering) populated.delete(state.controlGroup);
       Object.assign(state, {
         active: "failed",
         sub: "failed",
         result,
-        controlGroup: "",
+        controlGroup: lingering ? state.controlGroup : "",
       });
     },
     commands: (verb: string) =>
       calls.filter(
         (call) =>
-          (call.program === "systemd-run" && verb === "systemd-run") ||
+          (call.program === verb && ["systemd-run", "busctl"].includes(verb)) ||
           (call.program === "systemctl" && call.args[1] === verb),
       ),
   };

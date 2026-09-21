@@ -121,7 +121,14 @@ const show = async (property: string) =>
     )
   ).stdout.trim();
 
-async function launchpad() {
+// `selection: "auto"` omits the flag: the DEFAULT selection must itself choose
+// the service manager here. Every later Launchpad is explicit, so that this
+// qualification can never silently fall back to `session`. One of them is given
+// a lexically different spelling of the same Organization directory.
+async function launchpad(
+  selectionMode: "auto" | "explicit" = "explicit",
+  directory = organizationDirectory,
+) {
   const child = Bun.spawn(
     [
       cli as string,
@@ -129,12 +136,12 @@ async function launchpad() {
       "--folder",
       folder,
       "--organization-directory",
-      organizationDirectory,
+      directory,
       "--bun-executable",
       moduleBun as string,
-      // Explicit: this qualification must never silently fall back to `session`.
-      "--application-runner",
-      "systemd-user",
+      ...(selectionMode === "auto"
+        ? []
+        : ["--application-runner", "systemd-user"]),
     ],
     { cwd: home, env, stdout: "pipe", stderr: "pipe" },
   );
@@ -330,7 +337,7 @@ try {
   assert.equal(await show("LoadState"), "not-found");
 
   // A. Start through the CLI and the first Launchpad.
-  const first = await launchpad();
+  const first = await launchpad("auto");
   assert.equal((await first.operation("prepare")).kind, "prepared");
   assert.equal(
     (await timed("startMs", () => first.operation("start"))).kind,
@@ -367,7 +374,11 @@ try {
   assert.equal(await show("InvocationID"), invocation);
 
   // C. A new Launchpad rediscovers the same invocation from the manager.
-  const second = await launchpad();
+  // Another spelling of the same directory must be the same application.
+  const second = await launchpad(
+    "explicit",
+    `${organizationDirectory}/../Organization`,
+  );
   const rediscovered = await timed("rediscoveryMs", second.healthy);
   assert.equal(rediscovered.service.invocationId, invocation);
   assert.equal((await second.operation("start")).kind, "already-managed");
@@ -491,6 +502,10 @@ try {
       userManager: manager,
       cliSha256: await digest(cli),
       runner: "systemd-user",
+      defaultSelection:
+        "first Launchpad started without --application-runner and selected systemd-user",
+      equivalentDirectorySpelling:
+        "second Launchpad was given <dir>/../Organization and reported the same InvocationID",
       unit: unit.replace(/[0-9a-f]{16}/g, "<digest>"),
       sameInvocationAcross: [
         "graceful Launchpad exit (SIGTERM)",

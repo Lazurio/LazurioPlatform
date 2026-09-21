@@ -117,6 +117,7 @@ managerTest(
     const run = createServiceManagerProcess(runtimeDirectory);
     const unit = applicationUnitName(organization, selection);
     let exit: string | null = null;
+    let description = "";
     const owner = () =>
       createApplicationLifecycle({
         runner: createSystemdUserRunner({
@@ -182,6 +183,10 @@ managerTest(
       const invocation = started.service?.invocationId;
       expect(invocation).toMatch(/^[0-9a-f]{32}$/);
       expect(await show("InvocationID")).toBe(invocation as string);
+      description = await show("Description");
+      expect(description).toMatch(
+        /^Lazurio application; declaration sha256:[0-9a-f]{64}; definition sha256:[0-9a-f]{64}$/,
+      );
       const evidence = (await (
         await fetch(`http://127.0.0.1:${port}/evidence`)
       ).json()) as {
@@ -259,7 +264,77 @@ managerTest(
         throw new Error("Expected service identity");
       expect(restarted.service?.invocationId).not.toBe(invocation);
       expect(await second.stop(selection)).toEqual({ kind: "group-stopped" });
+
+      // A FOREIGN unit under this application's exact name, with the same
+      // description and policy but another command, is never adopted or stopped.
+      const foreign = await run(
+        "systemd-run",
+        [
+          "--user",
+          "--quiet",
+          `--unit=${unit}`,
+          `--description=${description}`,
+          "--service-type=exec",
+          `--working-directory=${join(moduleDirectory, "app")}`,
+          "--property=KillMode=control-group",
+          "--property=Restart=no",
+          "--property=UMask=0077",
+          "--property=TimeoutStopSec=5s",
+          "--property=StandardInput=null",
+          "--property=StandardOutput=null",
+          "--property=StandardError=null",
+          "--",
+          "/usr/bin/sleep",
+          "600",
+        ],
+        { timeoutMs: 20_000 },
+      );
+      expect(foreign.code).toBe(0);
+      const foreignInvocation = await show("InvocationID");
+      for (const result of [
+        await second.status(selection),
+        await second.stop(selection),
+        await second.start(selection),
+        await second.prepare(selection),
+      ])
+        expect(result).toEqual({ kind: "service-unrecognized" });
+      expect(await show("ActiveState")).toBe("active");
+      expect(await show("InvocationID")).toBe(foreignInvocation);
       expect(await second.close()).toEqual({ kind: "closed" });
+    } catch (error) {
+      // Public-safe diagnostics: how THIS manager renders the unit's shape.
+      for (const [program, args] of [
+        [
+          "systemctl",
+          [
+            "--user",
+            "show",
+            "--no-pager",
+            "--property=LoadState,ActiveState,Type,KillMode,Restart,UMask,TimeoutStopUSec,StandardInput,StandardOutput,StandardError,Transient,DropInPaths,Description",
+            "--",
+            unit,
+          ],
+        ],
+        [
+          "busctl",
+          [
+            "--user",
+            "--json=short",
+            "get-property",
+            "org.freedesktop.systemd1",
+            `/org/freedesktop/systemd1/unit/${unit.replace(/[^A-Za-z0-9]/g, (char) => `_${char.charCodeAt(0).toString(16).padStart(2, "0")}`)}`,
+            "org.freedesktop.systemd1.Service",
+            "ExecStartEx",
+            "UnsetEnvironment",
+          ],
+        ],
+      ] as const) {
+        const output = await run(program, args, { timeoutMs: 5000 });
+        console.log(
+          `DIAGNOSTIC ${program} exit=${output.code}\n${output.stdout}${output.stderr}`,
+        );
+      }
+      throw error;
     } finally {
       await run("systemctl", ["--user", "stop", "--", unit], {
         timeoutMs: 20_000,

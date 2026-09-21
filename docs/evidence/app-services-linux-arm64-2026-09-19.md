@@ -139,6 +139,28 @@ The application's environment shows the declared names plus what `bun run` itsel
 for a package script (`npm_*`, `NODE`, `PWD`, `SHLVL`, `_`). Nothing from the manager
 except `INVOCATION_ID`: no session bus, no agent socket, no login environment.
 
+## After review (2026-09-21): what this transcript does and does not cover
+
+The review of `d143a38` led to changes that are **not covered by the native runs
+above**: full ownership binding of the generated unit (fixed policy compared value by
+value; executable, argument vector, expansion flag, environment and `UnsetEnvironment`
+read as the manager's D-Bus values through `busctl` and bound by a definition digest in
+the description), one bounded stop confirmation for failed units, canonicalization of
+the Organization directory before every unit and lock derivation, and a native runner
+whose first Launchpad uses the default (`auto`) selection and whose second Launchpad is
+given an equivalent spelling of the Organization directory.
+
+A third native round on a fresh clone was required and **could not be run**: the
+external volume that holds the virtual Machines was not attached to the host, and
+nothing was improvised in its place. What exercises those changes against a real
+systemd user manager is CI on `ubuntu-24.04` (x64), where a user manager answers and
+`tests/systemd-user-integration.test.ts` runs for real — including the `busctl`
+reading, the rendered policy values and a **foreign unit under the application's exact
+name** (same description and policy, another command) that must stay
+`service-unrecognized`, untouched and running. The compiled-CLI journey, automatic
+runner selection and the equivalent-spelling Launchpad remain **native-unqualified at
+this head** until the revised runner is run on a real Machine.
+
 ## Not dependable / not shown
 
 - An **interrupted preparation** requires explicit operator recovery by design; that

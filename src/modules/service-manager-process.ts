@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
-export type ServiceManagerProgram = "systemctl" | "systemd-run";
+export type ServiceManagerProgram = "systemctl" | "systemd-run" | "busctl";
 export type ServiceManagerProcess = (
   program: ServiceManagerProgram,
   args: readonly string[],
@@ -11,6 +11,9 @@ export type ServiceManagerProcess = (
 const executables: Readonly<Record<ServiceManagerProgram, string>> = {
   systemctl: "/usr/bin/systemctl",
   "systemd-run": "/usr/bin/systemd-run",
+  // Read-only here: the manager's D-Bus properties as JSON, for the values that
+  // `systemctl show` cannot render faithfully (argument and environment vectors).
+  busctl: "/usr/bin/busctl",
 };
 
 // The only place that executes the service manager's tools: fixed absolute

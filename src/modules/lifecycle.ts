@@ -233,8 +233,8 @@ export function createApplicationLifecycle(adapters: {
             state.kind === "running" || state.kind === "ended" ? state : null;
           if (run && run.cwd !== applicationDirectory(value, directory))
             return Object.freeze({ kind: "scope-changed" as const });
-          // A session application belongs to this session and is stopped for its
-          // own preparation. An application owned by the service manager may be
+          // A session application exists only inside this session and is stopped
+          // for its own preparation. An application owned by the service manager may be
           // in use by people who never asked for this: refuse before any effect.
           if (run?.kind === "running" && runner.survivesOwnerExit)
             return Object.freeze({ kind: "application-running" as const });

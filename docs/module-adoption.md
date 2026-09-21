@@ -445,6 +445,10 @@ it; an explicit `systemd-user` request that cannot be met fails instead of falli
 The Launchpad's startup line and every `status` result name the runner
 (`runner`, `survivesLaunchpadRestart`), so the interface can say "keeps running when the
 Launchpad restarts". `started`, `group-stopped` and `not-managed` are unchanged.
+Native qualification so far forced `--application-runner systemd-user`; the default
+(`auto`) selection is unit-tested and exercised by CI on `ubuntu-24.04`, and the native
+runner now starts its first Launchpad without the flag, but **that revised runner has
+not yet been run natively** — treat automatic selection as native-unqualified.
 
 ### The systemd user service
 
@@ -480,17 +484,42 @@ Launchpad restarts". `started`, `group-stopped` and `not-managed` are unchanged.
   directory shares the prefix, two Folders or two checkouts never collide and never
   list each other. The readable middle is sanitized, lossy and length-bounded;
   uniqueness comes from `<id16>`, a digest of the exact directory, slug, module id and
-  application package. The whole name stays under 128 characters.
+  application package. The whole name stays under 128 characters. "Canonical" is
+  enforced, not assumed: the CLI, direct `app-request` and the Launchpad canonicalize
+  the Organization directory **once** (`canonicalOwnedDirectory`: owned-directory
+  inspection, then the normalized path) before anything is derived, so `/x/org` and
+  `/x/org/../org` are one unit and one coordination lock; every derivation
+  (`applicationUnitName`, `applicationCoordinationLockFile`, the runner) **refuses** a
+  spelling that is not normalized instead of hashing it into a second identity. A
+  symlinked spelling stays refused, as everywhere else.
 - **Identity and state come from the service manager**, never from a saved PID:
   `systemctl --user show` (`LoadState`, `ActiveState`, `SubState`, `MainPID`,
   `ExecMainStartTimestampMonotonic`, `InvocationID`, `ControlGroup`, `Result`, plus the
   shape properties below). `InvocationID` is the identity of one run; a new start is a
   new invocation. `MainPID` is read and never reported, stored or signalled.
-- **Only the exact generated shape is controlled.** A unit under this name that is not
-  transient, has a drop-in (`systemctl set-property` writes one), a different
-  `KillMode`/`Restart`/`Type`, an unparseable description or a working directory outside
-  the Organization directory is `service-unrecognized`: reported, never started,
-  stopped or reset.
+- **Ownership is proved from the full generated definition before a unit is adopted,
+  stopped or reset.** Anything loaded under this name is classified first — an inactive,
+  masked or broken foreign unit is foreign, never "not running".
+  - *Fixed policy*, compared value by value with what the manager reports:
+    `Transient=yes`, the transient `FragmentPath`, empty `DropInPaths`
+    (`systemctl set-property` writes one), `Type=exec`, `KillMode=control-group`,
+    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput/Output/Error=null`,
+    a working directory inside the Organization directory.
+  - *Variable part* — executable, exact argument vector, the no-expansion flag,
+    environment, `UnsetEnvironment` and the working directory. `systemctl show` cannot
+    return these faithfully (it renders the command line space-joined and the
+    environment shell-quoted), so they are read as the manager's own D-Bus values
+    (`busctl --user --json=short get-property … ExecStartEx Environment
+    UnsetEnvironment`, read-only), which are exact vectors. A restarted Launchpad does
+    not know the launch vector without running the toolchain adapter again, so the
+    expectation is bound durably at creation: the description carries
+    `definition sha256:<digest>` over exactly those values, and every observation
+    recomputes the digest from what the manager holds.
+  - A unit differing in **any single** one of these is `service-unrecognized`:
+    reported, and neither `systemd-run`, `stop` nor `reset-failed` is ever invoked on
+    it (one regression case per property, in every unit state). This is proof against
+    foreign and hand-edited units, not against a hostile process of the same account,
+    which can forge anything the account's own manager holds.
 - **Readiness is the existing declared health probe** combined with ownership evidence:
   every process listening on the declared port must be in the unit's control group
   (`/proc/<pid>/cgroup` against the manager's `ControlGroup`), observed before and after
@@ -506,9 +535,13 @@ Launchpad restarts". `started`, `group-stopped` and `not-managed` are unchanged.
   `app-request status` through it — rediscovers the application from the service
   manager under the same `InvocationID`. `lazurio launchpad` shutdown does not stop
   service-owned applications; it still drains session-owned ones.
-- **Stop** asks the manager to stop the unit, then waits (bounded) until the manager
-  reports it gone **and** the kernel reports the control group unpopulated
-  (`cgroup.events`), then reports `group-stopped`; otherwise `incomplete`. A descendant
+- **Stop** asks the manager to stop the unit, then runs ONE bounded confirmation
+  (`confirmStopMs`, 5 s) shared by every path — a unit that was already failed, and a
+  running unit that ends up failed (the manager had to kill it) alike: it keeps polling
+  until the manager no longer holds the unit **and** the kernel reports every control
+  group the unit had as unpopulated (`cgroup.events`), and resets a failed record only
+  once those groups are empty. Then `group-stopped`; at the deadline `incomplete`, with
+  the failed record left in place. A descendant
   that left the process group (`setsid`) is still reached, which the session owner
   cannot do.
 - **Failed units.** A crashed application stays `failed` with the manager's `Result`
@@ -525,7 +558,11 @@ Launchpad restarts". `started`, `group-stopped` and `not-managed` are unchanged.
   the effect. It never stops the application: someone may be using it. Another active
   application of the same Organization directory is `other-app-managed`, as today. The
   session owner keeps its behaviour (it stops only its own application for its own
-  preparation): a session application belongs to the person operating that Launchpad.
+  preparation): a session application exists only inside that Launchpad session, so
+  whoever operates that session is the one stopping it. Nothing here assumes that the
+  applications on a Machine belong to one person: on a shared Machine a service-owned
+  application may be in use by others, which is exactly why it is never stopped as a
+  side effect.
 - Authorization and declaration are rechecked at each operation boundary, as before.
 
 ### Two kinds of exclusion

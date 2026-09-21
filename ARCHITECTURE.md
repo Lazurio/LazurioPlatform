@@ -260,8 +260,9 @@ proof of success; observable readiness and functional qualification are still re
 
 Application lifetime — implemented for Linux: long-running module applications are
 owned by the OS service manager (transient systemd user services generated from
-validated declarations), so Start survives a Launchpad restart and a product update
-never requires people to accept interruption of running work. Bounded preparation
+validated declarations), so Start survives a Launchpad restart — demonstrated for a
+graceful and a killed Launchpad. Survival across a product activation is the purpose
+and is not yet exercised. Bounded preparation
 subprocesses keep the guarded-process ownership; macOS keeps session-scoped
 applications; no Lazurio supervisor is built. Reboot persistence, lingering and
 launchd are not built. This changes the session semantics of upstream decision 0137

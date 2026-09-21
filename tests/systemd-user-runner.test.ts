@@ -1,8 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
+import { canonicalOwnedDirectory } from "../src/folder/owned-directory";
 import { executionOs } from "../src/folder/platform";
 import { applicationMessage } from "../src/launchpad/application-view";
 import { startLaunchpad } from "../src/launchpad/server";
@@ -13,6 +21,7 @@ import {
   userManagerState,
 } from "../src/modules/service-manager-process";
 import {
+  applicationCoordinationLockFile,
   applicationUnitName,
   createSystemdUserRunner,
   organizationUnitPrefix,
@@ -285,7 +294,7 @@ posixTest(
       "--no-ask-password",
       `--unit=${unit}`,
       expect.stringMatching(
-        /^--description=Lazurio application; declaration sha256:[0-9a-f]{64}$/,
+        /^--description=Lazurio application; declaration sha256:[0-9a-f]{64}; definition sha256:[0-9a-f]{64}$/,
       ),
       "--service-type=exec",
       `--working-directory=${org.cwd}`,
@@ -312,10 +321,18 @@ posixTest(
       "%h",
       "a b;c",
     ]);
-    // Only the two fixed programs are ever invoked, never a shell.
+    expect(await lifecycle.status(selection)).toMatchObject({ kind: "status" });
+    // Only the fixed service-manager programs are ever invoked, never a shell,
+    // and the D-Bus reader is only ever asked to read.
     expect(new Set(manager.calls.map((item) => item.program))).toEqual(
-      new Set(["systemctl", "systemd-run"]),
+      new Set(["systemctl", "systemd-run", "busctl"]),
     );
+    for (const call of manager.commands("busctl"))
+      expect(call.args.slice(0, 3)).toEqual([
+        "--user",
+        "--json=short",
+        "get-property",
+      ]);
     expect(await lifecycle.close()).toEqual({ kind: "closed" });
   },
 );
@@ -856,5 +873,289 @@ posixTest(
     } finally {
       expect(await second.close()).toEqual({ kind: "closed" });
     }
+  },
+);
+
+posixTest(
+  "a unit differing in any single ownership-relevant property is foreign and never touched",
+  async () => {
+    const org = await organization("ownership-table");
+    const inside = join(org.moduleDirectory, "elsewhere");
+    await mkdir(inside, { mode: 0o700 });
+    type FakeUnit = NonNullable<
+      ReturnType<ReturnType<typeof createFakeServiceManager>["units"]["get"]>
+    >;
+    const property = (name: string, value: string) => (unit: FakeUnit) => {
+      unit.properties = { ...unit.properties, [name]: value };
+    };
+    const cases: [string, (unit: FakeUnit) => void][] = [
+      [
+        "ExecStart executable",
+        (unit) => {
+          unit.command = ["/usr/bin/other", ...unit.command.slice(1)];
+        },
+      ],
+      [
+        "ExecStart arguments",
+        (unit) => {
+          unit.command = [...unit.command, "--extra"];
+        },
+      ],
+      [
+        "ExecStart argument split",
+        (unit) => {
+          unit.command = [
+            unit.command[0] as string,
+            "--no-env-file run",
+            "dev",
+          ];
+        },
+      ],
+      [
+        "ExecStart expansion flag",
+        (unit) => {
+          unit.flags = [];
+        },
+      ],
+      [
+        "Environment value",
+        (unit) => {
+          unit.environment = unit.environment.map((entry) =>
+            entry.startsWith("PATH=") ? "PATH=/tmp/bin:/usr/bin" : entry,
+          );
+        },
+      ],
+      [
+        "Environment extra variable",
+        (unit) => {
+          unit.environment = [...unit.environment, "SSH_AUTH_SOCK=/tmp/agent"];
+        },
+      ],
+      [
+        "UnsetEnvironment",
+        property(
+          "UnsetEnvironment",
+          "DBUS_SESSION_BUS_ADDRESS JOURNAL_STREAM MANAGERPID",
+        ),
+      ],
+      ["UMask", property("UMask", "0022")],
+      ["TimeoutStopSec", property("TimeoutStopSec", "1min 30s")],
+      ["StandardInput", property("StandardInput", "tty")],
+      ["StandardOutput", property("StandardOutput", "journal")],
+      ["StandardError", property("StandardError", "journal")],
+      ["KillMode", property("KillMode", "process")],
+      ["Restart", property("Restart", "always")],
+      [
+        "Type",
+        (unit) => {
+          unit.type = "simple";
+        },
+      ],
+      [
+        "WorkingDirectory inside the Organization",
+        (unit) => {
+          unit.cwd = inside;
+        },
+      ],
+      [
+        "WorkingDirectory outside the Organization",
+        (unit) => {
+          unit.cwd = root;
+        },
+      ],
+      [
+        "Description definition digest",
+        (unit) => {
+          unit.description = unit.description.replace(
+            /definition sha256:[0-9a-f]{64}$/,
+            `definition sha256:${"0".repeat(64)}`,
+          );
+        },
+      ],
+      [
+        "Description form",
+        (unit) => {
+          unit.description = unit.description.replace(/; definition.*$/, "");
+        },
+      ],
+      [
+        "Transient",
+        (unit) => {
+          unit.transient = "no";
+        },
+      ],
+      [
+        "FragmentPath",
+        (unit) => {
+          unit.fragmentPath = "/home/admin/.config/systemd/user/unit.service";
+        },
+      ],
+      [
+        "DropInPaths",
+        (unit) => {
+          unit.dropIns = "/run/user/1000/systemd/transient/unit.d/50-x.conf";
+        },
+      ],
+    ];
+    // Active, failed and loaded-but-inactive: state never outranks shape.
+    for (const [name, mutate] of cases)
+      for (const state of ["active", "failed", "inactive"]) {
+        const manager = createFakeServiceManager();
+        const { runner, lifecycle } = launchpad(manager, org);
+        expect(await lifecycle.start(selection)).toEqual({ kind: "started" });
+        const unit = manager.units.get(
+          applicationUnitName(org.directory, selection),
+        );
+        if (!unit) throw new Error("Expected unit");
+        // Untouched, the generated unit IS recognized in every state.
+        Object.assign(unit, { active: state });
+        expect((await runner.inspect(selection)).kind, name).toBe(
+          state === "active"
+            ? "running"
+            : state === "failed"
+              ? "ended"
+              : "not-running",
+        );
+        mutate(unit);
+        const before = manager.calls.length;
+        expect(await runner.inspect(selection), `${name}/${state}`).toEqual({
+          kind: "unrecognized",
+        });
+        expect(await runner.stop(selection), `${name}/${state}`).toEqual({
+          kind: "incomplete",
+        });
+        for (const result of [
+          await lifecycle.stop(selection),
+          await lifecycle.start(selection),
+          await lifecycle.status(selection),
+          await lifecycle.prepare(selection),
+        ])
+          expect(result, `${name}/${state}`).toEqual({
+            kind: "service-unrecognized",
+          });
+        // Reading is all that ever happened to it.
+        const after = manager.calls.slice(before);
+        expect(
+          after.filter(
+            (call) =>
+              call.program === "systemd-run" ||
+              (call.program === "systemctl" &&
+                !["show", "list-units"].includes(call.args[1] as string)),
+          ),
+          `${name}/${state}`,
+        ).toEqual([]);
+        expect(manager.units.size).toBe(1);
+      }
+  },
+);
+
+posixTest(
+  "stop keeps confirming through its whole bound for failed units too",
+  async () => {
+    const org = await organization("stop-convergence");
+    const unit = applicationUnitName(org.directory, selection);
+    // Already failed before Stop, its group still populated for a while.
+    {
+      const manager = createFakeServiceManager();
+      const { lifecycle } = launchpad(manager, org);
+      expect(await lifecycle.start(selection)).toEqual({ kind: "started" });
+      manager.crash(unit, "signal", true);
+      manager.behaviour.stopLeavesPopulatedFor = 4;
+      expect(await lifecycle.stop(selection)).toEqual({
+        kind: "group-stopped",
+      });
+      expect(manager.behaviour.stopLeavesPopulatedFor).toBe(0);
+      expect(manager.commands("stop")).toEqual([]);
+      expect(manager.commands("reset-failed")).toHaveLength(1);
+      expect(manager.units.size).toBe(0);
+    }
+    // Running, becomes failed during Stop, group empties before the deadline.
+    {
+      const manager = createFakeServiceManager();
+      const { lifecycle } = launchpad(manager, org);
+      expect(await lifecycle.start(selection)).toEqual({ kind: "started" });
+      manager.behaviour.stop = "timeout-failed";
+      manager.behaviour.stopLeavesPopulatedFor = 4;
+      expect(await lifecycle.stop(selection)).toEqual({
+        kind: "group-stopped",
+      });
+      expect(manager.behaviour.stopLeavesPopulatedFor).toBe(0);
+      expect(manager.commands("reset-failed")).toHaveLength(1);
+      expect(manager.units.size).toBe(0);
+    }
+    // Never empties: bounded, incomplete, and the failed record is NOT reset.
+    for (const path of ["ended-before", "running-to-ended"]) {
+      const manager = createFakeServiceManager();
+      const { lifecycle } = launchpad(manager, org);
+      expect(await lifecycle.start(selection)).toEqual({ kind: "started" });
+      if (path === "ended-before") manager.crash(unit, "signal", true);
+      else manager.behaviour.stop = "timeout-failed";
+      manager.behaviour.stopLeavesPopulatedFor = Number.MAX_SAFE_INTEGER;
+      const started = performance.now();
+      expect(await lifecycle.stop(selection), path).toEqual({
+        kind: "incomplete",
+      });
+      expect(performance.now() - started).toBeGreaterThanOrEqual(190);
+      expect(manager.commands("reset-failed"), path).toEqual([]);
+      expect(manager.units.size).toBe(1);
+    }
+  },
+);
+
+posixTest(
+  "equivalent spellings of one Organization directory share one unit and one lock",
+  async () => {
+    const org = await organization("canonical-identity");
+    const spellings = [
+      org.directory,
+      `${org.directory}/../canonical-identity`,
+      `${org.directory}/./`,
+      `${org.directory}//workspace/..`,
+    ];
+    const units = new Set<string>();
+    const locks = new Set<string>();
+    for (const spelling of spellings) {
+      const canonical = await canonicalOwnedDirectory(spelling);
+      expect(canonical).toBe(org.directory);
+      units.add(applicationUnitName(canonical, selection));
+      locks.add(applicationCoordinationLockFile("/run/user/1000", canonical));
+    }
+    expect(units.size).toBe(1);
+    expect(locks.size).toBe(1);
+    // A spelling that was not canonicalized is refused at every derivation,
+    // never hashed into a second identity.
+    const manager = createFakeServiceManager();
+    for (const spelling of spellings.slice(1)) {
+      expect(() => applicationUnitName(spelling, selection)).toThrow(
+        "Canonical",
+      );
+      expect(() =>
+        applicationCoordinationLockFile("/run/user/1000", spelling),
+      ).toThrow("Canonical");
+      expect(() =>
+        createSystemdUserRunner({
+          organizationDirectory: spelling,
+          runtimeDirectory: manager.runtimeDirectory,
+          run: manager.run,
+        }),
+      ).toThrow("Canonical");
+    }
+    expect(() => applicationUnitName("relative/org", selection)).toThrow();
+    // A symlinked spelling is not accepted anywhere else either.
+    const link = join(root, "canonical-identity-link");
+    await symlink(org.directory, link);
+    await expect(canonicalOwnedDirectory(link)).rejects.toThrow();
+    // An application started under one spelling is the same application under
+    // the other: one unit, found again.
+    const first = launchpad(manager, org);
+    expect(await first.lifecycle.start(selection)).toEqual({ kind: "started" });
+    const again = launchpad(manager, {
+      ...org,
+      directory: await canonicalOwnedDirectory(spellings[1] as string),
+    });
+    expect(await again.lifecycle.start(selection)).toEqual({
+      kind: "already-managed",
+    });
+    expect(manager.units.size).toBe(1);
   },
 );

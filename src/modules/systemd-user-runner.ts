@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isAbsolute, resolve } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import type {
   ApplicationRef,
@@ -25,7 +26,7 @@ import {
 
 const unitPrefix = "lazurio-app";
 const descriptionPattern =
-  /^Lazurio application; declaration sha256:([0-9a-f]{64})$/;
+  /^Lazurio application; declaration sha256:([0-9a-f]{64}); definition sha256:([0-9a-f]{64})$/;
 // Set by the service manager itself for every invocation. Applications get the
 // declared environment; the invocation id is the only manager variable kept.
 const managerInvocationVariables = [
@@ -55,6 +56,35 @@ const shownProperties = [
   "KillMode",
   "Restart",
   "Type",
+  "UMask",
+  "TimeoutStopUSec",
+  "StandardInput",
+  "StandardOutput",
+  "StandardError",
+] as const;
+// The fixed policy of every generated unit, exactly as the manager renders it.
+// One differing value makes the unit foreign.
+const fixedPolicy: Readonly<
+  Partial<Record<(typeof shownProperties)[number], string>>
+> = {
+  Transient: "yes",
+  DropInPaths: "",
+  KillMode: "control-group",
+  Restart: "no",
+  Type: "exec",
+  UMask: "0077",
+  TimeoutStopUSec: "5s",
+  StandardInput: "null",
+  StandardOutput: "null",
+  StandardError: "null",
+};
+// `systemctl show` renders the command line space-joined and the environment
+// shell-quoted: neither can be compared faithfully. These three are therefore
+// read as the manager's own D-Bus values (JSON), which are exact vectors.
+const vectorProperties = [
+  "ExecStartEx",
+  "Environment",
+  "UnsetEnvironment",
 ] as const;
 const stopTimeoutSeconds = 5;
 
@@ -71,6 +101,42 @@ function digest(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+// The variable part of a generated unit. A restarted Launchpad does not know the
+// launch vector without running the toolchain adapter again, so the expectation
+// is bound durably at creation: the description carries this digest, and every
+// observation recomputes it from what the manager actually holds.
+function definitionDigest(definition: {
+  cwd: string;
+  path: string;
+  argv: readonly string[];
+  flags: readonly string[];
+  environment: readonly string[];
+  unset: readonly string[];
+}) {
+  return digest([
+    "lazurio-application-definition-v1",
+    definition.cwd,
+    definition.path,
+    [...definition.argv],
+    [...definition.flags].sort(),
+    [...definition.environment].sort(),
+    [...definition.unset].sort(),
+  ]);
+}
+
+// D-Bus object path label of a unit name, as the manager escapes it.
+function busLabel(name: string) {
+  let label = "";
+  for (let index = 0; index < name.length; index++) {
+    const char = name[index] as string;
+    label +=
+      /[A-Za-z]/.test(char) || (index > 0 && /[0-9]/.test(char))
+        ? char
+        : `_${char.charCodeAt(0).toString(16).padStart(2, "0")}`;
+  }
+  return label || "_";
+}
+
 function readable(value: string) {
   const text = value
     .toLowerCase()
@@ -85,6 +151,14 @@ function readable(value: string) {
 // Folders (or two checkouts of the same Organization) can never collide or list
 // each other's applications.
 export function organizationUnitPrefix(organizationDirectory: string) {
+  // Identity is derived from ONE spelling only. Callers canonicalize once
+  // (`canonicalOwnedDirectory`); anything else is refused here, never hashed.
+  if (
+    !isAbsolute(organizationDirectory) ||
+    resolve(organizationDirectory) !== organizationDirectory ||
+    hasControlCharacter(organizationDirectory)
+  )
+    throw new Error("Canonical Organization directory required");
   return `${unitPrefix}-${digest([
     "lazurio-application-unit-v1",
     organizationDirectory,
@@ -190,6 +264,61 @@ export function createSystemdUserRunner(input: {
     applicationUnitName(organization, application);
   let expansionFlag: boolean | null = null;
 
+  // Exact command, flags, environment and unset list as the manager holds them.
+  // null: present but not the shape this runner generates.
+  async function observeVectors(unit: string) {
+    let result: Awaited<ReturnType<ServiceManagerProcess>>;
+    try {
+      result = await run(
+        "busctl",
+        [
+          "--user",
+          "--json=short",
+          "get-property",
+          "org.freedesktop.systemd1",
+          `/org/freedesktop/systemd1/unit/${busLabel(unit)}`,
+          "org.freedesktop.systemd1.Service",
+          ...vectorProperties,
+        ],
+        { timeoutMs: 5000 },
+      );
+    } catch {
+      return "unavailable" as const;
+    }
+    if (result.code !== 0) return "unavailable" as const;
+    try {
+      const values = result.stdout
+        .split("\n")
+        .filter((line) => line)
+        .map((line) => (JSON.parse(line) as { data?: unknown }).data);
+      if (values.length !== vectorProperties.length) return null;
+      const [commands, environment, unset] = values;
+      const strings = (value: unknown): value is string[] =>
+        Array.isArray(value) &&
+        value.every((entry) => typeof entry === "string");
+      if (
+        !Array.isArray(commands) ||
+        commands.length !== 1 ||
+        !Array.isArray(commands[0]) ||
+        typeof commands[0][0] !== "string" ||
+        !strings(commands[0][1]) ||
+        !strings(commands[0][2]) ||
+        !strings(environment) ||
+        !strings(unset)
+      )
+        return null;
+      return {
+        path: commands[0][0] as string,
+        argv: commands[0][1] as string[],
+        flags: commands[0][2] as string[],
+        environment,
+        unset,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async function observe(unit: string): Promise<UnitObservation> {
     const unavailable = Object.freeze({ kind: "unavailable" as const });
     let result: Awaited<ReturnType<ServiceManagerProcess>>;
@@ -222,25 +351,36 @@ export function createSystemdUserRunner(input: {
     if (shownProperties.some((name) => value(name) === undefined))
       return unavailable;
     const active = value("ActiveState") as string;
-    if (value("LoadState") === "not-found" || active === "inactive")
+    const unrecognized = Object.freeze({ kind: "unrecognized" as const });
+    if (value("LoadState") === "not-found")
       return Object.freeze({ kind: "not-running" as const });
-    if (value("LoadState") !== "loaded") return unavailable;
+    // Anything that exists under this name is classified BEFORE its state is
+    // read: a masked, broken or inactive foreign unit is foreign, not absent.
+    if (value("LoadState") !== "loaded") return unrecognized;
     // Only the exact shape this runner generates is ever controlled. A unit file,
     // a drop-in written by hand or a different policy under this name is foreign.
     const description = descriptionPattern.exec(value("Description") as string);
     const cwd = value("WorkingDirectory") as string;
     if (
-      value("Transient") !== "yes" ||
+      Object.entries(fixedPolicy).some(
+        ([name, expected]) =>
+          value(name as (typeof shownProperties)[number]) !== expected,
+      ) ||
       value("FragmentPath") !==
         `${input.runtimeDirectory}/systemd/transient/${unit}` ||
-      value("DropInPaths") !== "" ||
-      value("KillMode") !== "control-group" ||
-      value("Restart") !== "no" ||
-      value("Type") !== "exec" ||
       !description ||
       !(cwd === organization || cwd.startsWith(`${organization}/`))
     )
-      return Object.freeze({ kind: "unrecognized" as const });
+      return unrecognized;
+    const vectors = await observeVectors(unit);
+    if (vectors === "unavailable") return unavailable;
+    if (
+      vectors === null ||
+      definitionDigest({ cwd, ...vectors }) !== description[2]
+    )
+      return unrecognized;
+    if (active === "inactive")
+      return Object.freeze({ kind: "not-running" as const });
     const invocationId = value("InvocationID") as string;
     if (!/^[0-9a-f]{32}$/.test(invocationId)) return unavailable;
     const service = Object.freeze({
@@ -319,12 +459,44 @@ export function createSystemdUserRunner(input: {
       throw new Error("Launch outside the owned Organization directory");
     await inspectDirectory(organization);
     await inspectDirectory(launch.cwd);
+    // The manager expands $VARIABLE in arguments unless told not to. Older
+    // managers cannot be told, so such an argument is refused instead.
+    const literal = await supportsExpansionFlag();
+    if (!literal && launch.args.some((entry) => entry.includes("$")))
+      throw new Error("Argument would be expanded by the service manager");
+    const shown = await run("systemctl", ["--user", "show-environment"], {
+      timeoutMs: 5000,
+    });
+    if (shown.code !== 0)
+      throw new Error("Service manager environment unavailable");
+    const unset = new Set(managerInvocationVariables);
+    for (const line of shown.stdout.split("\n")) {
+      if (!line) continue;
+      const name = line.slice(0, Math.max(0, line.indexOf("=")));
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
+        throw new Error("Unexpected service manager environment");
+      unset.add(name);
+    }
+    const environment = Object.entries(launch.env).map(
+      ([name, entry]) => `${name}=${entry}`,
+    );
+    for (const name of Object.keys(launch.env)) unset.delete(name);
+    const unsetNames = [...unset].sort();
+    // Everything variable is bound into the description the manager keeps.
+    const bound = definitionDigest({
+      cwd: launch.cwd,
+      path: launch.executable,
+      argv: [launch.executable, ...launch.args],
+      flags: literal ? ["no-env-expand"] : [],
+      environment,
+      unset: unsetNames,
+    });
     const args = [
       "--user",
       "--quiet",
       "--no-ask-password",
       `--unit=${unit}`,
-      `--description=Lazurio application; declaration sha256:${request.declarationDigest}`,
+      `--description=Lazurio application; declaration sha256:${request.declarationDigest}; definition sha256:${bound}`,
       "--service-type=exec",
       `--working-directory=${launch.cwd}`,
       "--property=KillMode=control-group",
@@ -335,30 +507,10 @@ export function createSystemdUserRunner(input: {
       "--property=StandardOutput=null",
       "--property=StandardError=null",
     ];
-    // The manager expands $VARIABLE in arguments unless told not to. Older
-    // managers cannot be told, so such an argument is refused instead.
-    if (await supportsExpansionFlag()) args.push("--expand-environment=no");
-    else if (launch.args.some((entry) => entry.includes("$")))
-      throw new Error("Argument would be expanded by the service manager");
-    const environment = await run("systemctl", ["--user", "show-environment"], {
-      timeoutMs: 5000,
-    });
-    if (environment.code !== 0)
-      throw new Error("Service manager environment unavailable");
-    const unset = new Set(managerInvocationVariables);
-    for (const line of environment.stdout.split("\n")) {
-      if (!line) continue;
-      const name = line.slice(0, Math.max(0, line.indexOf("=")));
-      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
-        throw new Error("Unexpected service manager environment");
-      unset.add(name);
-    }
-    for (const [name, entry] of Object.entries(launch.env)) {
-      unset.delete(name);
-      args.push(`--setenv=${name}=${entry}`);
-    }
-    if (unset.size)
-      args.push(`--property=UnsetEnvironment=${[...unset].sort().join(" ")}`);
+    if (literal) args.push("--expand-environment=no");
+    for (const entry of environment) args.push(`--setenv=${entry}`);
+    if (unsetNames.length)
+      args.push(`--property=UnsetEnvironment=${unsetNames.join(" ")}`);
     return Object.freeze([...args, "--", launch.executable, ...launch.args]);
   }
 
@@ -493,36 +645,41 @@ export function createSystemdUserRunner(input: {
       if (before.kind === "not-running") return stopped;
       if (before.kind === "unavailable" || before.kind === "unrecognized")
         return incomplete;
-      if (before.kind === "ended")
-        return (await clearFailed(unit, before.controlGroup))
-          ? stopped
-          : incomplete;
-      try {
-        // Blocks until the manager's stop job ends: SIGTERM to the whole control
-        // group, then SIGKILL after the unit's bounded stop timeout.
-        await run("systemctl", ["--user", "stop", "--", unit], {
-          timeoutMs: (stopTimeoutSeconds * 2 + 10) * 1000,
-        });
-      } catch {
-        /* the manager's view below decides */
+      if (before.kind === "running") {
+        try {
+          // Blocks until the manager's stop job ends: SIGTERM to the whole
+          // control group, then SIGKILL after the unit's bounded stop timeout.
+          await run("systemctl", ["--user", "stop", "--", unit], {
+            timeoutMs: (stopTimeoutSeconds * 2 + 10) * 1000,
+          });
+        } catch {
+          /* the manager's view below decides */
+        }
       }
+      // ONE bounded confirmation for every path — a unit that was already failed
+      // and a running unit that ends up failed alike: wait until the manager no
+      // longer holds the unit AND the kernel reports every control group it had
+      // as unpopulated. A failed record is reset only once its groups are empty.
+      const groups = new Set([before.controlGroup].filter((group) => group));
       const deadline = performance.now() + confirmStopMs;
-      do {
+      for (;;) {
         const current = await observe(unit);
-        if (
-          current.kind === "not-running" &&
-          (await controlGroupEmpty(before.controlGroup))
-        )
-          return stopped;
-        if (current.kind === "ended")
-          return (await controlGroupEmpty(before.controlGroup)) &&
-            (await clearFailed(unit, current.controlGroup))
-            ? stopped
-            : incomplete;
         if (current.kind === "unrecognized") return incomplete;
+        if (current.kind === "running" || current.kind === "ended")
+          if (current.controlGroup) groups.add(current.controlGroup);
+        let empty = current.kind !== "unavailable";
+        for (const group of groups)
+          if (empty && !(await controlGroupEmpty(group))) empty = false;
+        if (empty && current.kind === "not-running") return stopped;
+        if (empty && current.kind === "ended") {
+          await run("systemctl", ["--user", "reset-failed", "--", unit], {
+            timeoutMs: 5000,
+          }).catch(() => null);
+          if ((await observe(unit)).kind === "not-running") return stopped;
+        }
+        if (performance.now() >= deadline) return incomplete;
         await sleep(50);
-      } while (performance.now() < deadline);
-      return incomplete;
+      }
     },
     async list() {
       const unavailable = Object.freeze({ kind: "unavailable" as const });

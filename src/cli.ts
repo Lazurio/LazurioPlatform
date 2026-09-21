@@ -4,7 +4,10 @@ import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectInstructions } from "./folder/inventory";
-import { inspectOwnedDirectory } from "./folder/owned-directory";
+import {
+  canonicalOwnedDirectory,
+  inspectOwnedDirectory,
+} from "./folder/owned-directory";
 import { executionOs } from "./folder/platform";
 import { previewFolder } from "./folder/preview";
 import { parseFolderProfile } from "./folder/profile";
@@ -55,6 +58,10 @@ async function operateServiceApplication(input: unknown) {
     !["status", "stop"].includes(value.operation as string)
   )
     throw new Error("Direct application request supports status and stop");
+  // ONE canonical spelling before any unit name or lock file is derived from it.
+  const organizationDirectory = await canonicalOwnedDirectory(
+    value.organizationDirectory,
+  );
   const runtimeDirectory = process.env.XDG_RUNTIME_DIR;
   const kind = await selectApplicationRunnerKind({
     platform: process.platform,
@@ -69,16 +76,16 @@ async function operateServiceApplication(input: unknown) {
     };
   const lifecycle = createApplicationLifecycle(
     serviceApplicationAdapters({
-      organizationDirectory: value.organizationDirectory,
+      organizationDirectory,
       runner: createSystemdUserRunner({
-        organizationDirectory: value.organizationDirectory,
+        organizationDirectory,
         runtimeDirectory: runtimeDirectory as string,
         run: createServiceManagerProcess(runtimeDirectory as string),
       }),
       coordination: createApplicationCoordination({
         lockFile: applicationCoordinationLockFile(
           runtimeDirectory as string,
-          value.organizationDirectory,
+          organizationDirectory,
         ),
       }),
     }),
@@ -307,8 +314,14 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       | ReturnType<typeof localApplicationAdapters>
       | undefined;
     let applicationRunner: string | undefined;
+    // ONE canonical spelling of the Organization directory for discovery, admission
+    // and every unit name and lock file derived from it.
+    const organizationDirectory =
+      values["organization-directory"] === undefined
+        ? undefined
+        : await canonicalOwnedDirectory(values["organization-directory"]);
     if (values["bun-executable"] !== undefined) {
-      if (!values["organization-directory"] || !process.env.HOME)
+      if (!organizationDirectory || !process.env.HOME)
         throw new Error("Local Organization and account home required");
       const environment: Record<string, string> = {
         HOME: process.env.HOME,
@@ -329,13 +342,13 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       const runner: ApplicationRunner =
         kind === "systemd-user"
           ? createSystemdUserRunner({
-              organizationDirectory: values["organization-directory"],
+              organizationDirectory,
               runtimeDirectory: runtimeDirectory as string,
               run: createServiceManagerProcess(runtimeDirectory as string),
             })
           : createSessionRunner(process.execPath);
       applicationAdapters = localApplicationAdapters({
-        organizationDirectory: values["organization-directory"],
+        organizationDirectory,
         bunExecutable: values["bun-executable"],
         platformExecutable: process.execPath,
         environment,
@@ -345,7 +358,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
               coordination: createApplicationCoordination({
                 lockFile: applicationCoordinationLockFile(
                   runtimeDirectory as string,
-                  values["organization-directory"],
+                  organizationDirectory,
                 ),
               }),
             }
@@ -356,11 +369,9 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     const { close, url } = await startLaunchpad(
       values.folder,
       applicationAdapters,
-      values["organization-directory"] === undefined
+      organizationDirectory === undefined
         ? undefined
-        : {
-            organizationDirectory: values["organization-directory"],
-          },
+        : { organizationDirectory },
     );
     console.log(
       JSON.stringify({
