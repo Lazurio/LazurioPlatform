@@ -75,7 +75,7 @@ linger: yes
    > exit=0
    PASS  result: installed
    PASS  selector: 1.0.0
-   PASS  modes of base bin versions update (umask 002): 700 700 700 700 
+   PASS  modes of base bin versions update (umask 002): 700 700 700 700
    PASS  mode of the executable: 500
    units written by the installer:
    | # Written by `lazurio install`; rewritten by it, so edit a drop-in instead.
@@ -84,27 +84,27 @@ linger: yes
    | StartLimitIntervalSec=60
    | StartLimitBurst=5
    | OnFailure=lazurio-rollback.service
-   | 
+   |
    | [Service]
    | ExecStart=/home/admin/.local/share/lazurio/bin/lazurio launchpad --base /home/admin/.local/share/lazurio --folder /home/admin/Lazurio
    | Restart=on-failure
    | RestartSec=2
-   | 
+   |
    | [Install]
    | WantedBy=default.target
-   | 
+   |
    | [X-Lazurio]
    | Folder=/home/admin/Lazurio
    | # Written by `lazurio install`; rewritten by it, so edit a drop-in instead.
    | [Unit]
    | Description=Lazurio rollback of an interrupted activation
-   | 
+   |
    | [Service]
    | Type=oneshot
    | ExecStart=/home/admin/.local/share/lazurio/previous/lazurio update rollback --auto --base /home/admin/.local/share/lazurio
    PASS  unit enabled: enabled
    PASS  Launchpad active; the kernel runs versions/1.0.0/lazurio through the selector; health socket present
-   PASS  no high-water mark yet: the floor is the active version: 
+   PASS  no high-water mark yet: the floor is the active version:
    took 3.0 s
 
 == 2. A -> B (1.0.0 -> 1.1.0): attested release, restart, health at the new version, commit ==
@@ -116,7 +116,7 @@ linger: yes
    PASS  selector: 1.1.0
    PASS  previous: 1.0.0
    PASS  high-water raised at commit: 1.1.0
-   PASS  marker deleted by the commit: 
+   PASS  marker deleted by the commit:
    PASS  Launchpad active on 1.1.0 (pid 1404 -> 1498)
    PASS  systemd-analyze verify accepts both units (exit status): 0
    $ lazurio --version
@@ -131,7 +131,7 @@ linger: yes
    PASS  exit status: exit=1
    PASS  selector: 1.1.0
    PASS  an undone activation never raised the mark: 1.1.0
-   PASS  marker deleted by the undo: 
+   PASS  marker deleted by the undo:
    PASS  Launchpad healthy again on 1.1.0
    rollback unit during that attempt (updater alive, lock held -> it must do nothing):
    | Starting lazurio-rollback.service - Lazurio rollback of an interrupted activation...
@@ -197,7 +197,7 @@ uptime: up 0 minutes; boot id c39dd22c-74c0-44be-bc8d-ac6d579494b9
    PASS  selector: 1.1.0
    PASS  previous: 1.2.0
    PASS  the version left stays the floor: 1.2.0
-   PASS  marker: 
+   PASS  marker:
    PASS  Launchpad active on 1.1.0
    took 0.7 s
 
