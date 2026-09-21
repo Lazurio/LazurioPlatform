@@ -1,10 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import {
   mkdir,
   mkdtemp,
   readFile,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -26,6 +28,32 @@ async function scene(options: { gh?: "accepts" | "refuses" } = {}) {
   const tools = join(root, "tools");
   await mkdir(tree, { recursive: true });
   await mkdir(tools);
+  // PATH is this private directory and NOTHING else: links to exactly the
+  // tools install.sh (and the curl shim) use. No system directory is on it, so
+  // a `gh` the Machine happens to have — a hosted CI runner does — is absent
+  // unless a test puts its own shim here.
+  let digestTool = false;
+  for (const tool of [
+    "uname",
+    "cut",
+    "mktemp",
+    "rm",
+    "awk",
+    "grep",
+    "chmod",
+    "cp",
+    "sha256sum",
+    "shasum",
+  ]) {
+    const found = ["/usr/bin", "/bin"]
+      .map((directory) => join(directory, tool))
+      .find((candidate) => existsSync(candidate));
+    if (found) await symlink(found, join(tools, tool));
+    else if (!["sha256sum", "shasum"].includes(tool))
+      throw new Error(`Test prerequisite missing: ${tool}`);
+    digestTool ||= found !== undefined && tool.startsWith("sha");
+  }
+  if (!digestTool) throw new Error("Test prerequisite missing: sha256sum");
   // The "executable" records how it was run.
   const executable = new TextEncoder().encode(
     `#!/bin/sh\necho "$@" > "${root}/ran"\n`,
@@ -70,12 +98,13 @@ cp "$file" "$out"
   if (options.gh)
     await writeFile(
       join(tools, "gh"),
-      `#!/bin/sh\necho "$@" >> "${root}/gh.log"\nexit ${options.gh === "accepts" ? 0 : 1}\n`,
+      // Records its arguments and whether the download had ALREADY been run.
+      `#!/bin/sh\necho "$@" >> "${root}/gh.log"\n[ -e "${root}/ran" ] && echo executed-before-verify >> "${root}/gh.log"\nexit ${options.gh === "accepts" ? 0 : 1}\n`,
       { mode: 0o755 },
     );
   return async (env: Record<string, string> = {}, ...args: string[]) => {
     const child = Bun.spawn(["/bin/sh", script, ...args], {
-      env: { HOME: root, PATH: `${tools}:/usr/bin:/bin`, ...env },
+      env: { HOME: root, PATH: tools, ...env },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -95,6 +124,8 @@ test.skipIf(!supported)(
     const result = await run({}, "--service", "systemd-user", "--folder", "/F");
     expect(result.code).toBe(0);
     expect(result.stderr).toContain("NOT verified beyond HTTPS");
+    // No `gh` was reachable, whatever this Machine has installed.
+    expect(existsSync(join(root, "gh.log"))).toBe(false);
     expect(await ran()).toBe("install --service systemd-user --folder /F\n");
     const log = await readFile(join(root, "curl.log"), "utf8");
     // `latest` once, for the tag; HTTPS enforced on every request.
@@ -123,7 +154,9 @@ test.skipIf(!supported)(
     const calls = (await readFile(join(root, "gh.log"), "utf8"))
       .split("\n")
       .filter(Boolean);
+    // Manifest and executable, both BEFORE the download was executed.
     expect(calls).toHaveLength(2);
+    expect(calls.join("\n")).not.toContain("executed-before-verify");
     for (const call of calls)
       expect(call).toContain(
         "--repo Lazurio/LazurioPlatform --signer-workflow Lazurio/LazurioPlatform/.github/workflows/release.yml --source-ref refs/tags/v1.1.0",
@@ -139,7 +172,15 @@ test.skipIf(!supported)(
     const refused = await refusing();
     expect(refused.code).toBe(1);
     expect(refused.stderr).toContain("nothing was executed");
+    // The first refusal stops everything: one call, nothing run or installed.
+    expect(
+      (await readFile(join(root, "gh.log"), "utf8"))
+        .split("\n")
+        .filter(Boolean),
+    ).toHaveLength(1);
     expect(await ran()).toBeNull();
+    expect(existsSync(join(root, ".local"))).toBe(false);
+    expect(existsSync(join(root, "Library"))).toBe(false);
     expect((await refusing({ LAZURIO_VERSION: "latest" })).code).toBe(1);
   },
 );
