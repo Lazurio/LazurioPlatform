@@ -236,7 +236,10 @@ update rollback` undoes it. A watchdog is deliberately not built for it.
 
 `lazurio update rollback` switches to `previous` after that binary's own
 `self-check`, with the same marker, restart and health rule, after raising the
-high-water mark to the version it leaves. It never lowers the high-water mark.
+high-water mark to the version it leaves. It never lowers the high-water mark. After
+an undone activation `previous` names the active version, so there is no rollback
+target until the next committed update; the marker deliberately carries no more
+state to restore it.
 
 ## Surfaces
 
