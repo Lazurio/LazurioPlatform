@@ -52,7 +52,7 @@ This repository is public from its foundation, by explicit instruction. Architec
 decisions, code, tests and build procedures are openly reviewable. Secrets and private
 personal, Organization or customer data never enter Git history, artifacts or logs.
 Creating it does not transfer history from `HumanAndMachines/Lazurio`, choose a
-license for reused code, redirect distribution channels or authorize product release.
+license for reused code, redirect distribution or authorize product release.
 See [provenance](docs/decisions.md#provenance-and-publication) and
 [public development](docs/public-development.md).
 
