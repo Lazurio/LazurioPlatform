@@ -45,3 +45,15 @@ export async function acquireRetainedOperationLock(stateDirectory: string) {
     },
   });
 }
+
+// Observation only: whether a retained lock record exists for that owner. It
+// says nothing about who holds it or whether the holder is alive.
+export async function retainedOperationLockPresent(stateDirectory: string) {
+  try {
+    await lstat(join(stateDirectory, ".operation-lock"));
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}

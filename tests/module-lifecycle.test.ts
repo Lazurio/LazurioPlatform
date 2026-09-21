@@ -10,13 +10,14 @@ import { startLaunchpad } from "../src/launchpad/server";
 import { probeListenerHealth } from "../src/modules/health";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
 import { createOwnerOperations } from "../src/modules/owner-operations";
+import { createSessionRunner } from "../src/modules/session-runner";
 
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
 test("denied selections never reach mutation scope resolution", async () => {
   let coordinated = 0;
   const owner = createApplicationLifecycle({
-    platformExecutable: process.execPath,
+    runner: createSessionRunner(process.execPath),
     authorize: async () => {
       throw new Error("Unknown module");
     },
@@ -54,7 +55,7 @@ test("shutdown refuses a mutation still awaiting its initial authority check", a
   });
   let mutations = 0;
   const owner = createApplicationLifecycle({
-    platformExecutable: process.execPath,
+    runner: createSessionRunner(process.execPath),
     authorize: async () => {
       entered();
       await barrier;
@@ -166,7 +167,7 @@ posixTest(
     });
     let runs = 0;
     const app = await startLaunchpad(folder, {
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: f.prepareLaunch,
       preflightPreparation: async () => ({
@@ -228,7 +229,7 @@ posixTest(
       coordination: "direct",
     });
     const app = await startLaunchpad(folder, {
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async (value) => {
         if (JSON.stringify(value) !== JSON.stringify(selection))
           throw new Error("denied");
@@ -410,7 +411,7 @@ posixTest(
     let ordinaryRuns = 0;
     let permitted = false;
     const app = await startLaunchpad(folder, {
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async (_selection, operation) => {
         if (operation === "clean-prepare" && !permitted)
           throw new Error("denied");
@@ -469,7 +470,7 @@ posixTest(
       expect(await app.close()).toEqual({ kind: "closed" });
     }
     const unsupported = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: f.prepareLaunch,
     });
@@ -488,7 +489,7 @@ posixTest(
   async () => {
     const f = await fixture("localhost-link", "localhost");
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: f.prepareLaunch,
     });
@@ -517,7 +518,7 @@ posixTest(
   async () => {
     const f = await fixture("exited-restart");
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (_plan, cwd) => ({
         executable: process.execPath,
@@ -563,7 +564,7 @@ posixTest(
       coordination: "direct",
     });
     const app = await startLaunchpad(folder, {
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (_plan, cwd) => ({
         executable: process.execPath,
@@ -626,7 +627,7 @@ posixTest(
     let failPreflight = true;
     let effects = 0;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: f.prepareLaunch,
       preflightPreparation: async () => {
@@ -665,7 +666,7 @@ posixTest(
     const f = await fixture("preparation-cleanup");
     let canClose = false;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: f.prepareLaunch,
       preflightPreparation: async () => ({
@@ -697,7 +698,7 @@ posixTest(
     let canClose = false;
     let launches = 0;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (...args) => {
         launches++;
@@ -740,7 +741,7 @@ posixTest(
     });
     let launches = 0;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (...args) => {
         launches++;
@@ -781,7 +782,7 @@ posixTest(
     let launches = 0;
     let closed = 0;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (...args) => {
         launches++;
@@ -839,7 +840,7 @@ posixTest(
     });
     let prepared = 0;
     const app = await startLaunchpad(folder, {
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => {
         entered();
         await gate;
@@ -895,7 +896,7 @@ posixTest(
     });
     let prepared = false;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (plan, cwd) => {
         prepared = true;
@@ -938,7 +939,7 @@ posixTest(
     let allowed = true;
     const calls: string[] = [];
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       prepareLaunch: f.prepareLaunch,
       authorize: async (value, operation) => {
         expect(value).toEqual(selection);
@@ -1000,7 +1001,7 @@ posixTest(
     let prepared = 0;
     let denied = true;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => {
         if (denied) throw new Error("denied");
         return { moduleDirectory: f.directory };
@@ -1033,7 +1034,7 @@ posixTest(
     });
     await f.savePackage();
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: f.prepareLaunch,
     });
@@ -1071,7 +1072,7 @@ posixTest(
     });
     let mutate = false;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (...args) => {
         if (mutate) {
@@ -1105,7 +1106,7 @@ posixTest(
     const f = await fixture("late-denial");
     let calls = 0;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => {
         if (++calls === 2) throw new Error("revoked");
         return { moduleDirectory: f.directory };
@@ -1128,7 +1129,7 @@ posixTest(
   async () => {
     const f = await fixture("failed");
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (_plan, cwd) => ({
         executable: join(root, "absent"),
@@ -1153,7 +1154,7 @@ posixTest(
     const f = await fixture("scope-change");
     let directory = f.directory;
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: directory }),
       prepareLaunch: f.prepareLaunch,
     });
@@ -1176,7 +1177,7 @@ posixTest(
   async () => {
     const f = await fixture("hook-change");
     const owner = createApplicationLifecycle({
-      platformExecutable: binary,
+      runner: createSessionRunner(binary),
       authorize: async () => ({ moduleDirectory: f.directory }),
       prepareLaunch: async (...args) => {
         Object.assign(f.pkg.scripts, { predev: "exit 77" });

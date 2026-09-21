@@ -2,11 +2,11 @@
 
 The next Launchpad consumer is permitted-module discovery followed by app
 start/status/stop through one shared lifecycle owner. It must not invent a second
-module catalog, port registry or process supervisor. The accepted direction of
-2026-09-19 hands long-running applications to the operating system's service manager
-([application lifetime](#application-lifetime--accepted-direction-not-implemented));
-using the OS's standard capability is not a Lazurio supervisor, and everything below
-that describes the in-memory owner is the current development state.
+module catalog, port registry or process supervisor. Since 2026-09-19
+long-running applications on Linux belong to the operating system's service manager
+([application lifetime](#application-lifetime--implemented-for-linux-session-scoped-on-macos));
+using the OS's standard capability is not a Lazurio supervisor. macOS keeps the
+session-scoped owner, and everything below that describes that owner is its contract.
 
 ## Integrated consumer draft — current boundary
 
@@ -201,7 +201,9 @@ workspace input capture, remote browser access, provider operations and installe
 consumer qualification remain open. Do not run competing development owners against
 the same dependency tree or use this as daily-environment activation.
 
-The local dependency owner now retains the existing cooperative directory lock at
+The following describes the `session` composition; service-owned applications split
+this exclusion in two ([two kinds of exclusion](#two-kinds-of-exclusion)).
+The local dependency owner retains the existing cooperative directory lock at
 the resolved dependency root across operations, including after start returns.
 The lifecycle first closes admission and drains accepted operations, then stops its
 owned processes. Only a confirmed closed result releases the dependency locks.
@@ -301,6 +303,15 @@ adapter. This runner covers canonical discovery parity and shared CLI/HTTP
 start/status/entrypoint/HTTP-function/stop, not package preparation, browser interaction,
 DB acquisition, installation, or the two real candidate modules.
 
+It selects the `session` runner explicitly, on every platform. Service-manager
+ownership has its own Linux runner, `scripts/smoke-application-service.ts`: compile it
+and `src/cli.ts` for the guest and run `<runner> <absolute CLI> --module-bun <absolute
+Bun>` inside one login session of an account with a reachable user manager. It exits 2
+with an explicit message, and starts nothing, where no user manager answers. It uses
+the real `launchpad --application-runner systemd-user` and `app-request`, creates only
+transient units and a temporary home, and removes both
+([application lifetime](#application-lifetime--implemented-for-linux-session-scoped-on-macos)).
+
 On 2026-09-14 it passed on the macOS ARM64 host (`en`) and Ubuntu 24.04.4 LTS ARM64,
 kernel `7.0.0-30-generic` (`en` and `cs`). The Linux guest was a reused disposable Tart
 2.32.1 test clone, not a fresh-install qualification; Bun, Node and Lazurio were absent
@@ -386,10 +397,11 @@ the existing process locator, and full qualification with real modules. Local-fo
 binding still requires the F6 amendment. Synthetic evidence does not authorize
 contacting a running legacy Server or controlling a customer's module.
 
-## Application lifetime — accepted direction, not implemented
+## Application lifetime — implemented for Linux, session-scoped on macOS
 
 Accepted by the Principal on 2026-09-19 ([decision F8](decisions.md#f8--the-os-service-manager-owns-long-running-applications)).
-Nothing in this section exists in the code; the next section describes what does.
+Implemented for Linux as systemd user services on 2026-09-19; macOS keeps
+session-scoped applications. What is **not** done is listed at the end of this section.
 
 **Motivation.** A product that updates itself must not make people accept interruption
 of their work. While applications are children of the Launchpad process, every product
@@ -398,69 +410,316 @@ activation and every Launchpad restart stops them.
 **Owner.** Long-running module applications are owned by the operating system's
 service manager, not by the Launchpad process. No Lazurio supervisor or daemon is built.
 
-**Linux first: systemd user services.**
+### One seam, two owners
 
-- A service definition is generated from the validated module and runtime declarations
-  and nothing else: exact working directory, command, data-only environment and source
-  selection (exact `main` or a named worktree). No browser-supplied command, no
-  ambient credentials, no shell interpretation. The definition is bounded output owned
-  by Platform under the operator account; it is regenerated, never hand-merged.
-- Identity and readiness are **queried from the service manager** (unit identity,
-  state, control group) together with the existing declared-listener health
-  observation. Ownership is never reconstructed from a saved PID, a port or a name.
-- **Start** survives a Launchpad restart and a product activation. **Stop** stops the
-  service and its control group. Status reports the service manager's view.
-- **Persistence across reboot is an explicit per-application setting.** It is never a
-  consequence of clicking Open or Start, and its default is off.
-- Ports stay module-defined. A collision with a foreign listener or another service is
-  refused; no foreign process or unit is adopted, replaced or signalled.
-- Authorization and declaration are rechecked at each operation boundary, as today;
-  moving process ownership does not relax any authorization rule.
-- CLI and Launchpad address the same services through the same core and return
-  equivalent results; the CLI does not need a running Launchpad for status or stop.
+`createApplicationLifecycle` owns authorization, declaration revalidation and
+sequencing and nothing else. It holds no record of running applications: every
+operation asks an `ApplicationRunner` (`src/modules/application-runner.ts`), so a new
+lifecycle instance sees exactly what the owner reports.
+
+```ts
+interface ApplicationRunner {
+  readonly kind: "session" | "systemd-user";
+  readonly survivesOwnerExit: boolean;
+  identify(application): string;
+  inspect(application): Promise<ApplicationState>; // not-running | running | ended | unrecognized | unavailable
+  start({ application, launch, declarationDigest, ports }): Promise<StartResult>;
+  observeListener(application, listener, timeoutMs?): Promise<ListenerObservation>;
+  stop(application): Promise<{ kind: "group-stopped" } | { kind: "incomplete" }>;
+  list(): Promise<{ kind: "listed"; applications } | { kind: "unavailable" }>;
+  close(): Promise<{ kind: "closed" | "incomplete" }>;
+}
+```
+
+| Runner | Where | Owner of the processes | After the Launchpad exits |
+| --- | --- | --- | --- |
+| `session` (`session-runner.ts`) | macOS, and anywhere no user service manager answers | The guarded process group, a child of the Launchpad | Applications stop with it |
+| `systemd-user` (`systemd-user-runner.ts`) | Linux with a reachable user manager | A transient systemd user service | Applications keep running and are rediscovered |
+
+**Selection is explicit and narrow.** `systemd-user` is chosen only on Linux when
+`XDG_RUNTIME_DIR` is an absolute path and `systemctl --user is-system-running` answers
+`running`, `degraded` or `starting` (`degraded` must count: one failed application of
+our own puts the whole user manager into it). Everything else is `session`. There is no
+other detection. `launchpad --application-runner <auto|session|systemd-user>` overrides
+it; an explicit `systemd-user` request that cannot be met fails instead of falling back.
+The Launchpad's startup line and every `status` result name the runner
+(`runner`, `survivesLaunchpadRestart`), so the interface can say "keeps running when the
+Launchpad restarts". `started`, `group-stopped` and `not-managed` are unchanged.
+The default (`auto`) selection is unit-tested, exercised by CI on `ubuntu-24.04` and
+natively qualified on Linux ARM64: the native runner starts its first Launchpad without
+the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
+
+### The systemd user service
+
+- **Transient unit, not a written unit file** (`systemd-run --user --unit=<name>`,
+  without `--collect`). Decision and evidence are below.
+- **Bounded definition from the validated launch only.** The working directory must be
+  inside the owned canonical Organization directory and pass the existing
+  owned-directory inspection; the command is an argv array with an absolute executable;
+  nothing is interpolated into a shell, and only `/usr/bin/systemctl` and
+  `/usr/bin/systemd-run` are ever executed, with a sanitized environment
+  (`PATH`, `LC_ALL`, `XDG_RUNTIME_DIR`), bounded time and bounded output, behind one
+  injected process adapter (`service-manager-process.ts`). Text with control characters
+  is refused.
+- **Properties:** `Type=exec` (a start that cannot execute fails synchronously),
+  `KillMode=control-group`, `Restart=no` (a crashed application is reported, never
+  resurrected silently), `UMask=0077` (the guard's creation mask), `TimeoutStopSec=5s`,
+  standard streams `null` (the session owner discards them too), and nothing that
+  widens privileges or changes resource limits.
+- **Environment is an allowlist.** Exactly the launch environment the guard passes today
+  (`HOME`, `PATH`, optional `TMPDIR`, `LAZURIO_RUNTIME_LISTENER_*`). A real user manager
+  hands its **own** environment to every service — on the qualification VM that included
+  `DBUS_SESSION_BUS_ADDRESS` and `SSH_AUTH_SOCK`, an ambient credential socket — so the
+  runner reads the manager's variable names (`show-environment`) and unsets every one
+  that is not declared, plus the manager's per-invocation variables. Only
+  `INVOCATION_ID` remains. Verified on real systemd: the application saw the declared
+  names, `INVOCATION_ID`, and nothing else from the manager.
+- **Arguments are literal.** Real systemd 255 expanded `$HOME` and `${HOME}` inside
+  command arguments (`%h` and `%%` were not expanded). The runner passes
+  `--expand-environment=no` (systemd ≥ 254); an older manager cannot be told, so an
+  argument containing `$` is refused there rather than silently rewritten.
+- **Deterministic name:** `lazurio-app-<org16>-<slug>.<module>.<app>-<id16>.service`.
+  `<org16>` is a digest of the canonical Organization directory — every unit of one
+  directory shares the prefix, two Folders or two checkouts never collide and never
+  list each other. The readable middle is sanitized, lossy and length-bounded;
+  uniqueness comes from `<id16>`, a digest of the exact directory, slug, module id and
+  application package. The whole name stays under 128 characters. "Canonical" is
+  enforced, not assumed: the CLI, direct `app-request` and the Launchpad canonicalize
+  the Organization directory **once** (`canonicalOwnedDirectory`: owned-directory
+  inspection, then the normalized path) before anything is derived, so `/x/org` and
+  `/x/org/../org` are one unit and one coordination lock; every derivation
+  (`applicationUnitName`, `applicationCoordinationLockFile`, the runner) **refuses** a
+  spelling that is not normalized instead of hashing it into a second identity. A
+  symlinked spelling stays refused, as everywhere else.
+- **Identity and state come from the service manager**, never from a saved PID:
+  `systemctl --user show` (`LoadState`, `ActiveState`, `SubState`, `MainPID`,
+  `ExecMainStartTimestampMonotonic`, `InvocationID`, `ControlGroup`, `Result`, plus the
+  shape properties below). `InvocationID` is the identity of one run; a new start is a
+  new invocation. `MainPID` is read and never reported, stored or signalled.
+- **Ownership is proved from the full generated definition before a unit is adopted,
+  stopped or reset.** Anything loaded under this name is classified first — an inactive,
+  masked or broken foreign unit is foreign, never "not running".
+  - *Fixed policy*, compared value by value with what the manager reports:
+    `Transient=yes`, the transient `FragmentPath`, empty `DropInPaths`
+    (`systemctl set-property` writes one), `Type=exec`, `KillMode=control-group`,
+    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput/Output/Error=null`,
+    a working directory inside the Organization directory.
+  - *Variable part* — executable, exact argument vector, the no-expansion flag,
+    environment, `UnsetEnvironment` and the working directory. `systemctl show` cannot
+    return these faithfully (it renders the command line space-joined and the
+    environment shell-quoted), so they are read as the manager's own D-Bus values
+    (`busctl --user --json=short get-property … ExecStartEx Environment
+    UnsetEnvironment`, read-only), which are exact vectors. A restarted Launchpad does
+    not know the launch vector without running the toolchain adapter again, so the
+    expectation is bound durably at creation: the description carries
+    `definition sha256:<digest>` over exactly those values, and every observation
+    recomputes the digest from what the manager holds.
+  - A unit differing in **any single** one of these is `service-unrecognized`:
+    reported, and neither `systemd-run`, `stop` nor `reset-failed` is ever invoked on
+    it (one regression case per property, in every unit state). This is proof against
+    foreign and hand-edited units, not against a hostile process of the same account,
+    which can forge anything the account's own manager holds.
+- **Readiness is the existing declared health probe** combined with ownership evidence:
+  every process listening on the declared port must be in the unit's control group
+  (`/proc/<pid>/cgroup` against the manager's `ControlGroup`), observed before and after
+  the probe under the same `InvocationID`. A foreign process answering on the port is
+  `ownership-unconfirmed`, exactly as a foreign process group is for a session.
+- The start-time declaration digest travels in the unit description, so a restarted
+  Launchpad still refuses `open` with `declaration-changed` when the files on disk are
+  no longer what the running invocation was started from.
+
+### Semantics
+
+- **Start** survives a Launchpad exit and restart. A restarted Launchpad — and any
+  `app-request status` through it — rediscovers the application from the service
+  manager under the same `InvocationID`. `lazurio launchpad` shutdown does not stop
+  service-owned applications; it still drains session-owned ones.
+- **Stop** asks the manager to stop the unit, then runs ONE bounded confirmation
+  (`confirmStopMs`, 5 s) shared by every path — a unit that was already failed, and a
+  running unit that ends up failed (the manager had to kill it) alike: it keeps polling
+  until the manager no longer holds the unit **and** the kernel reports every control
+  group the unit had as unpopulated (`cgroup.events`), and resets a failed record only
+  once those groups are empty. Then `group-stopped`; at the deadline `incomplete`, with
+  the failed record left in place. A descendant
+  that left the process group (`setsid`) is still reached, which the session owner
+  cannot do.
+- **Failed units.** A crashed application stays `failed` with the manager's `Result`
+  (`exit-code`, `signal`, `timeout`…) and status reports `state: "ended"` with it. Real
+  systemd refuses a new transient unit of the same name while that record exists
+  ("already loaded"), so Start confirms the control group is empty, runs
+  `reset-failed` and starts again; Stop alone clears the record too. A clean exit
+  leaves no record (`not-managed`).
+- **A failed start leaves no half-owned service:** the runner clears a failed record it
+  just created and reports `launch-failed`.
+- **Ports** stay module-defined; an observed binding is refused before anything starts.
+- **Dependency preparation beneath a running service is refused** with the typed
+  `application-running`, before any preflight or effect, and again immediately before
+  the effect. It never stops the application: someone may be using it. Another active
+  application of the same Organization directory is `other-app-managed`, as today. The
+  session owner keeps its behaviour (it stops only its own application for its own
+  preparation): a session application exists only inside that Launchpad session, so
+  whoever operates that session is the one stopping it. Nothing here assumes that the
+  applications on a Machine belong to one person: on a shared Machine a service-owned
+  application may be in use by others, which is exactly why it is never stopped as a
+  side effect.
+- Authorization and declaration are rechecked at each operation boundary, as before.
+
+### Two kinds of exclusion
+
+Applications now outlive their Launchpad, so a crashed Launchpad must never block
+operating them. Exclusion is therefore split by what it protects.
+
+| | Transactional (retained) lock | Coordination lock |
+| --- | --- | --- |
+| Protects | A mutation with intermediate state on disk: dependency preparation and clean preparation (a half-installed tree); Folder and profile writes keep their own lock unchanged | Nothing on disk. It only serializes concurrent application operations whose truth lives in the service manager |
+| Mechanism | `acquireRetainedOperationLock`: the `.operation-lock` record in the dependency owner's directory | One kernel `flock` on one empty regular file (`src/platform/flock.ts`), acquired blocking with a bounded wait (30 s, polled), in-process requests queued in order |
+| Holder dies | The record stays. Owner death never admits a new writer; recovery is explicit | The kernel releases it. There is no owner record, nothing to recover, nothing to reclaim |
+| Used for | `prepare`, `clean-prepare` under `systemd-user`; **every** mutation under `session` | `start`, `stop` (and the whole of `prepare`, around its transaction) under `systemd-user`; `status` and `open` take no lock |
+| Refusal | `preparation-recovery-required` | `coordination-busy` |
+
+Why coordination suffices for service-owned start/stop: after any crash the next owner
+re-inspects the service manager and converges. An active unit refuses a second start
+(the manager itself refuses a loaded name), Stop is idempotent, a half-started unit is
+visible as activating/failed and handled by the paths above, and the start-time check
+is read-only by contract and dies with its owner through the guard.
+
+What changed in the locked sections (`local-application-adapters.ts`,
+`coordinateMutation`, which now receives the operation's intent):
+
+- **Stop**: coordination lock only. It does not resolve the preparation binding and
+  is never blocked by a crashed Launchpad or an interrupted preparation.
+- **Start**: coordination lock only. Start contains no install or repair — only the
+  declared check and the runner operation — so nothing had to be split out of it. It
+  refuses with `preparation-recovery-required` when a retained record that this owner
+  does not hold exists on its dependency tree: an application is never started on a
+  tree whose preparation died.
+- **Prepare / clean-prepare**: the coordination lock around the whole operation, so
+  "no active unit" stays true for its duration and `application-running` is decided
+  under it; inside it, the retained lock around the transaction. The record is now
+  **released as soon as the transaction completes with confirmed cleanup** (success or
+  a reported failure) instead of being held until the Launchpad closes; it stays after
+  a throw, after `preparation-cleanup-required`, and after the death of the process. A
+  crash between the two sections converges: the kernel lock is gone, the record remains,
+  and the next owner refuses to prepare or start until recovery.
+- **`session` runner: unchanged, deliberately.** Every mutation keeps the retained lock
+  until the Launchpad closes. The same reasoning does not hold there: a session
+  application is known only to its own process, so the retained record is also what
+  keeps another process from reinstalling beneath an application nobody else can see;
+  and after an owner crash a session application is dead with its owner, so there is
+  nothing left to operate that the lock could block.
+
+The lock file is `$XDG_RUNTIME_DIR/lazurio/lazurio-app-<org16>-coordination.lock`: the
+user manager's own runtime directory, the same scope and lifetime as the transient
+units, one file per canonical Organization directory, never inside a module checkout
+(a persistent untracked file there would make every checkout dirty). The empty files
+are never unlinked — a waiter may hold a descriptor, and unlinking would create two
+lock domains — and disappear with the runtime directory.
+
+`src/platform/flock.ts` is one neutral primitive (`acquireFileLock(path, { timeoutMs })`
+→ `release()`, `FileLockError` with `busy` / `unsupported`): no filesystem allowlist
+(a filesystem that cannot `flock` is classified from `errno` instead of guessed from
+its type), no initialization to interrupt, handles rooted against garbage collection.
+The product-update slice carries an equivalent private copy on its own branch and can
+adopt this one. Known defects of `src/folder/lock.ts` that this change did **not**
+need and did not touch (follow-up): it refuses every filesystem except APFS and ext;
+a process that dies between `mkdir` and writing the `protocol` marker wedges the lock
+permanently; it never waits (`LOCK_NB` only); a lock whose handle becomes unreachable
+is silently released by garbage collection.
+
+**Without a Launchpad.** `app-request` with `{organizationDirectory, operation,
+selection}` and operation `status` or `stop` builds a short-lived owner over the same
+core, the same runner and the same coordination lock (`serviceApplicationAdapters`),
+with the same root admission. It answers `launchpad-required` wherever applications
+are session-scoped and can neither start nor prepare anything.
+
+### Transient units versus written unit files
+
+| | Transient unit (chosen) | Written unit file |
+| --- | --- | --- |
+| Persistent residue | None: lives in `$XDG_RUNTIME_DIR/systemd/transient`, gone after stop, logout of a non-lingering account, or reboot | A file in `~/.config/systemd/user` to regenerate, detect as edited and delete; stale files after a moved Folder |
+| Reboot persistence | Impossible by construction — matches "never a consequence of clicking Start" | `enable` is one command away from becoming implicit |
+| Manager-wide effect | None | `daemon-reload` for every change |
+| Test isolation | A real manager can be exercised with a temporary `HOME`; nothing is written to the account | The manager reads **its** home, not the caller's: a real-manager test must write into the real account |
+| Hand edits | Only a runtime drop-in, which the runner detects (`DropInPaths`) and refuses | The file itself can be edited; needs content comparison |
+| Cost | Failed records need `reset-failed` (handled); the definition is not inspectable as a file (`systemctl --user cat` shows it) | — |
+
+The per-application reboot-persistence setting is a separate slice and is the point at
+which a written, enabled unit becomes necessary. It will be an explicit opt-in.
+
+### Not done
+
+- **Reboot persistence** (the explicit per-application setting) and **lingering**.
+  Without `loginctl enable-linger`, the user manager — and every application — ends
+  with the account's last login session. That is a Machine setting Lazurio does not
+  change; a hosted workspace preset must decide it.
+- **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
+- **Start and preparation without a Launchpad.** `app-request` status and stop work
+  from the CLI alone for service-owned applications (below); start, open and
+  preparation still need a configured Launchpad, because they need its toolchain and
+  launch composition.
+- **Survival across a product activation** is not yet exercised (there is no activation
+  of a running Launchpad yet); a graceful and a killed Launchpad are.
+- **Operator recovery of an interrupted preparation** stays explicit and unqualified:
+  the retained record of a preparation whose owner died is never reclaimed
+  automatically. It blocks preparing and starting that tree only; status and Stop are
+  never blocked by it.
+- Application output is still discarded (no journal capture decision), source selection
+  beyond the authorized module directory (named worktrees) is not part of the unit.
+  Two live owners are serialized by the coordination lock; that is unit-tested, not
+  yet natively qualified under load.
+- Upstream decision 0137 is **not amended yet** (below).
 
 **Unchanged.** Bounded preparation subprocesses (frozen install, declared preparation
 and check scripts) keep the existing guarded-process ownership: they are short,
-deadline-bound and must die with their operation. Preparation, content
-synchronization and running services share the dependency owner's coordination
-boundary: changing dependencies beneath a running application stays refused even
-though the Launchpad itself can now restart harmlessly.
-
-**macOS** keeps session-scoped applications under the in-memory owner until a
-workstation consumer needs more; launchd agents are the expected route then, not now.
-Windows is unqualified for either model.
+deadline-bound and must die with their operation.
 
 **Upstream.** This changes the session semantics of upstream decision 0137, under
 which hosted applications live in the current Launchpad session. It is a [required
-upstream amendment](decisions.md#required-amendments-before-production-implementation).
-The rest of 0137 is preserved: nothing starts at cold start; health, catalog and
-background browser requests are not an Open; production accepts only a reproducible
-Build and uses neither the Launchpad nor worktrees.
+upstream amendment](decisions.md#required-amendments-before-production-implementation)
+and **remains open**: this repository implements the accepted direction, it does not
+amend the upstream record. The rest of 0137 is preserved: nothing starts at cold
+start; health, catalog and background browser requests are not an Open; production
+accepts only a reproducible Build and uses neither the Launchpad nor worktrees.
 
 **What this does not mean.** It does not authorize installing units on any real
 Machine, does not make applications production deployments, does not make a service
 definition an access grant, and does not remove the functional-qualification
 requirement: a running unit is not a working module.
 
-Required evidence: CLI/Launchpad parity, concurrent operations, dependency exclusion,
-survival across a Launchpad restart and a product activation, reboot with persistence
-off and on, port collision, a unit edited by hand, and a failed start that leaves no
-half-owned service.
+### Evidence
+
+- Unit tests with an injected fake service manager (`tests/systemd-user-runner.test.ts`):
+  name derivation, exact `systemd-run` argv, state mapping, unrecognized shapes,
+  control-group ownership, port collision, bounded stop, failed-unit reset, failed
+  start, preparation refusal, rediscovery by a new lifecycle, Launchpad server close,
+  runner selection. `tests/file-lock.test.ts` covers the coordination primitive
+  (exclusion, bounded wait, release after `SIGKILL` of a child holder, no retained
+  record, garbage collection, `unsupported`), and `tests/organization-applications.test.ts`
+  the real composition: a holder killed inside a coordinated operation never blocks the
+  next owner, a preparation that died still requires explicit recovery, and the CLI
+  path without a Launchpad. The session tests are unchanged and remain the macOS contract.
+- `tests/systemd-user-integration.test.ts` uses the **real** user manager when one
+  answers and skips with an explicit message otherwise (never a CI failure).
+- `scripts/smoke-application-service.ts` is the native qualification through the
+  compiled CLI: start, graceful Launchpad exit, new Launchpad, Launchpad SIGKILL, third
+  Launchpad, same `InvocationID` throughout, stop and start there with **no recovery
+  step**, control group gone, status and stop with no Launchpad at all, and an
+  interrupted preparation that still requires explicit recovery. Transcript:
+  [Linux ARM64, 2026-09-19](evidence/app-services-linux-arm64-2026-09-19.md).
+
+Still required before acceptance: two live owners under load, survival
+across a product activation, reboot with persistence off and on, `linux-x64`.
 
 ## Shared application lifecycle — development integration boundary
 
-Current development state. Under the accepted direction above, this in-memory owner
-remains the owner of session-scoped applications on macOS and of bounded preparation;
-on Linux its process ownership moves behind the same adapter interface to the service
-manager. It is not extended into a persistent supervisor.
-
-`createApplicationLifecycle` composes the module reader, guarded launch, listener
-observation and owned stop into one in-memory owner. It is intended to be instantiated
-once by the existing local server, shared by CLI and Launchpad requests. The draft
-transports use this owner when trusted application adapters are supplied; default
-production discovery/binding remains incomplete. Do not construct an owner per CLI invocation or
-alongside the legacy supervisor for the same Environment. No locator, persistent
-PID database, module catalog or permission store is introduced.
+`createApplicationLifecycle` composes the module reader, the selected
+`ApplicationRunner` and listener observation into one sequencing core. It is intended
+to be instantiated once by the existing local server, shared by CLI and Launchpad
+requests. The draft transports use this owner when trusted application adapters are
+supplied; default production discovery/binding remains incomplete. With the `session`
+runner, do not construct an owner per CLI invocation or alongside the legacy supervisor
+for the same Environment: its state is in memory by design. No locator, persistent PID
+database, module catalog or permission store is introduced by either runner.
 
 Every operation requires a trusted authorization adapter bound to the actual selected
 company/module/package and operation; failure denies the request. The adapter supplies
@@ -472,8 +731,9 @@ license/dependency/required-slot readiness and explicit environment policy. Neit
 adapter is accepted from HTTP/CLI JSON or inferred from a path/profile label.
 
 Start reads and validates the selected declaration, prepares an explicit launch,
-serializes competing starts, refuses this owner's already claimed port or any observed
-external binding, then rechecks authorization and declaration before spawn. Runtime
+serializes competing starts, rechecks authorization and declaration, and then hands
+the launch to the runner, which refuses this owner's already claimed port or any
+observed external binding before it creates a process. Runtime
 plans retain the selected script's digest; the filesystem reader additionally binds
 the full decoded module/package declarations, including pre/post hooks, package
 manager and dependencies. Revalidation therefore detects changed executable hooks,
@@ -482,15 +742,20 @@ proof, and status returns neither command text nor these fingerprints.
 Filesystem checks still assume stable cooperative
 custody; they are not an atomic read-to-exec or cross-file transaction.
 
-`started` means the guard reported a launcher, not readiness. Status observes each
-declared listener through the retained handle; the aggregate is an instantaneous
+`started` means the owner reported a launcher (the guard, or the service manager's
+completed `exec`), not readiness. Status re-reads the declaration, compares its digest
+with the one the running invocation was started from (a changed declaration is
+`declarationChanged`, never observed as the running application) and observes each
+declared listener through the runner; the aggregate is an instantaneous
 observation, not atomic multi-listener evidence. A port race after inspection can
 still cause a failed app start; no foreign process is adopted or signaled. Duplicate
 start is `already-managed`, not a replacement/restart. Changed authorization scope
 cannot control an old run. Stop removes an entry only after confirmed group cleanup;
 incomplete cleanup retains it and blocks reuse. Owner shutdown closes new starts and
 drains only retained groups, without needing new provider rights to clean up its own
-resources. It cannot recover escaped descendants or adopt runs after owner death.
+resources. The session owner cannot recover escaped descendants or adopt runs after
+owner death; the service owner needs neither, because the control group and its
+identity belong to the service manager.
 
 Native Mac-host synthetic tests run a declared package script with an explicit fixture
 Bun toolchain and a compiled actual CLI guard. They cover concurrent duplicate start,
@@ -712,7 +977,7 @@ Mac-host source tests, not Linux qualification. Windows and the UI remain unqual
 there is only one maintained launch/stop implementation. Tying the guard to a control
 pipe is the right ownership for bounded preparation subprocesses and session-scoped
 applications, and deliberately not the owner of long-running hosted applications
-([application lifetime](#application-lifetime--accepted-direction-not-implemented)). The caller supplies a
+([application lifetime](#application-lifetime--implemented-for-linux-session-scoped-on-macos)). The caller supplies a
 verified Platform executable and explicit app executable, args, owned cwd and data-only
 environment. No ambient credentials or shell interpretation are added. Application
 stdout/stderr is currently discarded; diagnostics/log integration remains unfinished.

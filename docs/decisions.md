@@ -10,7 +10,8 @@ The 2026-09-19 reconciliation rewrote F2 and added F8–F12 from the Principal's
 direction and an architecture review. Where a canonical upstream decision contradicts
 a Platform proposal, upstream wins and the proposal is rewritten; where the Principal's
 direction changes upstream behaviour, the change is listed as a required upstream
-amendment below. F8–F12 are accepted direction; none of them is implemented.
+amendment below. F8–F12 are accepted direction; F8 is implemented for Linux (see F8),
+F9–F12 are not implemented.
 
 ## F0 — Confirmed vocabulary and responsibility split
 
@@ -406,7 +407,9 @@ or task success. Sharing/streams do not relax private-data or publication bounda
 
 ## F8 — The OS service manager owns long-running applications
 
-**Accepted direction (2026-09-19), not implemented.** Long-running module applications
+**Accepted direction (2026-09-19); implemented for Linux as transient systemd user
+services on 2026-09-19, macOS session-scoped.** Reboot persistence, lingering, launchd
+and the upstream amendment remain open. Long-running module applications
 are owned by the operating system's service manager, not by the Launchpad process.
 Linux first: systemd user services generated from validated module declarations with
 the exact working directory, command, environment and source selection. Identity and
@@ -422,7 +425,7 @@ their work. While applications are children of the Launchpad, every product acti
 or Launchpad restart stops them, and availability of the product depends on people
 repeatedly agreeing to lose running work. This changes the session semantics of
 upstream decision 0137 and requires the amendment listed above. The contract is in
-[module adoption](module-adoption.md#application-lifetime--accepted-direction-not-implemented).
+[module adoption](module-adoption.md#application-lifetime--implemented-for-linux-session-scoped-on-macos).
 
 | Alternative | Assessment |
 | --- | --- |

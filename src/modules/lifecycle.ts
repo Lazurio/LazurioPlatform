@@ -1,6 +1,5 @@
 import { dirname, join } from "node:path";
-import { startGuardedProcess } from "./guarded-process";
-import { observeListenerBindings } from "./listener-ownership";
+import type { ApplicationRunner } from "./application-runner";
 import { object, text } from "./manifest";
 import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
@@ -13,11 +12,13 @@ type Operation =
   | "stop"
   | "prepare"
   | "clean-prepare";
+export type CoordinationRefusal = Readonly<{
+  kind: "coordination-busy" | "preparation-recovery-required" | "closing";
+}>;
 type Plan = Extract<
   Awaited<ReturnType<typeof readModuleApplication>>,
   { kind: "declared-runtime-plan" }
 >;
-type Handle = Awaited<ReturnType<typeof startGuardedProcess>>;
 type PreparationFactory = (
   plan: Plan,
   cwd: string,
@@ -40,8 +41,12 @@ function selection(input: unknown): Selection {
 // Instantiate once inside the existing local server/lifecycle owner, not once
 // per CLI request. There is no locator, durable PID adoption or alternate ACL.
 // The injected adapters are trusted application code, never request JSON.
+// This core owns authorization, declaration revalidation and sequencing only.
+// Process ownership, identity and listener ownership evidence live entirely
+// behind `runner`; nothing here remembers which applications are running, so a
+// new instance sees exactly what the runner's owner reports.
 export function createApplicationLifecycle(adapters: {
-  platformExecutable: string;
+  runner: ApplicationRunner;
   authorize: (
     selection: Selection,
     operation: Operation,
@@ -57,24 +62,27 @@ export function createApplicationLifecycle(adapters: {
   // Separate explicit capability: never substitute ordinary preparation when
   // the caller asks to discard and regenerate derived dependencies.
   preflightCleanPreparation?: PreparationFactory;
-  // Trusted composition boundary for the shared install/pull/start owner lock.
-  // null selects owner shutdown; the coordinator must drain its accepted mutations.
+  // Trusted composition boundary for cross-process exclusion. null selects owner
+  // shutdown; the coordinator must drain its accepted mutations. `intent` lets the
+  // composition choose the KIND of exclusion: a transaction that can die
+  // half-written (preparation) versus coordination of operations whose truth
+  // lives in the application's owner. It may refuse with a typed result instead
+  // of running the action; it never runs the action more than once.
   coordinateMutation?: <T>(
     selection: Selection | null,
     action: () => Promise<T>,
-  ) => Promise<T>;
+    intent?: Operation,
+  ) => Promise<T | CoordinationRefusal>;
 }) {
-  const runs = new Map<
-    string,
-    { directory: string; plan: Plan; handle: Handle }
-  >();
+  const runner = adapters.runner;
   let queue = Promise.resolve();
   let closing = false;
   const preparationAbort = new AbortController();
   const preparations = new Set<
     Awaited<ReturnType<NonNullable<typeof adapters.preflightPreparation>>>
   >();
-  const key = (value: Selection) => JSON.stringify(value);
+  const applicationDirectory = (value: Selection, directory: string) =>
+    dirname(join(directory, value.package));
   function exclusive<T>(operation: () => Promise<T>): Promise<T> {
     const result = queue.then(operation);
     queue = result.then(
@@ -97,7 +105,7 @@ export function createApplicationLifecycle(adapters: {
       if (!directory) return Object.freeze({ kind: "denied" as const });
     }
     return adapters.coordinateMutation
-      ? adapters.coordinateMutation(value, () => exclusive(operation))
+      ? adapters.coordinateMutation(value, () => exclusive(operation), intent)
       : exclusive(operation);
   }
   async function authorized(value: Selection, operation: Operation) {
@@ -119,28 +127,70 @@ export function createApplicationLifecycle(adapters: {
       throw new Error("Declared application identity mismatch");
     return plan;
   }
-  async function inspect(run: { plan: Plan; handle: Handle }) {
-    const listeners = [];
-    for (const listener of run.plan.listeners) {
-      const { host, port, protocol, health } = listener;
-      const observation = await run.handle.observeListener({
-        host,
-        port,
-        protocol,
-        health,
+  type Held = Extract<
+    Awaited<ReturnType<ApplicationRunner["inspect"]>>,
+    { kind: "running" | "ended" }
+  >;
+  const ownership = () => ({
+    runner: runner.kind,
+    // The interface may tell people that this application keeps running when
+    // the Launchpad restarts. It is a property of the owner, not a promise of
+    // persistence across a reboot.
+    survivesLaunchpadRestart: runner.survivesOwnerExit,
+  });
+  // Shared answer for an owner that cannot be read, or a record under this
+  // application's name that this owner did not create: nothing is touched.
+  function unusable(state: Awaited<ReturnType<ApplicationRunner["inspect"]>>) {
+    if (state.kind === "unavailable")
+      return Object.freeze({ kind: "inspection-unavailable" as const });
+    if (state.kind === "unrecognized")
+      return Object.freeze({ kind: "service-unrecognized" as const });
+    return null;
+  }
+  async function inspect(value: Selection, directory: string, state: Held) {
+    if (state.kind === "ended")
+      return Object.freeze({
+        kind: "status" as const,
+        ...ownership(),
+        state: "ended" as const,
+        result: state.result,
+        ...(state.service ? { service: state.service } : {}),
+        observedHealthy: false,
+        listeners: Object.freeze([]),
       });
-      listeners.push(Object.freeze({ id: listener.id, observation }));
+    // Observe the declaration this invocation was started from. A changed or
+    // unreadable declaration is never observed as the running application.
+    let plan: Plan | null = null;
+    try {
+      plan = await read(value, directory);
+    } catch {
+      plan = null;
     }
-    const state = run.handle.inspect();
+    const current =
+      plan !== null && plan.declarationDigest === state.declarationDigest;
+    const listeners = [];
+    if (plan && current)
+      for (const listener of plan.listeners) {
+        const { host, port, protocol, health } = listener;
+        const observation = await runner.observeListener(value, {
+          host,
+          port,
+          protocol,
+          health,
+        });
+        listeners.push(Object.freeze({ id: listener.id, observation }));
+      }
     return Object.freeze({
       kind: "status" as const,
+      ...ownership(),
+      state: state.phase,
+      ...(state.service ? { service: state.service } : {}),
+      ...(current ? {} : { declarationChanged: true }),
       // Each endpoint is a snapshot, not a cross-listener atomic transaction.
       observedHealthy:
         !closing &&
-        state.appExitCode === null &&
-        state.guardExitCode === null &&
-        !state.stopped &&
-        !state.stopRequested &&
+        current &&
+        state.phase === "running" &&
         listeners.every((item) => item.observation.kind === "observed-healthy"),
       listeners: Object.freeze(listeners),
     });
@@ -169,11 +219,25 @@ export function createApplicationLifecycle(adapters: {
           if (closing) return Object.freeze({ kind: "closing" as const });
           // Until shared-owner overlap resolution is composed, do not mutate
           // dependencies while any other managed app could be consuming them.
-          if ([...runs.keys()].some((id) => id !== key(value)))
+          const held = await runner.list();
+          if (held.kind !== "listed")
+            return Object.freeze({ kind: "inspection-unavailable" as const });
+          if (
+            held.applications.some((item) => item.id !== runner.identify(value))
+          )
             return Object.freeze({ kind: "other-app-managed" as const });
-          const run = runs.get(key(value));
-          if (run && run.directory !== directory)
+          const state = await runner.inspect(value);
+          const refused = unusable(state);
+          if (refused) return refused;
+          const run =
+            state.kind === "running" || state.kind === "ended" ? state : null;
+          if (run && run.cwd !== applicationDirectory(value, directory))
             return Object.freeze({ kind: "scope-changed" as const });
+          // A session application exists only inside this session and is stopped
+          // for its own preparation. An application owned by the service manager may be
+          // in use by people who never asked for this: refuse before any effect.
+          if (run?.kind === "running" && runner.survivesOwnerExit)
+            return Object.freeze({ kind: "application-running" as const });
           let plan: Plan;
           let preparation: Awaited<
             ReturnType<NonNullable<typeof adapters.preflightPreparation>>
@@ -182,7 +246,7 @@ export function createApplicationLifecycle(adapters: {
             plan = await read(value, directory);
             preparation = await preflight(
               plan,
-              dirname(join(directory, value.package)),
+              applicationDirectory(value, directory),
             );
           } catch {
             return Object.freeze({
@@ -202,11 +266,10 @@ export function createApplicationLifecycle(adapters: {
             if (run) {
               if ((await authorized(value, "stop")) !== directory)
                 return Object.freeze({ kind: "denied" as const });
-              if ((await run.handle.stop()).kind !== "group-stopped")
+              if ((await runner.stop(value)).kind !== "group-stopped")
                 return Object.freeze({
                   kind: "preparation-cleanup-required" as const,
                 });
-              runs.delete(key(value));
             }
             if (closing) return Object.freeze({ kind: "closing" as const });
             if ((await authorized(value, mode)) !== directory)
@@ -217,6 +280,14 @@ export function createApplicationLifecycle(adapters: {
               JSON.stringify(plan)
             )
               return Object.freeze({ kind: "declaration-changed" as const });
+            // The owner's view immediately before the effect: dependencies are
+            // never changed beneath an application that is running right now.
+            if ((await runner.inspect(value)).kind !== "not-running")
+              return Object.freeze({
+                kind: runner.survivesOwnerExit
+                  ? ("application-running" as const)
+                  : ("preparation-cleanup-required" as const),
+              });
             const result = await preparation.run(preparationAbort.signal);
             if ((await preparation.close()).kind !== "closed")
               return Object.freeze({
@@ -258,26 +329,26 @@ export function createApplicationLifecycle(adapters: {
           const directory = await authorized(value, "start");
           if (!directory) return Object.freeze({ kind: "denied" as const });
           if (closing) return Object.freeze({ kind: "closing" as const });
-          const existing = runs.get(key(value));
-          if (existing) {
-            if (existing.directory !== directory)
+          const cwd = applicationDirectory(value, directory);
+          const existing = await runner.inspect(value);
+          const refused = unusable(existing);
+          if (refused) return refused;
+          if (existing.kind === "running" || existing.kind === "ended") {
+            if (existing.cwd !== cwd)
               return Object.freeze({ kind: "scope-changed" as const });
-            const state = existing.handle.inspect();
-            if (
-              state.stopRequested ||
-              state.appExitCode !== null ||
-              state.guardExitCode !== null
-            )
+            if (existing.kind === "running")
+              return Object.freeze({ kind: "already-managed" as const });
+            // An ended record is cleared by this Start only when its owner has
+            // proved that no process remains; otherwise Stop must confirm it.
+            if (existing.cleanup === "explicit-stop")
               return Object.freeze({
                 kind: "application-cleanup-required" as const,
               });
-            return Object.freeze({ kind: "already-managed" as const });
           }
           let plan: Plan;
           let launch: ReturnType<typeof parseProcessLaunch>;
           try {
             plan = await read(value, directory);
-            const cwd = dirname(join(directory, value.package));
             if (adapters.preflightStartCheck) {
               const check = await adapters.preflightStartCheck(plan, cwd);
               preparations.add(check);
@@ -326,23 +397,6 @@ export function createApplicationLifecycle(adapters: {
           } catch {
             return Object.freeze({ kind: "invalid-or-unavailable" as const });
           }
-          // Serialize this owner's starts and refuse any observed existing binding.
-          // Absence is not an OS reservation; status still checks actual ownership.
-          for (const listener of plan.listeners) {
-            if (
-              [...runs.values()].some((run) =>
-                run.plan.listeners.some(
-                  (other) => other.port === listener.port,
-                ),
-              )
-            )
-              return Object.freeze({ kind: "port-managed" as const });
-            const bindings = await observeListenerBindings(listener.port);
-            if (bindings.kind !== "observed")
-              return Object.freeze({ kind: "inspection-unavailable" as const });
-            if (bindings.bindings.length)
-              return Object.freeze({ kind: "port-occupied" as const });
-          }
           if (closing) return Object.freeze({ kind: "closing" as const });
           if ((await authorized(value, "start")) !== directory)
             return Object.freeze({ kind: "denied" as const });
@@ -358,22 +412,17 @@ export function createApplicationLifecycle(adapters: {
           if (closing) return Object.freeze({ kind: "closing" as const });
           // The toolchain adapter must honor the declared script and prerequisites.
           // Stable cooperative filesystem custody remains required until spawn.
-          let handle: Handle;
-          try {
-            handle = await startGuardedProcess(
+          // The runner serializes nothing itself: this owner's queue does. It
+          // refuses a claimed or observed port before it creates any process.
+          // Absence is not an OS reservation; status still checks ownership.
+          return runner.start(
+            Object.freeze({
+              application: value,
               launch,
-              adapters.platformExecutable,
-            );
-          } catch {
-            return Object.freeze({ kind: "launch-failed" as const });
-          }
-          runs.set(key(value), { directory, plan, handle });
-          if ((await handle.started).kind !== "started") {
-            if ((await handle.stop()).kind === "group-stopped")
-              runs.delete(key(value));
-            return Object.freeze({ kind: "launch-failed" as const });
-          }
-          return Object.freeze({ kind: "started" as const });
+              declarationDigest: plan.declarationDigest,
+              ports: Object.freeze(plan.listeners.map((item) => item.port)),
+            }),
+          );
         },
         "start",
       );
@@ -383,36 +432,55 @@ export function createApplicationLifecycle(adapters: {
       if (closing) return Object.freeze({ kind: "closing" as const });
       const directory = await authorized(value, "open");
       if (!directory) return Object.freeze({ kind: "denied" as const });
-      const run = runs.get(key(value));
-      if (!run) return Object.freeze({ kind: "not-managed" as const });
-      if (run.directory !== directory)
+      const run = await runner.inspect(value);
+      const refused = unusable(run);
+      if (refused) return refused;
+      if (run.kind !== "running" && run.kind !== "ended")
+        return Object.freeze({ kind: "not-managed" as const });
+      if (run.cwd !== applicationDirectory(value, directory))
         return Object.freeze({ kind: "scope-changed" as const });
-      const listener = run.plan.listeners.find(
+      if (run.kind === "ended")
+        return Object.freeze({ kind: "not-ready" as const });
+      let plan: Plan;
+      try {
+        plan = await read(value, directory);
+      } catch {
+        return Object.freeze({ kind: "declaration-changed" as const });
+      }
+      if (plan.declarationDigest !== run.declarationDigest)
+        return Object.freeze({ kind: "declaration-changed" as const });
+      const listener = plan.listeners.find(
         (item) => item.role === "entrypoint",
       );
       if (!listener || !["http", "https"].includes(listener.protocol))
         return Object.freeze({ kind: "no-browser-entrypoint" as const });
-      const observation = await inspect(run);
+      const observation = await inspect(value, directory, run);
       if (!observation.observedHealthy)
-        return Object.freeze({ kind: "not-ready" as const });
+        return Object.freeze({
+          kind:
+            "declarationChanged" in observation
+              ? ("declaration-changed" as const)
+              : ("not-ready" as const),
+        });
       if ((await authorized(value, "open")) !== directory)
         return Object.freeze({ kind: "denied" as const });
       try {
         if (
-          JSON.stringify(await read(value, directory)) !==
-          JSON.stringify(run.plan)
+          JSON.stringify(await read(value, directory)) !== JSON.stringify(plan)
         )
           return Object.freeze({ kind: "declaration-changed" as const });
       } catch {
         return Object.freeze({ kind: "declaration-changed" as const });
       }
-      const state = run.handle.inspect();
+      // The same invocation must still be running after the observation.
+      const latest = await runner.inspect(value);
       if (
         closing ||
-        runs.get(key(value)) !== run ||
-        state.stopRequested ||
-        state.appExitCode !== null ||
-        state.guardExitCode !== null
+        latest.kind !== "running" ||
+        latest.phase !== "running" ||
+        latest.cwd !== run.cwd ||
+        latest.declarationDigest !== run.declarationDigest ||
+        latest.service?.invocationId !== run.service?.invocationId
       )
         return Object.freeze({ kind: "not-ready" as const });
       const host = listener.host.includes(":")
@@ -430,11 +498,14 @@ export function createApplicationLifecycle(adapters: {
       const value = selection(input);
       const directory = await authorized(value, "status");
       if (!directory) return Object.freeze({ kind: "denied" as const });
-      const run = runs.get(key(value));
-      if (!run) return Object.freeze({ kind: "not-managed" as const });
-      if (run.directory !== directory)
+      const run = await runner.inspect(value);
+      const refused = unusable(run);
+      if (refused) return refused;
+      if (run.kind !== "running" && run.kind !== "ended")
+        return Object.freeze({ kind: "not-managed" as const });
+      if (run.cwd !== applicationDirectory(value, directory))
         return Object.freeze({ kind: "scope-changed" as const });
-      return inspect(run);
+      return inspect(value, directory, run);
     },
     stop(input: unknown) {
       const value = selection(input);
@@ -443,13 +514,14 @@ export function createApplicationLifecycle(adapters: {
         async () => {
           const directory = await authorized(value, "stop");
           if (!directory) return Object.freeze({ kind: "denied" as const });
-          const run = runs.get(key(value));
-          if (!run) return Object.freeze({ kind: "not-managed" as const });
-          if (run.directory !== directory)
+          const run = await runner.inspect(value);
+          const refused = unusable(run);
+          if (refused) return refused;
+          if (run.kind !== "running" && run.kind !== "ended")
+            return Object.freeze({ kind: "not-managed" as const });
+          if (run.cwd !== applicationDirectory(value, directory))
             return Object.freeze({ kind: "scope-changed" as const });
-          const result = await run.handle.stop();
-          if (result.kind === "group-stopped") runs.delete(key(value));
-          return result;
+          return runner.stop(value);
         },
         "stop",
       );
@@ -466,13 +538,12 @@ export function createApplicationLifecycle(adapters: {
             /* retain incomplete owned work */
           }
         }
-        for (const [id, run] of runs) {
-          if ((await run.handle.stop()).kind === "group-stopped")
-            runs.delete(id);
-        }
+        // The runner decides what owner shutdown means: a session runner drains
+        // every group it started, a service runner leaves applications running.
+        const applications = await runner.close();
         return Object.freeze({
           kind:
-            runs.size || preparations.size
+            applications.kind !== "closed" || preparations.size
               ? ("incomplete" as const)
               : ("closed" as const),
         });
