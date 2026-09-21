@@ -25,7 +25,7 @@ their current supported implementation.
 - [Architecture and ownership](ARCHITECTURE.md)
 - [Decisions, alternatives and required amendments](docs/decisions.md)
 - [Migration, upgrade and recovery](docs/migration-and-recovery.md)
-- [Proposed release cycle](docs/release-cycle.md)
+- [Build and qualification lifecycle](docs/release-cycle.md)
 - [Product update contract](docs/update.md)
 - [Selective Launchpad adoption and Doctor direction](docs/legacy-adoption.md)
 - [Developer commands and conventions](docs/development.md)

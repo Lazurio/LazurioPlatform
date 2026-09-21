@@ -1,5 +1,4 @@
 import { parseArgs } from "node:util";
-import { productHelp, runProductCommand } from "./distribution/product-cli";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
@@ -42,6 +41,25 @@ import {
 } from "./modules/systemd-user-runner";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import {
+  type CommandOutput,
+  installBase,
+  noticeAfterCommand,
+  processContext,
+  runInstallCommand,
+  runUpdateCommand,
+  selfCheckCommand,
+  updateHelp,
+  versionCommand,
+} from "./update/cli";
+import { embeddedIdentity } from "./update/identity";
+
+// Update commands return their own typed output and stable exit status.
+function emit(output: CommandOutput): number {
+  if (output.stdout) console.log(output.stdout);
+  if (output.stderr) console.error(output.stderr);
+  return output.code;
+}
 
 // Status and Stop without a Launchpad, for applications owned by the service
 // manager only: their truth is the manager's, so a short-lived owner over the
@@ -101,16 +119,28 @@ async function operateServiceApplication(input: unknown) {
   }
 }
 
-// Development CLI entrypoint. No implicit folder discovery; the only
-// installer surface is the explicit `product` command group.
+// CLI entrypoint. No implicit folder discovery; installation and update are the
+// `install` and `update` commands of the one update core (docs/update.md).
 export async function runCli(args: string[]): Promise<number> {
+  if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
+  if (args[0] === "self-check")
+    return emit(await selfCheckCommand(args.slice(1)));
+  if (args[0] === "install")
+    return emit(await runInstallCommand(args.slice(1)));
+  if (args[0] === "update") return emit(await runUpdateCommand(args.slice(1)));
+  const code = await runOtherCommand(args);
+  // Every other command ends with the one-line notice (docs/update.md
+  // "Surfaces"): from `last-check.json` only, on stderr, never the network.
+  if (args[0] !== "launchpad") {
+    const notice = await noticeAfterCommand();
+    if (notice) console.error(notice);
+  }
+  return code;
+}
+
+async function runOtherCommand(args: string[]): Promise<number> {
   if (args[0] === "machine") {
     const { code, result } = await runMachineCommand(args.slice(1));
-    console.log(JSON.stringify(result));
-    return code;
-  }
-  if (args[0] === "product") {
-    const { code, result } = await runProductCommand(args.slice(1));
     console.log(JSON.stringify(result));
     return code;
   }
@@ -250,7 +280,7 @@ Refuses an occupied canonical target, conflicting declarations or observed drift
 No files, locks, provider requests or applications are created. Output may contain
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
-    console.log(productHelp);
+    console.log(updateHelp);
     console.log(machineHelp);
     return 0;
   }
@@ -261,6 +291,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     tokens: true,
     options: {
       folder: { type: "string" },
+      base: { type: "string" },
       "organization-directory": { type: "string" },
       "bun-executable": { type: "string" },
       "application-runner": { type: "string" },
@@ -301,6 +332,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
         (name) =>
           ![
             "folder",
+            "base",
             "organization-directory",
             "bun-executable",
             "application-runner",
@@ -372,6 +404,14 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       organizationDirectory === undefined
         ? undefined
         : { organizationDirectory },
+      // `--base` is what the installed service unit passes: this instance is
+      // the Launchpad of that installation.
+      values.base === undefined
+        ? undefined
+        : {
+            base: installBase(processContext(), values.base),
+            version: embeddedIdentity().version,
+          },
     );
     console.log(
       JSON.stringify({
@@ -394,7 +434,8 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
   if (
     values["organization-directory"] !== undefined ||
     values["bun-executable"] !== undefined ||
-    values["application-runner"] !== undefined
+    values["application-runner"] !== undefined ||
+    values.base !== undefined
   )
     throw new Error("Discovery option belongs only to Launchpad");
   if (positionals[0] === "folder-resume") {
@@ -498,11 +539,7 @@ if (import.meta.main) {
     else process.exitCode = await runCli(process.argv.slice(2));
   } catch {
     // Do not echo profile input, private paths or raw filesystem errors.
-    if (process.argv[2] === "product") {
-      console.error(
-        "Product operation failed. Installation state may be incomplete; this message does not prove whether activation changed the active record or entrypoint. Run `product status` and follow the documented repair procedure. Preserve pending attempts and accepted trust; do not reset metadata or bootstrap an established installation again. No automatic retry or repair was performed.",
-      );
-    } else if (process.argv[2] === "app-request") {
+    if (process.argv[2] === "app-request") {
       console.error(
         "Application request could not be completed or its result confirmed. A submitted operation may still be running; this is not confirmation of cancellation. Check the existing Launchpad lifecycle owner before retrying a mutation. Verify the request and local session without sharing its private token.",
       );

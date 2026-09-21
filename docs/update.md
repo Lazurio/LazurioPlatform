@@ -97,7 +97,11 @@ update. An older client reports `reinstall-required` and changes nothing.
 **Check.** The client requests
 `https://github.com/<origin>/releases/latest/download/manifest.json`, records the
 tag the redirect resolved to, and from then on uses only exact-tag URLs
-(`releases/download/<tag>/…`) for the bundle and the artifact. A manifest whose
+(`releases/download/<tag>/…`) for the bundle and the artifact. The tag is taken from that first redirect only, which must name
+exactly this asset of a `v<version>` tag on the compiled-in origin; anything else is
+refused before another request is made. Exact-tag URLs are then followed over HTTPS
+wherever GitHub stores the bytes: there is no host allow-list, because the bytes are
+authenticated by the attestation and not by where they came from. A manifest whose
 version differs from the resolved tag is refused. An update is available when
 the verified manifest version is greater than the active version and not lower
 than the floor.
@@ -236,7 +240,10 @@ update rollback` undoes it. A watchdog is deliberately not built for it.
 
 `lazurio update rollback` switches to `previous` after that binary's own
 `self-check`, with the same marker, restart and health rule, after raising the
-high-water mark to the version it leaves. It never lowers the high-water mark.
+high-water mark to the version it leaves. It never lowers the high-water mark. After
+an undone activation `previous` names the active version, so there is no rollback
+target until the next committed update; the marker deliberately carries no more
+state to restore it.
 
 ## Surfaces
 

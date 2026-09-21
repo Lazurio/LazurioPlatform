@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import { withFolderOperationLock } from "../folder/lock";
@@ -8,7 +9,32 @@ import { stateFields } from "../folder/state";
 import { updateProfile } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
+import { reconcileAsLaunchpad } from "../update/activation";
+import { layout } from "../update/layout";
+import { launchpadHealth } from "../update/service-control";
 import index from "./index.html";
+
+export const launchpadCommitDelayMs = 15_000;
+
+// The installed service's health question (docs/update.md "Activation"): which
+// version is running. A Unix socket under the install base, so only this user
+// can ask and the updater needs no port or session token to find it. It states
+// the version and nothing else.
+async function serveHealth(base: string, version: string) {
+  const path = layout(base).healthSocket;
+  // A socket file outlives a killed Launchpad; one that still answers is a live
+  // Launchpad of this base, and there is only ever one.
+  if ((await launchpadHealth(base)) !== null)
+    throw new Error("Another Launchpad serves this install base");
+  await rm(path, { force: true });
+  return Bun.serve({
+    unix: path,
+    fetch: (request) =>
+      new URL(request.url).pathname === "/health" && request.method === "GET"
+        ? Response.json({ version })
+        : new Response(null, { status: 404 }),
+  });
+}
 
 // One local owner. Optional application adapters are trusted composition, never
 // HTTP input; the browser cannot supply a filesystem root or executable.
@@ -16,6 +42,14 @@ export async function startLaunchpad(
   folder: string,
   applicationAdapters?: Parameters<typeof createApplicationLifecycle>[0],
   discovery?: Readonly<{ organizationDirectory: string }>,
+  // The installed Launchpad service of this base (`launchpad --base`): it
+  // answers the updater's health question and commits an activation whose
+  // updater is gone.
+  installed?: Readonly<{
+    base: string;
+    version: string;
+    commitDelayMs?: number;
+  }>,
 ) {
   const organizationDirectory = discovery?.organizationDirectory;
   if (organizationDirectory !== undefined)
@@ -126,6 +160,21 @@ export async function startLaunchpad(
       }
     },
   });
+  // The listener above exists: only now is the version reported, and a live
+  // updater commits on that. An activation whose updater is gone is committed
+  // by this instance itself — but only once it has stayed up longer than the
+  // unit's start limit could still undo it (5 starts in 60 s: a version that
+  // dies sooner must reach `OnFailure=lazurio-rollback.service` uncommitted).
+  // A failure to reconcile never costs the Launchpad its start.
+  const health = installed
+    ? await serveHealth(installed.base, installed.version)
+    : null;
+  const reconcile = installed
+    ? setTimeout(
+        () => void reconcileAsLaunchpad(installed).catch(() => undefined),
+        installed.commitDelayMs ?? launchpadCommitDelayMs,
+      )
+    : undefined;
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -139,7 +188,9 @@ export async function startLaunchpad(
           // Close admission immediately, before waiting for HTTP requests to drain.
           // Existing requests and shutdown must share the same lifecycle queue.
           const applicationClose = applications?.close();
+          clearTimeout(reconcile);
           await server.stop(true);
+          await health?.stop(true);
           const result = applicationClose
             ? await applicationClose
             : Object.freeze({ kind: "closed" as const });
