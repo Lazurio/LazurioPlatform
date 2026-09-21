@@ -13,6 +13,7 @@ import { isAbsolute, join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
+import { createSessionRunner } from "../src/modules/session-runner";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import { readOrganizationApplications } from "../src/organizations/read-applications";
 
@@ -188,7 +189,7 @@ if (process.argv[2] === "--fixture-app") {
     server = await startLaunchpad(
       folder,
       {
-        platformExecutable: binary,
+        runner: createSessionRunner(binary),
         authorize: async (value) => {
           // This authority is limited to this newly created synthetic test fixture.
           assert.deepEqual(value, selection);

@@ -5,22 +5,33 @@ import {
   readFile,
   realpath,
   rm,
+  rmdir,
   symlink,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
+import { createApplicationCoordination } from "../src/modules/application-coordination";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
-import { localApplicationAdapters } from "../src/modules/local-application-adapters";
+import {
+  localApplicationAdapters,
+  serviceApplicationAdapters,
+} from "../src/modules/local-application-adapters";
 import { createOwnerOperations } from "../src/modules/owner-operations";
 import { inspectPreparationBinding } from "../src/modules/preparation-binding";
+import { createSessionRunner } from "../src/modules/session-runner";
+import {
+  applicationCoordinationLockFile,
+  createSystemdUserRunner,
+} from "../src/modules/systemd-user-runner";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import {
   readOrganizationApplications,
   resolveOrganizationApplication,
 } from "../src/organizations/read-applications";
+import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -65,6 +76,7 @@ posixTest(
         bunExecutable: process.execPath,
         platformExecutable: process.execPath,
         environment: env,
+        runner: createSessionRunner(process.execPath),
       });
       const coordinate = adapters.coordinateMutation;
       if (!coordinate) throw new Error("Expected local coordinator");
@@ -946,6 +958,7 @@ posixTest(
               bunExecutable: process.execPath,
               platformExecutable,
               environment: env,
+              runner: createSessionRunner(platformExecutable),
             }),
           );
           lifecycles.push(lifecycle);
@@ -975,6 +988,7 @@ posixTest(
             bunExecutable: process.execPath,
             platformExecutable,
             environment: env,
+            runner: createSessionRunner(platformExecutable),
           }),
         );
         lifecycles.push(absent);
@@ -992,6 +1006,7 @@ posixTest(
             bunExecutable: process.execPath,
             platformExecutable,
             environment: env,
+            runner: createSessionRunner(platformExecutable),
           }),
         );
         lifecycles.push(admitted);
@@ -1152,4 +1167,307 @@ posixTest(
       });
     });
   },
+);
+
+// Service-owned applications over the REAL local composition (root admission,
+// preparation binding, retained owner lock, coordination lock) and an in-memory
+// service manager that outlives every lifecycle instance, like the real one.
+async function serviceFixture(
+  run: (context: {
+    root: string;
+    appDirectory: string;
+    lockFile: string;
+    manager: ReturnType<typeof createFakeServiceManager>;
+    owner: (options?: {
+      cleanup?: "closed" | "incomplete";
+    }) => ReturnType<typeof createApplicationLifecycle>;
+    // The pure CLI path: no Launchpad, no toolchain, no preparation binding.
+    direct: () => ReturnType<typeof createApplicationLifecycle>;
+  }) => Promise<void>,
+) {
+  await fixture(async (root) => {
+    const runtime = await realpath(
+      await mkdtemp(join(tmpdir(), "application-coordination-")),
+    );
+    try {
+      const appDirectory = join(root, "workspace/web/app");
+      const packagePath = join(appDirectory, "package.json");
+      const pkg = JSON.parse(await readFile(packagePath, "utf8"));
+      pkg.packageManager = `bun@${Bun.version}`;
+      pkg.dependencies = { "fixture-dependency": "file:./dependency" };
+      await mkdir(join(appDirectory, "dependency"));
+      await writeFile(
+        join(appDirectory, "dependency/package.json"),
+        JSON.stringify({ name: "fixture-dependency", version: "1.0.0" }),
+      );
+      pkg.scripts.check = "must not execute in this coordination test";
+      pkg.lazurio.preparation = {
+        schema_version: "lazurio.preparation.v1",
+        owner_package: "app/package.json",
+        check_script: "check",
+      };
+      await writeFile(packagePath, JSON.stringify(pkg));
+      const env = { HOME: root, PATH: "/usr/bin:/bin" };
+      const install = Bun.spawn(
+        [process.execPath, "install", "--lockfile-only"],
+        { cwd: appDirectory, env, stdout: "pipe", stderr: "pipe" },
+      );
+      expect(await install.exited).toBe(0);
+      const manager = createFakeServiceManager({ runtimeDirectory: runtime });
+      const lockFile = applicationCoordinationLockFile(runtime, root);
+      const runner = () =>
+        createSystemdUserRunner({
+          organizationDirectory: root,
+          runtimeDirectory: runtime,
+          run: manager.run,
+          controlGroupEmpty: manager.controlGroupEmpty,
+          observeBindings: async () => ({ kind: "observed", bindings: [] }),
+        });
+      const direct = () =>
+        createApplicationLifecycle(
+          serviceApplicationAdapters({
+            organizationDirectory: root,
+            runner: runner(),
+            coordination: createApplicationCoordination({
+              lockFile,
+              timeoutMs: 200,
+            }),
+          }),
+        );
+      const owner = (options: { cleanup?: "closed" | "incomplete" } = {}) => {
+        const local = localApplicationAdapters({
+          organizationDirectory: root,
+          bunExecutable: process.execPath,
+          platformExecutable: process.execPath,
+          environment: env,
+          runner: runner(),
+          coordination: createApplicationCoordination({
+            lockFile,
+            timeoutMs: 200,
+          }),
+        });
+        if (!local.coordinateMutation) throw new Error("Expected coordinator");
+        const preparation = async () => ({
+          run: async () => ({ kind: "prepared" as const }),
+          close: async () => ({ kind: options.cleanup ?? ("closed" as const) }),
+        });
+        // Real admission and real exclusion; no script or install is executed.
+        return createApplicationLifecycle({
+          runner: local.runner,
+          authorize: local.authorize,
+          coordinateMutation: local.coordinateMutation,
+          prepareLaunch: async (_plan, cwd) => ({
+            executable: process.execPath,
+            args: ["run", "dev"],
+            cwd,
+            env: { PATH: "/usr/bin:/bin" },
+          }),
+          preflightPreparation: preparation,
+        });
+      };
+      await run({ root, appDirectory, lockFile, manager, owner, direct });
+    } finally {
+      await rm(runtime, { recursive: true, force: true });
+    }
+  });
+}
+const serviceSelection = {
+  company: "fixture",
+  module: "web",
+  package: "app/package.json",
+};
+
+posixTest(
+  "an owner killed while holding the coordination lock never blocks the next owner",
+  async () => {
+    await serviceFixture(async ({ appDirectory, lockFile, manager, owner }) => {
+      const first = owner();
+      expect(await first.start(serviceSelection)).toEqual({ kind: "started" });
+      // Application operations leave no owner record on the dependency tree.
+      expect(await readdir(appDirectory)).not.toContain(".operation-lock");
+      // Another process is inside a coordinated operation and never finishes it.
+      const holder = Bun.spawn(
+        [
+          process.execPath,
+          "-e",
+          `import {createApplicationCoordination} from ${JSON.stringify(resolve("src/modules/application-coordination.ts"))};
+           await createApplicationCoordination({ lockFile: ${JSON.stringify(lockFile)} }).run(async () => {
+             console.log("held");
+             await new Promise(() => {});
+           });`,
+        ],
+        { env: {}, stdout: "pipe", stderr: "ignore" },
+      );
+      const reader = holder.stdout.getReader();
+      let output = "";
+      while (!output.includes("held")) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        output += new TextDecoder().decode(chunk.value);
+      }
+      expect(output).toContain("held");
+      // While that process lives, the exclusion is real, bounded and typed...
+      expect(await first.stop(serviceSelection)).toEqual({
+        kind: "coordination-busy",
+      });
+      // ...and reading never needs it.
+      expect(await first.status(serviceSelection)).toMatchObject({
+        kind: "status",
+        state: "running",
+      });
+      expect(manager.units.size).toBe(1);
+      holder.kill("SIGKILL");
+      await holder.exited;
+      // A NEW owner, no recovery step: stop and start simply work.
+      const second = owner();
+      expect(await second.stop(serviceSelection)).toEqual({
+        kind: "group-stopped",
+      });
+      expect(await second.start(serviceSelection)).toEqual({ kind: "started" });
+      expect(await second.stop(serviceSelection)).toEqual({
+        kind: "group-stopped",
+      });
+      expect(await readdir(appDirectory)).not.toContain(".operation-lock");
+      expect((await readFile(lockFile)).byteLength).toBe(0);
+      expect(await first.close()).toEqual({ kind: "closed" });
+      expect(await second.close()).toEqual({ kind: "closed" });
+    });
+  },
+  30_000,
+);
+
+posixTest(
+  "a preparation that died still requires explicit recovery, but never blocks stop or status",
+  async () => {
+    await serviceFixture(async ({ appDirectory, manager, owner }) => {
+      const first = owner();
+      expect(await first.start(serviceSelection)).toEqual({ kind: "started" });
+      expect(await first.close()).toEqual({ kind: "closed" });
+      // A dependency transaction whose owner dies mid-way keeps its record.
+      const dying = Bun.spawn(
+        [
+          process.execPath,
+          "-e",
+          `import {createOwnerOperations} from ${JSON.stringify(resolve("src/modules/owner-operations.ts"))};
+           await createOwnerOperations().run(${JSON.stringify(appDirectory)}, async () => process.exit(23));`,
+        ],
+        { env: {}, stdout: "ignore", stderr: "ignore" },
+      );
+      expect(await dying.exited).toBe(23);
+      expect(await readdir(appDirectory)).toContain(".operation-lock");
+      const second = owner();
+      expect(await second.status(serviceSelection)).toMatchObject({
+        kind: "status",
+        state: "running",
+      });
+      expect(await second.stop(serviceSelection)).toEqual({
+        kind: "group-stopped",
+      });
+      // Owner death never authorizes a new writer, nor an application start on a
+      // tree that may be half-installed.
+      expect(await second.prepare(serviceSelection)).toEqual({
+        kind: "preparation-recovery-required",
+      });
+      expect(await second.start(serviceSelection)).toEqual({
+        kind: "preparation-recovery-required",
+      });
+      expect(manager.units.size).toBe(0);
+      expect(await readdir(appDirectory)).toContain(".operation-lock");
+      // Explicit operator recovery, outside the product.
+      await rmdir(join(appDirectory, ".operation-lock"));
+      expect(await second.start(serviceSelection)).toEqual({ kind: "started" });
+      expect(await second.prepare(serviceSelection)).toEqual({
+        kind: "application-running",
+      });
+      expect(await readdir(appDirectory)).not.toContain(".operation-lock");
+      expect(await second.stop(serviceSelection)).toEqual({
+        kind: "group-stopped",
+      });
+      // A completed transaction with confirmed cleanup releases its record...
+      expect(await second.prepare(serviceSelection)).toEqual({
+        kind: "prepared",
+      });
+      expect(await readdir(appDirectory)).not.toContain(".operation-lock");
+      const competitor = createOwnerOperations();
+      expect(await competitor.run(appDirectory, async () => "entered")).toBe(
+        "entered",
+      );
+      await competitor.close();
+      // ...while unconfirmed cleanup keeps it, for this owner and everyone else.
+      const unconfirmed = owner({ cleanup: "incomplete" });
+      expect(await unconfirmed.prepare(serviceSelection)).toEqual({
+        kind: "preparation-cleanup-required",
+      });
+      expect(await readdir(appDirectory)).toContain(".operation-lock");
+      expect(await second.start(serviceSelection)).toEqual({
+        kind: "preparation-recovery-required",
+      });
+      expect(await unconfirmed.start(serviceSelection)).toEqual({
+        kind: "preparation-cleanup-required",
+      });
+      expect(await second.close()).toEqual({ kind: "closed" });
+    });
+  },
+  30_000,
+);
+
+posixTest(
+  "session composition keeps the retained owner lock and refuses a coordination lock",
+  async () => {
+    await fixture(async (root) => {
+      expect(() =>
+        localApplicationAdapters({
+          organizationDirectory: root,
+          bunExecutable: process.execPath,
+          platformExecutable: process.execPath,
+          environment: { HOME: root, PATH: "/usr/bin:/bin" },
+          runner: createSessionRunner(process.execPath),
+          coordination: createApplicationCoordination({
+            lockFile: join(root, "coordination.lock"),
+          }),
+        }),
+      ).toThrow("owner-surviving");
+    });
+  },
+);
+
+posixTest(
+  "status and stop work without a Launchpad for service-owned applications only",
+  async () => {
+    await serviceFixture(async ({ root, manager, owner, direct }) => {
+      const launchpad = owner();
+      expect(await launchpad.start(serviceSelection)).toEqual({
+        kind: "started",
+      });
+      expect(await launchpad.close()).toEqual({ kind: "closed" });
+      const cli = direct();
+      expect(await cli.status(serviceSelection)).toMatchObject({
+        kind: "status",
+        runner: "systemd-user",
+        state: "running",
+      });
+      // Same admission as everywhere else; nothing can be launched or prepared.
+      expect(
+        await cli.status({ ...serviceSelection, module: "unknown" }),
+      ).toEqual({ kind: "denied" });
+      await expect(cli.start(serviceSelection)).rejects.toThrow("directly");
+      await expect(cli.prepare(serviceSelection)).rejects.toThrow("directly");
+      expect(manager.units.size).toBe(1);
+      expect(await cli.stop(serviceSelection)).toEqual({
+        kind: "group-stopped",
+      });
+      expect(await cli.stop(serviceSelection)).toEqual({ kind: "not-managed" });
+      expect(await cli.close()).toEqual({ kind: "closed" });
+      expect(() =>
+        serviceApplicationAdapters({
+          organizationDirectory: root,
+          runner: createSessionRunner(process.execPath),
+          coordination: createApplicationCoordination({
+            lockFile: join(root, "unused.lock"),
+          }),
+        }),
+      ).toThrow("Launchpad");
+    });
+  },
+  30_000,
 );

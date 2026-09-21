@@ -19,3 +19,12 @@ export async function inspectOwnedDirectory(directory: string) {
     throw new Error("Caller-owned non-shared directory required");
   return stat;
 }
+
+// ONE canonical spelling of an owned directory, for every identity derived from
+// its path (unit names, lock files). Lexically equivalent spellings such as
+// `/a/org/../org` normalize to the same string; a symlinked spelling is refused
+// by the inspection above, exactly as everywhere else.
+export async function canonicalOwnedDirectory(directory: string) {
+  await inspectOwnedDirectory(directory);
+  return resolve(directory);
+}

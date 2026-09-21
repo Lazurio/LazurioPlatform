@@ -16,9 +16,13 @@ export function createOwnerOperations(
   let releaseQueue = Promise.resolve();
   let admission = Promise.resolve();
   let closing = false;
+  // `complete`, when given, decides after the action whether the transaction is
+  // complete with confirmed cleanup. Only then is the retained lock released
+  // early; a throw, an unconfirmed cleanup or the holder's death keep it.
   async function run<T>(
     directory: string,
     action: () => Promise<T>,
+    complete?: (result: T) => boolean,
   ): Promise<T> {
     if (closing) throw new Error("Owner operations closing");
     // Serialize admission, not execution: asynchronous custody inspection must
@@ -56,7 +60,12 @@ export function createOwnerOperations(
       const held = await inspect(directory);
       if (before.dev !== held.dev || before.ino !== held.ino)
         throw new Error("Dependency owner changed before execution");
-      return action();
+      const value = await action();
+      if (complete?.(value) && locks.get(key) === lock) {
+        await lock.release();
+        locks.delete(key);
+      }
+      return value;
     });
     const settled = result.then(
       () => {},
@@ -74,6 +83,11 @@ export function createOwnerOperations(
   }
   return Object.freeze({
     run,
+    // Whether THIS owner currently retains the lock of that directory.
+    async holds(directory: string) {
+      const stat = await inspect(directory);
+      return locks.has(`${stat.dev}:${stat.ino}`);
+    },
     drain,
     async close() {
       await drain();

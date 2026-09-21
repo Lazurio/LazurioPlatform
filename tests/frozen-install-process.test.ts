@@ -24,6 +24,7 @@ import {
 } from "../src/modules/frozen-install-process";
 import { inspectInstallAuthority } from "../src/modules/install-authority";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
+import { createSessionRunner } from "../src/modules/session-runner";
 
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
@@ -564,7 +565,7 @@ posixTest(
       );
     };
     const owner = createApplicationLifecycle({
-      platformExecutable: platform,
+      runner: createSessionRunner(platform),
       authorize: async (value) => {
         expect(value).toEqual(selection);
         return { moduleDirectory: f.directory };

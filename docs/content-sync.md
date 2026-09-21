@@ -107,7 +107,7 @@ contract ([module adoption](module-adoption.md)); it is the module's declared
 preparation, invoked explicitly, not a hidden step of synchronization. Changing
 dependencies beneath a running application is unsafe: synchronization and preparation
 share the dependency owner's coordination boundary with
-[OS-owned applications](module-adoption.md#application-lifetime--accepted-direction-not-implemented),
+[OS-owned applications](module-adoption.md#application-lifetime--implemented-for-linux-session-scoped-on-macos),
 and a running application blocks preparation of its own tree rather than being
 stopped implicitly.
 

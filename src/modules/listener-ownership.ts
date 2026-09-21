@@ -158,25 +158,24 @@ export async function observeListenerBindings(
   }
 }
 
-export function compareListenerGroup(
+// Shared comparison: every observed binding of the port must be the declared
+// loopback address AND belong to the live owner. Wildcards are never equivalent.
+// `owned` is the owner-specific evidence (process group or control group).
+export function compareListenerOwner(
   observation: Observation,
   host: string,
   port: number,
-  expectedGroup: number,
+  owned: (binding: Binding) => boolean,
 ) {
   if (
     !["127.0.0.1", "::1", "localhost"].includes(host) ||
     !Number.isInteger(port) ||
     port < 1024 ||
-    port > 65535 ||
-    !Number.isSafeInteger(expectedGroup) ||
-    expectedGroup <= 1
+    port > 65535
   )
-    throw new Error("Explicit declared listener and process group required");
+    throw new Error("Explicit declared listener required");
   if (observation.kind !== "observed") return "unavailable" as const;
   if (!observation.bindings.length) return "not-observed" as const;
-  // Conservatively require every observed binding for this port to match the
-  // declared loopback and the live owner's group. Wildcards are never equivalent.
   if (
     observation.bindings.some(
       (item) =>
@@ -188,7 +187,26 @@ export function compareListenerGroup(
     )
   )
     return "binding-mismatch" as const;
-  if (observation.bindings.some((item) => item.group !== expectedGroup))
-    return "foreign-group" as const;
-  return "matches-process-group" as const;
+  if (observation.bindings.some((item) => !owned(item)))
+    return "foreign-owner" as const;
+  return "matches-owner" as const;
+}
+
+export function compareListenerGroup(
+  observation: Observation,
+  host: string,
+  port: number,
+  expectedGroup: number,
+) {
+  if (!Number.isSafeInteger(expectedGroup) || expectedGroup <= 1)
+    throw new Error("Explicit declared listener and process group required");
+  const result = compareListenerOwner(
+    observation,
+    host,
+    port,
+    (item) => item.group === expectedGroup,
+  );
+  if (result === "foreign-owner") return "foreign-group" as const;
+  if (result === "matches-owner") return "matches-process-group" as const;
+  return result;
 }
