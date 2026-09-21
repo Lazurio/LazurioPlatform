@@ -445,10 +445,9 @@ it; an explicit `systemd-user` request that cannot be met fails instead of falli
 The Launchpad's startup line and every `status` result name the runner
 (`runner`, `survivesLaunchpadRestart`), so the interface can say "keeps running when the
 Launchpad restarts". `started`, `group-stopped` and `not-managed` are unchanged.
-Native qualification so far forced `--application-runner systemd-user`; the default
-(`auto`) selection is unit-tested and exercised by CI on `ubuntu-24.04`, and the native
-runner now starts its first Launchpad without the flag, but **that revised runner has
-not yet been run natively** — treat automatic selection as native-unqualified.
+The default (`auto`) selection is unit-tested, exercised by CI on `ubuntu-24.04` and
+natively qualified on Linux ARM64: the native runner starts its first Launchpad without
+the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
 
 ### The systemd user service
 

@@ -139,10 +139,9 @@ The application's environment shows the declared names plus what `bun run` itsel
 for a package script (`npm_*`, `NODE`, `PWD`, `SHLVL`, `_`). Nothing from the manager
 except `INVOCATION_ID`: no session bus, no agent socket, no login environment.
 
-## After review (2026-09-21): what this transcript does and does not cover
+## After review (2026-09-21): round 3
 
-The review of `d143a38` led to changes that are **not covered by the native runs
-above**: full ownership binding of the generated unit (fixed policy compared value by
+The review of `d143a38` led to changes that rounds 1 and 2 do **not** cover: full ownership binding of the generated unit (fixed policy compared value by
 value; executable, argument vector, expansion flag, environment and `UnsetEnvironment`
 read as the manager's D-Bus values through `busctl` and bound by a definition digest in
 the description), one bounded stop confirmation for failed units, canonicalization of
@@ -150,16 +149,37 @@ the Organization directory before every unit and lock derivation, and a native r
 whose first Launchpad uses the default (`auto`) selection and whose second Launchpad is
 given an equivalent spelling of the Organization directory.
 
-A third native round on a fresh clone was required and **could not be run**: the
-external volume that holds the virtual Machines was not attached to the host, and
-nothing was improvised in its place. What exercises those changes against a real
-systemd user manager is CI on `ubuntu-24.04` (x64), where a user manager answers and
-`tests/systemd-user-integration.test.ts` runs for real — including the `busctl`
-reading, the rendered policy values and a **foreign unit under the application's exact
-name** (same description and policy, another command) that must stay
-`service-unrecognized`, untouched and running. The compiled-CLI journey, automatic
-runner selection and the equivalent-spelling Launchpad remain **native-unqualified at
-this head** until the revised runner is run on a real Machine.
+**Round 3 — source `3ea743c`** (clean tree), 2026-09-21, a fresh clone of the same base
+image (Ubuntu 24.04.4, systemd 255.4, `Linger=no`, `XDG_RUNTIME_DIR` on `tmpfs`), module
+Bun 1.4.2 `bun-linux-aarch64` checked against the published `SHASUMS256.txt`:
+
+- `src/cli.ts` → SHA-256 `2cc98ffa634a15e22253aaf84721d921de17f038cac4ca02f73ae552a784bcca`
+- `scripts/smoke-application-service.ts` → SHA-256 `f43d9dabdbdc34f5fda316dcfeb295d017d27f3570db5da67d48947219b5f2ad`
+
+`./service-qualification /tmp/q/lazurio --module-bun /tmp/q/bun` — three consecutive
+runs, all `exit=0`, 15.3–15.9 s wall time each. Beyond the round 2 sequence, the run
+reports:
+
+- `defaultSelection`: "first Launchpad started without --application-runner and
+  selected systemd-user" — automatic selection is now natively exercised;
+- `equivalentDirectorySpelling`: "second Launchpad was given <dir>/../Organization and
+  reported the same InvocationID" — one canonical identity for the unit and the lock;
+- the ownership binding (`busctl` reads and the definition digest) is on every
+  observation of that journey, so adoption by the second and third Launchpad, Stop
+  after a `SIGKILL` and the CLI-only status and stop all passed **through** it;
+- `afterLaunchpadCrash`: "stop and start through a new Launchpad succeeded with no
+  recovery step and no retained record"; `withoutLaunchpad`: "status and stop through the
+  CLI alone"; `interruptedPreparation`: start → `preparation-recovery-required`, after
+  operator recovery → `prerequisites-not-ready`; `controlGroupGoneAfterStop: true`.
+
+Timings of the third run (ms): start 1296, start to healthy 114, graceful Launchpad exit
+2, rediscovery 128, stop after a crashed Launchpad 80, start after it 1331, stop from
+the CLI alone 83.
+
+Not shown natively by this round: a **foreign** unit under the application's name (that
+is the `ubuntu-24.04` CI integration test) and a stop whose control group stays
+populated (unit regressions). The guest was ended with `sync` and `poweroff` from
+inside and the clone was deleted.
 
 ## Not dependable / not shown
 
