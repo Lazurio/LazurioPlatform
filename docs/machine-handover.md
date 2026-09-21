@@ -106,7 +106,8 @@ edited output, damaged journal, partial write without a receipt or abandoned loc
 requires operator diagnosis. No automatic cleanup or universal recovery is
 promised. Recreating a disposable VM requires separate infrastructure approval.
 
-Product update repair follows [pilot repair](pilot-repair.md): retain accepted TUF
+Product update follows the [product update contract](update.md); until it is
+implemented the pilot installer's [repair runbook](pilot-repair.md) applies: retain accepted TUF
 trust and the previous working product. Folder handover does not change that rule.
 The local filesystem boundary assumes no hostile concurrent same-user/root
 directory replacement; ownership checks are not a sandbox.
