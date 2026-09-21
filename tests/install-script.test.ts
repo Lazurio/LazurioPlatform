@@ -6,7 +6,6 @@ import {
   readFile,
   realpath,
   rm,
-  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,10 +27,11 @@ async function scene(options: { gh?: "accepts" | "refuses" } = {}) {
   const tools = join(root, "tools");
   await mkdir(tree, { recursive: true });
   await mkdir(tools);
-  // PATH is this private directory and NOTHING else: links to exactly the
+  // PATH is this private directory and NOTHING else: shims for exactly the
   // tools install.sh (and the curl shim) use. No system directory is on it, so
   // a `gh` the Machine happens to have — a hosted CI runner does — is absent
-  // unless a test puts its own shim here.
+  // unless a test puts its own shim here. Shims, not links: a wrapper such as
+  // macOS's `shasum` finds its real program next to the path it was run by.
   let digestTool = false;
   for (const tool of [
     "uname",
@@ -48,7 +48,10 @@ async function scene(options: { gh?: "accepts" | "refuses" } = {}) {
     const found = ["/usr/bin", "/bin"]
       .map((directory) => join(directory, tool))
       .find((candidate) => existsSync(candidate));
-    if (found) await symlink(found, join(tools, tool));
+    if (found)
+      await writeFile(join(tools, tool), `#!/bin/sh\nexec ${found} "$@"\n`, {
+        mode: 0o755,
+      });
     else if (!["sha256sum", "shasum"].includes(tool))
       throw new Error(`Test prerequisite missing: ${tool}`);
     digestTool ||= found !== undefined && tool.startsWith("sha");
@@ -122,7 +125,10 @@ test.skipIf(!supported)(
   async () => {
     const run = await scene();
     const result = await run({}, "--service", "systemd-user", "--folder", "/F");
-    expect(result.code).toBe(0);
+    // On a failure the script's own words say which step it was.
+    expect({ code: result.code, stderr: result.stderr }).toMatchObject({
+      code: 0,
+    });
     expect(result.stderr).toContain("NOT verified beyond HTTPS");
     // No `gh` was reachable, whatever this Machine has installed.
     expect(existsSync(join(root, "gh.log"))).toBe(false);
@@ -149,7 +155,9 @@ test.skipIf(!supported)(
   async () => {
     const run = await scene({ gh: "accepts" });
     const result = await run({ LAZURIO_VERSION: "v1.1.0" });
-    expect(result.code).toBe(0);
+    expect({ code: result.code, stderr: result.stderr }).toMatchObject({
+      code: 0,
+    });
     expect(result.stdout).toContain("Verified:");
     const calls = (await readFile(join(root, "gh.log"), "utf8"))
       .split("\n")
