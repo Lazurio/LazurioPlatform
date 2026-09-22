@@ -568,3 +568,53 @@ GitHub CLI provenance bundle with `sigstore@5.0.0` inside a `bun build --compile
 binary (wrong identity and a tampered artifact refused). Still required: one real
 release candidate of this repository verified by a compiled client, and the native
 Linux activation journey listed in the contract.
+
+## F14 — Agent manuals live in the Lazurio Folder
+
+**Decided by the Principal 2026-09-22; implemented in the local Folder model.** The
+Lazurio Folder is self-contained for an agent that starts work on the Machine: what
+Lazurio is, how this Machine fits into the Conglomerate, what is expected of agents,
+how work is done, the roles, the glossary and how to solve problems. That content is
+**product content**: six English templates in this repository (`src/folder/manual.ts`),
+versioned with the release and reviewed as code. They are rendered into the Folder as
+its third owned top-level name, `manual/` (beside `AGENTS.md` and `.lazurio/`), by
+`lazurio machine folder-init` and re-rendered only through the existing profile-change
+path (preview → apply, the Launchpad panel). There is no second mechanism.
+
+`manual/` is English only; `AGENTS.md` keeps the profile locale and links the six
+files. Every generated file carries a digest in the instruction manifest (schema 2,
+`outputs`), exactly like `AGENTS.md`: a hand-edited or removed file is never
+overwritten, the change path refuses with `drift` and the file's path. Adoption of an
+existing Folder treats a `manual/` without recorded digests as a foreign entry and
+refuses it by name. One transaction stages and replaces every generated output, changed
+or not, so the journal, the receipts and the recovery paths have one fixed file list.
+
+**Authority moves.** For hosted Machines the Platform-shipped manual is the authority.
+The root repository that carried the agent rules until now is a **legacy source**: its
+content of lasting value was extracted into these templates (the collaboration model
+and its five boundaries, the Draft/Publication/Release rule, the worktree discipline
+and the handoff, the roles, the glossary, the zones of decision 0155 and the persona
+direction of decision 0156, the update and refusal codes of this product). The
+Platform's instructions never reference that repository: an agent on a hosted Machine
+knows only the Platform, and the root repository is to carry only a migration procedure
+from itself to the Platform before it is retired for those Machines.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the manuals in the root repository and clone it onto every Machine | One more checkout and a second authority next to the product; the root rules assume a workstation with the root's scripts; every hosted Machine would depend on a repository it does not otherwise need; rejected |
+| Generate everything from the product (selected) | One authority, versioned with the release, reviewed as code, rendered per preset from the same inputs as `AGENTS.md`; the text can only change through a product release |
+| Mixed: product renders the frame, the root repository supplies the prose | Two sources for one document, drift between them invisible to the agent; rejected |
+
+**Deferred, deliberately not built.** An operator `notes/` area for hand-written
+notes (today an edited generated file is refused and there is no restore command; the
+troubleshooting document says so). Automatic re-rendering after a product update: a
+newer template revision is reported as `template-upgrade-required` and a refresh is an
+explicit profile change with unchanged inputs; the Launchpad may later show which
+product version rendered the Folder. No automatic writes.
+
+Verified by unit tests: the rendered manual per preset (snapshots, English in both
+locales, no reference to the legacy repository), the refusal of an edited or removed
+manual file by path, the refusal of a foreign `manual/` on adoption, an idempotent
+re-run, digests in the manifest, and every interruption and recovery path of the
+transaction with the wider file list. Not proven: a native `folder-init` on a real
+Machine with this template revision.
