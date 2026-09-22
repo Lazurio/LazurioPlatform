@@ -10,6 +10,7 @@ import {
   launchpadUnit,
   rollbackUnit,
   systemctl,
+  unitMarker,
   userUnitDirectory,
 } from "./service-control";
 import { placeVersion, sha256File, stagedMatches } from "./stage";
@@ -39,8 +40,7 @@ export function systemdQuote(argument: string): string {
     .replaceAll("$", "$$$$")}"`;
 }
 
-export const unitMarker =
-  "# Written by `lazurio install`; rewritten by it, so edit a drop-in instead.";
+export { unitMarker };
 
 const execStart = (command: readonly string[]) =>
   `ExecStart=${command.map(systemdQuote).join(" ")}`;

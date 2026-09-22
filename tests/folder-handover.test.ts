@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FolderAdoptionError } from "../src/folder/handover-layout";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
+import type { MachineBinding } from "../src/folder/machine-binding";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { resumeInitialization } from "../src/folder/resume-initialization";
@@ -24,7 +25,10 @@ import {
   describeFolderAdoption,
   initializeMachineFolder,
 } from "../src/machine/cli";
-import { bindings } from "./fixtures/machine-bindings";
+import { bindings, workRelationships } from "./fixtures/machine-bindings";
+
+const organizationOwner = (binding: MachineBinding) =>
+  binding.owner as Extract<MachineBinding["owner"], { kind: "organization" }>;
 
 const os = executionOs(process.platform);
 const choices = { locale: "cs", detail: "technical" } as const;
@@ -261,9 +265,45 @@ test.skipIf(process.platform === "win32")(
         await initializeHandoverFolder(folder, sources.organization),
       ).toEqual(initialized("organization"));
       const state = await snapshot(join(folder, ".lazurio"));
+      // Another Machine (a Team, another host) is refused …
       expect(
         await refusal(initializeHandoverFolder(folder, sources.team)),
       ).toEqual({ code: "binding-changed", entry: ".lazurio" });
+      expect(
+        await refusal(
+          initializeHandoverFolder(folder, {
+            ...sources.organization,
+            machine: {
+              ...bindings.organization,
+              host: { ...bindings.organization.host, id: "another-host" },
+            },
+          }),
+        ),
+      ).toEqual({ code: "binding-changed", entry: ".lazurio" });
+      // … while the same Machine re-applied by Machines (new document digest,
+      // a declared assignment, derived relationships) stays adopted as it is.
+      expect(
+        await initializeHandoverFolder(folder, {
+          ...sources.organization,
+          machine: {
+            ...bindings.organization,
+            contextDigest: "f".repeat(64),
+            owner: {
+              ...organizationOwner(bindings.organization),
+              assignment: {
+                kind: "operator",
+                githubLogin: "example",
+                githubId: 12345,
+              },
+            },
+            relationships: workRelationships,
+          },
+        }),
+      ).toEqual({
+        kind: "already-adopted",
+        revision: 1,
+        preset: initialized("organization").preset,
+      });
       expect(await snapshot(join(folder, ".lazurio"))).toEqual(state);
     } finally {
       await rm(parent, { recursive: true, force: true });

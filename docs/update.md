@@ -177,7 +177,11 @@ Everything lives under the per-user install base
 renamed over the target, with the directory made durable. A crash leaves the old
 or the new content, never a partial one. Status is computed from these paths when asked; there is no observed-state file
 and no configuration file. A supervised installation is one whose systemd user
-unit `lazurio-launchpad.service` exists; the Folder path lives in that unit.
+unit `lazurio-launchpad.service` was written by `lazurio install` (its first line
+is the installer's marker); the Folder path lives in that unit. A unit of that
+name written by anyone else — a Machines resident runtime, a person — makes the
+installation unsupervised: the switch is the commit and that unit is never
+restarted or rewritten.
 
 ## Activation
 

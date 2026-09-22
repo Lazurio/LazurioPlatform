@@ -6,11 +6,18 @@ import { type ProcessRunner, runProcess } from "./self-check";
 
 /** The part of the OS service manager an activation needs, and nothing more
  * (docs/update.md "State on disk", "Activation"). A supervised installation is
- * one whose systemd user unit `lazurio-launchpad.service` exists; there is no
- * other supervisor and no recorded setting.
+ * one whose systemd user unit `lazurio-launchpad.service` was written by
+ * `lazurio install` (its marker is the proof); there is no other supervisor and
+ * no recorded setting.
  */
 export const launchpadUnit = "lazurio-launchpad.service";
 export const rollbackUnit = "lazurio-rollback.service";
+/** First line of every unit `lazurio install` writes. A unit of the same name
+ * without it belongs to someone else (a Machines resident runtime, a person):
+ * the installation is then NOT supervised, the switch is the commit, and that
+ * unit is never restarted or rewritten. */
+export const unitMarker =
+  "# Written by `lazurio install`; rewritten by it, so edit a drop-in instead.";
 /** The transient unit the Launchpad action starts `lazurio update` in, so the
  * updater outlives the Launchpad restart it causes (docs/update.md
  * "Activation"). */
@@ -216,7 +223,7 @@ export async function detectServiceControl(input: {
   const unitText = await readFile(join(directory, launchpadUnit), "utf8").catch(
     () => undefined,
   );
-  if (unitText === undefined) return null;
+  if (unitText === undefined || !unitText.startsWith(unitMarker)) return null;
   const command = { run: input.run ?? runProcess, env: input.env };
   return Object.freeze({
     folder: unitFolder(unitText),
