@@ -20,6 +20,7 @@ import {
 import provenance from "../src/machine/schema-provenance.json";
 import { readCustodiedDeclarationBytes } from "../src/providers/owned-json";
 import fixture from "./fixtures/machine-context.json";
+import personal from "./fixtures/machine-context-personal.json";
 
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 test("vendored schema digest matches the exact upstream pin", async () => {
@@ -36,26 +37,36 @@ test("vendored schema digest matches the exact upstream pin", async () => {
       .digest("hex"),
   ).toBe(provenance.sha256);
 });
-test("synthetic upstream conformance fixture is immutable descriptive context", () => {
-  const context = parseMachineContext(bytes(fixture));
-  expect(JSON.stringify(context)).toBe(JSON.stringify(fixture));
-  expect(context.account).toBeNull();
-  expect(Object.isFrozen(context.operator)).toBe(true);
-  expect(Object.isFrozen(context.installed.machines_release)).toBe(true);
-  expect(
-    bindMachineOperator(context, {
-      platform: "linux",
-      uid: 1000,
-      username: "operator",
-      homedir: "/home/operator",
-    }),
-  ).toBe("/home/operator/Lazurio");
-});
-test("current upstream contract permits no network and SHA-256 Git object ids", () => {
+for (const [branch, input] of [
+  ["organization workspace VM", fixture],
+  ["personal VM", personal],
+] as const)
+  test(`synthetic ${branch} conformance fixture is immutable descriptive context`, () => {
+    const context = parseMachineContext(bytes(input));
+    expect(JSON.stringify(context)).toBe(JSON.stringify(input));
+    expect(context.account).toBeNull();
+    expect(Object.isFrozen(context.operator)).toBe(true);
+    expect(Object.isFrozen(context.installed.machines_release)).toBe(true);
+    expect(
+      bindMachineOperator(context, {
+        platform: "linux",
+        uid: 1000,
+        username: "operator",
+        homedir: "/home/operator",
+      }),
+    ).toBe("/home/operator/Lazurio");
+  });
+test("organization branch permits no network and SHA-256 Git object ids", () => {
   const { network: _, ...input } = structuredClone(fixture);
   input.installed.deployment_head = "c".repeat(64);
   input.installed.machines_release.commit = "d".repeat(64);
   expect(parseMachineContext(bytes(input)).network).toBeUndefined();
+});
+test("personal branch requires the tailnet identity", () => {
+  const { network: _, ...input } = structuredClone(personal);
+  expect(() => parseMachineContext(bytes(input))).toThrow(
+    "machine-context-invalid",
+  );
 });
 for (const [name, change] of Object.entries({
   "unknown top-level field": (input: Record<string, unknown>) => {
@@ -83,7 +94,57 @@ for (const [name, change] of Object.entries({
     input.installed = { ...fixture.installed, deployment_head: "c".repeat(41) };
   },
 }))
-  test(`schema refuses ${name}`, () => {
+  for (const [branch, base] of [
+    ["organization", fixture],
+    ["personal", personal],
+  ] as const)
+    test(`schema refuses ${name} on the ${branch} branch`, () => {
+      const input: Record<string, unknown> = structuredClone(base);
+      change(input);
+      expect(() => parseMachineContext(bytes(input))).toThrow(
+        "machine-context-invalid",
+      );
+    });
+for (const [name, change] of Object.entries({
+  "a personal-vm kind with an Organization owner": (
+    input: Record<string, unknown>,
+  ) => {
+    input.machine = { ...personal.machine };
+  },
+  "a workspace-vm kind with a Principal owner": (
+    input: Record<string, unknown>,
+  ) => {
+    input.owner = { ...personal.owner };
+  },
+  "a workspace-vm on a provider estate": (input: Record<string, unknown>) => {
+    input.host = { ...personal.host };
+  },
+  "a personal VM on a virtualization host": (
+    input: Record<string, unknown>,
+  ) => {
+    Object.assign(input, structuredClone(personal), { host: fixture.host });
+  },
+  "a personal owner with a team": (input: Record<string, unknown>) => {
+    Object.assign(input, structuredClone(personal), {
+      owner: { ...personal.owner, team: "sample-team" },
+    });
+  },
+  "a personal owner without the immutable GitHub id": (
+    input: Record<string, unknown>,
+  ) => {
+    Object.assign(input, structuredClone(personal), {
+      owner: { kind: "principal", github_login: "example" },
+    });
+  },
+  "a personal Machine name that is not a DNS slug": (
+    input: Record<string, unknown>,
+  ) => {
+    Object.assign(input, structuredClone(personal), {
+      machine: { ...personal.machine, name: "Example" },
+    });
+  },
+}))
+  test(`the two branches never mix: ${name}`, () => {
     const input: Record<string, unknown> = structuredClone(fixture);
     change(input);
     expect(() => parseMachineContext(bytes(input))).toThrow(

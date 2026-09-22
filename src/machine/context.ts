@@ -8,7 +8,28 @@ import schema from "./lazurio-machine.v1.schema.json";
 
 // Types describe the upstream wire contract; only the exact vendored schema
 // validates it. No coercion, defaults, reference downloads or extra properties.
-export type MachineContext = Readonly<{
+// Exactly one branch applies, distinguished by machine.kind: an Organization
+// workspace VM on a virtualization host, or the one hosted personal VM of a
+// Principal on a provider estate. Owner and host kinds never mix across branches.
+type MachineOperator = Readonly<{
+  os_user: string;
+  home: string;
+  lazurio_root: string;
+}>;
+type MachineNetwork = Readonly<{
+  headscale_server_url: string;
+  headscale_hostname: string;
+}>;
+type MachineInstalled = Readonly<{
+  machines_release: Readonly<{
+    repository: string;
+    version: string;
+    commit: string;
+  }>;
+  deployment_head: string;
+  recorded_at: string;
+}>;
+export type OrganizationWorkspaceContext = Readonly<{
   schema_version: "lazurio.machine.v1";
   machine: Readonly<{
     id: string;
@@ -22,28 +43,44 @@ export type MachineContext = Readonly<{
     organization_key?: string;
     team?: string;
   }>;
-  operator: Readonly<{ os_user: string; home: string; lazurio_root: string }>;
+  operator: MachineOperator;
   host: Readonly<{
     kind: "virtualization-host";
     machine_id: string;
     custody_repository: string;
     provider: string;
   }>;
-  network?: Readonly<{
-    headscale_server_url: string;
-    headscale_hostname: string;
-  }>;
-  installed: Readonly<{
-    machines_release: Readonly<{
-      repository: string;
-      version: string;
-      commit: string;
-    }>;
-    deployment_head: string;
-    recorded_at: string;
-  }>;
+  network?: MachineNetwork;
+  installed: MachineInstalled;
   account: null;
 }>;
+export type PersonalMachineContext = Readonly<{
+  schema_version: "lazurio.machine.v1";
+  machine: Readonly<{
+    id: string;
+    kind: "personal-vm";
+    name: string;
+    vmid: number;
+  }>;
+  owner: Readonly<{
+    kind: "principal";
+    github_login: string;
+    github_id: number;
+  }>;
+  operator: MachineOperator;
+  host: Readonly<{
+    kind: "provider-estate";
+    estate_id: string;
+    custody_repository: string;
+    record_path: string;
+  }>;
+  network: MachineNetwork;
+  installed: MachineInstalled;
+  account: null;
+}>;
+export type MachineContext =
+  | OrganizationWorkspaceContext
+  | PersonalMachineContext;
 
 const validate = new Ajv2020({ strict: true }).compile<MachineContext>(schema);
 export const machineContextPath = "/etc/lazurio/lazurio.machine.json";
