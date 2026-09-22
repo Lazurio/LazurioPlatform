@@ -616,5 +616,17 @@ Verified by unit tests: the rendered manual per preset (snapshots, English in bo
 locales, no reference to the legacy repository), the refusal of an edited or removed
 manual file by path, the refusal of a foreign `manual/` on adoption, an idempotent
 re-run, digests in the manifest, and every interruption and recovery path of the
-transaction with the wider file list. Not proven: a native `folder-init` on a real
-Machine with this template revision.
+transaction with the wider file list, and the recovery boundary: a foreign entry
+inserted after the initialization journal is refused by name and nothing is written.
+
+**Native run 2026-09-22.** The compiled `linux-arm64` client of PR #18 on a fresh
+Ubuntu 24.04.4 ARM64 clone with a team-bearing handover (root-owned `0644`, umask
+`077`): `folder-init` without `--preset` is `preset-ambiguous` (both Organization
+presets allowed); with `--preset hosted-organization-personal` it initializes revision
+1 as an explicit choice, the top level holds `.lazurio`, `AGENTS.md`, `manual/` with
+its six files, `organizations/` and `personalspace/`, and `AGENTS.md` and `manual/*`
+contain no reference to the legacy repository. A re-run is `already-adopted` and
+changes nothing; a line appended to `manual/roles.md` makes `profile-preview` refuse
+with `drift` and `path: manual/roles.md`; a `manual/` left behind without `.lazurio`
+is `folder-foreign-entry` naming `manual`. Not proven: a native Launchpad preset
+change on that Machine.

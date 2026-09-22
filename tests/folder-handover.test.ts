@@ -579,3 +579,34 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+test.skipIf(process.platform === "win32")(
+  "handover resume refuses a foreign entry inserted after the journal and recovers once it is gone",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      await expect(
+        initializeHandoverFolder(folder, sources.organization, async (step) => {
+          if (step === "journal") throw new Error("stop");
+        }),
+      ).rejects.toThrow("stop");
+      const before = await snapshot(folder);
+      await mkdir(join(folder, "foreign-after-journal"));
+      expect(await refusal(resumeInitialization(folder))).toEqual({
+        code: "foreign-entry",
+        entry: "foreign-after-journal",
+      });
+      await rm(join(folder, "foreign-after-journal"), { recursive: true });
+      expect(await snapshot(folder)).toEqual(before);
+      expect(await resumeInitialization(folder)).toEqual({
+        kind: "recovered",
+        revision: 1,
+      });
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        "hosted-organization-personal",
+      );
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

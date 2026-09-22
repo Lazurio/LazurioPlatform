@@ -1,7 +1,16 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FolderAdoptionError } from "../src/folder/handover-layout";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { previewFolder } from "../src/folder/preview";
@@ -156,6 +165,52 @@ test.skipIf(process.platform === "win32")(
         }),
       ).rejects.toThrow();
       await expect(resumeInitialization(early)).rejects.toThrow();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// A foreign top-level entry that appears after the journal is refused by the
+// same Folder boundary the initializer applies: nothing is written, the
+// journal stays, and a later resume after the entry is gone still recovers.
+test.skipIf(process.platform === "win32")(
+  "recovery refuses a foreign entry inserted after the journal before writing anything",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "init-boundary-")),
+    );
+    const folder = join(parent, "Lazurio");
+    try {
+      await expect(
+        initializeFolder(folder, profile, async (step) => {
+          if (step === "journal") throw new Error("stop");
+        }),
+      ).rejects.toThrow("stop");
+      const journal = join(folder, ".lazurio", "transaction");
+      const before = await readFile(join(journal, "before.json"));
+      await mkdir(join(folder, "foreign-after-journal"));
+      await expect(resumeInitialization(folder)).rejects.toThrow(
+        new FolderAdoptionError("foreign-entry", "foreign-after-journal"),
+      );
+      expect((await readdir(folder)).sort()).toEqual([
+        ".lazurio",
+        "foreign-after-journal",
+      ]);
+      expect(await readdir(journal)).toEqual(["before.json"]);
+      expect(await readFile(join(journal, "before.json"))).toEqual(before);
+      await rm(join(folder, "foreign-after-journal"), { recursive: true });
+      expect(await resumeInitialization(folder)).toEqual({
+        kind: "recovered",
+        revision: 1,
+      });
+      expect((await readdir(folder)).sort()).toEqual([
+        ".lazurio",
+        "AGENTS.md",
+        "manual",
+        "organizations",
+        "personalspace",
+      ]);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

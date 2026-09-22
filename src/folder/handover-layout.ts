@@ -154,6 +154,22 @@ async function isEmptyDirectory(path: string) {
   }
 }
 
+// The Folder boundary: every top-level entry is owned or tolerated, anything
+// else fails closed by name. `claimed` admits the owned names once the Folder
+// has state. Adoption and initialization recovery run this same check before
+// they write, so an entry that appears after the journal never gets written
+// around.
+export async function requireFolderBoundary(folder: string, claimed = false) {
+  const entries = (await readdir(folder)).sort();
+  const allowed: readonly string[] = claimed
+    ? [...tolerated, ...owned]
+    : tolerated;
+  for (const entry of entries)
+    if (!allowed.includes(entry))
+      throw new FolderAdoptionError("foreign-entry", entry);
+  return entries;
+}
+
 // Adoption rule. Work directories may be non-empty and are never traversed,
 // listed beyond existence, moved or written. Any foreign top-level entry fails
 // closed by name. A preset whose Personalspace policy is `never` tolerates an
@@ -163,13 +179,7 @@ export async function requireAdoptableLayout(
   personalspace: PersonalspacePolicy,
   claimed = false,
 ) {
-  const entries = (await readdir(folder)).sort();
-  const allowed: readonly string[] = claimed
-    ? [...tolerated, ...owned]
-    : tolerated;
-  for (const entry of entries)
-    if (!allowed.includes(entry))
-      throw new FolderAdoptionError("foreign-entry", entry);
+  const entries = await requireFolderBoundary(folder, claimed);
   if (!entries.includes("organizations"))
     throw new FolderAdoptionError("layout-missing", "organizations");
   const hasPersonalspace = entries.includes("personalspace");

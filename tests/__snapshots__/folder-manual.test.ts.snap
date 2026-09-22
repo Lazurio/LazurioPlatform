@@ -537,7 +537,7 @@ exports[`rendered manual/working-here.md snapshot 1`] = `
 - **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Steward or an Admin) triggers it, and for you the same explicit instruction applies.
 
 ## Without asking you may
-Create worktrees, commit and push to the PR branch continuously, and open pull requests as GitHub Draft PRs. Work never stays only local: from the first push it is visible as a Draft PR, and once it is finished and verified you switch it to Ready for review yourself. Ready is not Publication; it says “ready to be checked”. A remote branch without a PR is not a handoff.
+Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local: while it is in progress it is visible from the first push as a GitHub Draft PR, and once it is finished and verified you switch the PR to Ready for review yourself. Ready is not Publication; it only says “ready to be checked”. Finished work never stays a Draft, and a remote branch without a PR is not a handoff.
 
 ## Worktree discipline (decision 0049)
 - The primary checkout stays on \`main\`. Its tracked content is not changed there and no feature branch is created there.

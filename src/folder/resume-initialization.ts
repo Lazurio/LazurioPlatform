@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import {
   handoverDirectories,
   parseHandoverLayout,
+  requireAdoptableLayout,
+  requireFolderBoundary,
   verifyHandoverLayout,
 } from "./handover-layout";
 import {
@@ -14,6 +16,7 @@ import { withFolderOperationLock } from "./lock";
 import { outputFile, outputPaths } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
+import { workspacePreset } from "./presets";
 import { desiredOutputs, outputDigests } from "./preview";
 import { readOwnedStateFile, readStateJson } from "./read-state";
 import { instructionSource, instructionTemplateRevision } from "./render";
@@ -111,6 +114,17 @@ export async function resumeInitialization(
       preferences.profile.os !== executionOs(process.platform)
     )
       throw new Error("Unsupported initialization preferences");
+    // The same fail-closed Folder boundary the initializer applied, re-run
+    // here because time passed since the journal: a foreign top-level entry
+    // that appeared meanwhile is refused by name and nothing is written. The
+    // recognized journal stays in place for a later resume.
+    if (handedLayout)
+      await requireAdoptableLayout(
+        folder,
+        workspacePreset(preferences.preset.name).personalspace,
+        true,
+      );
+    else await requireFolderBoundary(folder, true);
     const desired = desiredOutputs(instructionSource(preferences));
     if (
       manifest.preferenceRevision !== 1 ||
