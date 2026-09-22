@@ -16,12 +16,16 @@ import {
  *   bun run scripts/release-manifest.ts --version <X.Y.Z> --commit <sha> --directory <absolute directory>
  */
 
-/** The oldest installed version able to perform an update to this release.
- * Raise it ONLY when the update protocol changes so that an older client can
- * no longer verify or activate a release; that client then reports
- * `reinstall-required` instead of failing in the middle.
+/** The oldest installed version able to perform an update to this release:
+ * the first release whose updater exists, `v0.1.0-rc.1`. A prerelease orders
+ * below its final version (`0.1.0-rc.2 < 0.1.0`), so a value of `0.1.0` made
+ * every release-candidate client report `reinstall-required` for `v0.1.0`
+ * (evidence/release-v0.1.0-2026-09-22.md). Raise it ONLY when the update
+ * protocol changes so that an older client can no longer verify or activate a
+ * release; that client then reports `reinstall-required` instead of failing in
+ * the middle.
  */
-export const minimumUpdaterVersion = "0.1.0";
+export const minimumUpdaterVersion = "0.1.0-rc.1";
 
 if (import.meta.main) {
   const { values } = parseArgs({

@@ -92,7 +92,12 @@ client.
 ```
 
 `minimum_updater_version` is the oldest installed version able to perform this
-update. An older client reports `reinstall-required` and changes nothing.
+update. An older client reports `reinstall-required` and changes nothing. The
+value is a constant of the publishing script (`scripts/release-manifest.ts`): the
+first release whose updater exists, raised only with an incompatible change of
+the update protocol. Ordering is the product order, where a prerelease is below
+its final version, so a minimum of `X.Y.Z` would refuse every `X.Y.Z-rc.N`
+client.
 
 **Check.** The client requests
 `https://github.com/<origin>/releases/latest/download/manifest.json`, records the
