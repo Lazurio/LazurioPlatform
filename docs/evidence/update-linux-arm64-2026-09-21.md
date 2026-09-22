@@ -53,6 +53,19 @@ is the real sigstore-js verifier.
    `v1.1.5` is refused as `release-invalid` / `below-floor`; the exact tag equal
    to the mark but not active (1.2.0) is allowed and activates.
 
+## Journey 8 — Launchpad pill (pending native run)
+
+Added to the `after-reboot` phase after journey 7 by the update-pill branch: the
+click path entirely through the installed Launchpad's loopback session
+(`GET /api/update/status`, `POST /api/update/apply` with the bearer token read
+from the service's journal) — availability learned by the poller's own first
+check, the click that starts the transient `lazurio-update` unit and restarts
+the Launchpad, a stale click, a failed candidate (the attested impostor release
+`v1.4.0` whose executable is 1.3.0's, refused by its self-check) with the error
+read back from the unit's journal and a retry that is not `busy`, and
+`state-invalid` from a damaged `update/high-water`. Not yet run natively; this
+section is replaced by the transcript of that run.
+
 ## Observed and accepted
 
 - After an **undone** activation `previous` names the same version as the
