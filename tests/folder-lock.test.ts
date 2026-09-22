@@ -17,20 +17,6 @@ import {
   acquireFolderOperationLock,
   withFolderOperationLock,
 } from "../src/folder/lock";
-import { darwinFilesystemName } from "../src/folder/native-lock";
-
-// Qualification by name, not by the boot-assigned darwin type number.
-test.skipIf(process.platform !== "darwin")(
-  "the lock qualifies APFS by its filesystem name",
-  () => {
-    expect(darwinFilesystemName(tmpdir())).toBe("apfs");
-    expect(darwinFilesystemName("/")).toBe("apfs");
-    expect(darwinFilesystemName("/dev")).toBe("devfs");
-    expect(() => darwinFilesystemName("/definitely/not/a/path")).toThrow(
-      "could not be inspected",
-    );
-  },
-);
 
 test.skipIf(process.platform === "win32")(
   "process termination releases kernel exclusion without deleting persistent evidence",

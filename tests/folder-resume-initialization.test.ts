@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
@@ -279,6 +280,28 @@ for (const stop of ["journal", "manual-directory"] as const)
           await expect(resumeInitialization(folder)).rejects.toThrow(
             new FolderAdoptionError("foreign-entry", "manual"),
           );
+          await rm(join(manual, ".lazurio-generated"));
+          // Simulate ext4's inode reuse on every filesystem: rewrite the
+          // receipt's dev/ino from the recreated directory. The identity now
+          // matches exactly; only the missing nonce marker refuses it.
+          const receiptPath = join(journal, "created-manual.json");
+          const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
+          const recreated = await lstat(manual);
+          await writeFile(
+            receiptPath,
+            JSON.stringify({
+              ...receipt,
+              dev: String(recreated.dev),
+              ino: String(recreated.ino),
+            }),
+            { mode: 0o600 },
+          );
+          await expect(resumeInitialization(folder)).rejects.toThrow(
+            new FolderAdoptionError("foreign-entry", "manual"),
+          );
+          await writeFile(receiptPath, JSON.stringify(receipt), {
+            mode: 0o600,
+          });
         }
         expect((await readdir(folder)).sort()).toEqual([".lazurio", "manual"]);
         await journalUnchanged();

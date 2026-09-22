@@ -194,11 +194,8 @@ than run concurrently under a different protocol. No force-unlock command is add
 The native adapter uses pinned Bun FFI and explicit O_CLOEXEC on the directory
 descriptor; an executed consumer must not retain an installer's lock after it dies.
 Local APFS on macOS and ext4 on Linux are the bounded qualification targets.
-The runtime qualifies ext4 by its stable statfs magic number (which also denotes
-ext2/ext3 and does not qualify those filesystems) and APFS by its filesystem name
-read through `statfs`'s `f_fstypename`: the numeric darwin `f_type` is the kernel's
-vfs type number assigned in registration order at boot and was observed as both 25
-and 26 for APFS on identical CI images, so it never qualifies anything. Other filesystem types and
+The runtime filters APFS/ext-family statfs types; the Linux type also denotes
+ext2/ext3 and does not qualify those filesystems. Other filesystem types and
 Windows fail closed before creating the lock. FFI remains an
 experimental runtime dependency requiring standalone/native release qualification.
 The directory is never pruned: unlink/recreate could split cooperating waiters
