@@ -36,17 +36,21 @@ try {
     detail: "concise",
     coordination: "direct",
   };
-  const initial = await previewFolder(profile, null, async () => ({
-    kind: "absent",
-  }));
+  const initial = await previewFolder(
+    { preset: "local", machine: null, profile },
+    null,
+    async () => ({ kind: "absent" }),
+  );
   await writeFile(join(folder, "AGENTS.md"), initial.desired.content, {
     mode: 0o600,
   });
   await writeFile(
     join(state, "preferences.json"),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 1,
+      preset: { name: "local", version: 1, selection: "derived" },
+      machine: null,
       profile,
       customInstructions: "",
     }),
@@ -66,7 +70,7 @@ try {
     await mkdir(join(folder, name));
     await writeFile(join(folder, name, "owned-work"), `Synthetic ${name} work`);
   }
-  const requested = { ...profile, locale: "cs" };
+  const requested = { profile: { ...profile, locale: "cs" } };
   await assert.rejects(
     prepareProfileChange(folder, 1, requested, async (step) => {
       if (step === "manifest")
@@ -106,7 +110,7 @@ try {
     "unchanged",
   );
   assert.equal(
-    (await prepareProfileChange(folder, 2, profile)).kind,
+    (await prepareProfileChange(folder, 2, { profile })).kind,
     "prepared",
   );
   await writeFile(join(folder, "AGENTS.md"), "Manual edit must survive");

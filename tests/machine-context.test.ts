@@ -186,30 +186,16 @@ test("runtime operator binding is independent of schema validity", () => {
     "machine-operator-mismatch",
   );
 });
-test("machine CLI refuses overrides and duplicate or missing choices before filesystem access", async () => {
+test("machine CLI refuses overrides, unknown presets and duplicate or invalid choices before filesystem access", async () => {
   for (const args of [
     ["inspect", "--file", "/tmp/identity"],
-    ["folder-init"],
-    [
-      "folder-init",
-      "--locale",
-      "cs",
-      "--locale",
-      "en",
-      "--detail",
-      "technical",
-    ],
-    [
-      "folder-init",
-      "--locale",
-      "cs",
-      "--detail",
-      "technical",
-      "--coordination",
-      "direct",
-      "--folder",
-      "/tmp/target",
-    ],
+    ["inspect", "--locale", "cs"],
+    ["folder-init", "--locale", "cs", "--locale", "en"],
+    ["folder-init", "--locale", "de"],
+    ["folder-init", "--preset", "hosted-private"],
+    ["folder-init", "--preset", "hosted-team"],
+    ["folder-init", "--folder", "/tmp/target"],
+    ["folder-init", "extra"],
   ])
     await expect(runMachineCommand(args)).rejects.toThrow();
 });

@@ -45,12 +45,16 @@ async function fixture() {
       detail: "concise",
       coordination: "direct",
     };
-    const preview = await previewFolder(profile, null, async () => ({
-      kind: "absent",
-    }));
+    const preview = await previewFolder(
+      { preset: "local", machine: null, profile },
+      null,
+      async () => ({ kind: "absent" }),
+    );
     const preferences = JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 1,
+      preset: { name: "local", version: 1, selection: "derived" },
+      machine: null,
       profile,
       customInstructions: "",
     });
@@ -92,27 +96,29 @@ test.skipIf(process.platform === "win32")(
         await updateProfile(
           f.folder,
           1,
-          { ...f.profile, locale: "cs" },
+          { profile: { ...f.profile, locale: "cs" } },
           async (step) => {
             checkpoints.push(step);
             await expect(
-              updateProfile(f.folder, 1, f.profile),
+              updateProfile(f.folder, 1, { profile: f.profile }),
             ).rejects.toThrow();
             await expect(
-              inspectProfileChange(f.folder, 1, f.profile),
+              inspectProfileChange(f.folder, 1, { profile: f.profile }),
             ).rejects.toThrow();
           },
         ),
       ).toEqual({ kind: "updated", revision: 2 });
       expect(checkpoints).toEqual(["prepared", "applied", "finalized"]);
-      expect(await updateProfile(f.folder, 1, f.profile)).toEqual({
+      expect(await updateProfile(f.folder, 1, { profile: f.profile })).toEqual({
         kind: "blocked",
         reason: "stale-revision",
       });
       expect(
-        await updateProfile(f.folder, 2, { ...f.profile, locale: "cs" }),
+        await updateProfile(f.folder, 2, {
+          profile: { ...f.profile, locale: "cs" },
+        }),
       ).toEqual({ kind: "unchanged" });
-      expect(await updateProfile(f.folder, 2, f.profile)).toEqual({
+      expect(await updateProfile(f.folder, 2, { profile: f.profile })).toEqual({
         kind: "updated",
         revision: 3,
       });
@@ -138,18 +144,20 @@ for (const stop of ["prepared", "applied"] as const) {
           updateProfile(
             f.folder,
             1,
-            { ...f.profile, locale: "cs" },
+            { profile: { ...f.profile, locale: "cs" } },
             async (step) => {
               if (step === stop) throw new Error("Interrupted use case");
             },
           ),
         ).rejects.toThrow("Interrupted use case");
-        await expect(updateProfile(f.folder, 1, f.profile)).rejects.toThrow(
-          "pending",
-        );
+        await expect(
+          updateProfile(f.folder, 1, { profile: f.profile }),
+        ).rejects.toThrow("pending");
         await applyPreparation(f.folder);
         await finalizePreparation(f.folder, 2);
-        expect(await updateProfile(f.folder, 2, f.profile)).toEqual({
+        expect(
+          await updateProfile(f.folder, 2, { profile: f.profile }),
+        ).toEqual({
           kind: "updated",
           revision: 3,
         });
@@ -176,7 +184,7 @@ for (const stop of [
           prepareProfileChange(
             f.folder,
             1,
-            { ...f.profile, locale: "cs" },
+            { profile: { ...f.profile, locale: "cs" } },
             async (step) => {
               if (step === stop) throw new Error("Interrupted");
             },
@@ -211,8 +219,10 @@ for (const stop of [
         expect(
           (
             await prepareProfileChange(f.folder, 1, {
-              ...f.profile,
-              locale: "cs",
+              profile: {
+                ...f.profile,
+                locale: "cs",
+              },
             })
           ).kind,
         ).toBe("prepared");
@@ -233,15 +243,17 @@ for (const mode of ["empty", "prepared", "edited"] as const) {
       try {
         if (mode === "prepared")
           await prepareProfileChange(f.folder, 1, {
-            ...f.profile,
-            locale: "cs",
+            profile: {
+              ...f.profile,
+              locale: "cs",
+            },
           });
         else
           await expect(
             prepareProfileChange(
               f.folder,
               1,
-              { ...f.profile, locale: "cs" },
+              { profile: { ...f.profile, locale: "cs" } },
               async (step) => {
                 if (step === (mode === "empty" ? "directory" : "before"))
                   throw new Error("Interrupted");
@@ -270,7 +282,9 @@ for (const stop of [null, "history", "archived"] as const) {
     async () => {
       const f = await fixture();
       try {
-        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        await prepareProfileChange(f.folder, 1, {
+          profile: { ...f.profile, locale: "cs" },
+        });
         await expect(finalizePreparation(f.folder, 2)).rejects.toThrow(
           "not fully applied",
         );
@@ -300,10 +314,11 @@ for (const stop of [null, "history", "archived"] as const) {
         expect(await readFile(join(archive, "prepared.json"))).toEqual(
           prepared,
         );
-        expect((await inspectProfileChange(f.folder, 2, f.profile)).kind).toBe(
-          "profile-change",
-        );
-        await prepareProfileChange(f.folder, 2, f.profile);
+        expect(
+          (await inspectProfileChange(f.folder, 2, { profile: f.profile }))
+            .kind,
+        ).toBe("profile-change");
+        await prepareProfileChange(f.folder, 2, { profile: f.profile });
         expect(
           (await inspectPreparation(f.folder)).plan.preferences.revision,
         ).toBe(3);
@@ -333,7 +348,9 @@ test.skipIf(process.platform === "win32")(
   async () => {
     const f = await fixture();
     try {
-      await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+      await prepareProfileChange(f.folder, 1, {
+        profile: { ...f.profile, locale: "cs" },
+      });
       await applyPreparation(f.folder);
       const history = join(f.state, "history");
       await mkdir(history, { mode: 0o700 });
@@ -366,7 +383,9 @@ for (const invalid of [
     async () => {
       const f = await fixture();
       try {
-        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        await prepareProfileChange(f.folder, 1, {
+          profile: { ...f.profile, locale: "cs" },
+        });
         const stage = join(f.state, "transaction");
         if (invalid === "partial") {
           await rm(join(stage, "prepared.json"));
@@ -417,7 +436,9 @@ for (const stop of [
     async () => {
       const f = await fixture();
       try {
-        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        await prepareProfileChange(f.folder, 1, {
+          profile: { ...f.profile, locale: "cs" },
+        });
         const desired = await readFile(
           join(f.state, "transaction", "AGENTS.md"),
           "utf8",
@@ -457,7 +478,7 @@ for (const stop of [
           "Preserve user work",
         );
         await expect(
-          inspectProfileChange(f.folder, 2, f.profile),
+          inspectProfileChange(f.folder, 2, { profile: f.profile }),
         ).rejects.toThrow("pending");
       } finally {
         await rm(f.folder, { recursive: true, force: true });
@@ -471,7 +492,9 @@ test.skipIf(process.platform === "win32")(
   async () => {
     const f = await fixture();
     try {
-      await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+      await prepareProfileChange(f.folder, 1, {
+        profile: { ...f.profile, locale: "cs" },
+      });
       await expect(
         applyPreparation(f.folder, async () => {
           await writeFile(
@@ -511,7 +534,7 @@ for (const stop of [
     async () => {
       const f = await fixture();
       try {
-        const requested = { ...f.profile, locale: "cs" };
+        const requested = { profile: { ...f.profile, locale: "cs" } };
         const checkpoint = async (step: PreparationStep) => {
           if (step === stop) throw new Error("Injected interruption");
         };
@@ -655,7 +678,7 @@ test.skipIf(process.platform === "win32")(
         prepareProfileChange(
           f.folder,
           1,
-          { ...f.profile, locale: "cs" },
+          { profile: { ...f.profile, locale: "cs" } },
           async (step) => {
             if (step === "instructions")
               await writeFile(join(f.folder, "AGENTS.md"), "New user edit");
@@ -682,11 +705,15 @@ test.skipIf(process.platform === "win32")(
   async () => {
     const f = await fixture();
     try {
-      expect(await prepareProfileChange(f.folder, 2, f.profile)).toEqual({
+      expect(
+        await prepareProfileChange(f.folder, 2, { profile: f.profile }),
+      ).toEqual({
         kind: "blocked",
         reason: "stale-revision",
       });
-      expect(await prepareProfileChange(f.folder, 1, f.profile)).toEqual({
+      expect(
+        await prepareProfileChange(f.folder, 1, { profile: f.profile }),
+      ).toEqual({
         kind: "unchanged",
       });
       expect((await readdir(f.state)).sort()).toEqual([
@@ -708,8 +735,10 @@ for (const target of ["active", "staged"] as const) {
         const f = await fixture();
         try {
           await prepareProfileChange(f.folder, 1, {
-            ...f.profile,
-            locale: "cs",
+            profile: {
+              ...f.profile,
+              locale: "cs",
+            },
           });
           const path =
             target === "active"
@@ -734,7 +763,9 @@ for (const target of ["active", "staged"] as const) {
     async () => {
       const f = await fixture();
       try {
-        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        await prepareProfileChange(f.folder, 1, {
+          profile: { ...f.profile, locale: "cs" },
+        });
         const path =
           target === "active"
             ? join(f.folder, "AGENTS.md")
@@ -756,7 +787,9 @@ for (const target of ["active", "staged"] as const) {
     async () => {
       const f = await fixture();
       try {
-        await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+        await prepareProfileChange(f.folder, 1, {
+          profile: { ...f.profile, locale: "cs" },
+        });
         const path =
           target === "active"
             ? join(f.folder, "AGENTS.md")
@@ -784,7 +817,9 @@ test.skipIf(process.platform === "win32")(
   async () => {
     const f = await fixture();
     try {
-      await prepareProfileChange(f.folder, 1, { ...f.profile, locale: "cs" });
+      await prepareProfileChange(f.folder, 1, {
+        profile: { ...f.profile, locale: "cs" },
+      });
       const edited = JSON.stringify({
         ...JSON.parse(f.preferences),
         revision: 2,

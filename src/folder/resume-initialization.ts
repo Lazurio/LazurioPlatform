@@ -11,6 +11,7 @@ import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { previewFolder } from "./preview";
 import { readOwnedStateFile, readStateJson } from "./read-state";
+import { instructionSource } from "./render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
@@ -105,7 +106,7 @@ export async function resumeInitialization(
     )
       throw new Error("Unsupported initialization preferences");
     const preview = await previewFolder(
-      preferences.profile,
+      instructionSource(preferences),
       null,
       async () => ({ kind: "absent" }),
     );

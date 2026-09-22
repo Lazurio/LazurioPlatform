@@ -11,10 +11,13 @@ import {
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
+import type { MachineBinding } from "./machine-binding";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
+import { type PresetName, presetReference } from "./presets";
 import { previewFolder } from "./preview";
 import { readOwnedStateFile } from "./read-state";
+import { instructionSource } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 
 export type InitializationStep =
@@ -25,6 +28,14 @@ export type InitializationStep =
   | "manifest"
   | "layout";
 
+// What a hosted initialization records: the preset chosen against the handover
+// and the immutable binding projected from it. A workstation has neither.
+export type HandoverSource = Readonly<{
+  preset: PresetName;
+  machine: MachineBinding;
+  profile: unknown;
+}>;
+
 // Fresh-path development initialization only. Never adopts an existing directory.
 // Failed attempts remain in place; no implicit retry, recursive cleanup or migration.
 export async function initializeFolder(
@@ -32,21 +43,39 @@ export async function initializeFolder(
   profile: unknown,
   checkpoint: (step: InitializationStep) => Promise<void> = async () => {},
 ) {
-  return initialize(folder, profile, checkpoint, false);
+  return initialize(
+    folder,
+    { preset: presetReference("local", null), machine: null, profile },
+    checkpoint,
+    false,
+  );
 }
 
 // Only the empty, operator-owned layout prepared by Machines; not resident adoption.
 export async function initializeHandoverFolder(
   folder: string,
-  profile: unknown,
+  source: HandoverSource,
   checkpoint: (step: InitializationStep) => Promise<void> = async () => {},
 ) {
-  return initialize(folder, profile, checkpoint, true);
+  return initialize(
+    folder,
+    {
+      preset: presetReference(source.preset, source.machine),
+      machine: source.machine,
+      profile: source.profile,
+    },
+    checkpoint,
+    true,
+  );
 }
 
 async function initialize(
   folder: string,
-  profile: unknown,
+  source: Readonly<{
+    preset: unknown;
+    machine: MachineBinding | null;
+    profile: unknown;
+  }>,
   checkpoint: (step: InitializationStep) => Promise<void>,
   handover: boolean,
 ) {
@@ -54,14 +83,18 @@ async function initialize(
     throw new Error("Canonical new Folder path required");
   await inspectOwnedDirectory(dirname(folder));
   const preferences = parseFolderPreferences({
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: 1,
-    profile,
+    preset: source.preset,
+    machine: source.machine,
+    profile: source.profile,
     customInstructions: "",
   });
-  const preview = await previewFolder(preferences.profile, null, async () => ({
-    kind: "absent",
-  }));
+  const preview = await previewFolder(
+    instructionSource(preferences),
+    null,
+    async () => ({ kind: "absent" }),
+  );
   if (preferences.profile.os !== executionOs(process.platform))
     throw new Error("Initialization OS mismatch");
   const manifest = parseInstructionManifest({
@@ -188,6 +221,10 @@ async function initialize(
     }
     await assertHeld();
     if (layout) await verifyHandoverLayout(folder, layout);
-    return { kind: "initialized" as const, revision: 1 };
+    return {
+      kind: "initialized" as const,
+      revision: 1,
+      preset: preferences.preset,
+    };
   });
 }

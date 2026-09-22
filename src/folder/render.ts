@@ -1,10 +1,46 @@
-import { parseFolderProfile } from "./profile";
+import { type MachineBinding, parseMachineBinding } from "./machine-binding";
+import {
+  type PresetName,
+  parsePresetName,
+  presetReference,
+  validatePresetComposition,
+} from "./presets";
+import { type FolderProfile, parseFolderProfile } from "./profile";
+import type { FolderPreferences } from "./state";
+import { stateFields } from "./state-fields";
 
 // Version the template independently from future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-1";
+export const instructionTemplateRevision = "base-instructions-2";
+
+// What the renderer needs and nothing else: the preset, the immutable Machine
+// binding (null on a workstation) and the profile. Validated as one composition.
+export type InstructionSource = Readonly<{
+  preset: PresetName;
+  machine: MachineBinding | null;
+  profile: FolderProfile;
+}>;
+
+export function parseInstructionSource(input: unknown): InstructionSource {
+  const value = stateFields(input, ["preset", "machine", "profile"]);
+  const preset = parsePresetName(value.preset);
+  const machine = parseMachineBinding(value.machine);
+  const profile = parseFolderProfile(value.profile);
+  validatePresetComposition(presetReference(preset, machine), machine, profile);
+  return Object.freeze({ preset, machine, profile });
+}
+
+export function instructionSource(
+  preferences: FolderPreferences,
+): InstructionSource {
+  return Object.freeze({
+    preset: preferences.preset.name,
+    machine: preferences.machine,
+    profile: preferences.profile,
+  });
+}
 
 export function renderInstructions(input: unknown): string {
-  const profile = parseFolderProfile(input);
+  const { preset, profile } = parseInstructionSource(input);
   const cs = profile.locale === "cs";
   const purpose = {
     human: cs
@@ -19,7 +55,7 @@ export function renderInstructions(input: unknown): string {
   };
   return [
     "# Lazurio",
-    `<!-- ${instructionTemplateRevision}; ${JSON.stringify(profile)} -->`,
+    `<!-- ${instructionTemplateRevision}; ${JSON.stringify({ preset, profile })} -->`,
     cs
       ? "Komunikuj česky, pokud uživatel nepožádá jinak."
       : "Communicate in English unless the user requests otherwise.",

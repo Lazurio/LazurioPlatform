@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
-import { parseFolderProfile } from "./profile";
 import { type ObservedFile, planInstructions } from "./reconcile";
-import { instructionTemplateRevision, renderInstructions } from "./render";
+import {
+  instructionSource,
+  instructionTemplateRevision,
+  parseInstructionSource,
+  renderInstructions,
+} from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 
 // Adapter-supplied state must come from the trusted local owner, not arbitrary
@@ -19,7 +23,7 @@ export async function previewConfiguredFolder(
   if (preferences.customInstructions !== "")
     throw new Error("Custom instruction composition is not implemented");
   return previewFolder(
-    preferences.profile,
+    instructionSource(preferences),
     manifest?.output.digest ?? null,
     inspect,
   );
@@ -32,17 +36,17 @@ export async function previewFolder(
   previousDigest: string | null,
   inspect: () => Promise<ObservedFile>,
 ) {
-  const profile = parseFolderProfile(input);
+  const source = parseInstructionSource(input);
   if (previousDigest !== null && !/^[a-f0-9]{64}$/.test(previousDigest))
     throw new Error("Invalid previous instruction digest");
-  const content = renderInstructions(profile);
+  const content = renderInstructions(source);
   const digest = createHash("sha256").update(content).digest("hex");
   const observed = await inspect();
   const plan = planInstructions(previousDigest, digest, observed);
   return {
     kind: "folder-preview" as const,
     templateRevision: instructionTemplateRevision,
-    profile,
+    source,
     desired: { path: "AGENTS.md" as const, content, digest },
     observed,
     plan,

@@ -1,6 +1,12 @@
 import { parseArgs } from "node:util";
 import { initializeHandoverFolder } from "../folder/initialize-folder";
-import { parseFolderProfile } from "../folder/profile";
+import {
+  allowedPresets,
+  derivePreset,
+  parsePresetName,
+  presetProfile,
+} from "../folder/presets";
+import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
   MachineContextError,
@@ -12,14 +18,24 @@ export const machineHelp = `machine inspect
 Read the root-issued /etc/lazurio/lazurio.machine.json on Linux only.
 Output contains private Machine/Organization context; do not publish it.
 The declaration grants no permissions, provider identity or access.
-machine folder-init --locale <cs|en> --detail <concise|technical>
-  --coordination <direct|coordinator>
-Initialize the declared operator's empty, precreated standard Lazurio Folder.
-Limited pilot: Linux / remote / human. All three choices required.
+machine folder-init [--preset <name>] [--locale <cs|en>]
+  [--detail <concise|technical>] [--coordination <direct|coordinator>]
+Initialize the declared operator's standard Lazurio Folder from the handover.
+The workspace preset is derived from the handover (personal-vm -> hosted-personal;
+workspace-vm with owner.team -> hosted-organization-team; without ->
+hosted-organization-personal). --preset may pick another preset the handover
+allows and is recorded as an explicit choice. Omitted communication choices
+take the preset's defaults; all are changeable later in the Launchpad.
 Run as the declared operator, never root. No path or custody override.
 No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
 missing/damaged journals require operator diagnosis, never blanket cleanup.`;
+
+const choices = {
+  locale: ["cs", "en"],
+  detail: ["concise", "technical"],
+  coordination: ["direct", "coordinator"],
+} as const;
 
 export async function runMachineCommand(args: string[]) {
   const [command, ...options] = args;
@@ -29,33 +45,30 @@ export async function runMachineCommand(args: string[]) {
     args: options,
     strict: true,
     tokens: true,
-    options:
-      command === "inspect"
-        ? {}
-        : {
-            locale: { type: "string" },
-            detail: { type: "string" },
-            coordination: { type: "string" },
-          },
+    options: {
+      preset: { type: "string" },
+      locale: { type: "string" },
+      detail: { type: "string" },
+      coordination: { type: "string" },
+    },
   });
   if (
-    tokens.length !== (command === "inspect" ? 0 : 3) ||
+    (command === "inspect" && tokens.length !== 0) ||
+    tokens.some((token) => token.kind !== "option") ||
     new Set(tokens.map((token) => (token.kind === "option" ? token.name : "")))
       .size !== tokens.length
   )
     throw new Error("Explicit nonduplicate Machine options required");
-  const profile =
-    command === "folder-init"
-      ? parseFolderProfile({
-          os: "linux",
-          access: "remote",
-          purpose: "human",
-          ...values,
-        })
-      : null;
+  for (const [name, allowed] of Object.entries(choices)) {
+    const value = values[name as keyof typeof choices];
+    if (value !== undefined && !(allowed as readonly string[]).includes(value))
+      throw new Error(`Invalid Machine choice: ${name}`);
+  }
+  const requestedPreset =
+    values.preset === undefined ? undefined : parsePresetName(values.preset);
   try {
     const observed = await readMachineContext();
-    if (!profile)
+    if (command === "inspect")
       return {
         code: 0,
         result: {
@@ -64,11 +77,39 @@ export async function runMachineCommand(args: string[]) {
           authority: "none",
         },
       };
+    const machine = machineBinding(observed.context, observed.digest);
+    const preset = requestedPreset ?? derivePreset(machine);
+    if (!allowedPresets(machine).includes(preset))
+      return {
+        code: 2,
+        result: {
+          kind: "blocked",
+          reason: "preset-not-allowed",
+          derived: derivePreset(machine),
+          allowed: allowedPresets(machine),
+          next: "Choose a preset the handover allows, or omit --preset for the derived one.",
+        },
+      };
+    const profile = presetProfile(preset, "linux", {
+      ...(values.locale === undefined
+        ? {}
+        : { locale: values.locale as "cs" | "en" }),
+      ...(values.detail === undefined
+        ? {}
+        : { detail: values.detail as "concise" | "technical" }),
+      ...(values.coordination === undefined
+        ? {}
+        : { coordination: values.coordination as "direct" | "coordinator" }),
+    });
     const folder = bindMachineOperator(
       observed.context,
       await readLinuxOperator(),
     );
-    const result = await initializeHandoverFolder(folder, profile);
+    const result = await initializeHandoverFolder(folder, {
+      preset,
+      machine,
+      profile,
+    });
     return {
       code: 0,
       result: { ...result, machineContextDigest: observed.digest },

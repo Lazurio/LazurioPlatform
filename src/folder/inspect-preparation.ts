@@ -8,7 +8,7 @@ import {
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { renderInstructions } from "./render";
+import { instructionSource, renderInstructions } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { validatePreparation } from "./validate-preparation";
 
@@ -76,7 +76,7 @@ export async function readPreparedChange(folder: string) {
     JSON.stringify(currentManifest) !==
       JSON.stringify(validated.previousManifest) ||
     current.content !==
-      renderInstructions(validated.previousPreferences.profile) ||
+      renderInstructions(instructionSource(validated.previousPreferences)) ||
     JSON.stringify(current.identity) !==
       JSON.stringify(validated.previousIdentity) ||
     JSON.stringify(staged.identity) !==

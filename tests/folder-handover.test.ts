@@ -18,6 +18,7 @@ import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
+import { bindings } from "./fixtures/machine-bindings";
 
 const profile = {
   os: executionOs(process.platform),
@@ -27,6 +28,20 @@ const profile = {
   detail: "technical",
   coordination: "direct",
 };
+const source = {
+  preset: "hosted-organization-personal",
+  machine: bindings.organization,
+  profile,
+} as const;
+const initialized = {
+  kind: "initialized",
+  revision: 1,
+  preset: {
+    name: "hosted-organization-personal",
+    version: 1,
+    selection: "derived",
+  },
+} as const;
 async function setup() {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "handover-init-")),
@@ -62,13 +77,13 @@ for (const stop of [
         );
         const result = initializeHandoverFolder(
           folder,
-          profile,
+          source,
           async (step) => {
             if (step === stop) throw new Error("interrupted");
           },
         );
         if (stop) await expect(result).rejects.toThrow("interrupted");
-        else expect(await result).toEqual({ kind: "initialized", revision: 1 });
+        else expect(await result).toEqual(initialized);
         expect(await resumeInitialization(folder)).toEqual({
           kind: "recovered",
           revision: 1,
@@ -97,7 +112,7 @@ for (const stop of [
           revision: 1,
         });
         await expect(
-          initializeHandoverFolder(folder, profile),
+          initializeHandoverFolder(folder, source),
         ).rejects.toThrow();
         expect(
           await readFile(join(folder, "organizations", "keep"), "utf8"),
@@ -106,7 +121,9 @@ for (const stop of [
           await readFile(join(folder, "personalspace", "keep"), "utf8"),
         ).toBe("synthetic personal work");
         expect(
-          await updateProfile(folder, 1, { ...profile, locale: "en" }),
+          await updateProfile(folder, 1, {
+            profile: { ...profile, locale: "en" },
+          }),
         ).toEqual({ kind: "updated", revision: 2 });
       } finally {
         await rm(parent, { recursive: true, force: true });
@@ -146,7 +163,7 @@ for (const scenario of [
           await chmod(join(folder, "organizations"), 0o777);
         const before = await readdir(folder);
         await expect(
-          initializeHandoverFolder(folder, profile),
+          initializeHandoverFolder(folder, source),
         ).rejects.toThrow();
         expect(await readdir(folder)).toEqual(before);
         if (scenario !== "state")
@@ -163,7 +180,7 @@ test.skipIf(process.platform === "win32")(
     const { parent, folder } = await setup();
     try {
       await expect(
-        initializeHandoverFolder(folder, profile, async (step) => {
+        initializeHandoverFolder(folder, source, async (step) => {
           if (step === "journal") throw new Error("stop");
         }),
       ).rejects.toThrow("stop");
@@ -184,8 +201,8 @@ test.skipIf(process.platform === "win32")(
     const { parent, folder } = await setup();
     try {
       const results = await Promise.allSettled([
-        initializeHandoverFolder(folder, profile),
-        initializeHandoverFolder(folder, profile),
+        initializeHandoverFolder(folder, source),
+        initializeHandoverFolder(folder, source),
       ]);
       expect(
         results.filter((result) => result.status === "fulfilled"),

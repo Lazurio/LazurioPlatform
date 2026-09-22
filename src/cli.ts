@@ -217,6 +217,8 @@ No files are written by folder-preview. No command installs or migrates Lazurio.
 profile-preview uses the same profile choices and --folder, plus required
 --expected-revision <positive integer>. It reads existing .lazurio state and
 creates/removes only its operation lock. It does not apply the proposed change.
+Both profile commands accept optional --preset <name> to change the workspace preset
+within what the recorded Machine handover allows; omitted keeps the current preset.
 profile-update takes the same inputs as profile-preview and APPLIES the change:
 it replaces owned instructions/preferences/manifest and archives the transaction.
 Use only an explicitly prepared development fixture, not your daily Lazurio.
@@ -299,6 +301,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       "previous-digest": { type: "string" },
       "expected-revision": { type: "string" },
       "target-revision": { type: "string" },
+      preset: { type: "string" },
       access: { type: "string" },
       purpose: { type: "string" },
       locale: { type: "string" },
@@ -438,6 +441,11 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     values.base !== undefined
   )
     throw new Error("Discovery option belongs only to Launchpad");
+  if (
+    values.preset !== undefined &&
+    !["profile-preview", "profile-update"].includes(positionals[0] ?? "")
+  )
+    throw new Error("Preset choice belongs only to profile commands");
   if (positionals[0] === "folder-resume") {
     if (!values.folder || Object.keys(values).some((name) => name !== "folder"))
       throw new Error("Explicit initialization recovery folder required");
@@ -518,13 +526,16 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     const result = await operation(
       folder,
       Number(values["expected-revision"]),
-      profile,
+      values.preset === undefined
+        ? { profile }
+        : { preset: values.preset, profile },
     );
     console.log(JSON.stringify(result));
     return result.kind === "blocked" ? 2 : 0;
   }
+  // Stateless preview of a workstation Folder: the local preset, no Machine.
   const result = await previewFolder(
-    profile,
+    { preset: "local", machine: null, profile },
     values["previous-digest"] ?? null,
     () => inspectInstructions(folder),
   );

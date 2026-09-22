@@ -146,11 +146,9 @@ export async function startLaunchpad(
           return response({ error: "invalid-revision" }, 400);
         const operation =
           url.pathname === "/api/update" ? updateProfile : inspectProfileChange;
-        const result = await operation(
-          folder,
-          value.expectedRevision,
-          value.profile,
-        );
+        const result = await operation(folder, value.expectedRevision, {
+          profile: value.profile,
+        });
         return response(result, result.kind === "blocked" ? 409 : 200);
       } catch {
         return response(

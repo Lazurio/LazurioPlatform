@@ -10,7 +10,7 @@ import {
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { renderInstructions } from "./render";
+import { instructionSource, renderInstructions } from "./render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
@@ -99,7 +99,7 @@ export async function retireIncompletePreparation(
           throw new Error("Recovery conflicts with active identity");
       }
       if (
-        active.content !== renderInstructions(preferences.profile) ||
+        active.content !== renderInstructions(instructionSource(preferences)) ||
         JSON.stringify(parseFolderPreferences(JSON.parse(prefs.content))) !==
           JSON.stringify(preferences) ||
         JSON.stringify(parseInstructionManifest(JSON.parse(owned.content))) !==
@@ -110,7 +110,7 @@ export async function retireIncompletePreparation(
         preferences,
         manifest,
         expectedRevision,
-        preferences.profile,
+        { preset: preferences.preset.name, profile: preferences.profile },
         async () => ({ kind: "regular", digest: manifest.output.digest }),
       );
       if (coherent.kind !== "unchanged")

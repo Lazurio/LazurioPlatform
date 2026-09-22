@@ -58,7 +58,7 @@ test.skipIf(process.platform === "win32")(
         profile: { ...profile, locale: "cs" },
       };
       expect(await (await call("/api/preview", candidate)).json()).toEqual(
-        await inspectProfileChange(folder, 1, candidate.profile),
+        await inspectProfileChange(folder, 1, { profile: candidate.profile }),
       );
       expect(await readFile(join(folder, "AGENTS.md"))).toEqual(before);
       expect(
