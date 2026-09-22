@@ -57,11 +57,15 @@ export type MachineBinding = Readonly<{
   relationships?: MachineRelationships;
 }>;
 
-// The same shapes the vendored lazurio.machine.v1 schema imposes on the handover,
-// so a stored binding can never carry a value the handover could not: slugs are
-// hyphen-separated alphanumeric words, a peer name is one DNS label, a GitHub
-// login is a slug of at most 39 characters.
+// Exactly the shapes the vendored lazurio.machine.v1 schema imposes on the
+// handover, field by field and branch by branch, so that a stored binding accepts
+// everything a valid handover projects and nothing a handover could not carry:
+// slugs are hyphen-separated alphanumeric words (owner, host, tailnet identity;
+// a personal Machine name at most 32, a GitHub login at most 39), a workspace
+// Machine name is the schema's looser `^[a-z][a-z0-9-]{0,31}$`, a peer name is
+// one DNS label.
 const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const workspaceName = /^[a-z][a-z0-9-]{0,31}$/;
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const hostname =
   /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
@@ -81,7 +85,12 @@ const directions: readonly NonNullable<MachinePeer["ssh"]>["direction"][] = [
 const keys = ["contextDigest", "kind", "name", "owner", "network", "host"];
 
 function isSlug(value: unknown): value is string {
-  return typeof value === "string" && value.length <= 64 && slug.test(value);
+  return typeof value === "string" && slug.test(value);
+}
+function isMachineName(kind: unknown, value: unknown): value is string {
+  return kind === "workspace-vm"
+    ? typeof value === "string" && workspaceName.test(value)
+    : isSlug(value) && value.length <= 32;
 }
 function isDnsLabel(value: unknown): value is string {
   return typeof value === "string" && dnsLabel.test(value);
@@ -235,7 +244,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
     typeof value.contextDigest !== "string" ||
     !/^[a-f0-9]{64}$/.test(value.contextDigest) ||
     (value.kind !== "personal-vm" && value.kind !== "workspace-vm") ||
-    !isSlug(value.name) ||
+    !isMachineName(value.kind, value.name) ||
     (tailnet !== null && !isSlug(tailnet)) ||
     (host.kind !== "virtualization-host" && host.kind !== "provider-estate") ||
     !isSlug(host.id)

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { parseMachineBinding } from "../src/folder/machine-binding";
 import {
   allowedPresets,
@@ -12,7 +13,11 @@ import {
   workspacePreset,
 } from "../src/folder/presets";
 import { parseFolderPreferences } from "../src/folder/state";
+import { machineBinding } from "../src/machine/binding";
+import { parseMachineContext } from "../src/machine/context";
 import { bindings, workRelationships } from "./fixtures/machine-bindings";
+import organizationDocument from "./fixtures/machine-context.json";
+import personalDocument from "./fixtures/machine-context-personal.json";
 
 const machines = {
   workstation: null,
@@ -260,7 +265,10 @@ test("Machine bindings are typed projections; branches never mix, assignment and
       }),
     ),
     { owner: { ...bindings.personal.owner, githubLogin: "bad--login" } },
+    // A personal Machine name is a DNS slug of at most 32; only the workspace
+    // branch's name may end in a hyphen (schema `^[a-z][a-z0-9-]{0,31}$`).
     { name: "bad-" },
+    { name: "a".repeat(33) },
     { relationships: [{ machine: "x", kind: "personal-vm", access: "both" }] },
     { authority: "admin" },
   ])
@@ -302,3 +310,77 @@ test("Machine bindings are typed projections; branches never mix, assignment and
   expect(invoked).toBe(false);
 });
 const personalOnWork = { zone: "personal", peers: [] };
+
+// Every document the vendored schema accepts must survive the whole stored path:
+// handover -> binding -> preferences -> read back byte-for-byte equal. Shapes at
+// the schema's edges, per branch (Pablo, #19: a workspace name may end in a
+// hyphen while a personal name may not).
+test("a schema-valid handover projects into preferences that read back exactly", () => {
+  const edges: Record<string, unknown>[] = [
+    organizationDocument,
+    {
+      ...organizationDocument,
+      machine: { ...organizationDocument.machine, name: "a-" },
+    },
+    {
+      ...organizationDocument,
+      machine: { ...organizationDocument.machine, name: `a${"-".repeat(31)}` },
+    },
+    personalDocument,
+    {
+      ...personalDocument,
+      machine: { ...personalDocument.machine, name: "a1-b2".padEnd(32, "z") },
+    },
+    {
+      ...personalDocument,
+      owner: { ...personalDocument.owner, github_login: "a".repeat(39) },
+      relationships: {
+        zone: "personal",
+        peers: [
+          {
+            name: `a${"-".repeat(61)}a`,
+            kind: "client-device",
+            zone: "personal",
+            organization: "a".repeat(39),
+            ssh: { host: "1.2.3.4", user: "_x", direction: "both" },
+            https: [],
+          },
+        ],
+      },
+    },
+  ];
+  for (const document of edges) {
+    const bytes = Buffer.from(JSON.stringify(document));
+    const machine = machineBinding(
+      parseMachineContext(bytes),
+      createHash("sha256").update(bytes).digest("hex"),
+    );
+    const name = derivePreset(machine) ?? "hosted-organization-personal";
+    const preferences = {
+      schemaVersion: 2,
+      revision: 1,
+      preset: { name, version: 1, selection: "derived" },
+      machine,
+      profile: presetProfile(name, "linux"),
+      customInstructions: "",
+    };
+    expect(
+      parseFolderPreferences(JSON.parse(JSON.stringify(preferences))),
+    ).toEqual(parseFolderPreferences(preferences));
+    expect(parseFolderPreferences(preferences).machine).toEqual(machine);
+  }
+  // And the schema's refusals stay refusals before any binding exists.
+  for (const document of [
+    {
+      ...personalDocument,
+      machine: { ...personalDocument.machine, name: "a-" },
+    },
+    {
+      ...organizationDocument,
+      machine: { ...organizationDocument.machine, name: "1a" },
+    },
+  ])
+    expect(() =>
+      parseMachineContext(Buffer.from(JSON.stringify(document))),
+    ).toThrow();
+});
