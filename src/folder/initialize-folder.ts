@@ -111,7 +111,7 @@ async function initialize(
   const state = join(folder, ".lazurio");
   const personalspace = workspacePreset(preferences.preset.name).personalspace;
   if (handover) {
-    const adopted = await alreadyAdopted(folder, preferences.machine);
+    const adopted = await adoptedHandoverFolder(folder, preferences.machine);
     if (adopted) return adopted;
   }
   const layout = handover ? await inspectHandoverLayout(folder) : null;
@@ -243,9 +243,13 @@ async function initialize(
 }
 
 // Idempotent re-run: valid state recorded from the same handover reports the
-// adopted Folder; a different handover or unrecognized state is refused by name.
-// Only the ephemeral operation lock is written.
-async function alreadyAdopted(folder: string, machine: MachineBinding | null) {
+// adopted Folder (with the preset it already has); a different handover or
+// unrecognized state is refused by name. Only the ephemeral operation lock is
+// written. `null` means no Folder state exists yet.
+export async function adoptedHandoverFolder(
+  folder: string,
+  machine: MachineBinding | null,
+) {
   const state = join(folder, ".lazurio");
   try {
     await lstat(state);

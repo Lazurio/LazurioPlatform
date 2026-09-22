@@ -83,13 +83,17 @@ function machineSection(
         en: "- The Principal's own workstation, no handover; the signed-in user is both Owner and Principal.",
       }),
     ];
+  // The recorded binding keeps the handover's Team untouched; the Owner line
+  // names it only when the preset says the Machine is shared by that Team.
+  // Under hosted-organization-personal the Team is the handover value that
+  // does not decide assignment (see machineAssignment), so it is not rendered.
   const owner =
     machine.owner.kind === "principal"
       ? pick({
           cs: `- Owner: Principál s GitHub loginem \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). Je to jeho jediná osobní hostovaná Mašina.`,
           en: `- Owner: the Principal with GitHub login \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). This is their one personal hosted Machine.`,
         })
-      : machine.owner.team === null
+      : machine.owner.team === null || preset !== "hosted-organization-team"
         ? pick({
             cs: `- Owner: Organizace \`${machine.owner.organization}\`.`,
             en: `- Owner: Organization \`${machine.owner.organization}\`.`,

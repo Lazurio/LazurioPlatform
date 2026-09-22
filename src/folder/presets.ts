@@ -92,7 +92,8 @@ const presets: Readonly<Record<PresetName, WorkspacePreset>> = Object.freeze({
 });
 
 // The stored reference. `selection` records whether the Principal chose a
-// preset other than the one derived from the handover at the time of choice.
+// preset other than the one derived from the handover at the time of choice;
+// on a handover that derives none, every choice is `explicit`.
 export type PresetReference = Readonly<{
   name: PresetName;
   version: typeof presetVersion;
@@ -126,14 +127,41 @@ export function parsePresetReference(input: unknown): PresetReference {
   });
 }
 
-// The preset is derived from the typed handover fields only: machine.kind and
-// the presence of owner.team. Never from a name, hostname or operator account.
-export function derivePreset(machine: MachineBinding | null): PresetName {
+// The one fact the two Organization presets differ on: is the work VM assigned
+// to ONE operator or shared by a Team? Machines will state it as
+// `owner.assignment` ({kind: "operator", github_login, github_id} |
+// {kind: "team"}); once the vendored schema carries that field, this function
+// reads it and nothing else. Until then the handover proves only one side: a
+// workspace VM without `owner.team` is assigned to one operator. A Team in the
+// handover is NOT a fact about assignment: an Organization may model one
+// operator's work VM as a GitHub Team named after them (found on the first real
+// canary, 2026-09-22). So a Team-bearing handover has no assignment (`null`)
+// and the preset must be passed explicitly. Never guess from the Team name,
+// the Machine name, the hostname or the operator account.
+export type MachineAssignment = "operator" | "team";
+export function machineAssignment(
+  machine: MachineBinding,
+): MachineAssignment | null {
+  if (machine.owner.kind !== "organization") return "operator";
+  return machine.owner.team === null ? "operator" : null;
+}
+
+const organizationPresets: Readonly<Record<MachineAssignment, PresetName>> =
+  Object.freeze({
+    operator: "hosted-organization-personal",
+    team: "hosted-organization-team",
+  });
+
+// The preset the handover derives, or `null` when the handover does not decide
+// it (a workspace VM whose assignment is unknown). Derived only from
+// machine.kind and the assignment above.
+export function derivePreset(
+  machine: MachineBinding | null,
+): PresetName | null {
   if (machine === null) return "local";
   if (machine.kind === "personal-vm") return "hosted-personal";
-  return machine.owner.kind === "organization" && machine.owner.team !== null
-    ? "hosted-organization-team"
-    : "hosted-organization-personal";
+  const assignment = machineAssignment(machine);
+  return assignment === null ? null : organizationPresets[assignment];
 }
 
 // What the handover allows: a personal VM never takes an Organization preset
