@@ -18,6 +18,7 @@ import {
   requestApplication,
 } from "./launchpad/application-client";
 import { startLaunchpad } from "./launchpad/server";
+import { createUpdatePill } from "./launchpad/update-pill";
 import { machineHelp, runMachineCommand } from "./machine/cli";
 import { createApplicationCoordination } from "./modules/application-coordination";
 import {
@@ -49,16 +50,38 @@ import {
   runInstallCommand,
   runUpdateCommand,
   selfCheckCommand,
+  updateEnvironment,
   updateHelp,
   versionCommand,
 } from "./update/cli";
-import { embeddedIdentity } from "./update/identity";
+import { selectActivator } from "./update/launchpad-activation";
 
 // Update commands return their own typed output and stable exit status.
 function emit(output: CommandOutput): number {
   if (output.stdout) console.log(output.stdout);
   if (output.stderr) console.error(output.stderr);
   return output.code;
+}
+
+// The installed Launchpad of this base answers the updater's health question,
+// commits an activation whose updater is gone, and serves the update pill on
+// the same update core and service the CLI uses.
+async function installedLaunchpad(explicitBase: string) {
+  const context = processContext();
+  const base = installBase(context, explicitBase);
+  const environment = await updateEnvironment(context, base);
+  return {
+    base,
+    version: context.identity.version,
+    pill: createUpdatePill({
+      environment,
+      activator: selectActivator({
+        base,
+        env: process.env,
+        supervised: environment.service !== null,
+      }),
+    }),
+  };
 }
 
 // Status and Stop without a Launchpad, for applications owned by the service
@@ -408,10 +431,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       // the Launchpad of that installation.
       values.base === undefined
         ? undefined
-        : {
-            base: installBase(processContext(), values.base),
-            version: embeddedIdentity().version,
-          },
+        : await installedLaunchpad(values.base),
     );
     console.log(
       JSON.stringify({

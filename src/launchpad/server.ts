@@ -13,6 +13,7 @@ import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
 import index from "./index.html";
+import type { UpdatePill } from "./update-pill";
 
 export const launchpadCommitDelayMs = 15_000;
 
@@ -49,8 +50,12 @@ export async function startLaunchpad(
     base: string;
     version: string;
     commitDelayMs?: number;
+    /** The update pill of this installation (docs/update.md "Surfaces"):
+     * `GET /api/update/status` and `POST /api/update/apply`. */
+    pill?: UpdatePill | undefined;
   }>,
 ) {
+  const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
   if (organizationDirectory !== undefined)
     await inspectOwnedDirectory(organizationDirectory);
@@ -78,13 +83,27 @@ export async function startLaunchpad(
       };
       const response = (body: unknown, status = 200) =>
         Response.json(body, { status, headers });
+      // A browser sends no Origin header with a same-origin GET. The bearer
+      // token is the credential; the one GET route is read-only.
+      const sameOrigin =
+        request.headers.get("origin") === origin ||
+        (request.method === "GET" && !request.headers.has("origin"));
       if (
         url.origin !== origin ||
         request.headers.get("host") !== new URL(origin).host ||
-        request.headers.get("origin") !== origin ||
+        !sameOrigin ||
         request.headers.get("authorization") !== `Bearer ${token}`
       )
         return response({ error: "denied" }, 403);
+      if (request.method === "GET" && url.pathname === "/api/update/status") {
+        if (closing) return response({ error: "closing" }, 503);
+        if (!pill) return response({ error: "update-unavailable" }, 503);
+        try {
+          return response(await pill.status());
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (request.method !== "POST")
         return response({ error: "method-not-allowed" }, 405);
       if (request.headers.get("content-type") !== "application/json")
@@ -92,6 +111,14 @@ export async function startLaunchpad(
       try {
         const input: unknown = await request.json();
         if (closing) return response({ error: "closing" }, 503);
+        if (url.pathname === "/api/update/apply") {
+          if (!pill) return response({ error: "update-unavailable" }, 503);
+          const value = stateFields(input, ["version"]);
+          if (typeof value.version !== "string")
+            return response({ error: "invalid-version" }, 400);
+          const result = await pill.apply(value.version);
+          return response(result, result.kind === "started" ? 200 : 409);
+        }
         if (url.pathname === "/api/apps/discover") {
           stateFields(input, []);
           if (!organizationDirectory)
@@ -175,6 +202,7 @@ export async function startLaunchpad(
         installed.commitDelayMs ?? launchpadCommitDelayMs,
       )
     : undefined;
+  pill?.start();
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -189,6 +217,7 @@ export async function startLaunchpad(
           // Existing requests and shutdown must share the same lifecycle queue.
           const applicationClose = applications?.close();
           clearTimeout(reconcile);
+          pill?.stop();
           await server.stop(true);
           await health?.stop(true);
           const result = applicationClose

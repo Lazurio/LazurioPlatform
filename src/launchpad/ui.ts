@@ -4,6 +4,8 @@ import {
   localApplicationLink,
 } from "./application-view";
 import { type MessageKey, messages } from "./messages";
+import type { PillStatus } from "./update-pill";
+import { pillView } from "./update-view";
 
 const token = location.hash.slice(1);
 history.replaceState(null, "", location.pathname);
@@ -43,6 +45,7 @@ async function request(path: string, body: unknown) {
 async function load() {
   current = await request("/api/profile", {});
   copy = messages(current.profile.locale);
+  renderUpdate();
   document.documentElement.lang = current.profile.locale === "cs" ? "cs" : "en";
   document.title = copy.title;
   for (const element of document.querySelectorAll<HTMLElement>(
@@ -243,3 +246,92 @@ apps.form.addEventListener("submit", async (event) => {
     discovery.select.disabled = observedChoices.length === 0;
   }
 });
+
+// The update pill (docs/update.md "Surfaces"): the server derives the state;
+// the browser only shows it and sends the one click back with the version it
+// showed. Hidden where this Launchpad is not an installed one.
+const updateSection = document.querySelector<HTMLElement>("#update");
+const updateText = document.querySelector<HTMLSpanElement>("#update-text");
+const updateNotes = document.querySelector<HTMLAnchorElement>("#update-notes");
+const updateAction =
+  document.querySelector<HTMLButtonElement>("#update-action");
+const updateChecked =
+  document.querySelector<HTMLParagraphElement>("#update-checked");
+const updateError =
+  document.querySelector<HTMLParagraphElement>("#update-error");
+const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
+  "#update-state-invalid",
+);
+if (
+  !updateSection ||
+  !updateText ||
+  !updateNotes ||
+  !updateAction ||
+  !updateChecked ||
+  !updateError ||
+  !updateStateInvalid
+)
+  throw new Error("Missing update UI");
+let updateStatus: PillStatus | null = null;
+let updateNote: string | null = null;
+function renderUpdate() {
+  if (!updateStatus || !updateSection) return;
+  const view = pillView(updateStatus, copy, Date.now());
+  updateSection.hidden = false;
+  if (updateText) updateText.textContent = view.text;
+  if (updateNotes) {
+    updateNotes.hidden = view.notesUrl === null;
+    if (view.notesUrl === null) updateNotes.removeAttribute("href");
+    else updateNotes.href = view.notesUrl;
+  }
+  if (updateAction) {
+    updateAction.hidden = view.action === null;
+    updateAction.textContent = view.action?.label ?? "";
+    updateAction.dataset.version = view.action?.version ?? "";
+  }
+  if (updateChecked) {
+    updateChecked.textContent = updateNote ?? view.checked;
+    updateChecked.classList.toggle("stale", view.stale);
+  }
+  if (updateError) {
+    updateError.hidden = view.error === null;
+    updateError.textContent = view.error ?? "";
+  }
+  if (updateStateInvalid) {
+    updateStateInvalid.hidden = view.stateInvalid === null;
+    updateStateInvalid.textContent = view.stateInvalid ?? "";
+  }
+}
+async function refreshUpdate() {
+  try {
+    const response = await fetch("/api/update/status", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    updateStatus = (await response.json()) as PillStatus;
+    renderUpdate();
+  } catch {
+    // The next refresh tries again; the pill keeps what it showed.
+  }
+}
+updateAction.addEventListener("click", async () => {
+  const version = updateAction.dataset.version;
+  if (!version || updateAction.disabled) return;
+  updateAction.disabled = true;
+  updateNote = copy.updateStarted;
+  renderUpdate();
+  try {
+    const { ok } = await post("/api/update/apply", { version });
+    if (!ok) updateNote = copy.updateRefused;
+  } catch {
+    updateNote = copy.updateRefused;
+  } finally {
+    await refreshUpdate();
+    updateNote = null;
+    updateAction.disabled = false;
+    renderUpdate();
+  }
+});
+void refreshUpdate();
+setInterval(() => void refreshUpdate(), 10_000);

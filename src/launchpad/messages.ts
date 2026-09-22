@@ -65,6 +65,29 @@ const en = {
     "Local application link available. Opening it does not prove functional acceptance.",
   appRemoteLink:
     "This address belongs to the execution machine. Remote browser access needs a qualified route.",
+  updateTitle: "Product update",
+  updateNotes: "Release notes",
+  updateUnknown: "Lazurio {running}.",
+  updateIdle: "Lazurio {running} is up to date.",
+  updateChecking: "Checking for a new version…",
+  updateAvailable: "Lazurio {latest} is available (running {running}).",
+  updateDownloading: "Downloading and verifying Lazurio {latest}…",
+  updateActivating:
+    "Activating Lazurio {latest}. The Launchpad restarts; applications keep running.",
+  updateRestart:
+    "Lazurio {active} is installed. Restart the Launchpad to finish the update.",
+  updateAction: "Update",
+  updateRetry: "Retry",
+  updateChecked: "Last verified check: {age} ago.",
+  updateNeverChecked: "No verified check yet.",
+  updateStale:
+    "Last verified check: {age} ago. A newer release may be withheld from this machine.",
+  updateFailed:
+    "The update did not complete: {code}. The installed version keeps working; the same click retries.",
+  updateStateInvalid:
+    "Update state needs a person: {path}. Nothing is changed automatically.",
+  updateStarted: "Update started…",
+  updateRefused: "The update was not started; the state shown was refreshed.",
   title: "Lazurio — Profile",
   notice: "Development fixture only. No Lazurio installation or migration.",
   legend: "Machine profile",
@@ -160,6 +183,29 @@ const cs: Record<MessageKey, string> = {
     "Lokální odkaz aplikace je připravený. Otevření samo neprokazuje její funkčnost.",
   appRemoteLink:
     "Tato adresa patří execution mašině. Vzdálené otevření vyžaduje ověřenou přístupovou cestu.",
+  updateTitle: "Aktualizace produktu",
+  updateNotes: "Poznámky k vydání",
+  updateUnknown: "Lazurio {running}.",
+  updateIdle: "Lazurio {running} je aktuální.",
+  updateChecking: "Zjišťuje se nová verze…",
+  updateAvailable: "Je k dispozici Lazurio {latest} (běží {running}).",
+  updateDownloading: "Stahuje se a ověřuje Lazurio {latest}…",
+  updateActivating:
+    "Aktivuje se Lazurio {latest}. Launchpad se restartuje; aplikace běží dál.",
+  updateRestart:
+    "Lazurio {active} je nainstalované. Aktualizaci dokončí restart Launchpadu.",
+  updateAction: "Aktualizovat",
+  updateRetry: "Zkusit znovu",
+  updateChecked: "Poslední ověřená kontrola: před {age}.",
+  updateNeverChecked: "Zatím žádná ověřená kontrola.",
+  updateStale:
+    "Poslední ověřená kontrola: před {age}. Novější vydání může být této mašině zadržováno.",
+  updateFailed:
+    "Aktualizace se nedokončila: {code}. Nainstalovaná verze běží dál; stejné kliknutí ji zopakuje.",
+  updateStateInvalid:
+    "Stav aktualizace vyžaduje zásah člověka: {path}. Automaticky se nic nemění.",
+  updateStarted: "Aktualizace spuštěna…",
+  updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
   title: "Lazurio — Profil",
   notice:
     "Pouze vývojová testovací složka. Nejde o instalaci Lazuria ani migraci.",
