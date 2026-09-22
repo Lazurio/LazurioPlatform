@@ -17,10 +17,13 @@ Dashboard and managed Machine hosting—are not required for a self-hosted Lazur
 Environment. Their private integration belongs to `HumanAndMachineEmpire`, not this
 public codebase.
 
-**Status: architecture and implementation preparation.** The small executable proof
-tests distribution boundaries. There is no supported installer, updater, live environment
-migration or production release here yet. Existing Lazurio installations remain on
-their current supported implementation.
+**Status: release candidates.** `install.sh` downloads a release from GitHub Releases
+over HTTPS and verifies its attestation when the GitHub CLI is available (otherwise it
+says so); the installed `lazurio` verifies the attestation of every later update itself,
+updates through one activation path, initializes or adopts a Lazurio Folder from the
+Machine handover with a workspace preset, and runs the Launchpad. Hosted Machines still run the legacy resident beside
+it until the hosted entry and content synchronization land; existing installations
+remain on their current implementation until then.
 
 - [Architecture and ownership](ARCHITECTURE.md)
 - [Decisions, alternatives and required amendments](docs/decisions.md)
