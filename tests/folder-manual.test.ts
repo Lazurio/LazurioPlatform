@@ -57,6 +57,15 @@ test("the manual is the same English text in both locales and names no legacy so
     });
     for (const path of outputPaths)
       expect(outputs[path]).not.toMatch(/HumanAndMachines\/Lazurio/);
+    // The PR lifecycle never prescribes GitHub's draft state for every
+    // repository: "Draft" is the editable work, the owning repository's rule
+    // decides the PR state, and a snapshot alone cannot reintroduce it.
+    const workingHere = outputs["manual/working-here.md"];
+    expect(workingHere).not.toContain("as a GitHub Draft PR");
+    expect(workingHere).not.toMatch(/open pull requests as/);
+    expect(workingHere).toContain("repository's own rule wins");
+    expect(workingHere).toContain("visible as an open pull request");
+    expect(workingHere).toContain("ready for review yourself");
   }
 });
 
