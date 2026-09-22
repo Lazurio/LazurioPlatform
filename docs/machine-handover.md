@@ -57,10 +57,15 @@ narrow Linux/remote/human pilot entrypoint.
 
 The handover has no selected-preset field and needs none. The
 [workspace preset](workspace-presets.md) is derived from its typed fields only:
-`personal-vm` → `hosted-personal`; `workspace-vm` with `owner.team` →
-`hosted-organization-team`; without → `hosted-organization-personal`. Never from the
-Machine name, the hostname or the operator account. `folder-init` records the derived
-preset, or an explicit `--preset` the handover allows, in the Environment
+`personal-vm` → `hosted-personal`; `workspace-vm` without `owner.team` →
+`hosted-organization-personal`. A `workspace-vm` handover **with** `owner.team` is
+ambiguous: an Organization may model one operator's VM as a Team named after them, so
+the Team says nothing about whether the Machine is assigned to one operator or
+shared, and Platform derives no preset from it. Never from the Machine name, the
+hostname, the Team name or the operator account. Machines will carry the assignment
+explicitly as `owner.assignment`; until the vendored schema has it, the Machines
+resident role passes the preset from the owner infrastructure. `folder-init` records
+the derived preset, or an explicit `--preset` the handover allows, in the Environment
 configuration together with the immutable **Machine binding** (kind, name, owner,
 team, tailnet node, host and the handover digest). Machines does not rewrite the
 identity; a Folder adopted from a different handover is refused, never rewritten.
@@ -78,6 +83,13 @@ Machines resident role calls after handover:
 lazurio machine folder-init
 ```
 
+For a handover that names a Team (`owner.team`), the resident role passes the preset
+from the owner infrastructure, because the handover does not decide it:
+
+```sh
+lazurio machine folder-init --preset <hosted-organization-personal|hosted-organization-team>
+```
+
 It reads the handover, derives the preset, adopts the Folder and prints one JSON
 object: `{"kind":"initialized","revision":1,"preset":{"name":…,"version":1,"selection":"derived"},"machineContextDigest":"<sha256>"}`
 on first use; `{"kind":"already-adopted","revision":<n>,"preset":{…},"machineContextDigest":…}`
@@ -85,7 +97,10 @@ on a re-run, which changes nothing; or exit status 2 with
 `{"kind":"blocked","reason":…,"entry":…,"next":…}` where `reason` is one of
 `folder-foreign-entry`, `folder-layout-missing`, `folder-personalspace-conflict`,
 `folder-state-unrecognized`, `folder-binding-changed`, `folder-directory-shared`,
-`preset-not-allowed` or a Machine context code. Optional `--preset <name>` picks another preset the handover
+`preset-not-allowed`, `preset-ambiguous` or a Machine context code. `preset-ambiguous`
+is the Team-bearing handover without `--preset` on a not yet adopted Folder:
+`{"kind":"blocked","reason":"preset-ambiguous","allowed":["hosted-organization-personal","hosted-organization-team"],"next":…}`;
+a re-run on an adopted Folder is never ambiguous. Optional `--preset <name>` picks another preset the handover
 allows (recorded as an explicit choice); optional `--locale`, `--detail` and
 `--coordination` override the preset's defaults and stay changeable in the Launchpad.
 `lazurio machine inspect` prints the validated handover and its digest.

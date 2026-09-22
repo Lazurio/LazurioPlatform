@@ -28,6 +28,21 @@ Two defects found on the way and fixed in the same PR, after this log was taken:
 2. An unknown option (`machine folder-init --json`) ended in the same generic
    message. It is now a usage error: the `machine` help on stderr and exit 2.
 
+**Found on the first real canary (2026-09-22, Spectoda VM `matej`).** The real
+handover of an individual work VM carried `owner.team: "matej"`, because that
+Organization models individual work VMs as a GitHub Team named after the operator.
+`folder-init` derived `hosted-organization-team` from the presence of the Team
+(scenario B above) and the generated `AGENTS.md` wrongly said the OS account is
+shared by a Team, and its Owner line named the Team. The presence of `owner.team`
+is therefore not a fact about assignment. Fixed after this log: a `workspace-vm`
+handover with `owner.team` derives no preset; `folder-init` without `--preset` ends
+`{"kind":"blocked","reason":"preset-ambiguous",…}` (exit 2) unless the Folder is
+already adopted, and with `--preset` records an explicit choice; the Owner line names
+the Team only under `hosted-organization-team`. Machines will carry an explicit
+`owner.assignment` that replaces the ambiguity. Scenario B and its "derived" selection
+are therefore superseded on this head; the canary VM itself was moved to
+`hosted-organization-personal` through the ordinary profile change (revision 2).
+
 Not proven by this run: a real Machines-delivered VM (the handovers were fixtures
 written by hand as root), a native Launchpad preset change, and the fixed reporting
 above on the VM (covered by unit tests on the head that fixes it).
