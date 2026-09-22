@@ -39,7 +39,7 @@ implemented by the document that records it.
    identity, content and the selected version**. VM restart, failed-update preservation
    and the repeat on a second approved VM from the 2026-09-16 note remain required
    evidence of this journey; the reordering does not drop them.
-9. **Team preset** with shared-use, conflict, attribution and revocation evidence
+9. **`hosted-organization-team` preset** with shared-use, conflict, attribution and revocation evidence
    ([workspace presets](workspace-presets.md)). Live Team-grant verification in the
    identity broker is an external dependency.
 
@@ -67,7 +67,7 @@ apply/restart or access mandate.
 | 1b — Distribution implementation | Accepted slice 1a contracts | Clean machine runs full installed CLI + Launchpad without source; the evidence list of the product update contract (attested, tampered, wrong-identity, below-floor and offline cases, the native activation journey, one real release candidate) and artifact secret scan |
 | 2 — Environment generation | Slice 1 and ownership/schema contract | Folder Factory produces only owned Lazurio Folder files through the shared CLI/Launchpad core; the shared core applies locally through CLI or Launchpad, starts full app; unknown/edited paths preserved; rollback drill |
 | 3 — Profile capability | Slice 2 and accepted behavior schema | CLI and Launchpad use the same profile use case; deterministic generation, stale revision refusal, session pin/restart and upgrade preservation |
-| 4 — Environment purposes | Slices 2–3 and the validated hosted presets | Private human, team, Buddy and AI Colleague acceptance with correct Principal or Team attribution, Owner, custody and unavailable-capability behavior |
+| 4 — Environment purposes | Slices 2–3 and the validated hosted presets (`hosted-personal`, `hosted-organization-personal`, `hosted-organization-team`) | Personal, Organization-personal, team and Buddy acceptance with correct Principal or Team attribution, Owner, custody and unavailable-capability behavior |
 | 5 — Migration rehearsal | Relevant slices 1–4, legacy compatibility and restore mapping | Faithful dirty legacy source-working fixtures plus legacy shared-workshop convergence to a private or team workspace prove preservation, interrupted recovery and no-op unknown state |
 | 6 — Opt-in cohorts | Qualified consumer slices; rehearsal and explicit migration approval for migrating cohorts | Small native cohort on each supported OS, user completion evidence, observation and recovery; halt on data loss/identity ambiguity |
 | 7 — General availability and retirement | Successful cohorts, public release approval | Published support matrix and release provenance; legacy install/update paths retired by declared criteria, backups retained by policy |
@@ -130,7 +130,7 @@ fixes continue with their owners; selectively port proven contracts with provena
 | Application lifetime (Linux; implemented 2026-09-19 for Launchpad restart, [native evidence](evidence/app-services-linux-arm64-2026-09-19.md); product activation, reboot persistence and `linux-x64` not yet exercised) | A started application survives a Launchpad restart and a product activation; Stop stops the service; identity and readiness come from the service manager; reboot persistence only when explicitly set; CLI and Launchpad agree | Saved PID treated as identity, foreign service or process adopted or signalled, port collision accepted, dependency preparation beneath a running application, implicit persistence after Open |
 | Content synchronization (accepted direction) | Root first, manifest re-read, declared children; absent destination materialized through a verified temporary sibling; existing checkout fast-forwarded to the inspected commit; siblings continue past one failure | Dirty or wrong-branch checkout stashed, switched or reset; occupied destination replaced; divergence merged; Production Space, Personalspace, worktree or repository database touched; product update cloning or stashing anything |
 | Hosted entry (accepted direction) | Authenticated browser reaches Launchpad and application hostnames; session revalidated at the configured auth endpoint; WebSocket reconnect re-enters admission | Forged identity headers honoured, unknown host served, cross-origin state change accepted, Account login treated as admission or repository access |
-| Workspace preset (accepted direction) | Immutable reference plus visible overrides survive upgrade; typed request with the expected revision is applied through the ordinary use case and reports the observed outcome | Unknown preset or version mutates; stale revision applied; remote intent overrides a concurrent local change; preset carries grants, tokens, mandates or analytics consent; preset derived from a name |
+| Workspace preset (local model implemented; typed request accepted direction) | Preset derived from the typed handover fields, confirmed or explicitly chosen within the allow-list; immutable Machine binding shown, never edited; existing Folder adopted without entering work directories; typed request with the expected revision is applied through the ordinary use case and reports the observed outcome | Unknown preset or version mutates; a personal VM takes an Organization preset or vice versa; stale revision applied; remote intent overrides a concurrent local change; preset carries grants, tokens, mandates or analytics consent; preset derived from a name, hostname or operator account; adoption lists, moves or deletes anything in `organizations/` or `personalspace/` |
 | Access | Live identity and exact repo operation attributable to the correct Principal, or on a team workspace to the Team through the brokered identity | Revoked membership or Team grant, wrong account, unattributed brokered change, personal credential on a team workspace, peer credential access fail closed |
 | Rollback | Exact old compatible product/profile with verified checkpoint and retained work | New schema/data or new user writes block blind downgrade and produce forward-repair plan |
 | Retirement | Old route/process/credential/profile inventory empty after accepted cutover | Recovery dependencies or unattributed drafts prevent deletion |
@@ -148,8 +148,8 @@ These are future acceptance scenarios, not completed tests or four template fork
 
 This matrix is the general-availability target. The
 [nearest-pilot sequence](#nearest-pilot-sequence) deliberately qualifies a narrower set
-first (`linux-x64`, `darwin-arm64`, per-user install, one private hosted preset, then
-the team preset). That narrowing orders the work; it does not retire a cell, a journey
+first (`linux-x64`, `darwin-arm64`, per-user install, `hosted-personal` and
+`hosted-organization-personal`, then `hosted-organization-team`). That narrowing orders the work; it does not retire a cell, a journey
 or a language from this matrix, and no canary result may be reported as matrix evidence
 beyond the cells it actually exercised.
 

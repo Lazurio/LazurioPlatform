@@ -342,7 +342,8 @@ source commits. Repeat qualification after the integrated source is committed/re
 The presets in this section are **application presets**: versioned inputs that produce
 a conforming starting application inside an Organization. They are a different concept
 from [workspace presets](workspace-presets.md), which configure a Lazurio Environment
-(`hosted-private`, `hosted-team`). Neither kind grants access.
+(`hosted-personal`, `hosted-organization-personal`, `hosted-organization-team`).
+Neither kind grants access.
 
 Keep three responsibilities separate: the Platform's shared operational
 install/lifecycle/Doctor contract, each application's concrete requirements, and

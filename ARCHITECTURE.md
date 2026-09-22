@@ -414,8 +414,9 @@ several Principals connect: it holds no personal credentials and no Personalspac
 provider identity is the brokered platform App identity, its changes go through pull
 requests, and attribution and revocation run through that brokered identity. A
 personal environment is never shared ad hoc. The kinds are selected by the
-[workspace presets](docs/workspace-presets.md) `hosted-private` and `hosted-team`,
-which configure the Environment and grant nothing. Buddy
+[workspace presets](docs/workspace-presets.md) `hosted-personal`,
+`hosted-organization-personal` and `hosted-organization-team`, derived from the
+Machine handover; they configure the Environment and grant nothing. Buddy
 belongs to its human's private boundary and is not a new Principal. An AI Colleague
 has its own seat, identity, dedicated environment and one human custodian; custody
 does not create access to another Principal's Personalspace. Organization-owned

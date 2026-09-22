@@ -16,8 +16,10 @@ contract for product update, before any distribution work, and `docs/release-cyc
 for the build, qualification and promotion lifecycle and the two distinct test paths, `docs/profile-evidence.md` for optional measurement
 and `docs/hosted-assistance.md` before any hosted advice/execution work. Read
 `docs/content-sync.md`, `docs/workspace-presets.md` and `docs/hosted-entry.md` before
-work on repository synchronization, presets or hosted entry; they record accepted
-direction, not implemented behavior. This foundation is a proposal and bounded
+work on repository synchronization, presets or hosted entry; content sync and hosted
+entry record accepted direction, not implemented behavior, and workspace presets
+record the implemented local preset model next to the accepted typed-request
+direction. This foundation is a proposal and bounded
 proof, not authorization to migrate an installation, transfer a repository, publish
 a release or change access. Distinguish proposed contracts from executable evidence.
 
