@@ -484,6 +484,25 @@ its preset). Machines will add an explicit `owner.assignment`
 single source of the assignment; no heuristic and no local schema change stand in for
 it. The rendered Owner line names the Team only under `hosted-organization-team`.
 
+**Amendment 2026-09-22 (Machines v0.12.61).** The vendored handover schema is
+re-pinned to Machines v0.12.61 (commit `cb305ce`), which carries `owner.assignment`
+on the Organization branch and `relationships` on both. `owner.assignment` is now
+**the** selector between the two Organization presets: `operator` →
+`hosted-organization-personal`, `team` → `hosted-organization-team`, regardless of
+`owner.team`. The ambiguous case remains only for handovers without it (`workspace-vm`
+with `owner.team`); `workspace-vm` without either still derives
+`hosted-organization-personal`, so a v0.12.59 handover reads and derives exactly as
+before. Both fields are recorded in the immutable Machine binding exactly as written
+(absent stays absent) and rendered: the assignment as one line in `AGENTS.md` and
+`manual/this-machine.md` and in the Launchpad's "This Machine", the relationships as
+the manual's `Relationships` section (one line per peer, with the sentence that
+Lazurio enforces none of it and Headscale does), a compact list in `AGENTS.md` and
+the Launchpad, nothing when absent. The relationships never take part in derivation,
+and Platform derives no access, no reachability and no heuristic from either field.
+The three preset names `hosted-personal` / `hosted-organization-personal` /
+`hosted-organization-team` are final; `hosted-private` / `hosted-team` have no
+compatibility path.
+
 A user-facing "Machine profile" choice has two effects with two owners: infrastructure
 custody and topology belong to the hosting engine, Environment configuration to
 Platform. A managed Dashboard may present one choice and dispatch typed,
