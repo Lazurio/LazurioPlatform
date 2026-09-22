@@ -18,7 +18,11 @@ import {
   requestApplication,
 } from "./launchpad/application-client";
 import { startLaunchpad } from "./launchpad/server";
-import { machineHelp, runMachineCommand } from "./machine/cli";
+import {
+  MachineUsageError,
+  machineHelp,
+  runMachineCommand,
+} from "./machine/cli";
 import { createApplicationCoordination } from "./modules/application-coordination";
 import {
   type ApplicationRunner,
@@ -140,9 +144,17 @@ export async function runCli(args: string[]): Promise<number> {
 
 async function runOtherCommand(args: string[]): Promise<number> {
   if (args[0] === "machine") {
-    const { code, result } = await runMachineCommand(args.slice(1));
-    console.log(JSON.stringify(result));
-    return code;
+    try {
+      const { code, result } = await runMachineCommand(args.slice(1));
+      console.log(JSON.stringify(result));
+      return code;
+    } catch (error) {
+      // A wrong invocation is a usage error with the help text, not a failed
+      // Folder operation; nothing was read or written.
+      if (!(error instanceof MachineUsageError)) throw error;
+      console.error(`${error.message}\n${machineHelp}`);
+      return 2;
+    }
   }
   if (args[0] === "legacy-paths-inspect") {
     const { values, tokens } = parseArgs({

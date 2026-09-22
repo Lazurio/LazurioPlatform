@@ -12,7 +12,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runMachineCommand } from "../src/machine/cli";
+import { runCli } from "../src/cli";
+import { MachineUsageError, runMachineCommand } from "../src/machine/cli";
 import {
   bindMachineOperator,
   parseMachineContext,
@@ -186,7 +187,7 @@ test("runtime operator binding is independent of schema validity", () => {
     "machine-operator-mismatch",
   );
 });
-test("machine CLI refuses overrides, unknown presets and duplicate or invalid choices before filesystem access", async () => {
+test("machine CLI refuses overrides, unknown presets and duplicate or invalid choices as usage errors before filesystem access", async () => {
   for (const args of [
     ["inspect", "--file", "/tmp/identity"],
     ["inspect", "--locale", "cs"],
@@ -195,9 +196,38 @@ test("machine CLI refuses overrides, unknown presets and duplicate or invalid ch
     ["folder-init", "--preset", "hosted-private"],
     ["folder-init", "--preset", "hosted-team"],
     ["folder-init", "--folder", "/tmp/target"],
+    ["folder-init", "--json"],
     ["folder-init", "extra"],
+    ["reset"],
   ])
-    await expect(runMachineCommand(args)).rejects.toThrow();
+    await expect(runMachineCommand(args)).rejects.toBeInstanceOf(
+      MachineUsageError,
+    );
+});
+test("a wrong machine invocation prints the help on stderr with exit 2, not a failed Folder operation", async () => {
+  const child = Bun.spawn(
+    [process.execPath, "src/cli.ts", "machine", "folder-init", "--json"],
+    { env: {}, stdout: "pipe", stderr: "pipe" },
+  );
+  const [code, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect(code).toBe(2);
+  expect(stdout).toBe("");
+  expect(stderr).toContain("machine folder-init [--preset <name>]");
+  expect(stderr).not.toContain("Folder operation failed");
+  // The in-process entry agrees and stays typed.
+  const original = console.error;
+  const lines: string[] = [];
+  console.error = (line: string) => void lines.push(line);
+  try {
+    expect(await runCli(["machine", "inspect", "--json"])).toBe(2);
+  } finally {
+    console.error = original;
+  }
+  expect(lines[0]).toContain("machine inspect");
 });
 test.skipIf(process.platform === "linux")(
   "production consumer does not invent a context on another OS",

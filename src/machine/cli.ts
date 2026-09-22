@@ -42,35 +42,76 @@ const choices = {
   coordination: ["direct", "coordinator"],
 } as const;
 
-export async function runMachineCommand(args: string[]) {
+// A wrong invocation, before any filesystem access: the CLI prints the help
+// text and exits 2. It is not a failed Folder operation.
+export class MachineUsageError extends Error {}
+
+const machineOptions = {
+  preset: { type: "string" },
+  locale: { type: "string" },
+  detail: { type: "string" },
+  coordination: { type: "string" },
+} as const;
+
+function parseMachineTokens(args: string[]) {
+  try {
+    return parseArgs({
+      args,
+      strict: true,
+      tokens: true,
+      options: machineOptions,
+    });
+  } catch {
+    throw new MachineUsageError("Unknown or malformed Machine option");
+  }
+}
+
+function parseMachineArguments(args: string[]) {
   const [command, ...options] = args;
   if (command !== "inspect" && command !== "folder-init")
-    throw new Error("Unknown Machine command");
-  const { values, tokens } = parseArgs({
-    args: options,
-    strict: true,
-    tokens: true,
-    options: {
-      preset: { type: "string" },
-      locale: { type: "string" },
-      detail: { type: "string" },
-      coordination: { type: "string" },
-    },
-  });
+    throw new MachineUsageError("Unknown Machine command");
+  const parsed = parseMachineTokens(options);
+  const { values, tokens } = parsed;
   if (
     (command === "inspect" && tokens.length !== 0) ||
     tokens.some((token) => token.kind !== "option") ||
     new Set(tokens.map((token) => (token.kind === "option" ? token.name : "")))
       .size !== tokens.length
   )
-    throw new Error("Explicit nonduplicate Machine options required");
-  for (const [name, allowed] of Object.entries(choices)) {
-    const value = values[name as keyof typeof choices];
-    if (value !== undefined && !(allowed as readonly string[]).includes(value))
-      throw new Error(`Invalid Machine choice: ${name}`);
+    throw new MachineUsageError(
+      "Explicit nonduplicate Machine options required",
+    );
+  const value = (name: keyof typeof choices) => {
+    const chosen = values[name];
+    if (
+      chosen !== undefined &&
+      !(choices[name] as readonly string[]).includes(chosen)
+    )
+      throw new MachineUsageError(`Invalid Machine choice: ${name}`);
+    return chosen;
+  };
+  let preset: ReturnType<typeof parsePresetName> | undefined;
+  try {
+    preset =
+      values.preset === undefined ? undefined : parsePresetName(values.preset);
+  } catch {
+    throw new MachineUsageError("Unknown workspace preset");
   }
-  const requestedPreset =
-    values.preset === undefined ? undefined : parsePresetName(values.preset);
+  return {
+    command,
+    preset,
+    locale: value("locale") as "cs" | "en" | undefined,
+    detail: value("detail") as "concise" | "technical" | undefined,
+    coordination: value("coordination") as "direct" | "coordinator" | undefined,
+  };
+}
+
+export async function runMachineCommand(args: string[]) {
+  const {
+    command,
+    preset: requestedPreset,
+    ...values
+  } = parseMachineArguments(args);
   try {
     const observed = await readMachineContext();
     if (command === "inspect")
@@ -96,15 +137,11 @@ export async function runMachineCommand(args: string[]) {
         },
       };
     const profile = presetProfile(preset, "linux", {
-      ...(values.locale === undefined
-        ? {}
-        : { locale: values.locale as "cs" | "en" }),
-      ...(values.detail === undefined
-        ? {}
-        : { detail: values.detail as "concise" | "technical" }),
+      ...(values.locale === undefined ? {} : { locale: values.locale }),
+      ...(values.detail === undefined ? {} : { detail: values.detail }),
       ...(values.coordination === undefined
         ? {}
-        : { coordination: values.coordination as "direct" | "coordinator" }),
+        : { coordination: values.coordination }),
     });
     const folder = bindMachineOperator(
       observed.context,
@@ -148,6 +185,8 @@ export function describeFolderAdoption(error: FolderAdoptionError) {
       "Complete a recognized initialization with folder-resume or diagnose the state; nothing is reset.",
     "binding-changed":
       "The Folder was adopted from a different handover; verify the Machine identity with the Machines operator.",
+    "directory-shared":
+      "chmod g-w,o-w this path under the Lazurio Folder (Ubuntu's default umask 0002 makes new directories group-writable); nothing was changed.",
   } as const;
   return {
     kind: "blocked" as const,

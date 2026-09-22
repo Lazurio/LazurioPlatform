@@ -174,5 +174,7 @@ binding carries one.
 Unit tests prove derivation, the allow-list, whole-composition validation, adoption
 (non-empty work directories, legacy files, foreign entries, idempotence, the
 Personalspace conflict), conformance of both handover branches, the rendered document
-per preset and language, and the Launchpad flow. They do not prove a native run on a
-real personal or work VM.
+per preset and language, and the Launchpad flow. A native run of `folder-init` on a
+fresh Ubuntu 24.04 ARM64 VM with fixture handovers of all three kinds is recorded in
+[evidence](evidence/presets-linux-arm64-2026-09-22.md); a real Machines-delivered VM
+and a native Launchpad preset change are not proven.

@@ -84,11 +84,23 @@ on first use; `{"kind":"already-adopted","revision":<n>,"preset":{…},"machineC
 on a re-run, which changes nothing; or exit status 2 with
 `{"kind":"blocked","reason":…,"entry":…,"next":…}` where `reason` is one of
 `folder-foreign-entry`, `folder-layout-missing`, `folder-personalspace-conflict`,
-`folder-state-unrecognized`, `folder-binding-changed`, `preset-not-allowed` or a
-Machine context code. Optional `--preset <name>` picks another preset the handover
+`folder-state-unrecognized`, `folder-binding-changed`, `folder-directory-shared`,
+`preset-not-allowed` or a Machine context code. Optional `--preset <name>` picks another preset the handover
 allows (recorded as an explicit choice); optional `--locale`, `--detail` and
 `--coordination` override the preset's defaults and stay changeable in the Launchpad.
 `lazurio machine inspect` prints the validated handover and its digest.
+
+A wrong invocation (unknown option, duplicate or invalid choice, unknown preset)
+prints the `machine` help on stderr and exits 2 before any filesystem access.
+
+**Precondition for the Machines resident role:** `~/Lazurio`, `organizations/` and
+`personalspace/` must be owned by the operator and not group- or world-writable
+(create them with mode `0755` or `0700`, as `workspace_baseline` does). Ubuntu's
+default umask `0002` makes a directory created by hand `0775`; `folder-init` then
+refuses before any mutation with `folder-directory-shared` naming the entry
+(`.`, `organizations` or `personalspace`), and `chmod g-w,o-w` on that path
+fixes it. Found on the native run of 2026-09-22
+([evidence](evidence/presets-linux-arm64-2026-09-22.md)).
 
 It binds the declared user/home to the actual UID's Linux NSS record (not
 `$USER`/`$HOME`) and requires `operator.lazurio_root` to be that user's
@@ -175,9 +187,12 @@ it does not qualify either architecture. See [Bun's executable targets](https://
 Unit fixtures prove parsing/refusal of both handover branches, preset derivation,
 adoption (used work directories, legacy files, foreign entries, idempotence, the
 Personalspace conflict), directory preservation and recognized interruption
-completion. They do not prove actual Machines delivery, a native run of
-`folder-init` on a real personal or work VM, official release hosting and
-attestation, native Linux x64 execution, Organization/module authorization, gateway
-operation, agent work, VM restart or the second-VM repeat. Record those separately
+completion. A native run of `folder-init` with the compiled CLI on a fresh Ubuntu
+24.04 ARM64 VM against root-issued fixture handovers of all three kinds is recorded
+in [evidence](evidence/presets-linux-arm64-2026-09-22.md). They do not prove actual
+Machines delivery, a real Machines-delivered VM, a native Launchpad preset change,
+official release hosting and attestation, native Linux x64 execution,
+Organization/module authorization, gateway operation, agent work, VM restart or the
+second-VM repeat. Record those separately
 at exact source/artifact revisions. The real pilot must exercise the installed
 binary and root-issued file under the non-root operator account.

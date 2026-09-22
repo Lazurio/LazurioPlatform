@@ -32,7 +32,8 @@ export class FolderAdoptionError extends Error {
       | "layout-missing"
       | "personalspace-conflict"
       | "state-unrecognized"
-      | "binding-changed",
+      | "binding-changed"
+      | "directory-shared",
     public readonly entry: string,
   ) {
     super(`${code}: ${entry}`);
@@ -83,21 +84,35 @@ async function exists(path: string) {
   }
 }
 
-async function ownedIdentity(path: string): Promise<Identity> {
-  const stat = await inspectOwnedDirectory(path);
-  return { dev: String(stat.dev), ino: String(stat.ino) };
+// A caller-owned directory that is group- or world-writable (Ubuntu's default
+// umask 0002 creates such directories) is refused by name: the ownership rule
+// stands, the operator learns which path to fix. Symlinks and foreign owners
+// keep the generic refusal of inspectOwnedDirectory.
+async function ownedIdentity(path: string, entry: string): Promise<Identity> {
+  const stat = await lstat(path);
+  if (
+    stat.isDirectory() &&
+    stat.uid === process.getuid?.() &&
+    (stat.mode & 0o022) !== 0
+  )
+    throw new FolderAdoptionError("directory-shared", entry);
+  const owned = await inspectOwnedDirectory(path);
+  return { dev: String(owned.dev), ino: String(owned.ino) };
 }
 
 // Existence and identity only; the work directories are never listed.
 export async function inspectHandoverLayout(
   folder: string,
 ): Promise<HandoverLayout> {
-  const root = await ownedIdentity(folder);
+  const root = await ownedIdentity(folder, ".");
   if (!(await exists(join(folder, "organizations"))))
     throw new FolderAdoptionError("layout-missing", "organizations");
-  const organizations = await ownedIdentity(join(folder, "organizations"));
+  const organizations = await ownedIdentity(
+    join(folder, "organizations"),
+    "organizations",
+  );
   const personalspace = (await exists(join(folder, "personalspace")))
-    ? await ownedIdentity(join(folder, "personalspace"))
+    ? await ownedIdentity(join(folder, "personalspace"), "personalspace")
     : undefined;
   if (
     organizations.dev !== root.dev ||

@@ -352,22 +352,55 @@ for (const stop of [
   );
 }
 
-for (const scenario of ["symlink", "writable"] as const)
+test.skipIf(process.platform === "win32")(
+  "handover refuses a symlinked work directory before creating state",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await rename(join(folder, "organizations"), join(parent, "saved"));
+      await symlink(join(parent, "saved"), join(folder, "organizations"));
+      const before = await readdir(folder);
+      await expect(
+        initializeHandoverFolder(folder, sources.personal),
+      ).rejects.toThrow();
+      expect(await readdir(folder)).toEqual(before);
+      await expect(lstat(join(folder, ".lazurio"))).rejects.toThrow();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Ubuntu's default umask 0002 leaves ~/Lazurio and its children 0775.
+for (const [entry, mode] of [
+  [".", 0o775],
+  ["organizations", 0o775],
+  ["personalspace", 0o777],
+] as const)
   test.skipIf(process.platform === "win32")(
-    `handover refuses a ${scenario} work directory before creating state`,
+    `a group- or world-writable ${entry} is refused by name before creating state`,
     async () => {
       const { parent, folder } = await setup();
       try {
-        if (scenario === "symlink") {
-          await rename(join(folder, "organizations"), join(parent, "saved"));
-          await symlink(join(parent, "saved"), join(folder, "organizations"));
-        } else await chmod(join(folder, "organizations"), 0o777);
-        const before = await readdir(folder);
-        await expect(
-          initializeHandoverFolder(folder, sources.personal),
-        ).rejects.toThrow();
-        expect(await readdir(folder)).toEqual(before);
-        await expect(lstat(join(folder, ".lazurio"))).rejects.toThrow();
+        await chmod(join(folder, entry), mode);
+        const before = await snapshot(folder);
+        expect(
+          await refusal(initializeHandoverFolder(folder, sources.personal)),
+        ).toEqual({ code: "directory-shared", entry });
+        expect(await snapshot(folder)).toEqual(before);
+        expect(
+          describeFolderAdoption(
+            new FolderAdoptionError("directory-shared", entry),
+          ),
+        ).toMatchObject({
+          kind: "blocked",
+          reason: "folder-directory-shared",
+          entry,
+        });
+        await chmod(join(folder, entry), 0o700);
+        expect(
+          await initializeHandoverFolder(folder, sources.personal),
+        ).toEqual(initialized("personal"));
       } finally {
         await rm(parent, { recursive: true, force: true });
       }
