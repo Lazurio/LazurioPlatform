@@ -548,7 +548,6 @@ test("supervised: the action is exactly systemd-run of the selector, and the pil
     "--user",
     "--unit",
     "lazurio-update",
-    "--collect=no",
     "--quiet",
     "--no-ask-password",
     "--",

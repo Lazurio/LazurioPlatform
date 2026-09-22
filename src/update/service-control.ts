@@ -90,7 +90,7 @@ async function serviceOutput(
 }
 
 /** What the service manager holds under the update unit's name. The unit is
- * started with `--collect=no`, so a failed run stays visible as `failed` until
+ * started without `--collect`, so a failed run stays visible as `failed` until
  * the next start resets it; a finished one is gone. Null: the manager cannot
  * be asked.
  */

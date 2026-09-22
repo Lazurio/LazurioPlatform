@@ -53,8 +53,9 @@ export type ActivatorInput = Readonly<{
   run?: ProcessRunner | undefined;
 }>;
 
-/** Supervised: `systemd-run --user --unit lazurio-update --collect=no …`. A
- * failed run stays as a failed unit, which is how the pill learns of it; the
+/** Supervised: `systemd-run --user --unit lazurio-update …` without `--collect`
+ * (systemd's `--collect` takes no argument; the default keeps a failed unit).
+ * A failed run stays as a failed unit, which is how the pill learns of it; the
  * next start resets that record first, so the name is free again.
  */
 export function systemdActivator(input: ActivatorInput): Activator {
@@ -75,7 +76,6 @@ export function systemdActivator(input: ActivatorInput): Activator {
         "--user",
         "--unit",
         unitName,
-        "--collect=no",
         "--quiet",
         "--no-ask-password",
         "--",
