@@ -20,7 +20,10 @@ import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
-import { describeFolderAdoption } from "../src/machine/cli";
+import {
+  describeFolderAdoption,
+  initializeMachineFolder,
+} from "../src/machine/cli";
 import { bindings } from "./fixtures/machine-bindings";
 
 const os = executionOs(process.platform);
@@ -42,15 +45,22 @@ const sources = {
     profile: presetProfile("hosted-organization-team", os, choices),
   },
 } as const;
+// A Team-bearing handover derives no preset, so its preset is always explicit.
 const initialized = (name: keyof typeof sources) => ({
   kind: "initialized" as const,
   revision: 1,
   preset: {
     name: sources[name].preset,
     version: 1 as const,
-    selection: "derived" as const,
+    selection: name === "team" ? ("explicit" as const) : ("derived" as const),
   },
 });
+const noChoices = {
+  preset: undefined,
+  locale: undefined,
+  detail: undefined,
+  coordination: undefined,
+} as const;
 const legacy = ["launchpad.gen3.json", "launchpad.gen3.local.json"];
 
 // A Folder as Machines delivers it and as real Machines already have it:
@@ -465,3 +475,99 @@ test("the machine CLI reports an adoption refusal by reason and entry", () => {
     ).next,
   ).toContain("nothing is deleted");
 });
+
+test.skipIf(process.platform === "win32")(
+  "folder-init never guesses on a Team-bearing handover: blocked without --preset, explicit with it, and a re-run keeps the adopted preset",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      const before = await snapshot(folder);
+      const blocked = await initializeMachineFolder(
+        folder,
+        bindings.team,
+        noChoices,
+      );
+      expect(JSON.stringify(blocked.result)).toBe(
+        JSON.stringify({
+          kind: "blocked",
+          reason: "preset-ambiguous",
+          allowed: ["hosted-organization-personal", "hosted-organization-team"],
+          next: "Pass --preset: this handover names a Team but not whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+        }),
+      );
+      expect(blocked.code).toBe(2);
+      expect(
+        await initializeMachineFolder(folder, bindings.team, {
+          ...noChoices,
+          preset: "hosted-personal",
+        }),
+      ).toEqual({
+        code: 2,
+        result: {
+          kind: "blocked",
+          reason: "preset-not-allowed",
+          derived: null,
+          allowed: ["hosted-organization-personal", "hosted-organization-team"],
+          next: "Choose a preset the handover allows; this handover derives none.",
+        },
+      });
+      expect(await snapshot(folder)).toEqual(before);
+      const explicit = {
+        name: "hosted-organization-personal",
+        version: 1,
+        selection: "explicit",
+      } as const;
+      expect(
+        await initializeMachineFolder(folder, bindings.team, {
+          ...noChoices,
+          preset: "hosted-organization-personal",
+          locale: "cs",
+        }),
+      ).toEqual({
+        code: 0,
+        result: { kind: "initialized", revision: 1, preset: explicit },
+      });
+      const document = await readFile(join(folder, "AGENTS.md"), "utf8");
+      expect(document).toContain("hosted-organization-personal");
+      expect(document).not.toContain("sdílený");
+      // An adopted Folder already has its preset: the re-run without --preset
+      // is not ambiguous, and a different --preset does not rewrite it.
+      for (const preset of [undefined, "hosted-organization-team"] as const)
+        expect(
+          await initializeMachineFolder(folder, bindings.team, {
+            ...noChoices,
+            preset,
+          }),
+        ).toEqual({
+          code: 0,
+          result: { kind: "already-adopted", revision: 1, preset: explicit },
+        });
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(document);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "folder-init still derives the preset when the handover decides it",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      expect(
+        await initializeMachineFolder(folder, bindings.organization, noChoices),
+      ).toEqual({
+        code: 0,
+        result: initialized("organization"),
+      });
+      expect(
+        await initializeMachineFolder(folder, bindings.organization, noChoices),
+      ).toEqual({
+        code: 0,
+        result: { ...initialized("organization"), kind: "already-adopted" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

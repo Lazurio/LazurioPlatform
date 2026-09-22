@@ -237,16 +237,16 @@ async function runOtherCommand(args: string[]): Promise<number> {
       : 2;
   }
   if (args.length === 1 && (args[0] === "--help" || args[0] === "help")) {
-    console.log(`Lazurio development CLI — Folder profiles
+    console.log(`Lazurio — Folder profiles
 
-folder-preview --folder <absolute canonical fixture directory>
+folder-preview --folder <absolute Folder directory>
   --access <local|remote> --purpose <human|buddy|ai_colleague>
   --locale <cs|en> --detail <concise|technical>
   --coordination <direct|coordinator>
 
 All five choices are required. OS is detected on the execution Machine.
 Alternatively supply --profile <JSON> instead of the five profile choices.
-Optional --previous-digest <sha256> is development inventory input, not proof of ownership.
+Optional --previous-digest <sha256> is inventory input, not proof of ownership.
 The directory must already exist and be caller-owned, non-shared and stable.
 No files are written by folder-preview. No command installs or migrates Lazurio.
 profile-preview uses the same profile choices and --folder, plus required
@@ -256,23 +256,24 @@ Both profile commands accept optional --preset <name> to change the workspace pr
 within what the recorded Machine handover allows; omitted keeps the current preset.
 profile-update takes the same inputs as profile-preview and APPLIES the change:
 it replaces owned instructions/preferences/manifest and archives the transaction.
-Use only an explicitly prepared development fixture, not your daily Lazurio.
+On an installed Machine the Folder is the operator's ~/Lazurio; the change is applied
+only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
 --previous-digest is not accepted by either profile command.
-profile-resume --folder <fixture> --target-revision <integer >= 2>
+profile-resume --folder <Folder> --target-revision <integer >= 2>
 resumes and finalizes an existing prepared update, or verifies its completed archive.
 Target revision is the NEW revision, not the old expected revision of profile-update.
 It accepts no profile choices and never reclaims a stale lock or damaged journal.
 Exit status: 0 completed/unchanged/preview available, 2 blocked plan, 1 operation failure.
 folder-init uses the same profile choices with an ABSENT canonical --folder path.
-It creates a new development Folder at revision 1; no revision/digest options are accepted.
-EXPERIMENTAL: failed initialization is retained, never automatically retried.
-folder-resume --folder <fixture> explicitly completes a recognized initialization.
+It creates a new Folder at revision 1; no revision/digest options are accepted.
+A failed initialization is retained for folder-resume, never automatically retried.
+folder-resume --folder <Folder> explicitly completes a recognized initialization.
 It accepts no other options, never overwrites edits and cannot reclaim stale locks.
 Missing/damaged journals and partial file writes require separate repair.
-Never use a daily working path. It does not install software or migrate existing data.
-launchpad --folder <initialized fixture> starts the local development profile panel.
-Optional --organization-directory <permitted canonical Organization fixture> enables
+It does not install software or migrate existing data.
+launchpad --folder <initialized Folder> starts the Launchpad (profile panel, update pill).
+Optional --organization-directory <canonical Organization directory> enables
 read-only application discovery in the panel; it does not configure launch authority.
 Additionally --bun-executable <absolute trusted Bun> enables local module operations
 for that explicitly selected Organization. Module check/prepare scripts execute as
@@ -291,7 +292,7 @@ Open its private session URL from this terminal; do not share the URL/token.
 The panel uses the same preview/update core, not a separate writer or full app launcher.
 app-request reads one JSON object from stdin: sessionUrl, operation and selection.
 Operations: prepare/start/status/open/stop; selection: company/module/package.
-It contacts an already running, explicitly configured development Launchpad session;
+It contacts an already running, explicitly configured Launchpad session;
 it does not discover or start a server or configure app bindings. Explicit prepare
 requires a configured module preparation adapter and may change its dependencies.
 The session URL is private. Supply it through protected stdin, not shell history.
@@ -301,17 +302,17 @@ through the same core, runner and coordination lock. Where applications are
 session-scoped it answers launchpad-required; it never starts or prepares anything.
 open returns the execution Machine's local URL; it does not launch a browser or tunnel.
 Native Windows filesystem inspection is not yet qualified.`);
-    console.log(`legacy-paths-inspect --home <absolute canonical owned home fixture>
+    console.log(`legacy-paths-inspect --home <absolute owned home directory>
 Read-only macOS inventory of Lazurio, Conglomerate and Conglomerate_GEN3 paths.
 No implicit home discovery, content inspection, locks, moves or migration approval.
 Exit 0 means observations available, NOT that migration is safe; 2 means blocked.
-organization-inspect --directory <permitted canonical Organization fixture>
+organization-inspect --directory <canonical Organization directory>
 Read declared workspace applications without executing scripts or querying GitHub.
 Requires canonical Organization and module inventory documents; no GEN3 fallback.
 Output is local declaration evidence, not access, readiness or permission to launch.
 Per-module conflicts remain explicit even when other modules are observed.
-organization-conversion-preview --directory <permitted legacy Organization fixture>
-Experimental: canonical Organization adoption still requires its owning decision.
+organization-conversion-preview --directory <legacy Organization directory>
+Preview only: canonical Organization adoption is decided upstream (decision 0145).
 Reads legacy declarations and inventory; outputs a lossless canonical JSON draft only.
 Refuses an occupied canonical target, conflicting declarations or observed drift.
 No files, locks, provider requests or applications are created. Output may contain
@@ -588,7 +589,7 @@ if (import.meta.main) {
       );
     } else
       console.error(
-        "Folder operation failed. State may require recovery; no automatic retry or cleanup was performed. Use a caller-owned stable canonical development fixture, valid command/profile and required access. Symlink paths and hostile concurrent changes are unsupported.",
+        "Folder operation failed. State may require recovery; no automatic retry or cleanup was performed. Use an absolute, caller-owned and non-shared Folder path, a valid command and profile, and the required access. Symlink paths and hostile concurrent changes are unsupported.",
       );
     process.exitCode = 1;
   }
