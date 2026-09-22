@@ -605,6 +605,17 @@ from itself to the Platform before it is retired for those Machines.
 | Generate everything from the product (selected) | One authority, versioned with the release, reviewed as code, rendered per preset from the same inputs as `AGENTS.md`; the text can only change through a product release |
 | Mixed: product renders the frame, the root repository supplies the prose | Two sources for one document, drift between them invisible to the agent; rejected |
 
+**Principal's decision 2026-09-22: the pull-request lifecycle for agents.** From the
+first push the work is visible as a GitHub Draft PR while it is in progress; once it is
+finished and verified, the agent marks it Ready for review themselves (Ready is not
+Publication; finished work never stays a Draft); and the agent assigns the pull request
+(the GitHub assignee, plus the review request) to the GitHub user whose verification
+they are asking for, so that person knows the work is theirs to check — the assignee is
+the owner of the next step. `manual/working-here.md` states this rule directly. It
+supersedes any repository `AGENTS.md` that requires review-ready pull requests from the
+first push; the Dashboard's `AGENTS.md` will be aligned in a follow-up in that
+repository.
+
 **Deferred, deliberately not built.** An operator `notes/` area for hand-written
 notes (today an edited generated file is refused and there is no restore command; the
 troubleshooting document says so). Automatic re-rendering after a product update: a

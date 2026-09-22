@@ -57,15 +57,24 @@ test("the manual is the same English text in both locales and names no legacy so
     });
     for (const path of outputPaths)
       expect(outputs[path]).not.toMatch(/HumanAndMachines\/Lazurio/);
-    // The PR lifecycle never prescribes GitHub's draft state for every
-    // repository: "Draft" is the editable work, the owning repository's rule
-    // decides the PR state, and a snapshot alone cannot reintroduce it.
+    // The pull-request lifecycle the Principal decided on 2026-09-22 (F14):
+    // Draft PR while in progress, Ready for review when finished and verified,
+    // and the PR assigned to the user whose verification is asked for. A
+    // snapshot alone cannot drop these sentences.
     const workingHere = outputs["manual/working-here.md"];
-    expect(workingHere).not.toContain("as a GitHub Draft PR");
-    expect(workingHere).not.toMatch(/open pull requests as/);
-    expect(workingHere).toContain("repository's own rule wins");
-    expect(workingHere).toContain("visible as an open pull request");
-    expect(workingHere).toContain("ready for review yourself");
+    expect(workingHere).toContain(
+      "from the first push the work is visible as a GitHub Draft PR while it is in progress",
+    );
+    expect(workingHere).toContain(
+      "you mark the pull request Ready for review yourself",
+    );
+    expect(workingHere).toContain(
+      "assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for",
+    );
+    expect(workingHere).toContain(
+      "The assignee is the owner of the next step.",
+    );
+    expect(workingHere).toContain("Finished work never stays a Draft");
   }
 });
 

@@ -537,7 +537,7 @@ exports[`rendered manual/working-here.md snapshot 1`] = `
 - **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Steward or an Admin) triggers it, and for you the same explicit instruction applies.
 
 ## Without asking you may
-Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local: from the first push it is visible as an open pull request. The product concept “Draft” is the editable work itself, not GitHub's draft state. GitHub's draft-PR state may be used while work is in progress only where the owning repository's \`AGENTS.md\` allows it; some repositories require a review-ready pull request from the first push, and the repository's own rule wins. Once the work is finished and verified you mark the pull request ready for review yourself. Ready is not Publication; it only says “ready to be checked”. Finished work never stays a Draft, and a remote branch without a pull request is not a handoff.
+Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local. The pull-request lifecycle for agents (the Principal's decision of 2026-09-22): from the first push the work is visible as a GitHub Draft PR while it is in progress; once it is finished and verified, you mark the pull request Ready for review yourself; and you assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for, so that person knows the work is theirs to check. The assignee is the owner of the next step. Ready is not Publication; it only says “ready to be checked”. Finished work never stays a Draft, and a remote branch without a pull request is not a handoff.
 
 ## Worktree discipline (decision 0049)
 - The primary checkout stays on \`main\`. Its tracked content is not changed there and no feature branch is created there.
@@ -569,7 +569,7 @@ Shall I Publish the changes in your name? Or shall I ask another Kolega to revie
 In Czech the closing pair reads: „Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Principal.
 
 - On an explicit “Publish” in the thread: merge with a method the repository allows, update \`main\` and clean up the worktree.
-- On a handover: request review from the eligible Principal they chose, assign them the PR and hand over the responsibility with an @mention. A reviewer request means “check”; the assignee owns the next work and edits the PR branch directly. Assignment creates no rights and replaces no Publication instruction.
+- On a handover: request review from the eligible Principal they chose, assign them the pull request and hand over the responsibility with an @mention. A reviewer request means “check”; the assignee owns the next step and edits the PR branch directly. Assignment creates no rights and replaces no Publication instruction.
 - When GitHub does not allow the Principal to merge, say so in the handoff; the merge is not bypassed. Without a green PR nothing happens.
 - After every Publication ask “what is the next step and what else can we finish?” and propose it briefly.
 
