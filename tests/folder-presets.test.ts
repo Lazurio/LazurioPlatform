@@ -248,6 +248,19 @@ test("Machine bindings are typed projections; branches never mix, assignment and
       },
     },
     { relationships: { zone: "personal", peers: [{ ...peer, node_id: "1" }] } },
+    // Values the vendored schema refuses in a handover must not survive in a
+    // stored binding either (Pablo, #19): a peer name is one DNS label, an
+    // Organization login has no leading, trailing or doubled hyphen.
+    ...["bad-", "-bad", "Bad", "a".repeat(64), ""].map((name) => ({
+      relationships: { zone: "personal", peers: [{ ...peer, name }] },
+    })),
+    ...["bad--organization", "bad-", "-bad", "a".repeat(40)].map(
+      (organization) => ({
+        relationships: { zone: "personal", peers: [{ ...peer, organization }] },
+      }),
+    ),
+    { owner: { ...bindings.personal.owner, githubLogin: "bad--login" } },
+    { name: "bad-" },
     { relationships: [{ machine: "x", kind: "personal-vm", access: "both" }] },
     { authority: "admin" },
   ])

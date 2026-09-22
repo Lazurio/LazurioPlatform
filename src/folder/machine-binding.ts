@@ -57,7 +57,12 @@ export type MachineBinding = Readonly<{
   relationships?: MachineRelationships;
 }>;
 
-const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// The same shapes the vendored lazurio.machine.v1 schema imposes on the handover,
+// so a stored binding can never carry a value the handover could not: slugs are
+// hyphen-separated alphanumeric words, a peer name is one DNS label, a GitHub
+// login is a slug of at most 39 characters.
+const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const hostname =
   /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 const osAccount = /^[a-z_][a-z0-9_-]{0,30}$/;
@@ -76,7 +81,10 @@ const directions: readonly NonNullable<MachinePeer["ssh"]>["direction"][] = [
 const keys = ["contextDigest", "kind", "name", "owner", "network", "host"];
 
 function isSlug(value: unknown): value is string {
-  return typeof value === "string" && slug.test(value);
+  return typeof value === "string" && value.length <= 64 && slug.test(value);
+}
+function isDnsLabel(value: unknown): value is string {
+  return typeof value === "string" && dnsLabel.test(value);
 }
 function isHostname(value: unknown): value is string {
   return (
@@ -161,7 +169,7 @@ function peer(input: unknown): MachinePeer {
     "https",
   ]);
   if (
-    !isSlug(value.name) ||
+    !isDnsLabel(value.name) ||
     !oneOf(peerKinds, value.kind) ||
     (value.zone !== null && !oneOf(zones, value.zone)) ||
     (value.organization !== null && !isGithubLogin(value.organization)) ||
