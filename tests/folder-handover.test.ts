@@ -14,44 +14,287 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FolderAdoptionError } from "../src/folder/handover-layout";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import { presetProfile } from "../src/folder/presets";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
+import { describeFolderAdoption } from "../src/machine/cli";
 import { bindings } from "./fixtures/machine-bindings";
 
-const profile = {
-  os: executionOs(process.platform),
-  access: "remote",
-  purpose: "human",
-  locale: "cs",
-  detail: "technical",
-  coordination: "direct",
-};
-const source = {
-  preset: "hosted-organization-personal",
-  machine: bindings.organization,
-  profile,
-} as const;
-const initialized = {
-  kind: "initialized",
-  revision: 1,
-  preset: {
-    name: "hosted-organization-personal",
-    version: 1,
-    selection: "derived",
+const os = executionOs(process.platform);
+const choices = { locale: "cs", detail: "technical" } as const;
+const sources = {
+  personal: {
+    preset: "hosted-personal",
+    machine: bindings.personal,
+    profile: presetProfile("hosted-personal", os, choices),
+  },
+  organization: {
+    preset: "hosted-organization-personal",
+    machine: bindings.organization,
+    profile: presetProfile("hosted-organization-personal", os, choices),
+  },
+  team: {
+    preset: "hosted-organization-team",
+    machine: bindings.team,
+    profile: presetProfile("hosted-organization-team", os, choices),
   },
 } as const;
-async function setup() {
+const initialized = (name: keyof typeof sources) => ({
+  kind: "initialized" as const,
+  revision: 1,
+  preset: {
+    name: sources[name].preset,
+    version: 1 as const,
+    selection: "derived" as const,
+  },
+});
+const legacy = ["launchpad.gen3.json", "launchpad.gen3.local.json"];
+
+// A Folder as Machines delivers it and as real Machines already have it:
+// organizations/ with work, an optional personalspace/, legacy launchpad files.
+async function setup(
+  options: {
+    personalspace?: "absent" | "empty" | "used";
+    work?: boolean;
+    legacy?: boolean;
+  } = {},
+) {
   const parent = await realpath(
-    await mkdtemp(join(tmpdir(), "handover-init-")),
+    await mkdtemp(join(tmpdir(), "handover-adopt-")),
   );
   const folder = join(parent, "Lazurio");
   await mkdir(folder, { mode: 0o700 });
   await mkdir(join(folder, "organizations"), { mode: 0o755 });
-  await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+  if (options.work !== false) {
+    await mkdir(join(folder, "organizations", "example"), { mode: 0o700 });
+    await writeFile(
+      join(folder, "organizations", "example", "keep"),
+      "synthetic work",
+    );
+  }
+  const personalspace = options.personalspace ?? "used";
+  if (personalspace !== "absent")
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+  if (personalspace === "used")
+    await writeFile(
+      join(folder, "personalspace", "keep"),
+      "synthetic personal work",
+    );
+  if (options.legacy !== false)
+    for (const name of legacy)
+      await writeFile(join(folder, name), "legacy resident configuration");
   return { parent, folder };
 }
+async function snapshot(folder: string) {
+  const entries = (await readdir(folder)).sort();
+  const files: Record<string, string | number[]> = {};
+  for (const name of entries) {
+    const stat = await lstat(join(folder, name));
+    files[name] = stat.isDirectory()
+      ? [Number(stat.dev), Number(stat.ino), stat.mode]
+      : await readFile(join(folder, name), "utf8");
+  }
+  return files;
+}
+async function refusal(run: Promise<unknown>) {
+  try {
+    await run;
+  } catch (error) {
+    if (error instanceof FolderAdoptionError)
+      return { code: error.code, entry: error.entry };
+    throw error;
+  }
+  throw new Error("Expected an adoption refusal");
+}
+
+test.skipIf(process.platform === "win32")(
+  "adopts a used personal Folder with legacy launchpad files and reports a re-run as already adopted",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      const before = await snapshot(folder);
+      expect(await initializeHandoverFolder(folder, sources.personal)).toEqual(
+        initialized("personal"),
+      );
+      const after = await snapshot(folder);
+      expect(Object.keys(after).sort()).toEqual(
+        [...Object.keys(before), ".lazurio", "AGENTS.md"].sort(),
+      );
+      for (const name of Object.keys(before))
+        expect(after[name]).toEqual(before[name]);
+      expect(
+        await readFile(join(folder, "personalspace", "keep"), "utf8"),
+      ).toBe("synthetic personal work");
+      const agents = await readFile(join(folder, "AGENTS.md"), "utf8");
+      expect(agents).toContain("hosted-personal");
+      const state = await snapshot(join(folder, ".lazurio"));
+      expect(await initializeHandoverFolder(folder, sources.personal)).toEqual({
+        kind: "already-adopted",
+        revision: 1,
+        preset: initialized("personal").preset,
+      });
+      expect(await snapshot(join(folder, ".lazurio"))).toEqual(state);
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(agents);
+      expect(await snapshot(folder)).toEqual(after);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+for (const name of ["organization", "team"] as const)
+  for (const personalspace of ["absent", "empty", "used"] as const)
+    test.skipIf(process.platform === "win32")(
+      `${sources[name].preset} with ${personalspace} personalspace ${personalspace === "used" ? "refuses without touching it" : "adopts and never creates one"}`,
+      async () => {
+        const { parent, folder } = await setup({ personalspace });
+        try {
+          const before = await snapshot(folder);
+          if (personalspace === "used") {
+            expect(
+              await refusal(initializeHandoverFolder(folder, sources[name])),
+            ).toEqual({
+              code: "personalspace-conflict",
+              entry: "personalspace",
+            });
+            expect(await snapshot(folder)).toEqual(before);
+            expect(
+              await readFile(join(folder, "personalspace", "keep"), "utf8"),
+            ).toBe("synthetic personal work");
+            return;
+          }
+          expect(await initializeHandoverFolder(folder, sources[name])).toEqual(
+            initialized(name),
+          );
+          expect(await resumeInitialization(folder)).toEqual({
+            kind: "recovered",
+            revision: 1,
+          });
+          const after = await snapshot(folder);
+          expect(after.personalspace).toEqual(before.personalspace);
+          expect(Object.hasOwn(after, "personalspace")).toBe(
+            personalspace === "empty",
+          );
+          expect(await initializeHandoverFolder(folder, sources[name])).toEqual(
+            {
+              kind: "already-adopted",
+              revision: 1,
+              preset: initialized(name).preset,
+            },
+          );
+        } finally {
+          await rm(parent, { recursive: true, force: true });
+        }
+      },
+    );
+
+test.skipIf(process.platform === "win32")(
+  "a missing work directory is refused by name and never created",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "absent" });
+    try {
+      expect(
+        await refusal(initializeHandoverFolder(folder, sources.personal)),
+      ).toEqual({ code: "layout-missing", entry: "personalspace" });
+      await rename(join(folder, "organizations"), join(parent, "saved"));
+      for (const name of ["personal", "organization"] as const)
+        expect(
+          await refusal(initializeHandoverFolder(folder, sources[name])),
+        ).toEqual({ code: "layout-missing", entry: "organizations" });
+      expect((await readdir(folder)).sort()).toEqual(legacy);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+for (const entry of ["AGENTS.md", "CLAUDE.md", "lazurio", "notes.txt"])
+  test.skipIf(process.platform === "win32")(
+    `a foreign top-level entry ${entry} fails closed by name before any state exists`,
+    async () => {
+      const { parent, folder } = await setup();
+      try {
+        if (entry === "lazurio") await mkdir(join(folder, entry));
+        else await writeFile(join(folder, entry), "resident content");
+        const before = await snapshot(folder);
+        expect(
+          await refusal(initializeHandoverFolder(folder, sources.personal)),
+        ).toEqual({ code: "foreign-entry", entry });
+        expect(await snapshot(folder)).toEqual(before);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+
+test.skipIf(process.platform === "win32")(
+  "a Folder adopted from another handover or with unrecognized state is refused, not rewritten",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      await mkdir(join(folder, ".lazurio"), { mode: 0o700 });
+      expect(
+        await refusal(initializeHandoverFolder(folder, sources.organization)),
+      ).toEqual({ code: "state-unrecognized", entry: ".lazurio" });
+      await rm(join(folder, ".lazurio"), { recursive: true });
+      expect(
+        await initializeHandoverFolder(folder, sources.organization),
+      ).toEqual(initialized("organization"));
+      const state = await snapshot(join(folder, ".lazurio"));
+      expect(
+        await refusal(initializeHandoverFolder(folder, sources.team)),
+      ).toEqual({ code: "binding-changed", entry: ".lazurio" });
+      expect(await snapshot(join(folder, ".lazurio"))).toEqual(state);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "an adopted Organization Folder changes its preset only within the allow-list",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      await initializeHandoverFolder(folder, sources.organization);
+      const profile = sources.organization.profile;
+      expect(
+        await updateProfile(folder, 1, { preset: "hosted-personal", profile }),
+      ).toEqual({ kind: "blocked", reason: "preset-not-allowed" });
+      expect(
+        await updateProfile(folder, 1, {
+          preset: "hosted-organization-team",
+          profile: { ...profile, locale: "en" },
+        }),
+      ).toEqual({ kind: "updated", revision: 2 });
+      const preferences = JSON.parse(
+        await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
+      );
+      expect(preferences.preset).toEqual({
+        name: "hosted-organization-team",
+        version: 1,
+        selection: "explicit",
+      });
+      expect(preferences.machine).toEqual(bindings.organization);
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        "hosted-organization-team",
+      );
+      expect(
+        await initializeHandoverFolder(folder, sources.organization),
+      ).toEqual({
+        kind: "already-adopted",
+        revision: 2,
+        preset: preferences.preset,
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
 for (const stop of [
   null,
   "journal",
@@ -61,68 +304,45 @@ for (const stop of [
   "layout",
 ] as const) {
   test.skipIf(process.platform === "win32")(
-    `empty handover initializes/resumes at ${stop ?? "completion"} without moving work directories`,
+    `adoption initializes/resumes at ${stop ?? "completion"} without moving work directories`,
     async () => {
-      const { parent, folder } = await setup();
+      const { parent, folder } = await setup({ personalspace: "empty" });
       try {
-        const before = await Promise.all(
-          [
-            folder,
-            join(folder, "organizations"),
-            join(folder, "personalspace"),
-          ].map(async (path) => {
-            const s = await lstat(path);
-            return [s.dev, s.ino, s.mode];
-          }),
-        );
+        const before = await snapshot(folder);
         const result = initializeHandoverFolder(
           folder,
-          source,
+          sources.organization,
           async (step) => {
             if (step === stop) throw new Error("interrupted");
           },
         );
         if (stop) await expect(result).rejects.toThrow("interrupted");
-        else expect(await result).toEqual(initialized);
+        else expect(await result).toEqual(initialized("organization"));
         expect(await resumeInitialization(folder)).toEqual({
           kind: "recovered",
           revision: 1,
         });
-        const after = await Promise.all(
-          [
-            folder,
-            join(folder, "organizations"),
-            join(folder, "personalspace"),
-          ].map(async (path) => {
-            const s = await lstat(path);
-            return [s.dev, s.ino, s.mode];
-          }),
-        );
-        expect(after).toEqual(before);
-        await writeFile(
-          join(folder, "organizations", "keep"),
-          "synthetic work",
-        );
-        await writeFile(
-          join(folder, "personalspace", "keep"),
-          "synthetic personal work",
-        );
+        const after = await snapshot(folder);
+        for (const name of Object.keys(before))
+          expect(after[name]).toEqual(before[name]);
+        await writeFile(join(folder, "organizations", "later"), "more work");
         expect(await resumeInitialization(folder)).toEqual({
           kind: "recovered",
           revision: 1,
         });
-        await expect(
-          initializeHandoverFolder(folder, source),
-        ).rejects.toThrow();
         expect(
-          await readFile(join(folder, "organizations", "keep"), "utf8"),
-        ).toBe("synthetic work");
+          await initializeHandoverFolder(folder, sources.organization),
+        ).toEqual({
+          kind: "already-adopted",
+          revision: 1,
+          preset: initialized("organization").preset,
+        });
         expect(
-          await readFile(join(folder, "personalspace", "keep"), "utf8"),
-        ).toBe("synthetic personal work");
+          await readFile(join(folder, "organizations", "later"), "utf8"),
+        ).toBe("more work");
         expect(
           await updateProfile(folder, 1, {
-            profile: { ...profile, locale: "en" },
+            profile: { ...sources.organization.profile, locale: "en" },
           }),
         ).toEqual({ kind: "updated", revision: 2 });
       } finally {
@@ -131,56 +351,36 @@ for (const stop of [
     },
   );
 }
-for (const scenario of [
-  "manifest",
-  "organization-work",
-  "personal-work",
-  "state",
-  "missing-directory",
-  "symlink",
-  "writable",
-] as const) {
+
+for (const scenario of ["symlink", "writable"] as const)
   test.skipIf(process.platform === "win32")(
-    `handover refuses ${scenario} before creating state`,
+    `handover refuses a ${scenario} work directory before creating state`,
     async () => {
       const { parent, folder } = await setup();
       try {
-        if (scenario === "manifest")
-          await writeFile(
-            join(folder, "launchpad.gen3.json"),
-            "existing resident",
-          );
-        if (scenario === "organization-work")
-          await writeFile(join(folder, "organizations", "keep"), "work");
-        if (scenario === "personal-work")
-          await writeFile(join(folder, "personalspace", "keep"), "work");
-        if (scenario === "state") await mkdir(join(folder, ".lazurio"));
-        if (scenario === "missing-directory" || scenario === "symlink")
+        if (scenario === "symlink") {
           await rename(join(folder, "organizations"), join(parent, "saved"));
-        if (scenario === "symlink")
           await symlink(join(parent, "saved"), join(folder, "organizations"));
-        if (scenario === "writable")
-          await chmod(join(folder, "organizations"), 0o777);
+        } else await chmod(join(folder, "organizations"), 0o777);
         const before = await readdir(folder);
         await expect(
-          initializeHandoverFolder(folder, source),
+          initializeHandoverFolder(folder, sources.personal),
         ).rejects.toThrow();
         expect(await readdir(folder)).toEqual(before);
-        if (scenario !== "state")
-          await expect(lstat(join(folder, ".lazurio"))).rejects.toThrow();
+        await expect(lstat(join(folder, ".lazurio"))).rejects.toThrow();
       } finally {
         await rm(parent, { recursive: true, force: true });
       }
     },
   );
-}
+
 test.skipIf(process.platform === "win32")(
   "handover resume refuses replaced directories before completing generated files",
   async () => {
     const { parent, folder } = await setup();
     try {
       await expect(
-        initializeHandoverFolder(folder, source, async (step) => {
+        initializeHandoverFolder(folder, sources.personal, async (step) => {
           if (step === "journal") throw new Error("stop");
         }),
       ).rejects.toThrow("stop");
@@ -195,14 +395,15 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
 test.skipIf(process.platform === "win32")(
   "concurrent handover initializers have exactly one winner",
   async () => {
     const { parent, folder } = await setup();
     try {
       const results = await Promise.allSettled([
-        initializeHandoverFolder(folder, source),
-        initializeHandoverFolder(folder, source),
+        initializeHandoverFolder(folder, sources.personal),
+        initializeHandoverFolder(folder, sources.personal),
       ]);
       expect(
         results.filter((result) => result.status === "fulfilled"),
@@ -216,3 +417,18 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+test("the machine CLI reports an adoption refusal by reason and entry", () => {
+  expect(
+    describeFolderAdoption(new FolderAdoptionError("foreign-entry", "notes")),
+  ).toMatchObject({
+    kind: "blocked",
+    reason: "folder-foreign-entry",
+    entry: "notes",
+  });
+  expect(
+    describeFolderAdoption(
+      new FolderAdoptionError("personalspace-conflict", "personalspace"),
+    ).next,
+  ).toContain("nothing is deleted");
+});

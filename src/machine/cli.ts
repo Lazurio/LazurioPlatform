@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { FolderAdoptionError } from "../folder/handover-layout";
 import { initializeHandoverFolder } from "../folder/initialize-folder";
 import {
   allowedPresets,
@@ -26,6 +27,10 @@ workspace-vm with owner.team -> hosted-organization-team; without ->
 hosted-organization-personal). --preset may pick another preset the handover
 allows and is recorded as an explicit choice. Omitted communication choices
 take the preset's defaults; all are changeable later in the Launchpad.
+Adopts the existing Folder: organizations/ and personalspace/ may hold work
+and are never entered; launchpad.gen3.json and launchpad.gen3.local.json are
+tolerated; any other top-level entry is refused by name. Re-running on an
+adopted Folder reports already-adopted and changes nothing.
 Run as the declared operator, never root. No path or custody override.
 No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
@@ -115,6 +120,8 @@ export async function runMachineCommand(args: string[]) {
       result: { ...result, machineContextDigest: observed.digest },
     };
   } catch (error) {
+    if (error instanceof FolderAdoptionError)
+      return { code: 2, result: describeFolderAdoption(error) };
     if (error instanceof MachineContextError)
       return {
         code: 2,
@@ -126,4 +133,26 @@ export async function runMachineCommand(args: string[]) {
       };
     throw error;
   }
+}
+
+// The refusal names the entry; the operator decides what to do with it.
+export function describeFolderAdoption(error: FolderAdoptionError) {
+  const next = {
+    "foreign-entry":
+      "Move this entry out of the Folder; only organizations/, personalspace/ and the two legacy launchpad files may be present.",
+    "layout-missing":
+      "Ask the Machines operator to deliver the standard Folder layout; nothing is created in its place.",
+    "personalspace-conflict":
+      "An Organization preset never has a Personalspace; move it away yourself, nothing is deleted.",
+    "state-unrecognized":
+      "Complete a recognized initialization with folder-resume or diagnose the state; nothing is reset.",
+    "binding-changed":
+      "The Folder was adopted from a different handover; verify the Machine identity with the Machines operator.",
+  } as const;
+  return {
+    kind: "blocked" as const,
+    reason: `folder-${error.code}` as const,
+    entry: error.entry,
+    next: next[error.code],
+  };
 }
