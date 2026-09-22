@@ -132,12 +132,13 @@ a separately installed Bun is introduced by the system account lookup.
 ### Adoption of the delivered Folder
 
 The initializer adopts a canonical operator-owned Folder. The Folder owns exactly
-`AGENTS.md` and `.lazurio/` at the top level. `organizations/` (required, owned,
+`AGENTS.md`, `manual/` and `.lazurio/` at the top level. `organizations/` (required, owned,
 non-shared) and `personalspace/` may already hold work: they are never traversed,
 listed beyond existence, moved or written, and their paths, filesystem identities and
 modes remain unchanged. `launchpad.gen3.json` and `launchpad.gen3.local.json` are
 tolerated by name and never read. Any other top-level entry — a legacy `AGENTS.md`,
-a checkout, a note — stops initialization and is named in the refusal. A symlinked or
+a `manual/` without recorded digests, a checkout, a note — stops initialization and is
+named in the refusal. A symlinked or
 group/world-writable work directory is refused as before.
 
 `hosted-personal` requires `personalspace/` to exist. The Organization presets never
@@ -146,8 +147,9 @@ precreates is accepted and recorded, a used one is refused by name and nothing i
 deleted or moved. Presence is checked by existence and emptiness only, never by
 listing names.
 
-Initialization exclusively creates `.lazurio`, journals the preexisting layout
-identities and writes new instructions/preferences/manifest exclusively. Two
+Initialization exclusively creates `.lazurio` and `manual/`, journals the preexisting
+layout identities and writes the generated outputs (`AGENTS.md`, the six manual files)
+and preferences/manifest exclusively, one receipt per created file. Two
 initializers cannot both claim state. A re-run on an adopted Folder holds only the
 ephemeral operation lock, compares the recorded Machine binding with the live
 handover and reports `already-adopted`; a different handover is `binding-changed`,
@@ -160,9 +162,12 @@ module delivery remain separate pilot gates.
 `AGENTS.md` is a deterministic projection of the preset, the recorded binding and
 the profile: which Machine this is and whose, who the Principal is here, the
 Personalspace boundary, where Organization repositories live, the provider identity
-mode and how work is done, with a pointer to the Organization's `AGENTS.md` and the
-Lazurio root rules. A relationships section is rendered only when the recorded
-binding carries one; the handover has no such field yet, and no persona is rendered.
+mode and how work is done, with a pointer to the Organization's `AGENTS.md` and to
+the agent manual in `manual/` ([decision F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)):
+six English documents rendered from the same inputs, of which `this-machine.md`
+carries the Machine, its preset and the zones of upstream decision 0155. A
+relationships section is rendered only when the recorded binding carries one; the
+handover has no such field yet, and no persona is rendered.
 The Launchpad shows the binding and lets the Principal change the preset (within the
 allow-list) and the communication axes through the ordinary preview → apply flow.
 

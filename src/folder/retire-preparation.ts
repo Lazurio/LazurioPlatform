@@ -3,19 +3,26 @@ import { mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { planProfileChange } from "./change-profile";
 import { withFolderOperationLock } from "./lock";
+import { outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
+import { renderOutputs } from "./preview";
 import {
   inspectStateLayout,
+  readOwnedOutput,
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { instructionSource, renderInstructions } from "./render";
+import { instructionSource } from "./render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
   stateFields,
 } from "./state";
+import {
+  parseOutputIdentities,
+  transactionSchemaVersion,
+} from "./validate-preparation";
 
 // Explicitly abandon a recognized pre-activation attempt, retaining every file.
 // recoveryId is a caller-retained retry token, not authority or a state locator.
@@ -48,11 +55,13 @@ export async function retireIncompletePreparation(
       if (root.dev !== stage.dev || root.dev !== folderRoot.dev)
         throw new Error("Cross-filesystem recovery is unsupported");
       const files = await readdir(directory);
+      // The staging order of the preparation; only a prefix of it is an
+      // incomplete attempt, and a prepared marker is never retired here.
       const sequence = [
         "before.json",
         "preferences.json",
         "instructions.json",
-        "AGENTS.md",
+        ...outputPaths.map(stagedName),
       ] as const;
       if (
         !files.length ||
@@ -68,12 +77,12 @@ export async function retireIncompletePreparation(
           "schemaVersion",
           "preferences",
           "manifest",
-          "outputIdentity",
+          "outputIdentities",
           "preferencesIdentity",
           "manifestIdentity",
         ],
       );
-      if (before.schemaVersion !== 2)
+      if (before.schemaVersion !== transactionSchemaVersion)
         throw new Error("Unsupported transaction schema");
       const preferences = parseFolderPreferences(before.preferences);
       const manifest = parseInstructionManifest(before.manifest);
@@ -82,11 +91,10 @@ export async function retireIncompletePreparation(
         preferences.profile.os !== executionOs(process.platform)
       )
         throw new Error("Recovery revision or OS mismatch");
-      const active = await readOwnedStateFile(folder, "AGENTS.md");
+      const recordedIdentities = parseOutputIdentities(before.outputIdentities);
       const prefs = await readOwnedStateFile(state, "preferences.json");
       const owned = await readOwnedStateFile(state, "instructions.json");
       const pairs = [
-        [active, before.outputIdentity],
         [prefs, before.preferencesIdentity],
         [owned, before.manifestIdentity],
       ] as const;
@@ -98,8 +106,19 @@ export async function retireIncompletePreparation(
         )
           throw new Error("Recovery conflicts with active identity");
       }
+      const expected = renderOutputs(instructionSource(preferences));
+      for (const path of outputPaths) {
+        const active = await readOwnedOutput(folder, path);
+        const recorded = recordedIdentities[path];
+        if (
+          recorded.dev !== active.identity.dev ||
+          recorded.ino !== active.identity.ino
+        )
+          throw new Error("Recovery conflicts with active identity");
+        if (active.content !== expected[path])
+          throw new Error("Recovery conflicts with active content");
+      }
       if (
-        active.content !== renderInstructions(instructionSource(preferences)) ||
         JSON.stringify(parseFolderPreferences(JSON.parse(prefs.content))) !==
           JSON.stringify(preferences) ||
         JSON.stringify(parseInstructionManifest(JSON.parse(owned.content))) !==
@@ -111,7 +130,7 @@ export async function retireIncompletePreparation(
         manifest,
         expectedRevision,
         { preset: preferences.preset.name, profile: preferences.profile },
-        async () => ({ kind: "regular", digest: manifest.output.digest }),
+        async (path) => ({ kind: "regular", digest: manifest.outputs[path] }),
       );
       if (coherent.kind !== "unchanged")
         throw new Error("Recovery requires coherent original state");

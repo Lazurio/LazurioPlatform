@@ -99,8 +99,9 @@ disagrees with the preset is `preset-composition`, both without a write.
 on a workstation) and the profile, under the existing revision discipline
 ([migration and recovery](migration-and-recovery.md)). The whole composition is
 validated on every parse: a preset the recorded handover does not allow never parses.
-The rendered `AGENTS.md` is a deterministic projection of preset, binding and profile
-([machine handover](machine-handover.md#what-the-folder-renders)).
+The rendered `AGENTS.md` and the six files of `manual/` are a deterministic projection
+of preset, binding and profile ([machine handover](machine-handover.md#what-the-folder-renders));
+the manifest records one digest per generated file.
 
 Do not extend the instruction axes in `src/folder/profile.ts` into a universal
 infrastructure configuration. Those axes describe generated instructions. A preset
@@ -111,7 +112,10 @@ the upstream sweep of decision 0156 (automated Machine with a persona) lands.
 ## Adoption of an existing Folder
 
 `folder-init` adopts the Folder Machines delivers and the one real Machines already
-have. The Folder owns exactly `AGENTS.md` and `.lazurio/` at the top level.
+have. The Folder owns exactly `AGENTS.md`, `manual/` and `.lazurio/` at the top level
+(the agent manual of [decision F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)
+is rendered into `manual/` by the same transaction as `AGENTS.md`; a foreign `manual/`
+without recorded digests is refused by name).
 `organizations/` and `personalspace/` may be non-empty and are never traversed, listed
 beyond existence, moved or written; `launchpad.gen3.json` and
 `launchpad.gen3.local.json` are tolerated by name; any other top-level entry fails

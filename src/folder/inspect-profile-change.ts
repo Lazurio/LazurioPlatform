@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { planProfileChange } from "./change-profile";
-import { inspectInstructions } from "./inventory";
+import { inspectOutput } from "./inventory";
 import { withFolderOperationLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
@@ -26,7 +26,7 @@ export async function inspectProfileChange(
       state.manifest,
       expectedRevision,
       requested,
-      () => inspectInstructions(folder),
+      (path) => inspectOutput(folder, path),
     );
     await assertHeld();
     return result;

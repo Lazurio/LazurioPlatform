@@ -1,8 +1,9 @@
 import { parseArgs } from "node:util";
+import { FolderAdoptionError } from "./folder/handover-layout";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
-import { inspectInstructions } from "./folder/inventory";
+import { inspectOutput } from "./folder/inventory";
 import {
   canonicalOwnedDirectory,
   inspectOwnedDirectory,
@@ -20,6 +21,7 @@ import {
 import { startLaunchpad } from "./launchpad/server";
 import { createUpdatePill } from "./launchpad/update-pill";
 import {
+  describeFolderAdoption,
   MachineUsageError,
   machineHelp,
   runMachineCommand,
@@ -482,7 +484,14 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
   if (positionals[0] === "folder-resume") {
     if (!values.folder || Object.keys(values).some((name) => name !== "folder"))
       throw new Error("Explicit initialization recovery folder required");
-    console.log(JSON.stringify(await resumeInitialization(values.folder)));
+    try {
+      console.log(JSON.stringify(await resumeInitialization(values.folder)));
+    } catch (error) {
+      // A foreign top-level entry is a named refusal, not an operation failure.
+      if (!(error instanceof FolderAdoptionError)) throw error;
+      console.log(JSON.stringify(describeFolderAdoption(error)));
+      return 2;
+    }
     return 0;
   }
   if (positionals[0] === "profile-resume") {
@@ -567,10 +576,14 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     return result.kind === "blocked" ? 2 : 0;
   }
   // Stateless preview of a workstation Folder: the local preset, no Machine.
+  // The optional previous digest is AGENTS.md's; the manual files of a
+  // development fixture have no recorded ownership here.
   const result = await previewFolder(
     { preset: "local", machine: null, profile },
-    values["previous-digest"] ?? null,
-    () => inspectInstructions(folder),
+    values["previous-digest"] === undefined
+      ? null
+      : { "AGENTS.md": values["previous-digest"] },
+    (path) => inspectOutput(folder, path),
   );
   console.log(JSON.stringify(result));
   return result.plan.kind === "blocked" ? 2 : 0;

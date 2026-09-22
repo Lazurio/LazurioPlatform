@@ -2,20 +2,57 @@ import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderOperationLock } from "./lock";
+import {
+  type OutputPath,
+  outputFile,
+  outputPaths,
+  stagedName,
+} from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
+import { renderOutputs } from "./preview";
 import {
   inspectStateLayout,
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { instructionSource, renderInstructions } from "./render";
+import { instructionSource } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { validatePreparation } from "./validate-preparation";
 
-const names = ["AGENTS.md", "preferences.json", "instructions.json"] as const;
-type OutputName = (typeof names)[number];
-export type ApplicationStep = OutputName | `renamed:${OutputName}`;
+type StateName = "preferences.json" | "instructions.json";
+type ReplacedName = OutputPath | StateName;
+export type ApplicationStep = ReplacedName | `renamed:${ReplacedName}`;
+
+// The fixed replacement order: every generated output first, the two state
+// files last, so the manifest that claims the new digests is the final rename.
+type Replacement = Readonly<{
+  name: ReplacedName;
+  staged: string;
+  directory: string;
+  file: string;
+}>;
+function replacements(folder: string): readonly Replacement[] {
+  const state = join(folder, ".lazurio");
+  return [
+    ...outputPaths.map((path) => {
+      const { directory, name } = outputFile(folder, path);
+      return { name: path, staged: stagedName(path), directory, file: name };
+    }),
+    {
+      name: "preferences.json" as const,
+      staged: "preferences.json",
+      directory: state,
+      file: "preferences.json",
+    },
+    {
+      name: "instructions.json" as const,
+      staged: "instructions.json",
+      directory: state,
+      file: "instructions.json",
+    },
+  ];
+}
 
 // Development-only existing-file activation. The journal remains pending even
 // after all replacements; retirement and stale-lock recovery are separate gates.
@@ -39,26 +76,27 @@ export async function applyPreparationLocked(
   await assertHeld();
   const state = join(folder, ".lazurio");
   const transaction = join(state, "transaction");
-  for (const name of names) {
+  for (const item of replacements(folder)) {
     const current = await inspectProgress(folder);
-    if (current.applied.includes(name)) {
+    if (current.applied.includes(item.name)) {
       await assertHeld();
-      await syncDirectory(name === "AGENTS.md" ? folder : state);
+      await syncDirectory(item.directory);
       await syncDirectory(transaction);
       continue;
     }
     await assertHeld();
     await rename(
-      join(transaction, name),
-      join(name === "AGENTS.md" ? folder : state, name),
+      join(transaction, item.staged),
+      join(item.directory, item.file),
     );
-    await checkpoint(`renamed:${name}`);
-    await syncDirectory(name === "AGENTS.md" ? folder : state);
+    await checkpoint(`renamed:${item.name}`);
+    await syncDirectory(item.directory);
     await syncDirectory(transaction);
-    await checkpoint(name);
+    await checkpoint(item.name);
   }
   // Resume may observe a rename whose directory sync previously failed.
   await syncDirectory(folder);
+  await syncDirectory(join(folder, "manual"));
   await syncDirectory(state);
   await syncDirectory(transaction);
   const verified = await inspectProgress(folder);
@@ -80,83 +118,113 @@ async function inspectProgress(folder: string, archivedRevision?: number) {
   const root = await inspectOwnedDirectory(folder);
   const metadata = await inspectOwnedDirectory(state);
   const stage = await inspectOwnedDirectory(transaction);
-  if (root.dev !== metadata.dev || root.dev !== stage.dev)
+  const manual = await inspectOwnedDirectory(join(folder, "manual"));
+  if (
+    root.dev !== metadata.dev ||
+    root.dev !== stage.dev ||
+    root.dev !== manual.dev
+  )
     throw new Error("Cross-filesystem transaction is unsupported");
   await inspectStateLayout(state, archivedRevision === undefined);
+  const items = replacements(folder);
   const stagedEntries = await readdir(transaction);
   if (
     !stagedEntries.includes("before.json") ||
     !stagedEntries.includes("prepared.json") ||
     stagedEntries.some(
-      (n) => ![...names, "before.json", "prepared.json"].includes(n),
+      (n) =>
+        ![
+          ...items.map((item) => item.staged),
+          "before.json",
+          "prepared.json",
+        ].includes(n),
     )
   )
     throw new Error("Incomplete or unrecognized transaction");
   const marker = await readStateJson(transaction, "prepared.json");
   const preferences = parseFolderPreferences(marker.preferences);
+  const stagedContents: Partial<Record<OutputPath, string>> = {};
+  for (const path of outputPaths)
+    stagedContents[path] = stagedEntries.includes(stagedName(path))
+      ? (await readOwnedStateFile(transaction, stagedName(path))).content
+      : renderOutputs(instructionSource(preferences))[path];
   const validated = await validatePreparation(
     await readStateJson(transaction, "before.json"),
     preferences,
     marker.manifest,
     marker,
-    renderInstructions(instructionSource(preferences)),
+    stagedContents as Readonly<Record<OutputPath, string>>,
   );
   if (preferences.profile.os !== executionOs(process.platform))
     throw new Error("Transaction execution OS mismatch");
-  const before = [
-    renderInstructions(instructionSource(validated.previousPreferences)),
-    JSON.stringify(validated.previousPreferences),
-    JSON.stringify(validated.previousManifest),
-  ];
-  const after = [
-    validated.plan.desired.content,
-    JSON.stringify(validated.plan.preferences),
-    JSON.stringify(validated.plan.manifest),
-  ];
-  const previousIdentities = [
-    validated.previousIdentity,
-    validated.previousPreferencesIdentity,
-    validated.previousManifestIdentity,
-  ];
-  const nextIdentities = [
-    validated.stagedIdentity,
-    validated.stagedPreferencesIdentity,
-    validated.stagedManifestIdentity,
-  ];
-  const applied: OutputName[] = [];
+  const previousOutputs = renderOutputs(
+    instructionSource(validated.previousPreferences),
+  );
+  const expected = (name: ReplacedName, side: "before" | "after") => {
+    if (name === "preferences.json")
+      return {
+        content: JSON.stringify(
+          side === "before"
+            ? validated.previousPreferences
+            : validated.plan.preferences,
+        ),
+        identity:
+          side === "before"
+            ? validated.previousPreferencesIdentity
+            : validated.stagedPreferencesIdentity,
+      };
+    if (name === "instructions.json")
+      return {
+        content: JSON.stringify(
+          side === "before"
+            ? validated.previousManifest
+            : validated.plan.manifest,
+        ),
+        identity:
+          side === "before"
+            ? validated.previousManifestIdentity
+            : validated.stagedManifestIdentity,
+      };
+    return {
+      content:
+        side === "before"
+          ? previousOutputs[name]
+          : validated.plan.desired[name].content,
+      identity:
+        side === "before"
+          ? validated.previousIdentities[name]
+          : validated.stagedIdentities[name],
+    };
+  };
+  const applied: ReplacedName[] = [];
   let pending = false;
-  for (const [index, name] of names.entries()) {
-    const active = await readOwnedStateFile(
-      name === "AGENTS.md" ? folder : state,
-      name,
-    );
-    const staged = stagedEntries.includes(name)
-      ? await readOwnedStateFile(transaction, name)
+  for (const item of items) {
+    const active = await readOwnedStateFile(item.directory, item.file);
+    const staged = stagedEntries.includes(item.staged)
+      ? await readOwnedStateFile(transaction, item.staged)
       : null;
-    const expectedIdentity = staged
-      ? previousIdentities[index]
-      : nextIdentities[index];
+    const before = expected(item.name, "before");
+    const after = expected(item.name, "after");
+    const current = staged ? before : after;
     if (
-      JSON.stringify(active.identity) !== JSON.stringify(expectedIdentity) ||
-      normalize(name, active.content) !==
-        (staged ? before[index] : after[index])
+      JSON.stringify(active.identity) !== JSON.stringify(current.identity) ||
+      normalize(item.name, active.content) !== current.content
     )
       throw new Error("Transaction conflicts with active state");
     if (staged) {
       pending = true;
       if (
-        JSON.stringify(staged.identity) !==
-          JSON.stringify(nextIdentities[index]) ||
-        normalize(name, staged.content) !== after[index]
+        JSON.stringify(staged.identity) !== JSON.stringify(after.identity) ||
+        normalize(item.name, staged.content) !== after.content
       )
         throw new Error("Transaction conflicts with staged state");
     } else {
       if (pending)
         throw new Error("Unrecognized transaction replacement order");
-      applied.push(name);
+      applied.push(item.name);
     }
   }
-  return { applied, revision: preferences.revision };
+  return { applied, revision: preferences.revision, total: items.length };
 }
 
 // Explicit close operation: preserve the verified journal by moving it to a
@@ -194,7 +262,7 @@ export async function finalizePreparationLocked(
   );
   if (
     verified.revision !== revision ||
-    verified.applied.length !== names.length
+    verified.applied.length !== verified.total
   )
     throw new Error("Transaction is not fully applied at requested revision");
   if (pending) {
@@ -208,7 +276,7 @@ export async function finalizePreparationLocked(
     const current = await inspectProgress(folder);
     if (
       current.revision !== revision ||
-      current.applied.length !== names.length
+      current.applied.length !== current.total
     )
       throw new Error("Transaction changed before finalization");
     await assertHeld();
@@ -218,7 +286,7 @@ export async function finalizePreparationLocked(
   await syncDirectory(history);
   await syncDirectory(state);
   const final = await inspectProgress(folder, revision);
-  if (final.revision !== revision || final.applied.length !== names.length)
+  if (final.revision !== revision || final.applied.length !== final.total)
     throw new Error("Finalized transaction no longer matches active state");
   await assertHeld();
   return { kind: "finalized" as const, revision };
@@ -256,13 +324,12 @@ async function exists(path: string) {
   }
 }
 
-function normalize(name: OutputName, content: string) {
-  if (name === "AGENTS.md") return content;
-  return JSON.stringify(
-    name === "preferences.json"
-      ? parseFolderPreferences(JSON.parse(content))
-      : parseInstructionManifest(JSON.parse(content)),
-  );
+function normalize(name: ReplacedName, content: string) {
+  if (name === "preferences.json")
+    return JSON.stringify(parseFolderPreferences(JSON.parse(content)));
+  if (name === "instructions.json")
+    return JSON.stringify(parseInstructionManifest(JSON.parse(content)));
+  return content;
 }
 
 async function syncDirectory(directory: string) {

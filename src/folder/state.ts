@@ -1,4 +1,5 @@
 import { type MachineBinding, parseMachineBinding } from "./machine-binding";
+import { type OutputPath, outputPaths } from "./outputs";
 import {
   type PresetReference,
   parsePresetReference,
@@ -13,14 +14,15 @@ export { stateFields } from "./state-fields";
 // artifact identity so staging can check backward read compatibility.
 export const folderStateSchemas = Object.freeze({
   preferences: Object.freeze([2]),
-  manifest: Object.freeze([1]),
+  manifest: Object.freeze([2]),
 });
 
-// Development schema for the single-output transaction. Parsing is not proof of
-// custody: a filesystem adapter must establish the state owner's trusted boundary.
-// Schema 2 adds the workspace preset reference and the immutable Machine binding
-// recorded from the handover (null on a workstation). The whole composition is
-// validated: an unknown preset, version or disallowed combination never parses.
+// Development schema for the generated-output transaction. Parsing is not proof
+// of custody: a filesystem adapter must establish the state owner's trusted
+// boundary. Schema 2 adds the workspace preset reference and the immutable
+// Machine binding recorded from the handover (null on a workstation). The whole
+// composition is validated: an unknown preset, version or disallowed
+// combination never parses.
 export type FolderPreferences = Readonly<{
   schemaVersion: 2;
   revision: number;
@@ -30,17 +32,36 @@ export type FolderPreferences = Readonly<{
   customInstructions: string;
 }>;
 
+// Manifest schema 2 records one digest per generated output, AGENTS.md and
+// every manual file (decision F14), in the fixed output order. A digest is the
+// proof of ownership for a file: bytes that differ from it are never replaced.
+export type OutputDigests = Readonly<Record<OutputPath, string>>;
 export type InstructionManifest = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   preferenceRevision: number;
   templateRevision: string;
-  output: Readonly<{ path: "AGENTS.md"; digest: string }>;
+  outputs: OutputDigests;
 }>;
 
 function revision(input: unknown): number {
   if (typeof input !== "number" || !Number.isSafeInteger(input) || input < 1)
     throw new Error("Invalid Folder revision");
   return input;
+}
+
+export function isDigest(value: unknown): value is string {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+export function parseOutputDigests(input: unknown): OutputDigests {
+  const value = stateFields(input, outputPaths);
+  const digests: Partial<Record<OutputPath, string>> = {};
+  for (const path of outputPaths) {
+    const digest = value[path];
+    if (!isDigest(digest)) throw new Error("Invalid output digest");
+    digests[path] = digest;
+  }
+  return Object.freeze(digests) as OutputDigests;
 }
 
 export function parseFolderPreferences(input: unknown): FolderPreferences {
@@ -75,22 +96,18 @@ export function parseInstructionManifest(input: unknown): InstructionManifest {
     "schemaVersion",
     "preferenceRevision",
     "templateRevision",
-    "output",
+    "outputs",
   ]);
-  const output = stateFields(value.output, ["path", "digest"]);
   if (
-    value.schemaVersion !== 1 ||
+    value.schemaVersion !== 2 ||
     typeof value.templateRevision !== "string" ||
-    value.templateRevision.length === 0 ||
-    output.path !== "AGENTS.md" ||
-    typeof output.digest !== "string" ||
-    !/^[a-f0-9]{64}$/.test(output.digest)
+    value.templateRevision.length === 0
   )
     throw new Error("Unsupported instruction manifest");
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     preferenceRevision: revision(value.preferenceRevision),
     templateRevision: value.templateRevision,
-    output: Object.freeze({ path: "AGENTS.md", digest: output.digest }),
+    outputs: parseOutputDigests(value.outputs),
   });
 }

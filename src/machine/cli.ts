@@ -226,7 +226,7 @@ export async function initializeMachineFolder(
 export function describeFolderAdoption(error: FolderAdoptionError) {
   const next = {
     "foreign-entry":
-      "Move this entry out of the Folder; only organizations/, personalspace/ and the two legacy launchpad files may be present.",
+      "Move this entry out of the Folder; only organizations/, personalspace/, the two legacy launchpad files and what Lazurio generated may be present.",
     "layout-missing":
       "Ask the Machines operator to deliver the standard Folder layout; nothing is created in its place.",
     "personalspace-conflict":

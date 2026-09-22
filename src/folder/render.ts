@@ -3,6 +3,7 @@ import {
   type MachineRelationship,
   parseMachineBinding,
 } from "./machine-binding";
+import { manualEntries } from "./outputs";
 import {
   type PresetName,
   parsePresetName,
@@ -15,8 +16,9 @@ import { type FolderProfile, parseFolderProfile } from "./profile";
 import type { FolderPreferences } from "./state";
 import { stateFields } from "./state-fields";
 
-// Version the template independently from future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-2";
+// Version the template set (AGENTS.md and the manual) independently from
+// future persisted preference schemas.
+export const instructionTemplateRevision = "base-instructions-3";
 
 // What the renderer needs and nothing else: the preset, the immutable Machine
 // binding (null on a workstation) and the profile. Validated as one composition.
@@ -60,14 +62,24 @@ const relationshipAccess: Readonly<
   both: { cs: "oběma směry", en: "both directions" },
 };
 
+// One line per recorded relationship, shared by AGENTS.md and the manual.
+export function relationshipLine(
+  relation: MachineRelationship,
+  locale: "cs" | "en",
+): string {
+  return `- \`${relation.machine}\` (${relationshipKinds[relation.kind][locale]}): ${relationshipAccess[relation.access][locale]}.`;
+}
+
 // One short factual document: context for every agent starting inside the
-// Folder, not a manual. Everything about the Machine comes from the recorded
-// handover; everything about behavior from the preset and the profile.
+// Folder, not a manual (that is `manual/`, rendered from the same inputs).
+// Everything about the Machine comes from the recorded handover; everything
+// about behavior from the preset and the profile.
 function machineSection(
   preset: PresetName,
   machine: MachineBinding | null,
-  pick: (text: Text) => string,
+  locale: FolderProfile["locale"],
 ): string[] {
+  const pick = (text: Text) => text[locale];
   const lines = [
     pick({ cs: "## Tahle Mašina", en: "## This Machine" }),
     pick({
@@ -142,10 +154,7 @@ function machineSection(
     lines.push(
       pick({ cs: "### Vztahy k dalším Mašinám", en: "### Related Machines" }),
       ...machine.relationships.map((relation) =>
-        pick({
-          cs: `- \`${relation.machine}\` (${relationshipKinds[relation.kind].cs}): ${relationshipAccess[relation.access].cs}.`,
-          en: `- \`${relation.machine}\` (${relationshipKinds[relation.kind].en}): ${relationshipAccess[relation.access].en}.`,
-        }),
+        relationshipLine(relation, locale),
       ),
     );
   return lines;
@@ -194,7 +203,7 @@ export function renderInstructions(input: unknown): string {
   return [
     "# Lazurio",
     `<!-- ${instructionTemplateRevision}; ${JSON.stringify({ preset, profile })} -->`,
-    ...machineSection(preset, machine, pick),
+    ...machineSection(preset, machine, profile.locale),
     ...boundarySection(preset, pick),
     pick({ cs: "## Jak se tu pracuje", en: "## How work is done here" }),
     pick({
@@ -224,8 +233,8 @@ export function renderInstructions(input: unknown): string {
       en: "- Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.",
     }),
     pick({
-      cs: "- Před prací v Organizaci načti její aktuální AGENTS.md; nadřazená pravidla drží root Lazurio (`HumanAndMachines/Lazurio`, AGENTS.md). Tenhle dokument je nenahrazuje.",
-      en: "- Before Organization work, load its current AGENTS.md; the overarching rules are the Lazurio root (`HumanAndMachines/Lazurio`, AGENTS.md). This document does not replace them.",
+      cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.",
+      en: "- Before Organization work, load its current AGENTS.md under `organizations/<org>/`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.",
     }),
     pick({
       cs: `- Ověř systém provádějící Mašiny (${profile.os}); přístup ${profile.access} nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.`,
@@ -243,6 +252,23 @@ export function renderInstructions(input: unknown): string {
       cs: "- Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.",
       en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
     }),
+    ...manualSection(pick),
     "",
   ].join("\n");
+}
+
+// The manual is the complete reference for an agent on this Machine, shipped
+// with the product and rendered next to this file. English only; this file
+// follows the profile locale and only points to it.
+function manualSection(pick: (text: Text) => string): string[] {
+  return [
+    pick({ cs: "## Manuál", en: "## Manual" }),
+    pick({
+      cs: "Úplný manuál pro agenty na téhle Mašině je v `manual/` (anglicky, generovaný produktem, needituj ho):",
+      en: "The complete agent manual for this Machine is in `manual/` (English, generated by the product, do not edit):",
+    }),
+    ...manualEntries.map(
+      (entry) => `- [${entry.title}](${entry.path}) — ${entry.summary}.`,
+    ),
+  ];
 }

@@ -131,7 +131,7 @@ test.skipIf(process.platform === "win32")(
       );
       const after = await snapshot(folder);
       expect(Object.keys(after).sort()).toEqual(
-        [...Object.keys(before), ".lazurio", "AGENTS.md"].sort(),
+        [...Object.keys(before), ".lazurio", "AGENTS.md", "manual"].sort(),
       );
       for (const name of Object.keys(before))
         expect(after[name]).toEqual(before[name]);
@@ -221,13 +221,20 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-for (const entry of ["AGENTS.md", "CLAUDE.md", "lazurio", "notes.txt"])
+for (const entry of [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "lazurio",
+  "manual",
+  "notes.txt",
+])
   test.skipIf(process.platform === "win32")(
     `a foreign top-level entry ${entry} fails closed by name before any state exists`,
     async () => {
       const { parent, folder } = await setup();
       try {
-        if (entry === "lazurio") await mkdir(join(folder, entry));
+        if (entry === "lazurio" || entry === "manual")
+          await mkdir(join(folder, entry));
         else await writeFile(join(folder, entry), "resident content");
         const before = await snapshot(folder);
         expect(
@@ -308,7 +315,9 @@ test.skipIf(process.platform === "win32")(
 for (const stop of [
   null,
   "journal",
+  "manual-directory",
   "instructions",
+  "manual",
   "preferences",
   "manifest",
   "layout",
@@ -566,6 +575,73 @@ test.skipIf(process.platform === "win32")(
         code: 0,
         result: { ...initialized("organization"), kind: "already-adopted" },
       });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "handover resume refuses a foreign entry inserted after the journal and recovers once it is gone",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      await expect(
+        initializeHandoverFolder(folder, sources.organization, async (step) => {
+          if (step === "journal") throw new Error("stop");
+        }),
+      ).rejects.toThrow("stop");
+      const before = await snapshot(folder);
+      await mkdir(join(folder, "foreign-after-journal"));
+      expect(await refusal(resumeInitialization(folder))).toEqual({
+        code: "foreign-entry",
+        entry: "foreign-after-journal",
+      });
+      await rm(join(folder, "foreign-after-journal"), { recursive: true });
+      expect(await snapshot(folder)).toEqual(before);
+      expect(await resumeInitialization(folder)).toEqual({
+        kind: "recovered",
+        revision: 1,
+      });
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        "hosted-organization-personal",
+      );
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "handover resume refuses a manual/ inserted after the journal by name and recovers once it is gone",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      await expect(
+        initializeHandoverFolder(folder, sources.organization, async (step) => {
+          if (step === "journal") throw new Error("stop");
+        }),
+      ).rejects.toThrow("stop");
+      const journal = join(folder, ".lazurio", "transaction");
+      const before = await readFile(join(journal, "before.json"));
+      await mkdir(join(folder, "manual"));
+      await writeFile(join(folder, "manual", "foreign.txt"), "not ours");
+      expect(await refusal(resumeInitialization(folder))).toEqual({
+        code: "foreign-entry",
+        entry: "manual",
+      });
+      await expect(lstat(join(folder, "AGENTS.md"))).rejects.toThrow();
+      expect(await readdir(journal)).toEqual(["before.json"]);
+      expect(await readFile(join(journal, "before.json"))).toEqual(before);
+      expect(
+        await readFile(join(folder, "manual", "foreign.txt"), "utf8"),
+      ).toBe("not ours");
+      await rm(join(folder, "manual"), { recursive: true });
+      expect(await resumeInitialization(folder)).toEqual({
+        kind: "recovered",
+        revision: 1,
+      });
+      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(7);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

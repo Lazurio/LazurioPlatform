@@ -10,22 +10,30 @@ import {
 } from "./handover-layout";
 import {
   initializationReceipts,
+  manualDirectoryReceipt,
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
 import type { MachineBinding } from "./machine-binding";
+import {
+  createManualDirectory,
+  verifyManualDirectory,
+} from "./manual-directory";
+import { type OutputPath, outputFile, outputPaths } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { type PresetName, presetReference, workspacePreset } from "./presets";
-import { previewFolder } from "./preview";
+import { desiredOutputs, outputDigests } from "./preview";
 import { readFolderState, readOwnedStateFile } from "./read-state";
-import { instructionSource } from "./render";
+import { instructionSource, instructionTemplateRevision } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 
 export type InitializationStep =
   | "folder"
   | "journal"
+  | "manual-directory"
   | "instructions"
+  | "manual"
   | "preferences"
   | "manifest"
   | "layout";
@@ -74,6 +82,16 @@ export async function initializeHandoverFolder(
   );
 }
 
+// The generated outputs in creation order, then the two state files. The
+// manual follows AGENTS.md; the last manual file carries the `manual` step.
+type Planned = Readonly<{
+  directory: string;
+  name: string;
+  content: string;
+  receipt: keyof typeof initializationReceipts;
+  step: InitializationStep | null;
+}>;
+
 async function initialize(
   folder: string,
   source: Readonly<{
@@ -95,20 +113,17 @@ async function initialize(
     profile: source.profile,
     customInstructions: "",
   });
-  const preview = await previewFolder(
-    instructionSource(preferences),
-    null,
-    async () => ({ kind: "absent" }),
-  );
+  const desired = desiredOutputs(instructionSource(preferences));
   if (preferences.profile.os !== executionOs(process.platform))
     throw new Error("Initialization OS mismatch");
   const manifest = parseInstructionManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     preferenceRevision: 1,
-    templateRevision: preview.templateRevision,
-    output: { path: "AGENTS.md", digest: preview.desired.digest },
+    templateRevision: instructionTemplateRevision,
+    outputs: outputDigests(desired),
   });
   const state = join(folder, ".lazurio");
+  const manual = join(folder, "manual");
   const personalspace = workspacePreset(preferences.preset.name).personalspace;
   if (handover) {
     const adopted = await adoptedHandoverFolder(folder, preferences.machine);
@@ -138,38 +153,59 @@ async function initialize(
       manifest,
       ...(layout ? { layout } : {}),
     });
-    const expected = [
-      [transaction, "before.json", journal],
-      [folder, "AGENTS.md", preview.desired.content],
-      [state, "preferences.json", JSON.stringify(preferences)],
-      [state, "instructions.json", JSON.stringify(manifest)],
-    ] as const;
-    const steps = [
-      "journal",
-      "instructions",
-      "preferences",
-      "manifest",
-    ] as const;
-    const identities = [];
-    for (const [index, [directory, name, content]] of expected.entries()) {
+    const lastManual = outputPaths[outputPaths.length - 1];
+    const planned: Planned[] = [
+      ...outputPaths.map((path: OutputPath) => ({
+        ...outputFile(folder, path),
+        content: desired[path].content,
+        receipt: path,
+        step:
+          path === "AGENTS.md"
+            ? ("instructions" as const)
+            : path === lastManual
+              ? ("manual" as const)
+              : null,
+      })),
+      {
+        directory: state,
+        name: "preferences.json",
+        content: JSON.stringify(preferences),
+        receipt: "preferences.json",
+        step: "preferences",
+      },
+      {
+        directory: state,
+        name: "instructions.json",
+        content: JSON.stringify(manifest),
+        receipt: "instructions.json",
+        step: "manifest",
+      },
+    ];
+    await assertHeld();
+    const journalIdentity = await createFile(
+      join(transaction, "before.json"),
+      journal,
+    );
+    await checkpoint("journal");
+    // The owned manual directory is created exclusively, sealed with a nonce
+    // marker and receipted before any output is written: on recovery only the
+    // recorded directory is ours; any other is foreign and refused by name.
+    const identities: Record<string, { dev: string; ino: string }> = {
+      [manualDirectoryReceipt]: await createManualDirectory(
+        folder,
+        transaction,
+      ),
+    };
+    await checkpoint("manual-directory");
+    for (const file of planned) {
       await assertHeld();
-      const file = await open(join(directory, name), "wx", 0o600);
-      try {
-        await file.writeFile(content, "utf8");
-        await file.sync();
-        const stat = await file.stat();
-        identities.push({ dev: String(stat.dev), ino: String(stat.ino) });
-      } finally {
-        await file.close();
-      }
-      if (name !== "before.json") {
-        const identity = identities[index];
-        if (!identity) throw new Error("Missing creation identity");
-        await recordInitializationCreation(transaction, name, identity);
-      }
-      const step = steps[index];
-      if (!step) throw new Error("Unknown initialization step");
-      await checkpoint(step);
+      const identity = await createFile(
+        join(file.directory, file.name),
+        file.content,
+      );
+      identities[file.receipt] = identity;
+      await recordInitializationCreation(transaction, file.receipt, identity);
+      if (file.step) await checkpoint(file.step);
     }
     if (!layout)
       for (const name of ["organizations", "personalspace"])
@@ -177,23 +213,33 @@ async function initialize(
     await checkpoint("layout");
     for (const name of directories)
       await inspectOwnedDirectory(join(folder, name));
+    await verifyManualDirectory(folder, transaction);
     if (layout) await verifyHandoverLayout(folder, layout);
     const transactionEntries = await readdir(transaction);
+    const receipts = Object.values(initializationReceipts);
     if (
-      transactionEntries.length !== 4 ||
+      transactionEntries.length !== receipts.length + 1 ||
       transactionEntries.some(
-        (name) =>
-          !["before.json", ...Object.values(initializationReceipts)].includes(
-            name,
-          ),
+        (name) => !["before.json", ...receipts].includes(name),
       )
     )
       throw new Error("Unrecognized initialization journal");
-    for (const [index, [directory, name, content]] of expected.entries()) {
-      const observed = await readOwnedStateFile(directory, name);
+    const observedJournal = await readOwnedStateFile(
+      transaction,
+      "before.json",
+    );
+    if (
+      observedJournal.content !== journal ||
+      JSON.stringify(observedJournal.identity) !==
+        JSON.stringify(journalIdentity)
+    )
+      throw new Error("Initialization files changed");
+    for (const file of planned) {
+      const observed = await readOwnedStateFile(file.directory, file.name);
       if (
-        observed.content !== content ||
-        JSON.stringify(observed.identity) !== JSON.stringify(identities[index])
+        observed.content !== file.content ||
+        JSON.stringify(observed.identity) !==
+          JSON.stringify(identities[file.receipt])
       )
         throw new Error("Initialization files changed");
     }
@@ -219,19 +265,11 @@ async function initialize(
       join(history, "initialization"),
       history,
       state,
+      manual,
       folder,
       dirname(folder),
-    ]) {
-      const handle = await open(
-        directory,
-        constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-      );
-      try {
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-    }
+    ])
+      await syncDirectory(directory);
     await assertHeld();
     if (layout) await verifyHandoverLayout(folder, layout);
     return {
@@ -240,6 +278,32 @@ async function initialize(
       preset: preferences.preset,
     };
   });
+}
+
+// Exclusive creation with the bytes made durable; returns the file identity
+// the journal receipt records.
+async function createFile(path: string, content: string) {
+  const file = await open(path, "wx", 0o600);
+  try {
+    await file.writeFile(content, "utf8");
+    await file.sync();
+    const stat = await file.stat();
+    return { dev: String(stat.dev), ino: String(stat.ino) };
+  } finally {
+    await file.close();
+  }
+}
+
+async function syncDirectory(directory: string) {
+  const handle = await open(
+    directory,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
 }
 
 // Idempotent re-run: valid state recorded from the same handover reports the

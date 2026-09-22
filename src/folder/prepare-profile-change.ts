@@ -2,11 +2,21 @@ import { constants } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
 import { planProfileChange } from "./change-profile";
-import { inspectInstructions } from "./inventory";
+import { inspectOutput } from "./inventory";
 import { withFolderOperationLock } from "./lock";
+import {
+  type OutputPath,
+  outputFile,
+  outputPaths,
+  stagedName,
+} from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState, readOwnedStateFile } from "./read-state";
+import {
+  type FileIdentity,
+  transactionSchemaVersion,
+} from "./validate-preparation";
 
 export type PreparationStep =
   | "directory"
@@ -14,6 +24,7 @@ export type PreparationStep =
   | "preferences"
   | "manifest"
   | "instructions"
+  | "manual"
   | "prepared";
 
 // Development-only preparation, not activation. Existing bytes are never replaced.
@@ -59,10 +70,17 @@ export async function prepareProfileChangeLocked(
     state.manifest,
     expectedRevision,
     requested,
-    () => inspectInstructions(folder),
+    (path) => inspectOutput(folder, path),
   );
   if (plan.kind !== "profile-change") return plan;
-  const before = await lstat(join(folder, "AGENTS.md"));
+  // Every generated output is staged and replaced, changed or not: one
+  // transaction with one fixed file list, whose identities are all recorded.
+  const before: Partial<Record<OutputPath, FileIdentity>> = {};
+  for (const path of outputPaths) {
+    const { directory, name } = outputFile(folder, path);
+    const stat = await lstat(join(directory, name));
+    before[path] = { dev: String(stat.dev), ino: String(stat.ino) };
+  }
   const previousPreferences = await readOwnedStateFile(
     stateDirectory,
     "preferences.json",
@@ -79,9 +97,9 @@ export async function prepareProfileChangeLocked(
   await writeNew(
     join(directory, "before.json"),
     JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: transactionSchemaVersion,
       ...state,
-      outputIdentity: { dev: String(before.dev), ino: String(before.ino) },
+      outputIdentities: before,
       preferencesIdentity: previousPreferences.identity,
       manifestIdentity: previousManifest.identity,
     }),
@@ -97,33 +115,40 @@ export async function prepareProfileChangeLocked(
     JSON.stringify(plan.manifest),
   );
   await checkpoint("manifest");
-  const staged = await writeNew(
-    join(directory, "AGENTS.md"),
-    plan.desired.content,
-  );
-  await checkpoint("instructions");
-  const observed = await inspectInstructions(folder);
-  const current = await lstat(join(folder, "AGENTS.md"));
-  await assertHeld();
-  if (
-    observed.kind !== "regular" ||
-    observed.digest !== plan.previousDigest ||
-    current.dev !== before.dev ||
-    current.ino !== before.ino
-  )
-    throw new Error(
-      "Instructions changed during preparation; recovery required",
+  const staged: Partial<Record<OutputPath, FileIdentity>> = {};
+  for (const path of outputPaths) {
+    const stat = await writeNew(
+      join(directory, stagedName(path)),
+      plan.desired[path].content,
     );
+    staged[path] = { dev: String(stat.dev), ino: String(stat.ino) };
+    if (path === "AGENTS.md") await checkpoint("instructions");
+  }
+  await checkpoint("manual");
+  for (const path of outputPaths) {
+    const observed = await inspectOutput(folder, path);
+    const { directory: outputDirectory, name } = outputFile(folder, path);
+    const current = await lstat(join(outputDirectory, name));
+    await assertHeld();
+    if (
+      observed.kind !== "regular" ||
+      observed.digest !== plan.previous[path] ||
+      String(current.dev) !== before[path]?.dev ||
+      String(current.ino) !== before[path]?.ino
+    )
+      throw new Error(
+        "Instructions changed during preparation; recovery required",
+      );
+  }
   // Marker means only staging completed. Later activation/recovery must validate
   // every staged input, expected revision and file identity again under the lock.
   await writeNew(
     join(directory, "prepared.json"),
     JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: transactionSchemaVersion,
       expectedRevision,
       nextRevision: plan.preferences.revision,
-      outputIdentity: { dev: String(staged.dev), ino: String(staged.ino) },
-      outputDigest: plan.desired.digest,
+      outputIdentities: staged,
       preferences: plan.preferences,
       manifest: plan.manifest,
       preferencesIdentity: {

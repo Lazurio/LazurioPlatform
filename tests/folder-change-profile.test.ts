@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { planProfileChange } from "../src/folder/change-profile";
-import { previewFolder } from "../src/folder/preview";
+import { outputDigests, previewFolder } from "../src/folder/preview";
 import { instructionSource } from "../src/folder/render";
 import { parseFolderPreferences } from "../src/folder/state";
 import { bindings } from "./fixtures/machine-bindings";
@@ -26,16 +26,17 @@ async function fixture(preferences = current) {
     null,
     async () => ({ kind: "absent" }),
   );
+  const outputs = outputDigests(preview.desired);
   return {
     manifest: {
-      schemaVersion: 1,
+      schemaVersion: 2,
       preferenceRevision: preferences.revision,
       templateRevision: preview.templateRevision,
-      output: { path: "AGENTS.md", digest: preview.desired.digest },
+      outputs,
     },
-    inspect: async () => ({
+    inspect: async (path: keyof typeof outputs) => ({
       kind: "regular" as const,
-      digest: preview.desired.digest,
+      digest: outputs[path],
     }),
   };
 }
@@ -55,8 +56,10 @@ test("profile change binds one next revision and matching output without mutatin
   expect(result.preferences.revision).toBe(8);
   expect(result.preferences.profile.locale).toBe("cs");
   expect(result.manifest.preferenceRevision).toBe(8);
-  expect(result.manifest.output.digest).toBe(result.desired.digest);
-  expect(result.previousDigest).toBe(manifest.output.digest);
+  expect(result.manifest.outputs).toEqual(outputDigests(result.desired));
+  expect(result.previous).toEqual(manifest.outputs);
+  // A locale change rewrites AGENTS.md only; the English manual is unchanged.
+  expect(result.files).toEqual([{ kind: "replace", path: "AGENTS.md" }]);
   expect(JSON.stringify({ current, manifest })).toBe(snapshot);
   expect(
     await planProfileChange(
@@ -156,7 +159,10 @@ test("stale, incomplete, incompatible and custom state blocks before inventory",
   expect(
     await planProfileChange(
       current,
-      { ...manifest, output: { ...manifest.output, digest: "b".repeat(64) } },
+      {
+        ...manifest,
+        outputs: { ...manifest.outputs, "AGENTS.md": "b".repeat(64) },
+      },
       7,
       changed,
       inspect,
@@ -211,7 +217,15 @@ test("drift and exhausted revisions never yield new writable state", async () =>
     await planProfileChange(current, manifest, 7, changed, async () => ({
       kind: "absent",
     })),
-  ).toEqual({ kind: "blocked", reason: "drift" });
+  ).toEqual({ kind: "blocked", reason: "drift", path: "AGENTS.md" });
+  // An edited manual file is refused by name, whichever file it is.
+  expect(
+    await planProfileChange(current, manifest, 7, changed, async (path) =>
+      path === "manual/roles.md"
+        ? { kind: "regular", digest: "c".repeat(64) }
+        : inspect(path),
+    ),
+  ).toEqual({ kind: "blocked", reason: "drift", path: "manual/roles.md" });
   const maximum = Number.MAX_SAFE_INTEGER;
   expect(
     await planProfileChange(

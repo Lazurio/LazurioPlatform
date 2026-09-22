@@ -6,7 +6,9 @@ and do not clone the source repository for daily work.
 
 An installed release contains CLI, Launchpad and the **Lazurio Folder Factory**. Folder
 Factory is the shared component that plans, generates and reconciles Lazurio-owned paths
-in the **Lazurio Folder** from a selected profile. CLI and Launchpad use the same core;
+in the **Lazurio Folder** from a selected profile: `AGENTS.md`, the agent manual in
+`manual/` shipped with the product ([decision F14](docs/decisions.md#f14--agent-manuals-live-in-the-lazurio-folder))
+and the `.lazurio/` state. CLI and Launchpad use the same core;
 The shared core is the local application boundary, exposed by CLI and Launchpad. The compatible installed
 components together with the materialized Lazurio Folder form that Machine's **Lazurio
 Environment**. Machines share a versioned environment contract and conventions/interfaces,

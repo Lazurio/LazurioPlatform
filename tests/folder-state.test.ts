@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { outputPaths } from "../src/folder/outputs";
 import { previewConfiguredFolder } from "../src/folder/preview";
 import {
   parseFolderPreferences,
@@ -21,10 +22,12 @@ const preferences = {
   customInstructions: "  Vlastní pracovní instrukce.\n",
 };
 const manifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   preferenceRevision: 1,
-  templateRevision: "base-instructions-2",
-  output: { path: "AGENTS.md", digest: "a".repeat(64) },
+  templateRevision: "base-instructions-3",
+  outputs: Object.fromEntries(
+    outputPaths.map((path) => [path, "a".repeat(64)]),
+  ),
 };
 
 test("configured preview refuses mismatched state and unimplemented custom composition before inspection", async () => {
@@ -49,8 +52,8 @@ test("configured preview refuses mismatched state and unimplemented custom compo
     null,
     inspect,
   );
-  expect(result.plan.kind).toBe("create");
-  expect(inspections).toBe(1);
+  expect(result.plan.kind).toBe("write");
+  expect(inspections).toBe(outputPaths.length);
 });
 
 test("state parsing preserves custom source independently from frozen generated ownership", () => {
@@ -64,7 +67,8 @@ test("state parsing preserves custom source independently from frozen generated 
     parsed,
   );
   const owned = parseInstructionManifest(manifest);
-  expect(Object.isFrozen(owned.output)).toBe(true);
+  expect(Object.isFrozen(owned.outputs)).toBe(true);
+  expect(Object.keys(owned.outputs)).toEqual([...outputPaths]);
   expect(parseInstructionManifest(JSON.parse(JSON.stringify(owned)))).toEqual(
     owned,
   );
@@ -92,27 +96,33 @@ test("unknown schemas, fields, unsafe revisions and non-owned paths are rejected
   expect(() =>
     parseFolderPreferences({ ...preferences, customInstructions: null }),
   ).toThrow();
+  // Every owned output needs a digest, and nothing else is an output.
   for (const path of [
     "../AGENTS.md",
     "Organizations/AGENTS.md",
     "Personalspace/AGENTS.md",
+    "manual/notes.md",
   ])
     expect(() =>
       parseInstructionManifest({
         ...manifest,
-        output: { ...manifest.output, path },
+        outputs: { ...manifest.outputs, [path]: "a".repeat(64) },
       }),
     ).toThrow();
+  const { "manual/roles.md": _, ...missing } = manifest.outputs;
+  expect(() =>
+    parseInstructionManifest({ ...manifest, outputs: missing }),
+  ).toThrow();
   expect(() =>
     parseInstructionManifest({ ...manifest, preferenceRevision: 0 }),
   ).toThrow();
   expect(() =>
-    parseInstructionManifest({ ...manifest, schemaVersion: 2 }),
+    parseInstructionManifest({ ...manifest, schemaVersion: 1 }),
   ).toThrow();
   expect(() =>
     parseInstructionManifest({
       ...manifest,
-      output: { ...manifest.output, digest: "bad" },
+      outputs: { ...manifest.outputs, "manual/roles.md": "bad" },
     }),
   ).toThrow();
 });
@@ -131,12 +141,12 @@ test("state parsers reject accessor and inherited inputs without executing gette
   expect(() =>
     parseInstructionManifest({
       ...manifest,
-      output: {
-        get path() {
+      outputs: {
+        ...manifest.outputs,
+        get "AGENTS.md"() {
           calls++;
-          return "AGENTS.md";
+          return "a".repeat(64);
         },
-        digest: manifest.output.digest,
       },
     }),
   ).toThrow();

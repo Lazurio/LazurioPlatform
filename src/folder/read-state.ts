@@ -1,6 +1,8 @@
 import { constants } from "node:fs";
 import { lstat, open, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { initializationReceipts } from "./initialization-receipt";
+import { outputFile, outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 
@@ -54,30 +56,22 @@ export async function readStateJson(
   return JSON.parse((await readOwnedStateFile(directory, name)).content);
 }
 
-export async function readOwnedStateFile(
-  directory: string,
-  name:
-    | "preferences.json"
-    | "instructions.json"
-    | "before.json"
-    | "prepared.json"
-    | "created-agents.json"
-    | "created-preferences.json"
-    | "created-instructions.json"
-    | "AGENTS.md",
-) {
-  if (
-    ![
-      "preferences.json",
-      "instructions.json",
-      "before.json",
-      "prepared.json",
-      "created-agents.json",
-      "created-preferences.json",
-      "created-instructions.json",
-      "AGENTS.md",
-    ].includes(name)
-  )
+// Every file this product reads as its own: the state and journal files, the
+// initialization receipts, the generated outputs at their Folder location and
+// their flat staged names inside a transaction. Nothing else is ever read.
+const ownedStateFileNames: readonly string[] = Object.freeze([
+  "preferences.json",
+  "instructions.json",
+  "before.json",
+  "prepared.json",
+  ...Object.values(initializationReceipts),
+  ...outputPaths.map((path) => outputFile("", path).name),
+  ...outputPaths.map(stagedName),
+  ".lazurio-generated",
+]);
+
+export async function readOwnedStateFile(directory: string, name: string) {
+  if (!ownedStateFileNames.includes(name))
     throw new Error("Unknown state file name");
   const path = join(directory, name);
   const before = await lstat(path);
@@ -129,4 +123,14 @@ export async function readOwnedStateFile(
   } finally {
     await file.close();
   }
+}
+
+// Read one generated output at its Folder location with the same custody
+// checks as the state files.
+export function readOwnedOutput(
+  folder: string,
+  path: (typeof outputPaths)[number],
+) {
+  const { directory, name } = outputFile(folder, path);
+  return readOwnedStateFile(directory, name);
 }

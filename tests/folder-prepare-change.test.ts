@@ -16,12 +16,12 @@ import {
 } from "../src/folder/apply-preparation";
 import { inspectPreparation } from "../src/folder/inspect-preparation";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
+import { outputPaths } from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
 import {
   type PreparationStep,
   prepareProfileChange,
 } from "../src/folder/prepare-profile-change";
-import { previewFolder } from "../src/folder/preview";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
 import { updateProfile } from "../src/folder/update-profile";
 import { validatePreparation } from "../src/folder/validate-preparation";
@@ -29,6 +29,7 @@ import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
+import { writeRenderedFolder } from "./fixtures/rendered-folder";
 
 async function fixture() {
   const folder = await realpath(
@@ -45,40 +46,19 @@ async function fixture() {
       detail: "concise",
       coordination: "direct",
     };
-    const preview = await previewFolder(
+    const { preview, preferences, manifest } = await writeRenderedFolder(
+      folder,
       { preset: "local", machine: null, profile },
-      null,
-      async () => ({ kind: "absent" }),
     );
-    const preferences = JSON.stringify({
-      schemaVersion: 2,
-      revision: 1,
-      preset: { name: "local", version: 1, selection: "derived" },
-      machine: null,
-      profile,
-      customInstructions: "",
-    });
-    const manifest = JSON.stringify({
-      schemaVersion: 1,
-      preferenceRevision: 1,
-      templateRevision: preview.templateRevision,
-      output: { path: "AGENTS.md", digest: preview.desired.digest },
-    });
-    await writeFile(join(folder, "AGENTS.md"), preview.desired.content);
     await writeFile(join(folder, "own-notes"), "Preserve user work");
-    await writeFile(join(state, "preferences.json"), preferences, {
-      mode: 0o600,
-    });
-    await writeFile(join(state, "instructions.json"), manifest, {
-      mode: 0o600,
-    });
     return {
       folder,
       state,
       profile,
       preferences,
       manifest,
-      content: preview.desired.content,
+      content: preview.desired["AGENTS.md"].content,
+      manual: preview.desired["manual/roles.md"].content,
     };
   } catch (error) {
     await rm(folder, { recursive: true, force: true });
@@ -173,6 +153,7 @@ for (const stop of [
   "preferences",
   "manifest",
   "instructions",
+  "manual",
 ] as const) {
   test.skipIf(process.platform === "win32")(
     `retire incomplete ${stop} and reprepare without active writes`,
@@ -425,9 +406,11 @@ for (const invalid of [
 for (const stop of [
   null,
   "renamed:AGENTS.md",
+  "renamed:manual/this-machine.md",
   "renamed:preferences.json",
   "renamed:instructions.json",
   "AGENTS.md",
+  "manual/troubleshooting.md",
   "preferences.json",
   "instructions.json",
 ] as const) {
@@ -462,6 +445,10 @@ for (const stop of [
         expect(await readFile(join(f.folder, "AGENTS.md"), "utf8")).toBe(
           desired,
         );
+        // The unchanged manual was replaced by identical bytes.
+        expect(
+          await readFile(join(f.folder, "manual", "roles.md"), "utf8"),
+        ).toBe(f.manual);
         expect(
           JSON.parse(await readFile(join(f.state, "preferences.json"), "utf8"))
             .revision,
@@ -527,6 +514,7 @@ for (const stop of [
   "preferences",
   "manifest",
   "instructions",
+  "manual",
   "prepared",
 ] as const) {
   test.skipIf(process.platform === "win32")(
@@ -577,15 +565,28 @@ for (const stop of [
           const staged = await readFile(
             join(f.state, "transaction", "AGENTS.md"),
           );
+          const stagedContents = Object.fromEntries(
+            await Promise.all(
+              outputPaths.map(async (path) => [
+                path,
+                await readFile(
+                  join(f.state, "transaction", path.replaceAll("/", "-")),
+                  "utf8",
+                ),
+              ]),
+            ),
+          ) as Record<(typeof outputPaths)[number], string>;
           const marker = JSON.parse(
             await readFile(
               join(f.state, "transaction", "prepared.json"),
               "utf8",
             ),
           );
-          expect(marker.outputDigest).toBe(
-            createHash("sha256").update(staged).digest("hex"),
-          );
+          // The staged manifest claims exactly the staged bytes.
+          for (const path of outputPaths)
+            expect(marker.manifest.outputs[path]).toBe(
+              createHash("sha256").update(stagedContents[path]).digest("hex"),
+            );
           expect(marker.nextRevision).toBe(2);
           expect(
             (await inspectPreparation(f.folder)).plan.preferences.revision,
@@ -605,12 +606,13 @@ for (const stop of [
               "utf8",
             ),
           );
+          expect(stagedContents["AGENTS.md"]).toBe(staged.toString("utf8"));
           const valid = await validatePreparation(
             before,
             preferences,
             manifest,
             marker,
-            staged.toString("utf8"),
+            stagedContents,
           );
           expect(valid.plan.preferences.revision).toBe(2);
           await expect(
@@ -619,17 +621,14 @@ for (const stop of [
               preferences,
               manifest,
               { ...marker, nextRevision: 3 },
-              staged.toString("utf8"),
+              stagedContents,
             ),
           ).rejects.toThrow("revision");
           await expect(
-            validatePreparation(
-              before,
-              preferences,
-              manifest,
-              marker,
-              "Modified stage",
-            ),
+            validatePreparation(before, preferences, manifest, marker, {
+              ...stagedContents,
+              "manual/glossary.md": "Modified stage",
+            }),
           ).rejects.toThrow("regenerated");
           await expect(
             validatePreparation(
@@ -637,7 +636,7 @@ for (const stop of [
               { ...preferences, customInstructions: "Unreviewed source" },
               manifest,
               marker,
-              staged.toString("utf8"),
+              stagedContents,
             ),
           ).rejects.toThrow("regenerated");
           await expect(
@@ -645,17 +644,23 @@ for (const stop of [
               before,
               preferences,
               manifest,
-              { ...marker, outputIdentity: { dev: "1", ino: "../file" } },
-              staged.toString("utf8"),
+              {
+                ...marker,
+                outputIdentities: {
+                  ...marker.outputIdentities,
+                  "AGENTS.md": { dev: "1", ino: "../file" },
+                },
+              },
+              stagedContents,
             ),
           ).rejects.toThrow("identity");
           await expect(
             validatePreparation(
-              { ...before, schemaVersion: 3 },
+              { ...before, schemaVersion: 2 },
               preferences,
               manifest,
               marker,
-              staged.toString("utf8"),
+              stagedContents,
             ),
           ).rejects.toThrow("schema");
         } else

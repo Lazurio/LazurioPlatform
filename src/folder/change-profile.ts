@@ -1,3 +1,4 @@
+import type { OutputPath } from "./outputs";
 import {
   allowedPresets,
   type PresetName,
@@ -5,7 +6,7 @@ import {
   presetReference,
   workspacePreset,
 } from "./presets";
-import { previewFolder } from "./preview";
+import { desiredOutputs, outputDigests, previewFolder } from "./preview";
 import { type FolderProfile, parseFolderProfile } from "./profile";
 import type { ObservedFile } from "./reconcile";
 import { instructionSource, instructionTemplateRevision } from "./render";
@@ -39,7 +40,7 @@ export async function planProfileChange(
   currentManifestInput: unknown,
   expectedRevision: number,
   requestedInput: unknown,
-  inspect: () => Promise<ObservedFile>,
+  inspect: (path: OutputPath) => Promise<ObservedFile>,
 ) {
   const current = parseFolderPreferences(currentPreferencesInput);
   const manifest = parseInstructionManifest(currentManifestInput);
@@ -73,12 +74,12 @@ export async function planProfileChange(
     return { kind: "blocked", reason: "preset-composition" } as const;
   const preset = presetReference(presetName, current.machine);
 
-  const expectedCurrent = await previewFolder(
-    instructionSource(current),
-    null,
-    async () => ({ kind: "absent" }),
+  // The recorded digests must be what the current composition renders; a
+  // manifest that claims other bytes is incomplete state, not drift.
+  const expectedCurrent = outputDigests(
+    desiredOutputs(instructionSource(current)),
   );
-  if (expectedCurrent.desired.digest !== manifest.output.digest)
+  if (JSON.stringify(expectedCurrent) !== JSON.stringify(manifest.outputs))
     return { kind: "blocked", reason: "incomplete-state" } as const;
 
   const preview = await previewFolder(
@@ -87,7 +88,7 @@ export async function planProfileChange(
       machine: current.machine,
       profile: requested.profile,
     },
-    manifest.output.digest,
+    manifest.outputs,
     inspect,
   );
   if (preview.plan.kind === "blocked") return preview.plan;
@@ -101,17 +102,18 @@ export async function planProfileChange(
     profile: requested.profile,
   });
   const nextManifest = parseInstructionManifest({
-    schemaVersion: 1,
+    schemaVersion: 2,
     preferenceRevision: preferences.revision,
     templateRevision: preview.templateRevision,
-    output: { path: preview.desired.path, digest: preview.desired.digest },
+    outputs: outputDigests(preview.desired),
   });
   return {
     kind: "profile-change" as const,
     expectedRevision: current.revision,
-    previousDigest: manifest.output.digest,
+    previous: manifest.outputs,
     preferences,
     manifest: nextManifest,
     desired: preview.desired,
+    files: preview.plan.files,
   };
 }
