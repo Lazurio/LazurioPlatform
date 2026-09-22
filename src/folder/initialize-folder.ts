@@ -9,7 +9,9 @@ import {
   verifyHandoverLayout,
 } from "./handover-layout";
 import {
+  createManualDirectory,
   initializationReceipts,
+  manualDirectoryReceipt,
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
@@ -26,6 +28,7 @@ import { parseFolderPreferences, parseInstructionManifest } from "./state";
 export type InitializationStep =
   | "folder"
   | "journal"
+  | "manual-directory"
   | "instructions"
   | "manual"
   | "preferences"
@@ -181,10 +184,16 @@ async function initialize(
       journal,
     );
     await checkpoint("journal");
-    // The owned manual directory is created exclusively, right before its
-    // first file: a `manual/` that appears in between is foreign and stops us.
-    await mkdir(manual, { mode: 0o700 });
-    const identities: Record<string, { dev: string; ino: string }> = {};
+    // The owned manual directory is created exclusively and receipted before
+    // any output is written: on recovery only a manual/ with this recorded
+    // identity is ours; any other is foreign and refused by name.
+    const identities: Record<string, { dev: string; ino: string }> = {
+      [manualDirectoryReceipt]: await createManualDirectory(
+        folder,
+        transaction,
+      ),
+    };
+    await checkpoint("manual-directory");
     for (const file of planned) {
       await assertHeld();
       const identity = await createFile(
@@ -201,7 +210,12 @@ async function initialize(
     await checkpoint("layout");
     for (const name of directories)
       await inspectOwnedDirectory(join(folder, name));
-    await inspectOwnedDirectory(manual);
+    const observedManual = await inspectOwnedDirectory(manual);
+    if (
+      String(observedManual.dev) !== identities[manualDirectoryReceipt]?.dev ||
+      String(observedManual.ino) !== identities[manualDirectoryReceipt]?.ino
+    )
+      throw new Error("Initialization files changed");
     if (layout) await verifyHandoverLayout(folder, layout);
     const transactionEntries = await readdir(transaction);
     const receipts = Object.values(initializationReceipts);

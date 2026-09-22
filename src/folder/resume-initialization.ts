@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
+  FolderAdoptionError,
   handoverDirectories,
   parseHandoverLayout,
   requireAdoptableLayout,
@@ -9,7 +10,10 @@ import {
   verifyHandoverLayout,
 } from "./handover-layout";
 import {
+  createManualDirectory,
+  fileIdentity,
   initializationReceipts,
+  manualDirectoryReceipt,
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
@@ -177,9 +181,54 @@ export async function resumeInitialization(
       )
         throw new Error("Changed or foreign initialization output");
     };
+    // The manual directory comes first in the initializer's order and carries
+    // its own receipt. Without one, any manual/ is foreign; with one, only the
+    // recorded directory holding nothing this initialization did not write is
+    // ours. Refusals name the entry, write nothing and keep the journal.
+    const manualReceipt = initializationReceipts[manualDirectoryReceipt];
+    if (!manualReceipt) throw new Error("Unknown initialization output");
+    const manualRecorded = await exists(join(journalDirectory, manualReceipt));
+    const verifyManualDirectory = async (journal = journalDirectory) => {
+      const stat = await lstat(manual).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      });
+      if (stat === null)
+        throw new Error("Missing recorded initialization output");
+      const receipt = stateFields(
+        JSON.parse((await readOwnedStateFile(journal, manualReceipt)).content),
+        ["dev", "ino"],
+      );
+      if (
+        !stat.isDirectory() ||
+        receipt.dev !== String(stat.dev) ||
+        receipt.ino !== String(stat.ino)
+      )
+        throw new FolderAdoptionError("foreign-entry", "manual");
+      await inspectOwnedDirectory(manual);
+      const ours = outputPaths
+        .map((path) => outputFile(folder, path))
+        .filter((file) => file.directory === manual)
+        .map((file) => file.name);
+      for (const entry of (await readdir(manual)).sort())
+        if (
+          !ours.includes(entry) ||
+          !(await exists(
+            join(journal, initializationReceipts[`manual/${entry}`] ?? ""),
+          ))
+        )
+          throw new FolderAdoptionError("foreign-entry", `manual/${entry}`);
+    };
     // Validate every existing output before creating anything. Only an ordered
     // prefix of the initializer is recognized; archived recovery must be complete.
     let missing = false;
+    if (manualRecorded) await verifyManualDirectory();
+    else {
+      if (await exists(manual))
+        throw new FolderAdoptionError("foreign-entry", "manual");
+      missing = true;
+      if (!pending) throw new Error("Incomplete archived initialization");
+    }
     for (const file of files) {
       const receiptFile = initializationReceipts[file.receipt];
       if (!receiptFile) throw new Error("Unknown initialization output");
@@ -205,24 +254,26 @@ export async function resumeInitialization(
         await inspectOwnedDirectory(join(folder, name));
       }
     }
-    // An existing manual/ must be ours (owned, non-shared, not a link) before
-    // anything is created inside it; a missing one is created exclusively.
-    if (await exists(manual)) await inspectOwnedDirectory(manual);
+    await assertHeld();
+    if (!manualRecorded) {
+      await createManualDirectory(folder, journalDirectory);
+      await checkpoint("manual-directory");
+    }
+    await verifyManualDirectory();
     for (const file of files) {
       await assertHeld();
       if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
       if (!(await exists(join(file.directory, file.name)))) {
-        if (file.directory === manual && !(await exists(manual)))
-          await mkdir(manual, { mode: 0o700 });
         const handle = await open(join(file.directory, file.name), "wx", 0o600);
         try {
           await handle.writeFile(file.content, "utf8");
           await handle.sync();
           const stat = await handle.stat();
-          await recordInitializationCreation(journalDirectory, file.receipt, {
-            dev: String(stat.dev),
-            ino: String(stat.ino),
-          });
+          await recordInitializationCreation(
+            journalDirectory,
+            file.receipt,
+            fileIdentity(stat),
+          );
         } finally {
           await handle.close();
         }
@@ -230,7 +281,7 @@ export async function resumeInitialization(
       await verifyFile(file);
       await checkpoint(file.name);
     }
-    await inspectOwnedDirectory(manual);
+    await verifyManualDirectory();
     for (const name of layout) {
       await assertHeld();
       if (!(await exists(join(folder, name))))
@@ -270,6 +321,7 @@ export async function resumeInitialization(
     }
     await assertHeld();
     if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
+    await verifyManualDirectory(archive);
     for (const file of files) await verifyFile(file, archive);
     return { kind: "recovered" as const, revision: 1 };
   });

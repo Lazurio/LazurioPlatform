@@ -79,6 +79,7 @@ for (const scenario of ["foreign-identical", "edit-during-resume"] as const) {
 }
 for (const stop of [
   "journal",
+  "manual-directory",
   "instructions",
   "manual",
   "preferences",
@@ -211,6 +212,108 @@ test.skipIf(process.platform === "win32")(
         "organizations",
         "personalspace",
       ]);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// A manual/ that appears after the journal has no receipt and is foreign, even
+// though the name is owned: refused by name, nothing generated, journal kept.
+// One recorded by this initialization with only our files inside recovers.
+for (const stop of ["journal", "manual-directory"] as const)
+  test.skipIf(process.platform === "win32")(
+    `recovery after ${stop} refuses a manual/ this initialization did not record, then recovers`,
+    async () => {
+      const parent = await realpath(
+        await mkdtemp(join(tmpdir(), "init-manual-boundary-")),
+      );
+      const folder = join(parent, "Lazurio");
+      const manual = join(folder, "manual");
+      try {
+        await expect(
+          initializeFolder(folder, profile, async (step) => {
+            if (step === stop) throw new Error("stop");
+          }),
+        ).rejects.toThrow("stop");
+        const journal = join(folder, ".lazurio", "transaction");
+        const entries = (await readdir(journal)).sort();
+        const bytes = await Promise.all(
+          entries.map((name) => readFile(join(journal, name))),
+        );
+        const journalUnchanged = async () => {
+          expect((await readdir(journal)).sort()).toEqual(entries);
+          for (const [index, name] of entries.entries()) {
+            const retained = bytes[index];
+            if (!retained) throw new Error("Missing journal snapshot");
+            expect(await readFile(join(journal, name))).toEqual(retained);
+          }
+        };
+        if (stop === "journal") {
+          // The probe: a foreign manual/ with a file inside, no receipt.
+          await mkdir(manual);
+          await writeFile(join(manual, "foreign.txt"), "not ours");
+          await expect(resumeInitialization(folder)).rejects.toThrow(
+            new FolderAdoptionError("foreign-entry", "manual"),
+          );
+        } else {
+          // Our recorded manual/ with a foreign file inside.
+          await writeFile(join(manual, "foreign.txt"), "not ours");
+          await expect(resumeInitialization(folder)).rejects.toThrow(
+            new FolderAdoptionError("foreign-entry", "manual/foreign.txt"),
+          );
+          await rm(join(manual, "foreign.txt"));
+          // A replaced manual/ has another identity than the receipt.
+          await rm(manual, { recursive: true });
+          await mkdir(manual, { mode: 0o700 });
+          await expect(resumeInitialization(folder)).rejects.toThrow(
+            new FolderAdoptionError("foreign-entry", "manual"),
+          );
+        }
+        expect((await readdir(folder)).sort()).toEqual([".lazurio", "manual"]);
+        await journalUnchanged();
+        await rm(manual, { recursive: true });
+        if (stop === "manual-directory")
+          // The receipt names a directory that is gone: operator diagnosis.
+          await expect(resumeInitialization(folder)).rejects.toThrow(
+            "Missing recorded initialization output",
+          );
+        else {
+          expect(await resumeInitialization(folder)).toEqual({
+            kind: "recovered",
+            revision: 1,
+          });
+          expect((await readdir(manual)).sort()).toHaveLength(6);
+        }
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+
+test.skipIf(process.platform === "win32")(
+  "a recorded manual/ holding only what this initialization wrote recovers",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "init-manual-positive-")),
+    );
+    const folder = join(parent, "Lazurio");
+    try {
+      await expect(
+        initializeFolder(folder, profile, async (step) => {
+          if (step === "instructions") throw new Error("stop");
+        }),
+      ).rejects.toThrow("stop");
+      expect(await readdir(join(folder, "manual"))).toEqual([]);
+      expect(await resumeInitialization(folder)).toEqual({
+        kind: "recovered",
+        revision: 1,
+      });
+      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(6);
+      expect(await resumeInitialization(folder)).toEqual({
+        kind: "recovered",
+        revision: 1,
+      });
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

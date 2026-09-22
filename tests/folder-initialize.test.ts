@@ -10,6 +10,7 @@ for (const stop of [
   null,
   "folder",
   "journal",
+  "manual-directory",
   "instructions",
   "manual",
   "preferences",
