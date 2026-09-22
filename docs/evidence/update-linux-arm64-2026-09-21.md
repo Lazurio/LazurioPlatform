@@ -59,9 +59,11 @@ Source commit `56050c6a3e0f83da3298b4eee70da146410f4c9b` (branch
 `claude/DEV-6594-update-pill`), a fresh disposable clone of the same Ubuntu 24.04.4
 ARM64 image, systemd 255.4, `Linger=yes`, the two-listener fixture origin plus a
 fifth executable 1.3.0 and the attested impostor release `v1.4.0`. Journeys 1–7
-ran again first (unchanged, 30 + 47 checks). **Journey 8: 37 checks passed, 0
-failed** — phases `before-reboot` 30 and `after-reboot` 84 in total, a real reboot
-between them.
+ran again first. The harness counts only failures (`FAILED`) and ends the phase
+with `QUALIFIED` only when that count is zero; the totals below are `PASS` lines
+counted in the two transcripts that follow: `before-reboot` 30, `after-reboot` 84,
+of which journey 8 contributes 67, and **0 `FAIL` lines**. A real reboot lies
+between the phases.
 
 Entirely through the installed Launchpad's loopback session (`GET
 /api/update/status`, `POST /api/update/apply` with the bearer token read from the
