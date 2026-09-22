@@ -11,5 +11,7 @@ import { compareVersions } from "../src/update/version";
 test("the published minimum updater version admits every client released so far", () => {
   expect(isProductVersion(minimumUpdaterVersion)).toBe(true);
   for (const released of ["0.1.0-rc.1", "0.1.0-rc.2", "0.1.0"])
-    expect(compareVersions(released, minimumUpdaterVersion)).toBeGreaterThanOrEqual(0);
+    expect(
+      compareVersions(released, minimumUpdaterVersion),
+    ).toBeGreaterThanOrEqual(0);
 });
