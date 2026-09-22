@@ -29,6 +29,12 @@ implemented by the document that records it.
 4. **Release workflow.** A real GitHub Release produced and attested by the real workflow.
 5. **Activation, rollback and the Launchpad update pill.** Two real versions, candidate
    failure, reboot, concurrent requests and an update while applications are in use.
+   The pill exists: the installed Launchpad polls with the CLI's check, derives the
+   contract's states from disk and the `lazurio-update` unit, and its one action starts
+   the same `lazurio update` command. Qualified against the fixture origin with fake
+   service-manager and child seams and by a compiled unsupervised Launchpad; the
+   native click path on a supervised Linux Machine (unit start, journal readback,
+   restart, failed candidate) and macOS remain unproven.
 6. **Hosted entry adapter.** Unauthenticated denial, authenticated access, WebSockets,
    unknown hosts and module links ([hosted entry](hosted-entry.md)).
 7. **Materialization and content synchronization.** One real Organization and one
