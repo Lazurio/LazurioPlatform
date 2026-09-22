@@ -741,14 +741,11 @@ test("the pill runs the one check use case and applies only what it showed", asy
     version: "1.1.0",
     latest: null,
   });
-  for (
-    let attempt = 0;
-    attempt < 200 && world.origin.requests.length < 3;
-    attempt++
-  )
-    await Bun.sleep(10);
+  // The third request is the artifact of the check; the check settles a moment
+  // after it (verification, last-check.json), so wait for the status, not the
+  // request count.
   expect(activator.starts).toEqual([]);
-  expect(await pill.status()).toMatchObject({
+  expect(await settled()).toMatchObject({
     state: "available",
     latest: "1.1.0",
     action: "update",
