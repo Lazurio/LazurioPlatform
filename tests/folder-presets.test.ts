@@ -12,30 +12,64 @@ import {
   workspacePreset,
 } from "../src/folder/presets";
 import { parseFolderPreferences } from "../src/folder/state";
-import { bindings } from "./fixtures/machine-bindings";
+import { bindings, workRelationships } from "./fixtures/machine-bindings";
 
 const machines = {
   workstation: null,
   "personal-vm": bindings.personal,
-  "workspace-vm with owner.team": bindings.team,
-  "workspace-vm without owner.team": bindings.organization,
+  "workspace-vm with owner.team, no assignment": bindings.team,
+  "workspace-vm without owner.team, no assignment": bindings.organization,
+  "workspace-vm with owner.team assigned to one operator":
+    bindings.assignedOperator,
+  "workspace-vm with owner.team assigned to the Team": bindings.assignedTeam,
+  "workspace-vm without owner.team assigned to the Team": parseMachineBinding({
+    ...bindings.organization,
+    owner: { ...bindings.organization.owner, assignment: { kind: "team" } },
+  }),
+  "workspace-vm without owner.team, with relationships": bindings.related,
 } as const;
 
-// Derivation is a function of machine.kind and the assignment the handover
-// proves. A Team in the handover proves nothing about assignment (an
-// Organization may model one operator's VM as a Team named after them), so
-// that handover derives no preset and every choice on it is explicit.
+// Derivation is a function of machine.kind and the assignment. Since Machines
+// v0.12.61 `owner.assignment` is the only selector when present; without it
+// the handover proves only that a VM without a Team is one operator's. A Team
+// alone proves nothing about assignment (an Organization may model one
+// operator's VM as a Team named after them), so that handover derives no
+// preset and every choice on it is explicit. Relationships never take part.
 test.each([
   ["workstation", null, "local", ["local"]],
   ["personal-vm", "operator", "hosted-personal", ["hosted-personal"]],
   [
-    "workspace-vm with owner.team",
+    "workspace-vm with owner.team, no assignment",
     null,
     null,
     ["hosted-organization-personal", "hosted-organization-team"],
   ],
   [
-    "workspace-vm without owner.team",
+    "workspace-vm without owner.team, no assignment",
+    "operator",
+    "hosted-organization-personal",
+    ["hosted-organization-personal", "hosted-organization-team"],
+  ],
+  [
+    "workspace-vm with owner.team assigned to one operator",
+    "operator",
+    "hosted-organization-personal",
+    ["hosted-organization-personal", "hosted-organization-team"],
+  ],
+  [
+    "workspace-vm with owner.team assigned to the Team",
+    "team",
+    "hosted-organization-team",
+    ["hosted-organization-personal", "hosted-organization-team"],
+  ],
+  [
+    "workspace-vm without owner.team assigned to the Team",
+    "team",
+    "hosted-organization-team",
+    ["hosted-organization-personal", "hosted-organization-team"],
+  ],
+  [
+    "workspace-vm without owner.team, with relationships",
     "operator",
     "hosted-organization-personal",
     ["hosted-organization-personal", "hosted-organization-team"],
@@ -155,7 +189,7 @@ test("preferences validate preset, Machine and profile as one composition", () =
     expect(() => parseFolderPreferences({ ...base, ...change })).toThrow();
 });
 
-test("Machine bindings are typed projections; branches never mix and relationships are optional", () => {
+test("Machine bindings are typed projections; branches never mix, assignment and relationships are optional and exact", () => {
   expect(parseMachineBinding(null)).toBeNull();
   for (const binding of Object.values(bindings)) {
     expect(parseMachineBinding(binding)).toEqual(binding);
@@ -163,14 +197,25 @@ test("Machine bindings are typed projections; branches never mix and relationshi
       binding,
     );
   }
-  const related = {
-    ...bindings.personal,
-    relationships: [
-      { machine: "example-laptop", kind: "personal-client", access: "both" },
-      { machine: "example-work", kind: "workspace-vm", access: "outbound" },
-    ],
-  } as const;
-  expect(parseMachineBinding(related)).toEqual(related);
+  // The projection keeps the handover's optional fields exactly: absent stays
+  // absent (a v0.12.59 binding is unchanged), present is copied field by field.
+  expect("assignment" in bindings.team.owner).toBe(false);
+  expect("relationships" in bindings.team).toBe(false);
+  expect(bindings.assignedOperator.owner).toEqual({
+    kind: "organization",
+    organization: "example",
+    team: "sample-team",
+    assignment: { kind: "operator", githubLogin: "example", githubId: 12345 },
+  });
+  expect(bindings.assignedTeam.owner).toEqual({
+    kind: "organization",
+    organization: "example",
+    team: "sample-team",
+    assignment: { kind: "team" },
+  });
+  expect(bindings.related.relationships).toEqual(workRelationships);
+  expect(Object.isFrozen(bindings.related.relationships?.peers[0])).toBe(true);
+  const peer = workRelationships.peers[0];
   for (const change of [
     { kind: "workspace-vm" },
     { owner: bindings.team.owner },
@@ -178,16 +223,59 @@ test("Machine bindings are typed projections; branches never mix and relationshi
     { network: null },
     { contextDigest: "short" },
     { name: "Example" },
-    { relationships: [{ machine: "x", kind: "phone", access: "both" }] },
-    { relationships: [{ machine: "x", kind: "personal-vm" }] },
+    { owner: { ...bindings.personal.owner, assignment: { kind: "team" } } },
+    { relationships: null },
+    { relationships: workRelationships },
+    { relationships: { zone: "personal" } },
+    {
+      relationships: { zone: "personal", peers: [{ ...peer, kind: "phone" }] },
+    },
+    {
+      relationships: {
+        zone: "personal",
+        peers: [
+          {
+            ...peer,
+            ssh: { host: "example-laptop", user: null, direction: "inbound" },
+          },
+        ],
+      },
+    },
+    {
+      relationships: {
+        zone: "personal",
+        peers: [{ ...peer, https: ["a.example.invalid", "a.example.invalid"] }],
+      },
+    },
+    { relationships: { zone: "personal", peers: [{ ...peer, node_id: "1" }] } },
+    { relationships: [{ machine: "x", kind: "personal-vm", access: "both" }] },
     { authority: "admin" },
   ])
     expect(() =>
       parseMachineBinding({ ...bindings.personal, ...change }),
     ).toThrow();
+  for (const owner of [
+    { ...bindings.team.owner, assignment: null },
+    { ...bindings.team.owner, assignment: { kind: "everyone" } },
+    { ...bindings.team.owner, assignment: { kind: "team", team: "x" } },
+    {
+      ...bindings.team.owner,
+      assignment: { kind: "operator", githubLogin: "example" },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { kind: "operator", githubLogin: "Example", githubId: 1 },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { kind: "operator", githubLogin: "example", githubId: 0 },
+    },
+    bindings.personal.owner,
+  ])
+    expect(() => parseMachineBinding({ ...bindings.team, owner })).toThrow();
   expect(() =>
-    parseMachineBinding({ ...bindings.team, owner: bindings.personal.owner }),
-  ).toThrow();
+    parseMachineBinding({ ...bindings.team, relationships: personalOnWork }),
+  ).toThrow("zone");
   let invoked = false;
   expect(() =>
     parseMachineBinding({
@@ -200,3 +288,4 @@ test("Machine bindings are typed projections; branches never mix and relationshi
   ).toThrow();
   expect(invoked).toBe(false);
 });
+const personalOnWork = { zone: "personal", peers: [] };

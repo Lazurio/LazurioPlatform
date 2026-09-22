@@ -3,22 +3,45 @@ import { ownDataValue, stateFields } from "./state-fields";
 // The immutable part of a hosted Folder: a projection of the root-issued
 // handover recorded at initialization. It is shown, never edited; the profile
 // change flow carries it forward unchanged. A workstation Folder has none.
-// Nothing here is a grant: owner, team and host describe context only.
+// Nothing here is a grant: owner, assignment, host and peers describe context
+// only. Optional handover fields stay absent in the binding (never `null`) so
+// that a Folder adopted from an older handover still matches it byte for byte.
+
+// The assignment of an Organization work VM, copied by Machines from the owner
+// Deployment Repo (schema v0.12.61) and never inferred. It is the one fact the
+// two Organization presets differ on.
+export type MachineAssignment =
+  | Readonly<{ kind: "operator"; githubLogin: string; githubId: number }>
+  | Readonly<{ kind: "team" }>;
+
 export type MachineOwner =
   | Readonly<{ kind: "principal"; githubLogin: string; githubId: number }>
   | Readonly<{
       kind: "organization";
       organization: string;
       team: string | null;
+      assignment?: MachineAssignment;
     }>;
 
-// Rendered only when present. The upstream handover has no relationships field
-// yet; this shape follows the zones of upstream decision 0155 so a future pin
-// maps onto it without changing the renderer.
-export type MachineRelationship = Readonly<{
-  machine: string;
-  kind: "personal-client" | "personal-vm" | "workspace-vm" | "work-laptop";
-  access: "inbound" | "outbound" | "both";
+// This Machine's tailnet peers from its own point of view, as Machines derives
+// them from the home Conglomerate Host grants: names only, no node ids, keys,
+// addresses or credentials. Rendered only when present; Headscale enforces it.
+export type MachineZone = "personal" | "work";
+export type MachinePeer = Readonly<{
+  name: string;
+  kind: "personal-vm" | "workspace-vm" | "client-device" | "conglomerate-host";
+  zone: MachineZone | null;
+  organization: string | null;
+  ssh: Readonly<{
+    host: string;
+    user: string | null;
+    direction: "outbound" | "inbound" | "both";
+  }> | null;
+  https: readonly string[];
+}>;
+export type MachineRelationships = Readonly<{
+  zone: MachineZone;
+  peers: readonly MachinePeer[];
 }>;
 
 export type MachineBinding = Readonly<{
@@ -31,26 +54,73 @@ export type MachineBinding = Readonly<{
     kind: "virtualization-host" | "provider-estate";
     id: string;
   }>;
-  relationships?: readonly MachineRelationship[];
+  relationships?: MachineRelationships;
 }>;
 
 const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const hostname =
+  /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+const osAccount = /^[a-z_][a-z0-9_-]{0,30}$/;
+const zones: readonly MachineZone[] = ["personal", "work"];
+const peerKinds: readonly MachinePeer["kind"][] = [
+  "personal-vm",
+  "workspace-vm",
+  "client-device",
+  "conglomerate-host",
+];
+const directions: readonly NonNullable<MachinePeer["ssh"]>["direction"][] = [
+  "outbound",
+  "inbound",
+  "both",
+];
 const keys = ["contextDigest", "kind", "name", "owner", "network", "host"];
 
 function isSlug(value: unknown): value is string {
   return typeof value === "string" && slug.test(value);
 }
+function isHostname(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length <= 253 && hostname.test(value)
+  );
+}
+function isGithubId(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+}
+function isGithubLogin(value: unknown): value is string {
+  return isSlug(value) && value.length <= 39;
+}
+function oneOf<T extends string>(
+  values: readonly T[],
+  value: unknown,
+): value is T {
+  return (
+    typeof value === "string" && (values as readonly string[]).includes(value)
+  );
+}
+
+function assignment(input: unknown): MachineAssignment {
+  if (ownDataValue(input, "kind") === "team") {
+    stateFields(input, ["kind"]);
+    return Object.freeze({ kind: "team" });
+  }
+  const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
+  if (
+    value.kind !== "operator" ||
+    !isGithubLogin(value.githubLogin) ||
+    !isGithubId(value.githubId)
+  )
+    throw new Error("Invalid Machine assignment");
+  return Object.freeze({
+    kind: "operator",
+    githubLogin: value.githubLogin,
+    githubId: value.githubId,
+  });
+}
 
 function owner(input: unknown): MachineOwner {
   if (ownDataValue(input, "kind") === "principal") {
     const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
-    if (
-      !isSlug(value.githubLogin) ||
-      value.githubLogin.length > 39 ||
-      typeof value.githubId !== "number" ||
-      !Number.isSafeInteger(value.githubId) ||
-      value.githubId < 1
-    )
+    if (!isGithubLogin(value.githubLogin) || !isGithubId(value.githubId))
       throw new Error("Invalid Machine owner");
     return Object.freeze({
       kind: "principal",
@@ -58,43 +128,87 @@ function owner(input: unknown): MachineOwner {
       githubId: value.githubId,
     });
   }
-  const value = stateFields(input, ["kind", "organization", "team"]);
+  const assigned = ownDataValue(input, "assignment") !== undefined;
+  const value = stateFields(
+    input,
+    assigned
+      ? ["kind", "organization", "team", "assignment"]
+      : ["kind", "organization", "team"],
+  );
   if (
     value.kind !== "organization" ||
     !isSlug(value.organization) ||
     (value.team !== null && !isSlug(value.team))
   )
     throw new Error("Invalid Machine owner");
-  return Object.freeze({
-    kind: "organization",
+  const bound = {
+    kind: "organization" as const,
     organization: value.organization,
     team: value.team,
+  };
+  return Object.freeze(
+    assigned ? { ...bound, assignment: assignment(value.assignment) } : bound,
+  );
+}
+
+function peer(input: unknown): MachinePeer {
+  const value = stateFields(input, [
+    "name",
+    "kind",
+    "zone",
+    "organization",
+    "ssh",
+    "https",
+  ]);
+  if (
+    !isSlug(value.name) ||
+    !oneOf(peerKinds, value.kind) ||
+    (value.zone !== null && !oneOf(zones, value.zone)) ||
+    (value.organization !== null && !isGithubLogin(value.organization)) ||
+    !Array.isArray(value.https) ||
+    value.https.length > 64 ||
+    !value.https.every(isHostname) ||
+    new Set(value.https).size !== value.https.length
+  )
+    throw new Error("Invalid Machine peer");
+  let ssh: MachinePeer["ssh"] = null;
+  if (value.ssh !== null) {
+    const link = stateFields(value.ssh, ["host", "user", "direction"]);
+    if (
+      !isHostname(link.host) ||
+      (link.user !== null &&
+        (typeof link.user !== "string" || !osAccount.test(link.user))) ||
+      !oneOf(directions, link.direction)
+    )
+      throw new Error("Invalid Machine peer");
+    ssh = Object.freeze({
+      host: link.host,
+      user: link.user,
+      direction: link.direction,
+    });
+  }
+  return Object.freeze({
+    name: value.name,
+    kind: value.kind,
+    zone: value.zone,
+    organization: value.organization,
+    ssh,
+    https: Object.freeze([...value.https]),
   });
 }
 
-function relationships(input: unknown): readonly MachineRelationship[] {
-  if (!Array.isArray(input)) throw new Error("Invalid Machine relationships");
-  return Object.freeze(
-    input.map((entry) => {
-      const value = stateFields(entry, ["machine", "kind", "access"]);
-      if (
-        !isSlug(value.machine) ||
-        ![
-          "personal-client",
-          "personal-vm",
-          "workspace-vm",
-          "work-laptop",
-        ].includes(value.kind as string) ||
-        !["inbound", "outbound", "both"].includes(value.access as string)
-      )
-        throw new Error("Invalid Machine relationship");
-      return Object.freeze({
-        machine: value.machine,
-        kind: value.kind as MachineRelationship["kind"],
-        access: value.access as MachineRelationship["access"],
-      });
-    }),
-  );
+function relationships(input: unknown): MachineRelationships {
+  const value = stateFields(input, ["zone", "peers"]);
+  if (
+    !oneOf(zones, value.zone) ||
+    !Array.isArray(value.peers) ||
+    value.peers.length > 256
+  )
+    throw new Error("Invalid Machine relationships");
+  return Object.freeze({
+    zone: value.zone,
+    peers: Object.freeze(value.peers.map(peer)),
+  });
 }
 
 export function parseMachineBinding(input: unknown): MachineBinding | null {
@@ -139,9 +253,10 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
       tailnet === null ? null : Object.freeze({ headscaleHostname: tailnet }),
     host: Object.freeze({ kind: host.kind, id: host.id }),
   };
-  return Object.freeze(
-    withRelationships
-      ? { ...binding, relationships: relationships(value.relationships) }
-      : binding,
-  );
+  if (!withRelationships) return Object.freeze(binding);
+  const related = relationships(value.relationships);
+  // The zone of the relationships is the zone of this Machine's branch.
+  if ((related.zone === "personal") !== personalVm)
+    throw new Error("Machine relationships zone mixes handover branches");
+  return Object.freeze({ ...binding, relationships: related });
 }

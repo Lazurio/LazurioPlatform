@@ -30,7 +30,8 @@
             "kind": { "const": "organization" },
             "organization": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
             "organization_key": { "type": "string", "minLength": 1, "maxLength": 128 },
-            "team": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+            "team": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+            "assignment": { "$ref": "#/$defs/organization_assignment" }
           }
         },
         "operator": { "$ref": "#/$defs/operator" },
@@ -46,6 +47,7 @@
           }
         },
         "network": { "$ref": "#/$defs/network" },
+        "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -90,9 +92,31 @@
           }
         },
         "network": { "$ref": "#/$defs/network" },
+        "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "personal" } } }] },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
+    },
+    "organization_assignment": {
+      "description": "Explicit assignment of an Organization work VM, authored per guest in the owner Deployment Repo and never inferred from names, Team names or Team size: one individual operator, or a shared Team. Omitted when the owner declares none; consumers then must not guess.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "github_login", "github_id"],
+          "properties": {
+            "kind": { "const": "operator" },
+            "github_login": { "type": "string", "maxLength": 39, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+            "github_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "team" } }
+        }
+      ]
     },
     "vmid": { "type": "integer", "minimum": 100, "maximum": 999999999 },
     "repository": { "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$" },
@@ -132,6 +156,53 @@
         },
         "deployment_head": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
         "recorded_at": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$" }
+      }
+    },
+    "zone": { "enum": ["personal", "work"] },
+    "relationships": {
+      "description": "This Machine's tailnet peers from its own point of view, derived only from the home Conglomerate Host grants that name its Headscale node. Names only: no node ids, machine keys, tailnet addresses or credentials. Omitted when the Deployment Repo declares no home Conglomerate Host for the Machine. Transport is not authentication: SSH keys and application sign-in stay separate.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["zone", "peers"],
+      "properties": {
+        "zone": { "$ref": "#/$defs/zone" },
+        "peers": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "kind", "zone", "organization", "ssh", "https"],
+            "properties": {
+              "name": { "description": "Headscale node name of the peer.", "type": "string", "maxLength": 63, "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$" },
+              "kind": { "enum": ["personal-vm", "workspace-vm", "client-device", "conglomerate-host"] },
+              "zone": { "description": "Decision 0155 zone of the peer; null when the declaration does not establish it.", "anyOf": [{ "$ref": "#/$defs/zone" }, { "type": "null" }] },
+              "organization": { "description": "Lowercase GitHub Organization login the peer belongs to; null for personal peers or when not established.", "anyOf": [{ "type": "string", "maxLength": 39, "pattern": "^(?!.*--)[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$" }, { "type": "null" }] },
+              "ssh": {
+                "anyOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["host", "user", "direction"],
+                    "properties": {
+                      "host": { "description": "MagicDNS name of the peer in the home tailnet.", "type": "string", "maxLength": 253, "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" },
+                      "user": { "description": "OS account on the peer when the declaration names it; otherwise null.", "anyOf": [{ "type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,30}$" }, { "type": "null" }] },
+                      "direction": { "description": "TCP 22 relative to this Machine: outbound (this Machine may connect to the peer), inbound (the peer may connect here) or both.", "enum": ["outbound", "inbound", "both"] }
+                    }
+                  }
+                ]
+              },
+              "https": {
+                "description": "Gateway hostnames of the peer this Machine may reach over TCP 443.",
+                "type": "array",
+                "maxItems": 64,
+                "uniqueItems": true,
+                "items": { "type": "string", "maxLength": 253, "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" }
+              }
+            }
+          }
+        }
       }
     },
     "account": {

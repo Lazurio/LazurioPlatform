@@ -103,7 +103,7 @@ for (const journey of journeys.filter((entry) => entry.os !== "windows"))
       ).toMatchSnapshot();
     });
 
-test("relationships render only when the recorded binding carries them", () => {
+test("relationships render only when the recorded binding carries them, one line per peer", () => {
   const profile = presetProfile("hosted-personal", "linux");
   const plain = renderInstructions({
     preset: "hosted-personal",
@@ -113,18 +113,82 @@ test("relationships render only when the recorded binding carries them", () => {
   expect(plain).not.toContain("Related Machines");
   const related = renderInstructions({
     preset: "hosted-personal",
-    machine: {
-      ...bindings.personal,
-      relationships: [
-        { machine: "example-laptop", kind: "personal-client", access: "both" },
-        { machine: "example-work", kind: "workspace-vm", access: "outbound" },
-      ],
-    },
+    machine: bindings.personalRelated,
     profile,
   });
   expect(related).toContain("### Related Machines");
-  expect(related).toContain("`example-work` (work VM): reachable from here.");
+  expect(related).toContain(
+    "- `example-laptop` (client device, personal zone): SSH both ways with `example-laptop.tailnet.example.invalid`; no HTTPS.",
+  );
+  expect(related).toContain(
+    "- `example-workspace` (work VM, work zone, Organization `example`): SSH from here to `example-workspace.tailnet.example.invalid` as `operator`; HTTPS `launchpad.example-workspace.example.lazurio.io`.",
+  );
+  expect(related).toContain("Headscale enforces them, Lazurio does not.");
   expect(related).toMatchSnapshot();
+  const work = renderInstructions({
+    preset: "hosted-organization-personal",
+    machine: bindings.related,
+    profile: presetProfile("hosted-organization-personal", "linux", {
+      locale: "cs",
+    }),
+  });
+  expect(work).toContain("### Vztahy k dalším Mašinám");
+  expect(work).toContain(
+    "- `example` (osobní VM, osobní zóna): SSH sem z `example.tailnet.example.invalid` jako `operator`; bez HTTPS.",
+  );
+  expect(work).toContain(
+    "- `example-gateway` (Conglomerate Host, Organizace `example`): bez SSH; HTTPS `auth.example.lazurio.io`.",
+  );
+});
+
+// owner.assignment (Machines v0.12.61) is rendered exactly as recorded and
+// only when present; the Owner line rule is unchanged by it.
+test("the Assignment line renders the handover's owner.assignment and nothing else", () => {
+  const without = renderInstructions({
+    preset: "hosted-organization-personal",
+    machine: bindings.organization,
+    profile: presetProfile("hosted-organization-personal", "linux"),
+  });
+  expect(without).not.toContain("Assignment");
+  const operator = renderInstructions({
+    preset: "hosted-organization-personal",
+    machine: bindings.assignedOperator,
+    profile: presetProfile("hosted-organization-personal", "linux"),
+  });
+  expect(operator).toContain(
+    "- Assignment: assigned to operator `example` (GitHub id 12345).",
+  );
+  expect(operator).toContain("- Owner: Organization `example`.\n");
+  expect(operator).not.toContain("sample-team");
+  expect(operator).toMatchSnapshot();
+  const team = renderInstructions({
+    preset: "hosted-organization-team",
+    machine: bindings.assignedTeam,
+    profile: presetProfile("hosted-organization-team", "linux"),
+  });
+  expect(team).toContain("- Assignment: shared by the Team.");
+  expect(team).toContain("Team `sample-team`");
+  expect(team).toMatchSnapshot();
+  expect(
+    renderInstructions({
+      preset: "hosted-organization-team",
+      machine: bindings.assignedTeam,
+      profile: presetProfile("hosted-organization-team", "linux", {
+        locale: "cs",
+      }),
+    }),
+  ).toContain("- Přiřazení: sdílená Teamem.");
+  expect(
+    renderInstructions({
+      preset: "hosted-organization-personal",
+      machine: bindings.assignedOperator,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale: "cs",
+      }),
+    }),
+  ).toContain(
+    "- Přiřazení: přiřazená Operátorovi `example` (GitHub id 12345).",
+  );
 });
 
 // The real canary shape: a Team-bearing handover on an individual work VM,

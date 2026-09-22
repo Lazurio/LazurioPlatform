@@ -29,11 +29,12 @@ machine folder-init [--preset <name>] [--locale <cs|en>]
   [--detail <concise|technical>] [--coordination <direct|coordinator>]
 Initialize the declared operator's standard Lazurio Folder from the handover.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
-workspace-vm without owner.team -> hosted-organization-personal). A workspace-vm
-handover with owner.team does not say whether the Machine is assigned to one
-operator or shared, so it derives nothing: --preset hosted-organization-personal
-or --preset hosted-organization-team is required and recorded as an explicit
-choice. --preset may also pick another preset the handover allows. Omitted
+workspace-vm with owner.assignment operator -> hosted-organization-personal, team
+-> hosted-organization-team; without owner.assignment and without owner.team ->
+hosted-organization-personal). A workspace-vm handover with owner.team and no
+owner.assignment does not say whether the Machine is assigned to one operator or
+shared, so it derives nothing: --preset hosted-organization-personal or --preset
+hosted-organization-team is required and recorded as an explicit choice. --preset may also pick another preset the handover allows. Omitted
 communication choices take the preset's defaults; all are changeable later in
 the Launchpad.
 Adopts the existing Folder: organizations/ and personalspace/ may hold work
@@ -189,7 +190,7 @@ export async function initializeMachineFolder(
         kind: "blocked",
         reason: "preset-ambiguous",
         allowed,
-        next: "Pass --preset: this handover names a Team but not whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+        next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
       },
     };
   }

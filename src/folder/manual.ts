@@ -2,10 +2,11 @@ import type { MachineBinding } from "./machine-binding";
 import type { ManualPath } from "./outputs";
 import { type PresetName, presetVersion, workspacePreset } from "./presets";
 import {
+  assignmentLine,
   type InstructionSource,
   instructionTemplateRevision,
   parseInstructionSource,
-  relationshipLine,
+  peerLine,
 } from "./render";
 
 // The agent manual shipped with the product (decision F14): English only,
@@ -203,7 +204,7 @@ const glossary = document("Glossary", generated, [
   "| Team VM, Hosted Team Workspace | An Organization-owned shared Machine of a Team with one OS account; preset `hosted-organization-team`. |",
   "| Zone (zóna) | The personal or the work side of one operator's Machines and clients; decides who may reach whom (decision 0155). |",
   "| Handover | Machines delivering a Machine online with `lazurio.machine.json`; from then on the inside belongs to the installed product (decision 0144). |",
-  "| Machine binding | The immutable projection of the handover recorded in the Folder: kind, name, Owner, Team, tailnet node, host, relationships. |",
+  "| Machine binding | The immutable projection of the handover recorded in the Folder: kind, name, Owner, Team, assignment, tailnet node, host, relationships. |",
   "| Workspace preset | A named, versioned composition of the profile's fixed axes, defaults, Personalspace policy, identity mode and surfaces. |",
   "| Profile | The communication axes of the generated instructions (`locale`, `detail`, `coordination`) plus the fixed axes the preset pins. |",
   "| Draft | Revertible, editable work: a change, a drafted message, an open PR. |",
@@ -242,7 +243,7 @@ const troubleshooting = document("Troubleshooting", generated, [
   "- `folder-directory-shared`: the named path is group- or world-writable; `chmod g-w,o-w` it.",
   "- `folder-state-unrecognized`: pending or unrecognized `.lazurio/` state; complete a recognized initialization with `folder-resume` or diagnose it.",
   "- `folder-binding-changed`: the Folder was adopted from a different handover; verify the Machine identity with the Machines operator.",
-  "- `preset-not-allowed`, `preset-ambiguous`: the handover does not allow or does not decide the preset; pass an allowed `--preset`.",
+  "- `preset-not-allowed`, `preset-ambiguous`: the handover does not allow or does not decide the preset (a Team without `owner.assignment`); pass an allowed `--preset`.",
   "",
   "## Profile change refusals",
   "The preset and the communication axes change only through the Launchpad profile panel (preview, then apply). A blocked plan writes nothing and names its reason:",
@@ -292,6 +293,7 @@ function identitySection(
   return [
     `- Machine: \`${machine.name}\` (${machine.kind}).`,
     owner,
+    ...assignmentLine(machine, "en"),
     machine.network === null
       ? "- Tailnet: the handover records no tailnet identity."
       : `- Tailnet: Headscale node \`${machine.network.headscaleHostname}\`.`,
@@ -364,10 +366,9 @@ function thisMachine(source: InstructionSource): string {
         : [
             "",
             "## Relationships",
-            "Related Machines as the handover records them; the zones above decide what such an edge may be used for.",
-            ...machine.relationships.map((relation) =>
-              relationshipLine(relation, "en"),
-            ),
+            `This Machine's tailnet peers as the handover records them from the Conglomerate Host grants (this Machine is in the ${machine.relationships.zone} zone): what this Machine may reach and what may reach it, per peer with its kind, zone, Organization, SSH host, account and direction, and the HTTPS gateway hostnames reachable from here.`,
+            ...machine.relationships.peers.map((peer) => peerLine(peer, "en")),
+            "Lazurio enforces none of this: the Headscale policy of the Conglomerate Host does, and transport is not authentication, so SSH keys and application sign-in stay separate.",
           ]),
     ],
   );
