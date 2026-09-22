@@ -14,8 +14,10 @@ export type HandoverLayout = Readonly<{
 export type PersonalspacePolicy = "present" | "never";
 
 // The Folder owns exactly these top-level entries; everything else is the
-// operator's. The two legacy launchpad files are tolerated by name only.
-const owned = ["AGENTS.md", ".lazurio"] as const;
+// operator's. The two legacy launchpad files are tolerated by name only. A
+// `manual/` without recorded digests is a foreign entry like any other: it is
+// refused by name, never adopted or overwritten.
+const owned = ["AGENTS.md", "manual", ".lazurio"] as const;
 const tolerated = [
   "organizations",
   "personalspace",
