@@ -1,17 +1,31 @@
+import { type MachineBinding, parseMachineBinding } from "./machine-binding";
+import {
+  type PresetReference,
+  parsePresetReference,
+  validatePresetComposition,
+} from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
+import { stateFields } from "./state-fields";
+
+export { stateFields } from "./state-fields";
 
 // Schema versions this product can read; a release declares them in its
 // artifact identity so staging can check backward read compatibility.
 export const folderStateSchemas = Object.freeze({
-  preferences: Object.freeze([1]),
+  preferences: Object.freeze([2]),
   manifest: Object.freeze([1]),
 });
 
 // Development schema for the single-output transaction. Parsing is not proof of
 // custody: a filesystem adapter must establish the state owner's trusted boundary.
+// Schema 2 adds the workspace preset reference and the immutable Machine binding
+// recorded from the handover (null on a workstation). The whole composition is
+// validated: an unknown preset, version or disallowed combination never parses.
 export type FolderPreferences = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   revision: number;
+  preset: PresetReference;
+  machine: MachineBinding | null;
   profile: FolderProfile;
   customInstructions: string;
 }>;
@@ -23,28 +37,6 @@ export type InstructionManifest = Readonly<{
   output: Readonly<{ path: "AGENTS.md"; digest: string }>;
 }>;
 
-export function stateFields(
-  input: unknown,
-  keys: readonly string[],
-): Record<string, unknown> {
-  if (typeof input !== "object" || input === null || Array.isArray(input))
-    throw new Error("Invalid Folder state");
-  const ownKeys = Reflect.ownKeys(input);
-  if (
-    ownKeys.length !== keys.length ||
-    ownKeys.some((key) => typeof key !== "string" || !keys.includes(key))
-  )
-    throw new Error("Unknown or missing Folder state field");
-  const result: Record<string, unknown> = {};
-  for (const key of keys) {
-    const descriptor = Object.getOwnPropertyDescriptor(input, key);
-    if (!descriptor || !("value" in descriptor))
-      throw new Error("Executable Folder state field");
-    result[key] = descriptor.value;
-  }
-  return result;
-}
-
 function revision(input: unknown): number {
   if (typeof input !== "number" || !Number.isSafeInteger(input) || input < 1)
     throw new Error("Invalid Folder revision");
@@ -55,15 +47,23 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
   const value = stateFields(input, [
     "schemaVersion",
     "revision",
+    "preset",
+    "machine",
     "profile",
     "customInstructions",
   ]);
-  if (value.schemaVersion !== 1 || typeof value.customInstructions !== "string")
+  if (value.schemaVersion !== 2 || typeof value.customInstructions !== "string")
     throw new Error("Unsupported Folder preferences");
+  const preset = parsePresetReference(value.preset);
+  const machine = parseMachineBinding(value.machine);
+  const profile = parseFolderProfile(value.profile);
+  validatePresetComposition(preset, machine, profile);
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision: revision(value.revision),
-    profile: parseFolderProfile(value.profile),
+    preset,
+    machine,
+    profile,
     // Source is preserved verbatim. This schema neither executes it nor imports
     // effective mandates; composition/conflict handling is a separate consumer.
     customInstructions: value.customInstructions,

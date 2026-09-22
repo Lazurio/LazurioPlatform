@@ -129,7 +129,7 @@ Machine without an assigned operator. Upstream wins. Both hosted kinds are first
 | Attribution | The Principal's own provider identity | Bot committer, Team author pseudo-identity and workspace trailer (upstream 0148) |
 | How changes land | The Principal's live rights | Pull requests; an authorized person reviews, merges and takes responsibility |
 | Revocation | The Principal's grants and sign-in | Live GitHub Team grant checked at each token issue (upstream 0149) |
-| Workspace preset | `hosted-private` | `hosted-team` |
+| Workspace preset | `hosted-personal` (the Principal's own personal VM) or `hosted-organization-personal` (an Organization work VM assigned to one operator) | `hosted-organization-team` |
 
 **Intent that remains.** A personal environment is never shared ad hoc. Nobody adds a
 second person to a private workspace, a workstation or a Buddy host; nobody copies a
@@ -148,8 +148,8 @@ operator remains a higher compromise domain. Placement never proves the Git push
 verify the provider identity and exact repository grants at the operation boundary.
 On a team workspace, a change that cannot be attributed to the Team through the
 brokered identity fails closed. Live Team-grant verification in the broker is a target
-contract upstream, not deployed behaviour; it is an external dependency of `hosted-team`
-acceptance. Platform consequences: [workspace presets](workspace-presets.md),
+contract upstream, not deployed behaviour; it is an external dependency of
+`hosted-organization-team` acceptance. Platform consequences: [workspace presets](workspace-presets.md),
 [content synchronization](content-sync.md), [hosted entry](hosted-entry.md),
 [tools and sign-ins](environment-tools.md) and [machine handover](machine-handover.md).
 
@@ -446,12 +446,29 @@ deliberate change from the legacy engine that requires the 0129 amendment above.
 
 ## F10 — Workspace presets and typed owner requests
 
-**Accepted direction (2026-09-19), not implemented.** A named, versioned, declarative
-[workspace preset](workspace-presets.md) composes purpose, collaboration defaults,
-required capabilities, enabled surfaces and supervision policy. A preset does not
-select product releases: F13 has no update channel to configure.
-Exactly two hosted presets are validated first, `hosted-private` and `hosted-team`,
-next to the existing local default. The Environment stores the immutable preset
+**Accepted direction (2026-09-19); amended and accepted by the Principal 2026-09-22;
+local preset model implemented, typed owner requests not.** A named, versioned,
+declarative [workspace preset](workspace-presets.md) composes purpose, collaboration
+defaults, required capabilities, enabled surfaces and supervision policy. A preset does
+not select product releases: F13 has no update channel to configure.
+
+**Amendment 2026-09-22.** Three hosted presets, next to the `local` workstation
+default: `hosted-personal` (a Principal's one personal VM: Personalspace present, no
+Organization repositories mounted, the Principal's own sign-ins, Buddy optional),
+`hosted-organization-personal` (an Organization-owned work VM assigned to one
+operator; Organization repositories; Personalspace never present; formerly
+`hosted-private`) and `hosted-organization-team` (an Organization-owned team VM, one
+OS account, several Principals, brokered Organization identity; formerly
+`hosted-team`). Nothing was implemented under the old names, so no compatibility.
+The preset is **derived from the Machine handover** and can only be confirmed or
+explicitly overridden within what the handover allows: `machine.kind: "personal-vm"`
+→ `hosted-personal`; `"workspace-vm"` with `owner.team` → `hosted-organization-team`;
+without → `hosted-organization-personal`; a personal VM never takes an Organization
+preset and vice versa, and an explicit choice is recorded as such. What comes from the
+handover (kind, name, owner, team, tailnet identity, host, relationships when present)
+is immutable and only shown; the preset and the communication axes change through the
+one existing preview → apply profile change. `folder-init` adopts an existing Folder
+instead of requiring an empty layout. The Environment stores the immutable preset
 reference plus explicit local overrides under the existing environment-configuration
 owner; the instruction axes of the profile renderer are not extended into a universal
 infrastructure configuration.

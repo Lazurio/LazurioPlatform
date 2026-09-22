@@ -1,21 +1,30 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { presetProfile } from "../src/folder/presets";
 import { planInstructions } from "../src/folder/reconcile";
 import { renderInstructions } from "../src/folder/render";
+import { bindings } from "./fixtures/machine-bindings";
+
+// Every preset on every OS it is offered for, in both languages.
+export const journeys = [
+  { preset: "local", machine: null, os: "windows" },
+  { preset: "local", machine: null, os: "macos" },
+  { preset: "hosted-personal", machine: bindings.personal, os: "linux" },
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organization,
+    os: "linux",
+  },
+  { preset: "hosted-organization-team", machine: bindings.team, os: "linux" },
+] as const;
 
 test("all launch journeys render both languages without undefined fragments", () => {
-  for (const journey of [
-    { os: "windows", access: "local", purpose: "human" },
-    { os: "macos", access: "local", purpose: "human" },
-    { os: "linux", access: "remote", purpose: "human" },
-    { os: "linux", access: "remote", purpose: "buddy" },
-  ]) {
-    for (const locale of ["cs", "en"]) {
+  for (const journey of journeys) {
+    for (const locale of ["cs", "en"] as const) {
       const input = {
-        ...journey,
-        locale,
-        detail: "concise",
-        coordination: "direct",
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
       };
       const output = renderInstructions(input);
       expect(output).not.toContain("undefined");
@@ -31,21 +40,26 @@ test("all launch journeys render both languages without undefined fragments", ()
 });
 
 test("localized profile output deterministically feeds reconciliation", () => {
-  const profile = {
-    os: "linux",
-    access: "remote",
-    purpose: "buddy",
+  const profile = presetProfile("hosted-organization-team", "linux", {
     locale: "cs",
     detail: "technical",
     coordination: "coordinator",
+  });
+  const source = {
+    preset: "hosted-organization-team",
+    machine: bindings.team,
+    profile,
   };
-  const cs = renderInstructions(profile);
-  const en = renderInstructions({ ...profile, locale: "en" });
+  const cs = renderInstructions(source);
+  const en = renderInstructions({
+    ...source,
+    profile: { ...profile, locale: "en" },
+  });
   expect(cs).toContain("Komunikuj česky");
   expect(en).toContain("Communicate in English");
   expect(cs).not.toEqual(en);
   const reordered = Object.fromEntries(Object.entries(profile).reverse());
-  expect(renderInstructions(reordered)).toEqual(cs);
+  expect(renderInstructions({ ...source, profile: reordered })).toEqual(cs);
   for (const output of [cs, en]) {
     expect(output).toContain("Organizations");
     expect(output).toContain("Personalspace");
@@ -58,5 +72,55 @@ test("localized profile output deterministically feeds reconciliation", () => {
       planInstructions(digest, digest, { kind: "regular", digest }),
     ).toEqual({ kind: "unchanged" });
   }
-  expect(() => renderInstructions({ ...profile, locale: "invalid" })).toThrow();
+  expect(() =>
+    renderInstructions({
+      ...source,
+      profile: { ...profile, locale: "invalid" },
+    }),
+  ).toThrow();
+  // A preset the Machine does not allow never renders.
+  expect(() =>
+    renderInstructions({ ...source, preset: "hosted-personal" }),
+  ).toThrow("not allowed");
+  expect(() => renderInstructions({ ...source, machine: null })).toThrow(
+    "not allowed",
+  );
+});
+
+// The generated document per preset and language, on the OS each preset is
+// offered for. Review the snapshot when the wording changes deliberately.
+for (const journey of journeys.filter((entry) => entry.os !== "windows"))
+  for (const locale of ["cs", "en"] as const)
+    test(`rendered AGENTS.md snapshot: ${journey.preset} / ${locale}`, () => {
+      expect(
+        renderInstructions({
+          preset: journey.preset,
+          machine: journey.machine,
+          profile: presetProfile(journey.preset, journey.os, { locale }),
+        }),
+      ).toMatchSnapshot();
+    });
+
+test("relationships render only when the recorded binding carries them", () => {
+  const profile = presetProfile("hosted-personal", "linux");
+  const plain = renderInstructions({
+    preset: "hosted-personal",
+    machine: bindings.personal,
+    profile,
+  });
+  expect(plain).not.toContain("Related Machines");
+  const related = renderInstructions({
+    preset: "hosted-personal",
+    machine: {
+      ...bindings.personal,
+      relationships: [
+        { machine: "example-laptop", kind: "personal-client", access: "both" },
+        { machine: "example-work", kind: "workspace-vm", access: "outbound" },
+      ],
+    },
+    profile,
+  });
+  expect(related).toContain("### Related Machines");
+  expect(related).toContain("`example-work` (work VM): reachable from here.");
+  expect(related).toMatchSnapshot();
 });

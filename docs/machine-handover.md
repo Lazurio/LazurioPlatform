@@ -8,12 +8,25 @@ does not authorize deployment, restart, access changes or resident removal.
 
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
-JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`; adjacent
-`schema-provenance.json` records the authorized source commit and byte digest.
-Changes originate in Machines, then the consumer is re-pinned and conformance
-tested. No runtime dependency on a private checkout. The test fixture is synthetic,
-not a customer's rendered identity. The pin is a PR candidate, not evidence that
-the Machines change has been merged/deployed.
+JSON Schema is vendored byte-for-byte in `src/machine/lazurio-machine.v1.schema.json`
+from Machines release **v0.12.59** (tag `v0.12.59`, commit
+`dd0dbfaab4807f197f5f65f102fc74bd22496499`); adjacent `schema-provenance.json`
+records the source tag, commit and byte digest, and a test fails when the vendored
+bytes drift from it. Changes originate in Machines, then the consumer is re-pinned
+and conformance tested. No runtime dependency on a private checkout. The test
+fixtures are synthetic, not a customer's rendered identity.
+
+The schema is a `oneOf` with exactly two branches, distinguished by `machine.kind`
+and never mixing owner or host kinds:
+
+| Branch | `machine.kind` | `owner` | `host` | `network` |
+| --- | --- | --- | --- | --- |
+| Organization workspace VM | `workspace-vm` | `{kind: "organization", organization, organization_key?, team?}` | `{kind: "virtualization-host", machine_id, custody_repository, provider}` | optional |
+| Personal VM | `personal-vm`; `machine.name` is the DNS slug | `{kind: "principal", github_login, github_id}` | `{kind: "provider-estate", estate_id, custody_repository, record_path}` | required |
+
+`operator`, `installed` and `account` are shared; `operator.os_user` may differ from
+`machine.name`. `MachineContext` in `src/machine/context.ts` is the union of the two
+branches, and the conformance tests cover both with real-shaped fixtures.
 
 The consumer rejects duplicate keys, unknown fields, invalid UTF-8, documents over
 1 MiB, unsafe file ownership/modes, links and noncanonical parent custody. The
@@ -42,12 +55,15 @@ narrow Linux/remote/human pilot entrypoint.
   Personalspace. Its provider identity is the brokered Organization identity; `team`
   in the handover is context for that, not a grant and not a roster.
 
-The handover has no selected-preset field. Platform does not derive `hosted-private`
-or `hosted-team` from the presence of `team`, the Machine name, the hostname or the
-operator name. The [workspace preset](workspace-presets.md) is chosen explicitly at
-setup and stored in the Environment configuration. If preset provenance must appear in
-this file, that is an upstream schema change in Machines followed by a re-pin and
-conformance test here, exactly like any other field.
+The handover has no selected-preset field and needs none. The
+[workspace preset](workspace-presets.md) is derived from its typed fields only:
+`personal-vm` → `hosted-personal`; `workspace-vm` with `owner.team` →
+`hosted-organization-team`; without → `hosted-organization-personal`. Never from the
+Machine name, the hostname or the operator account. `folder-init` records the derived
+preset, or an explicit `--preset` the handover allows, in the Environment
+configuration together with the immutable **Machine binding** (kind, name, owner,
+team, tailnet node, host and the handover digest). Machines does not rewrite the
+identity; a Folder adopted from a different handover is refused, never rewritten.
 
 A repeated infrastructure apply must preserve the Machine identity, the Folder
 content and the Platform-selected product version; Machines does not reselect the
@@ -55,19 +71,41 @@ version after handover, and Platform does not rewrite the identity.
 
 ## Consumer commands
 
-Run the installed CLI as the declared operator, not root:
+Run the installed CLI as the declared operator, not root. This is the exact command a
+Machines resident role calls after handover:
 
 ```sh
-lazurio machine inspect
-lazurio machine folder-init --locale cs --detail technical --coordination direct
+lazurio machine folder-init
 ```
 
-The second command is the narrow Linux/remote/human pilot entrypoint. Locale,
-detail and coordination are explicit choices, not inferred from identity. It binds
-the declared user/home to the actual UID's Linux NSS record (not `$USER`/`$HOME`) and requires
-`operator.lazurio_root` to be that user's `/home/<user>/Lazurio`. The wire name
-remains `lazurio_root`; the product concept is **Lazurio Folder**. There is no CLI
-override for the production identity path or UID.
+It reads the handover, derives the preset, adopts the Folder and prints one JSON
+object: `{"kind":"initialized","revision":1,"preset":{"name":…,"version":1,"selection":"derived"},"machineContextDigest":"<sha256>"}`
+on first use; `{"kind":"already-adopted","revision":<n>,"preset":{…},"machineContextDigest":…}`
+on a re-run, which changes nothing; or exit status 2 with
+`{"kind":"blocked","reason":…,"entry":…,"next":…}` where `reason` is one of
+`folder-foreign-entry`, `folder-layout-missing`, `folder-personalspace-conflict`,
+`folder-state-unrecognized`, `folder-binding-changed`, `folder-directory-shared`,
+`preset-not-allowed` or a Machine context code. Optional `--preset <name>` picks another preset the handover
+allows (recorded as an explicit choice); optional `--locale`, `--detail` and
+`--coordination` override the preset's defaults and stay changeable in the Launchpad.
+`lazurio machine inspect` prints the validated handover and its digest.
+
+A wrong invocation (unknown option, duplicate or invalid choice, unknown preset)
+prints the `machine` help on stderr and exits 2 before any filesystem access.
+
+**Precondition for the Machines resident role:** `~/Lazurio`, `organizations/` and
+`personalspace/` must be owned by the operator and not group- or world-writable
+(create them with mode `0755` or `0700`, as `workspace_baseline` does). Ubuntu's
+default umask `0002` makes a directory created by hand `0775`; `folder-init` then
+refuses before any mutation with `folder-directory-shared` naming the entry
+(`.`, `organizations` or `personalspace`), and `chmod g-w,o-w` on that path
+fixes it. Found on the native run of 2026-09-22
+([evidence](evidence/presets-linux-arm64-2026-09-22.md)).
+
+It binds the declared user/home to the actual UID's Linux NSS record (not
+`$USER`/`$HOME`) and requires `operator.lazurio_root` to be that user's
+`/home/<user>/Lazurio`. The wire name remains `lazurio_root`; the product concept is
+**Lazurio Folder**. There is no CLI override for the production identity path or UID.
 
 The Linux base system must provide root-owned `/usr/bin/getent`; it is called
 without a shell, with a fixed `passwd <uid>` query and sanitized environment.
@@ -76,17 +114,42 @@ We deliberately do not use Bun 1.4.2 `os.userInfo()` here: native ARM64 qualific
 observed that its username depends on the ambient environment. No dependency on
 a separately installed Bun is introduced by the system account lookup.
 
-The shared Folder initializer accepts exactly a canonical operator-owned Folder
-with empty `organizations/` and `personalspace/`, both owned and non-shared. Their
-paths, filesystem identities and modes remain unchanged. A manifest, checkout,
-instructions, existing `.lazurio`, extra entry, symlink or nonempty work directory
-stops initialization. No resident cleanup/adoption. Normal `folder-init` remains
-fresh-path-only; this is a narrow explicit entry into the same core.
+### Adoption of the delivered Folder
+
+The initializer adopts a canonical operator-owned Folder. The Folder owns exactly
+`AGENTS.md` and `.lazurio/` at the top level. `organizations/` (required, owned,
+non-shared) and `personalspace/` may already hold work: they are never traversed,
+listed beyond existence, moved or written, and their paths, filesystem identities and
+modes remain unchanged. `launchpad.gen3.json` and `launchpad.gen3.local.json` are
+tolerated by name and never read. Any other top-level entry — a legacy `AGENTS.md`,
+a checkout, a note — stops initialization and is named in the refusal. A symlinked or
+group/world-writable work directory is refused as before.
+
+`hosted-personal` requires `personalspace/` to exist. The Organization presets never
+have a Personalspace: the empty `personalspace/` that the `workspace_baseline` role
+precreates is accepted and recorded, a used one is refused by name and nothing is
+deleted or moved. Presence is checked by existence and emptiness only, never by
+listing names.
 
 Initialization exclusively creates `.lazurio`, journals the preexisting layout
 identities and writes new instructions/preferences/manifest exclusively. Two
-initializers cannot both claim state. No Organization is cloned yet: owner binding
-and module delivery remain separate pilot gates.
+initializers cannot both claim state. A re-run on an adopted Folder holds only the
+ephemeral operation lock, compares the recorded Machine binding with the live
+handover and reports `already-adopted`; a different handover is `binding-changed`,
+pending or unrecognized state is `state-unrecognized` (complete it with
+`folder-resume` or diagnose). No Organization is cloned yet: owner binding and
+module delivery remain separate pilot gates.
+
+### What the Folder renders
+
+`AGENTS.md` is a deterministic projection of the preset, the recorded binding and
+the profile: which Machine this is and whose, who the Principal is here, the
+Personalspace boundary, where Organization repositories live, the provider identity
+mode and how work is done, with a pointer to the Organization's `AGENTS.md` and the
+Lazurio root rules. A relationships section is rendered only when the recorded
+binding carries one; the handover has no such field yet, and no persona is rendered.
+The Launchpad shows the binding and lets the Principal change the preset (within the
+allow-list) and the communication axes through the ordinary preview → apply flow.
 
 ## Bounded diagnosis and repair
 
@@ -121,9 +184,15 @@ Use `linux-arm64` for the local ARM64 VM. The target and artifact digest in
 build remains available without `--target`. Cross-compilation is only packaging;
 it does not qualify either architecture. See [Bun's executable targets](https://bun.sh/docs/bundler/executables).
 
-Unit fixtures prove parsing/refusal, directory preservation and recognized
-interruption completion. They do not prove actual Machines delivery, official
-release hosting and attestation, native Linux x64 execution, Organization/module authorization,
-gateway operation, agent work, VM restart or the second-VM repeat. Record those
-separately at exact source/artifact revisions. The real pilot must exercise the
-installed binary and root-issued file under the non-root operator account.
+Unit fixtures prove parsing/refusal of both handover branches, preset derivation,
+adoption (used work directories, legacy files, foreign entries, idempotence, the
+Personalspace conflict), directory preservation and recognized interruption
+completion. A native run of `folder-init` with the compiled CLI on a fresh Ubuntu
+24.04 ARM64 VM against root-issued fixture handovers of all three kinds is recorded
+in [evidence](evidence/presets-linux-arm64-2026-09-22.md). They do not prove actual
+Machines delivery, a real Machines-delivered VM, a native Launchpad preset change,
+official release hosting and attestation, native Linux x64 execution,
+Organization/module authorization, gateway operation, agent work, VM restart or the
+second-VM repeat. Record those separately
+at exact source/artifact revisions. The real pilot must exercise the installed
+binary and root-issued file under the non-root operator account.

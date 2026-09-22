@@ -94,12 +94,18 @@ test.skipIf(process.platform === "win32")(
       ]);
       expect(code, stderr).toBe(0);
       expect(JSON.parse(stdout)).toEqual(
-        await previewFolder(profile, null, async () => ({ kind: "absent" })),
+        await previewFolder(
+          { preset: "local", machine: null, profile },
+          null,
+          async () => ({ kind: "absent" }),
+        ),
       );
       expect(await readdir(directory)).toEqual([]);
-      const initial = await previewFolder(profile, null, async () => ({
-        kind: "absent",
-      }));
+      const initial = await previewFolder(
+        { preset: "local", machine: null, profile },
+        null,
+        async () => ({ kind: "absent" }),
+      );
       const initialize = async (path: string, extra: string[] = []) => {
         const child = Bun.spawn(
           [
@@ -132,6 +138,7 @@ test.skipIf(process.platform === "win32")(
       expect(JSON.parse(created.out)).toEqual({
         kind: "initialized",
         revision: 1,
+        preset: { name: "local", version: 1, selection: "derived" },
       });
       expect((await initialize(directory)).exit).toBe(1);
       const state = join(directory, ".lazurio");
@@ -195,7 +202,7 @@ test.skipIf(process.platform === "win32")(
       expect(unchanged.exit).toBe(0);
       expect(JSON.parse(unchanged.out)).toEqual({ kind: "unchanged" });
       await expect(
-        updateProfile(directory, 2, profile, async (step) => {
+        updateProfile(directory, 2, { profile }, async (step) => {
           if (step === "prepared") throw new Error("Prepared interruption");
         }),
       ).rejects.toThrow("Prepared interruption");

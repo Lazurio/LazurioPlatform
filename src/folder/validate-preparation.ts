@@ -67,7 +67,7 @@ export async function validatePreparation(
     previousPreferences,
     previousManifest,
     previousPreferences.revision,
-    preferences.profile,
+    { preset: preferences.preset.name, profile: preferences.profile },
     async () => ({ kind: "regular", digest: previousManifest.output.digest }),
   );
   if (

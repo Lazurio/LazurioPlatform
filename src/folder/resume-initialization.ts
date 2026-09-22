@@ -1,7 +1,11 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { parseHandoverLayout, verifyHandoverLayout } from "./handover-layout";
+import {
+  handoverDirectories,
+  parseHandoverLayout,
+  verifyHandoverLayout,
+} from "./handover-layout";
 import {
   initializationReceipts,
   recordInitializationCreation,
@@ -11,6 +15,7 @@ import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { previewFolder } from "./preview";
 import { readOwnedStateFile, readStateJson } from "./read-state";
+import { instructionSource } from "./render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
@@ -105,7 +110,7 @@ export async function resumeInitialization(
     )
       throw new Error("Unsupported initialization preferences");
     const preview = await previewFolder(
-      preferences.profile,
+      instructionSource(preferences),
       null,
       async () => ({ kind: "absent" }),
     );
@@ -120,7 +125,11 @@ export async function resumeInitialization(
       [state, "preferences.json", JSON.stringify(preferences)],
       [state, "instructions.json", JSON.stringify(manifest)],
     ] as const;
-    const layout = ["organizations", "personalspace"] as const;
+    // A handed-over layout records which work directories existed; an absent
+    // personalspace/ under an Organization preset is never created here.
+    const layout = handedLayout
+      ? handoverDirectories(handedLayout)
+      : (["organizations", "personalspace"] as const);
     const verifyFile = async (
       directory: string,
       name: keyof typeof initializationReceipts,

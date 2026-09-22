@@ -37,10 +37,14 @@ for (const stop of [
         if (stop) {
           await expect(run).rejects.toThrow("Interrupted initialization");
           await expect(
-            updateProfile(folder, 1, { ...profile, locale: "cs" }),
+            updateProfile(folder, 1, { profile: { ...profile, locale: "cs" } }),
           ).rejects.toThrow();
         } else {
-          expect(await run).toEqual({ kind: "initialized", revision: 1 });
+          expect(await run).toEqual({
+            kind: "initialized",
+            revision: 1,
+            preset: { name: "local", version: 1, selection: "derived" },
+          });
           expect((await readdir(folder)).sort()).toEqual([
             ".lazurio",
             "AGENTS.md",
@@ -48,7 +52,9 @@ for (const stop of [
             "personalspace",
           ]);
           expect(
-            await updateProfile(folder, 1, { ...profile, locale: "cs" }),
+            await updateProfile(folder, 1, {
+              profile: { ...profile, locale: "cs" },
+            }),
           ).toEqual({ kind: "updated", revision: 2 });
           expect(
             JSON.parse(

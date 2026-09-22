@@ -14,15 +14,77 @@ const choices = document.querySelector<HTMLFieldSetElement>("#choices");
 const apply = document.querySelector<HTMLButtonElement>("#apply");
 const status = document.querySelector<HTMLParagraphElement>("#status");
 const result = document.querySelector<HTMLPreElement>("#result");
-if (!form || !choices || !apply || !status || !result)
+const machine = document.querySelector<HTMLDListElement>("#machine");
+const presetSelect = document.querySelector<HTMLSelectElement>("#preset");
+const presetSelection =
+  document.querySelector<HTMLSpanElement>("#preset-selection");
+if (
+  !form ||
+  !choices ||
+  !apply ||
+  !status ||
+  !result ||
+  !machine ||
+  !presetSelect ||
+  !presetSelection
+)
   throw new Error("Missing UI");
-const controls = { form, choices, apply, status, result };
+const controls = {
+  form,
+  choices,
+  apply,
+  status,
+  result,
+  machine,
+  presetSelect,
+  presetSelection,
+};
 let copy = messages("en");
-let current: { revision: number; profile: Record<string, string> };
+type MachineBinding = {
+  kind: string;
+  name: string;
+  owner:
+    | { kind: "principal"; githubLogin: string; githubId: number }
+    | { kind: "organization"; organization: string; team: string | null };
+  network: { headscaleHostname: string } | null;
+  host: { kind: string; id: string };
+};
+let current: {
+  revision: number;
+  preset: { name: string; version: number; selection: string };
+  allowedPresets: string[];
+  machine: MachineBinding | null;
+  profile: Record<string, string>;
+};
 let pending: {
   expectedRevision: number;
+  preset: string;
   profile: Record<string, string>;
 } | null = null;
+const presetLabels: Record<string, MessageKey> = {
+  local: "presetLocal",
+  "hosted-personal": "presetHostedPersonal",
+  "hosted-organization-personal": "presetHostedOrganizationPersonal",
+  "hosted-organization-team": "presetHostedOrganizationTeam",
+};
+// The immutable part: rendered as text only, never as editable controls.
+function machineRows(binding: MachineBinding | null): [MessageKey, string][] {
+  if (binding === null) return [["machineKind", copy.machineWorkstation]];
+  const owner =
+    binding.owner.kind === "principal"
+      ? `${binding.owner.githubLogin} (GitHub id ${binding.owner.githubId})`
+      : binding.owner.organization;
+  return [
+    ["machineKind", binding.kind],
+    ["machineName", binding.name],
+    ["machineOwner", owner],
+    ...(binding.owner.kind === "organization" && binding.owner.team !== null
+      ? ([["machineTeam", binding.owner.team]] as [MessageKey, string][])
+      : []),
+    ["machineTailnet", binding.network?.headscaleHostname ?? copy.machineNone],
+    ["machineHost", `${binding.host.kind} ${binding.host.id}`],
+  ];
+}
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
     method: "POST",
@@ -55,6 +117,30 @@ async function load() {
     if (key && Object.hasOwn(copy, key))
       element.textContent = copy[key as MessageKey];
   }
+  controls.machine.replaceChildren(
+    ...machineRows(current.machine).flatMap(([key, value]) => {
+      const term = document.createElement("dt");
+      term.textContent = copy[key];
+      const detail = document.createElement("dd");
+      detail.textContent = value;
+      return [term, detail];
+    }),
+  );
+  controls.presetSelect.replaceChildren(
+    ...current.allowedPresets.map(
+      (name) =>
+        new Option(
+          copy[presetLabels[name] ?? "preset"],
+          name,
+          false,
+          name === current.preset.name,
+        ),
+    ),
+  );
+  controls.presetSelection.textContent =
+    current.preset.selection === "explicit"
+      ? copy.presetExplicit
+      : copy.presetDerived;
   for (const [key, value] of Object.entries(current.profile)) {
     const control = controls.form.elements.namedItem(key);
     if (control instanceof HTMLSelectElement) control.value = value;
@@ -85,12 +171,18 @@ controls.form.addEventListener("submit", async (event) => {
   controls.choices.disabled = true;
   try {
     controls.choices.disabled = false;
-    const profile = {
-      ...current.profile,
-      ...Object.fromEntries(new FormData(controls.form).entries()),
-    } as Record<string, string>;
+    const { preset, ...axes } = Object.fromEntries(
+      new FormData(controls.form).entries(),
+    ) as Record<string, string>;
+    // Only the communication axes come from the form; the fixed axes stay
+    // with the preset and the Machine binding is never sent.
+    const profile = { ...current.profile, ...axes };
     controls.choices.disabled = true;
-    const candidate = { expectedRevision: current.revision, profile };
+    const candidate = {
+      expectedRevision: current.revision,
+      preset: preset ?? current.preset.name,
+      profile,
+    };
     const preview = await request("/api/preview", candidate);
     if (preview.kind === "profile-change") {
       pending = candidate;

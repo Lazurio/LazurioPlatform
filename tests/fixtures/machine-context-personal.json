@@ -1,0 +1,14 @@
+{
+  "schema_version": "lazurio.machine.v1",
+  "machine": { "id": "example-personal", "kind": "personal-vm", "name": "example", "vmid": 901 },
+  "owner": { "kind": "principal", "github_login": "example", "github_id": 12345 },
+  "operator": { "os_user": "operator", "home": "/home/operator", "lazurio_root": "/home/operator/Lazurio" },
+  "host": { "kind": "provider-estate", "estate_id": "example-estate", "custody_repository": "Example/infra", "record_path": "machines/personal/example.json" },
+  "network": { "headscale_server_url": "https://network.example.invalid", "headscale_hostname": "example" },
+  "installed": {
+    "machines_release": { "repository": "Example/Machines", "version": "v1.0.0", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "deployment_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recorded_at": "2026-01-01T00:00:00Z"
+  },
+  "account": null
+}

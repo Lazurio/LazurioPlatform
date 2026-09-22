@@ -31,9 +31,11 @@ for (const scenario of ["foreign-identical", "edit-during-resume"] as const) {
           }),
         ).rejects.toThrow();
         if (scenario === "foreign-identical") {
-          const desired = await previewFolder(profile, null, async () => ({
-            kind: "absent",
-          }));
+          const desired = await previewFolder(
+            { preset: "local", machine: null, profile },
+            null,
+            async () => ({ kind: "absent" }),
+          );
           await writeFile(join(folder, "AGENTS.md"), desired.desired.content);
           await expect(resumeInitialization(folder)).rejects.toThrow();
           expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(
@@ -112,7 +114,9 @@ for (const stop of [
           await readFile(join(folder, "organizations", "keep"), "utf8"),
         ).toBe("synthetic work");
         expect(
-          await updateProfile(folder, 1, { ...profile, locale: "cs" }),
+          await updateProfile(folder, 1, {
+            profile: { ...profile, locale: "cs" },
+          }),
         ).toEqual({ kind: "updated", revision: 2 });
         await expect(resumeInitialization(folder)).rejects.toThrow();
       } finally {
