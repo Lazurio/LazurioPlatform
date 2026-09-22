@@ -118,8 +118,12 @@ test.skipIf(process.platform === "win32")(
     const profile = presetProfile("local", os);
     try {
       await initializeFolder(folder, profile);
+      // The six documents and the hidden marker of the initialization.
       expect((await readdir(join(folder, "manual"))).sort()).toEqual(
-        manualPaths.map((path) => outputFile(folder, path).name).sort(),
+        [
+          ".lazurio-generated",
+          ...manualPaths.map((path) => outputFile(folder, path).name),
+        ].sort(),
       );
       const manifest = JSON.parse(
         await readFile(join(folder, ".lazurio", "instructions.json"), "utf8"),

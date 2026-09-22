@@ -641,7 +641,7 @@ test.skipIf(process.platform === "win32")(
         kind: "recovered",
         revision: 1,
       });
-      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(6);
+      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(7);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

@@ -10,13 +10,16 @@ import {
   verifyHandoverLayout,
 } from "./handover-layout";
 import {
-  createManualDirectory,
   fileIdentity,
   initializationReceipts,
   manualDirectoryReceipt,
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
+import {
+  createManualDirectory,
+  verifyManualDirectory,
+} from "./manual-directory";
 import { outputFile, outputPaths } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
@@ -188,41 +191,10 @@ export async function resumeInitialization(
     const manualReceipt = initializationReceipts[manualDirectoryReceipt];
     if (!manualReceipt) throw new Error("Unknown initialization output");
     const manualRecorded = await exists(join(journalDirectory, manualReceipt));
-    const verifyManualDirectory = async (journal = journalDirectory) => {
-      const stat = await lstat(manual).catch((error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return null;
-        throw error;
-      });
-      if (stat === null)
-        throw new Error("Missing recorded initialization output");
-      const receipt = stateFields(
-        JSON.parse((await readOwnedStateFile(journal, manualReceipt)).content),
-        ["dev", "ino"],
-      );
-      if (
-        !stat.isDirectory() ||
-        receipt.dev !== String(stat.dev) ||
-        receipt.ino !== String(stat.ino)
-      )
-        throw new FolderAdoptionError("foreign-entry", "manual");
-      await inspectOwnedDirectory(manual);
-      const ours = outputPaths
-        .map((path) => outputFile(folder, path))
-        .filter((file) => file.directory === manual)
-        .map((file) => file.name);
-      for (const entry of (await readdir(manual)).sort())
-        if (
-          !ours.includes(entry) ||
-          !(await exists(
-            join(journal, initializationReceipts[`manual/${entry}`] ?? ""),
-          ))
-        )
-          throw new FolderAdoptionError("foreign-entry", `manual/${entry}`);
-    };
     // Validate every existing output before creating anything. Only an ordered
     // prefix of the initializer is recognized; archived recovery must be complete.
     let missing = false;
-    if (manualRecorded) await verifyManualDirectory();
+    if (manualRecorded) await verifyManualDirectory(folder, journalDirectory);
     else {
       if (await exists(manual))
         throw new FolderAdoptionError("foreign-entry", "manual");
@@ -259,7 +231,7 @@ export async function resumeInitialization(
       await createManualDirectory(folder, journalDirectory);
       await checkpoint("manual-directory");
     }
-    await verifyManualDirectory();
+    await verifyManualDirectory(folder, journalDirectory);
     for (const file of files) {
       await assertHeld();
       if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
@@ -281,7 +253,7 @@ export async function resumeInitialization(
       await verifyFile(file);
       await checkpoint(file.name);
     }
-    await verifyManualDirectory();
+    await verifyManualDirectory(folder, journalDirectory);
     for (const name of layout) {
       await assertHeld();
       if (!(await exists(join(folder, name))))
@@ -321,7 +293,7 @@ export async function resumeInitialization(
     }
     await assertHeld();
     if (handedLayout) await verifyHandoverLayout(folder, handedLayout);
-    await verifyManualDirectory(archive);
+    await verifyManualDirectory(folder, archive);
     for (const file of files) await verifyFile(file, archive);
     return { kind: "recovered" as const, revision: 1 };
   });

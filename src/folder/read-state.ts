@@ -67,6 +67,7 @@ const ownedStateFileNames: readonly string[] = Object.freeze([
   ...Object.values(initializationReceipts),
   ...outputPaths.map((path) => outputFile("", path).name),
   ...outputPaths.map(stagedName),
+  ".lazurio-generated",
 ]);
 
 export async function readOwnedStateFile(directory: string, name: string) {

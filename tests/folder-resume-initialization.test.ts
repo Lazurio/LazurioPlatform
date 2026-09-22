@@ -263,9 +263,19 @@ for (const stop of ["journal", "manual-directory"] as const)
             new FolderAdoptionError("foreign-entry", "manual/foreign.txt"),
           );
           await rm(join(manual, "foreign.txt"));
-          // A replaced manual/ has another identity than the receipt.
+          // A replaced manual/ is refused even where the filesystem reuses
+          // the inode number (ext4 does): the nonce marker went with it, and
+          // a marker written by anyone else does not carry the nonce.
           await rm(manual, { recursive: true });
           await mkdir(manual, { mode: 0o700 });
+          await expect(resumeInitialization(folder)).rejects.toThrow(
+            new FolderAdoptionError("foreign-entry", "manual"),
+          );
+          await writeFile(
+            join(manual, ".lazurio-generated"),
+            "lazurio-generated-manual-v1\nffffffffffffffffffffffffffffffff\n",
+            { mode: 0o600 },
+          );
           await expect(resumeInitialization(folder)).rejects.toThrow(
             new FolderAdoptionError("foreign-entry", "manual"),
           );
@@ -283,7 +293,15 @@ for (const stop of ["journal", "manual-directory"] as const)
             kind: "recovered",
             revision: 1,
           });
-          expect((await readdir(manual)).sort()).toHaveLength(6);
+          expect((await readdir(manual)).sort()).toEqual([
+            ".lazurio-generated",
+            "glossary.md",
+            "lazurio.md",
+            "roles.md",
+            "this-machine.md",
+            "troubleshooting.md",
+            "working-here.md",
+          ]);
         }
       } finally {
         await rm(parent, { recursive: true, force: true });
@@ -304,12 +322,15 @@ test.skipIf(process.platform === "win32")(
           if (step === "instructions") throw new Error("stop");
         }),
       ).rejects.toThrow("stop");
-      expect(await readdir(join(folder, "manual"))).toEqual([]);
+      // Only the marker of this initialization is inside: that is ours.
+      expect(await readdir(join(folder, "manual"))).toEqual([
+        ".lazurio-generated",
+      ]);
       expect(await resumeInitialization(folder)).toEqual({
         kind: "recovered",
         revision: 1,
       });
-      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(6);
+      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(7);
       expect(await resumeInitialization(folder)).toEqual({
         kind: "recovered",
         revision: 1,

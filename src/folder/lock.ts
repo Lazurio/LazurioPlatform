@@ -16,7 +16,11 @@ export async function acquireFolderOperationLock(stateDirectory: string) {
     (process.platform === "darwin" && filesystem.type !== 26) ||
     (process.platform === "linux" && filesystem.type !== 0xef53)
   )
-    throw new Error("Unqualified lock filesystem");
+    // The observed type is named so an unqualified runner or mount can be
+    // identified from the failure itself.
+    throw new Error(
+      `Unqualified lock filesystem (${process.platform} type ${filesystem.type})`,
+    );
   const path = join(stateDirectory, ".operation-lock");
   let created = false;
   try {

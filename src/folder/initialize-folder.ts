@@ -9,13 +9,16 @@ import {
   verifyHandoverLayout,
 } from "./handover-layout";
 import {
-  createManualDirectory,
   initializationReceipts,
   manualDirectoryReceipt,
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
 import type { MachineBinding } from "./machine-binding";
+import {
+  createManualDirectory,
+  verifyManualDirectory,
+} from "./manual-directory";
 import { type OutputPath, outputFile, outputPaths } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
@@ -184,9 +187,9 @@ async function initialize(
       journal,
     );
     await checkpoint("journal");
-    // The owned manual directory is created exclusively and receipted before
-    // any output is written: on recovery only a manual/ with this recorded
-    // identity is ours; any other is foreign and refused by name.
+    // The owned manual directory is created exclusively, sealed with a nonce
+    // marker and receipted before any output is written: on recovery only the
+    // recorded directory is ours; any other is foreign and refused by name.
     const identities: Record<string, { dev: string; ino: string }> = {
       [manualDirectoryReceipt]: await createManualDirectory(
         folder,
@@ -210,12 +213,7 @@ async function initialize(
     await checkpoint("layout");
     for (const name of directories)
       await inspectOwnedDirectory(join(folder, name));
-    const observedManual = await inspectOwnedDirectory(manual);
-    if (
-      String(observedManual.dev) !== identities[manualDirectoryReceipt]?.dev ||
-      String(observedManual.ino) !== identities[manualDirectoryReceipt]?.ino
-    )
-      throw new Error("Initialization files changed");
+    await verifyManualDirectory(folder, transaction);
     if (layout) await verifyHandoverLayout(folder, layout);
     const transactionEntries = await readdir(transaction);
     const receipts = Object.values(initializationReceipts);
