@@ -38,8 +38,8 @@ application runner) and are not enforced by the preset itself.
 | --- | --- | --- | --- | --- | --- |
 | `local` | The Principal's own workstation, no handover | The signed-in user | Own sign-in | Present | `organizations/<org>/` |
 | `hosted-personal` | A Principal's ONE personal VM (`machine.kind: personal-vm`) | The Machine's Owner; a Buddy is an optional resident of the same Machine | Own sign-in | Present and intimate | None mounted |
-| `hosted-organization-personal` | An Organization-owned work VM assigned to ONE operator (`workspace-vm` without `owner.team`) | The assigned operator | Own sign-in | Never present | `organizations/<org>/` |
-| `hosted-organization-team` | An Organization-owned team VM, one OS account, several Principals (`workspace-vm` with `owner.team`) | The connected Team member; the OS account is not a person | Brokered Organization identity; no personal credentials | Never present | `organizations/<org>/` |
+| `hosted-organization-personal` | An Organization-owned work VM assigned to ONE operator (`workspace-vm`) | The assigned operator | Own sign-in | Never present | `organizations/<org>/` |
+| `hosted-organization-team` | An Organization-owned team VM, one OS account, several Principals (`workspace-vm`) | The connected Team member; the OS account is not a person | Brokered Organization identity; no personal credentials | Never present | `organizations/<org>/` |
 
 The earlier names `hosted-private` and `hosted-team` were never implemented and were
 renamed without compatibility.
@@ -47,20 +47,36 @@ renamed without compatibility.
 ## Derived from the handover, confirmed or explicitly overridden
 
 The preset is derived from the typed fields of the root-issued handover
-([machine handover](machine-handover.md)), never from a Machine name, hostname or
-operator account:
+([machine handover](machine-handover.md)), never from a Machine name, hostname,
+Team name or operator account. Platform never guesses. The derivation is a function
+of `machine.kind` and one **assignment** value — is the work VM assigned to ONE
+operator or shared by a Team? (`machineAssignment` in `src/folder/presets.ts`):
 
-| Handover | Derived preset | Allowed presets |
-| --- | --- | --- |
-| No handover (workstation) | `local` | `local` |
-| `machine.kind: "personal-vm"` | `hosted-personal` | `hosted-personal` |
-| `"workspace-vm"` with `owner.team` | `hosted-organization-team` | both Organization presets |
-| `"workspace-vm"` without `owner.team` | `hosted-organization-personal` | both Organization presets |
+| Handover | Assignment | Derived preset | Allowed presets |
+| --- | --- | --- | --- |
+| No handover (workstation) | — | `local` | `local` |
+| `machine.kind: "personal-vm"` | one operator | `hosted-personal` | `hosted-personal` |
+| `"workspace-vm"` without `owner.team` | one operator | `hosted-organization-personal` | both Organization presets |
+| `"workspace-vm"` with `owner.team` | **ambiguous** | none: explicit `--preset` required | both Organization presets |
+
+A Team in the handover is not a fact about assignment: an Organization may model an
+individual operator's work VM as a GitHub Team named after the operator (found on the
+first real canary, [evidence](evidence/presets-linux-arm64-2026-09-22.md)). Machines
+will state the assignment explicitly as `owner.assignment`
+(`{kind: "operator", github_login, github_id}` | `{kind: "team"}`); once the vendored
+schema carries that field it replaces the ambiguous row and becomes the single source
+of the assignment value. No heuristic (such as comparing the Team name with the
+Machine name) stands in for it meanwhile.
 
 `lazurio machine folder-init [--preset <name>]` records the derived preset by default.
-A different `--preset` must be one the handover allows (a personal VM never takes an
-Organization preset and vice versa) and is recorded as an explicit choice. The same
-allow-list governs every later change.
+On an ambiguous handover it ends `blocked` with `reason: "preset-ambiguous"` and the two
+allowed presets, before any write, unless the Folder is already adopted (an adopted
+Folder already has its preset and re-runs report `already-adopted`). A `--preset` must
+be one the handover allows (a personal VM never takes an Organization preset and vice
+versa) and is recorded as an explicit choice; on an ambiguous handover every choice is
+explicit. The same allow-list governs every later change. The rendered Owner line names
+the handover's Team only under `hosted-organization-team`; the recorded binding keeps
+the Team value untouched either way.
 
 ## Immutable and mutable
 
@@ -153,7 +169,9 @@ pusher.
 ## Provenance in the Machine identity
 
 The handover has no selected-preset field and needs none: the preset is derived from
-`machine.kind` and `owner.team`, and an explicit choice is recorded locally. A persona
+`machine.kind` and the assignment the handover proves, and an explicit choice is
+recorded locally; `owner.assignment` is the one upstream field this derivation waits
+for. A persona
 (upstream decision 0156) is not carried by the handover or the preset and is not
 rendered. If persona or relationships must appear in `lazurio.machine.json`, that is
 an **upstream schema change** in Machines followed by a re-pin and conformance test
@@ -171,7 +189,9 @@ binding carries one.
   verification in the broker is an external dependency under upstream decisions 0147
   and 0149.
 
-Unit tests prove derivation, the allow-list, whole-composition validation, adoption
+Unit tests prove derivation including the ambiguous handover (blocked `folder-init`
+with the exact reason, explicit choice recorded, adopted Folder unaffected), the
+allow-list, whole-composition validation, adoption
 (non-empty work directories, legacy files, foreign entries, idempotence, the
 Personalspace conflict), conformance of both handover branches, the rendered document
 per preset and language, and the Launchpad flow. A native run of `folder-init` on a

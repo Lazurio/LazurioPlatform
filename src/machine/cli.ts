@@ -1,9 +1,15 @@
 import { parseArgs } from "node:util";
 import { FolderAdoptionError } from "../folder/handover-layout";
-import { initializeHandoverFolder } from "../folder/initialize-folder";
+import {
+  adoptedHandoverFolder,
+  initializeHandoverFolder,
+} from "../folder/initialize-folder";
+import type { MachineBinding } from "../folder/machine-binding";
+import { executionOs } from "../folder/platform";
 import {
   allowedPresets,
   derivePreset,
+  type PresetName,
   parsePresetName,
   presetProfile,
 } from "../folder/presets";
@@ -23,10 +29,13 @@ machine folder-init [--preset <name>] [--locale <cs|en>]
   [--detail <concise|technical>] [--coordination <direct|coordinator>]
 Initialize the declared operator's standard Lazurio Folder from the handover.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
-workspace-vm with owner.team -> hosted-organization-team; without ->
-hosted-organization-personal). --preset may pick another preset the handover
-allows and is recorded as an explicit choice. Omitted communication choices
-take the preset's defaults; all are changeable later in the Launchpad.
+workspace-vm without owner.team -> hosted-organization-personal). A workspace-vm
+handover with owner.team does not say whether the Machine is assigned to one
+operator or shared, so it derives nothing: --preset hosted-organization-personal
+or --preset hosted-organization-team is required and recorded as an explicit
+choice. --preset may also pick another preset the handover allows. Omitted
+communication choices take the preset's defaults; all are changeable later in
+the Launchpad.
 Adopts the existing Folder: organizations/ and personalspace/ may hold work
 and are never entered; launchpad.gen3.json and launchpad.gen3.local.json are
 tolerated; any other top-level entry is refused by name. Re-running on an
@@ -124,36 +133,16 @@ export async function runMachineCommand(args: string[]) {
         },
       };
     const machine = machineBinding(observed.context, observed.digest);
-    const preset = requestedPreset ?? derivePreset(machine);
-    if (!allowedPresets(machine).includes(preset))
-      return {
-        code: 2,
-        result: {
-          kind: "blocked",
-          reason: "preset-not-allowed",
-          derived: derivePreset(machine),
-          allowed: allowedPresets(machine),
-          next: "Choose a preset the handover allows, or omit --preset for the derived one.",
-        },
-      };
-    const profile = presetProfile(preset, "linux", {
-      ...(values.locale === undefined ? {} : { locale: values.locale }),
-      ...(values.detail === undefined ? {} : { detail: values.detail }),
-      ...(values.coordination === undefined
-        ? {}
-        : { coordination: values.coordination }),
-    });
     const folder = bindMachineOperator(
       observed.context,
       await readLinuxOperator(),
     );
-    const result = await initializeHandoverFolder(folder, {
-      preset,
-      machine,
-      profile,
+    const { code, result } = await initializeMachineFolder(folder, machine, {
+      preset: requestedPreset,
+      ...values,
     });
     return {
-      code: 0,
+      code,
       result: { ...result, machineContextDigest: observed.digest },
     };
   } catch (error) {
@@ -170,6 +159,67 @@ export async function runMachineCommand(args: string[]) {
       };
     throw error;
   }
+}
+
+export type FolderInitChoices = Readonly<{
+  preset: PresetName | undefined;
+  locale: "cs" | "en" | undefined;
+  detail: "concise" | "technical" | undefined;
+  coordination: "direct" | "coordinator" | undefined;
+}>;
+
+// folder-init after the handover and the operator are bound. The preset is
+// --preset when given (within what the handover allows), else the derived one.
+// A handover that derives none (see machineAssignment) never gets a guess: an
+// already adopted Folder keeps the preset it has, anything else needs --preset.
+export async function initializeMachineFolder(
+  folder: string,
+  machine: MachineBinding,
+  choices: FolderInitChoices,
+) {
+  const derived = derivePreset(machine);
+  const allowed = allowedPresets(machine);
+  const preset = choices.preset ?? derived;
+  if (preset === null) {
+    const adopted = await adoptedHandoverFolder(folder, machine);
+    if (adopted) return { code: 0, result: adopted };
+    return {
+      code: 2,
+      result: {
+        kind: "blocked",
+        reason: "preset-ambiguous",
+        allowed,
+        next: "Pass --preset: this handover names a Team but not whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+      },
+    };
+  }
+  if (!allowed.includes(preset))
+    return {
+      code: 2,
+      result: {
+        kind: "blocked",
+        reason: "preset-not-allowed",
+        derived,
+        allowed,
+        next:
+          derived === null
+            ? "Choose a preset the handover allows; this handover derives none."
+            : "Choose a preset the handover allows, or omit --preset for the derived one.",
+      },
+    };
+  const profile = presetProfile(preset, executionOs(process.platform), {
+    ...(choices.locale === undefined ? {} : { locale: choices.locale }),
+    ...(choices.detail === undefined ? {} : { detail: choices.detail }),
+    ...(choices.coordination === undefined
+      ? {}
+      : { coordination: choices.coordination }),
+  });
+  const result = await initializeHandoverFolder(folder, {
+    preset,
+    machine,
+    profile,
+  });
+  return { code: 0, result };
 }
 
 // The refusal names the entry; the operator decides what to do with it.
