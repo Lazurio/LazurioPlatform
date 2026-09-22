@@ -20,6 +20,28 @@ type MachineNetwork = Readonly<{
   headscale_server_url: string;
   headscale_hostname: string;
 }>;
+// Zones of upstream decision 0155. Peers are names only, as Machines derives
+// them from the home Conglomerate Host grants; nothing here is a grant either.
+export type MachineZone = "personal" | "work";
+export type MachinePeer = Readonly<{
+  name: string;
+  kind: "personal-vm" | "workspace-vm" | "client-device" | "conglomerate-host";
+  zone: MachineZone | null;
+  organization: string | null;
+  ssh: Readonly<{
+    host: string;
+    user: string | null;
+    direction: "outbound" | "inbound" | "both";
+  }> | null;
+  https: readonly string[];
+}>;
+export type MachineRelationships<Zone extends MachineZone = MachineZone> =
+  Readonly<{ zone: Zone; peers: readonly MachinePeer[] }>;
+// Authored per guest in the owner Deployment Repo and copied by Machines, never
+// inferred. Only the Organization branch carries it.
+export type OrganizationAssignment =
+  | Readonly<{ kind: "operator"; github_login: string; github_id: number }>
+  | Readonly<{ kind: "team" }>;
 type MachineInstalled = Readonly<{
   machines_release: Readonly<{
     repository: string;
@@ -42,6 +64,7 @@ export type OrganizationWorkspaceContext = Readonly<{
     organization: string;
     organization_key?: string;
     team?: string;
+    assignment?: OrganizationAssignment;
   }>;
   operator: MachineOperator;
   host: Readonly<{
@@ -51,6 +74,7 @@ export type OrganizationWorkspaceContext = Readonly<{
     provider: string;
   }>;
   network?: MachineNetwork;
+  relationships?: MachineRelationships<"work">;
   installed: MachineInstalled;
   account: null;
 }>;
@@ -75,6 +99,7 @@ export type PersonalMachineContext = Readonly<{
     record_path: string;
   }>;
   network: MachineNetwork;
+  relationships?: MachineRelationships<"personal">;
   installed: MachineInstalled;
   account: null;
 }>;

@@ -110,22 +110,40 @@ test("this-machine.md renders relationships only when the binding carries them",
   expect(plain).not.toContain("## Relationships");
   const related = renderManual({
     preset: "hosted-organization-personal",
-    machine: {
-      ...bindings.organization,
-      relationships: [
-        {
-          machine: "example-laptop",
-          kind: "personal-client",
-          access: "inbound",
-        },
-      ],
-    },
+    machine: bindings.related,
     profile,
   })["manual/this-machine.md"];
   expect(related).toContain("## Relationships");
+  expect(related).toContain("this Machine is in the work zone");
   expect(related).toContain(
-    "`example-laptop` (personal client): may reach this Machine.",
+    "- `example-laptop` (client device, personal zone): SSH to this Machine from `example-laptop.tailnet.example.invalid`; no HTTPS.",
   );
+  expect(related).toContain(
+    "- `example-gateway` (Conglomerate Host, Organization `example`): no SSH; HTTPS `auth.example.lazurio.io`.",
+  );
+  expect(related).toContain("Lazurio enforces none of this");
+  expect(related).toMatchSnapshot();
+});
+
+test("this-machine.md renders the assignment exactly as the handover carries it", () => {
+  const operator = renderManual({
+    preset: "hosted-organization-personal",
+    machine: bindings.assignedOperator,
+    profile: presetProfile("hosted-organization-personal", "linux"),
+  })["manual/this-machine.md"];
+  expect(operator).toContain(
+    "- Assignment: assigned to operator `example` (GitHub id 12345).",
+  );
+  expect(operator).not.toContain("sample-team");
+  expect(operator).toMatchSnapshot();
+  const team = renderManual({
+    preset: "hosted-organization-team",
+    machine: bindings.assignedTeam,
+    profile: presetProfile("hosted-organization-team", "linux"),
+  })["manual/this-machine.md"];
+  expect(team).toContain("- Assignment: shared by the Team.");
+  expect(team).toContain("Team `sample-team`");
+  expect(team).toMatchSnapshot();
 });
 
 test.skipIf(process.platform === "win32")(

@@ -213,6 +213,25 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
+  "the profile API shows assignment and relationships exactly as recorded",
+  async () => {
+    const session = await hostedSession(
+      "hosted-organization-personal",
+      bindings.related,
+    );
+    try {
+      const shown = await (await session.call("/api/profile", {})).json();
+      expect(shown.machine).toEqual(
+        JSON.parse(JSON.stringify(bindings.related)),
+      );
+      expect(shown.machine.relationships.peers).toHaveLength(3);
+    } finally {
+      await session.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "an Organization preset is refused on a personal VM handover",
   async () => {
     const session = await hostedSession("hosted-personal", bindings.personal);

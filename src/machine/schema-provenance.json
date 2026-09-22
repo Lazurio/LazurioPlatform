@@ -1,9 +1,9 @@
 {
   "source_repository": "HumanAndMachine-ai/Machines",
-  "source_tag": "v0.12.59",
-  "source_commit": "dd0dbfaab4807f197f5f65f102fc74bd22496499",
+  "source_tag": "v0.12.61",
+  "source_commit": "cb305ce22b3bf3aed5ea2fd6342a85d8a294a875",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
-  "sha256": "2dc6dd3dd3b62c35e2ece4d6b48f4ea65d6e2f9f838db1e684a7628a9b7e9da1",
+  "sha256": "842d53b6992d819df28cb440a4a955d79d5698439f51d2532e2c1c9f141885e9",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
-  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/releases/tag/v0.12.59"
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/releases/tag/v0.12.61"
 }

@@ -40,14 +40,30 @@ const controls = {
   presetSelection,
 };
 let copy = messages("en");
+type MachinePeer = {
+  name: string;
+  kind: string;
+  zone: string | null;
+  organization: string | null;
+  ssh: { host: string; user: string | null; direction: string } | null;
+  https: string[];
+};
 type MachineBinding = {
   kind: string;
   name: string;
   owner:
     | { kind: "principal"; githubLogin: string; githubId: number }
-    | { kind: "organization"; organization: string; team: string | null };
+    | {
+        kind: "organization";
+        organization: string;
+        team: string | null;
+        assignment?:
+          | { kind: "operator"; githubLogin: string; githubId: number }
+          | { kind: "team" };
+      };
   network: { headscaleHostname: string } | null;
   host: { kind: string; id: string };
+  relationships?: { zone: string; peers: MachinePeer[] };
 };
 let current: {
   revision: number;
@@ -67,13 +83,37 @@ const presetLabels: Record<string, MessageKey> = {
   "hosted-organization-personal": "presetHostedOrganizationPersonal",
   "hosted-organization-team": "presetHostedOrganizationTeam",
 };
+// One compact read-only line per recorded peer, in the handover's own words.
+function peerText(peer: MachinePeer): string {
+  const who = [peer.kind, peer.zone, peer.organization]
+    .filter((part) => part !== null)
+    .join(", ");
+  const ssh =
+    peer.ssh === null
+      ? copy.machineNoSsh
+      : `SSH ${peer.ssh.direction} ${peer.ssh.user === null ? "" : `${peer.ssh.user}@`}${peer.ssh.host}`;
+  const https =
+    peer.https.length === 0
+      ? copy.machineNoHttps
+      : `HTTPS ${peer.https.join(", ")}`;
+  return `${peer.name} (${who}): ${ssh}; ${https}`;
+}
 // The immutable part: rendered as text only, never as editable controls.
-function machineRows(binding: MachineBinding | null): [MessageKey, string][] {
+function machineRows(
+  binding: MachineBinding | null,
+): [MessageKey, string | string[]][] {
   if (binding === null) return [["machineKind", copy.machineWorkstation]];
   const owner =
     binding.owner.kind === "principal"
       ? `${binding.owner.githubLogin} (GitHub id ${binding.owner.githubId})`
       : binding.owner.organization;
+  const assignment =
+    binding.owner.kind === "organization" &&
+    binding.owner.assignment !== undefined
+      ? binding.owner.assignment.kind === "team"
+        ? copy.machineAssignmentTeam
+        : `${binding.owner.assignment.githubLogin} (GitHub id ${binding.owner.assignment.githubId})`
+      : null;
   return [
     ["machineKind", binding.kind],
     ["machineName", binding.name],
@@ -81,8 +121,21 @@ function machineRows(binding: MachineBinding | null): [MessageKey, string][] {
     ...(binding.owner.kind === "organization" && binding.owner.team !== null
       ? ([["machineTeam", binding.owner.team]] as [MessageKey, string][])
       : []),
+    ...(assignment === null
+      ? []
+      : ([["machineAssignment", assignment]] as [MessageKey, string][])),
     ["machineTailnet", binding.network?.headscaleHostname ?? copy.machineNone],
     ["machineHost", `${binding.host.kind} ${binding.host.id}`],
+    ...(binding.relationships === undefined
+      ? []
+      : ([
+          [
+            "machineRelationships",
+            binding.relationships.peers.length === 0
+              ? copy.machineNoPeers
+              : binding.relationships.peers.map(peerText),
+          ],
+        ] as [MessageKey, string | string[]][])),
   ];
 }
 async function post(path: string, body: unknown) {
@@ -122,7 +175,18 @@ async function load() {
       const term = document.createElement("dt");
       term.textContent = copy[key];
       const detail = document.createElement("dd");
-      detail.textContent = value;
+      if (typeof value === "string") detail.textContent = value;
+      else {
+        const list = document.createElement("ul");
+        list.replaceChildren(
+          ...value.map((line) => {
+            const item = document.createElement("li");
+            item.textContent = line;
+            return item;
+          }),
+        );
+        detail.replaceChildren(list);
+      }
       return [term, detail];
     }),
   );

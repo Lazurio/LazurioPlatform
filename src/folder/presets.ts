@@ -128,21 +128,24 @@ export function parsePresetReference(input: unknown): PresetReference {
 }
 
 // The one fact the two Organization presets differ on: is the work VM assigned
-// to ONE operator or shared by a Team? Machines will state it as
-// `owner.assignment` ({kind: "operator", github_login, github_id} |
-// {kind: "team"}); once the vendored schema carries that field, this function
-// reads it and nothing else. Until then the handover proves only one side: a
-// workspace VM without `owner.team` is assigned to one operator. A Team in the
-// handover is NOT a fact about assignment: an Organization may model one
+// to ONE operator or shared by a Team? Since Machines v0.12.61 the handover
+// states it as `owner.assignment` ({kind: "operator", github_login, github_id}
+// | {kind: "team"}), copied from the reviewed owner overlay and never inferred;
+// when present it is the only selector and nothing else is read. A handover
+// without it (an older release, or an owner that declares none) proves only
+// one side: a workspace VM without `owner.team` is assigned to one operator. A
+// Team alone is NOT a fact about assignment: an Organization may model one
 // operator's work VM as a GitHub Team named after them (found on the first real
-// canary, 2026-09-22). So a Team-bearing handover has no assignment (`null`)
-// and the preset must be passed explicitly. Never guess from the Team name,
-// the Machine name, the hostname or the operator account.
+// canary, 2026-09-22). So a Team-bearing handover without assignment has none
+// (`null`) and the preset must be passed explicitly. Never guess from the Team
+// name, the Machine name, the hostname or the operator account.
 export type MachineAssignment = "operator" | "team";
 export function machineAssignment(
   machine: MachineBinding,
 ): MachineAssignment | null {
   if (machine.owner.kind !== "organization") return "operator";
+  if (machine.owner.assignment !== undefined)
+    return machine.owner.assignment.kind;
   return machine.owner.team === null ? "operator" : null;
 }
 

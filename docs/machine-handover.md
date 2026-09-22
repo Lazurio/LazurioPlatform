@@ -9,8 +9,8 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored byte-for-byte in `src/machine/lazurio-machine.v1.schema.json`
-from Machines release **v0.12.59** (tag `v0.12.59`, commit
-`dd0dbfaab4807f197f5f65f102fc74bd22496499`); adjacent `schema-provenance.json`
+from Machines release **v0.12.61** (tag `v0.12.61`, commit
+`cb305ce22b3bf3aed5ea2fd6342a85d8a294a875`); adjacent `schema-provenance.json`
 records the source tag, commit and byte digest, and a test fails when the vendored
 bytes drift from it. Changes originate in Machines, then the consumer is re-pinned
 and conformance tested. No runtime dependency on a private checkout. The test
@@ -19,14 +19,37 @@ fixtures are synthetic, not a customer's rendered identity.
 The schema is a `oneOf` with exactly two branches, distinguished by `machine.kind`
 and never mixing owner or host kinds:
 
-| Branch | `machine.kind` | `owner` | `host` | `network` |
-| --- | --- | --- | --- | --- |
-| Organization workspace VM | `workspace-vm` | `{kind: "organization", organization, organization_key?, team?}` | `{kind: "virtualization-host", machine_id, custody_repository, provider}` | optional |
-| Personal VM | `personal-vm`; `machine.name` is the DNS slug | `{kind: "principal", github_login, github_id}` | `{kind: "provider-estate", estate_id, custody_repository, record_path}` | required |
+| Branch | `machine.kind` | `owner` | `host` | `network` | `relationships` |
+| --- | --- | --- | --- | --- | --- |
+| Organization workspace VM | `workspace-vm` | `{kind: "organization", organization, organization_key?, team?, assignment?}` | `{kind: "virtualization-host", machine_id, custody_repository, provider}` | optional | optional, `zone: "work"` |
+| Personal VM | `personal-vm`; `machine.name` is the DNS slug | `{kind: "principal", github_login, github_id}` | `{kind: "provider-estate", estate_id, custody_repository, record_path}` | required | optional, `zone: "personal"` |
 
 `operator`, `installed` and `account` are shared; `operator.os_user` may differ from
 `machine.name`. `MachineContext` in `src/machine/context.ts` is the union of the two
 branches, and the conformance tests cover both with real-shaped fixtures.
+
+Two fields are new since v0.12.59, both optional, both closed shapes with no
+defaults, and both copied into the immutable Machine binding exactly as written
+(absent stays absent, so a Folder adopted from a v0.12.59 handover still matches its
+handover byte for byte):
+
+- **`owner.assignment`** — Organization branch only; the personal branch refuses it.
+  `{kind: "operator", github_login, github_id}` or `{kind: "team"}`, authored per guest
+  in the owner Deployment Repo and copied by Machines, never inferred from names,
+  Team names or Team size. It is **the** selector between the two Organization
+  presets ([workspace presets](workspace-presets.md#derived-from-the-handover-confirmed-or-explicitly-overridden)).
+- **`relationships`** — `{zone, peers[]}`: this Machine's tailnet peers from its own
+  point of view, derived by Machines only from the home Conglomerate Host grants that
+  name its Headscale node; omitted when the Deployment Repo declares no home
+  Conglomerate Host. `zone` is the zone of the branch (`work` / `personal`, upstream
+  decision 0155). Each peer is `{name, kind, zone, organization, ssh, https}`: the
+  Headscale node name; `personal-vm` | `workspace-vm` | `client-device` |
+  `conglomerate-host`; the peer's zone or `null`; its lowercase Organization login or
+  `null`; `ssh` as `{host, user, direction}` (MagicDNS name, OS account or `null`,
+  and `outbound` | `inbound` | `both` for TCP 22 relative to this Machine) or `null`;
+  and `https`, the peer's gateway hostnames reachable from here over TCP 443. Names
+  only: no node ids, machine keys, tailnet addresses or credentials. Platform renders
+  it and enforces nothing; Headscale does.
 
 The consumer rejects duplicate keys, unknown fields, invalid UTF-8, documents over
 1 MiB, unsafe file ownership/modes, links and noncanonical parent custody. The
@@ -57,18 +80,21 @@ narrow Linux/remote/human pilot entrypoint.
 
 The handover has no selected-preset field and needs none. The
 [workspace preset](workspace-presets.md) is derived from its typed fields only:
-`personal-vm` → `hosted-personal`; `workspace-vm` without `owner.team` →
-`hosted-organization-personal`. A `workspace-vm` handover **with** `owner.team` is
-ambiguous: an Organization may model one operator's VM as a Team named after them, so
-the Team says nothing about whether the Machine is assigned to one operator or
-shared, and Platform derives no preset from it. Never from the Machine name, the
-hostname, the Team name or the operator account. Machines will carry the assignment
-explicitly as `owner.assignment`; until the vendored schema has it, the Machines
-resident role passes the preset from the owner infrastructure. `folder-init` records
-the derived preset, or an explicit `--preset` the handover allows, in the Environment
+`personal-vm` → `hosted-personal`; `workspace-vm` with `owner.assignment.kind`
+`"operator"` → `hosted-organization-personal`, `"team"` → `hosted-organization-team`.
+`owner.assignment` is the only selector between the two Organization presets; when it
+is present nothing else is read. A `workspace-vm` handover **without** it proves only
+one side: without `owner.team` it is one operator's (`hosted-organization-personal`,
+as before v0.12.61); with `owner.team` it is ambiguous, because an Organization may
+model one operator's VM as a Team named after them, and Platform derives no preset
+from it. Never from the Machine name, the hostname, the Team name or the operator
+account, and never from `relationships`. For such a handover the Machines resident
+role passes the preset from the owner infrastructure. `folder-init` records the
+derived preset, or an explicit `--preset` the handover allows, in the Environment
 configuration together with the immutable **Machine binding** (kind, name, owner,
-team, tailnet node, host and the handover digest). Machines does not rewrite the
-identity; a Folder adopted from a different handover is refused, never rewritten.
+team, assignment, tailnet node, host, relationships and the handover digest).
+Machines does not rewrite the identity; a Folder adopted from a different handover is
+refused, never rewritten.
 
 A repeated infrastructure apply must preserve the Machine identity, the Folder
 content and the Platform-selected product version; Machines does not reselect the
@@ -83,8 +109,9 @@ Machines resident role calls after handover:
 lazurio machine folder-init
 ```
 
-For a handover that names a Team (`owner.team`), the resident role passes the preset
-from the owner infrastructure, because the handover does not decide it:
+For a handover without `owner.assignment` that names a Team (`owner.team`), the
+resident role passes the preset from the owner infrastructure, because the handover
+does not decide it:
 
 ```sh
 lazurio machine folder-init --preset <hosted-organization-personal|hosted-organization-team>
@@ -98,7 +125,8 @@ on a re-run, which changes nothing; or exit status 2 with
 `folder-foreign-entry`, `folder-layout-missing`, `folder-personalspace-conflict`,
 `folder-state-unrecognized`, `folder-binding-changed`, `folder-directory-shared`,
 `preset-not-allowed`, `preset-ambiguous` or a Machine context code. `preset-ambiguous`
-is the Team-bearing handover without `--preset` on a not yet adopted Folder:
+is the Team-bearing handover without `owner.assignment` and without `--preset` on a
+not yet adopted Folder:
 `{"kind":"blocked","reason":"preset-ambiguous","allowed":["hosted-organization-personal","hosted-organization-team"],"next":…}`;
 a re-run on an adopted Folder is never ambiguous. Optional `--preset <name>` picks another preset the handover
 allows (recorded as an explicit choice); optional `--locale`, `--detail` and
@@ -160,16 +188,22 @@ module delivery remain separate pilot gates.
 ### What the Folder renders
 
 `AGENTS.md` is a deterministic projection of the preset, the recorded binding and
-the profile: which Machine this is and whose, who the Principal is here, the
-Personalspace boundary, where Organization repositories live, the provider identity
-mode and how work is done, with a pointer to the Organization's `AGENTS.md` and to
-the agent manual in `manual/` ([decision F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)):
+the profile: which Machine this is and whose, how it is assigned when the handover
+says so (`assigned to operator <login>` / `shared by the Team`), who the Principal is
+here, the Personalspace boundary, where Organization repositories live, the provider
+identity mode and how work is done, with a pointer to the Organization's `AGENTS.md`
+and to the agent manual in `manual/` ([decision F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)):
 six English documents rendered from the same inputs, of which `this-machine.md`
-carries the Machine, its preset and the zones of upstream decision 0155. A
-relationships section is rendered only when the recorded binding carries one; the
-handover has no such field yet, and no persona is rendered.
-The Launchpad shows the binding and lets the Principal change the preset (within the
-allow-list) and the communication axes through the ordinary preview → apply flow.
+carries the Machine, its preset and the zones of upstream decision 0155. Its
+`Relationships` section is rendered only when the recorded binding carries the
+handover's `relationships`: one line per peer with kind, zone, Organization, SSH
+host, account and direction, and HTTPS hostnames, plus one sentence that Lazurio
+enforces none of it (Headscale does). Nothing is rendered when the field is absent,
+and no persona is rendered. The Owner line names the Team only under
+`hosted-organization-team`, unchanged by the assignment.
+The Launchpad shows the binding, including the assignment and a compact read-only
+list of the peers, and lets the Principal change the preset (within the allow-list)
+and the communication axes through the ordinary preview → apply flow.
 
 ## Bounded diagnosis and repair
 
@@ -204,12 +238,18 @@ Use `linux-arm64` for the local ARM64 VM. The target and artifact digest in
 build remains available without `--target`. Cross-compilation is only packaging;
 it does not qualify either architecture. See [Bun's executable targets](https://bun.sh/docs/bundler/executables).
 
-Unit fixtures prove parsing/refusal of both handover branches, preset derivation,
-adoption (used work directories, legacy files, foreign entries, idempotence, the
-Personalspace conflict), directory preservation and recognized interruption
-completion. A native run of `folder-init` with the compiled CLI on a fresh Ubuntu
-24.04 ARM64 VM against root-issued fixture handovers of all three kinds is recorded
-in [evidence](evidence/presets-linux-arm64-2026-09-22.md). They do not prove actual
+Unit fixtures prove parsing/refusal of both handover branches including the
+v0.12.61 fields (assignment on the Organization branch only, relationships in the
+branch's zone, closed peer shapes), preset derivation from the assignment, that a
+v0.12.59-shaped handover still reads, projects and derives exactly as before, the
+rendered assignment and relationships, adoption (used work directories, legacy
+files, foreign entries, idempotence, the Personalspace conflict), directory
+preservation and recognized interruption completion. A native run of `folder-init`
+with the compiled CLI on a fresh Ubuntu 24.04 ARM64 VM against root-issued
+v0.12.59-shaped fixture handovers of all three kinds is recorded in
+[evidence](evidence/presets-linux-arm64-2026-09-22.md); a native run with a
+v0.12.61 handover carrying `owner.assignment` or `relationships` is not yet recorded.
+They do not prove actual
 Machines delivery, a real Machines-delivered VM, a native Launchpad preset change,
 official release hosting and attestation, native Linux x64 execution,
 Organization/module authorization, gateway operation, agent work, VM restart or the

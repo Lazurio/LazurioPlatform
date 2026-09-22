@@ -20,6 +20,11 @@ import {
 } from "../src/machine/context";
 import provenance from "../src/machine/schema-provenance.json";
 import { readCustodiedDeclarationBytes } from "../src/providers/owned-json";
+import {
+  assignments,
+  personalRelationships,
+  workRelationships,
+} from "./fixtures/machine-bindings";
 import fixture from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
@@ -148,6 +153,149 @@ for (const [name, change] of Object.entries({
   test(`the two branches never mix: ${name}`, () => {
     const input: Record<string, unknown> = structuredClone(fixture);
     change(input);
+    expect(() => parseMachineContext(bytes(input))).toThrow(
+      "machine-context-invalid",
+    );
+  });
+// Machines v0.12.61: owner.assignment on the Organization branch only, and
+// relationships whose zone is the zone of the branch. Both optional, no defaults.
+for (const [name, input] of Object.entries({
+  "organization VM assigned to one operator": {
+    ...fixture,
+    owner: { ...fixture.owner, assignment: assignments.operator },
+  },
+  "organization VM shared by the Team": {
+    ...fixture,
+    owner: { ...fixture.owner, assignment: assignments.team },
+  },
+  "organization VM without a Team, assigned to the Team": {
+    ...fixture,
+    owner: {
+      kind: "organization",
+      organization: "example",
+      assignment: assignments.team,
+    },
+  },
+  "organization VM with work-zone relationships": {
+    ...fixture,
+    relationships: workRelationships,
+  },
+  "organization VM with assignment and relationships": {
+    ...fixture,
+    owner: { ...fixture.owner, assignment: assignments.operator },
+    relationships: workRelationships,
+  },
+  "organization VM with relationships and no peers": {
+    ...fixture,
+    relationships: { zone: "work", peers: [] },
+  },
+  "personal VM with personal-zone relationships": {
+    ...personal,
+    relationships: personalRelationships,
+  },
+}))
+  test(`v0.12.61 accepts ${name} exactly as written`, () => {
+    const context = parseMachineContext(bytes(input));
+    expect(JSON.stringify(context)).toBe(JSON.stringify(input));
+    if (context.relationships !== undefined)
+      expect(Object.isFrozen(context.relationships.peers)).toBe(true);
+  });
+const peer = workRelationships.peers[0];
+for (const [name, input] of Object.entries({
+  "an assignment on the personal branch": {
+    ...personal,
+    owner: { ...personal.owner, assignment: assignments.operator },
+  },
+  "a Team assignment on the personal branch": {
+    ...personal,
+    owner: { ...personal.owner, assignment: assignments.team },
+  },
+  "an assignment of unknown kind": {
+    ...fixture,
+    owner: { ...fixture.owner, assignment: { kind: "everyone" } },
+  },
+  "an operator assignment without the immutable GitHub id": {
+    ...fixture,
+    owner: {
+      ...fixture.owner,
+      assignment: { kind: "operator", github_login: "example" },
+    },
+  },
+  "an operator assignment with an extra field": {
+    ...fixture,
+    owner: {
+      ...fixture.owner,
+      assignment: { ...assignments.operator, role: "admin" },
+    },
+  },
+  "a Team assignment naming a Team": {
+    ...fixture,
+    owner: {
+      ...fixture.owner,
+      assignment: { kind: "team", team: "sample-team" },
+    },
+  },
+  "a null assignment": {
+    ...fixture,
+    owner: { ...fixture.owner, assignment: null },
+  },
+  "personal-zone relationships on the organization branch": {
+    ...fixture,
+    relationships: personalRelationships,
+  },
+  "work-zone relationships on the personal branch": {
+    ...personal,
+    relationships: workRelationships,
+  },
+  "relationships without a zone": {
+    ...fixture,
+    relationships: { peers: [] },
+  },
+  "a peer of unknown kind": {
+    ...fixture,
+    relationships: { zone: "work", peers: [{ ...peer, kind: "phone" }] },
+  },
+  "a peer carrying a node id": {
+    ...fixture,
+    relationships: { zone: "work", peers: [{ ...peer, node_id: "1" }] },
+  },
+  "a peer without https": {
+    ...fixture,
+    relationships: {
+      zone: "work",
+      peers: [{ ...peer, https: undefined }],
+    },
+  },
+  "a peer whose SSH host is not a MagicDNS name": {
+    ...fixture,
+    relationships: {
+      zone: "work",
+      peers: [{ ...peer, ssh: { ...peer.ssh, host: "example-laptop" } }],
+    },
+  },
+  "a peer with an unknown SSH direction": {
+    ...fixture,
+    relationships: {
+      zone: "work",
+      peers: [{ ...peer, ssh: { ...peer.ssh, direction: "any" } }],
+    },
+  },
+  "a peer with duplicate HTTPS hostnames": {
+    ...fixture,
+    relationships: {
+      zone: "work",
+      peers: [{ ...peer, https: ["a.example.invalid", "a.example.invalid"] }],
+    },
+  },
+  "a peer with an Organization login that is not lowercase": {
+    ...fixture,
+    relationships: {
+      zone: "work",
+      peers: [{ ...peer, organization: "Example" }],
+    },
+  },
+}))
+  test(`v0.12.61 refuses ${name}`, () => {
     expect(() => parseMachineContext(bytes(input))).toThrow(
       "machine-context-invalid",
     );

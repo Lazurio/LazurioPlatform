@@ -486,6 +486,38 @@ test("the machine CLI reports an adoption refusal by reason and entry", () => {
 });
 
 test.skipIf(process.platform === "win32")(
+  "folder-init derives the preset from owner.assignment when the handover carries it",
+  async () => {
+    for (const [machine, name] of [
+      [bindings.assignedOperator, "hosted-organization-personal"],
+      [bindings.assignedTeam, "hosted-organization-team"],
+    ] as const) {
+      const { parent, folder } = await setup({ personalspace: "empty" });
+      try {
+        const derived = { name, version: 1, selection: "derived" } as const;
+        expect(
+          await initializeMachineFolder(folder, machine, noChoices),
+        ).toEqual({
+          code: 0,
+          result: { kind: "initialized", revision: 1, preset: derived },
+        });
+        const document = await readFile(join(folder, "AGENTS.md"), "utf8");
+        expect(document).toContain(name);
+        expect(document).toContain("- Assignment:");
+        expect(
+          await initializeMachineFolder(folder, machine, noChoices),
+        ).toEqual({
+          code: 0,
+          result: { kind: "already-adopted", revision: 1, preset: derived },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "folder-init never guesses on a Team-bearing handover: blocked without --preset, explicit with it, and a re-run keeps the adopted preset",
   async () => {
     const { parent, folder } = await setup({ personalspace: "empty" });
@@ -501,7 +533,7 @@ test.skipIf(process.platform === "win32")(
           kind: "blocked",
           reason: "preset-ambiguous",
           allowed: ["hosted-organization-personal", "hosted-organization-team"],
-          next: "Pass --preset: this handover names a Team but not whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+          next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
         }),
       );
       expect(blocked.code).toBe(2);

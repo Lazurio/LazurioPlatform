@@ -1,6 +1,6 @@
 import {
   type MachineBinding,
-  type MachineRelationship,
+  type MachinePeer,
   parseMachineBinding,
 } from "./machine-binding";
 import { manualEntries } from "./outputs";
@@ -48,26 +48,79 @@ export function instructionSource(
 }
 
 type Text = Readonly<{ cs: string; en: string }>;
-const relationshipKinds: Readonly<Record<MachineRelationship["kind"], Text>> = {
-  "personal-client": { cs: "osobní klient", en: "personal client" },
+const peerKinds: Readonly<Record<MachinePeer["kind"], Text>> = {
   "personal-vm": { cs: "osobní VM", en: "personal VM" },
   "workspace-vm": { cs: "pracovní VM", en: "work VM" },
-  "work-laptop": { cs: "pracovní laptop", en: "work laptop" },
+  "client-device": { cs: "klientské zařízení", en: "client device" },
+  "conglomerate-host": { cs: "Conglomerate Host", en: "Conglomerate Host" },
 };
-const relationshipAccess: Readonly<
-  Record<MachineRelationship["access"], Text>
+const peerZones: Readonly<Record<"personal" | "work", Text>> = {
+  personal: { cs: "osobní zóna", en: "personal zone" },
+  work: { cs: "pracovní zóna", en: "work zone" },
+};
+const sshDirections: Readonly<
+  Record<NonNullable<MachinePeer["ssh"]>["direction"], Text>
 > = {
-  inbound: { cs: "smí sem", en: "may reach this Machine" },
-  outbound: { cs: "odsud tam", en: "reachable from here" },
-  both: { cs: "oběma směry", en: "both directions" },
+  outbound: { cs: "SSH odsud na", en: "SSH from here to" },
+  inbound: { cs: "SSH sem z", en: "SSH to this Machine from" },
+  both: { cs: "SSH oběma směry s", en: "SSH both ways with" },
 };
 
-// One line per recorded relationship, shared by AGENTS.md and the manual.
-export function relationshipLine(
-  relation: MachineRelationship,
+// One line per recorded peer, shared by AGENTS.md and the manual: who the peer
+// is, then the SSH edge (TCP 22, relative to this Machine) and the HTTPS
+// gateway hostnames this Machine may reach. Exactly what the handover says.
+export function peerLine(peer: MachinePeer, locale: "cs" | "en"): string {
+  const pick = (text: Text) => text[locale];
+  const who = [
+    pick(peerKinds[peer.kind]),
+    ...(peer.zone === null ? [] : [pick(peerZones[peer.zone])]),
+    ...(peer.organization === null
+      ? []
+      : [
+          pick({
+            cs: `Organizace \`${peer.organization}\``,
+            en: `Organization \`${peer.organization}\``,
+          }),
+        ]),
+  ].join(", ");
+  const ssh =
+    peer.ssh === null
+      ? pick({ cs: "bez SSH", en: "no SSH" })
+      : `${pick(sshDirections[peer.ssh.direction])} \`${peer.ssh.host}\`${
+          peer.ssh.user === null
+            ? ""
+            : pick({
+                cs: ` jako \`${peer.ssh.user}\``,
+                en: ` as \`${peer.ssh.user}\``,
+              })
+        }`;
+  const https =
+    peer.https.length === 0
+      ? pick({ cs: "bez HTTPS", en: "no HTTPS" })
+      : `HTTPS ${peer.https.map((host) => `\`${host}\``).join(", ")}`;
+  return `- \`${peer.name}\` (${who}): ${ssh}; ${https}.`;
+}
+
+// The assignment line of an Organization work VM: rendered only when the
+// handover carries `owner.assignment`, exactly as recorded.
+export function assignmentLine(
+  machine: MachineBinding,
   locale: "cs" | "en",
-): string {
-  return `- \`${relation.machine}\` (${relationshipKinds[relation.kind][locale]}): ${relationshipAccess[relation.access][locale]}.`;
+): string[] {
+  if (machine.owner.kind !== "organization") return [];
+  const { assignment } = machine.owner;
+  if (assignment === undefined) return [];
+  const text: Text =
+    assignment.kind === "team"
+      ? {
+          cs: "- Přiřazení: sdílená Teamem.",
+          en: "- Assignment: shared by the Team.",
+        }
+      : {
+          cs: `- Přiřazení: přiřazená Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+          en: `- Assignment: assigned to operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+        };
+  return [text[locale]];
 }
 
 // One short factual document: context for every agent starting inside the
@@ -135,6 +188,7 @@ function machineSection(
       en: `- Machine: \`${machine.name}\` (${machine.kind}).`,
     }),
     owner,
+    ...assignmentLine(machine, locale),
     pick(principal),
     machine.network === null
       ? pick({
@@ -153,9 +207,11 @@ function machineSection(
   if (machine.relationships !== undefined)
     lines.push(
       pick({ cs: "### Vztahy k dalším Mašinám", en: "### Related Machines" }),
-      ...machine.relationships.map((relation) =>
-        relationshipLine(relation, locale),
-      ),
+      pick({
+        cs: `Peers v tailnetu podle handoveru (${peerZones[machine.relationships.zone].cs} této Mašiny); vynucuje je Headscale, ne Lazurio.`,
+        en: `Tailnet peers as the handover records them (this Machine is in the ${peerZones[machine.relationships.zone].en}); Headscale enforces them, Lazurio does not.`,
+      }),
+      ...machine.relationships.peers.map((peer) => peerLine(peer, locale)),
     );
   return lines;
 }
