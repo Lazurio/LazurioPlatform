@@ -176,7 +176,11 @@ Parser references verified for the regression fix: [Bun Transpiler scan](https:/
 The experimental `folder-init` command accepts an absent canonical `--folder` path
 and the normal profile choices/JSON. It rejects every existing target, including an
 empty directory, and accepts no revision/digest inputs. Successful creation produces
-revision 1 using the shared initializer. The compiled macOS CLI fixture now starts
+revision 1 using the shared initializer under the `local` workspace preset (no
+Machine binding); its fixed axes are therefore `access: local`, `purpose: human`.
+`profile-preview` and `profile-update` accept an optional `--preset` within the
+allow-list of the recorded Machine, which for a workstation is only `local`. The
+hosted entry is `lazurio machine folder-init` ([machine handover](machine-handover.md)). The compiled macOS CLI fixture now starts
 through this command, then performs update, stale/no-op handling and prepared-update
 resume, without manually seeding preferences or ownership metadata.
 

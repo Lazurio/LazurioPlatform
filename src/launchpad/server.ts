@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import { withFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { allowedPresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { stateFields } from "../folder/state";
+import { ownDataValue } from "../folder/state-fields";
 import { updateProfile } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
@@ -130,14 +132,25 @@ export async function startLaunchpad(
           const current = await withFolderOperationLock(state, () =>
             readFolderState(state),
           );
+          // The preset and the communication axes are changeable; the Machine
+          // binding is shown and never accepted back from the browser.
           return response({
             revision: current.preferences.revision,
+            preset: current.preferences.preset,
+            allowedPresets: allowedPresets(current.preferences.machine),
+            machine: current.preferences.machine,
             profile: current.preferences.profile,
           });
         }
         if (!["/api/preview", "/api/update"].includes(url.pathname))
           return response({ error: "not-found" }, 404);
-        const value = stateFields(input, ["expectedRevision", "profile"]);
+        const withPreset = ownDataValue(input, "preset") !== undefined;
+        const value = stateFields(
+          input,
+          withPreset
+            ? ["expectedRevision", "preset", "profile"]
+            : ["expectedRevision", "profile"],
+        );
         if (
           typeof value.expectedRevision !== "number" ||
           !Number.isSafeInteger(value.expectedRevision) ||
@@ -149,7 +162,9 @@ export async function startLaunchpad(
         const result = await operation(
           folder,
           value.expectedRevision,
-          value.profile,
+          withPreset
+            ? { preset: value.preset, profile: value.profile }
+            : { profile: value.profile },
         );
         return response(result, result.kind === "blocked" ? 409 : 200);
       } catch {

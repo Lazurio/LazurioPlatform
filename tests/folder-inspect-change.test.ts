@@ -34,15 +34,20 @@ test.skipIf(process.platform === "win32")(
       coordination: "direct",
     };
     const requested = { ...profile, locale: "cs" };
+    const request = { profile: requested };
     try {
       await mkdir(folder, { mode: 0o700 });
       await mkdir(state, { mode: 0o700 });
-      const preview = await previewFolder(profile, null, async () => ({
-        kind: "absent",
-      }));
+      const preview = await previewFolder(
+        { preset: "local", machine: null, profile },
+        null,
+        async () => ({ kind: "absent" }),
+      );
       const preferences = JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         revision: 1,
+        preset: { name: "local", version: 1, selection: "derived" },
+        machine: null,
         profile,
         customInstructions: "",
       });
@@ -63,7 +68,7 @@ test.skipIf(process.platform === "win32")(
       await writeFile(join(state, "instructions.json"), manifest, {
         mode: 0o600,
       });
-      expect((await inspectProfileChange(folder, 1, requested)).kind).toBe(
+      expect((await inspectProfileChange(folder, 1, request)).kind).toBe(
         "profile-change",
       );
       const runCli = async (revision: string) => {
@@ -91,7 +96,7 @@ test.skipIf(process.platform === "win32")(
       const cli = await runCli("1");
       expect(cli.code, cli.stderr).toBe(0);
       expect(JSON.parse(cli.stdout)).toEqual(
-        await inspectProfileChange(folder, 1, requested),
+        await inspectProfileChange(folder, 1, request),
       );
       const staleCli = await runCli("2");
       expect(staleCli.code).toBe(2);
@@ -100,7 +105,7 @@ test.skipIf(process.platform === "win32")(
         reason: "stale-revision",
       });
       expect((await runCli("1.5")).code).toBe(1);
-      expect(await inspectProfileChange(folder, 2, requested)).toEqual({
+      expect(await inspectProfileChange(folder, 2, request)).toEqual({
         kind: "blocked",
         reason: "stale-revision",
       });
@@ -119,15 +124,15 @@ test.skipIf(process.platform === "win32")(
         "preferences.json",
       ]);
       await withFolderOperationLock(state, async () => {
-        await expect(
-          inspectProfileChange(folder, 1, requested),
-        ).rejects.toThrow("busy");
+        await expect(inspectProfileChange(folder, 1, request)).rejects.toThrow(
+          "busy",
+        );
       });
       await writeFile(
         join(state, "pending.json"),
         "preserve transaction evidence",
       );
-      await expect(inspectProfileChange(folder, 1, requested)).rejects.toThrow(
+      await expect(inspectProfileChange(folder, 1, request)).rejects.toThrow(
         "pending",
       );
       expect(await readFile(join(state, "pending.json"), "utf8")).toBe(
@@ -135,12 +140,10 @@ test.skipIf(process.platform === "win32")(
       );
       await rm(join(state, "pending.json"));
       await writeFile(join(state, "preferences.json"), "invalid JSON");
-      await expect(
-        inspectProfileChange(folder, 1, requested),
-      ).rejects.toThrow();
+      await expect(inspectProfileChange(folder, 1, request)).rejects.toThrow();
       await rm(join(state, "preferences.json"));
       await symlink(join(folder, "own-notes"), join(state, "preferences.json"));
-      await expect(inspectProfileChange(folder, 1, requested)).rejects.toThrow(
+      await expect(inspectProfileChange(folder, 1, request)).rejects.toThrow(
         "Unsafe",
       );
       expect(await readFile(join(folder, "own-notes"), "utf8")).toBe(
@@ -154,7 +157,7 @@ test.skipIf(process.platform === "win32")(
       const externalState = join(temporary, "other-state");
       await rename(state, externalState);
       await symlink(externalState, state);
-      await expect(inspectProfileChange(folder, 1, requested)).rejects.toThrow(
+      await expect(inspectProfileChange(folder, 1, request)).rejects.toThrow(
         "Canonical",
       );
       expect((await readdir(externalState)).sort()).toEqual([

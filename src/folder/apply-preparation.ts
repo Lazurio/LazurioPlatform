@@ -9,7 +9,7 @@ import {
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { renderInstructions } from "./render";
+import { instructionSource, renderInstructions } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { validatePreparation } from "./validate-preparation";
 
@@ -99,12 +99,12 @@ async function inspectProgress(folder: string, archivedRevision?: number) {
     preferences,
     marker.manifest,
     marker,
-    renderInstructions(preferences.profile),
+    renderInstructions(instructionSource(preferences)),
   );
   if (preferences.profile.os !== executionOs(process.platform))
     throw new Error("Transaction execution OS mismatch");
   const before = [
-    renderInstructions(validated.previousPreferences.profile),
+    renderInstructions(instructionSource(validated.previousPreferences)),
     JSON.stringify(validated.previousPreferences),
     JSON.stringify(validated.previousManifest),
   ];

@@ -72,7 +72,7 @@ sign-in column above changes:
 - **Harness and model access is open.** A member's personal model subscription is a
   personal credential and does not belong on the shared account; what the Organization
   supplies instead, and how it is attributed and revoked, is undecided and is a
-  prerequisite of `hosted-team` acceptance.
+  prerequisite of `hosted-organization-team` acceptance.
 - **No Personalspace**, and no step of the preparation sequence may create one.
 
 Steps 1–3 and 5–6 of the sequence apply unchanged. Step 4 becomes: verify the brokered

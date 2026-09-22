@@ -1,8 +1,36 @@
+import {
+  allowedPresets,
+  type PresetName,
+  parsePresetName,
+  presetReference,
+  workspacePreset,
+} from "./presets";
 import { previewFolder } from "./preview";
-import { parseFolderProfile } from "./profile";
+import { type FolderProfile, parseFolderProfile } from "./profile";
 import type { ObservedFile } from "./reconcile";
-import { instructionTemplateRevision } from "./render";
+import { instructionSource, instructionTemplateRevision } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
+import { ownDataValue, stateFields } from "./state-fields";
+
+// One request shape for CLI, Launchpad and a future typed owner request: the
+// preset (absent means keep the current one) and the full profile. The Machine
+// binding is never part of a request; it is immutable.
+export type ProfileRequest = Readonly<{
+  preset: PresetName | undefined;
+  profile: FolderProfile;
+}>;
+
+export function parseProfileRequest(input: unknown): ProfileRequest {
+  const withPreset = ownDataValue(input, "preset") !== undefined;
+  const value = stateFields(
+    input,
+    withPreset ? ["preset", "profile"] : ["profile"],
+  );
+  return Object.freeze({
+    preset: withPreset ? parsePresetName(value.preset) : undefined,
+    profile: parseFolderProfile(value.profile),
+  });
+}
 
 // Shared profile-change planning. The caller reads trusted current state under
 // the common lock and must revalidate before writing. This is not an apply token.
@@ -10,12 +38,12 @@ export async function planProfileChange(
   currentPreferencesInput: unknown,
   currentManifestInput: unknown,
   expectedRevision: number,
-  requestedProfileInput: unknown,
+  requestedInput: unknown,
   inspect: () => Promise<ObservedFile>,
 ) {
   const current = parseFolderPreferences(currentPreferencesInput);
   const manifest = parseInstructionManifest(currentManifestInput);
-  const requested = parseFolderProfile(requestedProfileInput);
+  const requested = parseProfileRequest(requestedInput);
   if (
     !Number.isSafeInteger(expectedRevision) ||
     expectedRevision !== current.revision
@@ -25,16 +53,28 @@ export async function planProfileChange(
     return { kind: "blocked", reason: "incomplete-state" } as const;
   if (manifest.templateRevision !== instructionTemplateRevision)
     return { kind: "blocked", reason: "template-upgrade-required" } as const;
-  if (requested.os !== current.profile.os)
+  if (requested.profile.os !== current.profile.os)
     return { kind: "blocked", reason: "execution-os-change" } as const;
   if (current.customInstructions !== "")
     return {
       kind: "blocked",
       reason: "custom-composition-unavailable",
     } as const;
+  // The preset may only change within what the recorded handover allows, and
+  // the fixed axes of the profile must match the requested preset's composition.
+  const presetName = requested.preset ?? current.preset.name;
+  if (!allowedPresets(current.machine).includes(presetName))
+    return { kind: "blocked", reason: "preset-not-allowed" } as const;
+  const composition = workspacePreset(presetName).composition;
+  if (
+    requested.profile.access !== composition.access ||
+    requested.profile.purpose !== composition.purpose
+  )
+    return { kind: "blocked", reason: "preset-composition" } as const;
+  const preset = presetReference(presetName, current.machine);
 
   const expectedCurrent = await previewFolder(
-    current.profile,
+    instructionSource(current),
     null,
     async () => ({ kind: "absent" }),
   );
@@ -42,7 +82,11 @@ export async function planProfileChange(
     return { kind: "blocked", reason: "incomplete-state" } as const;
 
   const preview = await previewFolder(
-    requested,
+    {
+      preset: preset.name,
+      machine: current.machine,
+      profile: requested.profile,
+    },
     manifest.output.digest,
     inspect,
   );
@@ -53,7 +97,8 @@ export async function planProfileChange(
   const preferences = parseFolderPreferences({
     ...current,
     revision: current.revision + 1,
-    profile: requested,
+    preset,
+    profile: requested.profile,
   });
   const nextManifest = parseInstructionManifest({
     schemaVersion: 1,

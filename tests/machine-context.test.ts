@@ -12,7 +12,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runMachineCommand } from "../src/machine/cli";
+import { runCli } from "../src/cli";
+import { MachineUsageError, runMachineCommand } from "../src/machine/cli";
 import {
   bindMachineOperator,
   parseMachineContext,
@@ -20,6 +21,7 @@ import {
 import provenance from "../src/machine/schema-provenance.json";
 import { readCustodiedDeclarationBytes } from "../src/providers/owned-json";
 import fixture from "./fixtures/machine-context.json";
+import personal from "./fixtures/machine-context-personal.json";
 
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 test("vendored schema digest matches the exact upstream pin", async () => {
@@ -36,26 +38,36 @@ test("vendored schema digest matches the exact upstream pin", async () => {
       .digest("hex"),
   ).toBe(provenance.sha256);
 });
-test("synthetic upstream conformance fixture is immutable descriptive context", () => {
-  const context = parseMachineContext(bytes(fixture));
-  expect(JSON.stringify(context)).toBe(JSON.stringify(fixture));
-  expect(context.account).toBeNull();
-  expect(Object.isFrozen(context.operator)).toBe(true);
-  expect(Object.isFrozen(context.installed.machines_release)).toBe(true);
-  expect(
-    bindMachineOperator(context, {
-      platform: "linux",
-      uid: 1000,
-      username: "operator",
-      homedir: "/home/operator",
-    }),
-  ).toBe("/home/operator/Lazurio");
-});
-test("current upstream contract permits no network and SHA-256 Git object ids", () => {
+for (const [branch, input] of [
+  ["organization workspace VM", fixture],
+  ["personal VM", personal],
+] as const)
+  test(`synthetic ${branch} conformance fixture is immutable descriptive context`, () => {
+    const context = parseMachineContext(bytes(input));
+    expect(JSON.stringify(context)).toBe(JSON.stringify(input));
+    expect(context.account).toBeNull();
+    expect(Object.isFrozen(context.operator)).toBe(true);
+    expect(Object.isFrozen(context.installed.machines_release)).toBe(true);
+    expect(
+      bindMachineOperator(context, {
+        platform: "linux",
+        uid: 1000,
+        username: "operator",
+        homedir: "/home/operator",
+      }),
+    ).toBe("/home/operator/Lazurio");
+  });
+test("organization branch permits no network and SHA-256 Git object ids", () => {
   const { network: _, ...input } = structuredClone(fixture);
   input.installed.deployment_head = "c".repeat(64);
   input.installed.machines_release.commit = "d".repeat(64);
   expect(parseMachineContext(bytes(input)).network).toBeUndefined();
+});
+test("personal branch requires the tailnet identity", () => {
+  const { network: _, ...input } = structuredClone(personal);
+  expect(() => parseMachineContext(bytes(input))).toThrow(
+    "machine-context-invalid",
+  );
 });
 for (const [name, change] of Object.entries({
   "unknown top-level field": (input: Record<string, unknown>) => {
@@ -83,7 +95,57 @@ for (const [name, change] of Object.entries({
     input.installed = { ...fixture.installed, deployment_head: "c".repeat(41) };
   },
 }))
-  test(`schema refuses ${name}`, () => {
+  for (const [branch, base] of [
+    ["organization", fixture],
+    ["personal", personal],
+  ] as const)
+    test(`schema refuses ${name} on the ${branch} branch`, () => {
+      const input: Record<string, unknown> = structuredClone(base);
+      change(input);
+      expect(() => parseMachineContext(bytes(input))).toThrow(
+        "machine-context-invalid",
+      );
+    });
+for (const [name, change] of Object.entries({
+  "a personal-vm kind with an Organization owner": (
+    input: Record<string, unknown>,
+  ) => {
+    input.machine = { ...personal.machine };
+  },
+  "a workspace-vm kind with a Principal owner": (
+    input: Record<string, unknown>,
+  ) => {
+    input.owner = { ...personal.owner };
+  },
+  "a workspace-vm on a provider estate": (input: Record<string, unknown>) => {
+    input.host = { ...personal.host };
+  },
+  "a personal VM on a virtualization host": (
+    input: Record<string, unknown>,
+  ) => {
+    Object.assign(input, structuredClone(personal), { host: fixture.host });
+  },
+  "a personal owner with a team": (input: Record<string, unknown>) => {
+    Object.assign(input, structuredClone(personal), {
+      owner: { ...personal.owner, team: "sample-team" },
+    });
+  },
+  "a personal owner without the immutable GitHub id": (
+    input: Record<string, unknown>,
+  ) => {
+    Object.assign(input, structuredClone(personal), {
+      owner: { kind: "principal", github_login: "example" },
+    });
+  },
+  "a personal Machine name that is not a DNS slug": (
+    input: Record<string, unknown>,
+  ) => {
+    Object.assign(input, structuredClone(personal), {
+      machine: { ...personal.machine, name: "Example" },
+    });
+  },
+}))
+  test(`the two branches never mix: ${name}`, () => {
     const input: Record<string, unknown> = structuredClone(fixture);
     change(input);
     expect(() => parseMachineContext(bytes(input))).toThrow(
@@ -125,32 +187,47 @@ test("runtime operator binding is independent of schema validity", () => {
     "machine-operator-mismatch",
   );
 });
-test("machine CLI refuses overrides and duplicate or missing choices before filesystem access", async () => {
+test("machine CLI refuses overrides, unknown presets and duplicate or invalid choices as usage errors before filesystem access", async () => {
   for (const args of [
     ["inspect", "--file", "/tmp/identity"],
-    ["folder-init"],
-    [
-      "folder-init",
-      "--locale",
-      "cs",
-      "--locale",
-      "en",
-      "--detail",
-      "technical",
-    ],
-    [
-      "folder-init",
-      "--locale",
-      "cs",
-      "--detail",
-      "technical",
-      "--coordination",
-      "direct",
-      "--folder",
-      "/tmp/target",
-    ],
+    ["inspect", "--locale", "cs"],
+    ["folder-init", "--locale", "cs", "--locale", "en"],
+    ["folder-init", "--locale", "de"],
+    ["folder-init", "--preset", "hosted-private"],
+    ["folder-init", "--preset", "hosted-team"],
+    ["folder-init", "--folder", "/tmp/target"],
+    ["folder-init", "--json"],
+    ["folder-init", "extra"],
+    ["reset"],
   ])
-    await expect(runMachineCommand(args)).rejects.toThrow();
+    await expect(runMachineCommand(args)).rejects.toBeInstanceOf(
+      MachineUsageError,
+    );
+});
+test("a wrong machine invocation prints the help on stderr with exit 2, not a failed Folder operation", async () => {
+  const child = Bun.spawn(
+    [process.execPath, "src/cli.ts", "machine", "folder-init", "--json"],
+    { env: {}, stdout: "pipe", stderr: "pipe" },
+  );
+  const [code, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ]);
+  expect(code).toBe(2);
+  expect(stdout).toBe("");
+  expect(stderr).toContain("machine folder-init [--preset <name>]");
+  expect(stderr).not.toContain("Folder operation failed");
+  // The in-process entry agrees and stays typed.
+  const original = console.error;
+  const lines: string[] = [];
+  console.error = (line: string) => void lines.push(line);
+  try {
+    expect(await runCli(["machine", "inspect", "--json"])).toBe(2);
+  } finally {
+    console.error = original;
+  }
+  expect(lines[0]).toContain("machine inspect");
 });
 test.skipIf(process.platform === "linux")(
   "production consumer does not invent a context on another OS",

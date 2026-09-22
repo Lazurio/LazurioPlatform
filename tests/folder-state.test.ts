@@ -6,11 +6,13 @@ import {
 } from "../src/folder/state";
 
 const preferences = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   revision: 1,
+  preset: { name: "local", version: 1, selection: "derived" },
+  machine: null,
   profile: {
     os: "linux",
-    access: "remote",
+    access: "local",
     purpose: "human",
     locale: "cs",
     detail: "concise",
@@ -21,7 +23,7 @@ const preferences = {
 const manifest = {
   schemaVersion: 1,
   preferenceRevision: 1,
-  templateRevision: "base-instructions-1",
+  templateRevision: "base-instructions-2",
   output: { path: "AGENTS.md", digest: "a".repeat(64) },
 };
 
@@ -82,7 +84,7 @@ test("unknown schemas, fields, unsafe revisions and non-owned paths are rejected
       parseFolderPreferences({ ...preferences, revision }),
     ).toThrow();
   expect(() =>
-    parseFolderPreferences({ ...preferences, schemaVersion: 2 }),
+    parseFolderPreferences({ ...preferences, schemaVersion: 1 }),
   ).toThrow();
   expect(() =>
     parseFolderPreferences({ ...preferences, authority: "admin" }),
