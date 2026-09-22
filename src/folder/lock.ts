@@ -1,7 +1,11 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, statfs } from "node:fs/promises";
 import { join } from "node:path";
-import { closeOnExecFlag, lockDirectoryDescriptor } from "./native-lock";
+import {
+  closeOnExecFlag,
+  darwinFilesystemName,
+  lockDirectoryDescriptor,
+} from "./native-lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 
 const marker = "lazurio-directory-flock-v1\n";
@@ -11,12 +15,20 @@ const marker = "lazurio-directory-flock-v1\n";
 export async function acquireFolderOperationLock(stateDirectory: string) {
   const cloexec = closeOnExecFlag();
   const parent = await inspectOwnedDirectory(stateDirectory);
-  const filesystem = await statfs(stateDirectory);
+  // Qualification: ext4 by its stable magic number; APFS by name, because the
+  // darwin `f_type` number is assigned at boot and not stable (native-lock.ts).
+  // The observed value is named so an unqualified mount identifies itself.
+  const filesystem =
+    process.platform === "darwin"
+      ? darwinFilesystemName(stateDirectory)
+      : String((await statfs(stateDirectory)).type);
   if (
-    (process.platform === "darwin" && filesystem.type !== 26) ||
-    (process.platform === "linux" && filesystem.type !== 0xef53)
+    (process.platform === "darwin" && filesystem !== "apfs") ||
+    (process.platform === "linux" && filesystem !== String(0xef53))
   )
-    throw new Error("Unqualified lock filesystem");
+    throw new Error(
+      `Unqualified lock filesystem (${process.platform} ${filesystem})`,
+    );
   const path = join(stateDirectory, ".operation-lock");
   let created = false;
   try {
