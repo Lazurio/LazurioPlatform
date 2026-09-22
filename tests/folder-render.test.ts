@@ -86,3 +86,41 @@ test("localized profile output deterministically feeds reconciliation", () => {
     "not allowed",
   );
 });
+
+// The generated document per preset and language, on the OS each preset is
+// offered for. Review the snapshot when the wording changes deliberately.
+for (const journey of journeys.filter((entry) => entry.os !== "windows"))
+  for (const locale of ["cs", "en"] as const)
+    test(`rendered AGENTS.md snapshot: ${journey.preset} / ${locale}`, () => {
+      expect(
+        renderInstructions({
+          preset: journey.preset,
+          machine: journey.machine,
+          profile: presetProfile(journey.preset, journey.os, { locale }),
+        }),
+      ).toMatchSnapshot();
+    });
+
+test("relationships render only when the recorded binding carries them", () => {
+  const profile = presetProfile("hosted-personal", "linux");
+  const plain = renderInstructions({
+    preset: "hosted-personal",
+    machine: bindings.personal,
+    profile,
+  });
+  expect(plain).not.toContain("Related Machines");
+  const related = renderInstructions({
+    preset: "hosted-personal",
+    machine: {
+      ...bindings.personal,
+      relationships: [
+        { machine: "example-laptop", kind: "personal-client", access: "both" },
+        { machine: "example-work", kind: "workspace-vm", access: "outbound" },
+      ],
+    },
+    profile,
+  });
+  expect(related).toContain("### Related Machines");
+  expect(related).toContain("`example-work` (work VM): reachable from here.");
+  expect(related).toMatchSnapshot();
+});
