@@ -306,10 +306,28 @@ async function syncDirectory(directory: string) {
   }
 }
 
-// Idempotent re-run: valid state recorded from the same handover reports the
-// adopted Folder (with the preset it already has); a different handover or
-// unrecognized state is refused by name. Only the ephemeral operation lock is
-// written. `null` means no Folder state exists yet.
+// The part of a binding that names the Machine: kind, name, Owner (Organization
+// and Team, or Principal), tailnet node and host. Machines rewrites the handover
+// on every apply (`installed`, and since v0.12.61 the declared assignment and the
+// derived relationships), so the document digest is not identity; a re-apply of
+// the same Machine must not turn an adopted Folder into a blocked one.
+export function machineIdentity(machine: MachineBinding | null) {
+  if (machine === null) return null;
+  const { assignment: _, ...owner } = machine.owner as MachineBinding["owner"] &
+    Readonly<{ assignment?: unknown }>;
+  return {
+    kind: machine.kind,
+    name: machine.name,
+    owner,
+    network: machine.network,
+    host: machine.host,
+  };
+}
+
+// Idempotent re-run: valid state recorded for the same Machine reports the
+// adopted Folder (with the preset and the binding it already has); another
+// Machine's handover or unrecognized state is refused by name. Only the
+// ephemeral operation lock is written. `null` means no Folder state exists yet.
 export async function adoptedHandoverFolder(
   folder: string,
   machine: MachineBinding | null,
@@ -331,7 +349,10 @@ export async function adoptedHandoverFolder(
     if (error instanceof Error && /busy/.test(error.message)) throw error;
     throw new FolderAdoptionError("state-unrecognized", ".lazurio");
   }
-  if (JSON.stringify(current.preferences.machine) !== JSON.stringify(machine))
+  if (
+    JSON.stringify(machineIdentity(current.preferences.machine)) !==
+    JSON.stringify(machineIdentity(machine))
+  )
     throw new FolderAdoptionError("binding-changed", ".lazurio");
   return {
     kind: "already-adopted" as const,

@@ -129,8 +129,9 @@ beyond existence, moved or written; `launchpad.gen3.json` and
 closed naming that entry. Machines precreates an empty `personalspace/` on every work
 VM, so an Organization preset (Personalspace never present) accepts an empty one and
 refuses a used one — it deletes nothing and names the path. A re-run on an adopted
-Folder reports `already-adopted` and changes nothing; a Folder adopted from a different
-handover or with unrecognized state is refused by name.
+Folder reports `already-adopted` and changes nothing (a re-applied handover of the
+same Machine included); a Folder adopted for a different Machine or with unrecognized
+state is refused by name.
 
 ## One choice, two effects, two owners
 

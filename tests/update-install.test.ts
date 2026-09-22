@@ -184,6 +184,16 @@ test("install --service writes the Launchpad unit and the static rollback unit, 
   expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(
     "[Service]\nExecStart=/bin/true\n",
   );
+  // … nor treats it as its supervisor: the installation is unsupervised, so an
+  // update switches and commits without restarting a unit it did not write.
+  expect(
+    await detectServiceControl({
+      base: input.base,
+      platform: "linux",
+      env: input.env,
+      run: input.run,
+    }),
+  ).toBeNull();
 });
 
 test("a service is refused where there is no systemd user manager, and when it refuses", async () => {

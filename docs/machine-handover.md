@@ -93,8 +93,12 @@ role passes the preset from the owner infrastructure. `folder-init` records the
 derived preset, or an explicit `--preset` the handover allows, in the Environment
 configuration together with the immutable **Machine binding** (kind, name, owner,
 team, assignment, tailnet node, host, relationships and the handover digest).
-Machines does not rewrite the identity; a Folder adopted from a different handover is
-refused, never rewritten.
+Machines does not rewrite the identity; a Folder adopted for a different Machine is
+refused, never rewritten. Identity is kind, name, Owner (Organization and Team, or
+Principal), tailnet node and host. Machines rewrites the handover on every apply
+(`installed`, the declared assignment, the derived relationships), so the document
+digest is not identity: a re-apply of the same Machine keeps the Folder adopted, with
+the binding recorded at adoption.
 
 A repeated infrastructure apply must preserve the Machine identity, the Folder
 content and the Platform-selected product version; Machines does not reselect the
@@ -179,8 +183,8 @@ Initialization exclusively creates `.lazurio` and `manual/`, journals the preexi
 layout identities and writes the generated outputs (`AGENTS.md`, the six manual files)
 and preferences/manifest exclusively, one receipt per created file. Two
 initializers cannot both claim state. A re-run on an adopted Folder holds only the
-ephemeral operation lock, compares the recorded Machine binding with the live
-handover and reports `already-adopted`; a different handover is `binding-changed`,
+ephemeral operation lock, compares the recorded Machine identity with the live
+handover and reports `already-adopted`; another Machine's handover is `binding-changed`,
 pending or unrecognized state is `state-unrecognized` (complete it with
 `folder-resume` or diagnose). No Organization is cloned yet: owner binding and
 module delivery remain separate pilot gates.
