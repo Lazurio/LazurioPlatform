@@ -120,7 +120,11 @@ export function installBase(
   return base;
 }
 
-async function updateEnvironment(
+/** The product's update core for one install base: compiled-in origin and
+ * trust, the real network, and the service this Machine has. The CLI and the
+ * installed Launchpad build the same one.
+ */
+export async function updateEnvironment(
   context: CliContext,
   base: string,
 ): Promise<UpdateEnvironment> {

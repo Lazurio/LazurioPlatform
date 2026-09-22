@@ -473,6 +473,17 @@ reference plus explicit local overrides under the existing environment-configura
 owner; the instruction axes of the profile renderer are not extended into a universal
 infrastructure configuration.
 
+**Amendment 2026-09-22 (first real canary).** A Team in the handover does not decide
+the preset: an Organization may model one operator's work VM as a GitHub Team named
+after the operator, so `owner.team` is not a fact about assignment. Platform never
+guesses. `workspace-vm` without `owner.team` still derives
+`hosted-organization-personal`; with `owner.team` it derives nothing and `folder-init`
+requires an explicit `--preset` (`preset-ambiguous` otherwise; an adopted Folder keeps
+its preset). Machines will add an explicit `owner.assignment`
+(`{kind: "operator", github_login, github_id}` | `{kind: "team"}`) that becomes the
+single source of the assignment; no heuristic and no local schema change stand in for
+it. The rendered Owner line names the Team only under `hosted-organization-team`.
+
 A user-facing "Machine profile" choice has two effects with two owners: infrastructure
 custody and topology belong to the hosting engine, Environment configuration to
 Platform. A managed Dashboard may present one choice and dispatch typed,

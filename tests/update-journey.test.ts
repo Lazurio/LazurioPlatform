@@ -489,6 +489,18 @@ test("a version that fails its own self-check is never switched to", async () =>
     code: "self-check-failed",
     context: { reason: "identity-mismatch" },
   });
+  // So is an attested release whose artifact is another version's executable
+  // (the impostor release of the native qualification bundle, journey 8d):
+  // verified and downloaded, then refused by name, and nothing is switched.
+  await world.release("1.3.0", {
+    artifacts: { [target]: executable("1.2.0") },
+  });
+  expect(
+    await performUpdate(world.environment("1.0.0"), "1.3.0"),
+  ).toMatchObject({
+    code: "self-check-failed",
+    context: { reason: "identity-mismatch" },
+  });
   await unchanged(failed, "self-check-failed");
 });
 

@@ -124,3 +124,47 @@ test("relationships render only when the recorded binding carries them", () => {
   expect(related).toContain("`example-work` (work VM): reachable from here.");
   expect(related).toMatchSnapshot();
 });
+
+// The real canary shape: a Team-bearing handover on an individual work VM,
+// adopted with the explicit personal preset. The binding keeps the Team; the
+// Owner line names it only under hosted-organization-team.
+test("the Owner line names the Team only under hosted-organization-team", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const personal = renderInstructions({
+      preset: "hosted-organization-personal",
+      machine: bindings.team,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    });
+    expect(personal).toContain(
+      locale === "cs"
+        ? "- Owner: Organizace `example`.\n"
+        : "- Owner: Organization `example`.\n",
+    );
+    expect(personal).not.toContain("sample-team");
+    expect(personal).toEqual(
+      renderInstructions({
+        preset: "hosted-organization-personal",
+        machine: bindings.organization,
+        profile: presetProfile("hosted-organization-personal", "linux", {
+          locale,
+        }),
+      }),
+    );
+    expect(
+      renderInstructions({
+        preset: "hosted-organization-team",
+        machine: bindings.team,
+        profile: presetProfile("hosted-organization-team", "linux", { locale }),
+      }),
+    ).toContain("Team `sample-team`");
+  }
+  expect(
+    renderInstructions({
+      preset: "hosted-organization-personal",
+      machine: bindings.team,
+      profile: presetProfile("hosted-organization-personal", "linux"),
+    }),
+  ).toMatchSnapshot();
+});

@@ -251,7 +251,12 @@ state to restore it.
   with jitter. Pill states `idle`, `checking`, `available`, `downloading`,
   `activating`, and failures that return to `available` with the error and a
   retry. It shows version, a link to the release notes and the single action
-  appropriate to the state.
+  appropriate to the state. The Launchpad serves it on its loopback session as
+  `GET /api/update/status` (computed from disk and the unit, never the network)
+  and `POST /api/update/apply` with the version the pill showed; a version the
+  last check no longer names is refused and the pill re-checks. A last verified
+  check older than 24 hours is shown prominently by its age; it changes no
+  state. `state-invalid` is shown with its path and offers no action.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
   [--json]`, `update rollback`, `lazurio install [--service systemd-user]`,
   `lazurio --version`. Other commands print a one-line notice from

@@ -3,6 +3,7 @@ import { parseMachineBinding } from "../src/folder/machine-binding";
 import {
   allowedPresets,
   derivePreset,
+  machineAssignment,
   parsePresetReference,
   presetNames,
   presetProfile,
@@ -20,30 +21,38 @@ const machines = {
   "workspace-vm without owner.team": bindings.organization,
 } as const;
 
+// Derivation is a function of machine.kind and the assignment the handover
+// proves. A Team in the handover proves nothing about assignment (an
+// Organization may model one operator's VM as a Team named after them), so
+// that handover derives no preset and every choice on it is explicit.
 test.each([
-  ["workstation", "local", ["local"]],
-  ["personal-vm", "hosted-personal", ["hosted-personal"]],
+  ["workstation", null, "local", ["local"]],
+  ["personal-vm", "operator", "hosted-personal", ["hosted-personal"]],
   [
     "workspace-vm with owner.team",
-    "hosted-organization-team",
+    null,
+    null,
     ["hosted-organization-personal", "hosted-organization-team"],
   ],
   [
     "workspace-vm without owner.team",
+    "operator",
     "hosted-organization-personal",
     ["hosted-organization-personal", "hosted-organization-team"],
   ],
 ] as const)(
-  "%s derives %s and allows exactly %p",
-  (machine, derived, allowed) => {
+  "%s has assignment %p, derives %p and allows exactly %p",
+  (machine, assignment, derived, allowed) => {
     const binding = machines[machine];
+    if (binding !== null) expect(machineAssignment(binding)).toBe(assignment);
     expect(derivePreset(binding)).toBe(derived);
     expect(allowedPresets(binding)).toEqual([...allowed]);
-    expect(presetReference(derived, binding)).toEqual({
-      name: derived,
-      version: 1,
-      selection: "derived",
-    });
+    if (derived !== null)
+      expect(presetReference(derived, binding)).toEqual({
+        name: derived,
+        version: 1,
+        selection: "derived",
+      });
     for (const name of presetNames) {
       if ((allowed as readonly string[]).includes(name)) {
         const reference = presetReference(name, binding);

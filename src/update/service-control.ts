@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import { type UpdateError, updateError, updateErrorCodes } from "./errors";
 import { layout } from "./layout";
 import { type ProcessRunner, runProcess } from "./self-check";
 
@@ -10,6 +11,10 @@ import { type ProcessRunner, runProcess } from "./self-check";
  */
 export const launchpadUnit = "lazurio-launchpad.service";
 export const rollbackUnit = "lazurio-rollback.service";
+/** The transient unit the Launchpad action starts `lazurio update` in, so the
+ * updater outlives the Launchpad restart it causes (docs/update.md
+ * "Activation"). */
+export const updateUnit = "lazurio-update.service";
 
 /** Where user units live: `${XDG_CONFIG_HOME:-~/.config}/systemd/user`. */
 export function userUnitDirectory(
@@ -67,6 +72,111 @@ export async function systemctl(
     )
     .catch(() => "timeout" as const);
   return result !== "timeout" && result.exitCode === 0;
+}
+
+type ServiceCommand = Readonly<{
+  run: ProcessRunner;
+  env: Readonly<Record<string, string | undefined>>;
+}>;
+
+async function serviceOutput(
+  input: ServiceCommand,
+  command: readonly string[],
+): Promise<string | null> {
+  const result = await input
+    .run(command, serviceCommandTimeoutMs, serviceEnvironment(input.env))
+    .catch(() => "timeout" as const);
+  return result !== "timeout" && result.exitCode === 0 ? result.stdout : null;
+}
+
+/** What the service manager holds under the update unit's name. The unit is
+ * started without `--collect`, so a failed run stays visible as `failed` until
+ * the next start resets it; a finished one is gone. Null: the manager cannot
+ * be asked.
+ */
+export type UpdateUnitState =
+  | Readonly<{ kind: "absent" }>
+  | Readonly<{ kind: "running" }>
+  | Readonly<{ kind: "failed"; invocationId: string }>;
+
+export async function observeUpdateUnit(
+  input: ServiceCommand,
+): Promise<UpdateUnitState | null> {
+  const output = await serviceOutput(input, [
+    "systemctl",
+    "--user",
+    "show",
+    "--property=LoadState,ActiveState,InvocationID",
+    "--",
+    updateUnit,
+  ]);
+  if (output === null) return null;
+  const properties = new Map<string, string>();
+  for (const line of output.split("\n")) {
+    const split = line.indexOf("=");
+    if (split > 0) properties.set(line.slice(0, split), line.slice(split + 1));
+  }
+  const active = properties.get("ActiveState");
+  const invocationId = properties.get("InvocationID") ?? "";
+  if (properties.get("LoadState") === "not-found" || active === "inactive")
+    return Object.freeze({ kind: "absent" as const });
+  if (active === "failed")
+    return /^[0-9a-f]{32}$/.test(invocationId)
+      ? Object.freeze({ kind: "failed" as const, invocationId })
+      : null;
+  return ["active", "activating", "deactivating", "reloading"].includes(
+    active ?? "",
+  )
+    ? Object.freeze({ kind: "running" as const })
+    : null;
+}
+
+/** The one stable error code a failed run of the update unit printed with
+ * `--json`, read from that invocation's journal. Null when it printed none:
+ * the run died before its answer, or the journal is not readable.
+ */
+export async function readUpdateUnitFailure(
+  input: ServiceCommand,
+  invocationId: string,
+): Promise<UpdateError | null> {
+  if (!/^[0-9a-f]{32}$/.test(invocationId)) return null;
+  const output = await serviceOutput(input, [
+    "journalctl",
+    "--user",
+    "--unit",
+    updateUnit,
+    "--output",
+    "cat",
+    "--no-pager",
+    "--lines",
+    "50",
+    `_SYSTEMD_INVOCATION_ID=${invocationId}`,
+  ]);
+  if (output === null) return null;
+  for (const line of output.split("\n").reverse()) {
+    try {
+      const value = JSON.parse(line) as {
+        kind?: unknown;
+        code?: unknown;
+        context?: unknown;
+      };
+      if (
+        value.kind === "error" &&
+        (updateErrorCodes as readonly unknown[]).includes(value.code)
+      )
+        return updateError(
+          value.code as UpdateError["code"],
+          typeof value.context === "object" && value.context !== null
+            ? Object.fromEntries(
+                Object.entries(value.context).filter(([, entry]) =>
+                  ["string", "number", "boolean"].includes(typeof entry),
+                ),
+              )
+            : {},
+        );
+    } catch {}
+  }
+  return null;
 }
 
 /** `GET /health` on the supervised Launchpad's socket under the base. */
