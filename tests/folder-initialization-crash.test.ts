@@ -7,6 +7,7 @@ import { resumeInitialization } from "../src/folder/resume-initialization";
 for (const stop of [
   "journal",
   "instructions",
+  "manual",
   "preferences",
   "manifest",
   "layout",

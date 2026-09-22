@@ -15,7 +15,7 @@ import { join, resolve } from "node:path";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
 import { withFolderOperationLock } from "../src/folder/lock";
 import { executionOs } from "../src/folder/platform";
-import { previewFolder } from "../src/folder/preview";
+import { writeRenderedFolder } from "./fixtures/rendered-folder";
 
 test.skipIf(process.platform === "win32")(
   "stored profile inspection shares the lock, refuses incomplete state and preserves user bytes",
@@ -38,36 +38,14 @@ test.skipIf(process.platform === "win32")(
     try {
       await mkdir(folder, { mode: 0o700 });
       await mkdir(state, { mode: 0o700 });
-      const preview = await previewFolder(
+      const { preview, preferences, manifest } = await writeRenderedFolder(
+        folder,
         { preset: "local", machine: null, profile },
-        null,
-        async () => ({ kind: "absent" }),
       );
-      const preferences = JSON.stringify({
-        schemaVersion: 2,
-        revision: 1,
-        preset: { name: "local", version: 1, selection: "derived" },
-        machine: null,
-        profile,
-        customInstructions: "",
-      });
-      const manifest = JSON.stringify({
-        schemaVersion: 1,
-        preferenceRevision: 1,
-        templateRevision: preview.templateRevision,
-        output: { path: "AGENTS.md", digest: preview.desired.digest },
-      });
-      await writeFile(join(folder, "AGENTS.md"), preview.desired.content);
       await writeFile(
         join(folder, "own-notes"),
         "Preserve synthetic user work",
       );
-      await writeFile(join(state, "preferences.json"), preferences, {
-        mode: 0o600,
-      });
-      await writeFile(join(state, "instructions.json"), manifest, {
-        mode: 0o600,
-      });
       expect((await inspectProfileChange(folder, 1, request)).kind).toBe(
         "profile-change",
       );
@@ -110,7 +88,7 @@ test.skipIf(process.platform === "win32")(
         reason: "stale-revision",
       });
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(
-        preview.desired.content,
+        preview.desired["AGENTS.md"].content,
       );
       expect(await readFile(join(state, "preferences.json"), "utf8")).toBe(
         preferences,

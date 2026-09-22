@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
-import { inspectInstructions } from "./folder/inventory";
+import { inspectOutput } from "./folder/inventory";
 import {
   canonicalOwnedDirectory,
   inspectOwnedDirectory,
@@ -566,10 +566,14 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     return result.kind === "blocked" ? 2 : 0;
   }
   // Stateless preview of a workstation Folder: the local preset, no Machine.
+  // The optional previous digest is AGENTS.md's; the manual files of a
+  // development fixture have no recorded ownership here.
   const result = await previewFolder(
     { preset: "local", machine: null, profile },
-    values["previous-digest"] ?? null,
-    () => inspectInstructions(folder),
+    values["previous-digest"] === undefined
+      ? null
+      : { "AGENTS.md": values["previous-digest"] },
+    (path) => inspectOutput(folder, path),
   );
   console.log(JSON.stringify(result));
   return result.plan.kind === "blocked" ? 2 : 0;

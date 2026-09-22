@@ -64,12 +64,14 @@ test("localized profile output deterministically feeds reconciliation", () => {
     expect(output).toContain("Organizations");
     expect(output).toContain("Personalspace");
     const digest = createHash("sha256").update(output).digest("hex");
-    expect(planInstructions(null, digest, { kind: "absent" })).toEqual({
-      kind: "create",
-      path: "AGENTS.md",
-    });
     expect(
-      planInstructions(digest, digest, { kind: "regular", digest }),
+      planInstructions("AGENTS.md", null, digest, { kind: "absent" }),
+    ).toEqual({ kind: "create", path: "AGENTS.md" });
+    expect(
+      planInstructions("AGENTS.md", digest, digest, {
+        kind: "regular",
+        digest,
+      }),
     ).toEqual({ kind: "unchanged" });
   }
   expect(() =>

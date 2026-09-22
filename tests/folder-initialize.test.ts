@@ -11,6 +11,7 @@ for (const stop of [
   "folder",
   "journal",
   "instructions",
+  "manual",
   "preferences",
   "manifest",
   "layout",
@@ -48,6 +49,7 @@ for (const stop of [
           expect((await readdir(folder)).sort()).toEqual([
             ".lazurio",
             "AGENTS.md",
+            "manual",
             "organizations",
             "personalspace",
           ]);

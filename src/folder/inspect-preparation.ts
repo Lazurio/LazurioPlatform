@@ -1,14 +1,17 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderOperationLock } from "./lock";
+import { type OutputPath, outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
+import { renderOutputs } from "./preview";
 import {
   inspectStateLayout,
+  readOwnedOutput,
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { instructionSource, renderInstructions } from "./render";
+import { instructionSource } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { validatePreparation } from "./validate-preparation";
 
@@ -41,10 +44,18 @@ export async function readPreparedChange(folder: string) {
     "before.json",
     "preferences.json",
     "instructions.json",
-    "AGENTS.md",
+    ...outputPaths.map(stagedName),
     "prepared.json",
   ]);
-  const staged = await readOwnedStateFile(transaction, "AGENTS.md");
+  const staged: Partial<
+    Record<OutputPath, Awaited<ReturnType<typeof readOwnedStateFile>>>
+  > = {};
+  const stagedContents: Partial<Record<OutputPath, string>> = {};
+  for (const path of outputPaths) {
+    const file = await readOwnedStateFile(transaction, stagedName(path));
+    staged[path] = file;
+    stagedContents[path] = file.content;
+  }
   const stagedPreferences = await readOwnedStateFile(
     transaction,
     "preferences.json",
@@ -58,7 +69,7 @@ export async function readPreparedChange(folder: string) {
     JSON.parse(stagedPreferences.content),
     JSON.parse(stagedManifest.content),
     await readStateJson(transaction, "prepared.json"),
-    staged.content,
+    stagedContents as Readonly<Record<OutputPath, string>>,
   );
   const preferencesFile = await readOwnedStateFile(state, "preferences.json");
   const manifestFile = await readOwnedStateFile(state, "instructions.json");
@@ -68,19 +79,26 @@ export async function readPreparedChange(folder: string) {
   const currentManifest = parseInstructionManifest(
     JSON.parse(manifestFile.content),
   );
-  const current = await readOwnedStateFile(folder, "AGENTS.md");
+  const previousOutputs = renderOutputs(
+    instructionSource(validated.previousPreferences),
+  );
+  for (const path of outputPaths) {
+    const current = await readOwnedOutput(folder, path);
+    if (
+      current.content !== previousOutputs[path] ||
+      JSON.stringify(current.identity) !==
+        JSON.stringify(validated.previousIdentities[path]) ||
+      JSON.stringify(staged[path]?.identity) !==
+        JSON.stringify(validated.stagedIdentities[path])
+    )
+      throw new Error("Prepared transaction no longer matches owned state");
+  }
   if (
     currentPreferences.profile.os !== executionOs(process.platform) ||
     JSON.stringify(currentPreferences) !==
       JSON.stringify(validated.previousPreferences) ||
     JSON.stringify(currentManifest) !==
       JSON.stringify(validated.previousManifest) ||
-    current.content !==
-      renderInstructions(instructionSource(validated.previousPreferences)) ||
-    JSON.stringify(current.identity) !==
-      JSON.stringify(validated.previousIdentity) ||
-    JSON.stringify(staged.identity) !==
-      JSON.stringify(validated.stagedIdentity) ||
     JSON.stringify(preferencesFile.identity) !==
       JSON.stringify(validated.previousPreferencesIdentity) ||
     JSON.stringify(manifestFile.identity) !==

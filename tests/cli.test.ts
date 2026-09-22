@@ -182,12 +182,12 @@ test.skipIf(process.platform === "win32")(
         expect(rejected.out).toBe("");
         expect(rejected.error).not.toContain(directory);
         expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
-          initial.desired.content,
+          initial.desired["AGENTS.md"].content,
         );
         expect(await readdir(state)).not.toContain("transaction");
       }
       expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
-        initial.desired.content,
+        initial.desired["AGENTS.md"].content,
       );
       const updated = await invoke("1", "cs");
       expect(updated.exit, updated.error).toBe(0);
@@ -245,7 +245,7 @@ test.skipIf(process.platform === "win32")(
       });
       expect((await resume("3")).exit).toBe(0);
       expect(await readFile(join(directory, "AGENTS.md"), "utf8")).toBe(
-        initial.desired.content,
+        initial.desired["AGENTS.md"].content,
       );
       await writeFile(
         join(directory, "AGENTS.md"),
@@ -322,7 +322,7 @@ test.skipIf(process.platform === "win32")(
         ).code,
       ).toBe(1);
       expect(fresh.code).toBe(0);
-      expect(JSON.parse(fresh.stdout).plan.kind).toBe("create");
+      expect(JSON.parse(fresh.stdout).plan.kind).toBe("write");
       const choices = [
         "--access",
         "local",

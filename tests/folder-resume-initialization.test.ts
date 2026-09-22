@@ -36,10 +36,11 @@ for (const scenario of ["foreign-identical", "edit-during-resume"] as const) {
             null,
             async () => ({ kind: "absent" }),
           );
-          await writeFile(join(folder, "AGENTS.md"), desired.desired.content);
+          const content = desired.desired["AGENTS.md"].content;
+          await writeFile(join(folder, "AGENTS.md"), content);
           await expect(resumeInitialization(folder)).rejects.toThrow();
           expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(
-            desired.desired.content,
+            content,
           );
         } else {
           await expect(
@@ -70,6 +71,7 @@ for (const scenario of ["foreign-identical", "edit-during-resume"] as const) {
 for (const stop of [
   "journal",
   "instructions",
+  "manual",
   "preferences",
   "manifest",
   "layout",

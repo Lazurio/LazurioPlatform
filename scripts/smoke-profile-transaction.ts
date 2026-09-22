@@ -14,9 +14,10 @@ import {
   finalizePreparation,
 } from "../src/folder/apply-preparation";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
+import { outputFile, outputPaths } from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
 import { prepareProfileChange } from "../src/folder/prepare-profile-change";
-import { previewFolder } from "../src/folder/preview";
+import { outputDigests, previewFolder } from "../src/folder/preview";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
 
 // Compile this fixture runner for the target OS. It accepts no user path and
@@ -41,9 +42,13 @@ try {
     null,
     async () => ({ kind: "absent" }),
   );
-  await writeFile(join(folder, "AGENTS.md"), initial.desired.content, {
-    mode: 0o600,
-  });
+  await mkdir(join(folder, "manual"), { mode: 0o700 });
+  for (const path of outputPaths) {
+    const { directory, name } = outputFile(folder, path);
+    await writeFile(join(directory, name), initial.desired[path].content, {
+      mode: 0o600,
+    });
+  }
   await writeFile(
     join(state, "preferences.json"),
     JSON.stringify({
@@ -59,10 +64,10 @@ try {
   await writeFile(
     join(state, "instructions.json"),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       preferenceRevision: 1,
       templateRevision: initial.templateRevision,
-      output: { path: "AGENTS.md", digest: initial.desired.digest },
+      outputs: outputDigests(initial.desired),
     }),
     { mode: 0o600 },
   );
@@ -84,7 +89,7 @@ try {
   );
   assert.equal(
     await readFile(join(folder, "AGENTS.md"), "utf8"),
-    initial.desired.content,
+    initial.desired["AGENTS.md"].content,
   );
   assert.equal(
     (await prepareProfileChange(folder, 1, requested)).kind,

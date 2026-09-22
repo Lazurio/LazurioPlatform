@@ -2,22 +2,33 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import { type OutputPath, outputFile } from "./outputs";
 import type { ObservedFile } from "./reconcile";
 
-// Caller supplies an already validated, owned, stable directory. This read-only
-// snapshot is not a lock, authorization check or protection against parent swaps.
-// POSIX only until native Windows no-follow semantics have been qualified.
-export async function inspectInstructions(
-  directory: string,
+// Caller supplies an already validated, owned, stable Folder. This read-only
+// snapshot of one generated output is not a lock, authorization check or
+// protection against parent swaps. POSIX only until native Windows no-follow
+// semantics have been qualified.
+export async function inspectOutput(
+  folder: string,
+  output: OutputPath,
 ): Promise<ObservedFile> {
   if (process.platform === "win32")
     throw new Error("Unqualified inventory platform");
-  if (!isAbsolute(directory))
+  if (!isAbsolute(folder))
     throw new Error("Explicit absolute directory required");
-  const root = await lstat(directory);
+  const root = await lstat(folder);
   if (!root.isDirectory() || root.isSymbolicLink()) return { kind: "unsafe" };
-  const path = join(directory, "AGENTS.md");
+  const { directory, name } = outputFile(folder, output);
   try {
+    if (directory !== folder) {
+      // The owned `manual/` directory: absent means every file in it is absent;
+      // anything but a real directory is unsafe.
+      const parent = await lstat(directory);
+      if (!parent.isDirectory() || parent.isSymbolicLink())
+        return { kind: "unsafe" };
+    }
+    const path = join(directory, name);
     const before = await lstat(path);
     if (!before.isFile() || before.nlink !== 1) return { kind: "unsafe" };
     const handle = await open(
@@ -50,7 +61,7 @@ export async function inspectInstructions(
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") return { kind: "absent" };
-    if (code === "ELOOP") return { kind: "unsafe" };
+    if (code === "ELOOP" || code === "ENOTDIR") return { kind: "unsafe" };
     throw error; // Permission/IO failure is never treated as an absent file.
   }
 }

@@ -1,11 +1,15 @@
 import { planProfileChange } from "./change-profile";
+import { type OutputPath, outputPaths } from "./outputs";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
   stateFields,
 } from "./state";
 
-function identity(input: unknown) {
+export type FileIdentity = Readonly<{ dev: string; ino: string }>;
+export type OutputIdentities = Readonly<Record<OutputPath, FileIdentity>>;
+
+function identity(input: unknown): FileIdentity {
   const value = stateFields(input, ["dev", "ino"]);
   if (
     typeof value.dev !== "string" ||
@@ -17,6 +21,20 @@ function identity(input: unknown) {
   return Object.freeze({ dev: value.dev, ino: value.ino });
 }
 
+export function parseOutputIdentities(input: unknown): OutputIdentities {
+  const value = stateFields(input, outputPaths);
+  return Object.freeze(
+    Object.fromEntries(
+      outputPaths.map((path) => [path, identity(value[path])]),
+    ),
+  ) as OutputIdentities;
+}
+
+// The transaction journal schema: `before.json` snapshots the active state and
+// the identities of every file the transaction will replace; `prepared.json`
+// marks a fully staged transaction with the identities of the staged files.
+export const transactionSchemaVersion = 3;
+
 // Validates decoded journal structure and regenerates the proposed transition.
 // This does not validate disk custody, current state or actual file identities;
 // the activation/recovery adapter must check those under the common lock.
@@ -25,13 +43,13 @@ export async function validatePreparation(
   preferencesInput: unknown,
   manifestInput: unknown,
   markerInput: unknown,
-  stagedContent: string,
+  stagedContents: Readonly<Record<OutputPath, string>>,
 ) {
   const before = stateFields(beforeInput, [
     "schemaVersion",
     "preferences",
     "manifest",
-    "outputIdentity",
+    "outputIdentities",
     "preferencesIdentity",
     "manifestIdentity",
   ]);
@@ -39,14 +57,16 @@ export async function validatePreparation(
     "schemaVersion",
     "expectedRevision",
     "nextRevision",
-    "outputIdentity",
-    "outputDigest",
+    "outputIdentities",
     "preferences",
     "manifest",
     "preferencesIdentity",
     "manifestIdentity",
   ]);
-  if (before.schemaVersion !== 2 || marker.schemaVersion !== 2)
+  if (
+    before.schemaVersion !== transactionSchemaVersion ||
+    marker.schemaVersion !== transactionSchemaVersion
+  )
     throw new Error("Unsupported transaction schema");
   const previousPreferences = parseFolderPreferences(before.preferences);
   const previousManifest = parseInstructionManifest(before.manifest);
@@ -57,8 +77,8 @@ export async function validatePreparation(
     marker.nextRevision !== preferences.revision
   )
     throw new Error("Transaction revision mismatch");
-  const previousIdentity = identity(before.outputIdentity);
-  const stagedIdentity = identity(marker.outputIdentity);
+  const previousIdentities = parseOutputIdentities(before.outputIdentities);
+  const stagedIdentities = parseOutputIdentities(marker.outputIdentities);
   const previousPreferencesIdentity = identity(before.preferencesIdentity);
   const previousManifestIdentity = identity(before.manifestIdentity);
   const stagedPreferencesIdentity = identity(marker.preferencesIdentity);
@@ -68,7 +88,10 @@ export async function validatePreparation(
     previousManifest,
     previousPreferences.revision,
     { preset: preferences.preset.name, profile: preferences.profile },
-    async () => ({ kind: "regular", digest: previousManifest.output.digest }),
+    async (path) => ({
+      kind: "regular",
+      digest: previousManifest.outputs[path],
+    }),
   );
   if (
     plan.kind !== "profile-change" ||
@@ -78,16 +101,17 @@ export async function validatePreparation(
       JSON.stringify(preferences) ||
     JSON.stringify(parseInstructionManifest(marker.manifest)) !==
       JSON.stringify(manifest) ||
-    marker.outputDigest !== plan.desired.digest ||
-    stagedContent !== plan.desired.content
+    outputPaths.some(
+      (path) => stagedContents[path] !== plan.desired[path].content,
+    )
   )
     throw new Error("Transaction does not match regenerated transition");
   return {
     plan,
     previousPreferences,
     previousManifest,
-    previousIdentity,
-    stagedIdentity,
+    previousIdentities,
+    stagedIdentities,
     previousPreferencesIdentity,
     previousManifestIdentity,
     stagedPreferencesIdentity,
