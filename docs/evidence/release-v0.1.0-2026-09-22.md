@@ -1,4 +1,4 @@
-# The first final releases through the real path — v0.1.0-rc.2, v0.1.0, v0.1.1, 2026-09-22
+# The first final releases through the real path — v0.1.0-rc.2, v0.1.0, v0.1.1, v0.1.2, 2026-09-22/23
 
 Evidence for the [product update contract](../update.md), section *Evidence
 required before any Machine depends on this*: the second and third real releases
@@ -183,10 +183,45 @@ supervision; adoption by Machine identity). The rc.1 updater on the canary has
 neither fix, so that Machine moves forward by one deliberate reinstall of
 `bin/`, `versions/`, `update/` under the shared base once the fixed release exists.
 
+## v0.1.2 and the Machines-delivered canary
+
+`v0.1.2` (run <https://github.com/Lazurio/LazurioPlatform/actions/runs/35794323975>,
+`main` `3ace67847b44b10335975c0cca3656bcdb2f6ac5` = the squash of #22) is `latest`,
+attestation verified on `refs/tags/v0.1.2`; targets `linux-x64`
+`f70cbb7f3d4a5dfd0610eca781cbc28b2ac957b493df5e9d2b56adad2402ba86` (82441696),
+`linux-arm64` `4c96e8e23a48a7eff2d09f38809c9e330528bc14461f1a324e75aaf7b3caaa89`
+(82430248), `darwin-arm64` `3a6529a7046066565ac5c7235ab3e6e0957ee93ccf2a2e9be7e27b89524bc5a9`
+(63349746); bundle `lazurio.sigstore.json`
+`6f0b88dab5828e2b24a237ead43f1a018a4e6412977b5c15e3bb31c5d25f4e2c` (11319). The
+Machines role pins this release (docs/machine-handover.md, "Delivery by the Machines
+role").
+
+- **VM 1, supervised by the installer-written unit:** `0.1.1` → `0.1.2` `updated`,
+  Launchpad on `0.1.2` in 17 s, `supervised: true` stays (the marker is present),
+  rollback to `0.1.1` and forward again, Folder `already-adopted`.
+- **Spectoda `matej` (Machines-delivered, linux-x64, Machines v0.12.63 handover with
+  `owner.assignment` operator):** the rc.1 updater has neither #22 fix, so one
+  deliberate reinstall with the Principal's consent: `bin/`, `versions/`, `update/`
+  removed, `LAZURIO_VERSION=v0.1.2 sh install.sh` (no `gh` on the Machine);
+  `resident/`, `t3code/`, `operator-kit/` untouched (`lifecycle.v1.json`,
+  `resident/active`, `t3code/current` identical before and after, both Machines
+  units active throughout). Readback: `lazurio 0.1.2`, `update status` →
+  `supervised: false` on the Machines unit, `update --check` → `up-to-date`.
+- **rc.1-era Folder state is not recognised:** `folder-init` on the Folder adopted
+  by rc.1 → `blocked folder-state-unrecognized` (rc.1 wrote `instructions.json`
+  schema 1 with one output; F14 replaced it with the outputs manifest, and no
+  compatibility path was in scope). `matej` was the only such Folder: `.lazurio/`
+  and the rc.1 `AGENTS.md` moved to `~/Lazurio.lazurio-rc1-backup-2026-09-23/`,
+  then `folder-init` → `initialized`, preset `hosted-organization-personal` derived
+  from the assignment, six manual files, `this-machine.md` with the assignment line;
+  re-run `already-adopted`. `profile-update --expected-revision 1 … --locale cs` →
+  `updated` revision 2, Czech `AGENTS.md`, manual stays English.
+
 ## Not covered by this run
 
 `darwin-arm64` client against these releases; the Launchpad pill path against a
 real release (qualified against the fixture origin in
-[update-linux-arm64-2026-09-21.md](update-linux-arm64-2026-09-21.md)); the same
-journey on a Machines-delivered VM (after #22 and the Machines role that installs
-from the custody-staged binary).
+[update-linux-arm64-2026-09-21.md](update-linux-arm64-2026-09-21.md)); the
+Machines role's own install from the custody-staged binary (Machines #199); the
+Launchpad pill on a Machines-delivered VM (its Launchpad is the resident's, not the
+Platform's).
