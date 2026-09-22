@@ -14,6 +14,8 @@ import {
   writeFixtureRelease,
 } from "../scripts/update-fixture";
 import { createFixtureOrigin } from "../scripts/update-fixture-server";
+import { initializeFolder } from "../src/folder/initialize-folder";
+import { executionOs } from "../src/folder/platform";
 import { resolveInstallBase } from "../src/update/base";
 import { identityDefines, nativeTarget } from "../src/update/identity";
 
@@ -30,7 +32,13 @@ afterAll(async () => root && rm(root, { recursive: true, force: true }));
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
   "a compiled product installs itself, updates to an attested release, rolls back and retries",
   async () => {
-    const home = await realpath(await mkdtemp(join(tmpdir(), "upd-compiled-")));
+    // The installed Launchpad answers on a Unix socket under the base, and a
+    // socket path is short on macOS: /tmp, not the long per-user tmpdir.
+    const home = await realpath(
+      await mkdtemp(
+        join(process.platform === "darwin" ? "/tmp" : tmpdir(), "upd-c-"),
+      ),
+    );
     root = home;
     const tree = join(home, "tree");
     await mkdir(tree);
@@ -168,6 +176,63 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect((await run(lazurio, "--version")).stdout).toContain(
         "lazurio 1.1.0 ",
       );
+
+      // The installed Launchpad, started the way the service unit starts it,
+      // serves the pill from the same install base: what the last check
+      // verified, and a click for anything else is refused.
+      const folder = join(home, "Lazurio");
+      await initializeFolder(folder, {
+        os: executionOs(process.platform),
+        access: "local",
+        purpose: "human",
+        locale: "en",
+        detail: "concise",
+        coordination: "direct",
+      });
+      const launchpad = Bun.spawn(
+        [lazurio, "launchpad", "--folder", folder, "--base", base],
+        { cwd: home, env, stdout: "pipe", stderr: "pipe" },
+      );
+      try {
+        const reader = launchpad.stdout.getReader();
+        let text = "";
+        while (!text.includes("\n")) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          text += new TextDecoder().decode(value);
+        }
+        reader.releaseLock();
+        const session = new URL(JSON.parse(text.split("\n")[0] ?? "").url);
+        const auth = { Authorization: `Bearer ${session.hash.slice(1)}` };
+        const status = await (
+          await fetch(new URL("/api/update/status", session), { headers: auth })
+        ).json();
+        expect(status).toMatchObject({
+          kind: "update-pill",
+          state: "idle",
+          running: "1.1.0",
+          active: "1.1.0",
+          latest: "1.1.0",
+          action: null,
+          supervised: false,
+        });
+        const refused = await fetch(new URL("/api/update/apply", session), {
+          method: "POST",
+          headers: {
+            ...auth,
+            "Content-Type": "application/json",
+            Origin: session.origin,
+          },
+          body: JSON.stringify({ version: "1.0.0" }),
+        });
+        expect([refused.status, (await refused.json()).kind]).toEqual([
+          409,
+          "stale",
+        ]);
+      } finally {
+        launchpad.kill("SIGTERM");
+        await launchpad.exited;
+      }
     } finally {
       await origin.close();
       await sigstore.close();

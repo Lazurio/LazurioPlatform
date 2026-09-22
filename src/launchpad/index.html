@@ -5,6 +5,13 @@
 <main>
 <h1 data-message="title">Lazurio — Profile</h1>
 <p id="notice" data-message="notice">Development fixture only. No Lazurio installation or migration.</p>
+<section id="update" hidden aria-labelledby="update-heading">
+<h2 id="update-heading" data-message="updateTitle">Product update</h2>
+<p id="update-pill" role="status"><span id="update-text"></span> <a id="update-notes" hidden target="_blank" rel="noopener noreferrer" data-message="updateNotes">Release notes</a> <button type="button" id="update-action" hidden></button></p>
+<p id="update-checked"></p>
+<p id="update-error" hidden></p>
+<p id="update-state-invalid" hidden></p>
+</section>
 <section aria-labelledby="machine-heading">
 <h2 id="machine-heading" data-message="machineTitle">This Machine</h2>
 <p data-message="machineNotice">Recorded from the Machine handover; shown here, changed only by the Machines operator.</p>

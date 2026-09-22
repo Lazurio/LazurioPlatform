@@ -141,9 +141,9 @@ apply must finish first. Design agreement here is not an instruction to act on a
 
 Native qualification of the update mechanism itself — install with the systemd user
 service, A → B, a failed B with automatic switch-back, a crash-looping B after a
-simulated power loss, explicit rollback and a real reboot — is
-`scripts/qualify-update-linux.ts`; it uses a loopback fixture origin and a fixture
-Sigstore trust root that a release build never contains.
+simulated power loss, explicit rollback, a real reboot and the Launchpad pill's
+click path — is `scripts/qualify-update-linux.ts`; it uses a loopback fixture
+origin and a fixture Sigstore trust root that a release build never contains.
 
 ## Required lifecycle evidence
 
