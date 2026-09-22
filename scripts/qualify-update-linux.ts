@@ -5,11 +5,15 @@ import { identityDefines } from "../src/update/identity";
 import { createFixtureSigstore, writeFixtureRelease } from "./update-fixture";
 
 /** Builds the bundle that `scripts/qualify-update-linux.sh` runs ON a
- * disposable Linux Machine: four REAL product executables (`src/cli.ts`) that
+ * disposable Linux Machine: five REAL product executables (`src/cli.ts`) that
  * differ only in their embedded version, a release tree for each of them —
  * manifest, executable and a Sigstore bundle signed by a throwaway FIXTURE
- * Sigstore (`scripts/update-fixture.ts`) — the loopback origin server, the
- * fixture trusted root and the script. Cross-compiles from any host.
+ * Sigstore (`scripts/update-fixture.ts`) — plus one IMPOSTOR release
+ * (`v1.4.0`, attested like the others, whose artifact is the 1.3.0 executable:
+ * it verifies and downloads, then refuses its self-check as
+ * `identity-mismatch`), the loopback origin server, the HTTP helper the pill
+ * journey clicks with (`scripts/qualify-update-http.ts`), the fixture trusted
+ * root and the script. Cross-compiles from any host.
  *
  *   bun run scripts/qualify-update-linux.ts --target <linux-arm64|linux-x64> --out <absent absolute directory> --bundle-path <absolute path of the bundle ON the Linux Machine>
  *
@@ -41,7 +45,9 @@ if (
   );
 
 const port = 38917;
-const versions = ["1.0.0", "1.1.0", "1.1.5", "1.2.0"];
+const versions = ["1.0.0", "1.1.0", "1.1.5", "1.2.0", "1.3.0"];
+/** A release whose executable is another version's: journey 8d. */
+const impostor = { version: "1.4.0", executableOf: "1.3.0" };
 const run = async (command: string[]) => {
   const child = Bun.spawn(command, { stdout: "ignore", stderr: "inherit" });
   if ((await child.exited) !== 0) throw new Error(`Failed: ${command[0]}`);
@@ -91,6 +97,18 @@ try {
       artifacts: { [target]: await readFile(executable) },
     });
   }
+  await writeFixtureRelease(
+    tree,
+    sigstore,
+    {
+      version: impostor.version,
+      commit,
+      artifacts: {
+        [target]: await readFile(join(out, `lazurio-${impostor.executableOf}`)),
+      },
+    },
+    { latest: false },
+  );
 } finally {
   await sigstore.close();
 }
@@ -98,6 +116,7 @@ await compile(
   "scripts/update-fixture-server.ts",
   join(out, "update-fixture-server"),
 );
+await compile("scripts/qualify-update-http.ts", join(out, "update-http"));
 await copyFile(
   "scripts/qualify-update-linux.sh",
   join(out, "qualify-update-linux.sh"),
