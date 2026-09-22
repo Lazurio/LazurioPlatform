@@ -209,6 +209,25 @@ The Launchpad shows the binding, including the assignment and a compact read-onl
 list of the peers, and lets the Principal change the preset (within the allow-list)
 and the communication axes through the ordinary preview → apply flow.
 
+## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
+
+The Machines resident role installs the Platform from a custody-staged, digest-pinned
+binary and never from the network. The owner overlay of both hosted lanes
+(workspace-vm and personal-vm) pins `resident_bootstrap.artifacts.platform =
+{version, source_commit, target, sha256, size}` copied from the release's
+`manifest.json`, and the sibling `resident_bootstrap.artifacts.platform_attestation =
+{sha256, size}` for `lazurio.sigstore.json`. The role runs
+`<staged>/lazurio install --base ~/.local/share/lazurio` (no `--service`), then
+`lazurio machine folder-init`, forwarding `resident_bootstrap.folder.locale`
+(`cs` | `en`) verbatim as `--locale` when the overlay declares it; absent, no flag is
+passed and the preset default applies. The field is accepted only when a Platform
+artifact is pinned. What the role treats as a **finding, not a failure**: `install`
+on an existing tree (a no-op by design: versions change only through
+`lazurio update`), an active version different from the pin after that no-op, and
+`blocked folder-binding-changed` on a Folder adopted before this contract. The role
+never runs `lazurio update`; the product's own update moves an installed Machine
+forward.
+
 ## Bounded diagnosis and repair
 
 Inspection reports `machine-context-missing`, `machine-context-invalid`,
