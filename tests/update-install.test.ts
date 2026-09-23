@@ -392,6 +392,31 @@ test("a retained high-water mark is the floor even when the selector is missing:
   });
   expect(await readSelector(base)).toBe("1.1.0");
   expect(await readHighWater(base)).toBe("1.1.0");
+  // With a mark the tree is an existing installation: the repairing
+  // executable proves itself first; a failing self-check removes what was
+  // placed and switches nothing.
+  await rm(join(base, "bin", "lazurio"));
+  const unhealthy = join(root, "Downloads", "lazurio-1.2.0-unhealthy");
+  await writeFile(unhealthy, executable("1.2.0", { healthy: false }), {
+    mode: 0o755,
+  });
+  expect(
+    await performInstall({
+      ...input,
+      executable: unhealthy,
+      identity: { version: "1.2.0", commit: commitOf("1.2.0"), target },
+    }),
+  ).toMatchObject({ kind: "error", code: "self-check-failed" });
+  expect(await readSelector(base)).toBeNull();
+  expect(await readHighWater(base)).toBe("1.1.0");
+  expect((await readdir(join(base, "versions"))).sort()).toEqual([
+    "1.0.0",
+    "1.1.0",
+  ]);
+  expect(await performInstall(await staged("1.1.0"))).toMatchObject({
+    kind: "installed",
+    active: "1.1.0",
+  });
   // A marker with no selector is a state no crash produces: nothing is
   // staged or switched, the marker and the mark stay for a person to look at.
   await writePending(base, { from: "1.1.0", to: "1.2.0" });

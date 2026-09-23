@@ -242,7 +242,23 @@ async function install(input: InstallInput): Promise<InstallResult> {
             resource: "version",
             reason: "below-floor",
           });
-        await stage();
+        const placed = await stage();
+        // A mark means an existing installation: the executable that repairs
+        // its selector proves itself first, like any offline update; a failure
+        // removes only what this invocation placed and switches nothing. The
+        // true first installation is trusted through whoever staged the file.
+        if (floor !== null)
+          await selfCheckStaged({
+            base,
+            expected: {
+              version: identity.version,
+              commit: identity.commit,
+              target: identity.target,
+            },
+            folder: service?.folder,
+            removeOnFailure: placed,
+            run: input.run,
+          });
         await swapSelector(base, identity.version);
         return { active: identity.version, updated: null };
       }
