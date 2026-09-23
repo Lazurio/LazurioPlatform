@@ -1,27 +1,44 @@
 import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { withUpdateLock } from "./activation";
+import { activate, reconcilePending, withUpdateLock } from "./activation";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
-import { layout, readSelector, swapSelector } from "./layout";
+import {
+  layout,
+  readSelector,
+  readUpdateState,
+  swapSelector,
+  versionFloor,
+} from "./layout";
 import { type ProcessRunner, runProcess } from "./self-check";
 import {
+  detectServiceControl,
   launchpadUnit,
   rollbackUnit,
   systemctl,
   unitMarker,
   userUnitDirectory,
 } from "./service-control";
-import { placeVersion, sha256File, stagedMatches } from "./stage";
+import {
+  placeVersion,
+  selfCheckStaged,
+  sha256File,
+  stagedMatches,
+} from "./stage";
 import type { ErrorResult } from "./update";
+import { compareVersions } from "./version";
 
 /** `lazurio install [--service systemd-user]`: the running executable stages
  * ITSELF as the first version (docs/update.md "First installation"). It
  * verifies nothing about itself — a check performed by downloaded bytes is not
  * authentication; first installation is trusted through HTTPS by whoever ran
- * `install.sh`. Convergent: repeated, it completes what is missing and never
- * changes the active version, which only `lazurio update` does.
+ * `install.sh`, or by the custody that staged the binary. Convergent: repeated
+ * with the active version, it completes what is missing and changes nothing.
+ * Run from a NEWER executable over an existing installation it is the offline
+ * update (docs/update.md "Offline update"): the same staging, self-check,
+ * activation and floor as `lazurio update`, with the bytes coming from the
+ * staged file instead of the network. It never goes below the floor.
  */
 
 /** One argument of an `ExecStart=` line. systemd splits on whitespace, expands
@@ -114,6 +131,7 @@ export type InstallInput = Readonly<{
   /** Present: install the systemd user service for this Folder. */
   service?: Readonly<{ folder: string }> | undefined;
   run?: ProcessRunner | undefined;
+  healthDeadlineMs?: number | undefined;
 }>;
 
 export type InstallResult =
@@ -122,6 +140,16 @@ export type InstallResult =
       /** The active version: this executable's, unless one was active. */
       active: string;
       /** Directory to put on PATH. Shell profiles are never edited. */
+      path: string;
+      serviceInstalled: boolean;
+    }>
+  /** The offline update: a newer executable over an existing installation. */
+  | Readonly<{
+      kind: "updated";
+      from: string;
+      to: string;
+      /** Unsupervised: a running Launchpad finishes the update by restarting. */
+      restartRequired: boolean;
       path: string;
       serviceInstalled: boolean;
     }>
@@ -173,38 +201,125 @@ async function install(input: InstallInput): Promise<InstallResult> {
       ] as const)
     : [];
 
-  const active = await withUpdateLock(base, 0, async () => {
+  // Stage this executable under `versions/<its version>` unless those exact
+  // bytes are already there. Scratch belongs to the lock holder.
+  const stage = async () => {
+    const paths = layout(base);
+    const sha256 = await sha256File(input.executable);
+    if (await stagedMatches(base, identity.version, sha256)) return false;
+    await rm(paths.scratch, { recursive: true, force: true });
+    await mkdir(paths.scratch, { mode: 0o700 });
+    const copy = join(paths.scratch, "artifact");
+    await copyFile(input.executable, copy);
+    // Hold the copy against the digest: the file could have changed.
+    if ((await sha256File(copy)) !== sha256)
+      throw new UpdateFailure("storage-unavailable", { stage: "copy" });
+    await placeVersion({
+      base,
+      scratch: paths.scratch,
+      artifactFile: copy,
+      version: identity.version,
+    });
+    return true;
+  };
+
+  const outcome = await withUpdateLock(base, 0, async () => {
     const paths = layout(base);
     try {
-      // An installation exists: versions change through `lazurio update`.
       const selected = await readSelector(base);
-      if (selected !== null) return selected;
-      const sha256 = await sha256File(input.executable);
-      if (!(await stagedMatches(base, identity.version, sha256))) {
-        await rm(paths.scratch, { recursive: true, force: true });
-        await mkdir(paths.scratch, { mode: 0o700 });
-        const copy = join(paths.scratch, "artifact");
-        await copyFile(input.executable, copy);
-        // Hold the copy against the digest: the file could have changed.
-        if ((await sha256File(copy)) !== sha256)
-          throw new UpdateFailure("storage-unavailable", { stage: "copy" });
-        await placeVersion({
-          base,
-          scratch: paths.scratch,
-          artifactFile: copy,
-          version: identity.version,
-        });
+      if (selected === null) {
+        // First installation — or a tree whose selector is missing or
+        // damaged while its durable state survived. The whole update state is
+        // read and validated first, as every reconciler does: a marker without
+        // a selector is a state no crash produces and stays untouched
+        // (`state-invalid`). The surviving high-water mark is the floor: a
+        // lower executable never becomes active through this branch. A
+        // missing mark means the floor is this version, and only a committed
+        // activation ever writes one.
+        const { highWater: floor } = await readUpdateState(base);
+        if (floor !== null && compareVersions(identity.version, floor) < 0)
+          throw new UpdateFailure("release-invalid", {
+            resource: "version",
+            reason: "below-floor",
+          });
+        const placed = await stage();
+        // A mark means an existing installation: the executable that repairs
+        // its selector proves itself first, like any offline update; a failure
+        // removes only what this invocation placed and switches nothing. The
+        // true first installation is trusted through whoever staged the file.
+        if (floor !== null)
+          await selfCheckStaged({
+            base,
+            expected: {
+              version: identity.version,
+              commit: identity.commit,
+              target: identity.target,
+            },
+            folder: service?.folder,
+            removeOnFailure: placed,
+            run: input.run,
+          });
+        await swapSelector(base, identity.version);
+        return { active: identity.version, updated: null };
       }
-      // No high-water mark: a missing one means the floor is the active
-      // version, and only a committed activation ever writes it.
-      await swapSelector(base, identity.version);
-      return identity.version;
+      // An installation exists. Like every mutating update command it begins
+      // by reconciling a leftover marker — before deciding anything, including
+      // whether there is anything to do. The supervisor is the installer-
+      // written unit if there is one; a foreign unit is nobody's.
+      const control = await detectServiceControl({
+        base,
+        platform: input.platform,
+        env: input.env,
+        run: input.run,
+      });
+      await reconcilePending({ base, service: control });
+      const from = await readSelector(base);
+      if (from === null) throw new UpdateFailure("not-installed");
+      // The same version again changes nothing.
+      if (from === identity.version) return { active: from, updated: null };
+      // Another version: the offline update, by the contract's own steps.
+      const floor = await versionFloor(base);
+      if (
+        compareVersions(identity.version, from) < 0 ||
+        (floor !== null && compareVersions(identity.version, floor) < 0)
+      )
+        throw new UpdateFailure("release-invalid", {
+          resource: "version",
+          reason: "below-floor",
+        });
+      const placed = await stage();
+      await selfCheckStaged({
+        base,
+        expected: {
+          version: identity.version,
+          commit: identity.commit,
+          target: identity.target,
+        },
+        folder: control?.folder ?? service?.folder,
+        removeOnFailure: placed,
+        run: input.run,
+      });
+      await activate({
+        base,
+        to: identity.version,
+        service: control,
+        healthDeadlineMs: input.healthDeadlineMs,
+      });
+      return {
+        active: identity.version,
+        updated: {
+          from,
+          to: identity.version,
+          restartRequired: control === null,
+        },
+      };
     } catch (error) {
       throw storageFailure(error, "install");
     } finally {
       await rm(paths.scratch, { recursive: true, force: true });
     }
   });
+  const active = outcome.active;
 
   if (service && unitDirectory !== undefined) {
     const command = { run: input.run ?? runProcess, env: input.env };
@@ -222,6 +337,13 @@ async function install(input: InstallInput): Promise<InstallResult> {
     )
       throw new UpdateFailure("activation-failed", { stage: "service" });
   }
+  if (outcome.updated)
+    return Object.freeze({
+      kind: "updated" as const,
+      ...outcome.updated,
+      path: layout(base).bin,
+      serviceInstalled: service !== undefined,
+    });
   return Object.freeze({
     kind: "installed" as const,
     active,
