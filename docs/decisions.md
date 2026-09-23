@@ -688,3 +688,34 @@ changes nothing; a line appended to `manual/roles.md` makes `profile-preview` re
 with `drift` and `path: manual/roles.md`; a `manual/` left behind without `.lazurio`
 is `folder-foreign-entry` naming `manual`. Not proven: a native Launchpad preset
 change on that Machine.
+
+## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
+
+**Principal's decision 2026-09-23, not implemented.** On a hosted Machine delivered
+by Machines, the Launchpad in `lazurio-launchpad.service` is today the resident
+runtime's copy of the legacy root repository, and `launchpad.gen3.json` plus the
+per-Machine `launchpad.gen3.local.json` exist only because that Launchpad reads
+them: the Machines resident role writes them, the Platform neither reads nor writes
+them and its Folder only tolerates them by name. The question was whether to rename
+the file to the `lazurio.<thing>.json` convention before the fleet rollout. The
+decision is that the file has no successor:
+
+1. **The Platform Launchpad replaces the resident Launchpad on hosted Machines.**
+   The hosted request adapter of F11 ([hosted entry](hosted-entry.md)) is the work
+   that makes the Platform's Launchpad serve `launchpad.<vm>.<org>.lazurio.io` (and
+   `launchpad.<login>.lazurio.io`) behind the gateway; the unit then runs the
+   Platform executable through its selector, which also removes the foreign-unit
+   case of the update contract on those Machines. This is the next Platform work
+   after the Machines role has installed the Platform on the first Machines.
+2. **Machines stops writing `launchpad.gen3*.json` in the same release** that
+   switches the unit. What the per-Machine `.local.json` carried (planned slots,
+   the Personalspace owner) belongs to the Folder's preferences under the existing
+   environment-configuration owner, not to a new file.
+3. **The Platform keeps tolerating both names during the transition** and drops
+   the tolerance once no resident Launchpad remains. Nothing in the Platform parses
+   the file, and no compatibility reader is added: renaming a file that is going
+   away would be work without a product.
+
+Not decided here: the shape of the hosted request adapter (F11 shaping follows) and
+the order of Machines releases; the legacy root repository's own rename of
+`company.gen3.json` → `lazurio.organization.json` is unaffected.
