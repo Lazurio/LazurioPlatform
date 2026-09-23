@@ -278,16 +278,20 @@ binary and never from the network. The owner overlay of both hosted lanes
 `lazurio machine folder-init` when the Folder is absent, forwarding `resident_bootstrap.folder.locale`
 (`cs` | `en`) verbatim as `--locale` when the overlay declares it; absent, no flag is
 passed and the preset default applies. The field is accepted only when a Platform
-artifact is pinned. What the role treats as a **finding, not a failure**: `install`
-on an existing tree (a no-op by design: versions change only through
-`lazurio update`), an active version different from the pin after that no-op, and
-`blocked folder-binding-changed` on a Folder adopted before this contract. The role
-never runs `lazurio update`; the product's own update moves an installed Machine
-forward. After writing the handover on a Machine whose Folder exists, the role runs
-`lazurio machine folder-refresh` (added after v0.1.2; the role needs a pinned release
-that has it): exit 0 `refreshed` or `unchanged` is success, exit 2 `blocked` is a
-finding to report with its `reason` and `path`, not a failure to retry, and exit 1 is
-an operation failure.
+artifact is pinned. On an existing installation the same command is the
+[offline update](update.md#offline-update): a newer pinned binary is staged,
+self-checked and activated by the update contract's own steps
+(`{"kind":"updated","from","to",…}`), the same version is `installed` and changes
+nothing, and a pin lower than the active version or the high-water mark is refused
+(`release-invalid`, `below-floor`) — which the role records as a finding, never
+retries with force. Also a **finding, not a failure**: `blocked folder-binding-changed`
+on a Folder adopted before the identity-based comparison. The role never runs
+`lazurio update`. After writing the handover on a Machine whose Folder exists (and
+after `updated`), the role runs `lazurio machine folder-refresh` (added after v0.1.2;
+the role needs a pinned release that has it) so the Folder follows the current
+handover: exit 0 `refreshed` or `unchanged` is success, exit 2 `blocked` is a finding
+to report with its `reason` and `path`, not a failure to retry, and exit 1 is an
+operation failure.
 
 ## Bounded diagnosis and repair
 

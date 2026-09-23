@@ -183,6 +183,27 @@ name written by anyone else — a Machines resident runtime, a person — makes 
 installation unsupervised: the switch is the commit and that unit is never
 restarted or rewritten.
 
+## Offline update
+
+A Machine delivered by Machines receives the Platform from a custody-staged,
+digest-pinned binary, never from the network ([machine handover](machine-handover.md),
+"Delivery by the Machines role"). The same command that installs it also moves an
+existing installation forward: `<staged>/lazurio install --base <base>` run from an
+executable **newer** than the active version is the offline update. It takes the
+update contract's own steps with the bytes coming from the staged file instead of a
+release: a leftover marker is reconciled, the executable is copied into
+`versions/<version>/` and held against its digest, its `self-check` must pass (a
+failure removes what was placed and switches nothing), `previous` is recorded, the
+selector is switched by rename and the high-water mark is raised. The supervisor is
+the installer-written unit if there is one; with a foreign unit or none the switch is
+the commit and `restartRequired` is true. The result is `{"kind":"updated","from",
+"to","restartRequired","path","serviceInstalled"}`. The same version again is
+`installed` and changes nothing; a version lower than the active one or below the
+high-water mark is refused as `release-invalid` (`reason: "below-floor"`), so a stale
+pin can never downgrade a Machine and there is no force. Trust is the custody that
+staged the binary (its attestation is verified there with `gh attestation verify`);
+the running product verifies nothing about a file it was asked to run.
+
 ## Activation
 
 `lazurio update` under the lock:
@@ -267,7 +288,8 @@ state to restore it.
   check older than 24 hours is shown prominently by its age; it changes no
   state. `state-invalid` is shown with its path and offers no action.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
-  [--json]`, `update rollback`, `lazurio install [--service systemd-user]`,
+  [--json]`, `update rollback`, `lazurio install [--service systemd-user]` (from a
+  newer executable over an existing installation: the offline update),
   `lazurio --version`. Other commands print a one-line notice from
   `last-check.json` and never touch the network for it.
 - **Exit status.** `0` success or up to date, `10` update available (`--check`),
