@@ -131,7 +131,8 @@ is rendered into `manual/` by the same transaction as `AGENTS.md`; a foreign `ma
 without recorded digests is refused by name).
 `organizations/` and `personalspace/` may be non-empty and are never traversed, listed
 beyond existence, moved or written; `launchpad.gen3.json` and
-`launchpad.gen3.local.json` are tolerated by name; any other top-level entry fails
+`launchpad.gen3.local.json` are tolerated by name (legacy files of the resident
+Launchpad, decision F15: never read, never written, tolerance ends with it); any other top-level entry fails
 closed naming that entry. Machines precreates an empty `personalspace/` on every work
 VM, so an Organization preset (Personalspace never present) accepts an empty one and
 refuses a used one — it deletes nothing and names the path. A re-run on an adopted
