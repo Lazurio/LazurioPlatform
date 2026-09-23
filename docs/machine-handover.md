@@ -226,7 +226,11 @@ on an existing tree (a no-op by design: versions change only through
 `lazurio update`), an active version different from the pin after that no-op, and
 `blocked folder-binding-changed` on a Folder adopted before this contract. The role
 never runs `lazurio update`; the product's own update moves an installed Machine
-forward.
+forward. With a pinned release that has it, the role runs the staged binary as
+`install --base ~/.local/share/lazurio --upgrade --json` instead, so an existing
+installation older than the pin moves to it without the network
+([local upgrade](update.md#local-upgrade)); an installation already at or beyond
+the pin, or held above it by its high-water mark, is left as it is.
 
 ## Bounded diagnosis and repair
 

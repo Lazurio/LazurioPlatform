@@ -1,27 +1,39 @@
 import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { withUpdateLock } from "./activation";
+import { activate, reconcilePending, withUpdateLock } from "./activation";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
-import { layout, readSelector, swapSelector } from "./layout";
+import { layout, readSelector, swapSelector, versionFloor } from "./layout";
 import { type ProcessRunner, runProcess } from "./self-check";
 import {
+  detectServiceControl,
   launchpadUnit,
   rollbackUnit,
+  type ServiceControl,
   systemctl,
   unitMarker,
   userUnitDirectory,
 } from "./service-control";
-import { placeVersion, sha256File, stagedMatches } from "./stage";
+import {
+  placeVersion,
+  selfCheckStaged,
+  sha256File,
+  stagedMatches,
+} from "./stage";
 import type { ErrorResult } from "./update";
+import { compareVersions } from "./version";
 
-/** `lazurio install [--service systemd-user]`: the running executable stages
- * ITSELF as the first version (docs/update.md "First installation"). It
- * verifies nothing about itself — a check performed by downloaded bytes is not
- * authentication; first installation is trusted through HTTPS by whoever ran
- * `install.sh`. Convergent: repeated, it completes what is missing and never
- * changes the active version, which only `lazurio update` does.
+/** `lazurio install [--upgrade] [--service systemd-user]`: the running
+ * executable stages ITSELF as the first version (docs/update.md "First
+ * installation"). It verifies nothing about itself — a check performed by
+ * downloaded bytes is not authentication; first installation is trusted
+ * through HTTPS by whoever ran `install.sh`. Convergent: repeated, it
+ * completes what is missing and never changes the active version, which only
+ * `lazurio update` does — unless `--upgrade` asks this executable to become
+ * the active version of an existing installation (docs/update.md "Local
+ * upgrade"): the caller authenticated these bytes, the floor still holds and
+ * the activation is the updater's own.
  */
 
 /** One argument of an `ExecStart=` line. systemd splits on whitespace, expands
@@ -113,7 +125,13 @@ export type InstallInput = Readonly<{
   env: Readonly<Record<string, string | undefined>>;
   /** Present: install the systemd user service for this Folder. */
   service?: Readonly<{ folder: string }> | undefined;
+  /** Move an existing installation forward to this executable. */
+  upgrade?: boolean | undefined;
   run?: ProcessRunner | undefined;
+  /** Tests only: the supervisor otherwise detected from the unit, and the
+   * bound of its health wait. */
+  supervisor?: ServiceControl | null | undefined;
+  healthDeadlineMs?: number | undefined;
 }>;
 
 export type InstallResult =
@@ -124,6 +142,16 @@ export type InstallResult =
       /** Directory to put on PATH. Shell profiles are never edited. */
       path: string;
       serviceInstalled: boolean;
+    }>
+  | Readonly<{
+      /** `--upgrade` moved an existing installation to this executable. */
+      kind: "upgraded";
+      from: string;
+      to: string;
+      path: string;
+      serviceInstalled: boolean;
+      /** Unsupervised: a running Launchpad finishes the update by restarting. */
+      restartRequired: boolean;
     }>
   | ErrorResult;
 
@@ -173,32 +201,62 @@ async function install(input: InstallInput): Promise<InstallResult> {
       ] as const)
     : [];
 
-  const active = await withUpdateLock(base, 0, async () => {
+  const command = { run: input.run ?? runProcess, env: input.env };
+  // Detected before the units are (re)written: an activation restarts only a
+  // Launchpad this product already supervises.
+  const supervisor = !input.upgrade
+    ? null
+    : input.supervisor !== undefined
+      ? input.supervisor
+      : await detectServiceControl({
+          base,
+          platform: input.platform,
+          env: input.env,
+          run: input.run,
+        });
+
+  const outcome = await withUpdateLock(base, 0, async () => {
     const paths = layout(base);
     try {
-      // An installation exists: versions change through `lazurio update`.
+      // An installation exists: versions change through `lazurio update`, or
+      // through `--upgrade` to exactly this executable.
       const selected = await readSelector(base);
-      if (selected !== null) return selected;
-      const sha256 = await sha256File(input.executable);
-      if (!(await stagedMatches(base, identity.version, sha256))) {
-        await rm(paths.scratch, { recursive: true, force: true });
-        await mkdir(paths.scratch, { mode: 0o700 });
-        const copy = join(paths.scratch, "artifact");
-        await copyFile(input.executable, copy);
-        // Hold the copy against the digest: the file could have changed.
-        if ((await sha256File(copy)) !== sha256)
-          throw new UpdateFailure("storage-unavailable", { stage: "copy" });
-        await placeVersion({
+      if (selected !== null && !input.upgrade)
+        return { active: selected, from: null };
+      if (selected !== null) {
+        await reconcilePending({ base, service: supervisor });
+        const from = await readSelector(base);
+        if (from === null) throw new UpdateFailure("not-installed");
+        if (from === identity.version) return { active: from, from: null };
+        // The floor of the network paths: never below the active version or
+        // the highest version this installation ever committed.
+        const floor = (await versionFloor(base)) ?? from;
+        if (compareVersions(identity.version, floor) < 0)
+          throw new UpdateFailure("release-invalid", {
+            resource: "version",
+            reason: "below-floor",
+          });
+        const placed = await stageSelf(input, paths.scratch);
+        await selfCheckStaged({
           base,
-          scratch: paths.scratch,
-          artifactFile: copy,
-          version: identity.version,
+          expected: identity,
+          folder: supervisor?.folder,
+          removeOnFailure: placed,
+          run: input.run,
         });
+        await activate({
+          base,
+          to: identity.version,
+          service: supervisor,
+          healthDeadlineMs: input.healthDeadlineMs,
+        });
+        return { active: identity.version, from };
       }
+      await stageSelf(input, paths.scratch);
       // No high-water mark: a missing one means the floor is the active
       // version, and only a committed activation ever writes it.
       await swapSelector(base, identity.version);
-      return identity.version;
+      return { active: identity.version, from: null };
     } catch (error) {
       throw storageFailure(error, "install");
     } finally {
@@ -207,7 +265,6 @@ async function install(input: InstallInput): Promise<InstallResult> {
   });
 
   if (service && unitDirectory !== undefined) {
-    const command = { run: input.run ?? runProcess, env: input.env };
     try {
       // The user's own directories are created, never re-moded.
       await mkdir(unitDirectory, { recursive: true });
@@ -222,10 +279,42 @@ async function install(input: InstallInput): Promise<InstallResult> {
     )
       throw new UpdateFailure("activation-failed", { stage: "service" });
   }
+  if (outcome.from !== null)
+    return Object.freeze({
+      kind: "upgraded" as const,
+      from: outcome.from,
+      to: outcome.active,
+      path: layout(base).bin,
+      serviceInstalled: service !== undefined,
+      restartRequired: supervisor === null,
+    });
   return Object.freeze({
     kind: "installed" as const,
-    active,
+    active: outcome.active,
     path: layout(base).bin,
     serviceInstalled: service !== undefined,
   });
+}
+
+/** This executable as `versions/<its version>`, under the update lock. True
+ * when this call placed it; false when exactly these bytes were already there.
+ */
+async function stageSelf(input: InstallInput, scratch: string) {
+  const { base, identity } = input;
+  const sha256 = await sha256File(input.executable);
+  if (await stagedMatches(base, identity.version, sha256)) return false;
+  await rm(scratch, { recursive: true, force: true });
+  await mkdir(scratch, { mode: 0o700 });
+  const copy = join(scratch, "artifact");
+  await copyFile(input.executable, copy);
+  // Hold the copy against the digest: the file could have changed.
+  if ((await sha256File(copy)) !== sha256)
+    throw new UpdateFailure("storage-unavailable", { stage: "copy" });
+  await placeVersion({
+    base,
+    scratch,
+    artifactFile: copy,
+    version: identity.version,
+  });
+  return true;
 }

@@ -42,7 +42,7 @@ import {
  */
 export const updateHelp = `--version [--json]
   Prints the version, source commit and target this executable was built with.
-install [--service systemd-user --folder <absolute Folder>] [--json]
+install [--upgrade] [--service systemd-user --folder <absolute Folder>] [--json]
   This executable installs ITSELF as the first version under the per-user
   install base and points bin/lazurio at it. It does not authenticate itself:
   first installation is trusted through HTTPS (see install.sh). Repeating it
@@ -50,6 +50,13 @@ install [--service systemd-user --folder <absolute Folder>] [--json]
   profiles are not edited. With --service (Linux) it writes, enables and starts
   the systemd user unit lazurio-launchpad.service for that Folder, and the
   static lazurio-rollback.service its OnFailure= starts.
+  --upgrade: on an existing installation this executable becomes the active
+  version, without the network, for a caller that authenticated its bytes
+  (a pinned digest and attestation). Only forward: a version below the active
+  one or below the highest version ever committed is refused (release-invalid,
+  below-floor) and nothing changes; the same version changes nothing. It runs
+  this executable's self-check and the updater's activation, keeps the
+  previous version for update rollback, and prints {"kind":"upgraded",...}.
 update [--version <vX.Y.Z[-rc.N]>] [--json]
   Checks the latest release (or exactly the named tag), verifies its Sigstore
   attestation, downloads, runs the new executable's self-check and activates
@@ -236,6 +243,7 @@ export async function runInstallCommand(
         service: { type: "string" },
         folder: { type: "string" },
         base: { type: "string" },
+        upgrade: { type: "boolean" },
         json: { type: "boolean" },
       },
     });
@@ -244,7 +252,7 @@ export async function runInstallCommand(
       (values.service === undefined) !== (values.folder === undefined)
     )
       throw new UsageError(
-        "install [--service systemd-user --folder <absolute Folder>] [--json]",
+        "install [--upgrade] [--service systemd-user --folder <absolute Folder>] [--json]",
       );
     const result = await performInstall({
       base: installBase(context, values.base),
@@ -254,6 +262,7 @@ export async function runInstallCommand(
       env: context.env,
       service:
         values.folder === undefined ? undefined : { folder: values.folder },
+      upgrade: values.upgrade === true,
       run: context.run,
     });
     return render(
@@ -261,11 +270,19 @@ export async function runInstallCommand(
       values.json === true,
       result.kind === "installed"
         ? `Lazurio ${result.active} is installed. Put ${result.path} on your PATH.`
-        : "",
+        : result.kind === "upgraded"
+          ? `Upgraded from ${result.from} to ${result.to}.${
+              result.restartRequired
+                ? " A running Launchpad finishes the update when it restarts."
+                : ""
+            }`
+          : "",
     );
   } catch (error) {
     if (error instanceof UsageError) return usage(error.message);
-    return usage("install [--service systemd-user --folder <Folder>] [--json]");
+    return usage(
+      "install [--upgrade] [--service systemd-user --folder <Folder>] [--json]",
+    );
   }
 }
 

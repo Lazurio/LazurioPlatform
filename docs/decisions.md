@@ -588,6 +588,24 @@ binary (wrong identity and a tampered artifact refused). Still required: one rea
 release candidate of this repository verified by a compiled client, and the native
 Linux activation journey listed in the contract.
 
+**Amendment 2026-09-23 (local upgrade).** Observed in production: a hosted Machine
+that Machines installed from a custody-pinned binary could never move to a newer
+pinned release. `install` on an existing installation is a no-op by design, and
+`lazurio update` needs the network and the Sigstore trust root, which the Machines
+role deliberately does not use. `lazurio install --upgrade`, run from the new
+executable after the caller authenticated it, activates that executable through the
+updater's own activation (lock, marker reconcile, self-check, `previous`, supervised
+restart and undo, high-water commit) and holds the same floor; below it is
+`release-invalid` / `below-floor`. It adds no trust path: the bytes are
+authenticated by whoever runs them, exactly as for first installation.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Machines runs `lazurio update --version <pin>` | Needs the network and a warm Sigstore trust root on the VM; the pinned custody digest would no longer be the authority; rejected |
+| Machines writes `versions/`, `previous` and `bin/lazurio` itself | A second installer outside the product; bypasses the lock, the marker, the self-check and the high-water mark; rejected |
+| `update --from <file>` run by the ACTIVE version, verifying a local manifest and bundle | Keeps verification in the product, but the active v0.1.2 cannot run it, so the first real consumer could never use it; needs an offline trust root; deferred until a consumer needs product-side verification of a local file |
+| `install --upgrade` run by the new executable (selected) | Smallest: reuses stage, self-check and activation; works from any installed version; trust stays with the caller as for first installation |
+
 ## F14 — Agent manuals live in the Lazurio Folder
 
 **Decided by the Principal 2026-09-22; implemented in the local Folder model.** The

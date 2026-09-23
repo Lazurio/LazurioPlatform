@@ -187,6 +187,24 @@ test("install and self-check through the command surface", async () => {
   expect(
     await runInstallCommand(["--base", fresh, "--json"], context()),
   ).toMatchObject({ code: 0 });
+  // --upgrade: the same version changes nothing; below the floor is one
+  // stable code with exit 1, and nothing changes.
+  expect(
+    await runInstallCommand(["--base", fresh, "--upgrade"], context()),
+  ).toEqual({
+    code: 0,
+    stdout: `Lazurio 1.0.0 is installed. Put ${join(fresh, "bin")} on your PATH.`,
+  });
+  const below = await runInstallCommand(
+    ["--base", fresh, "--upgrade", "--json"],
+    context("0.9.0"),
+  );
+  expect(below.code).toBe(1);
+  expect(JSON.parse(below.stdout ?? "")).toEqual({
+    kind: "error",
+    code: "release-invalid",
+    context: { resource: "version", reason: "below-floor" },
+  });
   expect(
     (await runInstallCommand(["--service", "systemd-user"], context())).code,
   ).toBe(2);

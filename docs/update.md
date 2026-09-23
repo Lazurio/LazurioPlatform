@@ -49,7 +49,8 @@ release that publishes every platform at once.
 - **Versions only move forward over the network.** The floor is the higher of the
   active version and the durable high-water mark, which records the highest
   version whose activation was ever committed. No network path, `latest` or an
-  exact tag, installs a version below the floor, even after a rollback.
+  exact tag, installs a version below the floor, even after a rollback. The one
+  local path, `install --upgrade` (*Local upgrade*), holds the same floor.
 - **Program rollback is not data rollback.** A version never rewrites Folder
   state into a form its predecessor cannot read before its activation is
   committed.
@@ -247,6 +248,40 @@ healthy after a power loss between the switch and the commit. systemd sees a liv
 process, so the rollback unit never runs; the next `lazurio update` or `lazurio
 update rollback` undoes it. A watchdog is deliberately not built for it.
 
+### Local upgrade
+
+A Machine whose Platform is delivered by an operator from custody, not by the
+network, moves forward with the same activation:
+
+```sh
+<authenticated executable> install --base <base> --upgrade --json
+```
+
+The executable that runs is the version that becomes active; nothing is fetched
+and nothing is verified by the executable about itself. Like first installation,
+the bytes are authenticated by the caller — the Machines resident role checks the
+digest and size pinned in operator custody and the release's Sigstore bundle with
+`gh attestation verify` before it runs anything — and the documentation says so.
+Under the lock it reconciles a leftover marker, then:
+
+- **no installation**: exactly `install`;
+- **the same version is active**: nothing changes, `{"kind":"installed"}`;
+- **below the floor** (lower than the active version or than the high-water mark):
+  refused with `release-invalid` and `reason: "below-floor"`, nothing changes. A
+  downgrade is only ever `update rollback`;
+- **otherwise** it stages itself as `versions/<version>` (reusing identical bytes
+  already there), runs its own `self-check` by that immutable path and activates
+  it exactly as `lazurio update` does from step 3: `previous` names the version it
+  leaves, a supervised installation restarts and must report the new version or is
+  undone, and the commit raises the high-water mark. It prints
+  `{"kind":"upgraded","from","to","path","serviceInstalled","restartRequired"}`.
+
+Equal to the high-water mark but not active (after a rollback) is not below the
+floor, as for an exact tag: an operator who pins that version again re-activates
+it. `minimum_updater_version` does not apply: the version that performs the
+activation is the new one. `--upgrade` combines with `--service` as `install` does;
+the units are written after the activation.
+
 `lazurio update rollback` switches to `previous` after that binary's own
 `self-check`, with the same marker, restart and health rule, after raising the
 high-water mark to the version it leaves. It never lowers the high-water mark. After
@@ -267,7 +302,7 @@ state to restore it.
   check older than 24 hours is shown prominently by its age; it changes no
   state. `state-invalid` is shown with its path and offers no action.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
-  [--json]`, `update rollback`, `lazurio install [--service systemd-user]`,
+  [--json]`, `update rollback`, `lazurio install [--upgrade] [--service systemd-user]`,
   `lazurio --version`. Other commands print a one-line notice from
   `last-check.json` and never touch the network for it.
 - **Exit status.** `0` success or up to date, `10` update available (`--check`),

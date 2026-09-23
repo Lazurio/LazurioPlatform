@@ -17,15 +17,29 @@ import {
   renderRollbackUnit,
   systemdQuote,
 } from "../src/update/install";
-import { readHighWater, readSelector } from "../src/update/layout";
-import type { ProcessRunner } from "../src/update/self-check";
+import {
+  layout,
+  raiseHighWater,
+  readHighWater,
+  readPending,
+  readPrevious,
+  readSelector,
+  setPrevious,
+  swapSelector,
+} from "../src/update/layout";
+import { type ProcessRunner, runProcess } from "../src/update/self-check";
 import {
   detectServiceControl,
   launchpadUnit,
   rollbackUnit,
   unitFolder,
 } from "../src/update/service-control";
-import { commitOf, executable, target } from "./fixtures/update-world";
+import {
+  commitOf,
+  executable,
+  fakeService,
+  target,
+} from "./fixtures/update-world";
 
 let root: string;
 afterEach(async () => rm(root, { recursive: true, force: true }));
@@ -233,3 +247,192 @@ test("an ExecStart argument survives systemd's splitting, specifiers, variables 
   for (const refused of ["", "/a\nb", "/a\u0000b"])
     expect(() => systemdQuote(refused)).toThrow();
 });
+
+/** A newer release delivered as a file, run as `install --upgrade`. The
+ * candidate's own self-check runs for real; systemctl never does. */
+async function delivered(
+  input: Awaited<ReturnType<typeof scene>>["input"],
+  version: string,
+  options: Parameters<typeof executable>[1] = {},
+) {
+  const file = join(root, "Downloads", `lazurio-${version}`);
+  await writeFile(file, executable(version, options), { mode: 0o755 });
+  const run: ProcessRunner = (command, timeoutMs, env) =>
+    command[0] === "systemctl"
+      ? Promise.resolve({ exitCode: 0, stdout: "" })
+      : runProcess(command, timeoutMs, env);
+  return {
+    ...input,
+    executable: file,
+    identity: { version, commit: commitOf(version), target },
+    upgrade: true,
+    run,
+  };
+}
+
+test.skipIf(process.platform === "win32")(
+  "install --upgrade moves an existing installation forward to the running executable, without the network",
+  async () => {
+    const { input } = await scene();
+    const { base } = input;
+    // Without an installation it is exactly `install`.
+    expect(
+      await performInstall({ ...(await delivered(input, "1.0.0")) }),
+    ).toMatchObject({ kind: "installed", active: "1.0.0" });
+
+    const upgrade = await delivered(input, "1.1.0");
+    expect(await performInstall(upgrade)).toEqual({
+      kind: "upgraded",
+      from: "1.0.0",
+      to: "1.1.0",
+      path: join(base, "bin"),
+      serviceInstalled: false,
+      // Unsupervised: the switch is the commit.
+      restartRequired: true,
+    });
+    expect(await readSelector(base)).toBe("1.1.0");
+    // The version it left stays the rollback target, and the commit raised
+    // the floor of every later path.
+    expect(await readPrevious(base)).toBe("1.0.0");
+    expect(await readHighWater(base)).toBe("1.1.0");
+    expect(await readPending(base)).toBeNull();
+    expect(await readFile(join(base, "versions/1.1.0/lazurio"))).toEqual(
+      await readFile(upgrade.executable),
+    );
+    expect((await stat(join(base, "versions/1.0.0/lazurio"))).isFile()).toBe(
+      true,
+    );
+
+    // The same version again changes nothing.
+    expect(await performInstall(upgrade)).toMatchObject({
+      kind: "installed",
+      active: "1.1.0",
+    });
+    expect(await readPrevious(base)).toBe("1.0.0");
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "install --upgrade never goes below the floor; the high-water retry after a rollback is allowed",
+  async () => {
+    const { input } = await scene("2.0.0");
+    const { base } = input;
+    await performInstall(input);
+    const refused = {
+      kind: "error",
+      code: "release-invalid",
+      context: { resource: "version", reason: "below-floor" },
+    } as const;
+    // Below the active version.
+    expect(await performInstall(await delivered(input, "1.9.0"))).toEqual(
+      refused,
+    );
+    expect(await readSelector(base)).toBe("2.0.0");
+    expect(await readPrevious(base)).toBeNull();
+
+    // After a rollback from 3.0.0 the floor is the high-water mark: 2.5.0 is
+    // refused although it is newer than the active version …
+    await performInstall(await delivered(input, "3.0.0"));
+    await swapSelector(base, "2.0.0");
+    await setPrevious(base, "2.0.0");
+    await raiseHighWater(base, "3.0.0");
+    expect(await performInstall(await delivered(input, "2.5.0"))).toEqual(
+      refused,
+    );
+    expect(await readSelector(base)).toBe("2.0.0");
+    // … and exactly the mark is the retry, as for an exact tag.
+    expect(await performInstall(await delivered(input, "3.0.0"))).toMatchObject(
+      { kind: "upgraded", from: "2.0.0", to: "3.0.0" },
+    );
+    expect(await readSelector(base)).toBe("3.0.0");
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "install --upgrade refuses a candidate that fails its own self-check and keeps the active version",
+  async () => {
+    const { input } = await scene();
+    const { base } = input;
+    await performInstall(input);
+    expect(
+      await performInstall(await delivered(input, "1.1.0", { healthy: false })),
+    ).toMatchObject({ kind: "error", code: "self-check-failed" });
+    expect(await readSelector(base)).toBe("1.0.0");
+    expect(await readPrevious(base)).toBeNull();
+    // What this call placed is removed again; nothing was switched.
+    expect(
+      await stat(join(base, "versions/1.1.0")).catch(() => null),
+    ).toBeNull();
+    expect(await readHighWater(base)).toBeNull();
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "install --upgrade on a supervised installation restarts, commits when healthy and undoes when not",
+  async () => {
+    const { input } = await scene();
+    const { base } = input;
+    await performInstall(input);
+    const healthy = fakeService(base);
+    expect(
+      await performInstall({
+        ...(await delivered(input, "1.1.0")),
+        supervisor: healthy,
+      }),
+    ).toMatchObject({ kind: "upgraded", to: "1.1.0", restartRequired: false });
+    expect(healthy.restarts).toBe(1);
+    expect(await readHighWater(base)).toBe("1.1.0");
+
+    const unhealthy = fakeService(base, { unhealthy: ["1.2.0"] });
+    expect(
+      await performInstall({
+        ...(await delivered(input, "1.2.0")),
+        supervisor: unhealthy,
+        healthDeadlineMs: 50,
+      }),
+    ).toMatchObject({
+      kind: "error",
+      code: "activation-failed",
+      context: { from: "1.1.0", to: "1.2.0" },
+    });
+    // Undone: the previous version runs again and the floor did not rise.
+    expect(await readSelector(base)).toBe("1.1.0");
+    expect(unhealthy.running).toBe("1.1.0");
+    expect(await readHighWater(base)).toBe("1.1.0");
+    expect(await readPending(base)).toBeNull();
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "install --upgrade reconciles an interrupted activation before it decides",
+  async () => {
+    const { input } = await scene();
+    const { base } = input;
+    await performInstall(input);
+    // A crash between the switch to 1.1.0 and its commit: the selector names
+    // 1.1.0, `previous` 1.0.0 and the marker says so.
+    const upgrade = await delivered(input, "1.1.0");
+    await mkdir(join(base, "versions/1.1.0"));
+    await writeFile(
+      join(base, "versions/1.1.0/lazurio"),
+      await readFile(upgrade.executable),
+      { mode: 0o500 },
+    );
+    await setPrevious(base, "1.0.0");
+    await swapSelector(base, "1.1.0");
+    await writeFile(
+      layout(base).pending,
+      `${JSON.stringify({ from: "1.0.0", to: "1.1.0" })}\n`,
+    );
+    // The Launchpad does not report 1.1.0, so the marker is undone first;
+    // then the same activation runs again and commits.
+    const service = fakeService(base);
+    expect(
+      await performInstall({ ...upgrade, supervisor: service }),
+    ).toMatchObject({ kind: "upgraded", from: "1.0.0", to: "1.1.0" });
+    expect(service.restarts).toBe(2);
+    expect(await readSelector(base)).toBe("1.1.0");
+    expect(await readHighWater(base)).toBe("1.1.0");
+    expect(await readPending(base)).toBeNull();
+  },
+);
