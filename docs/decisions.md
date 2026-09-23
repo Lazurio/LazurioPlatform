@@ -503,6 +503,34 @@ The three preset names `hosted-personal` / `hosted-organization-personal` /
 `hosted-organization-team` are final; `hosted-private` / `hosted-team` have no
 compatibility path.
 
+**Amendment 2026-09-23 (handover refresh).** Observed in production: Machines
+re-applied a personal VM with one more peer (the operator's work VM, outbound SSH);
+the handover was rewritten, but `AGENTS.md` and `manual/this-machine.md` kept the
+peers recorded at adoption and `profile-preview` with the same choices was
+`unchanged`, so an agent on the personal VM never learned it may reach the work VM.
+Only the Machine **identity** (kind, name, Owner, tailnet node, host) is immutable
+(unchanged from PR #22); the rest of the binding (assignment, relationships, handover
+digest) is handover-derived content and follows the current handover. The new
+`lazurio machine folder-refresh` re-projects the binding of the same Machine and
+re-renders with the recorded preset and profile through the one Folder change planner
+and transaction of `profile-update` (digest-checked edits refused by path, staged,
+archived, revision bumped, `profile-resume` recovery). A binding that renders the same
+bytes is `unchanged` and not recorded, so a re-apply that only rewrote `installed`
+never bumps the revision. A preset recorded as derived that the new assignment no
+longer derives is `preset-derivation-changed`: the Principal chooses again. The
+Machines resident role calls it after every handover write on an existing Folder.
+The shared transaction (refresh and profile update alike) re-checks the claimed
+boundary of a hosted Folder before its journal, before every replacement and in
+`profile-resume`, as adoption and initialization recovery do: a foreign top-level
+entry is refused by name and the interrupted state is left in place. A workstation
+Folder keeps preserving the Principal's own top-level files.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `profile-preview`/`profile-update` treat a changed handover rendering as a change | The caller must hold the recorded profile choices and revision, which Machines does not own (the Principal changes them in the Launchpad); the generic profile commands and the Launchpad would have to read the Linux handover; one revision would mix a Principal's choice with an infrastructure rewrite; rejected |
+| Explicit `machine folder-refresh` over the same planner and transaction (selected) | One more input to the one change use case, bound like `folder-init`, non-interactive, no parallel writer |
+| Automatic re-render by the Launchpad or updater on start | A write without an explicit caller (F14 defers automatic writes); on hosted Machines Machines installs without `--service`, so no Platform unit runs at boot yet; could later be a thin caller of the same use case; rejected for now |
+
 A user-facing "Machine profile" choice has two effects with two owners: infrastructure
 custody and topology belong to the hosting engine, Environment configuration to
 Platform. A managed Dashboard may present one choice and dispatch typed,

@@ -1,5 +1,6 @@
 import { lstat, opendir, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import type { MachineBinding } from "./machine-binding";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { stateFields } from "./state-fields";
 
@@ -168,6 +169,19 @@ export async function requireFolderBoundary(folder: string, claimed = false) {
     if (!allowed.includes(entry))
       throw new FolderAdoptionError("foreign-entry", entry);
   return entries;
+}
+
+// The boundary of a Folder with state, for the update transaction and its
+// recovery. A hosted Folder (adopted from a handover) owns exactly its claimed
+// top level, so a foreign entry fails closed by name, as in adoption and
+// initialization recovery. A workstation Folder (no binding) keeps the
+// Principal's own top-level files beside the generated ones; they are never
+// read or written, and the update preserves them.
+export async function requireClaimedFolderBoundary(
+  folder: string,
+  machine: MachineBinding | null,
+) {
+  if (machine !== null) await requireFolderBoundary(folder, true);
 }
 
 // Adoption rule. Work directories may be non-empty and are never traversed,

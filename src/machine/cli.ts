@@ -13,6 +13,7 @@ import {
   parsePresetName,
   presetProfile,
 } from "../folder/presets";
+import { refreshFolder } from "../folder/update-profile";
 import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
@@ -40,11 +41,29 @@ the Launchpad.
 Adopts the existing Folder: organizations/ and personalspace/ may hold work
 and are never entered; launchpad.gen3.json and launchpad.gen3.local.json are
 tolerated; any other top-level entry is refused by name. Re-running on an
-adopted Folder reports already-adopted and changes nothing.
+adopted Folder reports already-adopted and changes nothing; a rewritten
+handover reaches the Folder through folder-refresh.
 Run as the declared operator, never root. No path or custody override.
 No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
-missing/damaged journals require operator diagnosis, never blanket cleanup.`;
+missing/damaged journals require operator diagnosis, never blanket cleanup.
+machine folder-refresh
+Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
+current handover, keeping the recorded preset and profile. Run it as the
+declared operator after every handover rewrite; it takes no options.
+The Machine identity (kind, name, Owner, tailnet node, host) must be the one
+the Folder was adopted for; assignment, relationships and the document digest
+follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
+archived update transaction, or {"kind":"unchanged"} when the current handover
+renders the same bytes (nothing is written, the revision stays). Blocked with
+exit 2, nothing written: folder-not-initialized (run folder-init first),
+folder-binding-changed, folder-state-unrecognized, folder-foreign-entry (a
+top-level entry the Folder does not own or tolerate), drift or unsafe-path with
+the edited path (owned files are never overwritten), preset-derivation-changed
+(the assignment now derives another preset: choose it with profile-update
+--preset), template-upgrade-required, or a Machine context code. Exit 1 is an
+operation failure; an interrupted refresh is completed with
+profile-resume --folder <Folder> --target-revision <n>.`;
 
 const choices = {
   locale: ["cs", "en"],
@@ -78,12 +97,16 @@ function parseMachineTokens(args: string[]) {
 
 function parseMachineArguments(args: string[]) {
   const [command, ...options] = args;
-  if (command !== "inspect" && command !== "folder-init")
+  if (
+    command !== "inspect" &&
+    command !== "folder-init" &&
+    command !== "folder-refresh"
+  )
     throw new MachineUsageError("Unknown Machine command");
   const parsed = parseMachineTokens(options);
   const { values, tokens } = parsed;
   if (
-    (command === "inspect" && tokens.length !== 0) ||
+    (command !== "folder-init" && tokens.length !== 0) ||
     tokens.some((token) => token.kind !== "option") ||
     new Set(tokens.map((token) => (token.kind === "option" ? token.name : "")))
       .size !== tokens.length
@@ -138,10 +161,13 @@ export async function runMachineCommand(args: string[]) {
       observed.context,
       await readLinuxOperator(),
     );
-    const { code, result } = await initializeMachineFolder(folder, machine, {
-      preset: requestedPreset,
-      ...values,
-    });
+    const { code, result } =
+      command === "folder-refresh"
+        ? await refreshMachineFolder(folder, machine)
+        : await initializeMachineFolder(folder, machine, {
+            preset: requestedPreset,
+            ...values,
+          });
     return {
       code,
       result: { ...result, machineContextDigest: observed.digest },
@@ -221,6 +247,27 @@ export async function initializeMachineFolder(
     profile,
   });
   return { code: 0, result };
+}
+
+// folder-refresh after the handover and the operator are bound. The adoption
+// check refuses another Machine's or unrecognized state by name before the
+// update transaction; the planner checks the identity again under its lock.
+export async function refreshMachineFolder(
+  folder: string,
+  machine: MachineBinding,
+) {
+  const adopted = await adoptedHandoverFolder(folder, machine);
+  if (adopted === null)
+    return {
+      code: 2,
+      result: {
+        kind: "blocked",
+        reason: "folder-not-initialized",
+        next: "Run lazurio machine folder-init first; nothing was created.",
+      },
+    };
+  const result = await refreshFolder(folder, machine);
+  return { code: result.kind === "blocked" ? 2 : 0, result };
 }
 
 // The refusal names the entry; the operator decides what to do with it.

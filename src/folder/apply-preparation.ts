@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { requireClaimedFolderBoundary } from "./handover-layout";
 import { withFolderOperationLock } from "./lock";
 import {
   type OutputPath,
@@ -84,6 +85,11 @@ export async function applyPreparationLocked(
       await syncDirectory(transaction);
       continue;
     }
+    // The claimed Folder boundary, re-checked before every replacement as
+    // initialization recovery does: time may have passed since preparation
+    // (an interrupted update or refresh resumed later), and a foreign
+    // top-level entry is refused by name with the journal left in place.
+    await requireClaimedFolderBoundary(folder, current.machine);
     await assertHeld();
     await rename(
       join(transaction, item.staged),
@@ -224,7 +230,14 @@ async function inspectProgress(folder: string, archivedRevision?: number) {
       applied.push(item.name);
     }
   }
-  return { applied, revision: preferences.revision, total: items.length };
+  return {
+    applied,
+    revision: preferences.revision,
+    total: items.length,
+    // The binding before and after is the same Machine (the planner refuses
+    // another), so either side decides whether the Folder is hosted.
+    machine: validated.previousPreferences.machine,
+  };
 }
 
 // Explicit close operation: preserve the verified journal by moving it to a
@@ -309,6 +322,10 @@ export async function resumePreparationLocked(
   );
   if (current.revision !== targetRevision)
     throw new Error("Recovery target revision mismatch");
+  // Recovery never proceeds past a foreign top-level entry of a hosted Folder,
+  // whatever step the interruption left: refused by name, journal and outputs
+  // left in place. Activation checks it again before every replacement.
+  await requireClaimedFolderBoundary(folder, current.machine);
   if (pending) await applyPreparationLocked(folder, assertHeld);
   await finalizePreparationLocked(folder, targetRevision, assertHeld);
   return { kind: "recovered" as const, revision: targetRevision };

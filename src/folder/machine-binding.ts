@@ -1,8 +1,10 @@
 import { ownDataValue, stateFields } from "./state-fields";
 
-// The immutable part of a hosted Folder: a projection of the root-issued
-// handover recorded at initialization. It is shown, never edited; the profile
-// change flow carries it forward unchanged. A workstation Folder has none.
+// The handover part of a hosted Folder: a projection of the root-issued
+// handover recorded at initialization. It is shown, never edited by the
+// Principal; the profile change flow carries it forward unchanged. Its
+// identity (machineIdentity) is immutable; the rest follows the current
+// handover through `machine folder-refresh`. A workstation Folder has none.
 // Nothing here is a grant: owner, assignment, host and peers describe context
 // only. Optional handover fields stay absent in the binding (never `null`) so
 // that a Folder adopted from an older handover still matches it byte for byte.
@@ -276,4 +278,23 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   if ((related.zone === "personal") !== personalVm)
     throw new Error("Machine relationships zone mixes handover branches");
   return Object.freeze({ ...binding, relationships: related });
+}
+
+// The part of a binding that names the Machine: kind, name, Owner (Organization
+// and Team, or Principal), tailnet node and host. Machines rewrites the handover
+// on every apply (`installed`, and since v0.12.61 the declared assignment and the
+// derived relationships), so the document digest is not identity; a re-apply of
+// the same Machine must not turn an adopted Folder into a blocked one. Everything
+// outside the identity follows the current handover through the refresh.
+export function machineIdentity(machine: MachineBinding | null) {
+  if (machine === null) return null;
+  const { assignment: _, ...owner } = machine.owner as MachineBinding["owner"] &
+    Readonly<{ assignment?: unknown }>;
+  return {
+    kind: machine.kind,
+    name: machine.name,
+    owner,
+    network: machine.network,
+    host: machine.host,
+  };
 }

@@ -23,7 +23,8 @@ public codebase.
 over HTTPS and verifies its attestation when the GitHub CLI is available (otherwise it
 says so); the installed `lazurio` verifies the attestation of every later update itself,
 updates through one activation path, initializes or adopts a Lazurio Folder from the
-Machine handover with a workspace preset, and runs the Launchpad. Hosted Machines still run the legacy resident beside
+Machine handover with a workspace preset, re-renders its generated files when Machines
+rewrites that handover (`lazurio machine folder-refresh`), and runs the Launchpad. Hosted Machines still run the legacy resident beside
 it until the hosted entry and content synchronization land; existing installations
 remain on their current implementation until then.
 

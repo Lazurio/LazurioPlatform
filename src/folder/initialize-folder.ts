@@ -14,7 +14,7 @@ import {
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock } from "./lock";
-import type { MachineBinding } from "./machine-binding";
+import { type MachineBinding, machineIdentity } from "./machine-binding";
 import {
   createManualDirectory,
   verifyManualDirectory,
@@ -304,24 +304,6 @@ async function syncDirectory(directory: string) {
   } finally {
     await handle.close();
   }
-}
-
-// The part of a binding that names the Machine: kind, name, Owner (Organization
-// and Team, or Principal), tailnet node and host. Machines rewrites the handover
-// on every apply (`installed`, and since v0.12.61 the declared assignment and the
-// derived relationships), so the document digest is not identity; a re-apply of
-// the same Machine must not turn an adopted Folder into a blocked one.
-export function machineIdentity(machine: MachineBinding | null) {
-  if (machine === null) return null;
-  const { assignment: _, ...owner } = machine.owner as MachineBinding["owner"] &
-    Readonly<{ assignment?: unknown }>;
-  return {
-    kind: machine.kind,
-    name: machine.name,
-    owner,
-    network: machine.network,
-    host: machine.host,
-  };
 }
 
 // Idempotent re-run: valid state recorded for the same Machine reports the

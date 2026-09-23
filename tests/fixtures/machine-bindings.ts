@@ -83,7 +83,7 @@ export const personalRelationships = Object.freeze({
 
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
-function binding(document: unknown) {
+export function binding(document: unknown) {
   const bytes = Buffer.from(JSON.stringify(document));
   return machineBinding(
     parseMachineContext(bytes),
