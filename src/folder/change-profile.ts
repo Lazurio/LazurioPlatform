@@ -1,6 +1,12 @@
+import {
+  type MachineBinding,
+  machineIdentity,
+  parseMachineBinding,
+} from "./machine-binding";
 import type { OutputPath } from "./outputs";
 import {
   allowedPresets,
+  derivePreset,
   type PresetName,
   parsePresetName,
   presetReference,
@@ -35,6 +41,7 @@ export function parseProfileRequest(input: unknown): ProfileRequest {
 
 // Shared profile-change planning. The caller reads trusted current state under
 // the common lock and must revalidate before writing. This is not an apply token.
+// A requested profile change keeps the recorded Machine binding.
 export async function planProfileChange(
   currentPreferencesInput: unknown,
   currentManifestInput: unknown,
@@ -43,8 +50,39 @@ export async function planProfileChange(
   inspect: (path: OutputPath) => Promise<ObservedFile>,
 ) {
   const current = parseFolderPreferences(currentPreferencesInput);
-  const manifest = parseInstructionManifest(currentManifestInput);
   const requested = parseProfileRequest(requestedInput);
+  return planFolderChange(
+    current,
+    currentManifestInput,
+    expectedRevision,
+    { ...requested, machine: current.machine },
+    inspect,
+  );
+}
+
+// The one planner behind every change of the generated Folder: a requested
+// profile change (the binding carried forward) and a refresh from the current
+// handover (the recorded preset and profile carried forward, the binding of
+// the same Machine re-projected). The Machine identity never changes here; the
+// handover-derived rest of the binding (assignment, relationships, document
+// digest) follows the handover. A binding that renders the same bytes is
+// `unchanged` and is not recorded, so a re-apply that only rewrote
+// `installed` never bumps the revision.
+export type FolderChange = Readonly<{
+  preset: PresetName | undefined;
+  profile: FolderProfile;
+  machine: MachineBinding | null;
+}>;
+
+export async function planFolderChange(
+  currentPreferencesInput: unknown,
+  currentManifestInput: unknown,
+  expectedRevision: number,
+  change: FolderChange,
+  inspect: (path: OutputPath) => Promise<ObservedFile>,
+) {
+  const current = parseFolderPreferences(currentPreferencesInput);
+  const manifest = parseInstructionManifest(currentManifestInput);
   if (
     !Number.isSafeInteger(expectedRevision) ||
     expectedRevision !== current.revision
@@ -54,25 +92,44 @@ export async function planProfileChange(
     return { kind: "blocked", reason: "incomplete-state" } as const;
   if (manifest.templateRevision !== instructionTemplateRevision)
     return { kind: "blocked", reason: "template-upgrade-required" } as const;
-  if (requested.profile.os !== current.profile.os)
+  if (change.profile.os !== current.profile.os)
     return { kind: "blocked", reason: "execution-os-change" } as const;
   if (current.customInstructions !== "")
     return {
       kind: "blocked",
       reason: "custom-composition-unavailable",
     } as const;
-  // The preset may only change within what the recorded handover allows, and
-  // the fixed axes of the profile must match the requested preset's composition.
-  const presetName = requested.preset ?? current.preset.name;
-  if (!allowedPresets(current.machine).includes(presetName))
+  const machine = parseMachineBinding(change.machine);
+  if (
+    JSON.stringify(machineIdentity(machine)) !==
+    JSON.stringify(machineIdentity(current.machine))
+  )
+    return { kind: "blocked", reason: "binding-changed" } as const;
+  // The preset may only change within what the handover allows, and the fixed
+  // axes of the profile must match the requested preset's composition.
+  const presetName = change.preset ?? current.preset.name;
+  if (!allowedPresets(machine).includes(presetName))
     return { kind: "blocked", reason: "preset-not-allowed" } as const;
   const composition = workspacePreset(presetName).composition;
   if (
-    requested.profile.access !== composition.access ||
-    requested.profile.purpose !== composition.purpose
+    change.profile.access !== composition.access ||
+    change.profile.purpose !== composition.purpose
   )
     return { kind: "blocked", reason: "preset-composition" } as const;
-  const preset = presetReference(presetName, current.machine);
+  // An unchanged preset keeps its recorded reference: the choice was not made
+  // again. A preset recorded as derived that the handover no longer derives
+  // (the assignment changed) is not carried forward silently; the Principal
+  // chooses it again through a profile change.
+  if (
+    presetName === current.preset.name &&
+    current.preset.selection === "derived" &&
+    derivePreset(machine) !== presetName
+  )
+    return { kind: "blocked", reason: "preset-derivation-changed" } as const;
+  const preset =
+    presetName === current.preset.name
+      ? current.preset
+      : presetReference(presetName, machine);
 
   // The recorded digests must be what the current composition renders; a
   // manifest that claims other bytes is incomplete state, not drift.
@@ -85,8 +142,8 @@ export async function planProfileChange(
   const preview = await previewFolder(
     {
       preset: preset.name,
-      machine: current.machine,
-      profile: requested.profile,
+      machine,
+      profile: change.profile,
     },
     manifest.outputs,
     inspect,
@@ -99,7 +156,8 @@ export async function planProfileChange(
     ...current,
     revision: current.revision + 1,
     preset,
-    profile: requested.profile,
+    machine,
+    profile: change.profile,
   });
   const nextManifest = parseInstructionManifest({
     schemaVersion: 2,

@@ -346,6 +346,10 @@ test("machine CLI refuses overrides, unknown presets and duplicate or invalid ch
     ["folder-init", "--folder", "/tmp/target"],
     ["folder-init", "--json"],
     ["folder-init", "extra"],
+    ["folder-refresh", "--locale", "cs"],
+    ["folder-refresh", "--preset", "hosted-personal"],
+    ["folder-refresh", "--expected-revision", "1"],
+    ["folder-refresh", "extra"],
     ["reset"],
   ])
     await expect(runMachineCommand(args)).rejects.toBeInstanceOf(

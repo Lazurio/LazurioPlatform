@@ -1,9 +1,10 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
-import { planProfileChange } from "./change-profile";
+import { planFolderChange, planProfileChange } from "./change-profile";
 import { inspectOutput } from "./inventory";
 import { withFolderOperationLock } from "./lock";
+import type { MachineBinding } from "./machine-binding";
 import {
   type OutputPath,
   outputFile,
@@ -38,21 +39,62 @@ export async function prepareProfileChange(
 ) {
   await inspectOwnedDirectory(folder);
   return withFolderOperationLock(join(folder, ".lazurio"), (assertHeld) =>
-    prepareProfileChangeLocked(
+    prepareFolderChangeLocked(
       folder,
-      expectedRevision,
-      requested,
+      { kind: "profile", expectedRevision, requested },
       assertHeld,
       checkpoint,
     ),
   );
 }
 
+type FolderState = Awaited<ReturnType<typeof readFolderState>>;
+type Inspect = (path: OutputPath) => ReturnType<typeof inspectOutput>;
+
+// What a change of the generated Folder is planned from: a requested profile
+// change at the expected revision, or a refresh from the current handover
+// that keeps the recorded preset and profile. Both run the one planner and the
+// one transaction below; only the input differs.
+export type FolderChangeRequest =
+  | Readonly<{
+      kind: "profile";
+      expectedRevision: number;
+      requested: unknown;
+    }>
+  | Readonly<{ kind: "handover"; machine: MachineBinding }>;
+
+function planRequestedChange(
+  state: FolderState,
+  request: FolderChangeRequest,
+  inspect: Inspect,
+) {
+  if (request.kind === "profile")
+    return planProfileChange(
+      state.preferences,
+      state.manifest,
+      request.expectedRevision,
+      request.requested,
+      inspect,
+    );
+  // No caller-held revision: the refresh changes no choice of the Principal,
+  // it re-renders the recorded ones under the lock from the current handover.
+  return planFolderChange(
+    state.preferences,
+    state.manifest,
+    state.preferences.revision,
+    {
+      preset: state.preferences.preset.name,
+      profile: state.preferences.profile,
+      machine: request.machine,
+    },
+    inspect,
+  );
+}
+
 // Internal entry for an application use case retaining the common lock.
-export async function prepareProfileChangeLocked(
+export async function prepareFolderChangeLocked(
   folder: string,
-  expectedRevision: number,
-  requested: unknown,
+  request: FolderChangeRequest,
   assertHeld: () => Promise<void>,
   checkpoint: (step: PreparationStep) => Promise<void> = async () => {},
 ) {
@@ -65,14 +107,11 @@ export async function prepareProfileChangeLocked(
   const state = await readFolderState(stateDirectory);
   if (state.preferences.profile.os !== executionOs(process.platform))
     throw new Error("Stored profile does not match execution Machine");
-  const plan = await planProfileChange(
-    state.preferences,
-    state.manifest,
-    expectedRevision,
-    requested,
-    (path) => inspectOutput(folder, path),
+  const plan = await planRequestedChange(state, request, (path) =>
+    inspectOutput(folder, path),
   );
   if (plan.kind !== "profile-change") return plan;
+  const expectedRevision = plan.expectedRevision;
   // Every generated output is staged and replaced, changed or not: one
   // transaction with one fixed file list, whose identities are all recorded.
   const before: Partial<Record<OutputPath, FileIdentity>> = {};

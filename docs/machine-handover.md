@@ -29,9 +29,10 @@ and never mixing owner or host kinds:
 branches, and the conformance tests cover both with real-shaped fixtures.
 
 Two fields are new since v0.12.59, both optional, both closed shapes with no
-defaults, and both copied into the immutable Machine binding exactly as written
-(absent stays absent, so a Folder adopted from a v0.12.59 handover still matches its
-handover byte for byte):
+defaults, and both copied into the Machine binding exactly as written (absent stays
+absent, so a Folder adopted from a v0.12.59 handover still matches its handover byte
+for byte). Neither is part of the Machine identity: both follow the current handover
+through [`folder-refresh`](#refresh-after-a-handover-rewrite):
 
 - **`owner.assignment`** — Organization branch only; the personal branch refuses it.
   `{kind: "operator", github_login, github_id}` or `{kind: "team"}`, authored per guest
@@ -91,14 +92,16 @@ from it. Never from the Machine name, the hostname, the Team name or the operato
 account, and never from `relationships`. For such a handover the Machines resident
 role passes the preset from the owner infrastructure. `folder-init` records the
 derived preset, or an explicit `--preset` the handover allows, in the Environment
-configuration together with the immutable **Machine binding** (kind, name, owner,
-team, assignment, tailnet node, host, relationships and the handover digest).
+configuration together with the **Machine binding** (kind, name, owner, team,
+assignment, tailnet node, host, relationships and the handover digest).
 Machines does not rewrite the identity; a Folder adopted for a different Machine is
 refused, never rewritten. Identity is kind, name, Owner (Organization and Team, or
-Principal), tailnet node and host. Machines rewrites the handover on every apply
-(`installed`, the declared assignment, the derived relationships), so the document
-digest is not identity: a re-apply of the same Machine keeps the Folder adopted, with
-the binding recorded at adoption.
+Principal), tailnet node and host, and it is immutable. Machines rewrites the handover
+on every apply (`installed`, the declared assignment, the derived relationships), so
+the document digest is not identity: a re-apply of the same Machine keeps the Folder
+adopted. The rest of the binding is handover-derived content, not a choice of the
+Principal: `lazurio machine folder-refresh` re-records it from the current handover
+and re-renders the generated files, keeping the recorded preset and profile.
 
 A repeated infrastructure apply must preserve the Machine identity, the Folder
 content and the Platform-selected product version; Machines does not reselect the
@@ -136,6 +139,46 @@ a re-run on an adopted Folder is never ambiguous. Optional `--preset <name>` pic
 allows (recorded as an explicit choice); optional `--locale`, `--detail` and
 `--coordination` override the preset's defaults and stay changeable in the Launchpad.
 `lazurio machine inspect` prints the validated handover and its digest.
+
+### Refresh after a handover rewrite
+
+`folder-init` on an adopted Folder changes nothing, and the profile commands carry the
+recorded binding forward, so a handover rewritten with a new peer (for example the
+operator's work VM added to the personal VM's `relationships`) never reached
+`AGENTS.md` or `manual/this-machine.md` in v0.1.2. The Machines resident role runs,
+as the declared operator, after every handover write on a Machine whose Folder exists:
+
+```sh
+lazurio machine folder-refresh
+```
+
+It takes no options: the handover, the operator and the Folder are bound exactly as
+for `folder-init`, and no caller-held revision is needed because the refresh changes
+no choice of the Principal; it plans under the Folder lock from the revision it
+finds. It requires the same Machine identity (`folder-binding-changed` otherwise),
+re-projects the binding from the current handover and plans with the recorded preset
+and profile through the one Folder change planner and transaction that
+`profile-update` uses: every owned output is checked against its recorded digest, all
+are staged, replaced and archived as `history/revision-<n>`, and the revision is
+bumped. It prints one JSON object with `machineContextDigest`:
+
+| Result | Exit | Meaning |
+| --- | --- | --- |
+| `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
+| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay |
+| `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
+| `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
+| `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
+| `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; the Principal chooses it with `profile-update --preset` |
+| `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by another template revision; see below |
+| Machine context codes | 2 | As for `folder-init` |
+| stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
+
+The Launchpad shows the refreshed binding on its next read; an open panel holding the
+old revision gets `stale-revision` on apply, as after any concurrent change. The
+refresh re-renders only what the handover changes. A product release that changes the
+templates is still `template-upgrade-required`, for a refresh and a profile change
+alike ([F14 deferred](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)).
 
 A wrong invocation (unknown option, duplicate or invalid choice, unknown preset)
 prints the `machine` help on stderr and exits 2 before any filesystem access.
@@ -205,6 +248,8 @@ host, account and direction, and HTTPS hostnames, plus one sentence that Lazurio
 enforces none of it (Headscale does). Nothing is rendered when the field is absent,
 and no persona is rendered. The Owner line names the Team only under
 `hosted-organization-team`, unchanged by the assignment.
+After a handover rewrite `folder-refresh` renders the current assignment and
+relationships ([refresh](#refresh-after-a-handover-rewrite)).
 The Launchpad shows the binding, including the assignment and a compact read-only
 list of the peers, and lets the Principal change the preset (within the allow-list)
 and the communication axes through the ordinary preview → apply flow.
@@ -218,7 +263,7 @@ binary and never from the network. The owner overlay of both hosted lanes
 `manifest.json`, and the sibling `resident_bootstrap.artifacts.platform_attestation =
 {sha256, size}` for `lazurio.sigstore.json`. The role runs
 `<staged>/lazurio install --base ~/.local/share/lazurio` (no `--service`), then
-`lazurio machine folder-init`, forwarding `resident_bootstrap.folder.locale`
+`lazurio machine folder-init` when the Folder is absent, forwarding `resident_bootstrap.folder.locale`
 (`cs` | `en`) verbatim as `--locale` when the overlay declares it; absent, no flag is
 passed and the preset default applies. The field is accepted only when a Platform
 artifact is pinned. What the role treats as a **finding, not a failure**: `install`
@@ -226,7 +271,11 @@ on an existing tree (a no-op by design: versions change only through
 `lazurio update`), an active version different from the pin after that no-op, and
 `blocked folder-binding-changed` on a Folder adopted before this contract. The role
 never runs `lazurio update`; the product's own update moves an installed Machine
-forward.
+forward. After writing the handover on a Machine whose Folder exists, the role runs
+`lazurio machine folder-refresh` (added after v0.1.2; the role needs a pinned release
+that has it): exit 0 `refreshed` or `unchanged` is success, exit 2 `blocked` is a
+finding to report with its `reason` and `path`, not a failure to retry, and exit 1 is
+an operation failure.
 
 ## Bounded diagnosis and repair
 
@@ -267,11 +316,18 @@ branch's zone, closed peer shapes), preset derivation from the assignment, that 
 v0.12.59-shaped handover still reads, projects and derives exactly as before, the
 rendered assignment and relationships, adoption (used work directories, legacy
 files, foreign entries, idempotence, the Personalspace conflict), directory
-preservation and recognized interruption completion. A native run of `folder-init`
+preservation, recognized interruption completion, and the refresh: a personal
+handover before and after a work VM peer is added renders that peer as outbound SSH
+into the `cs` and `en` `AGENTS.md` and into `manual/this-machine.md` and keeps the
+preset and profile; an identical or only-`installed`-rewritten handover is
+`unchanged`; an edited or removed owned file is refused by path without a write;
+another Machine and a changed derivation are refused; an interrupted refresh
+completes through `profile-resume`. A native run of `folder-init`
 with the compiled CLI on a fresh Ubuntu 24.04 ARM64 VM against root-issued
 v0.12.59-shaped fixture handovers of all three kinds is recorded in
 [evidence](evidence/presets-linux-arm64-2026-09-22.md); a native run with a
-v0.12.61 handover carrying `owner.assignment` or `relationships` is not yet recorded.
+v0.12.61 handover carrying `owner.assignment` or `relationships`, and a native
+`folder-refresh`, are not yet recorded.
 They do not prove actual
 Machines delivery, a real Machines-delivered VM, a native Launchpad preset change,
 official release hosting and attestation, native Linux x64 execution,

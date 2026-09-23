@@ -5,8 +5,14 @@ import {
   resumePreparationLocked,
 } from "./apply-preparation";
 import { withFolderOperationLock } from "./lock";
+import type { MachineBinding } from "./machine-binding";
 import { inspectOwnedDirectory } from "./owned-directory";
-import { prepareProfileChangeLocked } from "./prepare-profile-change";
+import {
+  type FolderChangeRequest,
+  prepareFolderChangeLocked,
+} from "./prepare-profile-change";
+
+export type UpdateStep = "prepared" | "applied" | "finalized";
 
 export async function resumeProfileUpdate(
   folder: string,
@@ -25,18 +31,47 @@ export async function updateProfile(
   folder: string,
   expectedRevision: number,
   requested: unknown,
-  checkpoint: (
-    step: "prepared" | "applied" | "finalized",
-  ) => Promise<void> = async () => {},
+  checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
+) {
+  return changeFolder(
+    folder,
+    { kind: "profile", expectedRevision, requested },
+    checkpoint,
+  );
+}
+
+// Re-renders the generated Folder from the current handover of the same
+// Machine with the recorded preset and profile: the same planner, transaction,
+// archive and recovery (`profile-resume`) as a profile change. Edited or
+// removed owned files are refused by path exactly as there; a binding that
+// renders the same bytes is `unchanged` and nothing is written.
+export async function refreshFolder(
+  folder: string,
+  machine: MachineBinding,
+  checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
+) {
+  const result = await changeFolder(
+    folder,
+    { kind: "handover", machine },
+    checkpoint,
+  );
+  return result.kind === "updated"
+    ? { kind: "refreshed" as const, revision: result.revision }
+    : result;
+}
+
+async function changeFolder(
+  folder: string,
+  request: FolderChangeRequest,
+  checkpoint: (step: UpdateStep) => Promise<void>,
 ) {
   await inspectOwnedDirectory(folder);
   return withFolderOperationLock(
     join(folder, ".lazurio"),
     async (assertHeld) => {
-      const prepared = await prepareProfileChangeLocked(
+      const prepared = await prepareFolderChangeLocked(
         folder,
-        expectedRevision,
-        requested,
+        request,
         assertHeld,
       );
       if (prepared.kind !== "prepared") return prepared;

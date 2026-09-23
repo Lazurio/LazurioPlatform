@@ -89,7 +89,8 @@ handover's `owner.assignment` exactly when it is present (`assigned to operator
 
 | | Where it comes from | Launchpad |
 | --- | --- | --- |
-| Machine kind, name, Owner (Principal or Organization + Team), assignment and relationships when the handover carries them, tailnet node, host | The handover, recorded once as the **Machine binding** | Shown only |
+| Machine identity: kind, name, Owner (Principal or Organization + Team), tailnet node, host | The handover, recorded at adoption as part of the **Machine binding**; immutable | Shown only |
+| Assignment and relationships when the handover carries them, handover digest | The current handover; `machine folder-refresh` re-records them in the binding | Shown only |
 | Preset | Derived, confirmed or explicitly chosen within the allow-list | Changeable through the ordinary preview → apply profile change |
 | Communication axes `locale`, `detail`, `coordination` | Preset defaults, then the Principal | Changeable through the same flow |
 | Fixed axes `access`, `purpose` | The preset's composition | Not controls; a request whose fixed axes disagree with the preset is a blocked plan |
@@ -97,13 +98,18 @@ handover's `owner.assignment` exactly when it is present (`assigned to operator
 There is one change path. CLI (`profile-preview`/`profile-update --preset`), Launchpad
 and a future typed owner request all send `{expectedRevision, preset?, profile}` to the
 same use case; a preset outside the allow-list is `preset-not-allowed`, a profile that
-disagrees with the preset is `preset-composition`, both without a write.
+disagrees with the preset is `preset-composition`, both without a write. A handover
+rewrite enters the same planner and transaction through `lazurio machine
+folder-refresh`, with the recorded preset and profile and the re-projected binding of
+the same Machine ([refresh](machine-handover.md#refresh-after-a-handover-rewrite)); a
+preset recorded as derived that the new assignment no longer derives is
+`preset-derivation-changed`, never silently kept or switched.
 
 ## Storage and ownership
 
 `.lazurio/preferences.json` (schema 2) stores the **preset reference** (`name`,
-`version`, `selection: derived | explicit`), the immutable **Machine binding** (`null`
-on a workstation) and the profile, under the existing revision discipline
+`version`, `selection: derived | explicit`), the **Machine binding** (`null` on a
+workstation; its identity immutable, the rest following the handover) and the profile, under the existing revision discipline
 ([migration and recovery](migration-and-recovery.md)). The whole composition is
 validated on every parse: a preset the recorded handover does not allow never parses.
 The rendered `AGENTS.md` and the six files of `manual/` are a deterministic projection
@@ -130,8 +136,8 @@ closed naming that entry. Machines precreates an empty `personalspace/` on every
 VM, so an Organization preset (Personalspace never present) accepts an empty one and
 refuses a used one — it deletes nothing and names the path. A re-run on an adopted
 Folder reports `already-adopted` and changes nothing (a re-applied handover of the
-same Machine included); a Folder adopted for a different Machine or with unrecognized
-state is refused by name.
+same Machine included; `folder-refresh` renders what the rewritten handover changed);
+a Folder adopted for a different Machine or with unrecognized state is refused by name.
 
 ## One choice, two effects, two owners
 

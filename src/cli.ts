@@ -261,6 +261,8 @@ it replaces owned instructions/preferences/manifest and archives the transaction
 On an installed Machine the Folder is the operator's ~/Lazurio; the change is applied
 only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
+On a hosted Machine, machine folder-refresh re-renders the same owned files from the
+current handover through this same transaction, keeping the recorded profile.
 --previous-digest is not accepted by either profile command.
 profile-resume --folder <Folder> --target-revision <integer >= 2>
 resumes and finalizes an existing prepared update, or verifies its completed archive.
