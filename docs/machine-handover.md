@@ -169,10 +169,22 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
+| `{"kind":"blocked","reason":"folder-foreign-entry","entry":…}` | 2 | A top-level entry the Folder neither owns nor tolerates; refused by name before any journal is written |
 | `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; the Principal chooses it with `profile-update --preset` |
 | `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by another template revision; see below |
 | Machine context codes | 2 | As for `folder-init` |
 | stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
+
+Like adoption and initialization recovery, the shared update transaction re-checks
+the claimed boundary of a hosted Folder (`requireFolderBoundary`): before its journal
+is written, before every single replacement, and in `profile-resume` before anything
+is applied or archived. A foreign top-level entry
+that appears while a refresh or profile update is interrupted is refused by name
+(`profile-resume` exits 2 with `folder-foreign-entry`); the journal and every output
+stay exactly as the interruption left them, and the resume completes once the entry
+is gone. A workstation Folder (no handover binding) keeps its existing rule: the
+Principal's own top-level files beside the generated ones are preserved, never read
+or written.
 
 The Launchpad shows the refreshed binding on its next read; an open panel holding the
 old revision gets `stale-revision` on apply, as after any concurrent change. The

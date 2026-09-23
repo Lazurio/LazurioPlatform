@@ -261,6 +261,11 @@ it replaces owned instructions/preferences/manifest and archives the transaction
 On an installed Machine the Folder is the operator's ~/Lazurio; the change is applied
 only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
+In a hosted Folder (adopted from a Machine handover) a top-level entry other than
+organizations/, personalspace/, the two legacy launchpad files and the owned AGENTS.md,
+manual/ and .lazurio/ is refused by name (exit 2, folder-foreign-entry) before
+preparation, before every replacement and in profile-resume; the journal stays for a
+later resume. A workstation Folder keeps your own top-level files untouched.
 On a hosted Machine, machine folder-refresh re-renders the same owned files from the
 current handover through this same transaction, keeping the recorded profile.
 --previous-digest is not accepted by either profile command.
@@ -505,14 +510,21 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       !/^[1-9][0-9]*$/.test(values["target-revision"] ?? "")
     )
       throw new Error("Explicit recovery folder and target revision required");
-    console.log(
-      JSON.stringify(
-        await resumeProfileUpdate(
-          values.folder,
-          Number(values["target-revision"]),
+    try {
+      console.log(
+        JSON.stringify(
+          await resumeProfileUpdate(
+            values.folder,
+            Number(values["target-revision"]),
+          ),
         ),
-      ),
-    );
+      );
+    } catch (error) {
+      // A foreign top-level entry is a named refusal; the journal stays.
+      if (!(error instanceof FolderAdoptionError)) throw error;
+      console.log(JSON.stringify(describeFolderAdoption(error)));
+      return 2;
+    }
     return 0;
   }
   if (values["target-revision"] !== undefined)
@@ -567,13 +579,21 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       positionals[0] === "profile-update"
         ? updateProfile
         : inspectProfileChange;
-    const result = await operation(
-      folder,
-      Number(values["expected-revision"]),
-      values.preset === undefined
-        ? { profile }
-        : { preset: values.preset, profile },
-    );
+    let result: Awaited<ReturnType<typeof operation>>;
+    try {
+      result = await operation(
+        folder,
+        Number(values["expected-revision"]),
+        values.preset === undefined
+          ? { profile }
+          : { preset: values.preset, profile },
+      );
+    } catch (error) {
+      // A foreign top-level entry is a named refusal before any write.
+      if (!(error instanceof FolderAdoptionError)) throw error;
+      console.log(JSON.stringify(describeFolderAdoption(error)));
+      return 2;
+    }
     console.log(JSON.stringify(result));
     return result.kind === "blocked" ? 2 : 0;
   }

@@ -519,6 +519,11 @@ bytes is `unchanged` and not recorded, so a re-apply that only rewrote `installe
 never bumps the revision. A preset recorded as derived that the new assignment no
 longer derives is `preset-derivation-changed`: the Principal chooses again. The
 Machines resident role calls it after every handover write on an existing Folder.
+The shared transaction (refresh and profile update alike) re-checks the claimed
+boundary of a hosted Folder before its journal, before every replacement and in
+`profile-resume`, as adoption and initialization recovery do: a foreign top-level
+entry is refused by name and the interrupted state is left in place. A workstation
+Folder keeps preserving the Principal's own top-level files.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |

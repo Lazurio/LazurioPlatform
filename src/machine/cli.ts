@@ -57,7 +57,8 @@ follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the current handover
 renders the same bytes (nothing is written, the revision stays). Blocked with
 exit 2, nothing written: folder-not-initialized (run folder-init first),
-folder-binding-changed, folder-state-unrecognized, drift or unsafe-path with
+folder-binding-changed, folder-state-unrecognized, folder-foreign-entry (a
+top-level entry the Folder does not own or tolerate), drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
 (the assignment now derives another preset: choose it with profile-update
 --preset), template-upgrade-required, or a Machine context code. Exit 1 is an
