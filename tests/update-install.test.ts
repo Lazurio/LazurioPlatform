@@ -22,6 +22,7 @@ import {
   readHighWater,
   readPrevious,
   readSelector,
+  writePending,
 } from "../src/update/layout";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
 import {
@@ -391,4 +392,22 @@ test("a retained high-water mark is the floor even when the selector is missing:
   });
   expect(await readSelector(base)).toBe("1.1.0");
   expect(await readHighWater(base)).toBe("1.1.0");
+  // A marker with no selector is a state no crash produces: nothing is
+  // staged or switched, the marker and the mark stay for a person to look at.
+  await writePending(base, { from: "1.1.0", to: "1.2.0" });
+  await rm(join(base, "bin", "lazurio"));
+  expect(await performInstall(await staged("1.3.0"))).toMatchObject({
+    kind: "error",
+    code: "state-invalid",
+    context: { path: "update/pending.json" },
+  });
+  expect(await readSelector(base)).toBeNull();
+  expect(await readHighWater(base)).toBe("1.1.0");
+  expect(await readFile(join(base, "update", "pending.json"), "utf8")).toBe(
+    '{"from":"1.1.0","to":"1.2.0"}\n',
+  );
+  expect((await readdir(join(base, "versions"))).sort()).toEqual([
+    "1.0.0",
+    "1.1.0",
+  ]);
 });

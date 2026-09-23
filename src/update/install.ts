@@ -4,7 +4,13 @@ import { activate, reconcilePending, withUpdateLock } from "./activation";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
-import { layout, readSelector, swapSelector, versionFloor } from "./layout";
+import {
+  layout,
+  readSelector,
+  readUpdateState,
+  swapSelector,
+  versionFloor,
+} from "./layout";
 import { type ProcessRunner, runProcess } from "./self-check";
 import {
   detectServiceControl,
@@ -223,11 +229,14 @@ async function install(input: InstallInput): Promise<InstallResult> {
       const selected = await readSelector(base);
       if (selected === null) {
         // First installation — or a tree whose selector is missing or
-        // damaged while its durable high-water mark survived. The mark is the
-        // floor either way: a lower executable never becomes active through
-        // this branch. A missing mark means the floor is this version, and
-        // only a committed activation ever writes one.
-        const floor = await versionFloor(base);
+        // damaged while its durable state survived. The whole update state is
+        // read and validated first, as every reconciler does: a marker without
+        // a selector is a state no crash produces and stays untouched
+        // (`state-invalid`). The surviving high-water mark is the floor: a
+        // lower executable never becomes active through this branch. A
+        // missing mark means the floor is this version, and only a committed
+        // activation ever writes one.
+        const { highWater: floor } = await readUpdateState(base);
         if (floor !== null && compareVersions(identity.version, floor) < 0)
           throw new UpdateFailure("release-invalid", {
             resource: "version",

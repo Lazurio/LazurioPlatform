@@ -203,7 +203,9 @@ high-water mark is refused as `release-invalid` (`reason: "below-floor"`), so a 
 pin can never downgrade a Machine and there is no force. The mark is the floor even
 when the selector is missing or damaged: a tree with `update/high-water` at `1.1.0`
 and no readable `bin/lazurio` refuses a staged `1.0.0` and is repaired by `1.1.0` or
-newer, which becomes active with the mark unchanged. Trust is the custody that
+newer, which becomes active with the mark unchanged; the whole update state is read
+and validated first, so a marker without a selector is `state-invalid` and nothing is
+staged or switched. Trust is the custody that
 staged the binary (its attestation is verified there with `gh attestation verify`);
 the running product verifies nothing about a file it was asked to run.
 
