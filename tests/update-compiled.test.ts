@@ -240,3 +240,101 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
   },
   180_000,
 );
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "a compiled release moves an older installation forward with install --upgrade, without the network and never backwards",
+  async () => {
+    const home = await realpath(
+      await mkdtemp(
+        join(process.platform === "darwin" ? "/tmp" : tmpdir(), "upd-u-"),
+      ),
+    );
+    try {
+      // Release builds: no fixture origin exists, and none is needed.
+      const compile = (version: string) => {
+        const outfile = join(home, `lazurio-${version}`);
+        const build = Bun.spawnSync(
+          [
+            process.execPath,
+            "build",
+            new URL("../src/cli.ts", import.meta.url).pathname,
+            "--compile",
+            "--no-compile-autoload-dotenv",
+            "--no-compile-autoload-bunfig",
+            ...identityDefines({ version, commit, target }),
+            "--outfile",
+            outfile,
+          ],
+          { stdout: "pipe", stderr: "pipe" },
+        );
+        expect(build.exitCode).toBe(0);
+        return outfile;
+      };
+      const base = join(home, "base");
+      const run = (binary: string, ...args: string[]) => {
+        const child = Bun.spawnSync([binary, ...args, "--base", base], {
+          cwd: home,
+          env: { HOME: home },
+          stdout: "pipe",
+          stderr: "pipe",
+        });
+        return {
+          code: child.exitCode,
+          json: JSON.parse(child.stdout.toString() || "null"),
+        };
+      };
+      const [older, newer] = [compile("1.0.0"), compile("1.1.0")];
+      expect(run(older, "install", "--json").json).toMatchObject({
+        kind: "installed",
+        active: "1.0.0",
+      });
+      // Plain install never moves an installation …
+      expect(run(newer, "install", "--json").json).toMatchObject({
+        kind: "installed",
+        active: "1.0.0",
+      });
+      // … --upgrade does, through the updater's activation.
+      expect(run(newer, "install", "--upgrade", "--json")).toEqual({
+        code: 0,
+        json: {
+          kind: "upgraded",
+          from: "1.0.0",
+          to: "1.1.0",
+          path: join(base, "bin"),
+          serviceInstalled: false,
+          restartRequired: true,
+        },
+      });
+      const lazurio = join(base, "bin", "lazurio");
+      expect(run(lazurio, "update", "status", "--json").json).toMatchObject({
+        running: "1.1.0",
+        active: "1.1.0",
+        previous: "1.0.0",
+        highWater: "1.1.0",
+      });
+      // Never backwards: the older executable is refused and changes nothing.
+      expect(run(older, "install", "--upgrade", "--json")).toEqual({
+        code: 1,
+        json: {
+          kind: "error",
+          code: "release-invalid",
+          context: { resource: "version", reason: "below-floor" },
+        },
+      });
+      // The version it left is the local rollback target; the pin is the
+      // high-water retry.
+      expect(run(lazurio, "update", "rollback", "--json").json).toEqual({
+        kind: "rolled-back",
+        from: "1.1.0",
+        to: "1.0.0",
+      });
+      expect(run(newer, "install", "--upgrade", "--json").json).toMatchObject({
+        kind: "upgraded",
+        from: "1.0.0",
+        to: "1.1.0",
+      });
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);
