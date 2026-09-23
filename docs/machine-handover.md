@@ -211,6 +211,13 @@ and the communication axes through the ordinary preview → apply flow.
 
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 
+Moving an installed Machine to a newer pin: with a pinned release that has
+[`install --upgrade`](update.md#local-upgrade), the role adds `--upgrade` to the
+`install` call below, so an installation older than the pin moves to it through the
+updater's activation, without the network. An installation at or beyond the pin, or
+held above it by its high-water mark, is left as it is; what follows about an
+existing tree then applies only to it and to pins without the flag.
+
 The Machines resident role installs the Platform from a custody-staged, digest-pinned
 binary and never from the network. The owner overlay of both hosted lanes
 (workspace-vm and personal-vm) pins `resident_bootstrap.artifacts.platform =
@@ -226,11 +233,7 @@ on an existing tree (a no-op by design: versions change only through
 `lazurio update`), an active version different from the pin after that no-op, and
 `blocked folder-binding-changed` on a Folder adopted before this contract. The role
 never runs `lazurio update`; the product's own update moves an installed Machine
-forward. With a pinned release that has it, the role runs the staged binary as
-`install --base ~/.local/share/lazurio --upgrade --json` instead, so an existing
-installation older than the pin moves to it without the network
-([local upgrade](update.md#local-upgrade)); an installation already at or beyond
-the pin, or held above it by its high-water mark, is left as it is.
+forward.
 
 ## Bounded diagnosis and repair
 
