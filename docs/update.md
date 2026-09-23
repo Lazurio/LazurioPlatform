@@ -200,7 +200,10 @@ the commit and `restartRequired` is true. The result is `{"kind":"updated","from
 "to","restartRequired","path","serviceInstalled"}`. The same version again is
 `installed` and changes nothing; a version lower than the active one or below the
 high-water mark is refused as `release-invalid` (`reason: "below-floor"`), so a stale
-pin can never downgrade a Machine and there is no force. Trust is the custody that
+pin can never downgrade a Machine and there is no force. The mark is the floor even
+when the selector is missing or damaged: a tree with `update/high-water` at `1.1.0`
+and no readable `bin/lazurio` refuses a staged `1.0.0` and is repaired by `1.1.0` or
+newer, which becomes active with the mark unchanged. Trust is the custody that
 staged the binary (its attestation is verified there with `gh attestation verify`);
 the running product verifies nothing about a file it was asked to run.
 

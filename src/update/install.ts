@@ -222,9 +222,18 @@ async function install(input: InstallInput): Promise<InstallResult> {
     try {
       const selected = await readSelector(base);
       if (selected === null) {
+        // First installation — or a tree whose selector is missing or
+        // damaged while its durable high-water mark survived. The mark is the
+        // floor either way: a lower executable never becomes active through
+        // this branch. A missing mark means the floor is this version, and
+        // only a committed activation ever writes one.
+        const floor = await versionFloor(base);
+        if (floor !== null && compareVersions(identity.version, floor) < 0)
+          throw new UpdateFailure("release-invalid", {
+            resource: "version",
+            reason: "below-floor",
+          });
         await stage();
-        // No high-water mark: a missing one means the floor is the active
-        // version, and only a committed activation ever writes it.
         await swapSelector(base, identity.version);
         return { active: identity.version, updated: null };
       }

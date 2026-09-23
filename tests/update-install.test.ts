@@ -355,3 +355,40 @@ test("the offline update on a supervised installation restarts the installer's u
     launchpadUnit,
   ]);
 });
+
+test("a retained high-water mark is the floor even when the selector is missing: a lower executable is refused, the marked version repairs the selector", async () => {
+  const { input } = await scene("1.0.0");
+  const { base } = input;
+  const staged = async (version: string) => {
+    const file = join(root, "Downloads", `lazurio-${version}`);
+    await writeFile(file, executable(version), { mode: 0o755 });
+    return {
+      ...input,
+      executable: file,
+      identity: { version, commit: commitOf(version), target },
+    };
+  };
+  await performInstall(input);
+  expect(await performInstall(await staged("1.1.0"))).toMatchObject({
+    kind: "updated",
+    to: "1.1.0",
+  });
+  expect(await readHighWater(base)).toBe("1.1.0");
+  // External damage: the selector is gone, the durable mark is not.
+  await rm(join(base, "bin", "lazurio"));
+  expect(await readSelector(base)).toBeNull();
+  expect(await performInstall(await staged("1.0.0"))).toMatchObject({
+    kind: "error",
+    code: "release-invalid",
+    context: { resource: "version", reason: "below-floor" },
+  });
+  expect(await readSelector(base)).toBeNull();
+  expect(await readHighWater(base)).toBe("1.1.0");
+  // The marked version (or a newer one) repairs the selector; the mark stays.
+  expect(await performInstall(await staged("1.1.0"))).toMatchObject({
+    kind: "installed",
+    active: "1.1.0",
+  });
+  expect(await readSelector(base)).toBe("1.1.0");
+  expect(await readHighWater(base)).toBe("1.1.0");
+});
