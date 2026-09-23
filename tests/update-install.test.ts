@@ -436,3 +436,45 @@ test("a retained high-water mark is the floor even when the selector is missing:
     "1.1.0",
   ]);
 });
+
+test("the same-version rerun over a switched pending activation reconciles the marker first, like every mutating update command", async () => {
+  const { input, commands } = await scene("1.0.0");
+  const { base } = input;
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  await performInstall({ ...input, service: { folder } });
+  const file = join(root, "Downloads", "lazurio-1.1.0");
+  await writeFile(file, executable("1.1.0"), { mode: 0o755 });
+  const staged = {
+    ...input,
+    executable: file,
+    identity: { version: "1.1.0", commit: commitOf("1.1.0"), target },
+    service: { folder },
+    healthDeadlineMs: 200,
+  };
+  // A supervised activation that crashed after the switch: marker present,
+  // selector on `to`, previous on `from`, version 1.1.0 staged.
+  await performInstall({ ...staged, identity: input.identity });
+  const { setPrevious, swapSelector } = await import("../src/update/layout");
+  await setPrevious(base, "1.0.0");
+  await swapSelector(base, "1.1.0");
+  await writePending(base, { from: "1.0.0", to: "1.1.0" });
+  commands.length = 0;
+  // No Launchpad answers, so the reconcile undoes (switch back, restart,
+  // marker gone) and the rerun then proceeds as the offline update, which
+  // this Machine cannot commit either: activation-failed, usable on 1.0.0.
+  expect(await performInstall(staged)).toMatchObject({
+    kind: "error",
+    code: "activation-failed",
+  });
+  expect(await readSelector(base)).toBe("1.0.0");
+  expect(await readHighWater(base)).toBeNull();
+  await expect(
+    readFile(join(base, "update", "pending.json"), "utf8"),
+  ).rejects.toThrow();
+  expect(commands.filter((c) => c[2] === "restart").map((c) => c[3])).toEqual([
+    launchpadUnit,
+    launchpadUnit,
+    launchpadUnit,
+  ]);
+});

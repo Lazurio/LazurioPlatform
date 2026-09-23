@@ -262,11 +262,10 @@ async function install(input: InstallInput): Promise<InstallResult> {
         await swapSelector(base, identity.version);
         return { active: identity.version, updated: null };
       }
-      if (selected === identity.version)
-        return { active: selected, updated: null };
-      // An installation of another version exists: this is the offline
-      // update, by the update contract's own steps. The supervisor is the
-      // installer-written unit if there is one; a foreign unit is nobody's.
+      // An installation exists. Like every mutating update command it begins
+      // by reconciling a leftover marker — before deciding anything, including
+      // whether there is anything to do. The supervisor is the installer-
+      // written unit if there is one; a foreign unit is nobody's.
       const control = await detectServiceControl({
         base,
         platform: input.platform,
@@ -276,7 +275,9 @@ async function install(input: InstallInput): Promise<InstallResult> {
       await reconcilePending({ base, service: control });
       const from = await readSelector(base);
       if (from === null) throw new UpdateFailure("not-installed");
+      // The same version again changes nothing.
       if (from === identity.version) return { active: from, updated: null };
+      // Another version: the offline update, by the contract's own steps.
       const floor = await versionFloor(base);
       if (
         compareVersions(identity.version, from) < 0 ||
