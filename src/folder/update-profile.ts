@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import type { HostedEntry } from "../launchpad/hosted-trust";
 import {
   applyPreparationLocked,
   finalizePreparationLocked,
@@ -37,22 +36,6 @@ export async function updateProfile(
   return changeFolder(
     folder,
     { kind: "profile", expectedRevision, requested },
-    checkpoint,
-  );
-}
-
-// Records the hosted entry of this Machine (decision F16) at the expected
-// revision through the same planner, transaction and archive; the recorded
-// preset, profile and binding are carried forward and the manual shows it.
-export async function updateEntry(
-  folder: string,
-  expectedRevision: number,
-  entry: HostedEntry | null,
-  checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
-) {
-  return changeFolder(
-    folder,
-    { kind: "entry", expectedRevision, entry },
     checkpoint,
   );
 }

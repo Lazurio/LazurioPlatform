@@ -1016,9 +1016,10 @@ function fromPersonalVm(
 }
 
 function thisMachine(source: InstructionSource): string {
-  const { preset, machine, entry } = source;
+  const { preset, machine } = source;
   const { locale } = source.profile;
   const relationships = machine?.relationships;
+  const entry = machine?.entry;
   return document(
     locale,
     t("Tahle Mašina", "This Machine"),

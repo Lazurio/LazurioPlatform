@@ -78,7 +78,7 @@ export async function startLaunchpad(
   // mode: the Launchpad serves on the loopback port the gateway proxies to,
   // admission is the gateway's (docs/hosted-entry.md), and there is no
   // fragment token — the browser's session cookie is the credential.
-  const entry = initial.preferences.entry;
+  const entry = initial.preferences.machine?.entry ?? null;
   const trust = entry === null ? null : createHostedTrust(entry, hostedOptions);
   // The bundled page is served by an inner loopback listener and proxied
   // only after admission, so nothing of the Launchpad answers an

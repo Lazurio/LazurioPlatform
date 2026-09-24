@@ -13,8 +13,7 @@ import {
   parsePresetName,
   presetProfile,
 } from "../folder/presets";
-import { refreshFolder, updateEntry } from "../folder/update-profile";
-import { type HostedEntry, parseHostedEntry } from "../launchpad/hosted-trust";
+import { refreshFolder } from "../folder/update-profile";
 import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
@@ -49,8 +48,6 @@ No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
 missing/damaged journals require operator diagnosis, never blanket cleanup.
 machine folder-refresh
-machine entry-update --expected-revision <n> --external-origin <https://launchpad.<machine>.<org>.lazurio.io>
-  --auth-check-url <https://…/oauth2/auth> --auth-cookie-name <name> --listen-port <port>
 Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
 current handover, keeping the recorded preset and profile. Run it as the
 declared operator after every handover rewrite and product update; it takes no
@@ -69,16 +66,7 @@ the edited path (owned files are never overwritten), preset-derivation-changed
 --preset), template-upgrade-required (a newer product rendered the Folder;
 nothing is downgraded), or a Machine context code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
-profile-resume --folder <Folder> --target-revision <n>.
-entry-update records the hosted entry of this Machine (decision F16): the
-Launchpad's external origin, the gateway's auth endpoint and session cookie
-name, and the loopback port the gateway proxies to. It runs the same change
-transaction as profile-update at the expected revision on the Folder adopted
-for this Machine; the manual shows the entry, and \`lazurio launchpad --folder\`
-serves behind the gateway from then on. Prints {"kind":"updated","revision":<n>},
-{"kind":"unchanged"}, or a blocked reason with exit 2 (stale-revision, drift,
-folder-not-initialized, …). Machines runs it after the handover until the
-handover carries the entry itself.`;
+profile-resume --folder <Folder> --target-revision <n>.`;
 
 const choices = {
   locale: ["cs", "en"],
@@ -95,19 +83,7 @@ const machineOptions = {
   locale: { type: "string" },
   detail: { type: "string" },
   coordination: { type: "string" },
-  "expected-revision": { type: "string" },
-  "external-origin": { type: "string" },
-  "auth-check-url": { type: "string" },
-  "auth-cookie-name": { type: "string" },
-  "listen-port": { type: "string" },
 } as const;
-const entryOptions = [
-  "expected-revision",
-  "external-origin",
-  "auth-check-url",
-  "auth-cookie-name",
-  "listen-port",
-] as const;
 
 function parseMachineTokens(args: string[]) {
   try {
@@ -127,53 +103,11 @@ function parseMachineArguments(args: string[]) {
   if (
     command !== "inspect" &&
     command !== "folder-init" &&
-    command !== "folder-refresh" &&
-    command !== "entry-update"
+    command !== "folder-refresh"
   )
     throw new MachineUsageError("Unknown Machine command");
   const parsed = parseMachineTokens(options);
   const { values, tokens } = parsed;
-  if (command === "entry-update") {
-    const names = tokens.map((token) =>
-      token.kind === "option" ? token.name : "",
-    );
-    if (
-      names.length !== entryOptions.length ||
-      new Set(names).size !== names.length ||
-      !entryOptions.every((name) => names.includes(name))
-    )
-      throw new MachineUsageError(
-        "entry-update requires exactly --expected-revision --external-origin --auth-check-url --auth-cookie-name --listen-port",
-      );
-    const integer = (name: "expected-revision" | "listen-port") => {
-      const raw = values[name];
-      if (raw === undefined || !/^[1-9][0-9]{0,9}$/.test(raw))
-        throw new MachineUsageError(`Invalid Machine option: ${name}`);
-      return Number(raw);
-    };
-    let entry: HostedEntry;
-    try {
-      entry = parseHostedEntry({
-        externalOrigin: values["external-origin"],
-        authCheckUrl: values["auth-check-url"],
-        authCookieName: values["auth-cookie-name"],
-        listenPort: integer("listen-port"),
-      });
-    } catch (error) {
-      if (error instanceof MachineUsageError) throw error;
-      throw new MachineUsageError(
-        error instanceof Error ? error.message : "Invalid hosted entry",
-      );
-    }
-    return {
-      command,
-      preset: undefined,
-      locale: undefined,
-      detail: undefined,
-      coordination: undefined,
-      entry: { expectedRevision: integer("expected-revision"), entry },
-    };
-  }
   if (
     (command !== "folder-init" && tokens.length !== 0) ||
     tokens.some((token) => token.kind !== "option") ||
@@ -205,7 +139,6 @@ function parseMachineArguments(args: string[]) {
     locale: value("locale") as "cs" | "en" | undefined,
     detail: value("detail") as "concise" | "technical" | undefined,
     coordination: value("coordination") as "direct" | "coordinator" | undefined,
-    entry: undefined,
   };
 }
 
@@ -213,7 +146,6 @@ export async function runMachineCommand(args: string[]) {
   const {
     command,
     preset: requestedPreset,
-    entry: entryRequest,
     ...values
   } = parseMachineArguments(args);
   try {
@@ -233,14 +165,12 @@ export async function runMachineCommand(args: string[]) {
       await readLinuxOperator(),
     );
     const { code, result } =
-      command === "entry-update" && entryRequest
-        ? await recordMachineEntry(folder, machine, entryRequest)
-        : command === "folder-refresh"
-          ? await refreshMachineFolder(folder, machine)
-          : await initializeMachineFolder(folder, machine, {
-              preset: requestedPreset,
-              ...values,
-            });
+      command === "folder-refresh"
+        ? await refreshMachineFolder(folder, machine)
+        : await initializeMachineFolder(folder, machine, {
+            preset: requestedPreset,
+            ...values,
+          });
     return {
       code,
       result: { ...result, machineContextDigest: observed.digest },
@@ -320,36 +250,6 @@ export async function initializeMachineFolder(
     profile,
   });
   return { code: 0, result };
-}
-
-// entry-update after the handover and the operator are bound: records the
-// hosted entry of this Machine (decision F16) at the expected revision through
-// the one Folder change transaction; the manual shows it. The Folder must be
-// adopted for this Machine; any other state is refused exactly as a refresh.
-async function recordMachineEntry(
-  folder: string,
-  machine: MachineBinding,
-  request: Readonly<{ expectedRevision: number; entry: HostedEntry }>,
-) {
-  const adopted = await adoptedHandoverFolder(folder, machine);
-  if (adopted === null)
-    return {
-      code: 2,
-      result: {
-        kind: "blocked",
-        reason: "folder-not-initialized",
-        next: "Run `lazurio machine folder-init` first.",
-      },
-    };
-  const result = await updateEntry(
-    folder,
-    request.expectedRevision,
-    request.entry,
-  );
-  if (result.kind === "updated")
-    return { code: 0, result: { kind: "updated", revision: result.revision } };
-  if (result.kind === "unchanged") return { code: 0, result };
-  return { code: 2, result };
 }
 
 // folder-refresh after the handover and the operator are bound. The adoption

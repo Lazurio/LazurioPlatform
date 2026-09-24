@@ -172,7 +172,6 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | `{"kind":"blocked","reason":"folder-foreign-entry","entry":…}` | 2 | A top-level entry the Folder neither owns nor tolerates; refused by name before any journal is written |
 | `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; the Principal chooses it with `profile-update --preset` |
 | `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by a newer (or unknown) template revision than this product renders; nothing is downgraded, see below |
-| `lazurio machine entry-update --expected-revision <n> --external-origin <https://launchpad.<machine>.<org>.lazurio.io> --auth-check-url <https://…/oauth2/auth> --auth-cookie-name <name> --listen-port <port>` → `{"kind":"updated","revision":<n+1>}` / `{"kind":"unchanged"}` | 0 | Records the hosted entry of this Machine ([decision F16](decisions.md), [hosted entry](hosted-entry.md)) through the one change transaction; `manual/this-machine.md` shows it and `lazurio launchpad --folder` serves behind the gateway from then on. Blocked (exit 2) with `stale-revision`, `drift`, `folder-not-initialized`, `entry-requires-machine`. Machines runs it after the handover until the handover carries the entry itself |
 | Machine context codes | 2 | As for `folder-init` |
 | stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
 
@@ -274,6 +273,23 @@ relationships ([refresh](#refresh-after-a-handover-rewrite)).
 The Launchpad shows the binding, including the assignment and a compact read-only
 list of the peers, and lets the Principal change the preset (within the allow-list)
 and the communication axes through the ordinary preview → apply flow.
+
+## The hosted entry (decision F16)
+
+The handover will carry the Machine's **entry** — `entry.launchpad` with the finished
+URLs Machines renders for the gateway (`external_origin`, `auth_check_url`,
+`auth_cookie_name`) and the loopback `listen_port` the gateway proxies to; on a
+personal VM the names have no Organization segment. The Platform never composes these
+URLs and reads no environment for them: the binding records `entry` from the handover
+exactly like the assignment and the relationships (declaration, not identity, so a
+re-apply that adds it keeps the Folder adopted and `folder-refresh` re-renders),
+`manual/this-machine.md` shows it, and `lazurio launchpad --folder` serves on that
+port behind the gateway's admission ([hosted entry](hosted-entry.md)) when it is
+present. One writer: the Machines apply that writes the entry also owns the switch of
+`lazurio-launchpad.service` from the resident Launchpad to the installer-written unit
+(exactly one listener on the port, observed). The vendored schema is re-pinned
+byte-for-byte when the Machines release that adds the field exists; until then no
+Folder records an entry and the Launchpad stays local.
 
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 

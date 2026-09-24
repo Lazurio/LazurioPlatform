@@ -1,4 +1,3 @@
-import { type HostedEntry, parseHostedEntry } from "../launchpad/hosted-trust";
 import {
   type MachineBinding,
   type MachinePeer,
@@ -15,7 +14,7 @@ import {
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
 import type { FolderPreferences } from "./state";
-import { ownDataValue, stateFields } from "./state-fields";
+import { stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
@@ -43,27 +42,15 @@ export type InstructionSource = Readonly<{
   preset: PresetName;
   machine: MachineBinding | null;
   profile: FolderProfile;
-  /** The hosted entry (decision F16); absent or null renders nothing. */
-  entry?: HostedEntry | null;
 }>;
 
 export function parseInstructionSource(input: unknown): InstructionSource {
-  const withEntry = ownDataValue(input, "entry") !== undefined;
-  const value = stateFields(input, [
-    "preset",
-    "machine",
-    "profile",
-    ...(withEntry ? ["entry" as const] : []),
-  ]);
+  const value = stateFields(input, ["preset", "machine", "profile"]);
   const preset = parsePresetName(value.preset);
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
   validatePresetComposition(presetReference(preset, machine), machine, profile);
-  const entry =
-    !withEntry || value.entry === null ? null : parseHostedEntry(value.entry);
-  if (entry !== null && machine === null)
-    throw new Error("Hosted entry requires a Machine binding");
-  return Object.freeze({ preset, machine, profile, entry });
+  return Object.freeze({ preset, machine, profile });
 }
 
 export function instructionSource(
@@ -73,7 +60,6 @@ export function instructionSource(
     preset: preferences.preset.name,
     machine: preferences.machine,
     profile: preferences.profile,
-    entry: preferences.entry,
   });
 }
 

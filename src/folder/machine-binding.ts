@@ -1,3 +1,4 @@
+import { type HostedEntry, parseHostedEntry } from "../launchpad/hosted-trust";
 import { ownDataValue, stateFields } from "./state-fields";
 
 // The handover part of a hosted Folder: a projection of the root-issued
@@ -57,6 +58,9 @@ export type MachineBinding = Readonly<{
     id: string;
   }>;
   relationships?: MachineRelationships;
+  /** The hosted entry of this Machine (decision F16): finished URLs written by
+   * Machines from the same rendering as the gateway; declaration, not identity. */
+  entry?: HostedEntry;
 }>;
 
 // Exactly the shapes the vendored lazurio.machine.v1 schema imposes on the
@@ -233,10 +237,12 @@ function relationships(input: unknown): MachineRelationships {
 export function parseMachineBinding(input: unknown): MachineBinding | null {
   if (input === null) return null;
   const withRelationships = ownDataValue(input, "relationships") !== undefined;
-  const value = stateFields(
-    input,
-    withRelationships ? [...keys, "relationships"] : keys,
-  );
+  const withEntry = ownDataValue(input, "entry") !== undefined;
+  const value = stateFields(input, [
+    ...keys,
+    ...(withRelationships ? ["relationships" as const] : []),
+    ...(withEntry ? ["entry" as const] : []),
+  ]);
   const tailnet =
     value.network === null
       ? null
@@ -272,12 +278,18 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
       tailnet === null ? null : Object.freeze({ headscaleHostname: tailnet }),
     host: Object.freeze({ kind: host.kind, id: host.id }),
   };
-  if (!withRelationships) return Object.freeze(binding);
+  const entry = withEntry ? parseHostedEntry(value.entry) : undefined;
+  if (!withRelationships)
+    return Object.freeze(entry ? { ...binding, entry } : binding);
   const related = relationships(value.relationships);
   // The zone of the relationships is the zone of this Machine's branch.
   if ((related.zone === "personal") !== personalVm)
     throw new Error("Machine relationships zone mixes handover branches");
-  return Object.freeze({ ...binding, relationships: related });
+  return Object.freeze(
+    entry
+      ? { ...binding, relationships: related, entry }
+      : { ...binding, relationships: related },
+  );
 }
 
 // The part of a binding that names the Machine: kind, name, Owner (Organization

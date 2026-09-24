@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { updateEntry } from "../src/folder/update-profile";
 import {
   type AuthFetcher,
   parseHostedEntry,
@@ -36,20 +35,17 @@ test.skipIf(process.platform === "win32")(
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
     const preset = "hosted-organization-personal";
     const profile = presetProfile(preset, executionOs(process.platform));
-    await initializeHandoverFolder(folder, {
-      preset,
-      machine: bindings.organization,
-      profile,
-    });
     const entry = parseHostedEntry({
       externalOrigin: "https://launchpad.workspace.example.lazurio.io",
       authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
       authCookieName: "__Secure-lazurio-workspace",
       listenPort: freePort(),
     });
-    expect(await updateEntry(folder, 1, entry)).toEqual({
-      kind: "updated",
-      revision: 2,
+    // The handover carries the entry; the Folder records it on the binding.
+    await initializeHandoverFolder(folder, {
+      preset,
+      machine: { ...bindings.organization, entry },
+      profile,
     });
     const asked: string[] = [];
     const fetcher: AuthFetcher = async (url, init) => {
@@ -119,7 +115,7 @@ test.skipIf(process.platform === "win32")(
         revision: number;
         machine: { name: string };
       };
-      expect(body.revision).toBe(2);
+      expect(body.revision).toBe(1);
       expect(body.machine.name).toBe(bindings.organization.name);
       // No bearer token exists in hosted mode: a stray one changes nothing.
       expect(

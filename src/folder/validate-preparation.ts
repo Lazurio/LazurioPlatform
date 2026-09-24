@@ -83,9 +83,8 @@ export async function validatePreparation(
   const previousManifestIdentity = identity(before.manifestIdentity);
   const stagedPreferencesIdentity = identity(marker.preferencesIdentity);
   const stagedManifestIdentity = identity(marker.manifestIdentity);
-  // The staged binding and entry are part of the transition: a refresh carries
-  // the re-projected binding of the same Machine, a profile change the recorded
-  // one, an entry change the recorded binding with the new entry.
+  // The staged binding is part of the transition: a refresh carries the
+  // re-projected binding of the same Machine, a profile change the recorded one.
   const plan = await planFolderChange(
     previousPreferences,
     previousManifest,
@@ -94,7 +93,6 @@ export async function validatePreparation(
       preset: preferences.preset.name,
       profile: preferences.profile,
       machine: preferences.machine,
-      entry: preferences.entry,
     },
     async (path) => ({
       kind: "regular",

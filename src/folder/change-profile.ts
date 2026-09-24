@@ -1,4 +1,3 @@
-import type { HostedEntry } from "../launchpad/hosted-trust";
 import {
   type MachineBinding,
   machineIdentity,
@@ -77,8 +76,6 @@ export type FolderChange = Readonly<{
   preset: PresetName | undefined;
   profile: FolderProfile;
   machine: MachineBinding | null;
-  /** The hosted entry to record; undefined carries the recorded one forward. */
-  entry?: HostedEntry | null;
 }>;
 
 export async function planFolderChange(
@@ -156,15 +153,11 @@ export async function planFolderChange(
       return { kind: "blocked", reason: "incomplete-state" } as const;
   }
 
-  const entry = change.entry === undefined ? current.entry : change.entry;
-  if (entry !== null && machine === null)
-    return { kind: "blocked", reason: "entry-requires-machine" } as const;
   const preview = await previewFolder(
     {
       preset: preset.name,
       machine,
       profile: change.profile,
-      entry,
     },
     manifest.outputs,
     inspect,
@@ -179,7 +172,6 @@ export async function planFolderChange(
     preset,
     machine,
     profile: change.profile,
-    entry,
   });
   const nextManifest = parseInstructionManifest({
     schemaVersion: 2,
