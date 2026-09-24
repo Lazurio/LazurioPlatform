@@ -94,11 +94,15 @@ Launchpad uses; nothing new on the wire.
 |---|---|---|
 | Hosted VM | On the VM (Caddy + oauth2-proxy delivered by Machines) | External origin, auth endpoint, cookie name, application catalog |
 | Work laptop | On the Conglomerate Host, forwarding over the tailnet to the laptop's tailnet address | The same three values and catalog; the Launchpad, T3 and module applications listen on the tailnet address for the gateway |
-| Personal laptop / personal VM | None for the laptop; the personal VM keeps its own gateway | Loopback only on the laptop (`entry: none`) |
+| Personal laptop / personal VM | None for the laptop; the personal VM keeps its own gateway and its entry | Loopback only on the laptop: no Machine binding, `local` preset, an entry is refused |
 
 The values are part of the **Machine Assignment** (F16): written by Machines as the
 handover on a VM, served by the Dashboard after the Account sign-in on a laptop, recorded
-in the Folder next to the Machine binding, shown and never edited in the Launchpad. During
+in the Folder next to the Machine binding, shown and never edited in the Launchpad. An
+entry requires that binding: a work laptop holds one because it is a Machine of the
+Organization (kind `workstation`, Owner the Organization, under a preset decided in
+the laptop phase, F16); a laptop without a binding is `local` and personal and can
+never be given an entry. That is the only classification the adapter relies on. During
 the transition on VMs `folder-init` takes them from the resident unit's environment
 (`LAZURIO_LAUNCHPAD_EXTERNAL_ORIGIN`, `LAZURIO_LAUNCHPAD_AUTH_CHECK_URL`,
 `LAZURIO_LAUNCHPAD_AUTH_COOKIE_NAME`, the catalog) so the first switch needs no new
@@ -143,7 +147,7 @@ from GitHub (F11).
 | Unknown hostname at the listener | Refused, no default application |
 | Session expires during a WebSocket | Socket closed with a clean re-login navigation, no token in a URL |
 | Laptop offline or off the tailnet | The gateway answers an error; the Dashboard shows the Machine as unreachable |
-| Entry values present with `local` preset, or missing with a hosted one | Refuse to start, naming the value |
+| Entry recorded without a Machine binding (`local`, a personal laptop), or a hosted Machine started with an entry that is not the recorded one | Refuse to start, naming the value; the recorded entry is the only source |
 
 ### Evidence required before the switch
 

@@ -792,6 +792,21 @@ F9. Order: hosted VM canary (Platform Launchpad replaces the resident one, Assig
 from the file) → laptops through the Account sign-in (the root checkout becomes a mount,
 then a pointer) → work laptops reachable through the Conglomerate Host gateway.
 
+**How a work laptop is classified.** An entry belongs only to a Machine with a
+recorded Machine binding — today a hosted VM adopted from its handover. A laptop without
+a binding is the `local` preset of F10: a personal Machine, and it can never hold an
+entry, which is the guarantee that no Organization gains an edge into a personal
+laptop. A work laptop becomes a Machine of the Organization the same way a VM does:
+its Assignment (identity of kind `workstation`, Owner the Organization, operator
+assignment, entry, relationships) recorded in the Folder — served by the Dashboard
+after the Account sign-in, or written by a Machines workstation record. The preset
+for such a Machine (an Organization-owned workstation: Personalspace present,
+Organization repositories, the person's own sign-ins, reached through the
+Conglomerate Host gateway) is decided in the laptop phase as an F10 amendment, not
+here; until it exists no laptop can be given an entry, and the adapter's rule is only
+"an entry requires a Machine binding".
+
 **Not decided here:** the Dashboard API for the Assignment and the Keycloak account
-consolidation (owned by the Dashboard thread), the Machines record for a workstation
-and the gateway routes on the Conglomerate Host (Machines), and the exact profile axes.
+consolidation (owned by the Dashboard thread), the Machines record for a workstation,
+the preset of an Organization-owned workstation and the gateway routes on the
+Conglomerate Host (Machines), and the exact profile axes.
