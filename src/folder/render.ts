@@ -18,7 +18,23 @@ import { stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-3";
+export const instructionTemplateRevision = "base-instructions-4";
+
+// Template revisions are ordered by their number. A Folder rendered by an
+// older revision is re-rendered by the next change of the generated Folder
+// (a refresh or a profile change) when every file still has its recorded
+// digest (decision F14). A revision this product does not know, a newer one
+// or one of another form, is never re-rendered or downgraded by it.
+function templateRevisionNumber(revision: string): number | null {
+  const match = /^base-instructions-([1-9][0-9]{0,8})$/.exec(revision);
+  return match === null ? null : Number(match[1]);
+}
+
+export function isOlderTemplateRevision(revision: string): boolean {
+  const recorded = templateRevisionNumber(revision);
+  const current = templateRevisionNumber(instructionTemplateRevision);
+  return recorded !== null && current !== null && recorded < current;
+}
 
 // What the renderer needs and nothing else: the preset, the immutable Machine
 // binding (null on a workstation) and the profile. Validated as one composition.
@@ -47,7 +63,7 @@ export function instructionSource(
   });
 }
 
-type Text = Readonly<{ cs: string; en: string }>;
+export type Text = Readonly<{ cs: string; en: string }>;
 const peerKinds: Readonly<Record<MachinePeer["kind"], Text>> = {
   "personal-vm": { cs: "osobní VM", en: "personal VM" },
   "workspace-vm": { cs: "pracovní VM", en: "work VM" },
@@ -234,8 +250,8 @@ function boundarySection(
         }),
     preset === "hosted-personal"
       ? pick({
-          cs: "- Organizace: na osobní Mašině nejsou namountovaná žádná Organization repa. Práce v Organizaci probíhá na Mašinách, které Organizace vlastní.",
-          en: "- Organizations: no Organization repositories are mounted on a personal Machine. Organization work happens on Machines the Organization owns.",
+          cs: "- Organizace: na osobní Mašině nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovní VM, kterou ti Principál potvrdí jako přiřazenou jemu; repozitáře Organizací sem nikdy neklonuj.",
+          en: "- Organizations: no Organization repositories are mounted on a personal Machine. Organization work (code, repositories, runs) happens over SSH on a work VM the Principal confirms is assigned to them; never clone Organization repositories here.",
         })
       : pick({
           cs: "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář.",
@@ -250,6 +266,21 @@ function boundarySection(
           cs: "- Identita: brokerovaná identita Organizace s krátkodobými tokeny; žádná osobní přihlášení, session ani credentials sem nikdy nepatří.",
           en: "- Identity: the brokered Organization identity with short-lived tokens; no personal sign-ins, sessions or credentials ever belong here.",
         }),
+  ];
+}
+
+// Two rules every hosted Machine needs before an agent acts: how to reach
+// another Machine, and who updates this one. `manual/` has the details.
+function hostedLines(pick: (text: Text) => string): string[] {
+  return [
+    pick({
+      cs: "- SSH na jinou Mašinu jen na její tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x` (`manual/this-machine.md`).",
+      en: "- SSH to another Machine only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare `100.64.0.x` address (`manual/this-machine.md`).",
+    }),
+    pick({
+      cs: "- Verzi produktu, nástroje i tenhle Folder aktualizuje provozovatel Machines (Machines operator) přes pinnutý release. Nespouštěj tu `lazurio update` ani žádný self-update; co je zastaralé, nahlas Principálovi (`manual/troubleshooting.md`).",
+      en: "- The product version, the tools and this Folder are updated by the Machines operator through the pinned release. Do not run `lazurio update` or any self-update here; report what is outdated to the Principal (`manual/troubleshooting.md`).",
+    }),
   ];
 }
 
@@ -308,23 +339,23 @@ export function renderInstructions(input: unknown): string {
       cs: "- Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.",
       en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
     }),
-    ...manualSection(pick),
+    ...(machine === null ? [] : hostedLines(pick)),
+    ...manualSection(profile.locale),
     "",
   ].join("\n");
 }
 
 // The manual is the complete reference for an agent on this Machine, shipped
-// with the product and rendered next to this file. English only; this file
-// follows the profile locale and only points to it.
-function manualSection(pick: (text: Text) => string): string[] {
+// with the product and rendered next to this file in the same locale.
+function manualSection(locale: FolderProfile["locale"]): string[] {
   return [
-    pick({ cs: "## Manuál", en: "## Manual" }),
-    pick({
-      cs: "Úplný manuál pro agenty na téhle Mašině je v `manual/` (anglicky, generovaný produktem, needituj ho):",
-      en: "The complete agent manual for this Machine is in `manual/` (English, generated by the product, do not edit):",
-    }),
+    locale === "cs" ? "## Manuál" : "## Manual",
+    locale === "cs"
+      ? "Úplný manuál pro agenty na téhle Mašině je v `manual/` (generuje ho produkt, needituj ho):"
+      : "The complete agent manual for this Machine is in `manual/` (generated by the product, do not edit):",
     ...manualEntries.map(
-      (entry) => `- [${entry.title}](${entry.path}) — ${entry.summary}.`,
+      (entry) =>
+        `- [${entry.title[locale]}](${entry.path}) — ${entry.summary[locale]}.`,
     ),
   ];
 }

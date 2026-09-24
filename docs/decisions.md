@@ -622,14 +622,15 @@ Linux activation journey listed in the contract.
 Lazurio Folder is self-contained for an agent that starts work on the Machine: what
 Lazurio is, how this Machine fits into the Conglomerate, what is expected of agents,
 how work is done, the roles, the glossary and how to solve problems. That content is
-**product content**: six English templates in this repository (`src/folder/manual.ts`),
+**product content**: six templates in this repository (`src/folder/manual.ts`),
 versioned with the release and reviewed as code. They are rendered into the Folder as
 its third owned top-level name, `manual/` (beside `AGENTS.md` and `.lazurio/`), by
-`lazurio machine folder-init` and re-rendered only through the existing profile-change
-path (preview → apply, the Launchpad panel). There is no second mechanism.
+`lazurio machine folder-init` and re-rendered only through the existing change path
+(preview → apply in the Launchpad panel, and `machine folder-refresh`, which share one
+planner and one transaction). There is no second mechanism.
 
-`manual/` is English only; `AGENTS.md` keeps the profile locale and links the six
-files. Every generated file carries a digest in the instruction manifest (schema 2,
+`manual/` follows the Folder locale like `AGENTS.md` (amendment 2026-09-24 below;
+it was English only until then); `AGENTS.md` links the six files. Every generated file carries a digest in the instruction manifest (schema 2,
 `outputs`), exactly like `AGENTS.md`: a hand-edited or removed file is never
 overwritten, the change path refuses with `drift` and the file's path. Adoption of an
 existing Folder treats a `manual/` without recorded digests as a foreign entry and
@@ -665,13 +666,74 @@ repository.
 
 **Deferred, deliberately not built.** An operator `notes/` area for hand-written
 notes (today an edited generated file is refused and there is no restore command; the
-troubleshooting document says so). Automatic re-rendering after a product update: a
-newer template revision is reported as `template-upgrade-required` and a refresh is an
-explicit profile change with unchanged inputs; the Launchpad may later show which
-product version rendered the Folder. No automatic writes.
+troubleshooting document says so). The Launchpad may later show which product version
+rendered the Folder. No automatic writes: the re-rendering after a product update is
+decided below and happens only through an explicit change.
 
-Verified by unit tests: the rendered manual per preset (snapshots, English in both
-locales, no reference to the legacy repository), the refusal of an edited or removed
+**Decided 2026-09-24: a newer template revision re-renders the Folder.** Until
+`base-instructions-4` every change of the template revision made a refresh and a
+profile change `template-upgrade-required`, so a Machine that received a new release
+never received its new `AGENTS.md` and `manual/`. Now the one Folder change planner
+treats a recorded revision older than the product's (`base-instructions-<n>`, ordered
+by `n`) as an upgrade: the next `machine folder-refresh` (which Machines runs after
+every apply) or profile change re-renders every generated file with the recorded
+preset, profile and binding, through the same transaction, archive and recovery, and
+records the new revision and digests in the same final manifest rename. Its
+conditions:
+
+- **No drift.** The old bytes cannot be rendered by the new product, so the recorded
+  digests are the only proof of ownership: every generated file must still match its
+  digest. One edited, removed or linked file refuses the whole upgrade with `drift` or
+  `unsafe-path` and its path, and nothing is written. The coherence check that the
+  recorded digests are what the composition renders applies only within one revision;
+  the transaction's activation and recovery compare the previous outputs by the
+  recorded digest for the same reason.
+- **Never downgrade.** A recorded revision newer than the product's, or one of another
+  form, stays `template-upgrade-required` (the code's meaning is now "this Folder needs
+  a product at least as new as the one that rendered it"); Machines already records it
+  as a finding, never a failure. An owner who rolls the product back keeps the newer
+  Folder until the newer release is active again.
+- **Idempotent.** A second run renders the same bytes and is `unchanged`.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep `template-upgrade-required` for every change of revision | No new state path; hosted Machines never receive a corrected manual; rejected |
+| Re-render automatically on product activation | A write the Principal did not ask for, and a second writer beside the change path; rejected |
+| A separate `folder-upgrade` command | The same planner and transaction under a second name, and one more step for Machines; rejected |
+| Upgrade inside the existing planner, digests as proof (selected) | One path, the existing refusal for edited files, no downgrade |
+
+**Amendment 2026-09-24, decided by the Principal (Matěj): the manual follows the
+Folder locale.** Asked whether the manuals should be Czech or English, the Principal
+decided they follow the locale, so that a Czech-speaking operator gets a Czech manual.
+`manual/*` is rendered in the Folder locale (`cs` or `en`), with the same six file
+names; `AGENTS.md` is unchanged in that respect. The locale is chosen as before (the
+handover owner overlay at `folder-init`, then the profile). Both languages are written
+side by side, paragraph by paragraph, in `src/folder/manual.ts`, so that neither can
+change alone; technical identifiers (commands, codes, paths, preset names) stay in
+English. A locale change therefore re-renders the manual too.
+
+**Hosted content in `base-instructions-4`.** Three rules every hosted Machine's
+`AGENTS.md` and manual now state: SSH to another Machine only to the tailnet hostname
+the handover records, with a pinned host key (`HostKeyAlias`, a dedicated
+`UserKnownHostsFile`, `StrictHostKeyChecking yes`) after verifying the active tailnet,
+never to a bare `100.64.0.x` address or through the general `known_hosts`; the product
+version, the tools and the Folder are updated by the Machines pin and the agent only
+reports what is outdated (no `lazurio update` on a hosted Machine); and, on a personal
+VM, Organization work belongs on a work VM and device work (the signed-in browser) on
+a device, never cloned onto the personal VM. The peers this Machine may reach over SSH
+are listed neutrally, exactly as the recorded `relationships` carry them; the handover
+records reachability, not whose a peer is (a peer carries no owner or operator and its
+zone may be `null`), so the text says reachability is neither identity nor mandate and
+has the agent confirm with the Principal that a peer is theirs or assigned to them
+before working there. Nothing is inferred from names, and the text says that
+Headscale, not Lazurio, enforces reachability. Organization content synchronization is
+stated as not implemented in the product yet, with only plain `git pull --ff-only` on
+a clean checkout of its default branch, never a stash, switch or reset.
+
+Verified by unit tests: the rendered manual per preset and locale (snapshots, parity
+of the section structure between `cs` and `en`, no reference to the legacy
+repository), the template upgrade (success, drift refused without a write, a newer
+revision refused, an idempotent second run), the refusal of an edited or removed
 manual file by path, the refusal of a foreign `manual/` on adoption, an idempotent
 re-run, digests in the manifest, and every interruption and recovery path of the
 transaction with the wider file list, and the recovery boundary: a foreign entry

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import {
   appendFile,
   lstat,
@@ -16,6 +17,8 @@ import { runCli } from "../src/cli";
 import { applyPreparation } from "../src/folder/apply-preparation";
 import { FolderAdoptionError } from "../src/folder/handover-layout";
 import { outputPaths } from "../src/folder/outputs";
+import { renderOutputs } from "../src/folder/preview";
+import { instructionTemplateRevision } from "../src/folder/render";
 import {
   refreshFolder,
   resumeProfileUpdate,
@@ -147,7 +150,7 @@ for (const locale of ["cs", "en"] as const)
           join(folder, "manual", "this-machine.md"),
           "utf8",
         );
-        expect(manual).toContain(workVmLine.en);
+        expect(manual).toContain(workVmLine[locale]);
         // The recorded choices are kept; only the binding follows the handover.
         const refreshed = await preferences(folder);
         expect(refreshed).toEqual({
@@ -501,3 +504,190 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// A Folder as an earlier release left it: every generated file carries that
+// release's template revision and text this product cannot render, and the
+// manifest records exactly those bytes. Nothing else of the Folder changes.
+async function renderedBy(folder: string, revision: string) {
+  const path = join(folder, ".lazurio", "instructions.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  const outputs: Record<string, string> = {};
+  for (const output of outputPaths) {
+    const content = `${(
+      await readFile(join(folder, output), "utf8")
+    ).replaceAll(
+      instructionTemplateRevision,
+      revision,
+    )}\nText of an earlier release.\n`;
+    await writeFile(join(folder, output), content);
+    outputs[output] = createHash("sha256").update(content).digest("hex");
+  }
+  await writeFile(
+    path,
+    JSON.stringify({ ...manifest, templateRevision: revision, outputs }),
+  );
+}
+
+for (const locale of ["cs", "en"] as const)
+  test.skipIf(process.platform === "win32")(
+    `a Folder of an older template revision is re-rendered in ${locale} by the next refresh, and a second refresh is unchanged`,
+    async () => {
+      const { parent, folder } = await setup();
+      try {
+        await initializeMachineFolder(folder, after, { ...noChoices, locale });
+        const initial = await preferences(folder);
+        await renderedBy(folder, "base-instructions-3");
+        // The same handover: only the template revision differs.
+        expect(await refreshMachineFolder(folder, after)).toEqual({
+          code: 0,
+          result: { kind: "refreshed", revision: 2 },
+        });
+        const current = renderOutputs({
+          preset: initial.preset.name,
+          machine: initial.machine,
+          profile: initial.profile,
+        });
+        for (const path of outputPaths)
+          expect(await readFile(join(folder, path), "utf8")).toBe(
+            current[path],
+          );
+        const manifest = JSON.parse(
+          await readFile(join(folder, ".lazurio", "instructions.json"), "utf8"),
+        );
+        expect(manifest.templateRevision).toBe(instructionTemplateRevision);
+        expect(manifest.preferenceRevision).toBe(2);
+        for (const path of outputPaths)
+          expect(manifest.outputs[path]).toBe(
+            createHash("sha256").update(current[path]).digest("hex"),
+          );
+        // The recorded choices and the binding are carried forward unchanged.
+        expect(await preferences(folder)).toEqual({ ...initial, revision: 2 });
+        expect(await readdir(join(folder, ".lazurio", "history"))).toContain(
+          "revision-2",
+        );
+        expect(
+          await readFile(join(folder, "personalspace", "keep"), "utf8"),
+        ).toBe("synthetic work");
+        const settled = await snapshot(folder);
+        expect(await refreshMachineFolder(folder, after)).toEqual({
+          code: 0,
+          result: { kind: "unchanged" },
+        });
+        expect(await snapshot(folder)).toEqual(settled);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+
+test.skipIf(process.platform === "win32")(
+  "a profile change upgrades an older template revision through the same planner",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, after, noChoices);
+      const initial = await preferences(folder);
+      await renderedBy(folder, "base-instructions-3");
+      expect(
+        await updateProfile(folder, 1, {
+          profile: { ...initial.profile, locale: "cs" },
+        }),
+      ).toEqual({ kind: "updated", revision: 2 });
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        `<!-- ${instructionTemplateRevision}; `,
+      );
+      expect(
+        await readFile(join(folder, "manual", "this-machine.md"), "utf8"),
+      ).toContain(workVmLine.cs);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+for (const path of ["AGENTS.md", "manual/roles.md"] as const)
+  test.skipIf(process.platform === "win32")(
+    `an upgrade with an edited ${path} is refused by path and nothing is written`,
+    async () => {
+      const { parent, folder } = await setup();
+      try {
+        await initializeMachineFolder(folder, after, noChoices);
+        await renderedBy(folder, "base-instructions-3");
+        await appendFile(join(folder, path), "\nmy own note\n");
+        const edited = await snapshot(folder);
+        expect(await refreshMachineFolder(folder, after)).toEqual({
+          code: 2,
+          result: { kind: "blocked", reason: "drift", path },
+        });
+        expect(await snapshot(folder)).toEqual(edited);
+        expect(await readdir(join(folder, ".lazurio"))).not.toContain(
+          "transaction",
+        );
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+
+for (const revision of ["base-instructions-99", "custom-1"])
+  test.skipIf(process.platform === "win32")(
+    `a Folder rendered by ${revision} is never downgraded or re-rendered`,
+    async () => {
+      const { parent, folder } = await setup();
+      try {
+        await initializeMachineFolder(folder, after, noChoices);
+        await renderedBy(folder, revision);
+        const newer = await snapshot(folder);
+        expect(await refreshMachineFolder(folder, after)).toEqual({
+          code: 2,
+          result: { kind: "blocked", reason: "template-upgrade-required" },
+        });
+        const profile = (await preferences(folder)).profile;
+        expect(
+          await updateProfile(folder, 1, {
+            profile: { ...profile, locale: "cs" },
+          }),
+        ).toEqual({ kind: "blocked", reason: "template-upgrade-required" });
+        expect(await snapshot(folder)).toEqual(newer);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+
+for (const stop of ["prepared", "applied"] as const)
+  test.skipIf(process.platform === "win32")(
+    `an upgrade interrupted after ${stop} completes by profile-resume against the recorded digests`,
+    async () => {
+      const { parent, folder } = await setup();
+      try {
+        await initializeMachineFolder(folder, after, noChoices);
+        const initial = await preferences(folder);
+        await renderedBy(folder, "base-instructions-3");
+        await expect(
+          refreshFolder(folder, after, async (step) => {
+            if (step === stop) throw new Error("interrupted");
+          }),
+        ).rejects.toThrow("interrupted");
+        expect(await resumeProfileUpdate(folder, 2)).toEqual({
+          kind: "recovered",
+          revision: 2,
+        });
+        const current = renderOutputs({
+          preset: initial.preset.name,
+          machine: initial.machine,
+          profile: initial.profile,
+        });
+        for (const path of outputPaths)
+          expect(await readFile(join(folder, path), "utf8")).toBe(
+            current[path],
+          );
+        expect(await refreshMachineFolder(folder, after)).toEqual({
+          code: 0,
+          result: { kind: "unchanged" },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );

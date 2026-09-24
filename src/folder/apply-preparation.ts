@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
@@ -163,9 +164,9 @@ async function inspectProgress(folder: string, archivedRevision?: number) {
   );
   if (preferences.profile.os !== executionOs(process.platform))
     throw new Error("Transaction execution OS mismatch");
-  const previousOutputs = renderOutputs(
-    instructionSource(validated.previousPreferences),
-  );
+  // A generated output is compared by its digest: the one the previous
+  // manifest records before the replacement (after a template upgrade this
+  // product cannot render those bytes again), the planned one after it.
   const expected = (name: ReplacedName, side: "before" | "after") => {
     if (name === "preferences.json")
       return {
@@ -194,8 +195,8 @@ async function inspectProgress(folder: string, archivedRevision?: number) {
     return {
       content:
         side === "before"
-          ? previousOutputs[name]
-          : validated.plan.desired[name].content,
+          ? validated.previousManifest.outputs[name]
+          : validated.plan.desired[name].digest,
       identity:
         side === "before"
           ? validated.previousIdentities[name]
@@ -341,12 +342,13 @@ async function exists(path: string) {
   }
 }
 
+// The comparable form of a replaced file: parsed state, or an output's digest.
 function normalize(name: ReplacedName, content: string) {
   if (name === "preferences.json")
     return JSON.stringify(parseFolderPreferences(JSON.parse(content)));
   if (name === "instructions.json")
     return JSON.stringify(parseInstructionManifest(JSON.parse(content)));
-  return content;
+  return createHash("sha256").update(content).digest("hex");
 }
 
 async function syncDirectory(directory: string) {

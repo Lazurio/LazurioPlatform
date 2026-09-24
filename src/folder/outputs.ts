@@ -6,33 +6,51 @@
 export const manualEntries = Object.freeze([
   {
     path: "manual/lazurio.md",
-    title: "Lazurio",
-    summary: "what Lazurio is, the collaboration model and its boundaries",
+    title: { cs: "Lazurio", en: "Lazurio" },
+    summary: {
+      cs: "co je Lazurio, model spolupráce a jeho hranice",
+      en: "what Lazurio is, the collaboration model and its boundaries",
+    },
   },
   {
     path: "manual/this-machine.md",
-    title: "This Machine",
-    summary: "kind, Owner, preset, zones and what may reach what",
+    title: { cs: "Tahle Mašina", en: "This Machine" },
+    summary: {
+      cs: "druh, Owner, preset, zóny, co kam smí a SSH na další Mašiny",
+      en: "kind, Owner, preset, zones, what may reach what and SSH to other Machines",
+    },
   },
   {
     path: "manual/working-here.md",
-    title: "Working here",
-    summary: "Draft, Publication, worktrees, handoff and where knowledge goes",
+    title: { cs: "Jak se tu pracuje", en: "Working here" },
+    summary: {
+      cs: "Draft, Publikace, worktrees, handoff a kam patří poznatky",
+      en: "Draft, Publication, worktrees, handoff and where knowledge goes",
+    },
   },
   {
     path: "manual/roles.md",
-    title: "Roles",
-    summary: "Principal, Kolega, Organization roles, Owner, Buddy, Task Agent",
+    title: { cs: "Role", en: "Roles" },
+    summary: {
+      cs: "Principál, Kolega, role v Organizaci, Owner, Buddy, Task Agent",
+      en: "Principal, Kolega, Organization roles, Owner, Buddy, Task Agent",
+    },
   },
   {
     path: "manual/glossary.md",
-    title: "Glossary",
-    summary: "the terms an agent on a Machine needs",
+    title: { cs: "Slovník", en: "Glossary" },
+    summary: {
+      cs: "pojmy, které agent na Mašině potřebuje",
+      en: "the terms an agent on a Machine needs",
+    },
   },
   {
     path: "manual/troubleshooting.md",
-    title: "Troubleshooting",
-    summary: "product update, Machine inspection, refusals and reporting",
+    title: { cs: "Řešení problémů", en: "Troubleshooting" },
+    summary: {
+      cs: "aktualizace produktu a obsahu, Machine identita, odmítnutí a hlášení problémů",
+      en: "product and content updates, Machine identity, refusals and reporting",
+    },
   },
 ] as const);
 

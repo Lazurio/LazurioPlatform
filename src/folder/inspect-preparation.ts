@@ -1,17 +1,16 @@
+import { createHash } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderOperationLock } from "./lock";
 import { type OutputPath, outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
-import { renderOutputs } from "./preview";
 import {
   inspectStateLayout,
   readOwnedOutput,
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { instructionSource } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { validatePreparation } from "./validate-preparation";
 
@@ -79,13 +78,13 @@ export async function readPreparedChange(folder: string) {
   const currentManifest = parseInstructionManifest(
     JSON.parse(manifestFile.content),
   );
-  const previousOutputs = renderOutputs(
-    instructionSource(validated.previousPreferences),
-  );
+  // By the recorded digest: after a template upgrade this product cannot
+  // render the previous bytes again.
   for (const path of outputPaths) {
     const current = await readOwnedOutput(folder, path);
     if (
-      current.content !== previousOutputs[path] ||
+      createHash("sha256").update(current.content).digest("hex") !==
+        validated.previousManifest.outputs[path] ||
       JSON.stringify(current.identity) !==
         JSON.stringify(validated.previousIdentities[path]) ||
       JSON.stringify(staged[path]?.identity) !==

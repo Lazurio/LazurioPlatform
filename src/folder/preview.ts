@@ -22,7 +22,7 @@ export type DesiredOutputs = Readonly<
 >;
 
 // Every generated file of the Folder from one validated composition: AGENTS.md
-// in the profile locale and the English manual (decision F14).
+// and the manual, both in the profile locale (decision F14).
 export function renderOutputs(input: unknown): RenderedOutputs {
   const source = parseInstructionSource(input);
   return Object.freeze({
