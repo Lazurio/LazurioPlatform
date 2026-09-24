@@ -295,7 +295,10 @@ state to restore it.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
   [--json]`, `update rollback`, `lazurio install [--service systemd-user]` (from a
   newer executable over an existing installation: the offline update),
-  `lazurio --version`. Other commands print a one-line notice from
+  `lazurio --version`. `lazurio launchpad --folder <Folder>` serves behind the
+  Organization's gateway when the Folder records a hosted entry
+  ([hosted entry](hosted-entry.md)); the pill and `POST /api/update/apply` pass the
+  gateway's admission like every other request there. Other commands print a one-line notice from
   `last-check.json` and never touch the network for it.
 - **Exit status.** `0` success or up to date, `10` update available (`--check`),
   `2` usage, `1` failure or busy. `--json` carries one stable error code from a

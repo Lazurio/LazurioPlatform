@@ -1,9 +1,13 @@
 # Hosted entry: admission versus identity
 
-Status: **accepted direction of the Principal (2026-09-19); not implemented.** The
-Platform Launchpad today serves a loopback origin with a fragment-token session and has
-no hosted request adapter. See
-[decision F11](decisions.md#f11--hosted-admission-is-not-identity).
+Status: **accepted direction of the Principal (2026-09-19); the adapter for the hosted
+VM path is implemented (`src/launchpad/hosted-trust.ts`, the recorded entry in
+`.lazurio/preferences.json`, `lazurio machine entry-update`), verified by unit tests
+against a fake auth endpoint; the native run and the canary switch of decision F16 are
+pending.** Without a recorded entry the Launchpad serves a loopback origin with a
+fragment-token session exactly as before. See
+[decision F11](decisions.md#f11--hosted-admission-is-not-identity) and
+[F16](decisions.md#f16--one-network-per-organization-every-machine-is-reached-the-same-way-and-the-conglomerate-graph-is-the-truth-agents-move-along).
 
 Three questions are kept apart. Each has exactly one owner.
 

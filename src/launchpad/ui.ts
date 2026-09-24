@@ -138,16 +138,22 @@ function machineRows(
         ] as [MessageKey, string | string[]][])),
   ];
 }
+// Local: the fragment token is the credential. Hosted (no token): the
+// gateway's session cookie is, sent by the browser itself; a denial means the
+// session ended and the page re-enters through the gateway.
+const credential = (): Record<string, string> =>
+  token ? { Authorization: `Bearer ${token}` } : {};
+function denied(response: Response) {
+  if (!token && response.status === 401) location.assign(location.href);
+}
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json", ...credential() },
     body: JSON.stringify(body),
     cache: "no-store",
   });
+  denied(response);
   const value = await response.json();
   return { value, ok: response.ok };
 }
@@ -461,9 +467,10 @@ function renderUpdate() {
 async function refreshUpdate() {
   try {
     const response = await fetch("/api/update/status", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: credential(),
       cache: "no-store",
     });
+    denied(response);
     if (!response.ok) return;
     updateStatus = (await response.json()) as PillStatus;
     renderUpdate();
