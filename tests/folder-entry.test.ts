@@ -111,13 +111,18 @@ test.skipIf(process.platform === "win32")(
         ),
       );
       expect(after.entry).toEqual(entry);
-      expect(await readFile(thisMachine, "utf8")).toContain("- Entry:");
+      // The manual follows the locale (F14 amendment): the line is Czech now.
+      expect(await readFile(thisMachine, "utf8")).toContain(
+        "- Vstup: Launchpad téhle Mašiny je dosažitelný na `https://launchpad.workspace.example.lazurio.io`",
+      );
       // Clearing it is a change too.
       expect(await updateEntry(folder, 3, null)).toEqual({
         kind: "updated",
         revision: 4,
       });
-      expect(await readFile(thisMachine, "utf8")).not.toContain("- Entry:");
+      const cleared = await readFile(thisMachine, "utf8");
+      expect(cleared).not.toContain("- Vstup:");
+      expect(cleared).not.toContain("- Entry:");
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
