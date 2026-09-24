@@ -1016,7 +1016,7 @@ function fromPersonalVm(
 }
 
 function thisMachine(source: InstructionSource): string {
-  const { preset, machine } = source;
+  const { preset, machine, entry } = source;
   const { locale } = source.profile;
   const relationships = machine?.relationships;
   return document(
@@ -1029,6 +1029,14 @@ function thisMachine(source: InstructionSource): string {
         "## Identity, from the recorded handover",
       ),
       ...identitySection(preset, machine, locale).map(same),
+      ...(entry
+        ? [
+            t(
+              `- Vstup: Launchpad téhle Mašiny je dosažitelný na \`${entry.externalOrigin}\` přes bránu Organizace (decision F16); přihlášení řeší brána a Launchpad poslouchá za ní jen na loopback portu ${entry.listenPort}.`,
+              `- Entry: this Machine's Launchpad is reached at \`${entry.externalOrigin}\` through the Organization's gateway (decision F16); admission is the gateway's, and the Launchpad listens only on loopback port ${entry.listenPort} behind it.`,
+            ),
+          ]
+        : []),
       blank,
       t(
         `## Preset \`${preset}\` (verze ${presetVersion})`,

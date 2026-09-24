@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  type AuthFetcher,
   createHostedTrust,
   parseHostedEntry,
   selectCookie,
@@ -81,8 +82,8 @@ function fakeAuth(answer: (cookie: string | null) => Response) {
   servers.push(server);
   // The trust is configured with an HTTPS URL; the test fetcher rewrites the
   // configured URL to the fake so the contract (exact configured URL) holds.
-  const fetcher: typeof fetch = (input, init) => {
-    expect(String(input)).toBe(entry.authCheckUrl);
+  const fetcher: AuthFetcher = (input, init) => {
+    expect(input).toBe(entry.authCheckUrl);
     return fetch(`http://127.0.0.1:${server.port}/oauth2/auth`, init);
   };
   return { calls, fetcher };
@@ -193,7 +194,7 @@ test("a redirecting, failing or slow auth endpoint denies and never caches a neg
     reason: "auth-unavailable",
   });
   const down = createHostedTrust(entry, {
-    fetcher: (() => Promise.reject(new Error("ECONNREFUSED"))) as typeof fetch,
+    fetcher: () => Promise.reject(new Error("ECONNREFUSED")),
   });
   expect(await down.admit(request("GET", good))).toEqual({
     ok: false,

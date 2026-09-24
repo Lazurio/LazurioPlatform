@@ -1,3 +1,4 @@
+import { type HostedEntry, parseHostedEntry } from "../launchpad/hosted-trust";
 import { type MachineBinding, parseMachineBinding } from "./machine-binding";
 import { type OutputPath, outputPaths } from "./outputs";
 import {
@@ -6,7 +7,7 @@ import {
   validatePresetComposition,
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
-import { stateFields } from "./state-fields";
+import { ownDataValue, stateFields } from "./state-fields";
 
 export { stateFields } from "./state-fields";
 
@@ -30,6 +31,8 @@ export type FolderPreferences = Readonly<{
   machine: MachineBinding | null;
   profile: FolderProfile;
   customInstructions: string;
+  /** The hosted entry of this Machine (decision F16); null until recorded. */
+  entry: HostedEntry | null;
 }>;
 
 // Manifest schema 2 records one digest per generated output, AGENTS.md and
@@ -65,6 +68,8 @@ export function parseOutputDigests(input: unknown): OutputDigests {
 }
 
 export function parseFolderPreferences(input: unknown): FolderPreferences {
+  // `entry` joined schema 2 as an optional member: absent reads as null.
+  const withEntry = ownDataValue(input, "entry") !== undefined;
   const value = stateFields(input, [
     "schemaVersion",
     "revision",
@@ -72,6 +77,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     "machine",
     "profile",
     "customInstructions",
+    ...(withEntry ? ["entry" as const] : []),
   ]);
   if (value.schemaVersion !== 2 || typeof value.customInstructions !== "string")
     throw new Error("Unsupported Folder preferences");
@@ -79,6 +85,12 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
   validatePresetComposition(preset, machine, profile);
+  const entry =
+    !withEntry || value.entry === null ? null : parseHostedEntry(value.entry);
+  // A hosted entry belongs to a Machine of an Organization's network, never to
+  // a workstation Folder without a handover.
+  if (entry !== null && machine === null)
+    throw new Error("Hosted entry requires a Machine binding");
   return Object.freeze({
     schemaVersion: 2,
     revision: revision(value.revision),
@@ -88,6 +100,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     // Source is preserved verbatim. This schema neither executes it nor imports
     // effective mandates; composition/conflict handling is a separate consumer.
     customInstructions: value.customInstructions,
+    entry,
   });
 }
 

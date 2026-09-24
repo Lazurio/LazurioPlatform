@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
+import type { HostedEntry } from "../launchpad/hosted-trust";
 import { planFolderChange, planProfileChange } from "./change-profile";
 import { requireClaimedFolderBoundary } from "./handover-layout";
 import { inspectOutput } from "./inventory";
@@ -62,13 +63,33 @@ export type FolderChangeRequest =
       expectedRevision: number;
       requested: unknown;
     }>
-  | Readonly<{ kind: "handover"; machine: MachineBinding }>;
+  | Readonly<{ kind: "handover"; machine: MachineBinding }>
+  /** The hosted entry recorded by a typed request (decision F16); the
+   * recorded preset, profile and binding are carried forward. */
+  | Readonly<{
+      kind: "entry";
+      expectedRevision: number;
+      entry: HostedEntry | null;
+    }>;
 
 function planRequestedChange(
   state: FolderState,
   request: FolderChangeRequest,
   inspect: Inspect,
 ) {
+  if (request.kind === "entry")
+    return planFolderChange(
+      state.preferences,
+      state.manifest,
+      request.expectedRevision,
+      {
+        preset: undefined,
+        profile: state.preferences.profile,
+        machine: state.preferences.machine,
+        entry: request.entry,
+      },
+      inspect,
+    );
   if (request.kind === "profile")
     return planProfileChange(
       state.preferences,

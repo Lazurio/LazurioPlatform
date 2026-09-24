@@ -120,8 +120,11 @@ export function selectCookie(
   return { value: values[0] as string };
 }
 
+/** What the admission needs of `fetch`: the configured URL and an init. */
+export type AuthFetcher = (url: string, init: RequestInit) => Promise<Response>;
+
 export type HostedTrustOptions = Readonly<{
-  fetcher?: typeof fetch;
+  fetcher?: AuthFetcher;
   now?: () => number;
   /** Positive answers are remembered this long (upstream decision 0157). */
   cacheMs?: number;
@@ -138,7 +141,7 @@ export function createHostedTrust(
   entry: HostedEntry,
   options: HostedTrustOptions = {},
 ) {
-  const fetcher = options.fetcher ?? fetch;
+  const fetcher: AuthFetcher = options.fetcher ?? fetch;
   const now = options.now ?? Date.now;
   const cacheMs = options.cacheMs ?? 120_000;
   const timeoutMs = options.timeoutMs ?? 3_000;
