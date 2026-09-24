@@ -781,3 +781,94 @@ decision is that the file has no successor:
 Not decided here: the shape of the hosted request adapter (F11 shaping follows) and
 the order of Machines releases; the legacy root repository's own rename of
 `company.gen3.json` → `lazurio.organization.json` is unaffected.
+
+## F16 — One network per Organization: every Machine is reached the same way, and the Conglomerate graph is the truth agents move along
+
+**Principal's decision 2026-09-25, direction; not implemented.** Recorded from the
+Principal's own words, because it reframes F11 and the root-repository migration.
+
+**The Machine is a boundary of access and functionality.** The operator's goal is to
+automate it: install applications and automatic processes until the Machine works as a
+colleague with a role in the Organization. When it breaks, the operator opens that
+Machine's chat (T3 Code) from their own Machine and unblocks it. A Machine gives its
+agents three things: **context** through the Lazurio Folder (which Machine this is, what
+is expected here), **capabilities** through the Lazurio CLI on that Machine, and
+**reach** through the accounts signed in on that Machine.
+
+**Machines cooperate along the Conglomerate graph.** The graph says which Machine may
+reach which — SSH, and the same URLs the browser uses. Along an edge an agent may move
+by SSH from one Machine to the next; that is loose coupling, and the Machines then work
+as one surface (the operator's work laptop and work VM: same accounts, they represent
+the same person). Between different people's or automated Machines (Pablo, Henry) the
+output goes through **GitHub**: separate GitHub accounts and rights, meeting in pull
+requests; another person's agents enter such a Machine only for service events.
+
+**One Organization, one network, one URL mechanism.** Where an Organization has
+Headscale, every Machine of the Organization — hosted VM or physical laptop — is
+reached the same way: `launchpad.<machine>.<org>.lazurio.io`,
+`t3code.<machine>…`, and the module applications it hosts, from any Machine whose
+graph edge allows it. Whether the Machine is virtual or physical must not matter.
+From the Dashboard a person picks a Machine (Pablo's laptop today) and opens its chat.
+A **work laptop is reached through the Conglomerate Host's gateway over the tailnet**,
+with no gateway and no certificate of its own on the laptop; the laptop is a tailnet
+node and its Launchpad, T3 and module applications listen on its tailnet address for
+the gateway. For the Platform this is the same hosted request adapter as on a VM (F11):
+the Launchpad needs only its external origin, the auth endpoint and the cookie name,
+and it never matters on which Machine the gateway stands.
+
+**Personal is a different thing.** A personal laptop, the person's phone and their one
+personal VM form one boundary (SSH laptop ↔ VM, phone ↔ VM, decision 0153/0155). There
+is no Organization network for personal Machines, no public name for a personal laptop,
+and an Organization must not even be able to grant itself reach into a personal laptop:
+the model has no such edge to allow.
+
+**The truth of the graph is the infra repository of the Organization.** Which Machines
+exist, what reaches what by SSH and by URL — declared there, tested by its CI, deployed
+by Machines, applied to Headscale. The Dashboard is the one place where a person
+composes the graph: a change opens a pull request into infra (an Owner or an agent may
+open the same pull request by hand); the Dashboard never writes Headscale directly.
+The Launchpad reflects what the Dashboard shows.
+
+**One Lazurio Account ties it together.** The same Account signs into the Dashboard and
+into the Launchpad of every Machine. It decides which Machines and applications a
+person sees and may open, which chats they may join, and it carries the **preset and
+profile** of a Machine so that they can be managed centrally: the Lazurio Folder is
+generated for each Machine from one *Machine Assignment* — identity (kind, name, Owner,
+operator or team), entry (the external names, auth endpoint, cookie), relationships,
+preset, and the profile axes that shape the agent instructions (language, detail,
+coordination; and, to be added, work versus personal, one or several Organizations,
+founder versus employee, technical versus non-technical). Shared instructions are one
+template for all Machines; the axes make the per-Machine difference. Two transports,
+one schema: on a hosted VM Machines writes the Assignment as the handover, because the
+VM exists before any person signs in; on a laptop the Dashboard serves it after the
+Account sign-in and the Launchpad writes it into the Folder. Both end in the same Folder
+state, so the Dashboard changes preset and profile everywhere through the one typed
+request with an expected revision (F10), and `folder-refresh` re-renders.
+
+**What this replaces.** The legacy root repository is decomposed by owner rather than
+migrated as files: Launchpad, Guide, templates and scripts → the Platform executable;
+manuals and agent rules → generated from the Assignment (F14); the skill package →
+generated into the Folder by axis; `launchpad.gen3*.json` → gone (F15);
+`organizations/` and `personalspace/` → mounts in the Folder; content synchronization →
+F9. Order: hosted VM canary (Platform Launchpad replaces the resident one, Assignment
+from the file) → laptops through the Account sign-in (the root checkout becomes a mount,
+then a pointer) → work laptops reachable through the Conglomerate Host gateway.
+
+**How a work laptop is classified.** An entry belongs only to a Machine with a
+recorded Machine binding — today a hosted VM adopted from its handover. A laptop without
+a binding is the `local` preset of F10: a personal Machine, and it can never hold an
+entry, which is the guarantee that no Organization gains an edge into a personal
+laptop. A work laptop becomes a Machine of the Organization the same way a VM does:
+its Assignment (identity of kind `workstation`, Owner the Organization, operator
+assignment, entry, relationships) recorded in the Folder — served by the Dashboard
+after the Account sign-in, or written by a Machines workstation record. The preset
+for such a Machine (an Organization-owned workstation: Personalspace present,
+Organization repositories, the person's own sign-ins, reached through the
+Conglomerate Host gateway) is decided in the laptop phase as an F10 amendment, not
+here; until it exists no laptop can be given an entry, and the adapter's rule is only
+"an entry requires a Machine binding".
+
+**Not decided here:** the Dashboard API for the Assignment and the Keycloak account
+consolidation (owned by the Dashboard thread), the Machines record for a workstation,
+the preset of an Organization-owned workstation and the gateway routes on the
+Conglomerate Host (Machines), and the exact profile axes.

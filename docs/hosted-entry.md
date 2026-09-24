@@ -79,3 +79,88 @@ WebSocket, and the auth endpoint being unavailable.
   the brokered identity ([decision F2](decisions.md#f2--private-and-team-hosted-workspaces)).
 - The adapter is described as required work. None of it exists in this repository yet,
   and no hostname, realm or endpoint of any real deployment belongs in this document.
+
+## Shaping of the hosted request adapter (2026-09-25, under decision F16)
+
+Decision [F16](decisions.md#f16--one-network-per-organization-every-machine-is-reached-the-same-way-and-the-conglomerate-graph-is-the-truth-agents-move-along)
+makes the adapter the one way any Machine of an Organization — hosted VM or physical
+laptop — serves its Launchpad behind a gateway. Shaped against the real consumer
+(Spectoda `matej`, Machines v0.12.63 gateway) and the mechanism today's production
+Launchpad uses; nothing new on the wire.
+
+### Where the gateway stands does not matter to the Launchpad
+
+| Machine | Gateway | What the Launchpad gets |
+|---|---|---|
+| Hosted VM | On the VM (Caddy + oauth2-proxy delivered by Machines) | External origin, auth endpoint, cookie name, application catalog |
+| Work laptop | On the Conglomerate Host, forwarding over the tailnet to the laptop's tailnet address | The same three values and catalog; the Launchpad, T3 and module applications listen on the tailnet address for the gateway |
+| Personal laptop / personal VM | None for the laptop; the personal VM keeps its own gateway and its entry | Loopback only on the laptop: no Machine binding, `local` preset, an entry is refused |
+
+The values are part of the **Machine Assignment** (F16): written by Machines as the
+handover on a VM, served by the Dashboard after the Account sign-in on a laptop, recorded
+in the Folder next to the Machine binding, shown and never edited in the Launchpad. An
+entry requires that binding: a work laptop holds one because it is a Machine of the
+Organization (kind `workstation`, Owner the Organization, under a preset decided in
+the laptop phase, F16); a laptop without a binding is `local` and personal and can
+never be given an entry. That is the only classification the adapter relies on. During
+the transition on VMs `folder-init` takes them from the resident unit's environment
+(`LAZURIO_LAUNCHPAD_EXTERNAL_ORIGIN`, `LAZURIO_LAUNCHPAD_AUTH_CHECK_URL`,
+`LAZURIO_LAUNCHPAD_AUTH_COOKIE_NAME`, the catalog) so the first switch needs no new
+Machines field; when Machines writes them into the handover, the environment path is
+removed. Selecting the adapter by request sniffing (`Host`, forwarded headers) is
+rejected: headers are not evidence.
+
+### Admission, as in production today
+
+A state-changing request is trusted only when `Sec-Fetch-Site` is `same-origin`,
+`Origin` equals the configured external origin, exactly the named cookie is present, and a
+request carrying only that cookie to the configured auth endpoint answers 2xx within 3 s.
+A short positive cache (2 minutes, keyed by the cookie's digest) bounds auth-endpoint load
+(upstream decision 0157). Denial is a redirect to the gateway's sign-in for top-level
+navigations and a 401 for fetches and sockets. No forwarded identity header, no other
+cookie, no `Host` is evidence. Admission says "this browser may enter this Machine"; who
+the person is comes from the Lazurio Account; what they may touch in a repository comes
+from GitHub (F11).
+
+### The adapter
+
+- **Listener.** Loopback always; additionally the Machine's tailnet address when the
+  Assignment declares an entry, so a Conglomerate Host gateway can reach a laptop. Never
+  a public address.
+- **Allowed hosts.** The catalog lists the external origins of the Launchpad and the
+  applications; anything else is refused, never routed to a default.
+- **Application links** use the catalog's external origins; module ports stay behind
+  the gateway.
+- **Reconnects.** The Launchpad's own WebSocket re-enters through admission on every
+  connect; an expired session closes the socket and the client navigates to sign-in.
+- **The update pill and `POST /api/update/apply`** pass the same checks; the updater's
+  health socket stays on the filesystem.
+
+### Failure modes
+
+| Failure | Behaviour |
+|---|---|
+| Auth endpoint unreachable or slow | Deny after the timeout; no cached negative; page says the gateway is unavailable |
+| Redirect from the auth endpoint to another origin | Deny; malformed answer |
+| Forged `X-Forwarded-User`, `X-Auth-Request-*`, `Authorization` | Ignored; admission decides |
+| Cookie header over 16 KiB or the named cookie repeated | Deny |
+| Unknown hostname at the listener | Refused, no default application |
+| Session expires during a WebSocket | Socket closed with a clean re-login navigation, no token in a URL |
+| Laptop offline or off the tailnet | The gateway answers an error; the Dashboard shows the Machine as unreachable |
+| Entry recorded without a Machine binding (`local`, a personal laptop), or a hosted Machine started with an entry that is not the recorded one | Refuse to start, naming the value; the recorded entry is the only source |
+
+### Evidence required before the switch
+
+Unit tests for every row above against a fake auth endpoint. Native run on a clean
+Machine with a Caddy + oauth2-proxy pair configured like the Machines gateway. Then the
+canary: Spectoda `matej`, the resident unit's `ExecStart` switched to the Platform
+executable through the selector, `launchpad.matej.spectoda.lazurio.io` opened through
+the real gateway, one update through the pill, `update status` → `supervised: true`
+on the installer-written unit. The laptop path is qualified afterwards on one work
+laptop with a Conglomerate Host route (F16 order).
+
+### Not in scope
+
+Lazurio Account login itself, the team workspace's brokered identity, any gateway or
+identity provider shipped by the Platform, T3 Code's own admission (the gateway's), and
+the Dashboard API that serves the Assignment.
