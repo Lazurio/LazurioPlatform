@@ -96,8 +96,9 @@ test("shared preview produces equivalent proposals and refuses drift", async () 
   expect(
     (await previewFolder(source(profile), previous, matching)).plan,
   ).toEqual({ kind: "unchanged" });
+  // The level of detail shapes AGENTS.md only; the manual stays.
   const changed = await previewFolder(
-    source({ ...profile, locale: "en" }),
+    source({ ...profile, detail: "technical" }),
     previous,
     matching,
   );

@@ -23,15 +23,18 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
-import { bindings } from "./fixtures/machine-bindings";
+import { binding, bindings } from "./fixtures/machine-bindings";
+import personal from "./fixtures/machine-context-personal.json";
 import { journeys } from "./folder-render.test";
 
 const os = executionOs(process.platform);
 
-// The manual is English on every Machine and in both profile locales; only
-// `this-machine.md` differs between presets. Review the snapshots when the
+// The manual follows the Folder locale under the same file names. Both
+// languages are written paragraph by paragraph side by side, so they have the
+// same lines and the same sections; only `this-machine.md` and
+// `troubleshooting.md` differ between presets. Review the snapshots when the
 // wording changes deliberately.
-test("the manual is the same English text in both locales and names no legacy source", () => {
+test("the manual follows the locale with the same structure in both languages and names no legacy source", () => {
   for (const journey of journeys) {
     const render = (locale: "cs" | "en") =>
       renderManual({
@@ -39,43 +42,190 @@ test("the manual is the same English text in both locales and names no legacy so
         machine: journey.machine,
         profile: presetProfile(journey.preset, journey.os, { locale }),
       });
+    const cs = render("cs");
     const en = render("en");
-    expect(render("cs")).toEqual(en);
+    expect(Object.keys(cs)).toEqual(Object.keys(en));
     for (const path of manualPaths) {
-      expect(Object.keys(en)).toContain(path);
-      expect(en[path]).not.toContain("undefined");
-      expect(en[path].endsWith("\n")).toBe(true);
+      for (const text of [cs[path], en[path]]) {
+        expect(text).not.toContain("undefined");
+        expect(text.endsWith("\n")).toBe(true);
+      }
+      expect(cs[path]).not.toEqual(en[path]);
+      const lines = { cs: cs[path].split("\n"), en: en[path].split("\n") };
+      expect(lines.cs.length).toBe(lines.en.length);
+      expect(lines.cs.map((line) => /^#+ /.exec(line)?.[0] ?? "")).toEqual(
+        lines.en.map((line) => /^#+ /.exec(line)?.[0] ?? ""),
+      );
     }
+    expect(cs["manual/lazurio.md"]).toContain("## Co je Lazurio");
+    expect(en["manual/lazurio.md"]).toContain("## What Lazurio is");
   }
   // The Platform manual is the authority for an agent on the Machine; it never
   // points at the retired root repository (decision F14).
-  for (const journey of journeys) {
-    const outputs = renderOutputs({
-      preset: journey.preset,
-      machine: journey.machine,
-      profile: presetProfile(journey.preset, journey.os),
-    });
-    for (const path of outputPaths)
-      expect(outputs[path]).not.toMatch(/HumanAndMachines\/Lazurio/);
-    // The pull-request lifecycle the Principal decided on 2026-09-22 (F14):
-    // Draft PR while in progress, Ready for review when finished and verified,
-    // and the PR assigned to the user whose verification is asked for. A
-    // snapshot alone cannot drop these sentences.
-    const workingHere = outputs["manual/working-here.md"];
-    expect(workingHere).toContain(
-      "from the first push the work is visible as a GitHub Draft PR while it is in progress",
-    );
-    expect(workingHere).toContain(
-      "you mark the pull request Ready for review yourself",
-    );
-    expect(workingHere).toContain(
-      "assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for",
-    );
-    expect(workingHere).toContain(
-      "The assignee is the owner of the next step.",
-    );
-    expect(workingHere).toContain("Finished work never stays a Draft");
-  }
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const path of outputPaths)
+        expect(outputs[path]).not.toMatch(/HumanAndMachines\/Lazurio/);
+      // The pull-request lifecycle the Principal decided on 2026-09-22 (F14):
+      // Draft PR while in progress, Ready for review when finished and
+      // verified, and the PR assigned to the user whose verification is asked
+      // for. A snapshot alone cannot drop these sentences.
+      const workingHere = outputs["manual/working-here.md"];
+      for (const sentence of {
+        en: [
+          "from the first push the work is visible as a GitHub Draft PR while it is in progress",
+          "you mark the pull request Ready for review yourself",
+          "assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for",
+          "The assignee is the owner of the next step.",
+          "Finished work never stays a Draft",
+        ],
+        cs: [
+          "od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR",
+          "přepneš pull request na Ready for review sám",
+          "pull request přiřadíš (GitHub assignee a k tomu žádost o review) GitHub uživateli, jehož ověření žádáš",
+          "Assignee vlastní další krok.",
+          "Hotová práce nikdy nezůstává jako Draft",
+        ],
+      }[locale])
+        expect(workingHere).toContain(sentence);
+    }
+});
+
+// The hosted rules of base-instructions-4: SSH only by tailnet hostname with a
+// pinned key, updates by the Machines pin, content sync not in the product.
+test("hosted presets carry the SSH and update rules; a workstation keeps its own update path", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const hosted = journey.machine !== null;
+      const machine = outputs["manual/this-machine.md"];
+      const troubleshooting = outputs["manual/troubleshooting.md"];
+      expect(outputs["AGENTS.md"].includes("`100.64.0.x`")).toBe(hosted);
+      for (const rule of [
+        "HostKeyAlias=<peer>",
+        "CurrentTailnet.Name",
+        "StrictHostKeyChecking=yes",
+        "ssh-keyscan",
+      ])
+        expect(machine.includes(rule)).toBe(hosted);
+      expect(
+        troubleshooting.includes(
+          locale === "cs"
+            ? "Nespouštěj tu `lazurio update`"
+            : "Do not run `lazurio update`",
+        ),
+      ).toBe(hosted);
+      expect(
+        troubleshooting.includes(
+          "`lazurio update rollback` switches back to the previous version",
+        ),
+      ).toBe(!hosted && locale === "en");
+      expect(
+        troubleshooting.includes(
+          locale === "cs" ? "## Obsah Organizací" : "## Organization content",
+        ),
+      ).toBe(journey.preset !== "hosted-personal");
+    }
+});
+
+// Where work goes from a personal VM is named only from the recorded peers:
+// work VMs and the owner's personal devices reachable over outbound SSH.
+test("a personal VM names its work VMs and the owner's devices only from the recorded relationships", () => {
+  const profile = presetProfile("hosted-personal", "linux");
+  const render = (machine: typeof bindings.personal) =>
+    renderManual({ preset: "hosted-personal", machine, profile })[
+      "manual/this-machine.md"
+    ];
+  const related = render(bindings.personalRelated);
+  expect(related).toContain("## From this personal VM");
+  expect(related).toContain(
+    "  Work VMs this Machine may reach over SSH: `example-workspace`.",
+  );
+  expect(related).toContain(
+    "  Devices of the owner this Machine may reach over SSH: `example-laptop`.",
+  );
+  expect(related).toContain("Never clone an Organization repository");
+  expect(related).toContain("Lazurio enforces nothing about what this Machine");
+  expect(related).toMatchSnapshot();
+  // No relationships in the handover: nothing is guessed.
+  const plain = render(bindings.personal);
+  expect(plain).toContain(
+    "  The handover records no work VM this Machine may reach over SSH; do not look for one, tell the Principal.",
+  );
+  expect(plain).toContain(
+    "  The handover records no device of the owner this Machine may reach over SSH; such a task goes back to the owner.",
+  );
+  // A device that only reaches this Machine, or one outside the personal zone,
+  // is not a device this Machine may operate.
+  const inboundOnly = binding({
+    ...personal,
+    relationships: {
+      zone: "personal",
+      peers: [
+        {
+          name: "example-phone",
+          kind: "client-device",
+          zone: "personal",
+          organization: null,
+          ssh: {
+            host: "example-phone.tailnet.example.invalid",
+            user: null,
+            direction: "inbound",
+          },
+          https: [],
+        },
+        {
+          name: "unknown-device",
+          kind: "client-device",
+          zone: null,
+          organization: null,
+          ssh: {
+            host: "unknown-device.tailnet.example.invalid",
+            user: null,
+            direction: "outbound",
+          },
+          https: [],
+        },
+      ],
+    },
+  });
+  expect(render(inboundOnly)).toContain(
+    "  The handover records no device of the owner this Machine may reach over SSH",
+  );
+  for (const preset of [
+    "hosted-organization-personal",
+    "hosted-organization-team",
+  ] as const)
+    expect(
+      renderManual({
+        preset,
+        machine: bindings.related,
+        profile: presetProfile(preset, "linux"),
+      })["manual/this-machine.md"],
+    ).not.toContain("## From this personal VM");
+  // The same guidance in Czech.
+  const cs = renderManual({
+    preset: "hosted-personal",
+    machine: bindings.personalRelated,
+    profile: presetProfile("hosted-personal", "linux", { locale: "cs" }),
+  })["manual/this-machine.md"];
+  expect(cs).toContain("## Z téhle osobní VM");
+  expect(cs).toContain(
+    "  Pracovní VM, na které odsud smíš přes SSH: `example-workspace`.",
+  );
+  expect(cs).toContain(
+    "  Ownerova zařízení, na která odsud smíš přes SSH: `example-laptop`.",
+  );
+  expect(cs).toMatchSnapshot();
 });
 
 for (const journey of journeys.filter((entry) => entry.os !== "windows"))
@@ -98,7 +248,27 @@ for (const path of manualPaths.filter((p) => p !== "manual/this-machine.md"))
         profile: presetProfile("local", "linux"),
       })[path],
     ).toMatchSnapshot();
+    expect(
+      renderManual({
+        preset: "local",
+        machine: null,
+        profile: presetProfile("local", "linux", { locale: "cs" }),
+      })[path],
+    ).toMatchSnapshot();
   });
+
+// troubleshooting.md on a hosted Machine: updates by the Machines pin.
+for (const journey of journeys.filter((entry) => entry.machine !== null))
+  for (const locale of ["cs", "en"] as const)
+    test(`rendered manual/troubleshooting.md snapshot: ${journey.preset} / ${locale}`, () => {
+      expect(
+        renderManual({
+          preset: journey.preset,
+          machine: journey.machine,
+          profile: presetProfile(journey.preset, journey.os, { locale }),
+        })["manual/troubleshooting.md"],
+      ).toMatchSnapshot();
+    });
 
 test("this-machine.md renders relationships only when the binding carries them", () => {
   const profile = presetProfile("hosted-organization-personal", "linux");
@@ -174,16 +344,14 @@ test.skipIf(process.platform === "win32")(
       expect(await updateProfile(folder, 1, { profile })).toEqual({
         kind: "unchanged",
       });
-      // A preset-independent file survives a locale change byte for byte.
-      const roles = await readFile(join(folder, "manual", "roles.md"), "utf8");
+      // The manual follows a locale change, under the same file names.
       expect(
         await updateProfile(folder, 1, {
           profile: { ...profile, locale: "cs" },
         }),
       ).toEqual({ kind: "updated", revision: 2 });
-      expect(await readFile(join(folder, "manual", "roles.md"), "utf8")).toBe(
-        roles,
-      );
+      const roles = await readFile(join(folder, "manual", "roles.md"), "utf8");
+      expect(roles.startsWith("# Role\n")).toBe(true);
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
         "## Manuál",
       );

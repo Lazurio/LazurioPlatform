@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { planProfileChange } from "../src/folder/change-profile";
+import { outputPaths } from "../src/folder/outputs";
 import { outputDigests, previewFolder } from "../src/folder/preview";
 import { instructionSource } from "../src/folder/render";
 import { parseFolderPreferences } from "../src/folder/state";
@@ -58,8 +59,10 @@ test("profile change binds one next revision and matching output without mutatin
   expect(result.manifest.preferenceRevision).toBe(8);
   expect(result.manifest.outputs).toEqual(outputDigests(result.desired));
   expect(result.previous).toEqual(manifest.outputs);
-  // A locale change rewrites AGENTS.md only; the English manual is unchanged.
-  expect(result.files).toEqual([{ kind: "replace", path: "AGENTS.md" }]);
+  // A locale change rewrites AGENTS.md and the manual, which follows it.
+  expect(result.files).toEqual(
+    outputPaths.map((path) => ({ kind: "replace", path })),
+  );
   expect(JSON.stringify({ current, manifest })).toBe(snapshot);
   expect(
     await planProfileChange(
@@ -190,6 +193,58 @@ test("stale, incomplete, incompatible and custom state blocks before inventory",
       inspect,
     ),
   ).toEqual({ kind: "blocked", reason: "template-upgrade-required" });
+  // An older revision is upgraded: its bytes are unknown to this product, so
+  // the recorded digests stand as the previous outputs, and any file that no
+  // longer matches them is drift.
+  const older = {
+    ...manifest,
+    templateRevision: "base-instructions-3",
+    outputs: Object.fromEntries(
+      outputPaths.map((path) => [path, "c".repeat(64)]),
+    ) as typeof manifest.outputs,
+  };
+  const recorded = async () => ({
+    kind: "regular" as const,
+    digest: "c".repeat(64),
+  });
+  const upgrade = await planProfileChange(
+    current,
+    older,
+    7,
+    { profile: current.profile },
+    recorded,
+  );
+  if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
+  expect(upgrade.previous).toEqual(older.outputs);
+  expect(upgrade.manifest.templateRevision).toBe(manifest.templateRevision);
+  expect(upgrade.files).toEqual(
+    outputPaths.map((path) => ({ kind: "replace", path })),
+  );
+  expect(
+    await planProfileChange(
+      current,
+      older,
+      7,
+      { profile: current.profile },
+      async (path) =>
+        path === "manual/glossary.md"
+          ? { kind: "absent" }
+          : { kind: "regular", digest: "c".repeat(64) },
+    ),
+  ).toEqual({ kind: "blocked", reason: "drift", path: "manual/glossary.md" });
+  for (const templateRevision of [
+    "base-instructions-999999",
+    "base-instructions-0",
+  ])
+    expect(
+      await planProfileChange(
+        current,
+        { ...older, templateRevision },
+        7,
+        { profile: current.profile },
+        recorded,
+      ),
+    ).toEqual({ kind: "blocked", reason: "template-upgrade-required" });
   expect(
     await planProfileChange(
       { ...current, customInstructions: "Do not drop this" },

@@ -419,8 +419,9 @@ for (const stop of [
     async () => {
       const f = await fixture();
       try {
+        // The level of detail shapes only AGENTS.md; the manual stays.
         await prepareProfileChange(f.folder, 1, {
-          profile: { ...f.profile, locale: "cs" },
+          profile: { ...f.profile, detail: "technical" },
         });
         const desired = await readFile(
           join(f.state, "transaction", "AGENTS.md"),

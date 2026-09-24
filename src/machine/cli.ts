@@ -50,7 +50,9 @@ missing/damaged journals require operator diagnosis, never blanket cleanup.
 machine folder-refresh
 Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
 current handover, keeping the recorded preset and profile. Run it as the
-declared operator after every handover rewrite; it takes no options.
+declared operator after every handover rewrite and product update; it takes no
+options. A Folder rendered by an older template revision is re-rendered in full
+when every generated file still matches its recorded digest.
 The Machine identity (kind, name, Owner, tailnet node, host) must be the one
 the Folder was adopted for; assignment, relationships and the document digest
 follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
@@ -61,7 +63,8 @@ folder-binding-changed, folder-state-unrecognized, folder-foreign-entry (a
 top-level entry the Folder does not own or tolerate), drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
 (the assignment now derives another preset: choose it with profile-update
---preset), template-upgrade-required, or a Machine context code. Exit 1 is an
+--preset), template-upgrade-required (a newer product rendered the Folder;
+nothing is downgraded), or a Machine context code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
 profile-resume --folder <Folder> --target-revision <n>.`;
 

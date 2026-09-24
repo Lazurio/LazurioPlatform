@@ -15,7 +15,11 @@ import {
 import { desiredOutputs, outputDigests, previewFolder } from "./preview";
 import { type FolderProfile, parseFolderProfile } from "./profile";
 import type { ObservedFile } from "./reconcile";
-import { instructionSource, instructionTemplateRevision } from "./render";
+import {
+  instructionSource,
+  instructionTemplateRevision,
+  isOlderTemplateRevision,
+} from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
 import { ownDataValue, stateFields } from "./state-fields";
 
@@ -90,7 +94,14 @@ export async function planFolderChange(
     return { kind: "blocked", reason: "stale-revision" } as const;
   if (manifest.preferenceRevision !== current.revision)
     return { kind: "blocked", reason: "incomplete-state" } as const;
-  if (manifest.templateRevision !== instructionTemplateRevision)
+  // An older template revision is upgraded by this change: its bytes cannot be
+  // re-rendered by this product, so the recorded digests are the only proof of
+  // ownership and every file must still match them (the preview refuses any
+  // other with `drift`). A revision this product does not know, newer or of
+  // another form, needs a product at least that new; it is never downgraded.
+  const templateUpgrade =
+    manifest.templateRevision !== instructionTemplateRevision;
+  if (templateUpgrade && !isOlderTemplateRevision(manifest.templateRevision))
     return { kind: "blocked", reason: "template-upgrade-required" } as const;
   if (change.profile.os !== current.profile.os)
     return { kind: "blocked", reason: "execution-os-change" } as const;
@@ -132,12 +143,15 @@ export async function planFolderChange(
       : presetReference(presetName, machine);
 
   // The recorded digests must be what the current composition renders; a
-  // manifest that claims other bytes is incomplete state, not drift.
-  const expectedCurrent = outputDigests(
-    desiredOutputs(instructionSource(current)),
-  );
-  if (JSON.stringify(expectedCurrent) !== JSON.stringify(manifest.outputs))
-    return { kind: "blocked", reason: "incomplete-state" } as const;
+  // manifest that claims other bytes is incomplete state, not drift. Only this
+  // template revision can be rendered again, so an upgrade skips the check.
+  if (!templateUpgrade) {
+    const expectedCurrent = outputDigests(
+      desiredOutputs(instructionSource(current)),
+    );
+    if (JSON.stringify(expectedCurrent) !== JSON.stringify(manifest.outputs))
+      return { kind: "blocked", reason: "incomplete-state" } as const;
+  }
 
   const preview = await previewFolder(
     {

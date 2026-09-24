@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
@@ -6,14 +7,13 @@ import { withFolderOperationLock } from "./lock";
 import { outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
-import { renderOutputs } from "./preview";
 import {
   inspectStateLayout,
   readOwnedOutput,
   readOwnedStateFile,
   readStateJson,
 } from "./read-state";
-import { instructionSource } from "./render";
+import { instructionTemplateRevision } from "./render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
@@ -106,7 +106,8 @@ export async function retireIncompletePreparation(
         )
           throw new Error("Recovery conflicts with active identity");
       }
-      const expected = renderOutputs(instructionSource(preferences));
+      // By the recorded digest: an attempt to upgrade an older template
+      // revision leaves bytes this product cannot render again.
       for (const path of outputPaths) {
         const active = await readOwnedOutput(folder, path);
         const recorded = recordedIdentities[path];
@@ -115,7 +116,10 @@ export async function retireIncompletePreparation(
           recorded.ino !== active.identity.ino
         )
           throw new Error("Recovery conflicts with active identity");
-        if (active.content !== expected[path])
+        if (
+          createHash("sha256").update(active.content).digest("hex") !==
+          manifest.outputs[path]
+        )
           throw new Error("Recovery conflicts with active content");
       }
       if (
@@ -132,7 +136,16 @@ export async function retireIncompletePreparation(
         { preset: preferences.preset.name, profile: preferences.profile },
         async (path) => ({ kind: "regular", digest: manifest.outputs[path] }),
       );
-      if (coherent.kind !== "unchanged")
+      // Coherent means the same bytes are planned again, or, for a Folder of an
+      // older template revision, exactly its upgrade: the same choices can
+      // plan nothing else.
+      if (
+        coherent.kind !== "unchanged" &&
+        !(
+          coherent.kind === "profile-change" &&
+          manifest.templateRevision !== instructionTemplateRevision
+        )
+      )
         throw new Error("Recovery requires coherent original state");
     };
     await validate();
