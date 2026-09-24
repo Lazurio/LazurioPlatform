@@ -80,107 +80,83 @@ WebSocket, and the auth endpoint being unavailable.
 - The adapter is described as required work. None of it exists in this repository yet,
   and no hostname, realm or endpoint of any real deployment belongs in this document.
 
-## Shaping of the hosted request adapter (2026-09-23, proposal for the Principal)
+## Shaping of the hosted request adapter (2026-09-25, under decision F16)
 
-Decision F15 makes this the next Platform work: the Platform Launchpad replaces the
-resident Launchpad on hosted Machines, so `launchpad.<vm>.<org>.lazurio.io` and
-`launchpad.<login>.lazurio.io` are served by the Platform executable behind the
-gateway Machines delivers. What follows shapes that adapter against the real consumer
+Decision [F16](decisions.md#f16--one-network-per-organization-every-machine-is-reached-the-same-way-and-the-conglomerate-graph-is-the-truth-agents-move-along)
+makes the adapter the one way any Machine of an Organization — hosted VM or physical
+laptop — serves its Launchpad behind a gateway. Shaped against the real consumer
 (Spectoda `matej`, Machines v0.12.63 gateway) and the mechanism today's production
-Launchpad uses, so nothing new is invented on the wire.
+Launchpad uses; nothing new on the wire.
 
-### What the gateway already gives the Launchpad
+### Where the gateway stands does not matter to the Launchpad
 
-The Machines resident role runs today's Launchpad as a systemd user unit with an
-environment contract, observed on the first canary:
-
-| Input | Meaning | Adapter use |
+| Machine | Gateway | What the Launchpad gets |
 |---|---|---|
-| `LAZURIO_LAUNCHPAD_EXTERNAL_ORIGIN` | The Launchpad's own HTTPS origin, e.g. `https://launchpad.<vm>.<org>.lazurio.io` | The only origin accepted for state-changing requests |
-| `LAZURIO_LAUNCHPAD_AUTH_CHECK_URL` | The gateway's auth endpoint, e.g. `https://<vm>.<org>.lazurio.io/oauth2/auth` | Session revalidation target |
-| `LAZURIO_LAUNCHPAD_AUTH_COOKIE_NAME` | The one session cookie name, e.g. `__Secure-lazurio-workspace` | The only cookie forwarded to the auth endpoint |
-| `LAZURIO_HOSTED_DOMAIN`, `LAZURIO_ORGANIZATION_SLUG`, `LAZURIO_TEAM_ID` | Naming inputs of the hosted projection | Not needed: the Folder's Machine binding already names the Machine, Owner and hostnames |
-| `LAZURIO_T3CODE_URL` and the gateway catalog (`/etc/lazurio/workspace/catalog*`) | External origins of the applications the gateway routes | Application links and the allowed-host list |
-| `--host 127.0.0.1 --port 20000` | The loopback listener the gateway proxies to | Unchanged: the adapter never listens on a public address |
+| Hosted VM | On the VM (Caddy + oauth2-proxy delivered by Machines) | External origin, auth endpoint, cookie name, application catalog |
+| Work laptop | On the Conglomerate Host, forwarding over the tailnet to the laptop's tailnet address | The same three values and catalog; the Launchpad, T3 and module applications listen on the tailnet address for the gateway |
+| Personal laptop / personal VM | None for the laptop; the personal VM keeps its own gateway | Loopback only on the laptop (`entry: none`) |
 
-The mechanism of admission is the one in production (`request-trust-lib` of the
-legacy Launchpad): a state-changing request is trusted only when `Sec-Fetch-Site` is
-`same-origin`, `Origin` equals the configured external origin, exactly the named
-cookie is present, and a request carrying only that cookie to the configured auth
-endpoint answers 2xx within a bounded timeout. Nothing else is evidence: no forwarded
-identity header, no other cookie, no `Host`.
+The values are part of the **Machine Assignment** (F16): written by Machines as the
+handover on a VM, served by the Dashboard after the Account sign-in on a laptop, recorded
+in the Folder next to the Machine binding, shown and never edited in the Launchpad. During
+the transition on VMs `folder-init` takes them from the resident unit's environment
+(`LAZURIO_LAUNCHPAD_EXTERNAL_ORIGIN`, `LAZURIO_LAUNCHPAD_AUTH_CHECK_URL`,
+`LAZURIO_LAUNCHPAD_AUTH_COOKIE_NAME`, the catalog) so the first switch needs no new
+Machines field; when Machines writes them into the handover, the environment path is
+removed. Selecting the adapter by request sniffing (`Host`, forwarded headers) is
+rejected: headers are not evidence.
 
-### Variants considered
+### Admission, as in production today
 
-1. **Hosted mode by environment variables, as today.** The unit passes the three
-   values above; the Platform selects the adapter when they are present.
-   Cheapest transition (the Machines unit only changes `ExecStart`), but it keeps
-   configuration in a unit file the Platform does not own, and the update contract's
-   activation restarts a unit whose environment it cannot verify.
-2. **Hosted mode declared in the Folder** (`.lazurio/preferences.json` under the
-   existing environment-configuration owner, written once by `folder-init` from the
-   handover and the gateway contract). The Platform owns its configuration, the
-   Launchpad starts with `lazurio launchpad --folder <Folder>` exactly as locally,
-   and the installer-written unit (`lazurio install --service systemd-user`) is the
-   supervised unit of the update contract, so the foreign-unit case disappears on
-   hosted Machines too. Requires the gateway contract (auth endpoint, cookie name,
-   external origins, catalog) to reach the Folder: the handover already carries the
-   Machine and Owner names; the three admission values are Machine-scoped facts of
-   the gateway that Machines can write next to the handover.
-3. **Adapter selected by request sniffing** (a `Host` or forwarded header). Rejected
-   by the contract above: headers are not evidence.
-
-**Recommendation: variant 2, reached through variant 1 in one release.** The
-Platform reads the admission values from the Folder preferences; during the
-transition `folder-init` may take them from the resident unit's environment when
-present (`LAZURIO_LAUNCHPAD_*`), so the first switch needs no new Machines field. The
-gateway values are recorded like the Machine binding: shown, never edited in the
-Launchpad. When Machines writes them next to the handover (F15 step 2), the
-environment path is removed.
+A state-changing request is trusted only when `Sec-Fetch-Site` is `same-origin`,
+`Origin` equals the configured external origin, exactly the named cookie is present, and a
+request carrying only that cookie to the configured auth endpoint answers 2xx within 3 s.
+A short positive cache (2 minutes, keyed by the cookie's digest) bounds auth-endpoint load
+(upstream decision 0157). Denial is a redirect to the gateway's sign-in for top-level
+navigations and a 401 for fetches and sockets. No forwarded identity header, no other
+cookie, no `Host` is evidence. Admission says "this browser may enter this Machine"; who
+the person is comes from the Lazurio Account; what they may touch in a repository comes
+from GitHub (F11).
 
 ### The adapter
 
-- **Origin.** State-changing requests: `Sec-Fetch-Site: same-origin` and `Origin`
-  equal to the configured external origin, else refused. Navigations without those
-  headers are read-only page loads that still need admission.
-- **Admission.** The named cookie is forwarded alone to the configured auth endpoint;
-  a 2xx answer within 3 s admits, anything else denies with a redirect to the
-  gateway's sign-in only for top-level navigations and a 401 for fetches and
-  sockets. A short positive cache (2 minutes, keyed by the cookie's digest) bounds
-  auth-endpoint load, matching upstream decision 0157's refresh interval.
-- **Allowed hosts.** The catalog lists the application hostnames; a request whose
-  configured external origin is not the Launchpad's is refused, never routed.
-- **Application links.** Rendered from the catalog's external origins; module ports
-  stay loopback.
+- **Listener.** Loopback always; additionally the Machine's tailnet address when the
+  Assignment declares an entry, so a Conglomerate Host gateway can reach a laptop. Never
+  a public address.
+- **Allowed hosts.** The catalog lists the external origins of the Launchpad and the
+  applications; anything else is refused, never routed to a default.
+- **Application links** use the catalog's external origins; module ports stay behind
+  the gateway.
 - **Reconnects.** The Launchpad's own WebSocket re-enters through admission on every
   connect; an expired session closes the socket and the client navigates to sign-in.
-- **The update pill and `POST /api/update/apply`** are state-changing requests like
-  any other and pass the same checks; the updater's health socket stays on the
-  filesystem.
+- **The update pill and `POST /api/update/apply`** pass the same checks; the updater's
+  health socket stays on the filesystem.
 
 ### Failure modes
 
 | Failure | Behaviour |
 |---|---|
-| Auth endpoint unreachable or slow | Deny after the timeout; no cached negative; page shows "workspace gateway unavailable" |
-| Redirect from the auth endpoint to another origin | Deny; treated as a malformed answer |
+| Auth endpoint unreachable or slow | Deny after the timeout; no cached negative; page says the gateway is unavailable |
+| Redirect from the auth endpoint to another origin | Deny; malformed answer |
 | Forged `X-Forwarded-User`, `X-Auth-Request-*`, `Authorization` | Ignored; admission decides |
 | Cookie header over 16 KiB or the named cookie repeated | Deny |
-| Unknown hostname at the loopback listener | Refused, no default application |
+| Unknown hostname at the listener | Refused, no default application |
 | Session expires during a WebSocket | Socket closed with a clean re-login navigation, no token in a URL |
-| Hosted values present in local mode or absent in hosted mode | Refuse to start with the exact variable or preference named |
+| Laptop offline or off the tailnet | The gateway answers an error; the Dashboard shows the Machine as unreachable |
+| Entry values present with `local` preset, or missing with a hosted one | Refuse to start, naming the value |
 
 ### Evidence required before the switch
 
 Unit tests for every row above against a fake auth endpoint. Native run on a clean
-Machine with a Caddy + oauth2-proxy pair configured like the Machines gateway
-(admission, forged headers, unknown host, expired session, endpoint down). Then the
-canary: Spectoda `matej`, where the resident unit's `ExecStart` is switched to the
-Platform executable through the selector, `launchpad.matej.spectoda.lazurio.io` is
-opened through the real gateway, the pill updates the Platform once, and
-`update status` reports `supervised: true` on the installer-written unit.
+Machine with a Caddy + oauth2-proxy pair configured like the Machines gateway. Then the
+canary: Spectoda `matej`, the resident unit's `ExecStart` switched to the Platform
+executable through the selector, `launchpad.matej.spectoda.lazurio.io` opened through
+the real gateway, one update through the pill, `update status` → `supervised: true`
+on the installer-written unit. The laptop path is qualified afterwards on one work
+laptop with a Conglomerate Host route (F16 order).
 
 ### Not in scope
 
-Lazurio Account login, the team workspace's brokered identity, any gateway or identity
-provider shipped by the Platform, and T3 Code's own admission (it keeps the gateway's).
+Lazurio Account login itself, the team workspace's brokered identity, any gateway or
+identity provider shipped by the Platform, T3 Code's own admission (the gateway's), and
+the Dashboard API that serves the Assignment.
