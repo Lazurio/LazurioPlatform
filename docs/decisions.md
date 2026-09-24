@@ -719,12 +719,16 @@ the handover records, with a pinned host key (`HostKeyAlias`, a dedicated
 never to a bare `100.64.0.x` address or through the general `known_hosts`; the product
 version, the tools and the Folder are updated by the Machines pin and the agent only
 reports what is outdated (no `lazurio update` on a hosted Machine); and, on a personal
-VM, Organization work goes to the owner's work VMs and device work to the owner's
-devices, named only from the recorded `relationships` (peers of kind `workspace-vm`,
-and `client-device` in the personal zone, with outbound or both-way SSH). Nothing is
-inferred from names, and the text says that Headscale, not Lazurio, enforces
-reachability. Organization content synchronization is stated as not implemented in
-the product yet.
+VM, Organization work belongs on a work VM and device work (the signed-in browser) on
+a device, never cloned onto the personal VM. The peers this Machine may reach over SSH
+are listed neutrally, exactly as the recorded `relationships` carry them; the handover
+records reachability, not whose a peer is (a peer carries no owner or operator and its
+zone may be `null`), so the text says reachability is neither identity nor mandate and
+has the agent confirm with the Principal that a peer is theirs or assigned to them
+before working there. Nothing is inferred from names, and the text says that
+Headscale, not Lazurio, enforces reachability. Organization content synchronization is
+stated as not implemented in the product yet, with only plain `git pull --ff-only` on
+a clean checkout of its default branch, never a stash, switch or reset.
 
 Verified by unit tests: the rendered manual per preset and locale (snapshots, parity
 of the section structure between `cs` and `en`, no reference to the legacy

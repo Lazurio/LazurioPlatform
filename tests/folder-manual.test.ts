@@ -111,7 +111,8 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
       const troubleshooting = outputs["manual/troubleshooting.md"];
       expect(outputs["AGENTS.md"].includes("`100.64.0.x`")).toBe(hosted);
       for (const rule of [
-        "HostKeyAlias=<peer>",
+        'HostKeyAlias="$PEER"',
+        "known_hosts_lazurio",
         "CurrentTailnet.Name",
         "StrictHostKeyChecking=yes",
         "ssh-keyscan",
@@ -137,70 +138,95 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
     }
 });
 
-// Where work goes from a personal VM is named only from the recorded peers:
-// work VMs and the owner's personal devices reachable over outbound SSH.
-test("a personal VM names its work VMs and the owner's devices only from the recorded relationships", () => {
+// From a personal VM the peers are named neutrally from the record: the
+// handover says what Headscale lets this Machine reach, not whose a peer is,
+// so nothing calls a peer the owner's and every use needs the Principal's
+// confirmation.
+const peer = (
+  name: string,
+  kind: string,
+  zone: string | null,
+  organization: string | null,
+  direction: string,
+) => ({
+  name,
+  kind,
+  zone,
+  organization,
+  ssh: { host: `${name}.tailnet.example.invalid`, user: null, direction },
+  https: [],
+});
+test("a personal VM names reachable peers neutrally from the record and requires the Principal's confirmation", () => {
   const profile = presetProfile("hosted-personal", "linux");
-  const render = (machine: typeof bindings.personal) =>
-    renderManual({ preset: "hosted-personal", machine, profile })[
+  const render = (machine: typeof bindings.personal, locale = profile) =>
+    renderManual({ preset: "hosted-personal", machine, profile: locale })[
       "manual/this-machine.md"
     ];
-  const related = render(bindings.personalRelated);
-  expect(related).toContain("## From this personal VM");
+  const section = (text: string) =>
+    text.slice(text.indexOf("## From this personal VM"));
+  const related = section(render(bindings.personalRelated));
   expect(related).toContain(
-    "  Work VMs this Machine may reach over SSH: `example-workspace`.",
+    "Peers this Machine may reach over SSH, exactly as the handover records them:",
   );
   expect(related).toContain(
-    "  Devices of the owner this Machine may reach over SSH: `example-laptop`.",
+    "- `example-workspace` (work VM, work zone, Organization `example`): SSH from here to `example-workspace.tailnet.example.invalid` as `operator`; HTTPS `launchpad.example-workspace.example.lazurio.io`.",
+  );
+  expect(related).toContain(
+    "- `example-laptop` (client device, personal zone): SSH both ways with `example-laptop.tailnet.example.invalid`; no HTTPS.",
+  );
+  expect(related).toContain(
+    "Reachability is decided by Headscale and is neither identity nor mandate",
+  );
+  expect(related).toContain(
+    "confirm with the Principal that it is theirs or assigned to them",
   );
   expect(related).toContain("Never clone an Organization repository");
-  expect(related).toContain("Lazurio enforces nothing about what this Machine");
-  expect(related).toMatchSnapshot();
+  expect(related).not.toMatch(/owner's (work VM|device)/i);
+  expect(render(bindings.personalRelated)).toMatchSnapshot();
+
   // No relationships in the handover: nothing is guessed.
-  const plain = render(bindings.personal);
-  expect(plain).toContain(
-    "  The handover records no work VM this Machine may reach over SSH; do not look for one, tell the Principal.",
+  expect(section(render(bindings.personal))).toContain(
+    "The handover records no peer this Machine may reach over SSH; do not look for one, tell the Principal.",
   );
-  expect(plain).toContain(
-    "  The handover records no device of the owner this Machine may reach over SSH; such a task goes back to the owner.",
-  );
-  // A device that only reaches this Machine, or one outside the personal zone,
-  // is not a device this Machine may operate.
-  const inboundOnly = binding({
-    ...personal,
-    relationships: {
-      zone: "personal",
-      peers: [
-        {
-          name: "example-phone",
-          kind: "client-device",
+
+  // A work VM of a foreign zone, peers of an unknown zone and a client device
+  // outside the personal zone are listed exactly as recorded, never as the
+  // Principal's; an inbound-only peer is not reachable from here.
+  const mixed = section(
+    render(
+      binding({
+        ...personal,
+        relationships: {
           zone: "personal",
-          organization: null,
-          ssh: {
-            host: "example-phone.tailnet.example.invalid",
-            user: null,
-            direction: "inbound",
-          },
-          https: [],
+          peers: [
+            peer("example-phone", "client-device", "personal", null, "inbound"),
+            peer("foreign-vm", "workspace-vm", "personal", "other", "outbound"),
+            peer("unknown-vm", "workspace-vm", null, null, "outbound"),
+            peer("unzoned-device", "client-device", null, null, "both"),
+            peer("work-laptop", "client-device", "work", "other", "outbound"),
+          ],
         },
-        {
-          name: "unknown-device",
-          kind: "client-device",
-          zone: null,
-          organization: null,
-          ssh: {
-            host: "unknown-device.tailnet.example.invalid",
-            user: null,
-            direction: "outbound",
-          },
-          https: [],
-        },
-      ],
-    },
-  });
-  expect(render(inboundOnly)).toContain(
-    "  The handover records no device of the owner this Machine may reach over SSH",
+      }),
+    ),
   );
+  expect(mixed).not.toContain("example-phone");
+  expect(mixed).toContain(
+    "- `foreign-vm` (work VM, personal zone, Organization `other`): SSH from here to `foreign-vm.tailnet.example.invalid`; no HTTPS.",
+  );
+  expect(mixed).toContain(
+    "- `unknown-vm` (work VM): SSH from here to `unknown-vm.tailnet.example.invalid`; no HTTPS.",
+  );
+  expect(mixed).toContain(
+    "- `unzoned-device` (client device): SSH both ways with `unzoned-device.tailnet.example.invalid`; no HTTPS.",
+  );
+  expect(mixed).toContain(
+    "- `work-laptop` (client device, work zone, Organization `other`): SSH from here to `work-laptop.tailnet.example.invalid`; no HTTPS.",
+  );
+  expect(mixed).toContain(
+    "confirm with the Principal that it is theirs or assigned to them",
+  );
+  expect(mixed).not.toMatch(/owner's (work VM|device)/i);
+
   for (const preset of [
     "hosted-organization-personal",
     "hosted-organization-team",
@@ -212,20 +238,44 @@ test("a personal VM names its work VMs and the owner's devices only from the rec
         profile: presetProfile(preset, "linux"),
       })["manual/this-machine.md"],
     ).not.toContain("## From this personal VM");
+
   // The same guidance in Czech.
-  const cs = renderManual({
-    preset: "hosted-personal",
-    machine: bindings.personalRelated,
-    profile: presetProfile("hosted-personal", "linux", { locale: "cs" }),
-  })["manual/this-machine.md"];
+  const cs = render(
+    bindings.personalRelated,
+    presetProfile("hosted-personal", "linux", { locale: "cs" }),
+  );
   expect(cs).toContain("## Z téhle osobní VM");
   expect(cs).toContain(
-    "  Pracovní VM, na které odsud smíš přes SSH: `example-workspace`.",
+    "Dosažitelnost rozhoduje Headscale a není to identita ani mandát",
   );
   expect(cs).toContain(
-    "  Ownerova zařízení, na která odsud smíš přes SSH: `example-laptop`.",
+    "potvrď s Principálem, že je jeho nebo že je přiřazený jemu",
   );
+  expect(cs.slice(cs.indexOf("## Z téhle osobní VM"))).not.toContain("Ownerov");
   expect(cs).toMatchSnapshot();
+});
+
+// The SSH example is runnable shell, with the host-key pin always present.
+test("the SSH example is a runnable command with a mandatory host-key pin", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const machine = renderManual({
+      preset: "hosted-personal",
+      machine: bindings.personalRelated,
+      profile: presetProfile("hosted-personal", "linux", { locale }),
+    })["manual/this-machine.md"];
+    const [block = ""] = machine
+      .slice(machine.indexOf("  ```sh\n") + 8)
+      .split("  ```");
+    const script = block
+      .split("\n")
+      .map((line) => line.replace(/^ {2}/, ""))
+      .join("\n");
+    expect(script).toContain(
+      'ssh -o HostKeyAlias="$PEER" -o UserKnownHostsFile="$HOME/.ssh/known_hosts_lazurio" -o StrictHostKeyChecking=yes "$TARGET"',
+    );
+    const parsed = Bun.spawnSync(["sh", "-n", "-c", script]);
+    expect(parsed.exitCode).toBe(0);
+  }
 });
 
 for (const journey of journeys.filter((entry) => entry.os !== "windows"))

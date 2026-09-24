@@ -663,8 +663,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
 const organizationContent: readonly Text[] = [
   t("## Obsah Organizací", "## Organization content"),
   t(
-    "Synchronizaci repozitářů Organizací produkt Lazurio zatím neumí. Do té doby použij akci **Synchronizovat** v Launchpadu, pokud ji Launchpad na téhle Mašině nabízí, nebo v jednom čistém checkoutu na `main` příkaz `git pull --ff-only`. Checkout nikdy „nezaktualizuješ“ resetem, odklizením změn do stashe, force ani novým klonem: špinavý, rozjetý nebo na jiné branchi stojící checkout nahlas Principálovi.",
-    "Synchronizing Organization repositories is not implemented in the Lazurio product yet. Until it is, use the **Synchronize** action of the Launchpad when the Launchpad on this Machine offers it, or, in one clean checkout on `main`, `git pull --ff-only`. Never make a checkout current by a reset, by stashing changes away, by force or by cloning it again: a dirty, diverged or wrong-branch checkout is reported to the Principal.",
+    "Synchronizaci repozitářů Organizací produkt Lazurio zatím neumí. Je-li checkout čistý a na své výchozí branchi, aktualizuj ho obyčejným `git pull --ff-only`. Cizí práci nikdy neodkládej do stashe, nepřepínej branch ani nedělej reset; checkout, který čistý není, je rozjetý nebo stojí na jiné branchi, nahlas Principálovi.",
+    "Synchronizing Organization repositories is not implemented in the Lazurio product yet. When a checkout is clean and on its default branch, update it with plain `git pull --ff-only`. Never stash, switch or reset someone's work; a checkout that is not clean, has diverged or is on another branch is reported to the Principal.",
   ),
 ];
 
@@ -925,8 +925,31 @@ const sshRules: readonly Text[] = [
     "- Before connecting, verify the active tailnet: `tailscale status --json` → `CurrentTailnet.Name` must be this Machine's home tailnet and `CurrentTailnet.MagicDNSSuffix` must match the peers' recorded `ssh.host` names. If it does not, or you cannot tell, stop and tell the Principal. Never switch the Tailscale profile yourself: it is one global setting for every session on the Machine.",
   ),
   t(
-    "- Host klíč peeru měj pinnutý: `ssh -o HostKeyAlias=<peer> -o UserKnownHostsFile=<vlastní known_hosts soubor> -o StrictHostKeyChecking=yes <host>`. Pinnutý klíč pochází od toho, kdo peer vlastní (z Machine Recordu owning Organizace, u vlastního zařízení od Principála), nikdy z prvního spojení: žádný `ssh-keyscan`, žádné přijetí neznámého klíče a nikdy obecný `~/.ssh/known_hosts`. Bez pinnutého klíče se nepřipojuj a požádej o něj Principála.",
-    "- Pin the peer's host key: `ssh -o HostKeyAlias=<peer> -o UserKnownHostsFile=<a dedicated known_hosts file> -o StrictHostKeyChecking=yes <host>`. The pinned key comes from whoever owns the peer (the Machine Record of the owning Organization, the Principal for their own device), never from the first connection: no `ssh-keyscan`, no accepting an unknown key, never the general `~/.ssh/known_hosts`. Without a pinned key, do not connect; ask the Principal for it.",
+    "- Host klíč peeru je vždy pinnutý: v souboru `~/.ssh/known_hosts_lazurio` pod jménem peeru jako `HostKeyAlias`. S hodnotami z handoveru:",
+    "- The peer's host key is always pinned: in `~/.ssh/known_hosts_lazurio` under the peer's name as `HostKeyAlias`. With the values from the handover:",
+  ),
+  blank,
+  same("  ```sh"),
+  t(
+    "  PEER='peer-name'                  # jméno peeru",
+    "  PEER='peer-name'                  # the peer's name",
+  ),
+  t(
+    "  SSH_HOST='peer-name.tailnet.host' # jeho ssh.host",
+    "  SSH_HOST='peer-name.tailnet.host' # its ssh.host",
+  ),
+  t(
+    '  TARGET="$SSH_HOST"               # nebo "account@$SSH_HOST", když handover uvádí ssh.user',
+    '  TARGET="$SSH_HOST"               # or "account@$SSH_HOST" when the handover names ssh.user',
+  ),
+  same(
+    '  ssh -o HostKeyAlias="$PEER" -o UserKnownHostsFile="$HOME/.ssh/known_hosts_lazurio" -o StrictHostKeyChecking=yes "$TARGET"',
+  ),
+  same("  ```"),
+  blank,
+  t(
+    "- Pinnutý klíč pochází od toho, kdo peer vlastní (z Machine Recordu owning Organizace, u vlastního zařízení od Principála), nikdy z prvního spojení: žádný `ssh-keyscan`, žádné přijetí neznámého klíče a nikdy obecný `~/.ssh/known_hosts`. Bez pinnutého klíče se nepřipojuj a požádej o něj Principála.",
+    "- The pinned key comes from whoever owns the peer (the Machine Record of the owning Organization, the Principal for their own device), never from the first connection: no `ssh-keyscan`, no accepting an unknown key, never the general `~/.ssh/known_hosts`. Without a pinned key, do not connect; ask the Principal for it.",
   ),
   t(
     "- Hláška „host key changed“ (`REMOTE HOST IDENTIFICATION HAS CHANGED`) znamená nejdřív „jiný aktivní tailnet“, nikdy důvod klíč smazat nebo znovu přijmout. Zastav se a nahlas to.",
@@ -942,53 +965,49 @@ const sshRules: readonly Text[] = [
   ),
 ];
 
-// Where work goes from the owner's personal VM (decision 0155): Organization
-// work onto the owner's work VM, device work onto the owner's own device. Only
-// the SSH peers the handover records are named; nothing is guessed.
+// Where work goes from a personal VM (decision 0155): Organization work onto a
+// work VM, device work onto a device. The handover records reachability, not
+// whose a peer is (a peer carries no owner or operator, and its zone may be
+// null), so the peers are named neutrally from the record and the agent
+// confirms with the Principal before working on one. Nothing is guessed.
 function reachesOverSsh(peer: MachinePeer): boolean {
   return peer.ssh !== null && peer.ssh.direction !== "inbound";
 }
-function fromPersonalVm(machine: MachineBinding | null): readonly Text[] {
-  const peers = machine?.relationships?.peers ?? [];
-  const names = (selected: readonly MachinePeer[]) =>
-    selected.map((peer) => `\`${peer.name}\``).join(", ");
-  const workVms = peers.filter(
-    (peer) => peer.kind === "workspace-vm" && reachesOverSsh(peer),
-  );
-  const devices = peers.filter(
-    (peer) =>
-      peer.kind === "client-device" &&
-      peer.zone === "personal" &&
-      reachesOverSsh(peer),
+function fromPersonalVm(
+  machine: MachineBinding | null,
+  locale: Locale,
+): readonly Text[] {
+  const reachable = (machine?.relationships?.peers ?? []).filter(
+    reachesOverSsh,
   );
   return [
     t("## Z téhle osobní VM", "## From this personal VM"),
+    ...(reachable.length === 0
+      ? [
+          t(
+            "Handover neuvádí žádný peer, na který odsud smíš přes SSH; žádný nehledej a řekni to Principálovi.",
+            "The handover records no peer this Machine may reach over SSH; do not look for one, tell the Principal.",
+          ),
+        ]
+      : [
+          t(
+            "Peers, na které odsud smíš přes SSH, přesně jak je zaznamenal handover:",
+            "Peers this Machine may reach over SSH, exactly as the handover records them:",
+          ),
+          ...reachable.map((peer) => same(peerLine(peer, locale))),
+        ]),
     t(
-      "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní VM Ownera, nikdy na tuhle Mašinu: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
-      "- Organization work (code, repositories, runs) belongs on the owner's work VM, never on this Machine: connect over SSH and work there. Never clone an Organization repository onto this personal VM.",
+      "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s Principálem, že je jeho nebo že je přiřazený jemu.",
+      "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the Principal that it is theirs or assigned to them.",
     ),
-    workVms.length === 0
-      ? t(
-          "  Handover neuvádí žádnou pracovní VM, na kterou odsud smíš přes SSH; žádnou nehledej a řekni to Principálovi.",
-          "  The handover records no work VM this Machine may reach over SSH; do not look for one, tell the Principal.",
-        )
-      : t(
-          `  Pracovní VM, na které odsud smíš přes SSH: ${names(workVms)}.`,
-          `  Work VMs this Machine may reach over SSH: ${names(workVms)}.`,
-        ),
     t(
-      "- Co potřebuje Ownerovo vlastní zařízení, například ovládání prohlížeče na jeho laptopu, se dělá přes SSH na tom zařízení.",
-      "- What needs the owner's own device, for example operating the browser on their laptop, is done over SSH on that device.",
+      "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní VM, kterou ti Principál potvrdí jako přiřazenou jemu, nikdy na tuhle Mašinu: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
+      "- Organization work (code, repositories, runs) belongs on a work VM the Principal confirms is assigned to them, never on this Machine: connect over SSH and work there. Never clone an Organization repository onto this personal VM.",
     ),
-    devices.length === 0
-      ? t(
-          "  Handover neuvádí žádné Ownerovo zařízení, na které odsud smíš přes SSH; takový úkol vrať Ownerovi.",
-          "  The handover records no device of the owner this Machine may reach over SSH; such a task goes back to the owner.",
-        )
-      : t(
-          `  Ownerova zařízení, na která odsud smíš přes SSH: ${names(devices)}.`,
-          `  Devices of the owner this Machine may reach over SSH: ${names(devices)}.`,
-        ),
+    t(
+      "- Co potřebuje Principálovo vlastní zařízení, například přihlášený prohlížeč, se dělá přes SSH na zařízení, které ti Principál potvrdí jako své.",
+      "- What needs the Principal's own device, for example the signed-in browser, is done over SSH on a device the Principal confirms is theirs.",
+    ),
     t(
       "- Žádná pracovní Mašina na tuhle osobní VM nikdy nesmí (decision 0155); cestu zpět neotevírej.",
       "- No work Machine ever reaches this personal VM (decision 0155); do not open a way back.",
@@ -1079,7 +1098,7 @@ function thisMachine(source: InstructionSource): string {
           ]),
       ...(machine === null ? [] : [blank, ...sshRules]),
       ...(preset === "hosted-personal"
-        ? [blank, ...fromPersonalVm(machine)]
+        ? [blank, ...fromPersonalVm(machine, locale)]
         : []),
     ],
   );

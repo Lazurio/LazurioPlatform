@@ -250,8 +250,8 @@ function boundarySection(
         }),
     preset === "hosted-personal"
       ? pick({
-          cs: "- Organizace: na osobní Mašině nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá na pracovní VM Ownera, na kterou se připojíš přes SSH; repozitáře Organizací sem nikdy neklonuj.",
-          en: "- Organizations: no Organization repositories are mounted on a personal Machine. Organization work (code, repositories, runs) happens on the owner's work VM, reached over SSH; never clone Organization repositories here.",
+          cs: "- Organizace: na osobní Mašině nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovní VM, kterou ti Principál potvrdí jako přiřazenou jemu; repozitáře Organizací sem nikdy neklonuj.",
+          en: "- Organizations: no Organization repositories are mounted on a personal Machine. Organization work (code, repositories, runs) happens over SSH on a work VM the Principal confirms is assigned to them; never clone Organization repositories here.",
         })
       : pick({
           cs: "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář.",
