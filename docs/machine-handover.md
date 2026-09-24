@@ -171,7 +171,7 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
 | `{"kind":"blocked","reason":"folder-foreign-entry","entry":…}` | 2 | A top-level entry the Folder neither owns nor tolerates; refused by name before any journal is written |
 | `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; the Principal chooses it with `profile-update --preset` |
-| `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by another template revision; see below |
+| `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by a newer (or unknown) template revision than this product renders; nothing is downgraded, see below |
 | Machine context codes | 2 | As for `folder-init` |
 | stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
 
@@ -188,9 +188,13 @@ or written.
 
 The Launchpad shows the refreshed binding on its next read; an open panel holding the
 old revision gets `stale-revision` on apply, as after any concurrent change. The
-refresh re-renders only what the handover changes. A product release that changes the
-templates is still `template-upgrade-required`, for a refresh and a profile change
-alike ([F14 deferred](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)).
+refresh re-renders what the handover changes, and everything when the active product
+renders a newer template revision than the Folder records: after Machines installs a
+release with new templates, its next `folder-refresh` is `refreshed` with the new
+`AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
+and its path, nothing written). A Folder rendered by a newer revision than the active
+product (after a rollback) stays `template-upgrade-required` and is never downgraded
+([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)).
 
 A wrong invocation (unknown option, duplicate or invalid choice, unknown preset)
 prints the `machine` help on stderr and exits 2 before any filesystem access.
