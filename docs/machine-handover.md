@@ -193,8 +193,12 @@ renders a newer template revision than the Folder records: after Machines instal
 release with new templates, its next `folder-refresh` is `refreshed` with the new
 `AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
 and its path, nothing written). A Folder rendered by a newer revision than the active
-product (after a rollback) stays `template-upgrade-required` and is never downgraded
-([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)).
+product stays `template-upgrade-required` and is never downgraded
+([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). After
+`lazurio update rollback` this is the expected readback: the newer Folder keeps its
+files intact, and only `folder-refresh` and profile changes answer
+`template-upgrade-required` until a product at least that new is active again.
+Machines records it as a finding, not a failure.
 
 A wrong invocation (unknown option, duplicate or invalid choice, unknown preset)
 prints the `machine` help on stderr and exits 2 before any filesystem access.
