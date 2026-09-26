@@ -278,8 +278,8 @@ function hostedLines(pick: (text: Text) => string): string[] {
       en: "- SSH to another Machine only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare `100.64.0.x` address (`manual/this-machine.md`).",
     }),
     pick({
-      cs: "- Verzi produktu, nástroje i tenhle Folder aktualizuje provozovatel Machines (Machines operator) přes pinnutý release. Nespouštěj tu `lazurio update` ani žádný self-update; co je zastaralé, nahlas Principálovi (`manual/troubleshooting.md`).",
-      en: "- The product version, the tools and this Folder are updated by the Machines operator through the pinned release. Do not run `lazurio update` or any self-update here; report what is outdated to the Principal (`manual/troubleshooting.md`).",
+      cs: "- Verzi produktu a tenhle Folder aktualizuje provozovatel Machines (Machines operator) přes pinnutý release; nespouštěj tu `lazurio update`. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun…) pin nevlastní: aktualizuj je jen na výslovný pokyn Principála oficiálním instalátorem daného nástroje, jinak jen nahlas jejich verze (`manual/troubleshooting.md`, decision 0161).",
+      en: "- The product version and this Folder are updated by the Machines operator through the pinned release; do not run `lazurio update` here. The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun…) are not owned by the pin: update one only on the Principal's explicit instruction with that tool's official installer, otherwise only report their versions (`manual/troubleshooting.md`, decision 0161).",
     }),
   ];
 }
