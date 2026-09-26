@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
+import { renderManual } from "../src/folder/manual";
 import { presetProfile } from "../src/folder/presets";
 import { planInstructions } from "../src/folder/reconcile";
 import { renderInstructions } from "../src/folder/render";
@@ -233,4 +234,42 @@ test("the Owner line names the Team only under hosted-organization-team", () => 
       profile: presetProfile("hosted-organization-personal", "linux"),
     }),
   ).toMatchSnapshot();
+});
+
+// Decision 0161 / F17: the generated AGENTS.md rule and the manual section it
+// points at say the same thing on every hosted preset — the pin owns the
+// product and the Folder, the operator owns the tools, an agent updates a
+// tool only on explicit instruction — and the old "no self-update of any
+// tool" wording is gone from both.
+test("the hosted update rule in AGENTS.md agrees with the manual under decision 0161", () => {
+  for (const journey of journeys) {
+    if (journey.machine === null) continue;
+    for (const locale of ["cs", "en"] as const) {
+      const profile = presetProfile(journey.preset, journey.os, { locale });
+      const instructions = renderInstructions({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile,
+      });
+      const manual = renderManual({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile,
+      })["manual/troubleshooting.md"] as string;
+      for (const text of [instructions, manual]) {
+        expect(text).toContain("decision 0161");
+        expect(text).not.toMatch(/žádný self-update|any self-update/);
+        expect(text).toMatch(
+          locale === "cs"
+            ? /výslovný pokyn Principála/
+            : /Principal's explicit instruction/,
+        );
+      }
+      expect(instructions).toMatch(
+        locale === "cs"
+          ? /Nástroje operátora \(Codex, Claude Code, `gh`, Node, npm, Bun…\) pin nevlastní/
+          : /The operator's tools \(Codex, Claude Code, `gh`, Node, npm, Bun…\) are not owned by the pin/,
+      );
+    }
+  }
 });

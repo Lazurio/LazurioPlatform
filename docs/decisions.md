@@ -885,3 +885,53 @@ on its next refresh).
 consolidation (owned by the Dashboard thread), the Machines record for a workstation,
 the preset of an Organization-owned workstation and the gateway routes on the
 Conglomerate Host (Machines), and the exact profile axes.
+
+## F17 — Operator tools belong to the operator; the rollout pins the baseline and repairs
+
+**Principal's decision 2026-09-26 (root decision 0161), direction; the manual rule is
+implemented in this revision, `lazurio tools` follows.** Recorded from the Principal's
+words: operators of a Remote Environment must be able to update Codex, Claude Code, T3
+Code, `gh`, Node and Bun themselves and are not to be blocked; there is no point in
+pinning their versions; the provider should be clear about what it operates and use
+the rollout only as a repair to the state where an agent can be started in the
+Environment and fixes the rest per the Lazurio Environment manuals.
+
+**Two layers.** The **provider baseline** is what a Remote Environment stands on and
+must exist even when the operator breaks everything: system, accounts and sudo,
+network and Headscale, gateway with certificates and admission, resident, Platform
+(with its own floor and rollback, F13/F14), the Lazurio Folder with its manuals, and a
+**recovery runtime for an agent** (Codex or Claude Code, `gh`, `git`, Node at a
+known-good version) in a path owned by the Machine's installation authority (root on
+Linux, the installing admin on macOS), outside the operator's PATH; only the Environment
+entry (`lazurio`, the T3 launcher) uses it, when the operator's tools do not work. The
+**operator's tools** are everything the operator runs as a tool on their PATH and in
+their home. The baseline delivers them once at Machine creation; from then on the
+operator updates them with the official installers, the rollout never downgrades or
+overwrites them, and readback reports their versions as facts, not drift (Machines
+0.12.83 refusing an operator's own `npm` is the failure this rules out).
+
+**Rollout is repair, not a brake.** When the operator breaks the Environment so that
+agents no longer work, the re-pin restores only the baseline and starts an agent in it
+from the recovery runtime; that agent repairs the operator layer per
+`manual/troubleshooting.md`. The rollout never touches what the operator installed.
+
+**T3 Code** is part of the Environment entry (behind the gateway, in the unit), so it
+belongs to the baseline, with its own runtime managed by its launcher and repaired by
+apply and an Update button fed by `Lazurio/t3code` releases; T3 always runs tools from
+the operator's PATH, and recovery goes through `lazurio` from the recovery runtime, not
+through a PATH fallback (Machines, DEV-6624).
+
+**Platform.** The hosted manual section "Updates on this Machine" now says that the pin
+owns the product and the generated files, not the operator's tools, and that an agent
+updates operator tools only on the Principal's explicit instruction in the thread and
+otherwise only reports versions (template revision `base-instructions-6`, so every
+Folder re-renders on its next refresh). `lazurio update` remains the only product
+update; `lazurio tools status|update` will be a thin orchestration of the official
+installers (report installed and available versions; on instruction run the official
+installer of one named tool; never pin, downgrade or overwrite), specified in
+[environment-tools.md](environment-tools.md).
+
+**Not decided here:** the exact recovery-toolchain path and its pin format, the readback
+shape and the T3 launcher (Machines); which tools `lazurio tools` covers first and how
+availability is queried per tool (the `lazurio tools` PR).
+
