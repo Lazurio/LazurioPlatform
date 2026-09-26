@@ -436,6 +436,14 @@ const glossary: readonly Text[] = [
     "| Lazurio Environment | One Machine's environment: the selected preset and profile, the Folder, and every tool and sign-in available on the Machine (decision 0144). |",
   ),
   t(
+    "| Vzdálené prostředí (Remote Environment) | Hostovaná Mašina — osobní VM nebo pracovní VM Organizace — dosažitelná přes síť Organizace na `launchpad.<mašina>.<org>.lazurio.io` a sesterských adresách; stejný pojem jako v Codexu a T3 Code (decision F16). |",
+    "| Remote Environment (Vzdálené prostředí) | A hosted Machine — a personal VM or an Organization's work VM — reached over the Organization's network at `launchpad.<machine>.<org>.lazurio.io` and its sibling names; the same term Codex and T3 Code use (decision F16). |",
+  ),
+  t(
+    "| Místní prostředí (Local Environment) | Tento počítač: Mašina, na které Launchpad běží jen na loopbacku; osobní laptop nikdy není Remote Environment (decision F16). |",
+    "| Local Environment (Místní prostředí) | This computer: the Machine whose Launchpad serves only on loopback; a personal laptop is never a Remote Environment (decision F16). |",
+  ),
+  t(
     "| Folder Factory | Součást produktu, která z presetu, Machine bindingu a profilu plánuje, generuje a srovnává soubory vlastněné Lazuriem. |",
     "| Folder Factory | The product component that plans, generates and reconciles the Lazurio-owned files from the preset, the Machine binding and the profile. |",
   ),
