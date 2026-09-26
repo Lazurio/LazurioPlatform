@@ -49,8 +49,10 @@ link or wrapper in `~/.local/bin` puts it on PATH. Lazurio lives in
 `~/.local/share/lazurio/` with `~/.local/bin/lazurio`; system tools (git, curl,
 python, ssh) belong to the OS package manager; T3 Code and its runtime belong to the
 service unit and run on the Node its version recommends. There is no second
-"recovery" copy of any tool: a rollout repairs the one installation in place (only
-missing or broken, never a downgrade), the Machines apply returns the `lazurio doctor`
+"recovery" copy of any tool: a rollout repairs the one installation in place (it may
+replace only a `~/.local/bin/<tool>` entry that is missing or non-functional; a
+working tool keeps its version; installer homes, configuration and sign-ins are never
+touched), the Machines apply returns the `lazurio doctor`
 and `lazurio tools status` readback and starts no agent, and the rolling-out Task
 Agent starts the repair with the operator's mandate. `tools status` reports
 `standardPath` per tool; the generated Folder manual carries the rule ("Kde bydlí
