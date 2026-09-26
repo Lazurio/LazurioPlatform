@@ -154,6 +154,13 @@ test.skipIf(process.platform === "win32")(
     });
     try {
       const proxy = `http://127.0.0.1:${hostile.port}`;
+      // The child's environment: the proxy variables set, every exception unset.
+      const env: Record<string, string> = {};
+      for (const [key, value] of Object.entries(process.env))
+        if (value !== undefined && !/^no_proxy$/i.test(key)) env[key] = value;
+      env.HTTP_PROXY = proxy;
+      env.http_proxy = proxy;
+      env.ALL_PROXY = proxy;
       const child = Bun.spawn(
         [
           process.execPath,
@@ -162,14 +169,7 @@ test.skipIf(process.platform === "win32")(
           String(freePort()),
         ],
         {
-          env: {
-            ...process.env,
-            HTTP_PROXY: proxy,
-            http_proxy: proxy,
-            ALL_PROXY: proxy,
-            NO_PROXY: undefined,
-            no_proxy: undefined,
-          } as Record<string, string>,
+          env,
           stdout: "pipe",
           stderr: "pipe",
         },
