@@ -871,8 +871,12 @@ here; until it exists no laptop can be given an entry, and the adapter's rule is
 **Naming (Principal's decision 2026-09-26).** A hosted Machine is a **Remote
 Environment** (Czech *Vzdálené prostředí*) wherever people see it — the Launchpad's
 Environment switcher, the Dashboard, the generated manual — the same term Codex and T3
-Code use for a remote workspace; this computer is the **Local Environment** (*Místní
-prostředí*). The axis stays "Prostředí / Environments" and offers both; "VM" remains an
+Code use for a remote workspace: an Organization's work VM at
+`launchpad.<machine>.<org>.lazurio.io` on the Organization's network, or a personal VM
+at `launchpad.<login>.lazurio.io` on its Principal's home tailnet (0146, 0153). This
+computer — the device the user is sitting at, not a hosted Machine — is the **Local
+Environment** (*Místní prostředí*); the listener is not the classifier, a hosted
+Launchpad also serves on loopback behind its gateway. The axis stays "Prostředí / Environments" and offers both; "VM" remains an
 adjective; the internal term stays Machine; addresses do not change. Recorded in the
 generated glossary (template revision `base-instructions-5`, so every Folder re-renders
 on its next refresh).

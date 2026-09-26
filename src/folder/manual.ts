@@ -436,12 +436,12 @@ const glossary: readonly Text[] = [
     "| Lazurio Environment | One Machine's environment: the selected preset and profile, the Folder, and every tool and sign-in available on the Machine (decision 0144). |",
   ),
   t(
-    "| Vzdálené prostředí (Remote Environment) | Hostovaná Mašina — osobní VM nebo pracovní VM Organizace — dosažitelná přes síť Organizace na `launchpad.<mašina>.<org>.lazurio.io` a sesterských adresách; stejný pojem jako v Codexu a T3 Code (decision F16). |",
-    "| Remote Environment (Vzdálené prostředí) | A hosted Machine — a personal VM or an Organization's work VM — reached over the Organization's network at `launchpad.<machine>.<org>.lazurio.io` and its sibling names; the same term Codex and T3 Code use (decision F16). |",
+    "| Vzdálené prostředí (Remote Environment) | Hostovaná Mašina: pracovní VM Organizace na `launchpad.<mašina>.<org>.lazurio.io` v síti Organizace, nebo osobní VM na `launchpad.<login>.lazurio.io` v domovském tailnetu jejího Principála (decisions 0146, 0153); stejný pojem jako v Codexu a T3 Code (decision F16). |",
+    "| Remote Environment (Vzdálené prostředí) | A hosted Machine: an Organization's work VM at `launchpad.<machine>.<org>.lazurio.io` on the Organization's network, or a personal VM at `launchpad.<login>.lazurio.io` on its Principal's home tailnet (decisions 0146, 0153); the same term Codex and T3 Code use (decision F16). |",
   ),
   t(
-    "| Místní prostředí (Local Environment) | Tento počítač: Mašina, na které Launchpad běží jen na loopbacku; osobní laptop nikdy není Remote Environment (decision F16). |",
-    "| Local Environment (Místní prostředí) | This computer: the Machine whose Launchpad serves only on loopback; a personal laptop is never a Remote Environment (decision F16). |",
+    "| Místní prostředí (Local Environment) | Tento počítač: zařízení, na kterém uživatel právě sedí a které není hostovanou Mašinou; osobní laptop nikdy není Remote Environment (decision F16). |",
+    "| Local Environment (Místní prostředí) | This computer: the device the user is sitting at, which is not a hosted Machine; a personal laptop is never a Remote Environment (decision F16). |",
   ),
   t(
     "| Folder Factory | Součást produktu, která z presetu, Machine bindingu a profilu plánuje, generuje a srovnává soubory vlastněné Lazuriem. |",
