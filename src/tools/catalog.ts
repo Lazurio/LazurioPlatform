@@ -29,8 +29,12 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     // (manual/organization-install.md "Codex CLI: instalace a aktualizace").
     updater: {
       kind: "installer",
-      posix: "curl -fsSL https://chatgpt.com/codex/install.sh | sh",
-      windows: "irm https://chatgpt.com/codex/install.ps1 | iex",
+      // Two steps, so a failed download can never run half a script or pass
+      // as an update: fetch to a private file, then run it.
+      posix:
+        'set -eu; f="$(mktemp)"; trap \'rm -f "$f"\' EXIT; curl -fsSL https://chatgpt.com/codex/install.sh -o "$f"; sh "$f"',
+      windows:
+        "$ErrorActionPreference = 'Stop'; $s = irm https://chatgpt.com/codex/install.ps1; iex $s",
     },
   }),
   tool({

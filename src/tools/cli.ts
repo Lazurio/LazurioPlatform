@@ -1,6 +1,5 @@
 import { parseArgs } from "node:util";
-import { runProcess } from "../update/self-check";
-import { type ToolStatus, toolsStatus } from "./status";
+import { runTool, type ToolStatus, toolsStatus } from "./status";
 import { toolsUpdate } from "./update";
 
 /** `lazurio tools status|update`: the terminal surface of the operator's tools
@@ -40,17 +39,26 @@ export async function runToolsCommand(
     platform: string;
   }> = { env: process.env, platform: process.platform },
 ): Promise<ToolsCommandOutput> {
-  const { values, positionals } = parseArgs({
-    args,
-    strict: true,
-    options: { json: { type: "boolean" } },
-    allowPositionals: true,
-  });
+  let values: { json?: boolean | undefined };
+  let positionals: string[];
+  try {
+    ({ values, positionals } = parseArgs({
+      args,
+      strict: true,
+      options: { json: { type: "boolean" } },
+      allowPositionals: true,
+    }));
+  } catch (error) {
+    // An unknown option is a usage error with the help text, exit 2.
+    throw new ToolsUsageError(
+      `${error instanceof Error ? error.message : String(error)}\nUsage: tools status [--json] | tools update <tool> [--json]`,
+    );
+  }
   const common = {
     path: context.env.PATH,
     home: context.env.HOME,
     platform: context.platform,
-    run: runProcess,
+    run: runTool,
   };
   if (positionals[0] === "status" && positionals.length === 1) {
     const result = await toolsStatus(common);

@@ -12,9 +12,13 @@ import { delimiter, join } from "node:path";
 import type { ToolEntry } from "../src/tools/catalog";
 import { findTool, toolCatalog } from "../src/tools/catalog";
 import { runToolsCommand } from "../src/tools/cli";
-import { resolveOnPath, toolsStatus, versionOf } from "../src/tools/status";
+import {
+  resolveOnPath,
+  runTool,
+  toolsStatus,
+  versionOf,
+} from "../src/tools/status";
 import { toolsUpdate } from "../src/tools/update";
-import { runProcess } from "../src/update/self-check";
 
 const posix = process.platform !== "win32";
 
@@ -36,7 +40,7 @@ if [ "$1" = "--version" ]; then read v < "${versions}"; echo "${name} $v"; exit 
 if [ "$1" = "upgrade" ] || [ "$1" = "update" ]; then ${
       options.upgradeTo
         ? `echo "${options.upgradeTo}" > "${versions}"; echo upgraded; exit 0`
-        : "echo failed; exit 3"
+        : "echo failed >&2; exit 3"
     }; fi
 exit 1
 `,
@@ -113,7 +117,7 @@ test.skipIf(!posix)(
       path: [first, second].join(delimiter),
       home: root,
       platform: process.platform,
-      run: runProcess,
+      run: runTool,
       catalog: catalog([
         { name: "node" },
         { name: "gh" },
@@ -164,11 +168,12 @@ test.skipIf(!posix)(
     await fakeTool(bin, "bun", "1.4.2", { upgradeTo: "1.4.3" });
     await fakeTool(bin, "claude", "2.1.0");
     await fakeTool(bin, "gh", "2.86.0");
+    // Installer scripts need the system tools an operator's PATH always has.
     const common = {
-      path: bin,
+      path: [bin, "/usr/bin", "/bin"].join(delimiter),
       home: root,
       platform: process.platform,
-      run: runProcess,
+      run: runTool,
       catalog: catalog([
         { name: "bun", updater: { kind: "self", argv: ["upgrade"] } },
         { name: "claude", updater: { kind: "self", argv: ["update"] } },
@@ -211,6 +216,30 @@ test.skipIf(!posix)(
       kind: "tool-unknown",
       tool: "t3",
       known: ["bun", "claude", "gh", "codex"],
+    });
+    // A download that fails never runs half a script and never passes as an
+    // update: the failure and its stderr are reported.
+    const download = await toolsUpdate({
+      ...common,
+      tool: "curl-less",
+      catalog: catalog([
+        {
+          name: "curl-less",
+          command: "gh",
+          updater: {
+            kind: "installer",
+            posix:
+              'set -eu; f="$(mktemp)"; trap \'rm -f "$f"\' EXIT; /usr/bin/false -o "$f" || { echo "download failed" >&2; exit 22; }; sh "$f"',
+            windows: "exit 1",
+          },
+        },
+      ]),
+    });
+    expect(download).toMatchObject({
+      kind: "tool-update-failed",
+      tool: "curl-less",
+      exitCode: 22,
+      output: "download failed",
     });
     // The vendor installer runs through sh -c and the tool it installs is read
     // back afterwards; a missing tool before is still an honest "before".
@@ -271,6 +300,9 @@ test.skipIf(!posix)(
     const unknown = await runToolsCommand(["update", "t3", "--json"], context);
     expect(unknown.code).toBe(2);
     await expect(runToolsCommand(["update"], context)).rejects.toThrow(/Usage/);
+    await expect(
+      runToolsCommand(["status", "--nope"], context),
+    ).rejects.toThrow(/Usage/);
     await expect(runToolsCommand(["status", "extra"], context)).rejects.toThrow(
       /Usage/,
     );

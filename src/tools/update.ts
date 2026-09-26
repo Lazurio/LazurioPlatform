@@ -1,6 +1,10 @@
-import type { ProcessRunner } from "../update/self-check";
 import { findTool, type ToolEntry } from "./catalog";
-import { resolveOnPath, type ToolStatus, toolsStatus } from "./status";
+import {
+  resolveOnPath,
+  type ToolRunner,
+  type ToolStatus,
+  toolsStatus,
+} from "./status";
 
 /** `lazurio tools update <tool>`: runs exactly one tool's official update path
  * as the operator, on the Principal's explicit instruction (decision 0161 /
@@ -38,7 +42,7 @@ export type ToolsUpdateInput = Readonly<{
   path: string | undefined;
   home: string | undefined;
   platform: string;
-  run: ProcessRunner;
+  run: ToolRunner;
   catalog?: readonly ToolEntry[] | undefined;
   timeoutMs?: number | undefined;
 }>;
@@ -103,7 +107,7 @@ export async function toolsUpdate(
         before,
         output: `timeout after ${input.timeoutMs ?? updateTimeoutMs} ms`,
       };
-    const output = result.stdout.trim().slice(-4000);
+    const output = `${result.stdout}\n${result.stderr}`.trim().slice(-4000);
     if (result.exitCode !== 0)
       return {
         kind: "tool-update-failed",
