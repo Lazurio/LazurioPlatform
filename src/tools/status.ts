@@ -1,7 +1,69 @@
 import { access, constants, realpath, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import type { ProcessRunner } from "../update/self-check";
 import { type ToolEntry, toolCatalog } from "./catalog";
+
+/** A tool process with both streams captured, bounded, or "timeout". */
+export type ToolProcessResult =
+  | Readonly<{ exitCode: number; stdout: string; stderr: string }>
+  | "timeout";
+export type ToolRunner = (
+  command: readonly string[],
+  timeoutMs: number,
+  env: Readonly<Record<string, string>>,
+) => Promise<ToolProcessResult>;
+
+const maxStreamBytes = 256 * 1024;
+
+async function readBounded(
+  stream: ReadableStream<Uint8Array>,
+  onOverflow: () => void,
+): Promise<string> {
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  for await (const chunk of stream) {
+    length += chunk.byteLength;
+    if (length > maxStreamBytes) {
+      onOverflow();
+      break;
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+// Runs one tool process as the current user with exactly the named
+// environment; stdout and stderr are both kept (an installer's error is
+// usually on stderr) and bounded; the timeout kills the process.
+export const runTool: ToolRunner = async (command, timeoutMs, env) => {
+  const child = Bun.spawn([...command], {
+    env: { ...env },
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const overflow = () => child.kill("SIGKILL");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), timeoutMs);
+  });
+  const finished = (async () => {
+    const [stdout, stderr] = await Promise.all([
+      readBounded(child.stdout, overflow),
+      readBounded(child.stderr, overflow),
+    ]);
+    return Object.freeze({ exitCode: await child.exited, stdout, stderr });
+  })();
+  try {
+    const result = await Promise.race([finished, expired]);
+    if (result === "timeout") {
+      child.kill("SIGKILL");
+      finished.catch(() => undefined);
+    }
+    return result;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
 
 /** `lazurio tools status`: the operator's tools as found on the operator's
  * PATH, each the first executable of its name (decision 0140 rule), with the
@@ -24,7 +86,7 @@ export type ToolsStatusInput = Readonly<{
   path: string | undefined;
   home: string | undefined;
   platform: string;
-  run: ProcessRunner;
+  run: ToolRunner;
   catalog?: readonly ToolEntry[] | undefined;
 }>;
 
@@ -109,7 +171,7 @@ export async function toolsStatus(
         });
         continue;
       }
-      const output = result.stdout.trim();
+      const output = `${result.stdout}\n${result.stderr}`.trim();
       if (result.exitCode !== 0) {
         tools.push({
           ...base,
@@ -121,7 +183,7 @@ export async function toolsStatus(
         });
         continue;
       }
-      const version = versionOf(result.stdout);
+      const version = versionOf(result.stdout) ?? versionOf(result.stderr);
       tools.push({
         ...base,
         installed: true,
