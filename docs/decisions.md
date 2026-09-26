@@ -926,12 +926,15 @@ owns the product and the generated files, not the operator's tools, and that an 
 updates operator tools only on the Principal's explicit instruction in the thread and
 otherwise only reports versions (template revision `base-instructions-6`, so every
 Folder re-renders on its next refresh). `lazurio update` remains the only product
-update; `lazurio tools status|update` will be a thin orchestration of the official
-installers (report installed and available versions; on instruction run the official
-installer of one named tool; never pin, downgrade or overwrite), specified in
-[environment-tools.md](environment-tools.md).
+update; `lazurio tools status|update` is the thin orchestration of the official
+update paths (report the installed versions as facts; on instruction run the official
+updater or installer of one named tool; never pin, downgrade or overwrite), specified in
+[environment-tools.md](environment-tools.md). It covers codex (official standalone
+installer), claude (`claude update`), bun (`bun upgrade`) and reports gh, git, node and
+npm with their official source; it does not query what is available, because a version
+check against a vendor is the vendor's updater's job and the Platform never says
+"outdated" about an operator's tool.
 
 **Not decided here:** the exact recovery-toolchain path and its pin format, the readback
-shape and the T3 launcher (Machines); which tools `lazurio tools` covers first and how
-availability is queried per tool (the `lazurio tools` PR).
+shape and the T3 launcher (Machines).
 

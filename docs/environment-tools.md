@@ -21,6 +21,25 @@ instruction. The Platform's part is the generated manual rule (template revision
 `base-instructions-6`) and `lazurio tools status|update`, a thin orchestration of the
 official installers that reports and, on instruction, runs them; it pins nothing.
 
+### `lazurio tools status` and `lazurio tools update <tool>`
+
+The Platform's surface for the operator's tools, implemented in `src/tools/`:
+
+- `tools status [--json]` lists codex, claude, gh, git, node, npm and bun as found on
+  the process PATH (first executable of the name, decision 0140 rule), with the real
+  path behind a link and the version the tool reports; missing tools carry their
+  official source. Read-only, never the network; it does not say "outdated", because
+  the operator's version is a fact, not drift.
+- `tools update <tool> [--json]` runs exactly that tool's official update path as the
+  current user and reports the version before and after: the tool's own updater
+  (`claude update`, `bun upgrade`) or the vendor's installer script (`codex`, the
+  official standalone installer of `manual/organization-install.md`). Tools without one
+  (`gh`, `git`, `node`, `npm`) are reported with their official source and nothing
+  runs (`tool-not-self-updating`, exit 1). Unknown names exit 2. It never pins,
+  never downgrades on its own, never touches another tool and is not run by
+  `lazurio update`, the Launchpad or a Machines apply. An agent runs it only on the
+  Principal's explicit instruction (F17).
+
 ## Ownership
 
 | Capability | Platform responsibility | Operator / external owner responsibility |
@@ -98,7 +117,7 @@ identity and exact repository rights before Organization materialization.
 
 Implement read-only diagnosis and one explicitly approved preparation path first.
 Platform builds no credential broker, account registry, automatic model login or
-package-manager matrix (`lazurio tools` orchestrates official installers under decision
+package-manager matrix (`lazurio tools` runs one tool's official update path under decision
 0161 and is not a general updater); the team case consumes the existing upstream
 broker rather than adding one. Unknown installation state receives a diagnosis
 and operator repair procedure, not an improvised privileged cleanup. Missing accounts

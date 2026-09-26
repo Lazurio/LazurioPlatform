@@ -48,6 +48,7 @@ import {
 } from "./modules/systemd-user-runner";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import {
   type CommandOutput,
   installBase,
@@ -178,6 +179,17 @@ async function runOtherCommand(args: string[]): Promise<number> {
       // Folder operation; nothing was read or written.
       if (!(error instanceof MachineUsageError)) throw error;
       console.error(`${error.message}\n${machineHelp}`);
+      return 2;
+    }
+  }
+  if (args[0] === "tools") {
+    try {
+      const { code, text } = await runToolsCommand(args.slice(1));
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof ToolsUsageError)) throw error;
+      console.error(`${error.message}\n${toolsHelp}`);
       return 2;
     }
   }
