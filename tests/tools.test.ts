@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   realpath,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -306,5 +307,33 @@ test.skipIf(!posix)(
     await expect(runToolsCommand(["status", "extra"], context)).rejects.toThrow(
       /Usage/,
     );
+  },
+);
+
+test.skipIf(!posix)(
+  "a timed-out update kills the whole process group, so nothing keeps writing after the report",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "lazurio-tools-"));
+    const marker = join(root, "late");
+    // The shell forks a child that would write after the timeout; the shell
+    // itself is what a naive kill would stop.
+    const started = Date.now();
+    const result = await runTool(
+      ["/bin/sh", "-c", `sleep 1; echo late > "${marker}"; exit 0`],
+      200,
+      { PATH: "/usr/bin:/bin" },
+    );
+    expect(result).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(900);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await expect(stat(marker)).rejects.toThrow();
+    const helper = await runTool(
+      ["/bin/sh", "-c", `(sleep 1; echo late > "${marker}") & wait`],
+      200,
+      { PATH: "/usr/bin:/bin" },
+    );
+    expect(helper).toBe("timeout");
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await expect(stat(marker)).rejects.toThrow();
   },
 );

@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { access, constants, realpath, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { type ToolEntry, toolCatalog } from "./catalog";
@@ -15,48 +16,69 @@ export type ToolRunner = (
 const maxStreamBytes = 256 * 1024;
 
 async function readBounded(
-  stream: ReadableStream<Uint8Array>,
+  stream: NodeJS.ReadableStream,
   onOverflow: () => void,
 ): Promise<string> {
-  const chunks: Uint8Array[] = [];
+  const chunks: Buffer[] = [];
   let length = 0;
   for await (const chunk of stream) {
-    length += chunk.byteLength;
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    length += buffer.byteLength;
     if (length > maxStreamBytes) {
       onOverflow();
       break;
     }
-    chunks.push(chunk);
+    chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");
 }
 
 // Runs one tool process as the current user with exactly the named
 // environment; stdout and stderr are both kept (an installer's error is
-// usually on stderr) and bounded; the timeout kills the process.
+// usually on stderr) and bounded. The child is the leader of its own process
+// group (detached), so the timeout kills the whole group — an installer's
+// helpers included — and nothing keeps writing after "timeout" was reported.
 export const runTool: ToolRunner = async (command, timeoutMs, env) => {
-  const child = Bun.spawn([...command], {
+  const [executable, ...args] = command;
+  if (!executable) throw new Error("A command is required");
+  const child = spawn(executable, args, {
     env: { ...env },
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: process.platform !== "win32",
+    windowsHide: true,
   });
-  const overflow = () => child.kill("SIGKILL");
+  const killAll = () => {
+    if (process.platform !== "win32" && child.pid) {
+      try {
+        process.kill(-child.pid, "SIGKILL");
+        return;
+      } catch {}
+    }
+    child.kill("SIGKILL");
+  };
+  const spawned = new Promise<void>((resolve, reject) => {
+    child.once("spawn", resolve);
+    child.once("error", reject);
+  });
+  const exited = new Promise<number>((resolve) => {
+    child.once("close", (code, signal) => resolve(code ?? (signal ? -1 : 0)));
+  });
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<"timeout">((resolve) => {
     timer = setTimeout(() => resolve("timeout"), timeoutMs);
   });
   const finished = (async () => {
+    await spawned;
     const [stdout, stderr] = await Promise.all([
-      readBounded(child.stdout, overflow),
-      readBounded(child.stderr, overflow),
+      readBounded(child.stdout as NodeJS.ReadableStream, killAll),
+      readBounded(child.stderr as NodeJS.ReadableStream, killAll),
     ]);
-    return Object.freeze({ exitCode: await child.exited, stdout, stderr });
+    return Object.freeze({ exitCode: await exited, stdout, stderr });
   })();
   try {
     const result = await Promise.race([finished, expired]);
     if (result === "timeout") {
-      child.kill("SIGKILL");
+      killAll();
       finished.catch(() => undefined);
     }
     return result;
