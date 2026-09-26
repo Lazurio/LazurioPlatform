@@ -138,3 +138,90 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// Pablo (#30): the admitted shell is fetched from the inner listener by the
+// Launchpad process itself, which inherits the Machine's environment. An
+// ambient HTTP proxy must not be able to stand in for that inner listener.
+test.skipIf(process.platform === "win32")(
+  "a hostile HTTP_PROXY in the Launchpad's environment cannot replace the admitted shell",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-entry-proxy-")),
+    );
+    const folder = join(parent, "Lazurio");
+    await mkdir(folder, { mode: 0o700 });
+    await mkdir(join(folder, "organizations"), { mode: 0o755 });
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    const preset = "hosted-organization-personal";
+    const profile = presetProfile(preset, executionOs(process.platform));
+    const entry = parseHostedEntry({
+      externalOrigin: "https://launchpad.workspace.example.lazurio.io",
+      authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
+      authCookieName: "__Secure-lazurio-workspace",
+      listenPort: freePort(),
+    });
+    await initializeHandoverFolder(folder, {
+      preset,
+      machine: { ...bindings.organization, entry },
+      profile,
+    });
+    // A proxy that answers everything with a replacement body.
+    const hostile = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () => new Response("proxy replacement", { status: 418 }),
+    });
+    const saved = { ...process.env };
+    process.env.HTTP_PROXY = `http://127.0.0.1:${hostile.port}`;
+    process.env.http_proxy = process.env.HTTP_PROXY;
+    process.env.ALL_PROXY = process.env.HTTP_PROXY;
+    delete process.env.NO_PROXY;
+    delete process.env.no_proxy;
+    const fetcher: AuthFetcher = async () => new Response("ok");
+    const app = await startLaunchpad(folder, undefined, undefined, undefined, {
+      fetcher,
+    });
+    try {
+      // The test's own request goes through node:http, which ignores proxy variables.
+      const { request } = await import("node:http");
+      const got = await new Promise<{ status: number; body: string }>(
+        (resolve, reject) => {
+          const req = request(
+            {
+              host: "127.0.0.1",
+              port: entry.listenPort,
+              path: "/",
+              method: "GET",
+              headers: {
+                host: "launchpad.workspace.example.lazurio.io",
+                cookie: "__Secure-lazurio-workspace=valid",
+              },
+            },
+            (res) => {
+              let body = "";
+              res.setEncoding("utf8");
+              res.on("data", (chunk) => {
+                body += chunk;
+              });
+              res.on("end", () =>
+                resolve({ status: res.statusCode ?? 0, body }),
+              );
+            },
+          );
+          req.on("error", reject);
+          req.end();
+        },
+      );
+      expect(got.status).toBe(200);
+      expect(got.body).toContain("<html");
+      expect(got.body).not.toContain("proxy replacement");
+    } finally {
+      for (const key of Object.keys(process.env))
+        if (!(key in saved)) delete process.env[key];
+      Object.assign(process.env, saved);
+      hostile.stop(true);
+      await app.close();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import { withFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
@@ -80,15 +81,20 @@ export async function startLaunchpad(
   // fragment token — the browser's session cookie is the credential.
   const entry = initial.preferences.machine?.entry ?? null;
   const trust = entry === null ? null : createHostedTrust(entry, hostedOptions);
-  // The bundled page is served by an inner loopback listener and proxied
-  // only after admission, so nothing of the Launchpad answers an
-  // unadmitted browser — not even its shell.
-  const shell =
+  // The bundled page is served by an inner listener and proxied only after
+  // admission, so nothing of the Launchpad answers an unadmitted browser — not
+  // even its shell. The inner listener is a private unix socket: no ambient
+  // HTTP proxy of the process environment (HTTP_PROXY, ALL_PROXY) can stand in
+  // for it, and nothing else on the Machine can reach it by port.
+  const shellSocket =
     trust === null
       ? null
+      : join(await mkdtemp(join(tmpdir(), "lazurio-shell-")), "shell.sock");
+  const shell =
+    shellSocket === null
+      ? null
       : Bun.serve({
-          hostname: "127.0.0.1",
-          port: 0,
+          unix: shellSocket,
           development: false,
           routes: { "/": index },
           fetch: () => new Response("not-found", { status: 404 }),
@@ -114,7 +120,7 @@ export async function startLaunchpad(
       };
       const response = (body: unknown, status = 200) =>
         Response.json(body, { status, headers });
-      if (trust !== null && shell !== null) {
+      if (trust !== null && shellSocket !== null) {
         // Hosted: the gateway's admission, revalidated here; the request's
         // own URL is loopback and is not evidence of anything.
         const admission = await trust.admit(request);
@@ -122,8 +128,11 @@ export async function startLaunchpad(
           return response({ error: "denied", reason: admission.reason }, 401);
         if (request.method === "GET" && !url.pathname.startsWith("/api/")) {
           const page = await fetch(
-            new URL(url.pathname + url.search, shell.url),
-            { headers: { accept: request.headers.get("accept") ?? "*/*" } },
+            `http://shell.invalid${url.pathname}${url.search}`,
+            {
+              unix: shellSocket,
+              headers: { accept: request.headers.get("accept") ?? "*/*" },
+            },
           );
           return new Response(page.body, {
             status: page.status,
@@ -290,6 +299,8 @@ export async function startLaunchpad(
           pill?.stop();
           await server.stop(true);
           await shell?.stop(true);
+          if (shellSocket !== null)
+            await rm(dirname(shellSocket), { recursive: true, force: true });
           await health?.stop(true);
           const result = applicationClose
             ? await applicationClose
