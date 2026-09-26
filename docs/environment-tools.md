@@ -7,19 +7,22 @@ operations and the operator prepare what is needed inside it.
 
 ## Operator tools are the operator's (decision 0161, F17)
 
-Root decision 0161 (2026-09-26) splits a Remote Environment into the **provider
-baseline** (system, accounts, network, gateway, resident, Platform, Folder, and a
-recovery runtime for an agent in a path owned by the Machine's installation authority,
-outside the operator's PATH) and the **operator's tools** (Codex, Claude Code, `gh`,
-Node, npm, Bun and whatever else is on the operator's PATH). The baseline is pinned
-through the Machines rollout; the tools are delivered once at Machine creation and then
-belong to the operator, who updates them with the official installers. A rollout never
-downgrades or overwrites them, readback reports their versions as facts, and a rollout
-is only a repair: it restores the baseline and starts an agent that repairs the rest per
-the Folder manuals. Agents update operator tools only on the Principal's explicit
-instruction. The Platform's part is the generated manual rule (template revision
-`base-instructions-6`) and `lazurio tools status|update`, a thin orchestration of the
-official installers that reports and, on instruction, runs them; it pins nothing.
+Root decision 0161 (2026-09-26, with its addendum of the same day) splits a Remote
+Environment into the **provider baseline** (system, accounts, network, gateway,
+resident, the installed Platform release, and the first installation of the operator's
+tools in the standard path below) and the **operator's tools** (Codex, Claude Code,
+`gh`, Node, npm, Bun and whatever else is on the operator's PATH). The baseline is
+pinned through the Machines rollout; the tools are delivered once at Machine creation
+and then belong to the operator, who updates them with the official installers.
+Readback reports their versions as facts, not drift. A rollout is only a repair of the
+one installation (the exact scope is in "The standard path" below); the Machines apply
+starts no agent and returns the `lazurio doctor` and `lazurio tools status` readback,
+and the rolling-out Task Agent starts the repair of the rest with the operator's
+mandate per the Folder manuals. Agents update operator tools only on the Principal's
+explicit instruction. The Platform's part is the generated manual rule and section
+"Where the tools live" (template revision `base-instructions-7`) and
+`lazurio tools status|update`, a thin orchestration of the official installers that
+reports and, on instruction, runs them; it pins nothing.
 
 ### `lazurio tools status` and `lazurio tools update <tool>`
 
@@ -49,12 +52,17 @@ link or wrapper in `~/.local/bin` puts it on PATH. Lazurio lives in
 `~/.local/share/lazurio/` with `~/.local/bin/lazurio`; system tools (git, curl,
 python, ssh) belong to the OS package manager; T3 Code and its runtime belong to the
 service unit and run on the Node its version recommends. There is no second
-"recovery" copy of any tool: a rollout repairs the one installation in place (it may
-replace only a `~/.local/bin/<tool>` entry that is missing or non-functional; a
-working tool keeps its version; installer homes, configuration and sign-ins are never
-touched), the Machines apply returns the `lazurio doctor`
-and `lazurio tools status` readback and starts no agent, and the rolling-out Task
-Agent starts the repair with the operator's mandate. `tools status` reports
+"recovery" copy of any tool: a rollout repairs the one installation in place, in two
+tiers — (a) only the `~/.local/bin/<tool>` link or wrapper is missing or dangling
+while the installer home holds a working binary: the link is recreated; (b) the binary
+itself is non-functional or absent: the tool's official installer runs at the baseline
+version, writes into its own home exactly as on any installation (`~/.bun/bin/bun`, a
+new release under `~/.codex/packages/standalone/releases/…`) and restores the
+`~/.local/bin` entry. A working tool keeps its version whatever it is; the operator's
+configuration, sign-ins and history are never touched; only a tool's own official
+installer writes into its home. The Machines apply returns the `lazurio doctor` and
+`lazurio tools status` readback and starts no agent; the rolling-out Task Agent starts
+the repair with the operator's mandate. `tools status` reports
 `standardPath` per tool; the generated Folder manual carries the rule ("Kde bydlí
 nástroje" / "Where the tools live") so agents keep the layout when they add tools.
 

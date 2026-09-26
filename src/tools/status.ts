@@ -176,9 +176,18 @@ export async function toolsStatus(
     try {
       resolved = await realpath(path);
     } catch {}
-    const standardPath = input.home
-      ? path.startsWith(join(input.home, ".local", "bin", entry.command))
-      : false;
+    // Exactly ~/.local/bin/<command> (plus a Windows launcher suffix), never a
+    // deeper path that merely starts with it.
+    const standardEntry = input.home
+      ? join(input.home, ".local", "bin", entry.command)
+      : undefined;
+    const standardPath =
+      standardEntry !== undefined &&
+      (input.platform === "win32"
+        ? ["", ".exe", ".cmd", ".bat"].some(
+            (suffix) => path === `${standardEntry}${suffix}`,
+          )
+        : path === standardEntry);
     const env: Record<string, string> = {};
     if (input.path) env.PATH = input.path;
     if (input.home) env.HOME = input.home;

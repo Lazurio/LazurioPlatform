@@ -150,8 +150,12 @@ test.skipIf(!posix)(
     const standard = join(root, ".local", "bin");
     await mkdir(standard, { recursive: true });
     await fakeTool(standard, "claude", "2.1.0");
+    // A deeper path that merely starts with the standard entry is not it.
+    const shadow = join(standard, "gh-shadow");
+    await mkdir(shadow, { recursive: true });
+    await fakeTool(shadow, "gh", "2.0.0");
     const inHome = await toolsStatus({
-      path: [standard, first].join(delimiter),
+      path: [standard, shadow, first].join(delimiter),
       home: root,
       platform: process.platform,
       run: runTool,
@@ -161,6 +165,7 @@ test.skipIf(!posix)(
       ["claude", true],
       ["gh", false],
     ]);
+    expect(inHome.tools[1]?.path).toBe(join(shadow, "gh"));
     expect(byName.bun).toMatchObject({
       installed: true,
       versionError: "exit 7",

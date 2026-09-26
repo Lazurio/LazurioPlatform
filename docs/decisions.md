@@ -941,11 +941,14 @@ installation of the operator's tools in one standard path — the first executab
 the name in `~/.local/bin` on the operator's PATH, official installers keeping their
 own homes with only a link or wrapper there, Lazurio in `~/.local/share/lazurio/`,
 system tools with the OS package manager — and a rollout repairs that installation in
-place: it may replace only a `~/.local/bin/<tool>` entry that is missing or
-non-functional (absent, dangling link, `--version` fails), reinstalling the baseline
-version with the official installer into the same path; a working tool keeps its
-version whatever it is, and installer homes, configuration, sign-ins and history are
-never touched. The Machines apply starts no agent
+place, in two tiers: (a) only the `~/.local/bin/<tool>` link or wrapper is missing or
+dangling while the installer home holds a working binary — the link is recreated;
+(b) the binary itself is non-functional or absent — the tool's official installer runs
+at the baseline version, writes into its own home exactly as on any installation
+(`~/.bun/bin/bun`, a new release under `~/.codex/packages/standalone/releases/…`) and
+restores the `~/.local/bin` entry. A working tool keeps its version whatever it is;
+the operator's configuration, sign-ins and history are never touched; only a tool's
+own official installer writes into its home. The Machines apply starts no agent
 (it would run with the operator's sign-ins without their instruction); it returns the
 `lazurio doctor` and `lazurio tools status` readback, and the rolling-out Task Agent
 starts the repair with the operator's mandate. T3 Code is the confirmed exception and
