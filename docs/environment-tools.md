@@ -5,6 +5,22 @@ not claim an implemented tool installer, authenticated harness or usable Environ
 Machines delivers the online Machine and selected Platform release; local Platform
 operations and the operator prepare what is needed inside it.
 
+## Operator tools are the operator's (decision 0161, F17)
+
+Root decision 0161 (2026-09-26) splits a Remote Environment into the **provider
+baseline** (system, accounts, network, gateway, resident, Platform, Folder, and a
+recovery runtime for an agent in a path owned by the Machine's installation authority,
+outside the operator's PATH) and the **operator's tools** (Codex, Claude Code, `gh`,
+Node, npm, Bun and whatever else is on the operator's PATH). The baseline is pinned
+through the Machines rollout; the tools are delivered once at Machine creation and then
+belong to the operator, who updates them with the official installers. A rollout never
+downgrades or overwrites them, readback reports their versions as facts, and a rollout
+is only a repair: it restores the baseline and starts an agent that repairs the rest per
+the Folder manuals. Agents update operator tools only on the Principal's explicit
+instruction. The Platform's part is the generated manual rule (template revision
+`base-instructions-6`) and `lazurio tools status|update`, a thin orchestration of the
+official installers that reports and, on instruction, runs them; it pins nothing.
+
 ## Ownership
 
 | Capability | Platform responsibility | Operator / external owner responsibility |
@@ -81,8 +97,9 @@ identity and exact repository rights before Organization materialization.
 ## Pilot limits
 
 Implement read-only diagnosis and one explicitly approved preparation path first.
-Platform builds no credential broker, account registry, automatic model login, general
-tool updater or package-manager matrix; the team case consumes the existing upstream
+Platform builds no credential broker, account registry, automatic model login or
+package-manager matrix (`lazurio tools` orchestrates official installers under decision
+0161 and is not a general updater); the team case consumes the existing upstream
 broker rather than adding one. Unknown installation state receives a diagnosis
 and operator repair procedure, not an improvised privileged cleanup. Missing accounts
 remain an explicit pilot prerequisite, not something Machines or a profile can grant.
