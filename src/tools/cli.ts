@@ -6,8 +6,9 @@ import { toolsUpdate } from "./update";
  * (decision 0161 / F17, docs/environment-tools.md). */
 export const toolsHelp = `tools status [--json]
   The operator's tools (codex, claude, gh, git, node, npm, bun) as found on
-  this process's PATH: path, real path and the version each reports. Read-only,
-  never the network. Versions are facts, not drift.
+  this process's PATH: path, real path, the version each reports and whether
+  the PATH entry is the standard ~/.local/bin/<tool> (decision 0161).
+  Read-only, never the network. Versions are facts, not drift.
 tools update <tool> [--json]
   Runs that one tool's official update path as the current user: the tool's
   own updater (claude update, bun upgrade) or the vendor's installer script
@@ -29,7 +30,9 @@ const line = (tool: ToolStatus): string =>
         tool.realPath && tool.realPath !== tool.path
           ? ` -> ${tool.realPath}`
           : ""
-      }${tool.versionError ? `  (version: ${tool.versionError})` : ""}`
+      }${tool.versionError ? `  (version: ${tool.versionError})` : ""}${
+        tool.standardPath === false ? "  (outside ~/.local/bin)" : ""
+      }`
     : `${tool.name.padEnd(7)} ${"missing".padEnd(16)} ${tool.source}`;
 
 export async function runToolsCommand(

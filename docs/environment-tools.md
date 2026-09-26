@@ -40,6 +40,24 @@ The Platform's surface for the operator's tools, implemented in `src/tools/`:
   `lazurio update`, the Launchpad or a Machines apply. An agent runs it only on the
   Principal's explicit instruction (F17).
 
+### The standard path (decision 0161, point 6)
+
+One installation per tool, in one place, on every Machine: an operator tool is the
+first executable of its name in `~/.local/bin` on the operator's PATH. A tool's
+official installer may keep its own home (Codex `~/.codex/…`, Bun `~/.bun`); only a
+link or wrapper in `~/.local/bin` puts it on PATH. Lazurio lives in
+`~/.local/share/lazurio/` with `~/.local/bin/lazurio`; system tools (git, curl,
+python, ssh) belong to the OS package manager; T3 Code and its runtime belong to the
+service unit and run on the Node its version recommends. There is no second
+"recovery" copy of any tool: a rollout repairs the one installation in place (it may
+replace only a `~/.local/bin/<tool>` entry that is missing or non-functional; a
+working tool keeps its version; installer homes, configuration and sign-ins are never
+touched), the Machines apply returns the `lazurio doctor`
+and `lazurio tools status` readback and starts no agent, and the rolling-out Task
+Agent starts the repair with the operator's mandate. `tools status` reports
+`standardPath` per tool; the generated Folder manual carries the rule ("Kde bydlí
+nástroje" / "Where the tools live") so agents keep the layout when they add tools.
+
 ## Ownership
 
 | Capability | Platform responsibility | Operator / external owner responsibility |

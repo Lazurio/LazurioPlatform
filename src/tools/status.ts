@@ -102,6 +102,8 @@ export type ToolStatus = Readonly<{
   versionError?: string;
   updater: "self" | "installer" | "none";
   source: string;
+  /** Decision 0161 point 6: the tool's PATH entry is `~/.local/bin/<name>`. */
+  standardPath?: boolean;
 }>;
 
 export type ToolsStatusInput = Readonly<{
@@ -174,6 +176,9 @@ export async function toolsStatus(
     try {
       resolved = await realpath(path);
     } catch {}
+    const standardPath = input.home
+      ? path.startsWith(join(input.home, ".local", "bin", entry.command))
+      : false;
     const env: Record<string, string> = {};
     if (input.path) env.PATH = input.path;
     if (input.home) env.HOME = input.home;
@@ -189,6 +194,7 @@ export async function toolsStatus(
           installed: true,
           path,
           realPath: resolved,
+          standardPath,
           versionError: `timeout after ${versionTimeoutMs} ms`,
         });
         continue;
@@ -200,6 +206,7 @@ export async function toolsStatus(
           installed: true,
           path,
           realPath: resolved,
+          standardPath,
           versionOutput: output.slice(0, 400),
           versionError: `exit ${result.exitCode}`,
         });
@@ -211,6 +218,7 @@ export async function toolsStatus(
         installed: true,
         path,
         realPath: resolved,
+        standardPath,
         ...(version ? { version } : {}),
         versionOutput: output.slice(0, 400),
       });
@@ -220,6 +228,7 @@ export async function toolsStatus(
         installed: true,
         path,
         realPath: resolved,
+        standardPath,
         versionError: error instanceof Error ? error.message : String(error),
       });
     }

@@ -609,13 +609,38 @@ const glossary: readonly Text[] = [
 // Who updates the product on this Machine. On a workstation the Principal
 // does, through the product's own update; on a hosted Machine the Machines
 // pin does, and an agent only reports.
+// Where the operator's tools live on every Machine (decision 0161 point 6):
+// one installation in one standard path, so Machines, `lazurio tools`, the
+// doctor and a repair all look in the same place and an agent installing a
+// further tool keeps the layout.
+const toolLayout: readonly Text[] = [
+  t("### Kde bydlí nástroje", "### Where the tools live"),
+  t(
+    "Nástroj operátora je první spustitelný soubor svého jména v `~/.local/bin` na PATH operátora: codex, claude, gh, node, npm, bun i každý další nástroj, který sem přidáš. Platí to na hostované Mašině i na pracovní stanici (decision 0161).",
+    "An operator tool is the first executable of its name in `~/.local/bin` on the operator's PATH: codex, claude, gh, node, npm, bun and every further tool you add. This holds on a hosted Machine and on a workstation alike (decision 0161).",
+  ),
+  blank,
+  t(
+    "- Oficiální instalátor nástroje si smí držet vlastní domov (Codex `~/.codex/…`, Bun `~/.bun`); do PATH vede jen link nebo wrapper v `~/.local/bin`. Nic nekopíruj jinam a nezakládej druhou instalaci téhož nástroje.",
+    "- A tool's official installer may keep its own home (Codex `~/.codex/…`, Bun `~/.bun`); the only way onto PATH is a link or wrapper in `~/.local/bin`. Copy nothing elsewhere and never create a second installation of the same tool.",
+  ),
+  t(
+    "- Lazurio žije v `~/.local/share/lazurio/` s příkazem `~/.local/bin/lazurio`. Systémové nástroje (git, curl, python, ssh) patří OS a jeho balíčkovači; T3 Code a jeho runtime patří jednotce služby a běží na Node, který doporučuje daná verze T3.",
+    "- Lazurio lives in `~/.local/share/lazurio/` with the command `~/.local/bin/lazurio`. System tools (git, curl, python, ssh) belong to the OS and its package manager; T3 Code and its runtime belong to the service unit and run on the Node its T3 version recommends.",
+  ),
+  t(
+    "- `lazurio tools status` hlásí u každého nástroje, zda leží ve standardní cestě. Nástroj mimo ni nahlas Principálovi; přesouvej ho jen na jeho pokyn a jen oficiálním instalátorem.",
+    "- `lazurio tools status` reports for every tool whether it lies in the standard path. Report a tool outside it to the Principal; move it only on their instruction and only with its official installer.",
+  ),
+];
+
 function productUpdate(hosted: boolean): readonly Text[] {
   if (hosted)
     return [
       t("## Aktualizace na téhle Mašině", "## Updates on this Machine"),
       t(
-        "Verzi nainstalovaného produktu a generované soubory tohohle Folderu vlastní pin provozovatele Machines (Machines operator): ten reviewuje a aplikuje release, který se nainstaluje offline (`lazurio install --base`) a Folder znovu vykreslí (`lazurio machine folder-init`, `lazurio machine folder-refresh`). Novější release tak převykreslí `AGENTS.md` i `manual/`, pokud žádný generovaný soubor nebyl upraven. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun a další na PATH operátora) pin nevlastní: operátor si je aktualizuje sám oficiálními instalátory, rollout je nikdy nedowngraduje ani nepřepisuje a jejich verze jsou fakt, ne drift (decision 0161). Když si operátor prostředí rozbije tak, že agenti nefungují, rollout obnoví jen baseline Mašiny a spustí v ní agenta ze záchranného runtimu provozovatele; ten podle `manual/troubleshooting.md` opraví zbytek.",
-        "The installed product version and this Folder's generated files are owned by the Machines operator's pin: they review and apply a release, which is installed offline (`lazurio install --base`) and re-renders the Folder (`lazurio machine folder-init`, `lazurio machine folder-refresh`). A newer release therefore re-renders `AGENTS.md` and `manual/` as long as no generated file was edited. The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun and whatever else is on the operator's PATH) are not owned by the pin: the operator updates them with the official installers, the rollout never downgrades or overwrites them, and their versions are facts, not drift (decision 0161). When the operator breaks the Environment so that agents no longer work, the rollout restores only the Machine's baseline and starts an agent in it from the provider's recovery runtime; that agent repairs the rest per `manual/troubleshooting.md`.",
+        "Verzi nainstalovaného produktu a generované soubory tohohle Folderu vlastní pin provozovatele Machines (Machines operator): ten reviewuje a aplikuje release, který se nainstaluje offline (`lazurio install --base`) a Folder znovu vykreslí (`lazurio machine folder-init`, `lazurio machine folder-refresh`). Novější release tak převykreslí `AGENTS.md` i `manual/`, pokud žádný generovaný soubor nebyl upraven. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun a další na PATH operátora) pin nevlastní: operátor si je aktualizuje sám oficiálními instalátory a jejich verze jsou fakt, ne drift; rollout smí nahradit jen položku `~/.local/bin/<nástroj>`, která chybí nebo nefunguje, funkčnímu nástroji verzi nemění a domovů instalátorů, konfigurace ani přihlášení se nedotýká (decision 0161). Když si operátor prostředí rozbije tak, že agenti nefungují, rollout obnoví jen baseline Mašiny a nástroje operátora přeinstaluje do standardní cesty pravidlem „jen chybějící nebo rozbité, nikdy downgrade“; Machines apply sám žádného agenta nespouští, jen vrátí readback `lazurio doctor` a `lazurio tools status`, a opravu zbytku spustí rolloutující Task Agent s mandátem operátora podle `manual/troubleshooting.md`.",
+        "The installed product version and this Folder's generated files are owned by the Machines operator's pin: they review and apply a release, which is installed offline (`lazurio install --base`) and re-renders the Folder (`lazurio machine folder-init`, `lazurio machine folder-refresh`). A newer release therefore re-renders `AGENTS.md` and `manual/` as long as no generated file was edited. The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun and whatever else is on the operator's PATH) are not owned by the pin: the operator updates them with the official installers and their versions are facts, not drift; a rollout may replace only a `~/.local/bin/<tool>` entry that is missing or non-functional, never changes a working tool's version and never touches installer homes, configuration or sign-ins (decision 0161). When the operator breaks the Environment so that agents no longer work, the rollout restores only the Machine's baseline and reinstalls the operator's tools into the standard path under the rule 'only missing or broken, never a downgrade'; the Machines apply itself starts no agent, it only returns the `lazurio doctor` and `lazurio tools status` readback, and the rolling-out Task Agent starts the repair of the rest with the operator's mandate per `manual/troubleshooting.md`.",
       ),
       blank,
       t(
@@ -638,6 +663,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
         "- Když `lazurio` není v `PATH`, nainstalovaný příkaz je `~/.local/share/lazurio/bin/lazurio`.",
         "- When `lazurio` is not on `PATH`, the installed command is `~/.local/share/lazurio/bin/lazurio`.",
       ),
+      blank,
+      ...toolLayout,
     ];
   return [
     t("## Aktualizace produktu", "## Product update"),
@@ -662,6 +689,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
       "- **Pill** v Launchpadu ukazuje `idle`, `checking`, `available`, `downloading`, `activating` a selhání, která se vrátí do `available` s chybou a možností zkusit znovu. Jedno kliknutí spustí totéž `lazurio update`.",
       "- The Launchpad **pill** shows `idle`, `checking`, `available`, `downloading`, `activating`, and failures that return to `available` with the error and a retry. One click runs the same `lazurio update`.",
     ),
+    blank,
+    ...toolLayout,
     blank,
     t(
       "Každé selhání nechá nainstalovaný produkt funkční a stejné kliknutí znovu možné. Kódy: `network-unavailable`, `trust-unavailable` (Sigstore trust root není na studené cache dostupný), `release-invalid`, `attestation-invalid`, `target-unsupported`, `reinstall-required` (tahle verze je na aktualizaci sebe sama příliš stará), `busy`, `storage-unavailable`, `disk-full`, `not-installed`, `self-check-failed`, `activation-failed` (nová verze se nerozběhla zdravě; byla vrácena), `rollback-unavailable`, `internal`. Člověka potřebují dva případy: `state-invalid` (stav aktualizace poškozený zvenčí produktu; pojmenuje cestu a nikdy se neodhaduje) a nová verze, která po výpadku napájení během aktivace zůstane běžet, ale nezdravá; tu vrátí další `lazurio update` nebo `lazurio update rollback`.",
