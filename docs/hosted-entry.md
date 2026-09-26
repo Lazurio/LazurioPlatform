@@ -2,9 +2,10 @@
 
 Status: **accepted direction of the Principal (2026-09-19); the adapter for the hosted
 VM path is implemented (`src/launchpad/hosted-trust.ts`, the entry recorded on the
-Machine binding from the handover), verified by unit tests against a fake auth endpoint;
-the handover field (Machines), the schema re-pin, the native run and the canary switch
-of decision F16 are pending.** Without a recorded entry the Launchpad serves a loopback origin with a
+Machine binding from the handover), verified by unit tests against a fake auth endpoint
+and by a [native run behind a stand-in gateway](evidence/hosted-entry-linux-arm64-2026-09-26.md);
+the handover field (Machines), the schema re-pin and the canary switch of decision F16
+are pending.** Without a recorded entry the Launchpad serves a loopback origin with a
 fragment-token session exactly as before. See
 [decision F11](decisions.md#f11--hosted-admission-is-not-identity) and
 [F16](decisions.md#f16--one-network-per-organization-every-machine-is-reached-the-same-way-and-the-conglomerate-graph-is-the-truth-agents-move-along).
