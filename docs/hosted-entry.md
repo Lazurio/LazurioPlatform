@@ -1,9 +1,14 @@
 # Hosted entry: admission versus identity
 
-Status: **accepted direction of the Principal (2026-09-19); not implemented.** The
-Platform Launchpad today serves a loopback origin with a fragment-token session and has
-no hosted request adapter. See
-[decision F11](decisions.md#f11--hosted-admission-is-not-identity).
+Status: **accepted direction of the Principal (2026-09-19); the adapter for the hosted
+VM path is implemented (`src/launchpad/hosted-trust.ts`, the entry recorded on the
+Machine binding from the handover), verified by unit tests against a fake auth endpoint
+and by a [native run behind a stand-in gateway](evidence/hosted-entry-linux-arm64-2026-09-26.md);
+the handover field (Machines), the schema re-pin and the canary switch of decision F16
+are pending.** Without a recorded entry the Launchpad serves a loopback origin with a
+fragment-token session exactly as before. See
+[decision F11](decisions.md#f11--hosted-admission-is-not-identity) and
+[F16](decisions.md#f16--one-network-per-organization-every-machine-is-reached-the-same-way-and-the-conglomerate-graph-is-the-truth-agents-move-along).
 
 Three questions are kept apart. Each has exactly one owner.
 
@@ -97,17 +102,11 @@ Launchpad uses; nothing new on the wire.
 | Personal laptop / personal VM | None for the laptop; the personal VM keeps its own gateway and its entry | Loopback only on the laptop: no Machine binding, `local` preset, an entry is refused |
 
 The values are part of the **Machine Assignment** (F16): written by Machines as the
-handover on a VM, served by the Dashboard after the Account sign-in on a laptop, recorded
-in the Folder next to the Machine binding, shown and never edited in the Launchpad. An
-entry requires that binding: a work laptop holds one because it is a Machine of the
-Organization (kind `workstation`, Owner the Organization, under a preset decided in
-the laptop phase, F16); a laptop without a binding is `local` and personal and can
-never be given an entry. That is the only classification the adapter relies on. During
-the transition on VMs `folder-init` takes them from the resident unit's environment
-(`LAZURIO_LAUNCHPAD_EXTERNAL_ORIGIN`, `LAZURIO_LAUNCHPAD_AUTH_CHECK_URL`,
-`LAZURIO_LAUNCHPAD_AUTH_COOKIE_NAME`, the catalog) so the first switch needs no new
-Machines field; when Machines writes them into the handover, the environment path is
-removed. Selecting the adapter by request sniffing (`Host`, forwarded headers) is
+handover on a VM (`entry.launchpad`, finished URLs from the same rendering as the
+gateway), served by the Dashboard after the Account sign-in on a laptop, recorded on the
+Machine binding in the Folder, shown and never edited in the Launchpad. There is one
+writer and no transition path: no environment of the resident unit is read and no CLI
+records an entry; the Machines apply that writes the field also switches the unit.  Selecting the adapter by request sniffing (`Host`, forwarded headers) is
 rejected: headers are not evidence.
 
 ### Admission, as in production today

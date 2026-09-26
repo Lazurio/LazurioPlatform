@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import { withFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
@@ -14,6 +15,7 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
+import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import index from "./index.html";
 import type { UpdatePill } from "./update-pill";
 
@@ -41,6 +43,12 @@ async function serveHealth(base: string, version: string) {
 
 // One local owner. Optional application adapters are trusted composition, never
 // HTTP input; the browser cannot supply a filesystem root or executable.
+/** Test seam for the hosted admission: the auth-endpoint fetcher and clock. */
+export type HostedOptions = Readonly<{
+  fetcher?: AuthFetcher;
+  now?: () => number;
+}>;
+
 export async function startLaunchpad(
   folder: string,
   applicationAdapters?: Parameters<typeof createApplicationLifecycle>[0],
@@ -56,6 +64,7 @@ export async function startLaunchpad(
      * `GET /api/update/status` and `POST /api/update/apply`. */
     pill?: UpdatePill | undefined;
   }>,
+  hostedOptions: HostedOptions = {},
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -63,18 +72,44 @@ export async function startLaunchpad(
     await inspectOwnedDirectory(organizationDirectory);
   await inspectOwnedDirectory(folder);
   const state = join(folder, ".lazurio");
-  await withFolderOperationLock(state, () => readFolderState(state));
-  const token = randomBytes(32).toString("hex");
+  const initial = await withFolderOperationLock(state, () =>
+    readFolderState(state),
+  );
+  // The recorded hosted entry (decision F16) is the only source of hosted
+  // mode: the Launchpad serves on the loopback port the gateway proxies to,
+  // admission is the gateway's (docs/hosted-entry.md), and there is no
+  // fragment token — the browser's session cookie is the credential.
+  const entry = initial.preferences.machine?.entry ?? null;
+  const trust = entry === null ? null : createHostedTrust(entry, hostedOptions);
+  // The bundled page is served by an inner listener and proxied only after
+  // admission, so nothing of the Launchpad answers an unadmitted browser — not
+  // even its shell. The inner listener is a private unix socket: no ambient
+  // HTTP proxy of the process environment (HTTP_PROXY, ALL_PROXY) can stand in
+  // for it, and nothing else on the Machine can reach it by port.
+  const shellSocket =
+    trust === null
+      ? null
+      : join(await mkdtemp(join(tmpdir(), "lazurio-shell-")), "shell.sock");
+  const shell =
+    shellSocket === null
+      ? null
+      : Bun.serve({
+          unix: shellSocket,
+          development: false,
+          routes: { "/": index },
+          fetch: () => new Response("not-found", { status: 404 }),
+        });
+  const token = trust === null ? randomBytes(32).toString("hex") : "";
   const applications = applicationAdapters
     ? createApplicationLifecycle(applicationAdapters)
     : null;
   let closing = false;
   const server = Bun.serve({
     hostname: "127.0.0.1",
-    port: 0,
+    port: entry === null ? 0 : entry.listenPort,
     development: false,
     maxRequestBodySize: 16 * 1024,
-    routes: { "/": index },
+    ...(trust === null ? { routes: { "/": index } } : {}),
     async fetch(request, server) {
       const origin = `http://127.0.0.1:${server.port}`;
       const url = new URL(request.url);
@@ -85,18 +120,43 @@ export async function startLaunchpad(
       };
       const response = (body: unknown, status = 200) =>
         Response.json(body, { status, headers });
-      // A browser sends no Origin header with a same-origin GET. The bearer
-      // token is the credential; the one GET route is read-only.
-      const sameOrigin =
-        request.headers.get("origin") === origin ||
-        (request.method === "GET" && !request.headers.has("origin"));
-      if (
-        url.origin !== origin ||
-        request.headers.get("host") !== new URL(origin).host ||
-        !sameOrigin ||
-        request.headers.get("authorization") !== `Bearer ${token}`
-      )
-        return response({ error: "denied" }, 403);
+      if (trust !== null && shellSocket !== null) {
+        // Hosted: the gateway's admission, revalidated here; the request's
+        // own URL is loopback and is not evidence of anything.
+        const admission = await trust.admit(request);
+        if (!admission.ok)
+          return response({ error: "denied", reason: admission.reason }, 401);
+        if (request.method === "GET" && !url.pathname.startsWith("/api/")) {
+          const page = await fetch(
+            `http://shell.invalid${url.pathname}${url.search}`,
+            {
+              unix: shellSocket,
+              headers: { accept: request.headers.get("accept") ?? "*/*" },
+            },
+          );
+          return new Response(page.body, {
+            status: page.status,
+            headers: {
+              ...headers,
+              "Content-Type":
+                page.headers.get("content-type") ?? "application/octet-stream",
+            },
+          });
+        }
+      } else {
+        // Local: a browser sends no Origin header with a same-origin GET. The
+        // bearer token is the credential; the one GET route is read-only.
+        const sameOrigin =
+          request.headers.get("origin") === origin ||
+          (request.method === "GET" && !request.headers.has("origin"));
+        if (
+          url.origin !== origin ||
+          request.headers.get("host") !== new URL(origin).host ||
+          !sameOrigin ||
+          request.headers.get("authorization") !== `Bearer ${token}`
+        )
+          return response({ error: "denied" }, 403);
+      }
       if (request.method === "GET" && url.pathname === "/api/update/status") {
         if (closing) return response({ error: "closing" }, 503);
         if (!pill) return response({ error: "update-unavailable" }, 503);
@@ -223,7 +283,11 @@ export async function startLaunchpad(
   > | null = null;
   return {
     server,
-    url: `${server.url.href}#${token}`,
+    url:
+      entry === null
+        ? `${server.url.href}#${token}`
+        : `${entry.externalOrigin}/`,
+    hosted: entry !== null,
     close() {
       closing = true;
       if (!closePending)
@@ -234,6 +298,9 @@ export async function startLaunchpad(
           clearTimeout(reconcile);
           pill?.stop();
           await server.stop(true);
+          await shell?.stop(true);
+          if (shellSocket !== null)
+            await rm(dirname(shellSocket), { recursive: true, force: true });
           await health?.stop(true);
           const result = applicationClose
             ? await applicationClose

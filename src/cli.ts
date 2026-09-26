@@ -446,7 +446,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       });
       applicationRunner = kind;
     }
-    const { close, url } = await startLaunchpad(
+    const { close, url, hosted } = await startLaunchpad(
       values.folder,
       applicationAdapters,
       organizationDirectory === undefined
@@ -461,7 +461,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(
       JSON.stringify({
         url,
-        scope: "local-development-profile-panel",
+        scope: hosted ? "hosted-entry" : "local-development-profile-panel",
         ...(applicationRunner === undefined ? {} : { applicationRunner }),
       }),
     );

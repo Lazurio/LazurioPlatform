@@ -274,6 +274,23 @@ The Launchpad shows the binding, including the assignment and a compact read-onl
 list of the peers, and lets the Principal change the preset (within the allow-list)
 and the communication axes through the ordinary preview → apply flow.
 
+## The hosted entry (decision F16)
+
+The handover will carry the Machine's **entry** — `entry.launchpad` with the finished
+URLs Machines renders for the gateway (`external_origin`, `auth_check_url`,
+`auth_cookie_name`) and the loopback `listen_port` the gateway proxies to; on a
+personal VM the names have no Organization segment. The Platform never composes these
+URLs and reads no environment for them: the binding records `entry` from the handover
+exactly like the assignment and the relationships (declaration, not identity, so a
+re-apply that adds it keeps the Folder adopted and `folder-refresh` re-renders),
+`manual/this-machine.md` shows it, and `lazurio launchpad --folder` serves on that
+port behind the gateway's admission ([hosted entry](hosted-entry.md)) when it is
+present. One writer: the Machines apply that writes the entry also owns the switch of
+`lazurio-launchpad.service` from the resident Launchpad to the installer-written unit
+(exactly one listener on the port, observed). The vendored schema is re-pinned
+byte-for-byte when the Machines release that adds the field exists; until then no
+Folder records an entry and the Launchpad stays local.
+
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 
 The Machines resident role installs the Platform from a custody-staged, digest-pinned
