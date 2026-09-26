@@ -141,7 +141,26 @@ test.skipIf(!posix)(
       version: "26.5.0",
       updater: "none",
     });
-    expect(byName.gh).toMatchObject({ installed: true, version: "2.86.0" });
+    expect(byName.gh).toMatchObject({
+      installed: true,
+      version: "2.86.0",
+      standardPath: false,
+    });
+    // The standard path (decision 0161 point 6): ~/.local/bin/<tool> of the home.
+    const standard = join(root, ".local", "bin");
+    await mkdir(standard, { recursive: true });
+    await fakeTool(standard, "claude", "2.1.0");
+    const inHome = await toolsStatus({
+      path: [standard, first].join(delimiter),
+      home: root,
+      platform: process.platform,
+      run: runTool,
+      catalog: catalog([{ name: "claude" }, { name: "gh" }]),
+    });
+    expect(inHome.tools.map((tool) => [tool.name, tool.standardPath])).toEqual([
+      ["claude", true],
+      ["gh", false],
+    ]);
     expect(byName.bun).toMatchObject({
       installed: true,
       versionError: "exit 7",
