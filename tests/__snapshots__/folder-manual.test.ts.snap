@@ -835,7 +835,7 @@ Verzi nainstalovaného produktu a generované soubory tohohle Folderu vlastní p
 - Nespouštěj tu \`lazurio update\`, \`lazurio update rollback\` ani \`lazurio install\`. Verze produktu, kterou si nainstaluješ sám, je mimo pin: další nasazení od provozovatele na nižší verzi nepůjde a na Mašině už neběží to, co prošlo review.
 - \`lazurio update status [--json]\` je jen pro čtení a smíš ho použít, abys nahlásil běžící, aktivní a poslední známou verzi.
 - Když je produkt zastaralý (starší verze, než úkol potřebuje, nebo poslední kontrola starší než den), řekni to Principálovi i s důkazem; pin aktualizuje provozovatel Machines.
-- Nástroje operátora (Codex, Claude Code, \`gh\`, Node, npm, Bun a další) aktualizuj jen na výslovný pokyn Principála v tomhle threadu, oficiálním instalátorem daného nástroje; bez pokynu jen nahlas nainstalovanou a dostupnou verzi nebo chybějící nástroj s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si operátor udělal sám.
+- Nástroje operátora (Codex, Claude Code, \`gh\`, Node, npm, Bun a další) aktualizuj jen na výslovný pokyn Principála v tomhle threadu: \`lazurio tools update <nástroj>\` spustí oficiální updater nebo instalátor právě toho jednoho nástroje; kde žádný není, vypíše jen oficiální zdroj. Bez pokynu jen nahlas, co je nainstalované (\`lazurio tools status\`), nebo chybějící nástroj s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si operátor udělal sám.
 - Když \`lazurio\` není v \`PATH\`, nainstalovaný příkaz je \`~/.local/share/lazurio/bin/lazurio\`.
 
 ## Identita Mašiny
@@ -880,7 +880,7 @@ The installed product version and this Folder's generated files are owned by the
 - Do not run \`lazurio update\`, \`lazurio update rollback\` or \`lazurio install\` here. A product version you install yourself falls outside the pin: the operator's next apply will not go below it, and the Machine no longer runs what was reviewed.
 - \`lazurio update status [--json]\` is read-only; use it to report the running, active and latest known version.
 - When the product is outdated (an older version than the task needs, or a last check older than a day), tell the Principal with the evidence; the Machines operator updates the pin.
-- Update the operator's tools (Codex, Claude Code, \`gh\`, Node, npm, Bun and the rest) only on the Principal's explicit instruction in this thread, with the tool's official installer; without one, only report the installed and available version or the missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the operator made themselves.
+- Update the operator's tools (Codex, Claude Code, \`gh\`, Node, npm, Bun and the rest) only on the Principal's explicit instruction in this thread: \`lazurio tools update <tool>\` runs the official updater or installer of exactly that one tool; where there is none, it prints only the official source. Without an instruction, only report what is installed (\`lazurio tools status\`) or a missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the operator made themselves.
 - When \`lazurio\` is not on \`PATH\`, the installed command is \`~/.local/share/lazurio/bin/lazurio\`.
 
 ## The Machine identity
@@ -925,7 +925,7 @@ Verzi nainstalovaného produktu a generované soubory tohohle Folderu vlastní p
 - Nespouštěj tu \`lazurio update\`, \`lazurio update rollback\` ani \`lazurio install\`. Verze produktu, kterou si nainstaluješ sám, je mimo pin: další nasazení od provozovatele na nižší verzi nepůjde a na Mašině už neběží to, co prošlo review.
 - \`lazurio update status [--json]\` je jen pro čtení a smíš ho použít, abys nahlásil běžící, aktivní a poslední známou verzi.
 - Když je produkt zastaralý (starší verze, než úkol potřebuje, nebo poslední kontrola starší než den), řekni to Principálovi i s důkazem; pin aktualizuje provozovatel Machines.
-- Nástroje operátora (Codex, Claude Code, \`gh\`, Node, npm, Bun a další) aktualizuj jen na výslovný pokyn Principála v tomhle threadu, oficiálním instalátorem daného nástroje; bez pokynu jen nahlas nainstalovanou a dostupnou verzi nebo chybějící nástroj s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si operátor udělal sám.
+- Nástroje operátora (Codex, Claude Code, \`gh\`, Node, npm, Bun a další) aktualizuj jen na výslovný pokyn Principála v tomhle threadu: \`lazurio tools update <nástroj>\` spustí oficiální updater nebo instalátor právě toho jednoho nástroje; kde žádný není, vypíše jen oficiální zdroj. Bez pokynu jen nahlas, co je nainstalované (\`lazurio tools status\`), nebo chybějící nástroj s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si operátor udělal sám.
 - Když \`lazurio\` není v \`PATH\`, nainstalovaný příkaz je \`~/.local/share/lazurio/bin/lazurio\`.
 
 ## Obsah Organizací
@@ -973,7 +973,7 @@ The installed product version and this Folder's generated files are owned by the
 - Do not run \`lazurio update\`, \`lazurio update rollback\` or \`lazurio install\` here. A product version you install yourself falls outside the pin: the operator's next apply will not go below it, and the Machine no longer runs what was reviewed.
 - \`lazurio update status [--json]\` is read-only; use it to report the running, active and latest known version.
 - When the product is outdated (an older version than the task needs, or a last check older than a day), tell the Principal with the evidence; the Machines operator updates the pin.
-- Update the operator's tools (Codex, Claude Code, \`gh\`, Node, npm, Bun and the rest) only on the Principal's explicit instruction in this thread, with the tool's official installer; without one, only report the installed and available version or the missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the operator made themselves.
+- Update the operator's tools (Codex, Claude Code, \`gh\`, Node, npm, Bun and the rest) only on the Principal's explicit instruction in this thread: \`lazurio tools update <tool>\` runs the official updater or installer of exactly that one tool; where there is none, it prints only the official source. Without an instruction, only report what is installed (\`lazurio tools status\`) or a missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the operator made themselves.
 - When \`lazurio\` is not on \`PATH\`, the installed command is \`~/.local/share/lazurio/bin/lazurio\`.
 
 ## Organization content
@@ -1021,7 +1021,7 @@ Verzi nainstalovaného produktu a generované soubory tohohle Folderu vlastní p
 - Nespouštěj tu \`lazurio update\`, \`lazurio update rollback\` ani \`lazurio install\`. Verze produktu, kterou si nainstaluješ sám, je mimo pin: další nasazení od provozovatele na nižší verzi nepůjde a na Mašině už neběží to, co prošlo review.
 - \`lazurio update status [--json]\` je jen pro čtení a smíš ho použít, abys nahlásil běžící, aktivní a poslední známou verzi.
 - Když je produkt zastaralý (starší verze, než úkol potřebuje, nebo poslední kontrola starší než den), řekni to Principálovi i s důkazem; pin aktualizuje provozovatel Machines.
-- Nástroje operátora (Codex, Claude Code, \`gh\`, Node, npm, Bun a další) aktualizuj jen na výslovný pokyn Principála v tomhle threadu, oficiálním instalátorem daného nástroje; bez pokynu jen nahlas nainstalovanou a dostupnou verzi nebo chybějící nástroj s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si operátor udělal sám.
+- Nástroje operátora (Codex, Claude Code, \`gh\`, Node, npm, Bun a další) aktualizuj jen na výslovný pokyn Principála v tomhle threadu: \`lazurio tools update <nástroj>\` spustí oficiální updater nebo instalátor právě toho jednoho nástroje; kde žádný není, vypíše jen oficiální zdroj. Bez pokynu jen nahlas, co je nainstalované (\`lazurio tools status\`), nebo chybějící nástroj s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si operátor udělal sám.
 - Když \`lazurio\` není v \`PATH\`, nainstalovaný příkaz je \`~/.local/share/lazurio/bin/lazurio\`.
 
 ## Obsah Organizací
@@ -1069,7 +1069,7 @@ The installed product version and this Folder's generated files are owned by the
 - Do not run \`lazurio update\`, \`lazurio update rollback\` or \`lazurio install\` here. A product version you install yourself falls outside the pin: the operator's next apply will not go below it, and the Machine no longer runs what was reviewed.
 - \`lazurio update status [--json]\` is read-only; use it to report the running, active and latest known version.
 - When the product is outdated (an older version than the task needs, or a last check older than a day), tell the Principal with the evidence; the Machines operator updates the pin.
-- Update the operator's tools (Codex, Claude Code, \`gh\`, Node, npm, Bun and the rest) only on the Principal's explicit instruction in this thread, with the tool's official installer; without one, only report the installed and available version or the missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the operator made themselves.
+- Update the operator's tools (Codex, Claude Code, \`gh\`, Node, npm, Bun and the rest) only on the Principal's explicit instruction in this thread: \`lazurio tools update <tool>\` runs the official updater or installer of exactly that one tool; where there is none, it prints only the official source. Without an instruction, only report what is installed (\`lazurio tools status\`) or a missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the operator made themselves.
 - When \`lazurio\` is not on \`PATH\`, the installed command is \`~/.local/share/lazurio/bin/lazurio\`.
 
 ## Organization content
