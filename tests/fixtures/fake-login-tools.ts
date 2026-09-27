@@ -52,6 +52,11 @@ case "$1" in
 --version) echo "0.3.1"; exit 0;;
 login)
   if [ "$2" = "--no-wait" ]; then
+    if [ -f "$HOME/composio.hang" ]; then
+      echo $$ > "$HOME/composio.first.tmp"
+      mv "$HOME/composio.first.tmp" "$HOME/composio.first"
+      while :; do sleep 0.05; done
+    fi
     url="https://dashboard.composio.dev/?cliKey=${fakeCodes.composioKey}"
     [ -f "$HOME/composio.url" ] && url=$(cat "$HOME/composio.url")
     mkdir -p "$HOME/.composio"

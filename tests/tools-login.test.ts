@@ -409,6 +409,42 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "composio: the first step is a process of the session and ends with it",
+  async () => {
+    const opened = await home(["composio"]);
+    await writeFile(join(opened.directory, "composio.hang"), "");
+    const sessions = createLoginSessions(opened.environment);
+    try {
+      const started = sessions.start("composio");
+      const marker = join(opened.directory, "composio.first");
+      await waitFor(async () => {
+        try {
+          await readFile(marker, "utf8");
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      const first = Number(await readFile(marker, "utf8"));
+      expect(alive(first)).toBe(true);
+      // A new start replaces the running login; its first step goes too.
+      await rm(join(opened.directory, "composio.hang"));
+      const second = await sessions.start("composio");
+      await waitFor(() => !alive(first));
+      expect((await started).kind).not.toBe("signed-in");
+      if (second.kind !== "pending") throw new Error("not pending");
+      expect(sessions.cancel("composio", second.session)).toEqual({
+        kind: "cancelled",
+        tool: "composio",
+      });
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
   "composio: a link on another host is refused and never becomes a challenge",
   async () => {
     const opened = await home(["composio"]);

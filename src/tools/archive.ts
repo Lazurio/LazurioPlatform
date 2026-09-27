@@ -151,6 +151,7 @@ const u16 = (view: DataView, at: number) => view.getUint16(at, true);
 const u32 = (view: DataView, at: number) => view.getUint32(at, true);
 
 function zipEntries(archive: Uint8Array): Entry[] {
+  let expanded = 0;
   const view = new DataView(
     archive.buffer,
     archive.byteOffset,
@@ -197,6 +198,12 @@ function zipEntries(archive: Uint8Array): Entry[] {
     if (flags & 0x1) fail("Encrypted zip entry");
     if (compressed === 0xffffffff || size === 0xffffffff)
       fail("ZIP64 is not supported");
+    // The same bound as the expanded tar: by the declared sizes before
+    // anything is inflated, and inflation itself never exceeds the declared
+    // size of its entry.
+    expanded += size;
+    if (size > maxExpanded || expanded > maxExpanded)
+      fail("Archive expands beyond the limit");
     const name = archiveEntryName(raw);
     // Unix file type in the high half of the external attributes.
     const unixMode = madeBy === 3 ? external >>> 16 : 0;

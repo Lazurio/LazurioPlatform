@@ -442,22 +442,27 @@ export function createLoginSessions(environment: LoginEnvironment) {
   ) {
     // Step one prints the login URL and records a pending login in the
     // tool's own store; `--no-skill-install` keeps agent plugins out.
-    let first: Awaited<ReturnType<ToolRunner>>;
-    try {
-      first = await environment.run(
-        [path, "login", "--no-wait", "--no-skill-install"],
-        30_000,
-        processEnv(),
-      );
-    } catch {
-      return fail(session, "spawn-failed");
-    }
+    // It runs as a process of the session, so a cancel, an expiry or a
+    // shutdown ends it like every other one.
+    const output: string[] = [];
+    const first = spawnLines(
+      [path, "login", "--no-wait", "--no-skill-install"],
+      processEnv(),
+      counted(session, (line) => {
+        output.push(line);
+      }),
+    );
+    track(session, first);
+    let answered = false;
+    later(session, 30_000, () => {
+      if (!answered) fail(session, "tool-exit");
+    });
+    const firstExit = await first.exited;
+    answered = true;
     if (!current(session)) return;
-    if (first === "timeout" || first.exitCode !== 0)
-      return fail(session, "tool-exit");
-    const candidate = /https?:\/\/[^\s"'<>]+/.exec(
-      plainText(`${first.stdout}\n${first.stderr}`),
-    )?.[0];
+    session.processes.delete(first);
+    if (firstExit !== 0) return fail(session, "tool-exit");
+    const candidate = /https?:\/\/[^\s"'<>]+/.exec(output.join("\n"))?.[0];
     const url =
       candidate === undefined
         ? undefined

@@ -254,6 +254,33 @@ test("an archive is refused for absolute names, parent segments, escaping links 
         `${base}/bin/gh`,
       ),
     ).toThrow(UnsafeArchiveError);
+  // A zip that declares more than the limit is refused before anything is
+  // inflated, by one entry or by the sum of all.
+  const declared = (sizes: readonly number[]) => {
+    const archive = zip([
+      ...sizes.map((_, index) => ({ name: `${base}/pad${index}`, data: "x" })),
+      { name: `${base}/bin/gh`, data: ghBinary },
+    ]);
+    const view = new DataView(
+      archive.buffer,
+      archive.byteOffset,
+      archive.byteLength,
+    );
+    let entry = 0;
+    for (let at = 0; at + 4 <= archive.length; at += 1)
+      if (view.getUint32(at, true) === 0x02014b50 && entry < sizes.length) {
+        view.setUint32(at + 24, sizes[entry] as number, true);
+        entry += 1;
+      }
+    return archive;
+  };
+  for (const sizes of [
+    [600 * 1024 * 1024],
+    [300 * 1024 * 1024, 300 * 1024 * 1024],
+  ])
+    expect(() =>
+      extractArchiveFile(declared(sizes), "zip", `${base}/bin/gh`),
+    ).toThrow("Archive expands beyond the limit");
   expect(archiveEntryName("./a//b/")).toBe("a/b");
   expect(() => archiveEntryName("a\\b")).toThrow(UnsafeArchiveError);
 });
@@ -321,11 +348,20 @@ async function sandbox() {
   const bin = join(home, ".local", "bin");
   const system = join(home, "system");
   await mkdir(system, { recursive: true });
+  // The PATH of the sandbox holds no system directory: a runner may have its
+  // own gh in /usr/bin. The few utilities the fake installers need are linked
+  // into a private directory.
+  const utilities = join(home, "utilities");
+  await mkdir(utilities, { recursive: true });
+  for (const name of ["mkdir", "chmod", "ln", "env", "cat", "rm", "sleep"]) {
+    const found = Bun.which(name);
+    if (found) await symlink(found, join(utilities, name));
+  }
   const environment = (
     fetcher: InstallFetch,
     overrides: Partial<InstallEnvironment> = {},
   ): InstallEnvironment => ({
-    path: [bin, system, "/usr/bin", "/bin"].join(":"),
+    path: [bin, system, utilities].join(":"),
     home,
     platform: "linux",
     arch: "x64",
@@ -707,6 +743,22 @@ test.skipIf(!posix)(
       if (result.kind !== "install-failed") throw new Error("not failed");
       expect(result.detail).toContain("unsupported libc");
       expect(result.detail).not.toContain("abcdefghijklmnopqrstuvwxyz");
+      // An installer that succeeds and leaves a tool that does not run: the
+      // entry in the standard path is not left behind.
+      const broken = fakeSource({
+        "https://composio.dev/install":
+          '#!/bin/sh\nset -eu\nmkdir -p "$HOME/.composio" "$HOME/.local/bin"\nprintf \'#!/bin/sh\\nexit 7\\n\' > "$HOME/.composio/composio"\nchmod 755 "$HOME/.composio/composio"\nln -sf "$HOME/.composio/composio" "$HOME/.local/bin/composio"\n',
+      });
+      expect(
+        await installTool("composio", box.environment(broken.fetcher, { run })),
+      ).toEqual({
+        kind: "install-failed",
+        tool: "composio",
+        stage: "verify",
+        reason: "version-failed",
+        fallback: "agent",
+      });
+      expect(await readdir(box.bin)).toEqual([]);
     } finally {
       await box.close();
     }

@@ -534,8 +534,10 @@ export async function installTool(
   }
   const installed = await probe(destination, env, processEnv);
   if (!installed.works) {
-    // What was placed and does not run is not left behind as "installed".
-    if (recipe.kind === "release") await rm(destination, { force: true });
+    // What was placed and does not run is not left behind as "installed":
+    // the entry in the standard path goes (for an installer script that is
+    // its link; the installer's own home stays the tool's).
+    await rm(destination, { force: true });
     return fail("verify", "version-failed");
   }
   return {
