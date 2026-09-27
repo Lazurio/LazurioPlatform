@@ -751,6 +751,29 @@ with `drift` and `path: manual/roles.md`; a `manual/` left behind without `.lazu
 is `folder-foreign-entry` naming `manual`. Not proven: a native Launchpad preset
 change on that Machine.
 
+**Addendum 2026-09-28: two working rules of root decision 0163.** The generated
+`AGENTS.md` ("How work is done here" / "Jak se tu pracuje") states each rule in a short
+paragraph, and `manual/working-here.md` in full, in its own section: "Open questions go
+to GitHub Issues and do not stop the work" and "Take review findings with judgment".
+(1) An agent files an open technical problem, uncertainty or finding it cannot resolve
+at once as a GitHub Issue in the exact owning repository without asking first, after a
+duplicate check and after removing secrets, Personalspace and Organization content
+outside its boundary; it continues with everything that does not depend on the answer
+and stops only where it cannot continue safely or the decision is the Principal's. It
+does not close, assign or prioritize issues without instruction; plan, priority and
+responsibility stay in the Organization's Mission Control. (2) A real defect found in
+review is fixed at once; trivia, speculation about a future change or a widening of
+the scope gets a factual objection on the pull request and a request for a verdict on
+the unchanged head; if the reviewer insists, both positions go to the Principal, and
+the review is never bypassed. The manual no longer says that creating an issue is a
+Publication that needs the Principal's mandate (`working-here.md`, `troubleshooting.md`):
+0163 changed exactly that point of root decision 0139. No file is added. The template
+revision stays `base-instructions-8`, like the F18 addendum: the latest release,
+`v0.1.6`, renders `base-instructions-7`, so nothing rendered by revision 8 has shipped.
+A unit test checks key sentences of both rules in `AGENTS.md` and
+`manual/working-here.md` for every preset in both locales, and that no output still
+calls an issue a Publication.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Principal's decision 2026-09-23, not implemented.** On a hosted Machine delivered

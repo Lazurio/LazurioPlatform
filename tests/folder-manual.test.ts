@@ -96,6 +96,71 @@ test("the manual follows the locale with the same structure in both languages an
     }
 });
 
+// The two working rules of root decision 0163, in both languages and both
+// outputs: the short form in AGENTS.md, the full form in the manual's
+// `working-here.md`. No output may still say that filing an issue needs the
+// Principal's mandate. A snapshot alone cannot drop these sentences.
+test("AGENTS.md and the manual carry the issue rule and the review rule of decision 0163", () => {
+  const rules = {
+    cs: {
+      agents: [
+        "zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře",
+        "Pak pokračuj na všem, co na odpovědi nestojí",
+        "Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj",
+        "Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned",
+        "věcnou námitkou v PR, a požádej o verdikt na nezměněném headu",
+        "Trvá-li reviewer na svém, předlož obě stanoviska Principálovi",
+      ],
+      manual: [
+        "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",
+        "Je to tvůj trvalý mandát: předem se neptáš",
+        "- **Issue práci nezastavuje.**",
+        "- **Mandát platí jen pro zápis.**",
+        "## Nálezy z review přijímej s úsudkem (decision 0163)",
+        "- **Skutečnou vadu oprav hned.**",
+        "Pak požádej o verdikt na nezměněném headu.",
+        "Review ani branch rules nikdy neobcházej.",
+      ],
+    },
+    en: {
+      agents: [
+        "as a GitHub Issue in the exact owning repository, without asking first",
+        "Then continue with everything that does not depend on the answer",
+        "Do not close, assign or prioritize an issue without the Principal's instruction",
+        "Take review findings with judgment. Fix a real defect at once",
+        "with a factual objection on the PR, and ask for a verdict on the unchanged head",
+        "If the reviewer still insists, put both positions to the Principal",
+      ],
+      manual: [
+        "## Open questions go to GitHub Issues and do not stop the work (decision 0163)",
+        "This is your standing mandate: you do not ask first",
+        "- **An issue does not stop the work.**",
+        "- **The mandate covers filing only.**",
+        "## Take review findings with judgment (decision 0163)",
+        "- **Fix a real defect at once.**",
+        "Then ask for a verdict on the unchanged head.",
+        "Never bypass the review or the branch rules.",
+      ],
+    },
+  } as const;
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const sentence of rules[locale].agents)
+        expect(outputs["AGENTS.md"]).toContain(sentence);
+      for (const sentence of rules[locale].manual)
+        expect(outputs["manual/working-here.md"]).toContain(sentence);
+      for (const path of outputPaths)
+        expect(outputs[path]).not.toMatch(
+          /issue nebo komentáře je Publikace|issue or a comment is a Publication/,
+        );
+    }
+});
+
 // The hosted rules of base-instructions-4: SSH only by tailnet hostname with a
 // pinned key, updates by the Machines pin, content sync not in the product.
 test("hosted presets carry the SSH and update rules; a workstation keeps its own update path", () => {

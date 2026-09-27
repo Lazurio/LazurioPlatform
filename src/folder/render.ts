@@ -410,6 +410,19 @@ function toolsSection(
   ];
 }
 
+// Two general working rules of root decision 0163, in their short form; the
+// full form is in `manual/working-here.md`.
+const workingRules: readonly Text[] = [
+  {
+    cs: "- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu. Předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah Organizace, který do toho repozitáře nepatří. Pak pokračuj na všem, co na odpovědi nestojí; zastav se jen tam, kde bez ní nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi. Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj; plán, priorita a odpovědnost patří do Mission Controlu Organizace (`manual/working-here.md`).",
+    en: "- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (`manual/working-here.md`).",
+  },
+  {
+    cs: "- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a požádej o verdikt na nezměněném headu. Trvá-li reviewer na svém, předlož obě stanoviska Principálovi; review ani branch rules nikdy neobcházej.",
+    en: "- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.",
+  },
+];
+
 export function renderInstructions(input: unknown): string {
   const {
     preset,
@@ -451,6 +464,7 @@ export function renderInstructions(input: unknown): string {
       cs: "- Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Principálovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.",
       en: "- Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.",
     }),
+    ...workingRules.map(pick),
     pick({
       cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.",
       en: "- Before Organization work, load its current AGENTS.md under `organizations/<org>/`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.",

@@ -258,7 +258,9 @@ module delivery remain separate pilot gates.
 the profile: which Machine this is and whose, how it is assigned when the handover
 says so (`assigned to operator <login>` / `shared by the Team`), who the Principal is
 here, the Personalspace boundary, where Organization repositories live, the provider
-identity mode and how work is done, with a pointer to the Organization's `AGENTS.md`
+identity mode and how work is done (including the two working rules of upstream
+decision 0163: open questions go to GitHub Issues and do not stop the work, and
+review findings are taken with judgment), with a pointer to the Organization's `AGENTS.md`
 and to the agent manual in `manual/` ([decision F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)):
 six documents in the Folder locale (`cs` or `en`, amendment of 2026-09-24) rendered from the same inputs, of which `this-machine.md`
 carries the Machine, its preset and the zones of upstream decision 0155. Its

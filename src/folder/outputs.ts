@@ -24,8 +24,8 @@ export const manualEntries = Object.freeze([
     path: "manual/working-here.md",
     title: { cs: "Jak se tu pracuje", en: "Working here" },
     summary: {
-      cs: "Draft, Publikace, worktrees, handoff a kam patří poznatky",
-      en: "Draft, Publication, worktrees, handoff and where knowledge goes",
+      cs: "Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky a kam patří poznatky",
+      en: "Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes",
     },
   },
   {

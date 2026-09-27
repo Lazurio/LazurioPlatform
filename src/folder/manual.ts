@@ -266,6 +266,31 @@ const workingHere: readonly Text[] = [
     "Whoever decides about the merge must not derive the “why” from the diff. Describe the motivation, the target state and benefit, what changes and what deliberately does not, how it was verified, and the remaining risks, blockers and follow-ups. Update it after a scope change or a rebase so it matches the real HEAD.",
   ),
   blank,
+  t(
+    "## Nálezy z review přijímej s úsudkem (decision 0163)",
+    "## Take review findings with judgment (decision 0163)",
+  ),
+  t(
+    "Review ber vážně, ale ne bez výhrad. Každé další kolo oprav kvůli drobnosti zdržuje hotovou práci a nic nechrání.",
+    "Take review seriously, but not without reservation. Every further round of fixes over trivia delays finished work and protects nothing.",
+  ),
+  t(
+    "- **Skutečnou vadu oprav hned.** Skutečná vada je špatné chování, rozpor mezi texty, tvrzení bez důkazu nebo únik citlivého obsahu.",
+    "- **Fix a real defect at once.** A real defect is wrong behavior, a contradiction between texts, a claim without proof or a leak of sensitive content.",
+  ),
+  t(
+    "- **Ostatní nálezy nepřijímej mlčky.** Nález, který je drobnost bez dopadu, spekulace o budoucí změně nebo rozšiřuje záběr PR o nový mechanismus, neřeš dalším kolem oprav. Odpověz přímo v PR věcnou námitkou: co je účelem PR, proč nález nechrání před skutečnou škodou a co už je doložené. Pak požádej o verdikt na nezměněném headu.",
+    "- **Do not accept other findings silently.** A finding that is trivia without impact, speculation about a future change or widens the PR's scope with a new mechanism is not answered with another round of fixes. Reply on the PR with a factual objection: what the PR is for, why the finding protects against no real harm and what is already proven. Then ask for a verdict on the unchanged head.",
+  ),
+  t(
+    "- **Trvá-li reviewer na svém,** nepokračuj dalším kolem a předlož obě stanoviska Principálovi. Review ani branch rules nikdy neobcházej.",
+    "- **If the reviewer still insists,** do not start another round; put both positions to the Principal. Never bypass the review or the branch rules.",
+  ),
+  t(
+    "- **Nález, který má cenu, ale do PR nepatří,** zapiš jako GitHub Issue podle oddílu o otevřených otázkách níže.",
+    "- **A finding that has value but does not belong in the PR** goes into a GitHub Issue, as the section on open questions below describes.",
+  ),
+  blank,
   same("## Handoff"),
   t(
     "Než se zeptáš, ověř živá GitHub práva Principála: oprávnění k repozitáři, branch protection, povolené metody merge a mergeability PR. Závěrečná zpráva pracovního chatu, ve kterém vznikl PR, začíná standardizovaným blokem (decision 0103) v jazyce Principála:",
@@ -324,12 +349,41 @@ const workingHere: readonly Text[] = [
   ),
   blank,
   t(
+    "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",
+    "## Open questions go to GitHub Issues and do not stop the work (decision 0163)",
+  ),
+  t(
+    "Když při práci narazíš na otevřený technický problém, nejistotu nebo nález, který nejde hned vyřešit, zapiš ho jako GitHub Issue do přesného owning repozitáře: do veřejného repozitáře produktu pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace, do repozitáře modulu pro jeden modul. Je to tvůj trvalý mandát: předem se neptáš a URL issue uvedeš v handoffu.",
+    "When your work runs into an open technical problem, an uncertainty or a finding that cannot be resolved right away, file it as a GitHub Issue in the exact owning repository: the product's public repository for Lazurio itself, the Organization's repository for Organization content, the module's repository for one module. This is your standing mandate: you do not ask first, and you give the issue's URL in the handoff.",
+  ),
+  t(
+    "- **Před zápisem** vyhledej otevřené i zavřené issue se stejným problémem; ke shodnému přidej komentář s novým důkazem místo nového issue. Odstraň secrets, tokeny, zákaznická data, Personalspace a obsah Organizace mimo její access hranici. Do veřejného repozitáře nikdy nezapisuj obsah konkrétní Organizace. Otevřenou otázku zapiš jako otázku a odděl, co je ověřené a co ne.",
+    "- **Before filing,** search open and closed issues for the same problem; add a comment with the new evidence to a matching one instead of opening another. Remove secrets, tokens, customer data, Personalspace and Organization content outside its access boundary. Never write a specific Organization's content into a public repository. File an open question as a question and separate what is verified from what is not.",
+  ),
+  t(
+    "- **Issue práci nezastavuje.** Pokračuj na všem, co na odpovědi nestojí. Zastav se jen tam, kde bez odpovědi nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi.",
+    "- **An issue does not stop the work.** Continue with everything that does not depend on the answer. Stop only where you cannot continue safely without it or where the decision belongs to the Principal.",
+  ),
+  t(
+    "- **Mandát platí jen pro zápis.** Issue bez pokynu Principála nezavíráš, nepřiřazuješ ani neprioritizuješ. Merge, Release a nasazení zůstávají Publikací na jeho pokyn.",
+    "- **The mandate covers filing only.** You do not close, assign or prioritize an issue without the Principal's instruction. A merge, a Release and a deployment remain a Publication on their instruction.",
+  ),
+  t(
+    "- **Issue není plán.** Plán, priorita a odpovědnost patří do Mission Controlu Organizace; otevřenou otázku tam místo issue nezapisuj.",
+    "- **An issue is not a plan.** Plan, priority and responsibility belong in the Organization's Mission Control; do not write an open question there instead of an issue.",
+  ),
+  t(
+    "- **Když zápis nejde** (Issues nejsou povolené, účet nemá právo, síť není dostupná nebo si nejsi jistý, že obsah do repozitáře smí), nic neobcházej a nezapisuj ho do jiné Organizace. Vrať Principálovi sanitizovaný text issue, přesný cílový repozitář a důvod, proč jsi ho nezapsal.",
+    "- **When filing is not possible** (Issues are disabled, the account lacks the right, the network is unavailable or you are not sure the content may go into that repository), bypass nothing and do not file it in another Organization. Return to the Principal the sanitized issue text, the exact target repository and the reason you did not file it.",
+  ),
+  blank,
+  t(
     "## Poznatky patří tam, kde je najdou ostatní",
     "## Knowledge belongs where others find it",
   ),
   t(
-    "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Vždy jako PR ze svého worktree. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Principál do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost. Založení issue nebo komentáře je Publikace.",
-    "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. Always as a PR from your worktree. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Principal may place in that store; Personalspace and cross-Organization isolation always take precedence. Creating an issue or a comment is a Publication.",
+    "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Vždy jako PR ze svého worktree. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Principál do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost.",
+    "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. Always as a PR from your worktree. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Principal may place in that store; Personalspace and cross-Organization isolation always take precedence.",
   ),
   blank,
   t("## Organizace", "## Organizations"),
@@ -812,8 +866,8 @@ function troubleshooting(preset: PresetName): readonly Text[] {
     blank,
     t("## Hlášení problémů", "## Reporting problems"),
     t(
-      "Otevřený technický problém patří do GitHub Issue v přesném owning repozitáři: do veřejného repozitáře produktu pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace. Založení issue nebo komentáře je Publikace a potřebuje explicitní mandát Principála. Před publikací odstraň secrets, Personalspace a obsah Organizace mimo její access hranici a zkontroluj duplicity; bez bezpečného repozitáře nebo mandátu vrať sanitizovaný draft.",
-      "An open technical problem belongs in a GitHub Issue of the exact owning repository: the product's public repository for Lazurio itself, the Organization's repository for Organization content. Creating an issue or a comment is a Publication and needs the Principal's explicit mandate. Before publishing, remove secrets, Personalspace and Organization-specific content outside its access boundary, and check for duplicates; without a safe repository or a mandate, return a sanitized draft.",
+      "Otevřený technický problém patří do GitHub Issue v přesném owning repozitáři: do veřejného repozitáře produktu pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace. Zapisuješ ho bez ptaní, po kontrole duplicit a odstranění secrets, Personalspace a obsahu Organizace mimo její access hranici; bez bezpečného repozitáře vrať Principálovi sanitizovaný text. Celý postup popisuje `manual/working-here.md` (decision 0163).",
+      "An open technical problem belongs in a GitHub Issue of the exact owning repository: the product's public repository for Lazurio itself, the Organization's repository for Organization content. You file it without asking, after a duplicate check and after removing secrets, Personalspace and Organization content outside its access boundary; without a safe repository, return the sanitized text to the Principal. `manual/working-here.md` describes the whole procedure (decision 0163).",
     ),
   ];
 }
