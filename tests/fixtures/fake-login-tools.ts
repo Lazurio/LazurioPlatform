@@ -24,6 +24,7 @@ case "$1" in
 auth)
   case "$2" in
   login)
+    if [ -f "$HOME/gh.old" ] && [ "$8" = "--clipboard=false" ]; then echo "unknown flag: --clipboard" >&2; exit 1; fi
     url="https://github.com/login/device"
     [ -f "$HOME/gh.url" ] && url=$(cat "$HOME/gh.url")
     sleep 300 &

@@ -372,13 +372,17 @@ export function createLoginSessions(environment: LoginEnvironment) {
     session: Session,
     entry: ActivatableTool,
     path: string,
+    clipboardFlag = true,
   ) {
     let code: string | undefined;
     let url: string | undefined;
+    let unknownFlag = false;
     // The documented device flow; `--clipboard=false` keeps the one-time
     // code out of the clipboard for this invocation whatever the operator
-    // configured (gh 2.101.0 copies it by default). Without a terminal gh
-    // prints the code and the page instead of waiting for Enter.
+    // configured (gh 2.101.0 copies it by default). A gh older than the
+    // flag (added in 2025) never copies the code and refuses the flag: then
+    // the flow runs once more without it. Without a terminal gh prints the
+    // code and the page instead of waiting for Enter.
     const child = spawnLines(
       [
         path,
@@ -389,10 +393,14 @@ export function createLoginSessions(environment: LoginEnvironment) {
         "--git-protocol",
         "ssh",
         "--web",
-        "--clipboard=false",
+        ...(clipboardFlag ? ["--clipboard=false"] : []),
       ],
       processEnv(),
       counted(session, (line) => {
+        if (/unknown flag: --clipboard/.test(line)) unknownFlag = true;
+        // Only the lines before the challenge are read for it; what gh
+        // prints afterwards is not a sign-in page.
+        if (session.challenge !== undefined) return;
         const codeMatch =
           /one-time code(?:\s*\(([A-Z0-9]{4}-[A-Z0-9]{4})\)|:\s*([A-Z0-9]{4}-[A-Z0-9]{4}))/i.exec(
             line,
@@ -410,13 +418,18 @@ export function createLoginSessions(environment: LoginEnvironment) {
           }
           url = accepted;
         }
-        if (code !== undefined && url !== undefined && !session.challenge)
+        if (code !== undefined && url !== undefined)
           setChallenge(session, { kind: "device-code", url, code });
       }),
     );
     track(session, child);
     const exitCode = await child.exited;
     if (!current(session)) return;
+    if (exitCode !== 0 && unknownFlag && clipboardFlag) {
+      session.processes.delete(child);
+      session.pendingBytes = 0;
+      return startGh(session, entry, path, false);
+    }
     if (exitCode !== 0) return fail(session, "tool-exit");
     if ((await confirm(session, entry, path)) === "not-yet")
       fail(session, "not-confirmed");

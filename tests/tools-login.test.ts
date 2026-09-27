@@ -195,6 +195,32 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "gh older than the clipboard flag: the flow runs once more without it",
+  async () => {
+    const opened = await home(["gh"]);
+    await writeFile(join(opened.directory, "gh.old"), "");
+    const sessions = createLoginSessions(opened.environment);
+    try {
+      const started = await sessions.start("gh");
+      expect(started).toMatchObject({
+        kind: "pending",
+        challenge: { kind: "device-code", code: fakeCodes.gh },
+      });
+      const calls = (await readFile(join(opened.directory, "gh.calls"), "utf8"))
+        .trim()
+        .split("\n");
+      expect(calls).toEqual([
+        "auth login --hostname github.com --git-protocol ssh --web --clipboard=false",
+        "auth login --hostname github.com --git-protocol ssh --web",
+      ]);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
   "gh: a page that is not https://github.com/login/device ends the session",
   async () => {
     for (const url of [
@@ -266,7 +292,7 @@ test.skipIf(!posix)(
     const opened = await home(["gh"]);
     const sessions = createLoginSessions({
       ...opened.environment,
-      lifetimes: { gh: 400 },
+      lifetimes: { gh: 1_500 },
     });
     try {
       const started = await sessions.start("gh");
