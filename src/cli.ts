@@ -283,7 +283,9 @@ current handover through this same transaction, keeping the recorded profile.
 tools enable|disable <tool> --folder <Folder> --expected-revision <n> records which
 catalog tools agents are told to use and re-renders the same owned files through this
 same transaction, keeping the recorded preset and profile; a profile change or a
-refresh keeps the recorded tools. It grants no access and installs nothing.
+refresh keeps the recorded tools. tools note <tool> records the operator's note for
+agents on a required or enabled tool the same way. It grants no access and installs
+nothing.
 --previous-digest is not accepted by either profile command.
 profile-resume --folder <Folder> --target-revision <integer >= 2>
 resumes and finalizes an existing prepared update, or verifies its completed archive.

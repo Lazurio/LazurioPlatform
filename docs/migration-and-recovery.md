@@ -438,14 +438,16 @@ read new state is an explicit no-automatic-rollback boundary. Restore the cohere
 old product and preference generation only if subsequent work can be preserved;
 otherwise stop for forward repair rather than start an old binary on incompatible data.
 
-Preferences schema 2 has one optional key added after its first release: `tools`, the
-enabled catalog tools ([F18](decisions.md#f18--enabled-tools-of-the-environment)). The
-declared versions are unchanged, because the release reads every document written
-before it, and a Folder that enables nothing keeps byte-identical preferences. The
-key is such a forward boundary only while it is present: binaries older than that
-release refuse a Folder with a non-empty `tools` list (unknown field, fail closed,
-nothing rewritten). Before a program rollback below that release, disable the enabled
-tools with the newer binary; otherwise repair forward by returning to it.
+Preferences schema 2 has two optional keys added after its first release: `tools`, the
+enabled catalog tools, and `toolNotes`, the operator's notes for agents on required or
+enabled tools ([F18 and its addendum](decisions.md#f18--enabled-tools-of-the-environment)).
+The declared versions are unchanged, because the release reads every document written
+before it, and a Folder that enables nothing and notes nothing keeps byte-identical
+preferences. Each key is such a forward boundary only while it is present: binaries
+older than that release refuse a Folder with a non-empty `tools` list or a `toolNotes`
+object (unknown field, fail closed, nothing rewritten). Before a program rollback
+below that release, remove the notes and disable the enabled tools with the newer
+binary; otherwise repair forward by returning to it.
 
 A profile update renders deterministic output without host secrets. It changes only
 paths named in its ownership manifest, each matched to the expected old digest.

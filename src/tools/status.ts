@@ -89,8 +89,9 @@ export const runTool: ToolRunner = async (command, timeoutMs, env) => {
 
 /** `lazurio tools status`: the operator's tools as found on the operator's
  * PATH, each the first executable of its name (decision 0140 rule), with the
- * version the tool itself reports. Read-only; never the network; versions are
- * facts, not drift (decision 0161). */
+ * version the tool itself reports. Read-only; the version commands never use
+ * the network (a sign-in probe may, and runs only through `toolsSignIn`);
+ * versions are facts, not drift (decision 0161). */
 export type ToolStatus = Readonly<{
   name: string;
   command: string;

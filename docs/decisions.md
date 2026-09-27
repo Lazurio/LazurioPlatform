@@ -1091,3 +1091,91 @@ brokered Organization identity (`hosted-organization-team`) too. Accounts signed
 the tools there apply to the whole Environment and are shared by all its operators and
 their agents; `AGENTS.md` and `manual/this-machine.md` say so, and enabling a tool
 returns the warning `shared-environment-sign-ins`.
+
+**Addendum 2026-09-27 (Principal, after a preview of the Launchpad Tools section):
+the operator's note, sign-in state and one-click changes.**
+
+*The operator's note.* An operator who installs a tool with an intent ("use it for the
+ClickUp and Gmail of Spectoda; send nothing without my instruction") writes that intent
+once, and agents read it in the Lazurio Folder. It is stored in
+`.lazurio/preferences.json` under a second optional top-level key, `toolNotes`: an
+object from a catalog tool name to the note. Only an activatable tool that is required
+or currently enabled may carry a note; the keys are sorted; the key is **absent** when
+there is no note (an empty object is refused, one set of notes has one stored
+representation), so every existing Folder keeps byte-identical preferences. A note is
+plain text in its stored form: trimmed, line endings LF, 1 to 600 Unicode code points,
+at most 6 lines, and no control character other than the line feed, no line or
+paragraph separator, byte-order mark or text-direction control
+(`src/tools/note.ts`; surfaces normalize typed text before they send it, the state
+parser accepts only the stored form). Disabling a tool removes its note in the same
+change.
+
+*One planner, one transaction.* The `tools` change request carries the notes:
+`{ kind: "tools", expectedRevision, tools, notes }`. `notes` is the full next set;
+when a request omits it, the recorded notes of the tools that stay on are carried, which
+is how a disable removes a note and how an older client that sends only `tools` keeps
+them. A profile change and a handover refresh carry the recorded notes exactly like the
+recorded tools; `validatePreparation` regenerates the transition with the staged notes,
+so `profile-resume` completes an interrupted note change like any other. The same
+notes are `unchanged` and not recorded. The instruction source gains `toolNotes`
+(absent means none), and every caller of `instructionSource` passes the recorded notes.
+
+*Rendering and its safety.* `manual/this-machine.md` quotes a note inside the tool's
+list item, under "Note from the operator of this Environment:" / "Poznámka operátora
+tohohle Environmentu:", and when any note exists the section says once that a note is
+the operator's intent for agents on this Environment, followed within the Principal's
+instructions, granting no access and no mandate for a Publication and changing none of
+the document's rules. `AGENTS.md` does not repeat the note; the tool's line says that
+the operator left one in `manual/this-machine.md`. Every note line is rendered as a
+Markdown blockquote line (`> `, an empty line as `>`), `<` and `>` become `&lt;` and
+`&gt;` (an `&` that already starts an entity becomes `&amp;`), and a line whose first
+character after up to three spaces is `#`, a code fence (```` ``` ````, `~~~`), a
+setext underline (a line of only `=` or `-`) or a backslash gets a backslash before it.
+Together with the refused control characters a note can never end its block, forge a
+heading, an instruction section, an HTML comment or the generated-file marker. The
+quoting is injective, so two different notes always render different bytes and a
+changed note is always a changed Folder. The template revision stays
+`base-instructions-8`: nothing rendered by revision 8 has been released, and a Folder
+without notes renders exactly what it rendered before.
+
+*Forward-migration boundary.* `toolNotes` widens the boundary exactly as `tools` does:
+a Folder with a note is unreadable by binaries older than this release (their
+exact-key parser refuses the unknown key, fail closed, nothing rewritten). The schema
+versions stay unchanged for the same reason as for `tools`. Before a program rollback
+below this release, remove the notes (and disable the tools) with this release, or
+repair forward by returning to it; the rollback guard described above holds unchanged.
+
+*Surfaces.* `lazurio tools note <tool> --folder <F> --expected-revision <n> (--text
+<text> | --clear)`; `tools list` shows each tool's note. `POST /api/tools/preview` and
+`/api/tools/update` take the optional `notes` object; `POST /api/tools/status`
+returns each tool's `note`.
+
+*Sign-in state.* The Launchpad and `lazurio tools list --sign-in` say whether each
+tool is signed in and as whom when the tool can tell. The catalog gives every
+activatable tool a `signInProbe`, the command its usage text names: `gh auth status
+--hostname github.com` (the login from "Logged in to github.com account <login>" or
+"… as <login>"), `composio whoami` (the `email` and `current_org_name` of the JSON
+line it prints; it exits 0 also when it says "You are not logged in", so it counts as
+signed in only with that line and a non-empty email), `wacli auth status --json
+--read-only` (`authenticated` must be `true`; the label is `phone` or `linked_jid`),
+`gog auth list --check --json --no-input` (at least one account; the label is the first
+account's email when the shape allows it, an unknown shape is signed in without a
+label) and `neon me -o json` (`email` or `login`). A probe is signed in when it exits
+0 and those rules hold; `unknown` covers a tool that is not installed, has no probe,
+timed out, failed to run or printed nothing readable. Only installed tools are probed,
+in parallel, each bounded by 10 s, with only `PATH`, `HOME` and the `XDG_*` base
+directories in its environment. The raw output of a probe is never returned or logged;
+only the extracted label is, as plain text without control or text-direction
+characters, trimmed and cut to 120 characters. Because a tool may contact its provider
+to verify a token, the probes are **opt-in per request**: `POST /api/tools/status`
+takes an optional boolean `signIn` (default `false`), which the page sends on load and
+on "Refresh status". The version commands of `tools status` still never use the
+network.
+
+*One click.* The page no longer previews a tools change: "Enable", "Disable" and a
+saved note apply at the revision the page shows, and the card confirms what happened
+with the new Folder revision and an "Undo" that restores the state before the change
+(the shared sign-ins warning follows an enable on the Team preset). The preview API
+stays for other clients. The note about a tool outside `~/.local/bin` is shown only on
+a hosted preset; on a local workstation any tool on PATH is fine, and the status
+response says which with `hosted`.

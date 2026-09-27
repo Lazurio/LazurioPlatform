@@ -114,10 +114,12 @@ workstation; its identity immutable, the rest following the handover) and the pr
 `tools` holds the enabled catalog tools
 ([F18](decisions.md#f18--enabled-tools-of-the-environment)); it is absent when nothing
 is enabled and belongs to neither the preset, the binding nor the profile, so a preset
-or profile change carries it forward unchanged. The whole composition is
+or profile change carries it forward unchanged. The optional key `toolNotes` holds the
+operator's notes for agents on required or enabled tools (F18 addendum) under the same
+rules. The whole composition is
 validated on every parse: a preset the recorded handover does not allow never parses.
 The rendered `AGENTS.md` and the six files of `manual/` are a deterministic projection
-of preset, binding, profile and enabled tools ([machine handover](machine-handover.md#what-the-folder-renders));
+of preset, binding, profile, enabled tools and the operator's notes on them ([machine handover](machine-handover.md#what-the-folder-renders));
 the manifest records one digest per generated file.
 
 Do not extend the instruction axes in `src/folder/profile.ts` into a universal

@@ -32,8 +32,8 @@ The Platform's surface for the operator's tools, implemented in `src/tools/`:
   wacli, gog and neon as found on
   the process PATH (first executable of the name, decision 0140 rule), with the real
   path behind a link and the version the tool reports; missing tools carry their
-  official source. Read-only, never the network; it does not say "outdated", because
-  the operator's version is a fact, not drift.
+  official source. Read-only; the version commands never use the network; it does not
+  say "outdated", because the operator's version is a fact, not drift.
 - `tools update <tool> [--json]` runs exactly that tool's official update path as the
   current user and reports the version before and after: the tool's own updater
   (`claude update`, `bun upgrade`) or the vendor's installer script (`codex`, the
@@ -65,6 +65,16 @@ and rendered into `AGENTS.md` ("Tools") and `manual/this-machine.md` ("Enabled t
 Agents use the catalog CLIs that are on first, then the MCP servers their harness
 offers, which the Folder never records.
 
+**The operator's note** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
+A required or enabled tool may carry a note from the operator: the intent with which
+they use it ("use it for the ClickUp and Gmail of Spectoda; send nothing without my
+instruction"). It is stored under the optional key `toolNotes` (absent without a note)
+and quoted for agents in `manual/this-machine.md` under the tool, as a blockquote that
+cannot forge a heading, section or marker; `AGENTS.md` only says that a note exists. A
+note is plain text of 1 to 600 characters after trimming, at most 6 lines, without
+control characters. It is the operator's intent for agents on this Environment and
+grants no access. Disabling a tool removes its note.
+
 **Setup modes.** `launchpad`: installation and sign-in will get a curated Launchpad
 flow. `agent`: the Launchpad will only show status, and "install" will open a T3 Code
 chat with the prepared prompt for an agent who installs the tool and guides the
@@ -81,11 +91,12 @@ always explicit, a mutation names the revision it was decided against, the resul
 JSON with `--json`, and the exit status is 0 completed or unchanged, 2 blocked or
 usage, 1 operation failure.
 
-- `tools list --folder <absolute Folder> [--json]` lists the activatable catalog tools
-  only, in catalog order, each with `tier`, `setup`, `enabled` and the live facts of
-  `tools status` for that tool (`installed`, `path`, `realPath`, `version`,
-  `standardPath`, `source`), plus the Folder `revision` a following mutation must
-  name. Read-only.
+- `tools list --folder <absolute Folder> [--sign-in] [--json]` lists the activatable
+  catalog tools only, in catalog order, each with `tier`, `setup`, `enabled`, its
+  `note` when there is one and the live facts of `tools status` for that tool
+  (`installed`, `path`, `realPath`, `version`, `standardPath`, `source`), plus the
+  Folder `revision` a following mutation must name. Read-only. With `--sign-in` each
+  entry also carries `signIn` (below).
 - `tools enable <tool> --folder <Folder> --expected-revision <n> [--json]` and
   `tools disable <tool> …` record the selection and re-render the Folder through the
   profile transaction (`updated` with the new revision, or `unchanged`). A name the
@@ -94,32 +105,58 @@ usage, 1 operation failure.
   required tool is `unchanged` (exit 0). The planner's refusals arrive unchanged
   (`stale-revision`, `drift` with the path, `custom-composition-unavailable`, …). An
   interrupted change is completed with `profile-resume`.
+- `tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear)
+  [--json]` records or removes the operator's note on a required or enabled tool
+  through the same transaction (`updated` or `unchanged`). The text is trimmed and its
+  line endings normalized first; an invalid text is `blocked` / `note-invalid` with the
+  `problem` (`empty`, `too-long`, `too-many-lines`, `control`), a note on a tool that is
+  not on is `blocked` / `tool-not-enabled`, both exit 2.
 - `tools prompt <tool> [--locale cs|en] [--json]` prints the prepared agent prompt:
   the task, the `installation` text and the rule to enable the tool afterwards.
   Read-only text, no Folder; the default locale is `en`.
 
 The Launchpad server offers the same over the same core: `tools` in `/api/profile`,
 `POST /api/tools/preview` and `POST /api/tools/update` with
-`{ expectedRevision, tools }`, where `tools` is the full next selection, sorted and
-unique.
+`{ expectedRevision, tools, notes? }`, where `tools` is the full next selection, sorted
+and unique, and `notes`, when present, the full next set of notes (sorted keys, only
+required or enabled tools); without `notes` the recorded notes of the tools that stay
+on are kept.
 
-`POST /api/tools/status` (body `{}`, the same admission as every other route) is what
-the Launchpad's Tools section reads. It answers `kind: "tools-status"`, the Folder's
-`revision` and `locale`, `sharedEnvironment`, and for every activatable catalog tool
-in catalog order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage`
-in the Folder's locale, `source`, the live facts of `tools status` (`installed`,
-`path`, `realPath`, `version`, `versionError`, `standardPath`) and `prompt`, the
-prepared agent prompt of `lazurio tools prompt <tool>`. `mcpPrompt` is the prepared
-prompt for the third route, an MCP server set up by an agent. The probe runs each
-found tool's version command and nothing else: no sign-in check, no network. The raw
-output of a tool is not returned, and the request accepts no Folder, PATH or tool
-name. The facts are those of the PATH and home of the Launchpad process, which on an
-installed service may differ from an operator's interactive shell.
+`POST /api/tools/status` (body `{}` or `{ "signIn": true|false }`, the same admission
+as every other route) is what the Launchpad's Tools section reads. It answers
+`kind: "tools-status"`, the Folder's `revision` and `locale`, `sharedEnvironment`,
+`hosted` (every preset but `local`), and for every activatable catalog tool in catalog
+order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage` in the
+Folder's locale, `source`, the live facts of `tools status` (`installed`, `path`,
+`realPath`, `version`, `versionError`, `standardPath`), `note` when the operator left
+one, `signIn` when the request asked for it, and `prompt`, the prepared agent prompt
+of `lazurio tools prompt <tool>`. `mcpPrompt` is the prepared prompt for the third
+route, an MCP server set up by an agent. Without `signIn: true` the probe runs each
+found tool's version command and nothing else, and uses no network. The raw output of
+a tool is not returned, and the request accepts no Folder, PATH or tool name. The
+facts are those of the PATH and home of the Launchpad process, which on an installed
+service may differ from an operator's interactive shell.
+
+**Sign-in state** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
+With `signIn: true` (the page sends it on load and on "Refresh status") or
+`tools list --sign-in`, each installed tool's catalog sign-in probe runs as well:
+`gh auth status --hostname github.com`, `composio whoami`, `wacli auth status --json
+--read-only`, `gog auth list --check --json --no-input`, `neon me -o json`. These may
+contact the tool's provider to verify its token, which is why they run only on
+request. They run in parallel, 10 s each, with only `PATH`, `HOME` and `XDG_*` in their
+environment. `signIn` is `{ state: "signed-in" | "signed-out" | "unknown", account?,
+organization? }`: signed in when the probe exits 0 and its rules hold (composio exits
+0 also when not logged in and counts as signed in only with its JSON line and a
+non-empty email), `unknown` for a tool not installed, a timeout or unreadable output.
+`account` and `organization` (composio's current organization) are the only things
+taken from the output, as plain text of at most 120 characters; the output itself is
+never returned or logged.
 
 The Tools section itself is described in
 [launchpad-development.md](launchpad-development.md#tools-section). The curated
-install and sign-in flow of a `launchpad` tool is not built: its button is shown
-disabled, and the prepared agent prompt is the way until it is.
+install and sign-in flow of a `launchpad` tool is not built: its button ("Install and
+sign in", or "Sign in" for an installed tool that is not signed in) is shown disabled,
+and the prepared agent prompt is the way until it is.
 
 ### The standard path (decision 0161, point 6)
 
