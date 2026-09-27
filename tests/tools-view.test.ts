@@ -1,12 +1,21 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
-  curatedActionLabel,
+  curatedActions,
   currentNotes,
+  installOutcome,
+  loginEndMessage,
+  loginLink,
+  loginSteps,
+  logoutOutcome,
   nextNotes,
   nextSelection,
   noteDraftView,
+  organizationChoices,
+  parseLoginState,
   parseToolsOverview,
+  qrImageSource,
+  signedInMessage,
   signInLine,
   sourceLink,
   takesNote,
@@ -15,6 +24,7 @@ import {
   toolStatusView,
 } from "../src/launchpad/tools-view";
 import type { ToolOverview, ToolsOverview } from "../src/tools/overview";
+import { qrMatrix, qrSvg } from "../src/tools/qr";
 
 const tool = (overrides: Partial<ToolOverview> = {}): ToolOverview => ({
   name: "composio",
@@ -373,24 +383,305 @@ test("the sign-in line and the curated action follow what the probe said", () =>
     expect(
       signInLine({ ...installed, signIn: { state: "unknown" } }, copy),
     ).toBe(copy.toolsSignInUnknown);
-    // Installed and signed in: no curated button at all. Installed without a
-    // known sign-in: "Sign in". Missing: "Install and sign in". An agent tool
-    // has no curated action.
+    // Missing: "Install and sign in". Installed without a known sign-in:
+    // "Sign in". Signed in: only "Sign out". An agent tool has none.
+    expect(curatedActions(tool(), copy)).toEqual({
+      primary: { mode: "install", label: copy.toolsInstallAction },
+      logout: false,
+    });
+    for (const signIn of [
+      undefined,
+      { state: "signed-out" },
+      { state: "unknown" },
+    ] as const)
+      expect(
+        curatedActions(
+          signIn === undefined ? installed : { ...installed, signIn },
+          copy,
+        ),
+      ).toEqual({
+        primary: { mode: "login", label: copy.toolsSignInAction },
+        logout: false,
+      });
     expect(
-      curatedActionLabel(
+      curatedActions(
         { ...installed, signIn: { state: "signed-in", account: "octo" } },
+        copy,
+      ),
+    ).toEqual({ primary: null, logout: true });
+    for (const agent of [
+      tool({ setup: "agent" }),
+      tool({ setup: "agent", installed: true, signIn: { state: "signed-in" } }),
+    ])
+      expect(curatedActions(agent, copy)).toEqual({
+        primary: null,
+        logout: false,
+      });
+  }
+});
+
+const handle = "0123456789abcdef0123456789abcdef";
+
+test("a login answer is accepted only in its exact form, with links on their expected host", () => {
+  expect(
+    parseLoginState({
+      kind: "pending",
+      tool: "gh",
+      session: handle,
+      expiresAt: "2026-09-28T10:00:00.000Z",
+      challenge: {
+        kind: "device-code",
+        url: "https://github.com/login/device",
+        code: "WXYZ-9876",
+      },
+    }),
+  ).toMatchObject({ kind: "pending", challenge: { code: "WXYZ-9876" } });
+  const pending = (challenge: unknown, extra = {}) =>
+    parseLoginState({
+      kind: "pending",
+      tool: "gh",
+      session: handle,
+      expiresAt: "x",
+      challenge,
+      ...extra,
+    });
+  for (const challenge of [
+    {
+      kind: "device-code",
+      url: "https://evil.example/login/device",
+      code: "WXYZ-9876",
+    },
+    {
+      kind: "device-code",
+      url: "http://github.com/login/device",
+      code: "WXYZ-9876",
+    },
+    {
+      kind: "device-code",
+      url: "https://github.com/login/device",
+      code: "<b>",
+    },
+    { kind: "url", url: "https://dashboard.composio.dev.evil.example/" },
+    { kind: "url", url: "javascript:alert(1)" },
+    { kind: "qr", payload: "x" },
+    { kind: "pair-code", phone: "123", code: "ABCD-EFGH", sequence: 1 },
+    { kind: "other" },
+  ])
+    expect(pending(challenge)).toBeNull();
+  expect(
+    pending({ kind: "url", url: "https://dashboard.composio.dev/?cliKey=k" }),
+  ).toMatchObject({ challenge: { kind: "url" } });
+  expect(pending(undefined)).toMatchObject({ kind: "pending" });
+  expect(pending(undefined, { session: "../x" })).toBeNull();
+  expect(
+    parseLoginState({ kind: "failed", tool: "gh", reason: "secret" }),
+  ).toBeNull();
+  expect(
+    parseLoginState({ kind: "signed-in", tool: "gh", account: 3 }),
+  ).toBeNull();
+  expect(parseLoginState({ kind: "expired", tool: "gh" })).toEqual({
+    kind: "expired",
+    tool: "gh",
+  });
+  expect(parseLoginState(null)).toBeNull();
+  expect(loginLink("https://github.com/login/device", "github.com")).toBe(
+    "https://github.com/login/device",
+  );
+  expect(loginLink("https://github.com:444/", "github.com")).toBeNull();
+});
+
+test("the QR image is taken only in the exact form the server draws", () => {
+  const svg = qrSvg(qrMatrix("2@ref,key=,id=,adv="));
+  const source = qrImageSource(svg);
+  expect(source?.startsWith("data:image/svg+xml;base64,")).toBe(true);
+  expect(atob((source as string).split(",")[1] as string)).toBe(svg);
+  for (const bad of [
+    undefined,
+    "",
+    svg.replace("</svg>", "<script>alert(1)</script></svg>"),
+    svg.replace('fill="#000"', 'fill="#000" onload="x()"'),
+    svg.replace("<path", '<image href="https://evil.example/x.png"/><path'),
+    `<svg xmlns="http://www.w3.org/2000/svg"><foreignObject/></svg>`,
+  ])
+    expect(qrImageSource(bad)).toBeNull();
+});
+
+test("the steps say installing, waiting for you, signed in, and where it stopped", () => {
+  const copy = messages("en");
+  const states = (
+    install: boolean,
+    phase: Parameters<typeof loginSteps>[1],
+    at: "installing" | "waiting" = "waiting",
+  ) =>
+    loginSteps(install, phase, at, copy).map(
+      (step) => `${step.label}:${step.state}`,
+    );
+  expect(states(true, "confirm")).toEqual([
+    "Installing:todo",
+    "Waiting for you:todo",
+    "Signed in:todo",
+  ]);
+  expect(states(true, "installing")).toEqual([
+    "Installing:current",
+    "Waiting for you:todo",
+    "Signed in:todo",
+  ]);
+  expect(states(true, "waiting")).toEqual([
+    "Installing:done",
+    "Waiting for you:current",
+    "Signed in:todo",
+  ]);
+  expect(states(false, "signed-in")).toEqual([
+    "Waiting for you:done",
+    "Signed in:done",
+  ]);
+  expect(states(true, "failed", "installing")).toEqual([
+    "Installing:failed",
+    "Waiting for you:todo",
+    "Signed in:todo",
+  ]);
+  expect(states(false, "failed")).toEqual([
+    "Waiting for you:failed",
+    "Signed in:todo",
+  ]);
+});
+
+test("install, login end, organizations and logout answers become one sentence each", () => {
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    expect(
+      installOutcome(
+        {
+          kind: "installed",
+          tool: "gh",
+          version: "2.101.0",
+          path: "/h/.local/bin/gh",
+          onPath: false,
+        },
+        "gh",
+        copy,
+      ),
+    ).toEqual({
+      ok: true,
+      agent: false,
+      message: `${copy.toolsInstalledNow.replace("{name}", "gh").replace("{version}", "2.101.0")} ${copy.toolsInstallNotOnPath}`,
+    });
+    expect(installOutcome({ kind: "already-installed" }, "gh", copy).ok).toBe(
+      true,
+    );
+    expect(
+      installOutcome(
+        {
+          kind: "install-failed",
+          stage: "checksum",
+          reason: "checksum-mismatch",
+          fallback: "agent",
+        },
+        "gh",
+        copy,
+      ),
+    ).toEqual({
+      ok: false,
+      agent: true,
+      message: copy.toolsInstallFailed
+        .replace("{stage}", "checksum")
+        .replace("{reason}", "checksum-mismatch"),
+    });
+    expect(
+      installOutcome(
+        { kind: "unsupported-platform", platform: "win32", arch: "x64" },
+        "gh",
+        copy,
+      ).agent,
+    ).toBe(true);
+    expect(
+      installOutcome({ kind: "blocked", reason: "busy" }, "gh", copy),
+    ).toEqual({
+      ok: false,
+      agent: false,
+      message: copy.toolsInstallBusy,
+    });
+    expect(installOutcome("<html>", "gh", copy).message).toBe(
+      copy.toolsLoginUnreadable,
+    );
+    expect(
+      loginEndMessage(
+        { kind: "failed", tool: "gh", reason: "unexpected-url" },
+        copy,
+      ),
+    ).toEqual({ message: copy.toolsLoginFailureUrl, agent: true, retry: true });
+    expect(
+      loginEndMessage(
+        { kind: "failed", tool: "wacli", reason: "invalid-phone" },
+        copy,
+      ).agent,
+    ).toBe(false);
+    expect(loginEndMessage({ kind: "expired", tool: "gh" }, copy).message).toBe(
+      copy.toolsLoginExpired,
+    );
+    expect(
+      signedInMessage(
+        {
+          kind: "signed-in",
+          tool: "composio",
+          account: "a@b.c",
+          organization: "Org",
+        },
+        copy,
+      ),
+    ).toBe(
+      copy.toolsLoginSignedInAs
+        .replace("{name}", "composio")
+        .replace("{account}", "a@b.c (Org)"),
+    );
+    expect(
+      organizationChoices(
+        {
+          kind: "composio-organizations",
+          organizations: [
+            { id: "org_1", name: "First", current: true },
+            { id: "org_2", name: "Second", current: false },
+          ],
+        },
+        copy,
+      ),
+    ).toEqual([
+      {
+        id: "org_1",
+        label: copy.toolsComposioOrgCurrent.replace("{name}", "First"),
+        current: true,
+      },
+      { id: "org_2", label: "Second", current: false },
+    ]);
+    expect(
+      organizationChoices(
+        {
+          kind: "composio-organizations",
+          organizations: [{ id: "a b", name: "x", current: true }],
+        },
         copy,
       ),
     ).toBeNull();
     expect(
-      curatedActionLabel(
-        { ...installed, signIn: { state: "signed-out" } },
+      logoutOutcome(
+        { kind: "logged-out", revocation: "local-only" },
+        "gh",
         copy,
-      ),
-    ).toBe(copy.toolsSignInAction);
-    expect(curatedActionLabel(installed, copy)).toBe(copy.toolsSignInAction);
-    expect(curatedActionLabel(tool(), copy)).toBe(copy.toolsInstallAction);
-    expect(curatedActionLabel(tool({ setup: "agent" }), copy)).toBeNull();
+      ).message,
+    ).toBe(copy.toolsSignedOutLocal.replace("{name}", "gh"));
+    expect(
+      logoutOutcome({ kind: "logged-out", revocation: "remote" }, "wacli", copy)
+        .message,
+    ).toBe(copy.toolsSignedOutRemote.replace("{name}", "wacli"));
+    expect(
+      logoutOutcome({ kind: "logout-failed", reason: "tool-exit" }, "gh", copy),
+    ).toEqual({
+      kind: "failed",
+      reload: false,
+      message: copy.toolsSignOutFailed
+        .replace("{name}", "gh")
+        .replace("{reason}", "tool-exit"),
+    });
   }
 });
 

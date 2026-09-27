@@ -37,6 +37,26 @@
 #tools-prompt h3 { margin-top: 0; }
 #tools-prompt textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 0.3rem; font: 0.88rem/1.45 ui-monospace, monospace; resize: vertical; }
 #tools :focus-visible { outline: 2px solid #1a56c4; outline-offset: 2px; }
+#tools-login { width: min(40rem, calc(100vw - 2rem)); border: 1px solid #999; border-radius: 0.5rem; padding: 1.1rem 1.25rem; }
+#tools-login::backdrop { background: rgba(0, 0, 0, 0.35); }
+#tools-login h3 { margin-top: 0; }
+#tools-login h3:focus { outline: none; }
+#tools-login-status { font-weight: 600; }
+#tools-login-steps { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; margin: 0 0 0.8rem; padding-left: 1.2rem; font-size: 0.92rem; color: #555; }
+#tools-login-steps li[data-state="current"] { color: #111; font-weight: 600; }
+#tools-login-steps li[data-state="done"] { color: #1b5e20; }
+#tools-login-steps li[data-state="failed"] { color: #b3261e; font-weight: 600; }
+#tools-login .tools-code { font: 600 2rem/1.2 ui-monospace, monospace; letter-spacing: 0.12em; user-select: all; margin: 0.4rem 0 0.8rem; }
+#tools-login .tools-qr { display: block; width: 280px; height: 280px; background: #fff; image-rendering: pixelated; margin: 0.6rem 0; }
+#tools-login .tools-phone { border-top: 1px solid #ddd; margin-top: 0.8rem; padding-top: 0.6rem; }
+#tools-login .tools-phone input { display: block; font: inherit; margin-top: 0.3rem; width: min(18rem, 100%); }
+#tools-login .tools-orgs select { display: block; font: inherit; margin-top: 0.3rem; }
+#tools-login .tools-muted { color: #555; font-size: 0.92rem; }
+#tools-login .tools-warning { border-left: 0.25rem solid #b26a00; background: #fff6e5; padding: 0.6rem 0.8rem; }
+#tools-login .tool-note-problem { color: #b3261e; }
+#tools-login .tool-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.7rem; }
+#tools-login button { font: inherit; padding: 0.3rem 0.75rem; }
+#tools-login :focus-visible { outline: 2px solid #1a56c4; outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -87,6 +107,13 @@
 <label><span data-message="toolsPromptLabel">Prepared prompt</span>
 <textarea id="tools-prompt-text" readonly rows="14" spellcheck="false"></textarea></label>
 <p class="tool-actions"><button type="button" id="tools-prompt-copy" data-message="toolsCopy">Copy prompt</button> <button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button> <span id="tools-prompt-status" role="status" aria-live="polite"></span></p>
+</dialog>
+<dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
+<h3 id="tools-login-title" tabindex="-1"></h3>
+<ol id="tools-login-steps"></ol>
+<p id="tools-login-status" role="status" aria-live="polite"></p>
+<div id="tools-login-body"></div>
+<p class="tool-actions"><button type="button" id="tools-login-close" data-message="toolsClose">Close</button></p>
 </dialog>
 </section>
 <section aria-labelledby="apps-heading">

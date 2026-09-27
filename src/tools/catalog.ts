@@ -20,10 +20,11 @@ export type ToolUpdater =
 // no access, installs nothing and pins no version.
 export type ToolTier = "required" | "recommended" | "optional";
 export type ToolText = Readonly<{ cs: string; en: string }>;
-// Who sets a tool up (decision F18). `launchpad`: installation and sign-in
-// get a curated Launchpad flow (a later slice). `agent`: the Launchpad only
-// shows status and hands the prepared prompt to an agent, who installs the
-// tool and guides the sign-in. `installation` describes the TARGET STATE an
+// Who sets a tool up (decision F18). `launchpad`: installation and login
+// have a curated flow in the CLI and the Launchpad (decision F19,
+// src/tools/install.ts and login.ts). `agent`: the Launchpad only shows
+// status and hands the prepared prompt to an agent, who installs the tool
+// and guides the sign-in. `installation` describes the TARGET STATE an
 // installation must reach; it is the body of that prompt, and for a
 // `launchpad` tool what a fallback agent follows when the curated installer
 // fails. Nothing in this catalog installs anything.
