@@ -874,6 +874,15 @@ test("a tool note is plain text of at most 600 characters and 6 lines, in its st
     0, 7, 9, 13, 27, 127, 0x85, 0x2028, 0x2029, 0x202e, 0x2066, 0xfeff,
   ])
     expect(toolNoteProblem(`a${String.fromCharCode(code)}b`)).toBe("control");
+  // Format characters change the visual order or hide text: zero-width and
+  // direction marks, the Arabic letter mark, word joiner, soft hyphen, tags.
+  for (const code of [
+    0x00ad, 0x061c, 0x180e, 0x200b, 0x200c, 0x200d, 0x200e, 0x200f, 0x2060,
+    0x2061, 0x2064, 0x206a, 0x206f, 0xfff9, 0xfffb, 0xe0001, 0xe007f,
+  ])
+    expect(toolNoteProblem(`a${String.fromCodePoint(code)}b`)).toBe("control");
+  // Ordinary text in any script, with emoji and newlines, stays allowed.
+  expect(toolNoteProblem("Používej pro ClickUp.\nŽádné mazání. ✅")).toBe(null);
   expect(normalizeToolNote("  a\r\nb\rc  \n")).toBe("a\nb\nc");
 });
 

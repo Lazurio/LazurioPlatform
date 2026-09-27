@@ -18,8 +18,10 @@ export type ToolNoteProblem =
 // embedding, override and isolate controls: nothing that could reorder,
 // hide or break a line of the rendered note.
 const forbidden =
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: the point of the rule
-  /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/u;
+  // Every control character except the newline, every format character
+  // (zero-width and direction marks, embeddings, overrides, isolates, the
+  // byte-order mark, soft hyphen, tags) and the line and paragraph separators.
+  /[^\P{Cc}\n]|\p{Cf}|\p{Zl}|\p{Zp}/u;
 
 // The one stored form of a note typed by a person: line endings as LF and the
 // whole text trimmed. Surfaces normalize input with this before they send it;

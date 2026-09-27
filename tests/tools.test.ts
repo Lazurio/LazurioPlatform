@@ -109,9 +109,10 @@ test("versionOf takes the first version-shaped token of the first line", () => {
   expect(versionOf("gh version 2.86.0 (2026-09-01)\nhttps://…")).toBe("2.86.0");
   expect(versionOf("v26.5.0\n")).toBe("26.5.0");
   expect(versionOf("codex-cli 0.120.0-alpha.3")).toBe("0.120.0-alpha.3");
-  expect(versionOf("\n  banner without number\n")).toBe(
-    "banner without number",
-  );
+  // A line without a version-shaped token is never echoed: it may hold
+  // anything, a secret included.
+  expect(versionOf("\n  banner without number\n")).toBeUndefined();
+  expect(versionOf("token ghp_exampleexampleexample")).toBeUndefined();
   expect(versionOf("")).toBeUndefined();
 });
 

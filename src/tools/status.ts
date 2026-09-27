@@ -153,8 +153,10 @@ export function versionOf(output: string): string | undefined {
     .map((entry) => entry.trim())
     .find((entry) => entry.length > 0);
   if (!line) return undefined;
+  // Only a version-shaped token is ever reported. A first line without one is
+  // not echoed: a tool may print anything there, a secret included.
   const token = line.match(/\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?/);
-  return token ? token[0] : line;
+  return token ? token[0] : undefined;
 }
 
 export async function toolsStatus(
