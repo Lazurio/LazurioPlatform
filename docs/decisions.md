@@ -1029,8 +1029,7 @@ same validator requires it sorted and unique.
 one question at staging: can the new release read what the installed one wrote. It
 can, because every schema-2 document without the key parses as before. A version 3
 would instead have forced a rewrite of every existing Folder, which the byte-identity
-requirement forbids, and it would not have protected a rollback either, because
-nothing checks the old binary against new state. The transaction journal schema
+requirement forbids. The transaction journal schema
 (version 3) is unchanged as well: it embeds preferences, and a journal written with a
 non-empty selection is validated by the binary that wrote it.
 
@@ -1043,6 +1042,17 @@ dropped. This is the explicit no-automatic-rollback boundary of
 that enabled nothing rolls back freely; a Folder with enabled tools must have them
 disabled with this release **before** rolling back below it, or is repaired forward by
 returning to this release. The rollback does not do this by itself.
+
+**What guards the rollback.** `lazurio update rollback` runs the self-check of the
+target executable before it switches, and where the installation knows its Folder
+(a supervised Launchpad service installed with `--folder`, which is every hosted
+Machine) that self-check parses the Folder's state. An older binary refuses the
+unknown key, the self-check fails and the rollback ends as `rollback-unavailable`
+with nothing switched. The automatic rollback after an unhealthy activation returns
+to the release that was running, which wrote the state and reads it. An installation
+without a known Folder (a workstation that starts the Launchpad by hand) has no such
+guard: there the rollback switches and the older binary then refuses the Folder until
+the tools are disabled by this release or the product is updated forward again.
 
 **Template revision `base-instructions-8`.** `AGENTS.md` gains the section "Tools"
 (the required and the enabled tools with their purpose, the priority rule and the MCP
