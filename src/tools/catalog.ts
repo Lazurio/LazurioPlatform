@@ -9,15 +9,53 @@ export type ToolUpdater =
   | Readonly<{ kind: "installer"; posix: string; windows: string }>
   | Readonly<{ kind: "none" }>;
 
+// What makes a catalog tool part of an Environment's agent instructions
+// (root decision 0162, F18). `required` tools are always on; `recommended` and
+// `optional` ones are on when the operator enabled them in the Lazurio Folder.
+// Both texts are rendered into the generated files: `purpose` is one sentence
+// on what the tool is for, `usage` tells an agent when and how to use it and
+// names the command that reports its sign-in. Enabling is context: it grants
+// no access, installs nothing and pins no version.
+export type ToolTier = "required" | "recommended" | "optional";
+export type ToolText = Readonly<{ cs: string; en: string }>;
+// Who sets a tool up (decision F18). `launchpad`: installation and sign-in
+// get a curated Launchpad flow (a later slice). `agent`: the Launchpad only
+// shows status and hands the prepared prompt to an agent, who installs the
+// tool and guides the sign-in. `installation` describes the TARGET STATE an
+// installation must reach; it is the body of that prompt, and for a
+// `launchpad` tool what a fallback agent follows when the curated installer
+// fails. Nothing in this catalog installs anything.
+export type ToolSetup = "launchpad" | "agent";
+export type ToolActivation = Readonly<{
+  tier: ToolTier;
+  setup: ToolSetup;
+  purpose: ToolText;
+  usage: ToolText;
+  installation: ToolText;
+}>;
+
 export type ToolEntry = Readonly<{
   name: string;
   command: string;
   versionArgs: readonly string[];
   source: string;
   updater: ToolUpdater;
+  activation?: ToolActivation;
 }>;
+export type ActivatableTool = ToolEntry &
+  Readonly<{ activation: ToolActivation }>;
 
 const tool = (entry: ToolEntry): ToolEntry => Object.freeze(entry);
+
+// What no installation may do, whoever performs it.
+const never: ToolText = {
+  cs: "Nikdy: tajemství (token, heslo, klíč, kód) v chatu, Gitu ani logu; druhá instalace téhož nástroje; downgrade nebo přeinstalace nástroje, který funguje.",
+  en: "Never: a secret (token, password, key, code) in chat, Git or a log; a second installation of the same tool; a downgrade or reinstall of a tool that works.",
+};
+const installation = (cs: string, en: string): ToolText => ({
+  cs: `${cs} ${never.cs}`,
+  en: `${en} ${never.en}`,
+});
 
 export const toolCatalog: readonly ToolEntry[] = Object.freeze([
   tool({
@@ -50,6 +88,22 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     versionArgs: ["--version"],
     source: "https://github.com/cli/cli#installation",
     updater: { kind: "none" },
+    activation: {
+      tier: "required",
+      setup: "launchpad",
+      installation: installation(
+        "Cílový stav: `gh` je první spustitelný soubor toho jména na PATH operátora, ve standardní cestě `~/.local/bin/gh`, z oficiálního zdroje https://github.com/cli/cli#installation. Fungující `gh` jinde na PATH zůstává a jen se nahlásí. Operátor se přihlásí příkazem `gh auth login --hostname github.com --git-protocol ssh --web`: v prohlížeči otevře stránku zařízení a zadá jednorázový kód. Důkaz: `gh --version` odpoví a `gh auth status` skončí kódem 0 a jmenuje zamýšlený účet.",
+        "Target state: `gh` is the first executable of that name on the operator's PATH, in the standard path `~/.local/bin/gh`, from the official source https://github.com/cli/cli#installation. A working `gh` elsewhere on PATH stays and is only reported. The operator signs in with `gh auth login --hostname github.com --git-protocol ssh --web`: they open the device page in their browser and enter the one-time code. Proof: `gh --version` answers and `gh auth status` exits 0 and names the intended account.",
+      ),
+      purpose: {
+        cs: "GitHub CLI pro práci s repozitáři, pull requesty, issues a review.",
+        en: "GitHub CLI for work with repositories, pull requests, issues and reviews.",
+      },
+      usage: {
+        cs: "Používej `gh` pro veškerou práci s GitHubem. Před připojenou operací ověř přihlášenou identitu příkazem `gh auth status`; přihlášení není důkaz práva k přesné operaci.",
+        en: "Use `gh` for all GitHub work. Verify the signed-in identity with `gh auth status` before a connected operation; a sign-in is not proof of the right to an exact operation.",
+      },
+    },
   }),
   tool({
     name: "git",
@@ -79,8 +133,217 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     source: "https://bun.sh/docs/installation",
     updater: { kind: "self", argv: ["upgrade"] },
   }),
+  tool({
+    name: "composio",
+    command: "composio",
+    versionArgs: ["--version"],
+    source: "https://docs.composio.dev/docs/cli",
+    updater: { kind: "self", argv: ["upgrade"] },
+    activation: {
+      tier: "recommended",
+      setup: "launchpad",
+      installation: installation(
+        "Cílový stav: `composio` ve standardní cestě `~/.local/bin/composio`, nainstalované oficiálním instalátorem podle https://docs.composio.dev/docs/cli; instalátor si smí držet vlastní domov a do `~/.local/bin` vede jen link nebo wrapper. Operátor se přihlásí příkazem `composio login` a odkaz, který příkaz vrátí, otevře ve svém prohlížeči; jednotlivé aplikace pak napojuje `composio link <toolkit>` stejným způsobem. Přihlášení platí pro celé tohle Environment. Důkaz: `composio --version` odpoví a `composio whoami` skončí kódem 0 a jmenuje zamýšlený účet.",
+        "Target state: `composio` in the standard path `~/.local/bin/composio`, installed by the official installer per https://docs.composio.dev/docs/cli; the installer may keep its own home, with only a link or wrapper in `~/.local/bin`. The operator signs in with `composio login` and opens the link the command returns in their browser; single applications are then connected with `composio link <toolkit>` the same way. The sign-in holds for this whole Environment. Proof: `composio --version` answers and `composio whoami` exits 0 and names the intended account.",
+      ),
+      purpose: {
+        cs: "Composio CLI pro externí aplikace (pošta, kalendář, chat a další) napojené pro celé tohle Environment.",
+        en: "Composio CLI for external applications (mail, calendar, chat and others) connected for this whole Environment.",
+      },
+      usage: {
+        cs: "Přihlášení ověř příkazem `composio whoami`. Aplikaci napojíš příkazem `composio link <toolkit>`, který vrátí odkaz, a ten otevře operátor; nástroje najdeš přes `composio search` a spustíš přes `composio execute`. Zápis viditelný navenek (odeslání, zveřejnění, smazání) vyžaduje pokyn Principála.",
+        en: "Check the sign-in with `composio whoami`. Connect an app with `composio link <toolkit>`, which returns a link for the operator to open; find tools with `composio search` and run them with `composio execute`. An externally visible write (sending, publishing, deleting) needs the Principal's instruction.",
+      },
+    },
+  }),
+  tool({
+    name: "wacli",
+    command: "wacli",
+    versionArgs: ["--version"],
+    source: "https://github.com/openclaw/wacli",
+    updater: { kind: "none" },
+    activation: {
+      tier: "optional",
+      setup: "launchpad",
+      installation: installation(
+        "Cílový stav: `wacli` ve standardní cestě `~/.local/bin/wacli`, z oficiálního zdroje https://github.com/openclaw/wacli (Homebrew tap `openclaw/tap/wacli` nebo předpřipravený archiv z GitHub Releases; link nebo wrapper v `~/.local/bin`). Operátor spáruje CLI příkazem `wacli auth`: QR kód z terminálu naskenuje ve WhatsAppu na obrazovce Propojená zařízení; párování dělá jen on, svým telefonem. Relace je uložená v úložišti nástroje (Linux `~/.local/state/wacli`, jinde `~/.wacli`) a nikam se nekopíruje. Důkaz: `wacli --version` odpoví a `wacli auth status --json` hlásí přihlášený účet.",
+        "Target state: `wacli` in the standard path `~/.local/bin/wacli`, from the official source https://github.com/openclaw/wacli (the Homebrew tap `openclaw/tap/wacli` or a prebuilt archive from GitHub Releases; a link or wrapper in `~/.local/bin`). The operator pairs the CLI with `wacli auth`: they scan the terminal QR code in WhatsApp on the Linked devices screen; only they pair, with their own phone. The session lives in the tool's store (Linux `~/.local/state/wacli`, elsewhere `~/.wacli`) and is copied nowhere. Proof: `wacli --version` answers and `wacli auth status --json` reports the signed-in account.",
+      ),
+      purpose: {
+        cs: "WhatsApp CLI pro čtení a odesílání zpráv z WhatsApp účtu operátora.",
+        en: "WhatsApp CLI for reading and sending messages of the operator's WhatsApp account.",
+      },
+      usage: {
+        cs: "Přihlášení ověř příkazem `wacli auth status --json`. Pro čtení používej `--read-only`; odeslání zprávy vyžaduje pokyn Principála.",
+        en: "Check the sign-in with `wacli auth status --json`. Use `--read-only` for reading; sending a message needs the Principal's instruction.",
+      },
+    },
+  }),
+  tool({
+    name: "gogcli",
+    command: "gog",
+    versionArgs: ["--version"],
+    source: "https://github.com/openclaw/gogcli",
+    updater: { kind: "none" },
+    activation: {
+      tier: "optional",
+      setup: "agent",
+      installation: installation(
+        "Cílový stav: `gog` ve standardní cestě `~/.local/bin/gog`, z oficiálního zdroje https://github.com/openclaw/gogcli (Homebrew tap `openclaw/tap/gogcli` nebo binárka z vydání projektu; link nebo wrapper v `~/.local/bin`). Řekni operátorovi předem a poctivě, co přihlášení obnáší: potřebuje vlastního OAuth klienta typu Desktop ve svém Google Cloud projektu, jehož staženým souborem se nástroj nastaví (`gog auth credentials set <soubor>`), a souhlas v prohlížeči, po kterém vloží zpět URL přesměrování (`gog auth add <email> --remote --step 1` a potom `--step 2`, nebo `--manual`). Soubor klienta i URL přesměrování s kódem jsou tajemství: předej je jen příkazu a nikde je neopakuj. Na headless Linuxu bez systémové klíčenky potřebuje souborový backend klíčenky heslo; to je tajemství držené v custody operátora, nikdy ve skriptu, Gitu ani chatu; přesné nastavení backendu vezmi z dokumentace gogcli. Důkaz: `gog --version` odpoví a `gog auth list --check --json --no-input` skončí kódem 0 a jmenuje zamýšlený účet.",
+        "Target state: `gog` in the standard path `~/.local/bin/gog`, from the official source https://github.com/openclaw/gogcli (the Homebrew tap `openclaw/tap/gogcli` or a binary of the project's releases; a link or wrapper in `~/.local/bin`). Tell the operator up front and honestly what the sign-in takes: their own Desktop OAuth client in their Google Cloud project, whose downloaded file configures the tool (`gog auth credentials set <file>`), and a browser consent after which they paste the redirect URL back (`gog auth add <email> --remote --step 1` and then `--step 2`, or `--manual`). The client file and the redirect URL with its code are secrets: pass them only to the command and repeat them nowhere. On a headless Linux without a system keyring the file keyring backend needs a password; it is a secret held in the operator's custody, never in a script, Git or chat; take the exact backend settings from the gogcli documentation. Proof: `gog --version` answers and `gog auth list --check --json --no-input` exits 0 and names the intended account.",
+      ),
+      purpose: {
+        cs: "Google Workspace (Gmail, Kalendář, Disk…) z příkazové řádky; alternativa pro operátory, kteří nechtějí Composio.",
+        en: "Google Workspace (Gmail, Calendar, Drive…) from the command line; the alternative for operators who do not want Composio.",
+      },
+      usage: {
+        cs: "Přihlášení ověř příkazem `gog auth list --check --json --no-input`. Pro čtení používej `--readonly` a `--json`; odeslání pošty, změna kalendáře nebo sdílení souboru vyžaduje pokyn Principála.",
+        en: "Check the sign-in with `gog auth list --check --json --no-input`. Use `--readonly` and `--json` for reading; sending mail, changing a calendar or sharing a file needs the Principal's instruction.",
+      },
+    },
+  }),
+  tool({
+    name: "neon",
+    command: "neon",
+    versionArgs: ["--version"],
+    source: "https://neon.com/docs/reference/neon-cli",
+    updater: { kind: "none" },
+    activation: {
+      tier: "optional",
+      setup: "agent",
+      installation: installation(
+        "Cílový stav: `neon` (alias `neonctl`) ve standardní cestě `~/.local/bin/neon`, z oficiálního zdroje https://neon.com/docs/reference/cli-install: binárka z vydání `neondatabase/neon-pkgs`, Homebrew formule `neonctl`, nebo npm balíček nad Node.js operátora. Jméno npm balíčku a požadovanou verzi Node.js ověř na té stránce před instalací: dokumentace a README repozitáře `neondatabase/neonctl` je v době zápisu uvádějí různě a Lazurio je neověřilo. Operátor se přihlásí příkazem `neon login` (starší jméno `neon auth`), který otevírá okno prohlížeče k autorizaci; zda to jde dokončit na Mašině bez prohlížeče, ověřeno není. Druhá dokumentovaná cesta je API klíč Neonu v proměnné `NEON_API_KEY`: je to tajemství v custody operátora a nikdy se nepředává v argumentu příkazu, který skončí v historii nebo logu. Kam nástroj přihlášení ukládá, zjisti z `--config-dir` v dokumentaci; ten soubor nekopíruj. Důkaz: `neon --version` odpoví a `neon me -o json` skončí kódem 0 a jmenuje zamýšlený účet.",
+        "Target state: `neon` (alias `neonctl`) in the standard path `~/.local/bin/neon`, from the official source https://neon.com/docs/reference/cli-install: a binary of the `neondatabase/neon-pkgs` releases, the Homebrew formula `neonctl`, or the npm package on the operator's Node.js. Verify the npm package name and the required Node.js version on that page before installing: the documentation and the README of the `neondatabase/neonctl` repository state them differently at the time of writing and Lazurio has not verified them. The operator signs in with `neon login` (older name `neon auth`), which opens a browser window for authorization; whether it can be completed on a Machine without a browser is not verified. The other documented way is a Neon API key in the `NEON_API_KEY` variable: it is a secret in the operator's custody and is never passed in a command argument that ends in history or a log. Find where the tool stores the sign-in from `--config-dir` in the documentation; do not copy that file. Proof: `neon --version` answers and `neon me -o json` exits 0 and names the intended account.",
+      ),
+      purpose: {
+        cs: "Neon CLI pro správu Postgres projektů, větví a databází v Neonu.",
+        en: "Neon CLI for managing Postgres projects, branches and databases in Neon.",
+      },
+      usage: {
+        cs: "Přihlášení ověř příkazem `neon me -o json`. Čti s `-o json`; vytvoření, změna nebo smazání projektu, větve či databáze vyžaduje pokyn Principála.",
+        en: "Check the sign-in with `neon me -o json`. Read with `-o json`; creating, changing or deleting a project, branch or database needs the Principal's instruction.",
+      },
+    },
+  }),
 ]);
 
 export function findTool(name: string): ToolEntry | undefined {
   return toolCatalog.find((entry) => entry.name === name);
+}
+
+const isActivatable = (entry: ToolEntry): entry is ActivatableTool =>
+  entry.activation !== undefined;
+
+// The catalog tools an Environment's instructions may name, in catalog order.
+export function activatableTools(): readonly ActivatableTool[] {
+  return toolCatalog.filter(isActivatable);
+}
+
+// Always on, never stored and never disabled.
+export function requiredTools(): readonly ActivatableTool[] {
+  return activatableTools().filter(
+    (entry) => entry.activation.tier === "required",
+  );
+}
+
+// The one validator of an enabled-tools list, for stored state and for a
+// request alike: own data only, names of `recommended` or `optional` catalog
+// tools, sorted and unique, so one selection has exactly one representation.
+// An empty list is a valid selection; whether it may be stored is the state
+// parser's rule.
+export function parseEnabledTools(input: unknown): readonly string[] {
+  if (!Array.isArray(input) || Object.getPrototypeOf(input) !== Array.prototype)
+    throw new Error("Invalid enabled tools");
+  const names: string[] = [];
+  for (let index = 0; index < input.length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, index);
+    if (!descriptor || !("value" in descriptor))
+      throw new Error("Invalid enabled tools");
+    const name: unknown = descriptor.value;
+    const tier =
+      typeof name === "string"
+        ? activatableTools().find((entry) => entry.name === name)?.activation
+            .tier
+        : undefined;
+    if (typeof name !== "string" || tier === undefined || tier === "required")
+      throw new Error("Unknown or required enabled tool");
+    const previous = names.at(-1);
+    if (previous !== undefined && previous >= name)
+      throw new Error("Enabled tools must be sorted and unique");
+    names.push(name);
+  }
+  if (Reflect.ownKeys(input).length !== input.length + 1)
+    throw new Error("Invalid enabled tools");
+  return Object.freeze(names);
+}
+
+// What agents on the Environment are told to use: the required tools and the
+// enabled ones, in catalog order.
+export function activeTools(
+  enabled: readonly string[],
+): readonly ActivatableTool[] {
+  return activatableTools().filter(
+    (entry) =>
+      entry.activation.tier === "required" || enabled.includes(entry.name),
+  );
+}
+
+// The catalog as a selection surface: every activatable tool with its tier
+// and whether it is on in this Folder (a required tool always is).
+export type ToolSelection = Readonly<{
+  name: string;
+  tier: ToolTier;
+  setup: ToolSetup;
+  enabled: boolean;
+}>;
+export function toolSelection(
+  enabled: readonly string[],
+): readonly ToolSelection[] {
+  return activatableTools().map((entry) => ({
+    name: entry.name,
+    tier: entry.activation.tier,
+    setup: entry.activation.setup,
+    enabled:
+      entry.activation.tier === "required" || enabled.includes(entry.name),
+  }));
+}
+
+// The prepared prompt for an agent who installs a tool and guides its
+// sign-in: the task, the target state and the rule that the Folder is told
+// afterwards. For a `setup: "agent"` tool the Launchpad hands it to a chat;
+// for a `launchpad` tool it is what a fallback agent follows. Text only:
+// producing it installs nothing and grants nothing.
+export function toolPrompt(
+  name: string,
+  locale: "cs" | "en",
+): string | undefined {
+  const entry = activatableTools().find((tool) => tool.name === name);
+  if (!entry) return undefined;
+  const { activation, command } = entry;
+  const enable =
+    activation.tier === "required"
+      ? {
+          cs: `\`${name}\` je povinný nástroj a v instrukcích Folderu je vždy; nic se nezapíná.`,
+          en: `\`${name}\` is a required tool and is always in the Folder instructions; nothing is enabled.`,
+        }
+      : {
+          cs: `Po úspěšné instalaci a přihlášení nástroj zapni příkazem \`lazurio tools enable ${name} --folder <Folder> --expected-revision <n>\`, aby ho instrukce Folderu uváděly; revizi zjistíš z \`lazurio tools list --folder <Folder> --json\`.`,
+          en: `After a successful installation and sign-in enable the tool with \`lazurio tools enable ${name} --folder <Folder> --expected-revision <n>\` so the Folder instructions name it; read the revision from \`lazurio tools list --folder <Folder> --json\`.`,
+        };
+  return [
+    {
+      cs: `Úkol: nainstaluj na téhle Mašině nástroj \`${name}\` (příkaz \`${command}\`) a proveď operátora přihlášením. ${activation.purpose.cs}`,
+      en: `Task: install the tool \`${name}\` (command \`${command}\`) on this Machine and guide the operator through the sign-in. ${activation.purpose.en}`,
+    }[locale],
+    {
+      cs: "Nejdřív zjisti skutečný stav příkazem `lazurio tools status --json`; co už funguje, neměň. Instaluj jen z oficiálního zdroje a jen v mandátu, který ti Principál dal; přihlášení dělá operátor sám.",
+      en: "First read the actual state with `lazurio tools status --json`; change nothing that already works. Install only from the official source and only within the mandate the Principal gave you; the operator does the sign-in themselves.",
+    }[locale],
+    activation.installation[locale],
+    enable[locale],
+    {
+      cs: "Když cílového stavu nedosáhneš, přestaň, nahlas přesně, co chybí, a nic neobcházej.",
+      en: "If you cannot reach the target state, stop, report exactly what is missing and work around nothing.",
+    }[locale],
+  ].join("\n\n");
 }
