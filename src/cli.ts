@@ -280,6 +280,10 @@ preparation, before every replacement and in profile-resume; the journal stays f
 later resume. A workstation Folder keeps your own top-level files untouched.
 On a hosted Machine, machine folder-refresh re-renders the same owned files from the
 current handover through this same transaction, keeping the recorded profile.
+tools enable|disable <tool> --folder <Folder> --expected-revision <n> records which
+catalog tools agents are told to use and re-renders the same owned files through this
+same transaction, keeping the recorded preset and profile; a profile change or a
+refresh keeps the recorded tools. It grants no access and installs nothing.
 --previous-digest is not accepted by either profile command.
 profile-resume --folder <Folder> --target-revision <integer >= 2>
 resumes and finalizes an existing prepared update, or verifies its completed archive.
@@ -613,7 +617,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
   // The optional previous digest is AGENTS.md's; the manual files of a
   // development fixture have no recorded ownership here.
   const result = await previewFolder(
-    { preset: "local", machine: null, profile },
+    { preset: "local", machine: null, profile, tools: [] },
     values["previous-digest"] === undefined
       ? null
       : { "AGENTS.md": values["previous-digest"] },

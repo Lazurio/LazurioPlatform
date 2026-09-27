@@ -6,9 +6,11 @@ import {
   assignmentLine,
   type InstructionSource,
   instructionTemplateRevision,
+  mcpInstruction,
   parseInstructionSource,
   peerLine,
   type Text,
+  toolLines,
 } from "./render";
 
 // The agent manual shipped with the product (decision F14): complete for an
@@ -1056,6 +1058,27 @@ function fromPersonalVm(
   ];
 }
 
+// The tools agents are to use on this Machine (decision F18): the required
+// catalog tools and the ones the operator enabled in this Folder, each with
+// its usage, then the generic instruction for MCP servers.
+function enabledToolsSection(
+  tools: readonly string[],
+  locale: Locale,
+): readonly Text[] {
+  return [
+    t("## Zapnuté nástroje", "## Enabled tools"),
+    t(
+      "CLI z katalogu Lazuria, která mají agenti na téhle Mašině používat: povinná a ta, která operátor v tomhle Folderu zapnul (`lazurio tools list`, `lazurio tools enable|disable <tool>`). Zapnutí je kontext, ne autorita ani instalace: neuděluje přístup, nic neinstaluje a nepinuje verzi. Chybějící nebo nepřihlášený nástroj nahlas Principálovi; instaluj a přihlašuj jen na jeho pokyn.",
+      "The CLIs of the Lazurio catalog that agents on this Machine are to use: the required ones and those the operator enabled in this Folder (`lazurio tools list`, `lazurio tools enable|disable <tool>`). Enabling is context, not authority or installation: it grants no access, installs nothing and pins no version. Report a missing or signed-out tool to the Principal; install and sign in only on their instruction.",
+    ),
+    blank,
+    ...toolLines(tools, locale, "usage").map(same),
+    blank,
+    t("### MCP servery", "### MCP servers"),
+    mcpInstruction,
+  ];
+}
+
 function thisMachine(source: InstructionSource): string {
   const { preset, machine } = source;
   const { locale } = source.profile;
@@ -1131,6 +1154,8 @@ function thisMachine(source: InstructionSource): string {
       blank,
       t("## Hranice na téhle Mašině", "## Boundaries on this Machine"),
       ...boundaries(preset),
+      blank,
+      ...enabledToolsSection(source.tools, locale),
       ...(relationships === undefined
         ? []
         : [

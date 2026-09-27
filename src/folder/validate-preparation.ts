@@ -1,6 +1,7 @@
 import { planFolderChange } from "./change-profile";
 import { type OutputPath, outputPaths } from "./outputs";
 import {
+  enabledTools,
   parseFolderPreferences,
   parseInstructionManifest,
   stateFields,
@@ -84,7 +85,8 @@ export async function validatePreparation(
   const stagedPreferencesIdentity = identity(marker.preferencesIdentity);
   const stagedManifestIdentity = identity(marker.manifestIdentity);
   // The staged binding is part of the transition: a refresh carries the
-  // re-projected binding of the same Machine, a profile change the recorded one.
+  // re-projected binding of the same Machine, a profile change the recorded
+  // one; the staged enabled tools are the requested or the recorded ones.
   const plan = await planFolderChange(
     previousPreferences,
     previousManifest,
@@ -93,6 +95,7 @@ export async function validatePreparation(
       preset: preferences.preset.name,
       profile: preferences.profile,
       machine: preferences.machine,
+      tools: enabledTools(preferences),
     },
     async (path) => ({
       kind: "regular",
