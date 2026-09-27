@@ -4,6 +4,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readlink,
   rename,
   rm,
   writeFile,
@@ -310,6 +311,18 @@ async function probe(
   }
 }
 
+// What the entry is, without following a link: enough to tell whether an
+// installation attempt created or replaced it.
+async function identity(path: string): Promise<string | undefined> {
+  try {
+    const entry = await lstat(path, { bigint: true });
+    const target = entry.isSymbolicLink() ? await readlink(path) : "";
+    return [entry.dev, entry.ino, entry.size, entry.mtimeNs, target].join(":");
+  } catch {
+    return undefined;
+  }
+}
+
 async function exists(path: string): Promise<boolean> {
   try {
     await lstat(path);
@@ -523,6 +536,7 @@ export async function installTool(
   // ~/.local/bin would only hide it. The agent's prompt covers the repair.
   if (onPathNow !== undefined && onPathNow !== destination)
     return fail("preflight", "broken-installation-elsewhere");
+  const before = await identity(destination);
   try {
     if (recipe.kind === "release")
       await installRelease(entry, recipe, platformTarget, env, destination);
@@ -534,10 +548,13 @@ export async function installTool(
   }
   const installed = await probe(destination, env, processEnv);
   if (!installed.works) {
-    // What was placed and does not run is not left behind as "installed":
-    // the entry in the standard path goes (for an installer script that is
-    // its link; the installer's own home stays the tool's).
-    await rm(destination, { force: true });
+    // What this attempt placed and does not run is not left behind as
+    // "installed": the entry it created or replaced in the standard path
+    // goes (for an installer script that is its link; the installer's own
+    // home stays the tool's). An entry the attempt did not change stays the
+    // operator's.
+    if ((await identity(destination)) !== before)
+      await rm(destination, { force: true });
     return fail("verify", "version-failed");
   }
   return {

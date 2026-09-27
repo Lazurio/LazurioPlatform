@@ -759,6 +759,20 @@ test.skipIf(!posix)(
         fallback: "agent",
       });
       expect(await readdir(box.bin)).toEqual([]);
+      // An installer that succeeds and places nothing: a broken entry that
+      // was there before the attempt stays the operator's.
+      await writeFile(join(box.bin, "composio"), "#!/bin/sh\nexit 9\n", {
+        mode: 0o755,
+      });
+      const idle = fakeSource({
+        "https://composio.dev/install": "#!/bin/sh\necho done\n",
+      });
+      expect(
+        await installTool("composio", box.environment(idle.fetcher, { run })),
+      ).toMatchObject({ kind: "install-failed", stage: "verify" });
+      expect(await readFile(join(box.bin, "composio"), "utf8")).toBe(
+        "#!/bin/sh\nexit 9\n",
+      );
     } finally {
       await box.close();
     }
