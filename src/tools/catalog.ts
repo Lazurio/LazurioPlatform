@@ -347,3 +347,36 @@ export function toolPrompt(
     }[locale],
   ].join("\n\n");
 }
+
+// The third route next to the catalog (decision F18): an MCP server an agent
+// sets up on the operator's request. The prepared prompt for that agent. MCP
+// servers are never recorded in the Lazurio Folder, so nothing is enabled
+// afterwards. Text only: producing it installs nothing and grants nothing.
+export function mcpServerPrompt(locale: "cs" | "en"): string {
+  return [
+    {
+      cs: "Úkol: napoj na téhle Mašině další aplikaci přes MCP server. Nejdřív se operátora zeptej, kterou aplikaci chce napojit a k čemu ji agenti mají používat; nic nepředpokládej.",
+      en: "Task: connect another app on this Machine through an MCP server. First ask the operator which app they want to connect and what agents should use it for; assume nothing.",
+    }[locale],
+    {
+      cs: "Dej přednost oficiálnímu MCP serveru poskytovatele té aplikace. Když žádný není, řekni to operátorovi a navrhni mu možnosti; server z neověřeného zdroje ani server postavený na scrapingu nebo cookies prohlížeče nenastavuj.",
+      en: "Prefer the official MCP server of the app's provider. If there is none, tell the operator and offer the options; do not set up a server from an unverified source or one built on scraping or browser cookies.",
+    }[locale],
+    {
+      cs: "Server nastav pro harnessy, které na téhle Mašině skutečně jsou: pro Codex v `~/.codex/config.toml`, pro Claude Code příkazem `claude mcp add`. Nejdřív zjisti, co už je nastavené, a fungující nastavení neměň.",
+      en: "Configure the server for the harnesses actually present on this Machine: for Codex in `~/.codex/config.toml`, for Claude Code with `claude mcp add`. First read what is already configured and change nothing that works.",
+    }[locale],
+    {
+      cs: "Přihlášení dělá operátor sám ve svém prohlížeči; ty mu jen předáš odkaz, který nástroj vrátí. Tajemství (token, heslo, klíč, kód) nikdy nepatří do chatu, Gitu ani logu a operátor žádný API klíč nekopíruje.",
+      en: "The operator does the sign-in themselves in their browser; you only hand over the link the tool returns. A secret (token, password, key, code) never belongs in chat, Git or a log, and the operator copies no API key.",
+    }[locale],
+    {
+      cs: "MCP server do Lazurio Folderu nezapisuj: Folder eviduje jen nástroje z katalogu a `lazurio tools enable` se tady nepoužívá. Nakonec ověř, že harness server vidí, a nahlas operátorovi, co je nastavené a jak napojení zrušit.",
+      en: "Do not record the MCP server in the Lazurio Folder: the Folder lists catalog tools only and `lazurio tools enable` is not used here. Finally verify that the harness sees the server and report to the operator what is configured and how to remove the connection.",
+    }[locale],
+    {
+      cs: "Když cílového stavu nedosáhneš, přestaň, nahlas přesně, co chybí, a nic neobcházej.",
+      en: "If you cannot reach the target state, stop, report exactly what is missing and work around nothing.",
+    }[locale],
+  ].join("\n\n");
+}
