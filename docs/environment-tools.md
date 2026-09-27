@@ -101,7 +101,25 @@ usage, 1 operation failure.
 The Launchpad server offers the same over the same core: `tools` in `/api/profile`,
 `POST /api/tools/preview` and `POST /api/tools/update` with
 `{ expectedRevision, tools }`, where `tools` is the full next selection, sorted and
-unique. There is no UI for it yet.
+unique.
+
+`POST /api/tools/status` (body `{}`, the same admission as every other route) is what
+the Launchpad's Tools section reads. It answers `kind: "tools-status"`, the Folder's
+`revision` and `locale`, `sharedEnvironment`, and for every activatable catalog tool
+in catalog order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage`
+in the Folder's locale, `source`, the live facts of `tools status` (`installed`,
+`path`, `realPath`, `version`, `versionError`, `standardPath`) and `prompt`, the
+prepared agent prompt of `lazurio tools prompt <tool>`. `mcpPrompt` is the prepared
+prompt for the third route, an MCP server set up by an agent. The probe runs each
+found tool's version command and nothing else: no sign-in check, no network. The raw
+output of a tool is not returned, and the request accepts no Folder, PATH or tool
+name. The facts are those of the PATH and home of the Launchpad process, which on an
+installed service may differ from an operator's interactive shell.
+
+The Tools section itself is described in
+[launchpad-development.md](launchpad-development.md#tools-section). The curated
+install and sign-in flow of a `launchpad` tool is not built: its button is shown
+disabled, and the prepared agent prompt is the way until it is.
 
 ### The standard path (decision 0161, point 6)
 

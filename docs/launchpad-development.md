@@ -52,3 +52,49 @@ browser automation, remote-human access, restart/session behavior and installed
 native three-OS acceptance remain open. Module discovery/start/status/stop must still
 use the reviewed manifest and existing lifecycle owner; this panel implements none
 of them. The original bounded proof is unchanged and is not relabelled as a full UI.
+
+## Tools section
+
+The page has a section "Tools" / "Nástroje" (decision F18,
+[environment-tools.md](environment-tools.md)). It reads `POST /api/tools/status` when
+the profile is loaded, after every change and on "Refresh status", and shows:
+
+- one introductory sentence: what tools are, that enabling writes them into the agent
+  instructions, and that agents use enabled tools first and MCP servers second;
+- on a shared Environment (the Team preset) the warning that signed-in accounts are
+  shared by all operators; it is repeated in the confirmation of an enable;
+- three groups, **Required**, **Recommended** and **Optional**, in catalog order. A
+  card carries the tool's name, its one-line purpose, the enabled state, the setup
+  mode, the installed version and path or "not installed", a note when the PATH entry
+  is outside `~/.local/bin`, a failed version check, and behind "What agents are told"
+  the usage text and the official source;
+- a card "Connect another app through an MCP server" with the generic prepared prompt.
+  MCP servers are never recorded in the Folder, so this card enables nothing.
+
+**Enable and disable** use the pattern of the profile form in two clicks. The first
+sends the full next selection with the shown revision to `/api/tools/preview` and
+writes nothing; the card then says what the change does and which files it rewrites.
+"Confirm" sends the same candidate to `/api/tools/update`. After a recorded change the
+whole page reloads its state, so the revision advances for the profile form as well
+and a profile preview made before the change is dropped. A `blocked` answer becomes
+one sentence in the card (`stale-revision`, `drift` with its path, `incomplete-state`;
+any other reason is named by its code) with a "Reload" button; an answer that cannot
+be read is reported as unconfirmed, never as refused. A required tool has no such
+control and shows "Always on".
+
+**Set up with an agent** opens a modal `<dialog>` with the prepared prompt in a
+read-only text area and "Copy prompt" (Clipboard API; where it is unavailable the text
+is selected for a keyboard copy). The prompt contains no secret, and the operator
+pastes it into a new chat in T3 Code on the Machine. Focus moves into the dialog and
+returns to the button that opened it. Every activatable tool has this button. A
+`launchpad` tool additionally shows a disabled "Install and sign in" with the hint
+that the curated flow comes in the next release; that flow is not built.
+
+The section checks installation only. It runs no sign-in command and says so on the
+page. Pure view logic lives in `src/launchpad/tools-view.ts` and is tested without a
+DOM (`tests/tools-view.test.ts`); `src/launchpad/tools-panel.ts` holds the DOM and
+renders every server and tool value with `textContent`. HTTP behavior is tested in
+`tests/launchpad-tools.test.ts` with fake tools on a private PATH and a temporary
+home. The section's appearance in a real browser, its keyboard and screen-reader
+behavior and the clipboard path have not been qualified by an automated or recorded
+manual run.
