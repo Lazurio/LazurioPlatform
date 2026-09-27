@@ -335,9 +335,9 @@ test.skipIf(!posix)(
       installed: false,
     });
     const text = await runToolsCommand(["status"], context);
-    expect(text.text).toContain(`gh      2.86.0           ${join(bin, "gh")}`);
+    expect(text.text).toContain(`gh       2.86.0           ${join(bin, "gh")}`);
     expect(text.text).toContain(
-      "codex   missing          https://developers.openai.com/codex/cli",
+      "codex    missing          https://developers.openai.com/codex/cli",
     );
     const none = await runToolsCommand(["update", "gh"], context);
     expect(none.code).toBe(1);

@@ -1075,3 +1075,9 @@ installer beyond its text; usage analytics; further catalog entries. The neon te
 state what was not verified against the vendor's documentation (the npm package name
 and Node.js requirement, which the documentation and the repository README state
 differently, and whether the browser sign-in completes on a headless Machine).
+
+**Shared Team preset.** Catalog tools are signed in by the operator. The preset with a
+brokered Organization identity (`hosted-organization-team`) allows no personal sign-ins
+(F2), so enabling any tool there is refused with `tools-need-own-sign-in`, and the preset
+cannot be chosen while tools are enabled. How a Team's shared Environment connects to
+external apps is not decided.

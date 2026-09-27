@@ -162,6 +162,16 @@ export async function planFolderChange(
     change.profile.purpose !== composition.purpose
   )
     return { kind: "blocked", reason: "preset-composition" } as const;
+  // Catalog tools are signed in by the operator. A preset whose provider
+  // identity is brokered for a shared Team account forbids personal sign-ins
+  // (decision F2), so no tool can be enabled there until the Team case is
+  // decided; the same refusal stops a change to such a preset while tools
+  // are enabled.
+  if (
+    tools.length > 0 &&
+    workspacePreset(presetName).providerIdentity === "brokered-organization"
+  )
+    return { kind: "blocked", reason: "tools-need-own-sign-in" } as const;
   // An unchanged preset keeps its recorded reference: the choice was not made
   // again. A preset recorded as derived that the handover no longer derives
   // (the assignment changed) is not carried forward silently; the Principal

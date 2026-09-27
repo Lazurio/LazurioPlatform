@@ -783,6 +783,10 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "- `preset-not-allowed`, `preset-composition`: the preset is outside what the handover allows, or the fixed axes disagree with it.",
     ),
     t(
+      "- `tools-need-own-sign-in`: nástroje z katalogu přihlašuje operátor; preset sdíleného Teamu osobní přihlášení nepřipouští, takže na něm nejde nástroj zapnout ani na něj přejít se zapnutými nástroji.",
+      "- `tools-need-own-sign-in`: catalog tools are signed in by the operator; the shared Team preset allows no personal sign-ins, so a tool cannot be enabled there and the preset cannot be chosen while tools are enabled.",
+    ),
+    t(
       "- `template-upgrade-required`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.",
       "- `template-upgrade-required`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.",
     ),

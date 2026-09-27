@@ -779,3 +779,28 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// Catalog tools are signed in by the operator; the shared Team preset allows
+// no personal sign-ins (decision F2), so nothing can be enabled there.
+test("the shared Team preset refuses enabled tools until the Team case is decided", async () => {
+  const team = {
+    ...stored,
+    preset: {
+      name: "hosted-organization-team",
+      version: 1,
+      selection: "derived",
+    },
+    machine: bindings.team,
+    profile: presetProfile("hosted-organization-team", profile.os, {
+      locale: "en",
+    }),
+  };
+  const { preferences, manifest, inspect } = await planned(team);
+  expect(
+    await planToolsChange(preferences, manifest, 7, ["composio"], inspect),
+  ).toEqual({ kind: "blocked", reason: "tools-need-own-sign-in" });
+  // An empty selection is never refused for this reason.
+  expect(
+    await planToolsChange(preferences, manifest, 7, [], inspect),
+  ).not.toEqual({ kind: "blocked", reason: "tools-need-own-sign-in" });
+});

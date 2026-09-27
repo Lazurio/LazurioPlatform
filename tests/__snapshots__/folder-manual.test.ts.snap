@@ -816,6 +816,7 @@ Synchronizing Organization repositories is not implemented in the Lazurio produc
 The preset and the communication axes change only through the Launchpad profile panel (preview, then apply); \`lazurio machine folder-refresh\` re-renders the Folder from the current handover. A blocked plan writes nothing and names its reason:
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
+- \`tools-need-own-sign-in\`: catalog tools are signed in by the operator; the shared Team preset allows no personal sign-ins, so a tool cannot be enabled there and the preset cannot be chosen while tools are enabled.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
@@ -872,6 +873,7 @@ Synchronizaci repozitářů Organizací produkt Lazurio zatím neumí. Je-li che
 Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhled, pak použití); \`lazurio machine folder-refresh\` převykreslí Folder z aktuálního handoveru. Zablokovaný plán nic nezapíše a uvede důvod:
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
+- \`tools-need-own-sign-in\`: nástroje z katalogu přihlašuje operátor; preset sdíleného Teamu osobní přihlášení nepřipouští, takže na něm nejde nástroj zapnout ani na něj přejít se zapnutými nástroji.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
@@ -924,6 +926,7 @@ Nástroj operátora je první spustitelný soubor svého jména v \`~/.local/bin
 Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhled, pak použití); \`lazurio machine folder-refresh\` převykreslí Folder z aktuálního handoveru. Zablokovaný plán nic nezapíše a uvede důvod:
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
+- \`tools-need-own-sign-in\`: nástroje z katalogu přihlašuje operátor; preset sdíleného Teamu osobní přihlášení nepřipouští, takže na něm nejde nástroj zapnout ani na něj přejít se zapnutými nástroji.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
@@ -976,6 +979,7 @@ An operator tool is the first executable of its name in \`~/.local/bin\` on the 
 The preset and the communication axes change only through the Launchpad profile panel (preview, then apply); \`lazurio machine folder-refresh\` re-renders the Folder from the current handover. A blocked plan writes nothing and names its reason:
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
+- \`tools-need-own-sign-in\`: catalog tools are signed in by the operator; the shared Team preset allows no personal sign-ins, so a tool cannot be enabled there and the preset cannot be chosen while tools are enabled.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
@@ -1031,6 +1035,7 @@ Synchronizaci repozitářů Organizací produkt Lazurio zatím neumí. Je-li che
 Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhled, pak použití); \`lazurio machine folder-refresh\` převykreslí Folder z aktuálního handoveru. Zablokovaný plán nic nezapíše a uvede důvod:
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
+- \`tools-need-own-sign-in\`: nástroje z katalogu přihlašuje operátor; preset sdíleného Teamu osobní přihlášení nepřipouští, takže na něm nejde nástroj zapnout ani na něj přejít se zapnutými nástroji.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
@@ -1086,6 +1091,7 @@ Synchronizing Organization repositories is not implemented in the Lazurio produc
 The preset and the communication axes change only through the Launchpad profile panel (preview, then apply); \`lazurio machine folder-refresh\` re-renders the Folder from the current handover. A blocked plan writes nothing and names its reason:
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
+- \`tools-need-own-sign-in\`: catalog tools are signed in by the operator; the shared Team preset allows no personal sign-ins, so a tool cannot be enabled there and the preset cannot be chosen while tools are enabled.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
@@ -1141,6 +1147,7 @@ Synchronizaci repozitářů Organizací produkt Lazurio zatím neumí. Je-li che
 Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhled, pak použití); \`lazurio machine folder-refresh\` převykreslí Folder z aktuálního handoveru. Zablokovaný plán nic nezapíše a uvede důvod:
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
+- \`tools-need-own-sign-in\`: nástroje z katalogu přihlašuje operátor; preset sdíleného Teamu osobní přihlášení nepřipouští, takže na něm nejde nástroj zapnout ani na něj přejít se zapnutými nástroji.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
@@ -1196,6 +1203,7 @@ Synchronizing Organization repositories is not implemented in the Lazurio produc
 The preset and the communication axes change only through the Launchpad profile panel (preview, then apply); \`lazurio machine folder-refresh\` re-renders the Folder from the current handover. A blocked plan writes nothing and names its reason:
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
+- \`tools-need-own-sign-in\`: catalog tools are signed in by the operator; the shared Team preset allows no personal sign-ins, so a tool cannot be enabled there and the preset cannot be chosen while tools are enabled.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
 - \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.

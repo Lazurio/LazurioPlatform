@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { FolderAdoptionError } from "../folder/handover-layout";
 import { readFolderTools } from "../folder/inspect-tools-change";
 import { updateTools } from "../folder/update-profile";
-import { activatableTools, toolPrompt } from "./catalog";
+import { activatableTools, toolCatalog, toolPrompt } from "./catalog";
 import { runTool, type ToolStatus, toolsStatus } from "./status";
 import { toolsUpdate } from "./update";
 
@@ -47,16 +47,19 @@ export type ToolsCommandOutput = Readonly<{
   text: string;
 }>;
 
+// Wide enough for the longest catalog name, so the columns stay aligned.
+const nameWidth = Math.max(...toolCatalog.map((entry) => entry.name.length));
+
 const line = (tool: ToolStatus): string =>
   tool.installed
-    ? `${tool.name.padEnd(7)} ${(tool.version ?? "?").padEnd(16)} ${tool.path}${
+    ? `${tool.name.padEnd(nameWidth)} ${(tool.version ?? "?").padEnd(16)} ${tool.path}${
         tool.realPath && tool.realPath !== tool.path
           ? ` -> ${tool.realPath}`
           : ""
       }${tool.versionError ? `  (version: ${tool.versionError})` : ""}${
         tool.standardPath === false ? "  (outside ~/.local/bin)" : ""
       }`
-    : `${tool.name.padEnd(7)} ${"missing".padEnd(16)} ${tool.source}`;
+    : `${tool.name.padEnd(nameWidth)} ${"missing".padEnd(16)} ${tool.source}`;
 
 export async function runToolsCommand(
   args: string[],
