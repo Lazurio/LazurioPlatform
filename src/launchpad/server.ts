@@ -18,6 +18,8 @@ import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import { toolSelection } from "../tools/catalog";
+import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
+import { runTool } from "../tools/status";
 import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
@@ -71,6 +73,15 @@ export async function startLaunchpad(
     pill?: UpdatePill | undefined;
   }>,
   hostedOptions: HostedOptions = {},
+  // Where the tools screen reads its live facts: this process's PATH and
+  // home, as `lazurio tools status` does. Trusted composition, never HTTP
+  // input.
+  toolsEnvironment: ToolsEnvironment = {
+    path: process.env.PATH,
+    home: process.env.HOME,
+    platform: process.platform,
+    run: runTool,
+  },
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -242,6 +253,12 @@ export async function startLaunchpad(
           typeof value === "number" && Number.isSafeInteger(value) && value >= 1
             ? value
             : null;
+        if (url.pathname === "/api/tools/status") {
+          // The tools screen (decision F18): the recorded selection joined
+          // with the live facts. The probe runs version commands only.
+          stateFields(input, []);
+          return response(await toolsOverview(folder, toolsEnvironment));
+        }
         if (
           ["/api/tools/preview", "/api/tools/update"].includes(url.pathname)
         ) {
