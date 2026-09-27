@@ -88,6 +88,87 @@ const en = {
     "Update state needs a person: {path}. Nothing is changed automatically.",
   updateStarted: "Update started…",
   updateRefused: "The update was not started; the state shown was refreshed.",
+  toolsTitle: "Tools",
+  toolsIntro:
+    "Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.",
+  toolsShared:
+    "This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.",
+  toolsRefresh: "Refresh status",
+  toolsLoading: "Reading tools…",
+  toolsLoadFailed:
+    "The tools could not be read. Try Refresh status; if it keeps failing, run lazurio tools list in the CLI.",
+  toolsChecked: "Folder revision {revision} · checked at {time}",
+  toolsSignInNote:
+    "This screen checks whether a tool is installed. It does not check sign-ins; an agent verifies the signed-in account before it uses a tool.",
+  toolsTierRequired: "Required",
+  toolsTierRequiredNote: "Always part of the agent instructions.",
+  toolsTierRecommended: "Recommended",
+  toolsTierRecommendedNote:
+    "The recommended way to connect this Environment to external apps.",
+  toolsTierOptional: "Optional",
+  toolsTierOptionalNote:
+    "Further tools for single services. Enable what you use.",
+  toolsInstalled: "Installed, version {version}",
+  toolsInstalledNoVersion: "Installed, version unknown",
+  toolsNotInstalled: "Not installed",
+  toolsVersionError: "The version check failed: {error}.",
+  toolsOutsideStandard:
+    "Found outside ~/.local/bin, the standard place for tools. It works; it is only reported.",
+  toolsSetupLaunchpad: "Set up in Launchpad",
+  toolsSetupAgent: "Set up with an agent",
+  toolsEnabled: "Enabled",
+  toolsDisabled: "Not enabled",
+  toolsAlwaysOn: "Always on",
+  toolsEnable: "Enable",
+  toolsDisable: "Disable",
+  toolsEnableNamed: "Enable {name}",
+  toolsDisableNamed: "Disable {name}",
+  toolsUsage: "What agents are told",
+  toolsSource: "Official source",
+  toolsConfirmEnable:
+    "Enabling {name} adds it to the agent instructions of this Folder.",
+  toolsConfirmDisable:
+    "Disabling {name} removes it from the agent instructions of this Folder. The tool and its sign-in stay as they are.",
+  toolsConfirmFiles: "Rewritten files: {files}.",
+  toolsConfirmNotInstalled:
+    "{name} is not installed yet; agents will report that until it is set up.",
+  toolsConfirm: "Confirm",
+  toolsCancel: "Cancel",
+  toolsBusy: "Working…",
+  toolsEnabledDone: "{name} is enabled. Folder revision {revision}.",
+  toolsDisabledDone: "{name} is no longer enabled. Folder revision {revision}.",
+  toolsUnchanged:
+    "Nothing changed: the Folder already has this selection. Reload to see its current state.",
+  toolsBlockedStale:
+    "The Folder changed in the meantime. Reload and try again; nothing was written.",
+  toolsBlockedDrift:
+    "The file {path} was edited by hand, so Lazurio does not overwrite it. Keep your edit elsewhere and restore the file, then reload. Nothing was written.",
+  toolsBlockedIncomplete:
+    "An earlier change of this Folder did not finish. Complete it with lazurio profile-resume in the CLI, then reload. Nothing was written.",
+  toolsBlockedOther: "The change was refused ({reason}). Nothing was written.",
+  toolsFailed:
+    "The change could not be confirmed. Reload the state; CLI recovery may be required.",
+  toolsReload: "Reload",
+  toolsAgentAction: "Set up with an agent",
+  toolsAgentActionNamed: "Set up {name} with an agent",
+  toolsInstallAction: "Install and sign in",
+  toolsInstallHint:
+    "Coming in the next release. For now use: Set up with an agent.",
+  toolsPromptTitle: "Set up {name} with an agent",
+  toolsPromptHint:
+    "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
+  toolsPromptLabel: "Prepared prompt",
+  toolsCopy: "Copy prompt",
+  toolsCopied: "Copied.",
+  toolsCopyFailed:
+    "Copying is not available here. The text is selected; copy it with the keyboard.",
+  toolsClose: "Close",
+  toolsMcpTitle: "Connect another app through an MCP server",
+  toolsMcpText:
+    "For an app the catalog does not cover, an agent sets up an MCP server on your request. MCP servers are not recorded in the Lazurio Folder.",
+  toolsMcpAction: "Set up an MCP server with an agent",
+  toolsMcpPromptHint:
+    "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
   title: "Lazurio — Profile",
   notice: "Development fixture only. No Lazurio installation or migration.",
   legend: "Machine profile",
@@ -223,6 +304,87 @@ const cs: Record<MessageKey, string> = {
     "Stav aktualizace vyžaduje zásah člověka: {path}. Automaticky se nic nemění.",
   updateStarted: "Aktualizace spuštěna…",
   updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
+  toolsTitle: "Nástroje",
+  toolsIntro:
+    "Nástroje jsou programy pro příkazovou řádku, kterými agenti v tomhle Environmentu pracují s vnějšími službami. Zapnutím se nástroj zapíše do instrukcí pro agenty v tomhle Folderu; nic se tím neinstaluje a nevzniká žádný přístup. Agenti používají nejdřív zapnuté nástroje a teprve potom MCP servery.",
+  toolsShared:
+    "Tohle Environment je sdílené. Účty přihlášené v nástroji platí pro celé Environment a používají je všichni jeho operátoři.",
+  toolsRefresh: "Obnovit stav",
+  toolsLoading: "Načítají se nástroje…",
+  toolsLoadFailed:
+    "Nástroje se nepodařilo načíst. Zkuste Obnovit stav; když to nepomůže, spusťte v CLI lazurio tools list.",
+  toolsChecked: "Revize Folderu {revision} · zjištěno v {time}",
+  toolsSignInNote:
+    "Tahle obrazovka zjišťuje, jestli je nástroj nainstalovaný. Přihlášení nezjišťuje; přihlášený účet si agent ověří, než nástroj použije.",
+  toolsTierRequired: "Povinné",
+  toolsTierRequiredNote: "Vždy součást instrukcí pro agenty.",
+  toolsTierRecommended: "Doporučené",
+  toolsTierRecommendedNote:
+    "Doporučený způsob, jak tohle Environment napojit na externí aplikace.",
+  toolsTierOptional: "Volitelné",
+  toolsTierOptionalNote:
+    "Další nástroje pro jednotlivé služby. Zapněte ty, které používáte.",
+  toolsInstalled: "Nainstalováno, verze {version}",
+  toolsInstalledNoVersion: "Nainstalováno, verze neznámá",
+  toolsNotInstalled: "Není nainstalováno",
+  toolsVersionError: "Zjištění verze selhalo: {error}.",
+  toolsOutsideStandard:
+    "Nalezeno mimo ~/.local/bin, standardní místo pro nástroje. Funguje; jen se to hlásí.",
+  toolsSetupLaunchpad: "Nastavení v Launchpadu",
+  toolsSetupAgent: "Nastavení s agentem",
+  toolsEnabled: "Zapnuto",
+  toolsDisabled: "Vypnuto",
+  toolsAlwaysOn: "Vždy zapnuto",
+  toolsEnable: "Zapnout",
+  toolsDisable: "Vypnout",
+  toolsEnableNamed: "Zapnout {name}",
+  toolsDisableNamed: "Vypnout {name}",
+  toolsUsage: "Co se dozvědí agenti",
+  toolsSource: "Oficiální zdroj",
+  toolsConfirmEnable:
+    "Zapnutím se {name} přidá do instrukcí pro agenty v tomhle Folderu.",
+  toolsConfirmDisable:
+    "Vypnutím se {name} odebere z instrukcí pro agenty v tomhle Folderu. Nástroj i jeho přihlášení zůstávají, jak jsou.",
+  toolsConfirmFiles: "Přepsané soubory: {files}.",
+  toolsConfirmNotInstalled:
+    "{name} zatím není nainstalováno; agenti to budou hlásit, dokud se nenastaví.",
+  toolsConfirm: "Potvrdit",
+  toolsCancel: "Zrušit",
+  toolsBusy: "Pracuje se…",
+  toolsEnabledDone: "{name} je zapnuto. Revize Folderu {revision}.",
+  toolsDisabledDone: "{name} už není zapnuto. Revize Folderu {revision}.",
+  toolsUnchanged:
+    "Nic se nezměnilo: Folder už tenhle výběr má. Načtěte jeho aktuální stav.",
+  toolsBlockedStale:
+    "Folder se mezitím změnil. Načtěte stav a zkuste to znovu; nic se nezapsalo.",
+  toolsBlockedDrift:
+    "Soubor {path} byl upraven ručně, proto ho Lazurio nepřepíše. Svou úpravu si uložte jinam, soubor vraťte do původní podoby a načtěte stav. Nic se nezapsalo.",
+  toolsBlockedIncomplete:
+    "Dřívější změna tohohle Folderu nedoběhla. Dokončete ji v CLI příkazem lazurio profile-resume a načtěte stav. Nic se nezapsalo.",
+  toolsBlockedOther: "Změna byla odmítnuta ({reason}). Nic se nezapsalo.",
+  toolsFailed:
+    "Změnu se nepodařilo potvrdit. Načtěte stav; může být nutná obnova přes CLI.",
+  toolsReload: "Načíst stav",
+  toolsAgentAction: "Nastavit s agentem",
+  toolsAgentActionNamed: "Nastavit {name} s agentem",
+  toolsInstallAction: "Nainstalovat a přihlásit",
+  toolsInstallHint:
+    "Bude v příštím vydání. Zatím použijte: Nastavit s agentem.",
+  toolsPromptTitle: "Nastavit {name} s agentem",
+  toolsPromptHint:
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
+  toolsPromptLabel: "Připravený prompt",
+  toolsCopy: "Zkopírovat prompt",
+  toolsCopied: "Zkopírováno.",
+  toolsCopyFailed:
+    "Kopírování tady není dostupné. Text je označený; zkopírujte ho klávesnicí.",
+  toolsClose: "Zavřít",
+  toolsMcpTitle: "Napojit další aplikaci přes MCP server",
+  toolsMcpText:
+    "Pro aplikaci, kterou katalog nepokrývá, nastaví agent na vaši žádost MCP server. MCP servery se do Lazurio Folderu nezapisují.",
+  toolsMcpAction: "Nastavit MCP server s agentem",
+  toolsMcpPromptHint:
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
   title: "Lazurio — Profil",
   notice:
     "Pouze vývojová testovací složka. Nejde o instalaci Lazuria ani migraci.",

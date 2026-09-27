@@ -4,6 +4,7 @@ import {
   localApplicationLink,
 } from "./application-view";
 import { type MessageKey, messages } from "./messages";
+import { createToolsPanel } from "./tools-panel";
 import type { PillStatus } from "./update-pill";
 import { pillView } from "./update-view";
 
@@ -217,7 +218,20 @@ async function load() {
   }
   controls.status.textContent = `${copy.revision} ${current.revision} · ${current.profile.os}`;
   controls.choices.disabled = false;
+  // The tools section follows the same state: locale and revision.
+  void tools.refresh();
 }
+// The tools section (decision F18). A change recorded there moves the Folder
+// revision, so a profile preview made before it is no longer valid.
+const tools = createToolsPanel({
+  post,
+  copy: () => copy,
+  changed: async () => {
+    pending = null;
+    controls.apply.disabled = true;
+    await load();
+  },
+});
 controls.form.addEventListener("change", () => {
   pending = null;
   controls.apply.disabled = true;
@@ -282,6 +296,8 @@ controls.apply.addEventListener("click", async () => {
 });
 load().catch(() => {
   controls.status.textContent = copy.loadFailed;
+  // The tools section says for itself that it could not be read.
+  void tools.refresh();
 });
 
 const appForm = document.querySelector<HTMLFormElement>("#application");
