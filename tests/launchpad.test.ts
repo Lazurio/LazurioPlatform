@@ -371,6 +371,29 @@ test.skipIf(process.platform === "win32")(
       expect(
         await readFile(join(session.folder, "AGENTS.md"), "utf8"),
       ).toContain("hosted-organization-team");
+      // On the shared Team Environment a change that adds a tool carries the
+      // warning that sign-ins are shared, in the preview and in the update; a
+      // change that adds nothing does not.
+      const adding = { expectedRevision: 2, tools: ["composio"] };
+      expect(
+        (await (await session.call("/api/tools/preview", adding)).json())
+          .warning,
+      ).toBe("shared-environment-sign-ins");
+      expect(
+        await (await session.call("/api/tools/update", adding)).json(),
+      ).toEqual({
+        kind: "updated",
+        revision: 3,
+        warning: "shared-environment-sign-ins",
+      });
+      expect(
+        await (
+          await session.call("/api/tools/update", {
+            expectedRevision: 3,
+            tools: [],
+          })
+        ).json(),
+      ).toEqual({ kind: "updated", revision: 4 });
     } finally {
       await session.close();
     }

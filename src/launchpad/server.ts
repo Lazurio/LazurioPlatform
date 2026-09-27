@@ -3,7 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
-import { inspectToolsChange } from "../folder/inspect-tools-change";
+import {
+  inspectToolsChange,
+  readFolderTools,
+  sharedSignInsWarning,
+} from "../folder/inspect-tools-change";
 import { withFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { allowedPresets } from "../folder/presets";
@@ -251,8 +255,14 @@ export async function startLaunchpad(
             url.pathname === "/api/tools/update"
               ? updateTools
               : inspectToolsChange;
+          const recorded = await readFolderTools(folder);
           const result = await operation(folder, expectedRevision, value.tools);
-          return response(result, result.kind === "blocked" ? 409 : 200);
+          return response(
+            result.kind === "blocked"
+              ? result
+              : { ...result, ...sharedSignInsWarning(recorded, value.tools) },
+            result.kind === "blocked" ? 409 : 200,
+          );
         }
         if (!["/api/preview", "/api/update"].includes(url.pathname))
           return response({ error: "not-found" }, 404);

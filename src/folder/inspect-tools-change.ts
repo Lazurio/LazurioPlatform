@@ -35,6 +35,22 @@ export async function inspectToolsChange(
   });
 }
 
+// On an Environment shared by several operators a sign-in of a tool is shared
+// by all of them. Every surface says so whenever a change adds a tool there.
+export function sharedSignInsWarning(
+  recorded: Readonly<{
+    sharedEnvironment: boolean;
+    enabled: readonly string[];
+  }>,
+  requested: unknown,
+): { warning: "shared-environment-sign-ins" } | Record<string, never> {
+  return recorded.sharedEnvironment &&
+    Array.isArray(requested) &&
+    requested.some((tool) => !recorded.enabled.includes(tool))
+    ? { warning: "shared-environment-sign-ins" }
+    : {};
+}
+
 // The recorded selection of one Folder: its revision and the catalog with
 // every tool's tier and whether it is on. Read-only, under the common lock.
 export async function readFolderTools(folder: string) {

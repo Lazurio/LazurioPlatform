@@ -508,12 +508,30 @@ test.skipIf(!posix)(
       "- `wacli` (enabled): ",
     );
 
-    // A required tool is always on; unknown and not activatable names are
-    // refused before the Folder is read.
-    expect(await enable("gh", 99)).toEqual({
+    // A required tool is always on, but the command still speaks about this
+    // Folder at the revision the caller saw. Unknown and not activatable
+    // names are refused before the Folder is read.
+    expect(await enable("gh", 3)).toEqual({
       code: 0,
       result: { kind: "unchanged", tool: "gh" },
     });
+    expect(await enable("gh", 99)).toEqual({
+      code: 2,
+      result: { kind: "blocked", reason: "stale-revision", tool: "gh" },
+    });
+    await expect(
+      runToolsCommand(
+        [
+          "enable",
+          "gh",
+          "--folder",
+          join(folder, "..", "no-such-folder"),
+          "--expected-revision",
+          "1",
+        ],
+        context,
+      ),
+    ).rejects.toThrow();
     expect(await disable("gh", 3)).toEqual({
       code: 2,
       result: { kind: "blocked", reason: "tool-required", tool: "gh" },

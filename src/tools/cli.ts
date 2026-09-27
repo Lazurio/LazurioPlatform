@@ -1,6 +1,9 @@
 import { parseArgs } from "node:util";
 import { FolderAdoptionError } from "../folder/handover-layout";
-import { readFolderTools } from "../folder/inspect-tools-change";
+import {
+  readFolderTools,
+  sharedSignInsWarning,
+} from "../folder/inspect-tools-change";
 import { updateTools } from "../folder/update-profile";
 import { activatableTools, toolCatalog, toolPrompt } from "./catalog";
 import { runTool, type ToolStatus, toolsStatus } from "./status";
@@ -277,27 +280,37 @@ async function runFolderToolsCommand(
       `Unknown tool ${name}; the catalog offers: ${known.join(", ")}`,
     );
   }
-  if (entry.activation.tier === "required")
-    return enabling
-      ? done(
-          0,
-          { kind: "unchanged", tool: name },
-          `${name} is required and always enabled`,
-        )
-      : done(
-          2,
-          { kind: "blocked", reason: "tool-required", tool: name },
-          `${name} is required and cannot be disabled`,
-        );
   try {
     const recorded = await readFolderTools(folder);
+    // A required tool is always on, but the command still speaks about one
+    // real Folder at the revision the caller saw.
+    if (entry.activation.tier === "required") {
+      if (recorded.revision !== Number(revision))
+        return done(
+          2,
+          { kind: "blocked", reason: "stale-revision", tool: name },
+          "Blocked: stale-revision",
+        );
+      return enabling
+        ? done(
+            0,
+            { kind: "unchanged", tool: name },
+            `${name} is required and always enabled`,
+          )
+        : done(
+            2,
+            { kind: "blocked", reason: "tool-required", tool: name },
+            `${name} is required and cannot be disabled`,
+          );
+    }
     const tools = enabling
       ? [...new Set([...recorded.enabled, name])].sort()
       : recorded.enabled.filter((tool) => tool !== name);
     const result = await updateTools(folder, Number(revision), tools);
     // On an Environment shared by several operators a sign-in of the tool is
     // shared by all of them; say so whenever a tool is enabled there.
-    const shared = enabling && recorded.sharedEnvironment;
+    const shared =
+      "warning" in sharedSignInsWarning(recorded, enabling ? tools : []);
     return done(
       result.kind === "blocked" ? 2 : 0,
       {
