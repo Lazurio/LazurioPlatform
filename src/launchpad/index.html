@@ -22,10 +22,15 @@
 #tools .tool-state[data-state="attention"] { color: #8a5200; }
 #tools .tool-path { font-family: ui-monospace, monospace; font-size: 0.88rem; overflow-wrap: anywhere; color: #333; }
 #tools .tool-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.7rem; }
-#tools .tool-confirm, #tools .tool-message { border-left: 0.25rem solid #555; background: #f4f4f4; padding: 0.6rem 0.8rem; margin-top: 0.7rem; }
+#tools .tool-message { border-left: 0.25rem solid #555; background: #f4f4f4; padding: 0.6rem 0.8rem; margin-top: 0.7rem; }
 #tools .tool-message[data-kind="blocked"], #tools .tool-message[data-kind="failed"] { border-left-color: #b3261e; background: #fdf0ef; }
 #tools .tool-message[data-kind="updated"] { border-left-color: #2e7d32; background: #edf7ee; }
 #tools details { margin-top: 0.5rem; }
+#tools .tool-signin[data-state="signed-in"] { color: #1b5e20; }
+#tools .tool-signin[data-state="signed-out"] { color: #8a5200; }
+#tools .tool-note { margin-top: 0.6rem; }
+#tools .tool-note textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 0.3rem; font: inherit; resize: vertical; }
+#tools .tool-note-problem { color: #b3261e; }
 #tools summary { cursor: pointer; color: #333; font-size: 0.92rem; }
 #tools-prompt { width: min(44rem, calc(100vw - 2rem)); border: 1px solid #999; border-radius: 0.5rem; padding: 1.1rem 1.25rem; }
 #tools-prompt::backdrop { background: rgba(0, 0, 0, 0.35); }
@@ -76,7 +81,6 @@
 <p data-message="toolsMcpText">For an app the catalog does not cover, an agent sets up an MCP server on your request. MCP servers are not recorded in the Lazurio Folder.</p>
 <p class="tool-actions"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Set up an MCP server with an agent</button></p>
 </div>
-<p class="tools-muted" data-message="toolsSignInNote">This screen checks whether a tool is installed. It does not check sign-ins; an agent verifies the signed-in account before it uses a tool.</p>
 <dialog id="tools-prompt" aria-labelledby="tools-prompt-title">
 <h3 id="tools-prompt-title"></h3>
 <p id="tools-prompt-hint"></p>

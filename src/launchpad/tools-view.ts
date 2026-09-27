@@ -1,4 +1,11 @@
+import {
+  normalizeToolNote,
+  type ToolNoteProblem,
+  toolNoteLimits,
+  toolNoteProblem,
+} from "../tools/note";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
+import type { ToolSignIn } from "../tools/status";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 
@@ -14,6 +21,26 @@ const text = (value: unknown): value is string =>
   typeof value === "string" && !value.includes("\0");
 const optionalText = (value: unknown): value is string | undefined =>
   value === undefined || text(value);
+
+function parseSignIn(input: unknown): ToolSignIn | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (
+    (value.state !== "signed-in" &&
+      value.state !== "signed-out" &&
+      value.state !== "unknown") ||
+    !optionalText(value.account) ||
+    !optionalText(value.organization)
+  )
+    return null;
+  return {
+    state: value.state,
+    ...(value.account === undefined ? {} : { account: value.account }),
+    ...(value.organization === undefined
+      ? {}
+      : { organization: value.organization }),
+  };
+}
 
 function parseTool(input: unknown): ToolOverview | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
@@ -35,9 +62,13 @@ function parseTool(input: unknown): ToolOverview | null {
     !optionalText(value.version) ||
     !optionalText(value.versionError) ||
     (value.standardPath !== undefined &&
-      typeof value.standardPath !== "boolean")
+      typeof value.standardPath !== "boolean") ||
+    !optionalText(value.note)
   )
     return null;
+  const signIn =
+    value.signIn === undefined ? undefined : parseSignIn(value.signIn);
+  if (signIn === null) return null;
   return {
     name: value.name,
     command: value.command,
@@ -58,6 +89,8 @@ function parseTool(input: unknown): ToolOverview | null {
     ...(value.standardPath === undefined
       ? {}
       : { standardPath: value.standardPath }),
+    ...(signIn === undefined ? {} : { signIn }),
+    ...(value.note === undefined ? {} : { note: value.note }),
   };
 }
 
@@ -73,6 +106,7 @@ export function parseToolsOverview(input: unknown): ToolsOverview | null {
     value.revision < 1 ||
     (value.locale !== "cs" && value.locale !== "en") ||
     typeof value.sharedEnvironment !== "boolean" ||
+    typeof value.hosted !== "boolean" ||
     !text(value.mcpPrompt) ||
     !Array.isArray(value.tools)
   )
@@ -89,6 +123,7 @@ export function parseToolsOverview(input: unknown): ToolsOverview | null {
     revision: value.revision,
     locale: value.locale,
     sharedEnvironment: value.sharedEnvironment,
+    hosted: value.hosted,
     mcpPrompt: value.mcpPrompt,
     tools,
   };
@@ -133,7 +168,13 @@ export type ToolStatusView = Readonly<{
   notes: readonly string[];
 }>;
 
-export function toolStatusView(tool: ToolOverview, copy: Copy): ToolStatusView {
+/** On a hosted Machine a tool outside `~/.local/bin` is something to look at
+ * (decision 0161); on a local workstation any tool on PATH is fine. */
+export function toolStatusView(
+  tool: ToolOverview,
+  copy: Copy,
+  hosted: boolean,
+): ToolStatusView {
   if (!tool.installed)
     return {
       state: "missing",
@@ -145,7 +186,9 @@ export function toolStatusView(tool: ToolOverview, copy: Copy): ToolStatusView {
     ...(tool.versionError === undefined
       ? []
       : [fill(copy.toolsVersionError, { error: tool.versionError })]),
-    ...(tool.standardPath === false ? [copy.toolsOutsideStandard] : []),
+    ...(hosted && tool.standardPath === false
+      ? [copy.toolsOutsideStandard]
+      : []),
   ];
   return {
     state: notes.length === 0 ? "ready" : "attention",
@@ -161,6 +204,34 @@ export function toolStatusView(tool: ToolOverview, copy: Copy): ToolStatusView {
           : tool.path,
     notes,
   };
+}
+
+/** The one line about the sign-in: as whom when the tool tells, not signed
+ * in, unknown, or not checked when the page did not ask. */
+export function signInLine(tool: ToolOverview, copy: Copy): string {
+  const signIn = tool.signIn;
+  if (signIn === undefined) return copy.toolsSignInUnchecked;
+  if (signIn.state === "signed-out") return copy.toolsSignedOut;
+  if (signIn.state === "unknown") return copy.toolsSignInUnknown;
+  if (signIn.account === undefined) return copy.toolsSignedIn;
+  return signIn.organization === undefined
+    ? fill(copy.toolsSignedInAs, { account: signIn.account })
+    : fill(copy.toolsSignedInAsOrganization, {
+        account: signIn.account,
+        organization: signIn.organization,
+      });
+}
+
+/** The label of the (not yet available) curated action of a `launchpad`
+ * tool, or null when there is nothing to do: installed and signed in. */
+export function curatedActionLabel(
+  tool: ToolOverview,
+  copy: Copy,
+): string | null {
+  if (tool.setup !== "launchpad") return null;
+  if (!tool.installed) return copy.toolsInstallAction;
+  if (tool.signIn?.state === "signed-in") return null;
+  return copy.toolsSignInAction;
 }
 
 /** The full next selection a request carries: the enabled tools that are not
@@ -180,61 +251,137 @@ export function nextSelection(
   return [...names].sort();
 }
 
-/** The files a previewed change rewrites, as the preview names them. */
-export function previewedFiles(preview: unknown): string[] {
-  if (!preview || typeof preview !== "object") return [];
-  const files = (preview as Record<string, unknown>).files;
-  if (!Array.isArray(files)) return [];
-  return files.flatMap((file) =>
-    typeof file?.path === "string" ? [file.path as string] : [],
-  );
+/** The recorded notes of the page, keys sorted: the one representation. */
+export function currentNotes(
+  tools: readonly ToolOverview[],
+): Record<string, string> {
+  const notes: Record<string, string> = {};
+  for (const tool of [...tools].sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+  ))
+    if (tool.note !== undefined) notes[tool.name] = tool.note;
+  return notes;
 }
 
+/** The full next set of notes with one tool's note set or removed. */
+export function nextNotes(
+  tools: readonly ToolOverview[],
+  name: string,
+  note: string | undefined,
+): Record<string, string> {
+  const notes = currentNotes(tools);
+  if (note === undefined) delete notes[name];
+  else notes[name] = note;
+  const sorted: Record<string, string> = {};
+  for (const key of Object.keys(notes).sort())
+    sorted[key] = notes[key] as string;
+  return sorted;
+}
+
+/** Whether a note may carry an operator's note: required or enabled. */
+export function takesNote(tool: ToolOverview): boolean {
+  return tool.tier === "required" || tool.enabled;
+}
+
+export type NoteDraftView = Readonly<{
+  /** The text that would be stored. */
+  note: string;
+  /** "123 / 600" */
+  count: string;
+  /** Why it cannot be saved, when it cannot; an empty draft is no problem,
+   * it is what Clear stores. */
+  problem: string | null;
+  /** Save does something: a valid note that differs from the recorded one. */
+  savable: boolean;
+}>;
+
+/** A typed note checked with the rules of the Folder state. */
+export function noteDraftView(
+  draft: string,
+  recorded: string | undefined,
+  copy: Copy,
+): NoteDraftView {
+  const note = normalizeToolNote(draft);
+  const problem: ToolNoteProblem | null =
+    note.length === 0 ? null : toolNoteProblem(note);
+  const messages: Record<ToolNoteProblem, string> = {
+    empty: "",
+    "not-normalized": "",
+    "too-long": fill(copy.toolsNoteTooLong, {
+      max: String(toolNoteLimits.characters),
+    }),
+    "too-many-lines": fill(copy.toolsNoteTooManyLines, {
+      max: String(toolNoteLimits.lines),
+    }),
+    control: copy.toolsNoteControl,
+  };
+  return {
+    note,
+    count: fill(copy.toolsNoteCount, {
+      count: String(Array.from(note).length),
+      max: String(toolNoteLimits.characters),
+    }),
+    problem: problem === null ? null : messages[problem] || null,
+    savable: note.length > 0 && problem === null && note !== recorded,
+  };
+}
+
+/** What a recorded change did, for its confirmation and its Undo. */
+export type ToolChange = Readonly<{
+  name: string;
+  action: "enable" | "disable" | "note-save" | "note-clear" | "undo";
+  /** Whether the tool is installed: enabling a missing tool says so. */
+  installed: boolean;
+}>;
+
 export type ToolChangeOutcome = Readonly<{
-  kind: "previewed" | "updated" | "unchanged" | "blocked" | "failed";
+  kind: "updated" | "unchanged" | "blocked" | "failed";
   message: string;
   /** The state shown is no longer the Folder's: offer a reload. */
   reload: boolean;
+  /** The Folder revision the change produced, for an Undo at it. */
+  revision?: number;
+  /** A tool was added on an Environment whose sign-ins are shared. */
+  shared?: boolean;
 }>;
 
-/** One readable sentence for whatever a preview or an update answered. */
+/** One readable sentence for whatever an update answered. */
 export function toolChangeOutcome(
   result: unknown,
-  change: Readonly<{ name: string; enable: boolean; installed: boolean }>,
+  change: ToolChange,
   copy: Copy,
 ): ToolChangeOutcome {
   const value =
     result && typeof result === "object" && !Array.isArray(result)
       ? (result as Record<string, unknown>)
       : {};
-  if (value.kind === "profile-change") {
-    const files = previewedFiles(value);
+  if (
+    value.kind === "updated" &&
+    typeof value.revision === "number" &&
+    Number.isSafeInteger(value.revision) &&
+    value.revision >= 1
+  ) {
+    const done: Record<ToolChange["action"], MessageKey> = {
+      enable: "toolsEnabledDone",
+      disable: "toolsDisabledDone",
+      "note-save": "toolsNoteSaved",
+      "note-clear": "toolsNoteCleared",
+      undo: "toolsUndone",
+    };
+    const values = { name: change.name, revision: String(value.revision) };
     return {
-      kind: "previewed",
+      kind: "updated",
       message: [
-        fill(
-          change.enable ? copy.toolsConfirmEnable : copy.toolsConfirmDisable,
-          { name: change.name },
-        ),
-        ...(files.length === 0
-          ? []
-          : [fill(copy.toolsConfirmFiles, { files: files.join(", ") })]),
-        ...(change.enable && !change.installed
-          ? [fill(copy.toolsConfirmNotInstalled, { name: change.name })]
+        fill(copy[done[change.action]], values),
+        ...(change.action === "enable" && !change.installed
+          ? [fill(copy.toolsEnabledNotInstalled, values)]
           : []),
       ].join(" "),
       reload: false,
+      revision: value.revision,
+      shared: value.warning === "shared-environment-sign-ins",
     };
   }
-  if (value.kind === "updated" && typeof value.revision === "number")
-    return {
-      kind: "updated",
-      message: fill(
-        change.enable ? copy.toolsEnabledDone : copy.toolsDisabledDone,
-        { name: change.name, revision: String(value.revision) },
-      ),
-      reload: false,
-    };
   if (value.kind === "unchanged")
     return { kind: "unchanged", message: copy.toolsUnchanged, reload: true };
   if (value.kind === "blocked" && typeof value.reason === "string") {

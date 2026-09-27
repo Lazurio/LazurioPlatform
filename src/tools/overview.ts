@@ -2,8 +2,8 @@ import { join } from "node:path";
 import { withFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
-import { sharedEnvironment } from "../folder/render";
-import { enabledTools } from "../folder/state";
+import { hostedEnvironment, sharedEnvironment } from "../folder/render";
+import { enabledTools, toolNotes } from "../folder/state";
 import {
   activatableTools,
   mcpServerPrompt,
@@ -11,13 +11,20 @@ import {
   type ToolTier,
   toolPrompt,
 } from "./catalog";
-import { type ToolRunner, toolsStatus } from "./status";
+import {
+  type ToolRunner,
+  type ToolSignIn,
+  toolsSignIn,
+  toolsStatus,
+} from "./status";
 
 /** Where the live facts are read: the PATH and home of the process that
- * serves the surface, and the runner of the version commands. */
+ * serves the surface (and its XDG base directories, which only a sign-in
+ * probe receives), and the runner of the version and sign-in commands. */
 export type ToolsEnvironment = Readonly<{
   path: string | undefined;
   home: string | undefined;
+  xdg?: Readonly<Record<string, string>> | undefined;
   platform: string;
   run: ToolRunner;
 }>;
@@ -37,6 +44,11 @@ export type ToolOverview = Readonly<{
   version?: string;
   versionError?: string;
   standardPath?: boolean;
+  /** Whether the tool is signed in and as whom: present only when the
+   * request asked for the sign-in probes. */
+  signIn?: ToolSignIn;
+  /** The operator's note for agents on this tool, when there is one. */
+  note?: string;
   /** The prepared prompt for an agent who installs the tool and guides the
    * sign-in: the action of an `agent` tool, the fallback of a `launchpad` one. */
   prompt: string;
@@ -47,19 +59,26 @@ export type ToolsOverview = Readonly<{
   revision: number;
   locale: "cs" | "en";
   sharedEnvironment: boolean;
+  /** A hosted Machine (every preset but `local`): only there is a tool
+   * outside `~/.local/bin` something to look at (decision 0161). */
+  hosted: boolean;
   tools: readonly ToolOverview[];
   mcpPrompt: string;
 }>;
 
 // The tools screen of one Folder (decision F18): what is recorded (revision,
-// locale, enabled selection, whether sign-ins are shared) joined with the live
-// facts of `tools status` for the activatable tools, in catalog order. The
-// recorded part is read under the common lock; the probe runs after it and
-// runs each tool's version command only: no sign-in check and no network. The
-// raw output of a tool is not part of the answer.
+// locale, enabled selection, the operator's notes, whether sign-ins are
+// shared, whether the Machine is hosted) joined with the live facts of `tools
+// status` for the activatable tools, in catalog order. The recorded part is
+// read under the common lock; the probe runs after it and runs each tool's
+// version command, which never uses the network. Only with `signIn` does it
+// also run each installed tool's sign-in probe, which may contact the tool's
+// provider (F18 addendum 2026-09-27). The raw output of a tool is never part
+// of the answer.
 export async function toolsOverview(
   folder: string,
   environment: ToolsEnvironment,
+  options: Readonly<{ signIn?: boolean }> = {},
 ): Promise<ToolsOverview> {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
@@ -69,21 +88,46 @@ export async function toolsOverview(
       revision: preferences.revision,
       locale: preferences.profile.locale,
       sharedEnvironment: sharedEnvironment(preferences.preset.name),
+      hosted: hostedEnvironment(preferences.preset.name),
       enabled: enabledTools(preferences),
+      notes: toolNotes(preferences),
     };
   });
   const catalog = activatableTools();
-  const status = await toolsStatus({ ...environment, catalog });
+  const status = await toolsStatus({
+    path: environment.path,
+    home: environment.home,
+    platform: environment.platform,
+    run: environment.run,
+    catalog,
+  });
+  const signIns =
+    options.signIn === true
+      ? await toolsSignIn(
+          catalog.map((entry, index) => {
+            const live = status.tools[index];
+            if (live === undefined || live.name !== entry.name)
+              throw new Error("Tool status does not match the catalog");
+            return { probe: entry.activation.signInProbe, status: live };
+          }),
+          environment,
+        )
+      : undefined;
   const { locale } = recorded;
   return {
     kind: "tools-status",
     revision: recorded.revision,
     locale,
     sharedEnvironment: recorded.sharedEnvironment,
+    hosted: recorded.hosted,
     tools: catalog.map((entry, index) => {
       const live = status.tools[index];
       if (live === undefined || live.name !== entry.name)
         throw new Error("Tool status does not match the catalog");
+      const signIn = signIns?.[index];
+      const note = Object.hasOwn(recorded.notes, entry.name)
+        ? recorded.notes[entry.name]
+        : undefined;
       return {
         name: entry.name,
         command: entry.command,
@@ -105,6 +149,8 @@ export async function toolsOverview(
         ...(live.standardPath === undefined
           ? {}
           : { standardPath: live.standardPath }),
+        ...(signIn === undefined ? {} : { signIn }),
+        ...(note === undefined ? {} : { note }),
         prompt: toolPrompt(entry.name, locale) ?? "",
       };
     }),

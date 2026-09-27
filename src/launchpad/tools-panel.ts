@@ -1,10 +1,18 @@
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
+import type { ToolSignIn } from "../tools/status";
 import type { MessageKey } from "./messages";
 import {
+  curatedActionLabel,
+  currentNotes,
+  nextNotes,
   nextSelection,
+  noteDraftView,
   parseToolsOverview,
+  signInLine,
   sourceLink,
+  type ToolChange,
   type ToolChangeOutcome,
+  takesNote,
   toolChangeOutcome,
   toolGroups,
   toolStatusView,
@@ -19,8 +27,9 @@ type Post = (
 
 // The tools section of the page (decision F18). The server derives every
 // fact; the browser shows it as text and sends back the full next selection
-// with the revision it showed. A change is previewed first and written only
-// after the operator confirms what the preview said.
+// (and, for a note, the full next set of notes) with the revision it showed.
+// One click applies a change; the confirmation on the card names the new
+// Folder revision and offers Undo, which restores the state before it.
 export function createToolsPanel(
   options: Readonly<{
     post: Post;
@@ -49,18 +58,28 @@ export function createToolsPanel(
   const dialogClose = find<HTMLButtonElement>("#tools-prompt-close");
   const dialogStatus = find<HTMLSpanElement>("#tools-prompt-status");
 
+  type Selection = Readonly<{
+    tools: readonly string[];
+    notes: Readonly<Record<string, string>>;
+  }>;
   let overview: ToolsOverview | null = null;
   let failed = false;
   let busy = false;
   let sequence = 0;
-  let pending: {
+  // The sign-ins are probed only on the first read and on Refresh status (a
+  // probe may contact the provider); other reads keep the last answer.
+  let signInChecked = false;
+  const signIns = new Map<string, ToolSignIn>();
+  // What the operator typed and did not save yet, and which cards have
+  // "What agents are told" open: both survive a re-render.
+  const drafts = new Map<string, string>();
+  const opened = new Set<string>();
+  let notice: {
     name: string;
-    enable: boolean;
-    expectedRevision: number;
-    tools: string[];
-    message: string;
+    outcome: ToolChangeOutcome;
+    /** The state before the change, restored at the new revision. */
+    undo: (Selection & { expectedRevision: number }) | null;
   } | null = null;
-  let notice: { name: string; outcome: ToolChangeOutcome } | null = null;
   let focus: { name: string; control: string } | null = null;
   let opener: HTMLElement | null = null;
 
@@ -148,6 +167,66 @@ export function createToolsPanel(
     );
   });
 
+  function noteEditor(tool: ToolOverview, copy: Copy): HTMLElement {
+    if (!takesNote(tool))
+      return element("p", "tools-muted", copy.toolsNoteAfterEnable);
+    const box = element("div", "tool-note");
+    const id = `tool-note-${tool.name}`;
+    const label = element("label", "", copy.toolsNoteLabel);
+    label.htmlFor = id;
+    const hint = element("p", "tools-muted", copy.toolsNoteHint);
+    hint.id = `${id}-hint`;
+    const area = element("textarea", "");
+    area.id = id;
+    area.rows = 3;
+    area.spellcheck = true;
+    area.value = drafts.get(tool.name) ?? tool.note ?? "";
+    area.dataset.tool = tool.name;
+    area.dataset.control = "note";
+    const count = element("p", "tools-muted");
+    count.id = `${id}-count`;
+    const problem = element("p", "tool-note-problem");
+    problem.setAttribute("aria-live", "polite");
+    area.setAttribute("aria-describedby", `${hint.id} ${count.id}`);
+    const save = button(
+      copy.toolsNoteSave,
+      tool.name,
+      "note-save",
+      () => {
+        const view = noteDraftView(area.value, tool.note, options.copy());
+        if (view.savable) void saveNote(tool, view.note);
+      },
+      fill(copy.toolsNoteSaveNamed, { name: tool.name }),
+    );
+    const clear = button(
+      copy.toolsNoteClear,
+      tool.name,
+      "note-clear",
+      () => void saveNote(tool, undefined),
+      fill(copy.toolsNoteClearNamed, { name: tool.name }),
+    );
+    const update = () => {
+      const view = noteDraftView(area.value, tool.note, options.copy());
+      count.textContent = view.count;
+      problem.textContent = view.problem ?? "";
+      area.setAttribute(
+        "aria-invalid",
+        view.problem === null ? "false" : "true",
+      );
+      save.disabled = busy || !view.savable;
+      clear.disabled = busy || tool.note === undefined;
+    };
+    area.addEventListener("input", () => {
+      drafts.set(tool.name, area.value);
+      update();
+    });
+    update();
+    const actions = element("p", "tool-actions");
+    actions.append(save, clear);
+    box.append(label, hint, area, count, problem, actions);
+    return box;
+  }
+
   function card(tool: ToolOverview, copy: Copy): HTMLLIElement {
     const item = element("li", "tool-card");
     item.dataset.tool = tool.name;
@@ -177,7 +256,7 @@ export function createToolsPanel(
     );
     item.append(head, element("p", "", tool.purpose));
 
-    const view = toolStatusView(tool, copy);
+    const view = toolStatusView(tool, copy, overview?.hosted === true);
     const status = element("p", "");
     const headline = element("span", "tool-state", view.headline);
     headline.dataset.state = view.state;
@@ -186,10 +265,19 @@ export function createToolsPanel(
     if (view.path !== null) item.append(element("p", "tool-path", view.path));
     for (const note of view.notes)
       item.append(element("p", "tools-muted", note));
+    const signIn = element("p", "tool-signin", signInLine(tool, copy));
+    signIn.dataset.state = tool.signIn?.state ?? "unchecked";
+    item.append(signIn);
 
     const details = element("details", "");
+    details.open = opened.has(tool.name);
+    details.addEventListener("toggle", () => {
+      if (details.open) opened.add(tool.name);
+      else opened.delete(tool.name);
+    });
     details.append(
       element("summary", "", copy.toolsUsage),
+      element("p", "tools-muted", copy.toolsUsageCatalog),
       element("p", "", tool.usage),
     );
     const link = sourceLink(tool.source);
@@ -202,6 +290,7 @@ export function createToolsPanel(
       source.append(anchor);
       details.append(source);
     }
+    details.append(noteEditor(tool, copy));
     item.append(details);
 
     const actions = element("p", "tool-actions");
@@ -212,7 +301,7 @@ export function createToolsPanel(
           enable ? copy.toolsEnable : copy.toolsDisable,
           tool.name,
           "toggle",
-          () => void preview(tool, enable),
+          () => void toggle(tool, enable),
           fill(enable ? copy.toolsEnableNamed : copy.toolsDisableNamed, {
             name: tool.name,
           }),
@@ -234,10 +323,12 @@ export function createToolsPanel(
     );
     // The prompt is text already on the page; reading it is never blocked.
     agent.disabled = false;
-    if (tool.setup === "launchpad") {
-      // The curated flow is a later release: the button says so and the
-      // agent's prompt is the way meanwhile.
-      const install = element("button", "", copy.toolsInstallAction);
+    // The curated flow of a `launchpad` tool is a later release: its button
+    // says so and the agent's prompt is the way meanwhile. A tool that is
+    // installed and signed in needs neither.
+    const curated = curatedActionLabel(tool, copy);
+    if (curated !== null) {
+      const install = element("button", "", curated);
       install.type = "button";
       install.disabled = true;
       const hint = element("span", "tools-muted", copy.toolsInstallHint);
@@ -250,28 +341,30 @@ export function createToolsPanel(
       item.append(actions);
     }
 
-    if (pending?.name === tool.name) {
-      const confirm = element("div", "tool-confirm");
-      confirm.append(element("p", "", pending.message));
-      if (pending.enable && overview?.sharedEnvironment === true)
-        confirm.append(element("p", "", copy.toolsShared));
-      const choices = element("p", "tool-actions");
-      choices.append(
-        button(copy.toolsConfirm, tool.name, "confirm", () => void apply()),
-        button(copy.toolsCancel, tool.name, "cancel", () => {
-          pending = null;
-          focus = { name: tool.name, control: "toggle" };
-          render();
-        }),
-      );
-      confirm.append(choices);
-      item.append(confirm);
-    } else if (notice?.name === tool.name) {
+    if (notice?.name === tool.name) {
       const message = element("div", "tool-message");
       message.dataset.kind = notice.outcome.kind;
       message.append(element("p", "", notice.outcome.message));
-      if (notice.outcome.reload) {
-        const choices = element("p", "tool-actions");
+      if (notice.outcome.shared === true)
+        message.append(element("p", "", copy.toolsShared));
+      const choices = element("p", "tool-actions");
+      const undo = notice.undo;
+      if (undo !== null)
+        choices.append(
+          button(
+            copy.toolsUndo,
+            tool.name,
+            "undo",
+            () =>
+              void change(
+                { name: tool.name, action: "undo", installed: tool.installed },
+                undo,
+                undo.expectedRevision,
+              ),
+            fill(copy.toolsUndoNamed, { name: tool.name }),
+          ),
+        );
+      if (notice.outcome.reload)
         choices.append(
           button(copy.toolsReload, tool.name, "reload", () => {
             notice = null;
@@ -279,8 +372,7 @@ export function createToolsPanel(
             void reloadPage();
           }),
         );
-        message.append(choices);
-      }
+      if (choices.childElementCount > 0) message.append(choices);
       item.append(message);
     }
     return item;
@@ -325,21 +417,39 @@ export function createToolsPanel(
     announce.textContent = message;
   }
 
-  async function refresh() {
+  /** Reads the tools again. `signIn` asks for the sign-in probes, which may
+   * contact the providers: by default only the first read does. */
+  async function refresh(
+    request: Readonly<{ signIn?: boolean }> = {},
+  ): Promise<void> {
     const copy = options.copy();
     const turn = ++sequence;
+    const probe = request.signIn ?? !signInChecked;
     busy = true;
     if (overview === null) failed = false;
     render();
     try {
-      const { value, ok } = await options.post("/api/tools/status", {});
+      const { value, ok } = await options.post(
+        "/api/tools/status",
+        probe ? { signIn: true } : {},
+      );
       if (turn !== sequence) return;
       const parsed = ok ? parseToolsOverview(value) : null;
       if (parsed === null) throw new Error("Tools unavailable");
-      // A confirmation belongs to the revision it was previewed at.
-      if (pending !== null && pending.expectedRevision !== parsed.revision)
-        pending = null;
-      overview = parsed;
+      if (probe) {
+        signInChecked = true;
+        signIns.clear();
+        for (const tool of parsed.tools)
+          if (tool.signIn !== undefined) signIns.set(tool.name, tool.signIn);
+      }
+      const known = (tool: ToolOverview) => signIns.get(tool.name);
+      overview = {
+        ...parsed,
+        tools: parsed.tools.map((tool) => {
+          const signIn = tool.signIn ?? known(tool);
+          return signIn === undefined ? tool : { ...tool, signIn };
+        }),
+      };
       failed = false;
       checked.textContent = fill(options.copy().toolsChecked, {
         revision: String(parsed.revision),
@@ -351,7 +461,6 @@ export function createToolsPanel(
     } catch {
       if (turn !== sequence) return;
       overview = null;
-      pending = null;
       failed = true;
       checked.textContent = "";
       say(copy.toolsLoadFailed);
@@ -372,81 +481,102 @@ export function createToolsPanel(
     }
   }
 
-  async function preview(tool: ToolOverview, enable: boolean) {
+  // The state the page shows, as a request would restore it.
+  function shown(tools: readonly ToolOverview[]): Selection {
+    return {
+      tools: tools
+        .filter((tool) => tool.tier !== "required" && tool.enabled)
+        .map((tool) => tool.name)
+        .sort(),
+      notes: currentNotes(tools),
+    };
+  }
+
+  // One click, one recorded change at the revision the page shows. Without
+  // `notes` the server keeps the recorded notes of the tools that stay on.
+  async function change(
+    what: ToolChange,
+    request: Readonly<{
+      tools: readonly string[];
+      notes?: Readonly<Record<string, string>>;
+    }>,
+    expectedRevision: number,
+  ) {
     if (busy || overview === null) return;
     const copy = options.copy();
-    const change = { name: tool.name, enable, installed: tool.installed };
-    const candidate = {
-      expectedRevision: overview.revision,
-      tools: nextSelection(overview.tools, tool.name, enable),
-    };
+    const before = shown(overview.tools);
     busy = true;
-    pending = null;
     notice = null;
     render();
     say(copy.toolsBusy);
     let outcome: ToolChangeOutcome;
     try {
-      const { value } = await options.post("/api/tools/preview", candidate);
-      outcome = toolChangeOutcome(value, change, copy);
-    } catch {
-      outcome = toolChangeOutcome(null, change, copy);
-    }
-    busy = false;
-    if (outcome.kind === "previewed") {
-      pending = { ...change, ...candidate, message: outcome.message };
-      focus = { name: tool.name, control: "confirm" };
-    } else {
-      notice = { name: tool.name, outcome };
-      focus = {
-        name: tool.name,
-        control: outcome.reload ? "reload" : "toggle",
-      };
-    }
-    say(outcome.message);
-    render();
-  }
-
-  async function apply() {
-    const candidate = pending;
-    if (busy || candidate === null || overview === null) return;
-    const copy = options.copy();
-    const change = {
-      name: candidate.name,
-      enable: candidate.enable,
-      installed:
-        overview.tools.find((tool) => tool.name === candidate.name)
-          ?.installed ?? false,
-    };
-    busy = true;
-    pending = null;
-    render();
-    say(copy.toolsBusy);
-    let outcome: ToolChangeOutcome;
-    try {
       const { value } = await options.post("/api/tools/update", {
-        expectedRevision: candidate.expectedRevision,
-        tools: candidate.tools,
+        expectedRevision,
+        tools: request.tools,
+        ...(request.notes === undefined ? {} : { notes: request.notes }),
       });
-      outcome = toolChangeOutcome(value, change, copy);
+      outcome = toolChangeOutcome(value, what, copy);
     } catch {
       // A lost answer does not say the change was not written.
-      outcome = toolChangeOutcome(null, change, copy);
+      outcome = toolChangeOutcome(null, what, copy);
     }
     busy = false;
-    notice = { name: candidate.name, outcome };
+    notice = {
+      name: what.name,
+      outcome,
+      undo:
+        outcome.kind === "updated" && outcome.revision !== undefined
+          ? { ...before, expectedRevision: outcome.revision }
+          : null,
+    };
+    if (outcome.kind === "updated") drafts.delete(what.name);
     focus = {
-      name: candidate.name,
-      control: outcome.reload ? "reload" : "toggle",
+      name: what.name,
+      control:
+        outcome.kind === "updated"
+          ? "undo"
+          : outcome.reload
+            ? "reload"
+            : "toggle",
     };
     say(outcome.message);
     if (outcome.kind === "updated") await reloadPage();
     else render();
   }
 
+  function toggle(tool: ToolOverview, enable: boolean) {
+    if (overview === null) return;
+    return change(
+      {
+        name: tool.name,
+        action: enable ? "enable" : "disable",
+        installed: tool.installed,
+      },
+      { tools: nextSelection(overview.tools, tool.name, enable) },
+      overview.revision,
+    );
+  }
+
+  function saveNote(tool: ToolOverview, note: string | undefined) {
+    if (overview === null) return;
+    return change(
+      {
+        name: tool.name,
+        action: note === undefined ? "note-clear" : "note-save",
+        installed: tool.installed,
+      },
+      {
+        tools: shown(overview.tools).tools,
+        notes: nextNotes(overview.tools, tool.name, note),
+      },
+      overview.revision,
+    );
+  }
+
   refreshButton.addEventListener("click", () => {
     notice = null;
-    void refresh();
+    void refresh({ signIn: true });
   });
   render();
   return { refresh };

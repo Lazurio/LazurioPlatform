@@ -1,10 +1,15 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
+  curatedActionLabel,
+  currentNotes,
+  nextNotes,
   nextSelection,
+  noteDraftView,
   parseToolsOverview,
-  previewedFiles,
+  signInLine,
   sourceLink,
+  takesNote,
   toolChangeOutcome,
   toolGroups,
   toolStatusView,
@@ -29,6 +34,7 @@ const overview = (tools: readonly ToolOverview[]): ToolsOverview => ({
   revision: 4,
   locale: "en",
   sharedEnvironment: false,
+  hosted: true,
   mcpPrompt: "Task: connect.",
   tools,
 });
@@ -43,6 +49,22 @@ const catalog = [
 test("the page accepts the server's answer only in its exact form", () => {
   const valid = overview(catalog);
   expect(parseToolsOverview(JSON.parse(JSON.stringify(valid)))).toEqual(valid);
+  // The sign-in and the operator's note travel when the server sends them.
+  const signed = overview([
+    tool({
+      installed: true,
+      signIn: {
+        state: "signed-in",
+        account: "a@example.com",
+        organization: "Org",
+      },
+      note: "Use it for mail.",
+    }),
+    tool({ name: "wacli", signIn: { state: "unknown" } }),
+  ]);
+  expect(parseToolsOverview(JSON.parse(JSON.stringify(signed)))).toEqual(
+    signed,
+  );
   // Unknown fields, a raw tool output among them, are not carried along.
   expect(
     parseToolsOverview({
@@ -61,6 +83,15 @@ test("the page accepts the server's answer only in its exact form", () => {
     { ...valid, revision: "4" },
     { ...valid, locale: "de" },
     { ...valid, sharedEnvironment: "no" },
+    { ...valid, hosted: undefined },
+    { ...valid, hosted: "yes" },
+    { ...valid, tools: [{ ...tool(), note: 7 }] },
+    { ...valid, tools: [{ ...tool(), signIn: "signed-in" }] },
+    { ...valid, tools: [{ ...tool(), signIn: { state: "maybe" } }] },
+    {
+      ...valid,
+      tools: [{ ...tool(), signIn: { state: "signed-in", account: 1 } }],
+    },
     { ...valid, mcpPrompt: undefined },
     { ...valid, tools: "gh" },
     { ...valid, tools: [tool(), tool()] },
@@ -99,13 +130,13 @@ test("three groups in the order Required, Recommended, Optional, in both languag
 test("one status line per tool: version and path, or not installed, and what to look at", () => {
   const en = messages("en");
   const cs = messages("cs");
-  expect(toolStatusView(tool(), en)).toEqual({
+  expect(toolStatusView(tool(), en, true)).toEqual({
     state: "missing",
     headline: "Not installed",
     path: null,
     notes: [],
   });
-  expect(toolStatusView(tool(), cs).headline).toBe("Není nainstalováno");
+  expect(toolStatusView(tool(), cs, true).headline).toBe("Není nainstalováno");
   expect(
     toolStatusView(
       tool({
@@ -116,6 +147,7 @@ test("one status line per tool: version and path, or not installed, and what to 
         standardPath: true,
       }),
       en,
+      true,
     ),
   ).toEqual({
     state: "ready",
@@ -131,15 +163,22 @@ test("one status line per tool: version and path, or not installed, and what to 
     realPath: "/opt/composio/0.7.1/composio",
     standardPath: false,
   });
-  expect(toolStatusView(elsewhere, en)).toEqual({
+  expect(toolStatusView(elsewhere, en, true)).toEqual({
     state: "attention",
     headline: "Installed, version 0.7.1",
     path: "/opt/bin/composio → /opt/composio/0.7.1/composio",
     notes: [en.toolsOutsideStandard],
   });
-  expect(toolStatusView(elsewhere, cs).notes).toEqual([
+  expect(toolStatusView(elsewhere, cs, true).notes).toEqual([
     cs.toolsOutsideStandard,
   ]);
+  // On a local workstation any tool on PATH is fine: no note, normal state.
+  expect(toolStatusView(elsewhere, en, false)).toEqual({
+    state: "ready",
+    headline: "Installed, version 0.7.1",
+    path: "/opt/bin/composio → /opt/composio/0.7.1/composio",
+    notes: [],
+  });
   expect(en.toolsOutsideStandard).toContain("~/.local/bin");
   expect(
     toolStatusView(
@@ -150,6 +189,7 @@ test("one status line per tool: version and path, or not installed, and what to 
         versionError: "exit 7",
       }),
       en,
+      false,
     ),
   ).toEqual({
     state: "attention",
@@ -176,62 +216,66 @@ test("a request carries the full next selection, sorted, without required tools"
   expect(nextSelection(catalog, "composio", false)).toEqual([]);
 });
 
-test("every answer of a preview or an update becomes one readable sentence", () => {
-  const change = { name: "composio", enable: true, installed: false };
+test("every answer of an update becomes one readable sentence, with the revision for Undo", () => {
+  const change = {
+    name: "composio",
+    action: "enable",
+    installed: false,
+  } as const;
   for (const locale of ["en", "cs"] as const) {
     const copy = messages(locale);
-    const previewed = toolChangeOutcome(
-      {
-        kind: "profile-change",
-        files: [
-          { kind: "replace", path: "AGENTS.md" },
-          { kind: "replace", path: "manual/this-machine.md" },
-        ],
-      },
-      change,
-      copy,
-    );
-    expect(previewed.kind).toBe("previewed");
-    expect(previewed.reload).toBe(false);
-    expect(previewed.message).toContain("composio");
-    expect(previewed.message).toContain("AGENTS.md, manual/this-machine.md");
-    expect(previewed.message).not.toContain("{");
-    // Enabling a tool that is not there yet says so; disabling does not.
-    expect(previewed.message).toContain(
-      copy.toolsConfirmNotInstalled.replace("{name}", "composio"),
-    );
-    const disabling = toolChangeOutcome(
-      { kind: "profile-change", files: [] },
-      { ...change, enable: false },
-      copy,
-    );
-    expect(disabling.message).toBe(
-      copy.toolsConfirmDisable.replace("{name}", "composio"),
-    );
+    const fillIn = (template: string) =>
+      template.replace("{name}", "composio").replace("{revision}", "5");
+    // Enabling a tool that is not there yet says so; everything names the
+    // rewritten instructions and the new revision.
     expect(
       toolChangeOutcome(
-        { kind: "profile-change", files: [] },
-        { ...change, installed: true },
+        {
+          kind: "updated",
+          revision: 5,
+          warning: "shared-environment-sign-ins",
+        },
+        change,
         copy,
-      ).message,
-    ).toBe(copy.toolsConfirmEnable.replace("{name}", "composio"));
-
-    expect(
-      toolChangeOutcome({ kind: "updated", revision: 5 }, change, copy),
+      ),
     ).toEqual({
       kind: "updated",
-      message: copy.toolsEnabledDone
-        .replace("{name}", "composio")
-        .replace("{revision}", "5"),
+      message: `${fillIn(copy.toolsEnabledDone)} ${fillIn(copy.toolsEnabledNotInstalled)}`,
       reload: false,
+      revision: 5,
+      shared: true,
     });
+    for (const [action, key] of [
+      ["disable", "toolsDisabledDone"],
+      ["note-save", "toolsNoteSaved"],
+      ["note-clear", "toolsNoteCleared"],
+      ["undo", "toolsUndone"],
+    ] as const) {
+      const outcome = toolChangeOutcome(
+        { kind: "updated", revision: 5 },
+        { ...change, action },
+        copy,
+      );
+      expect(outcome).toEqual({
+        kind: "updated",
+        message: fillIn(copy[key]),
+        reload: false,
+        revision: 5,
+        shared: false,
+      });
+      expect(outcome.message).toContain("5");
+      expect(outcome.message).not.toContain("{");
+    }
     expect(
       toolChangeOutcome(
         { kind: "updated", revision: 5 },
-        { ...change, enable: false },
+        { ...change, installed: true },
         copy,
       ).message,
-    ).toContain("5");
+    ).toBe(fillIn(copy.toolsEnabledDone));
+    expect(copy.toolsEnabledDone).toContain(
+      locale === "en" ? "agent instructions" : "instrukce pro agenty",
+    );
     expect(toolChangeOutcome({ kind: "unchanged" }, change, copy)).toEqual({
       kind: "unchanged",
       message: copy.toolsUnchanged,
@@ -272,7 +316,7 @@ test("every answer of a preview or an update becomes one readable sentence", () 
         copy,
       ).message,
     ).toContain("template-upgrade-required");
-    // A refusal without a result, a lost answer, an unknown form.
+    // A refusal without a result, a lost answer, an unknown form, a preview.
     for (const unknown of [
       null,
       undefined,
@@ -280,7 +324,9 @@ test("every answer of a preview or an update becomes one readable sentence", () 
       [],
       { error: "operation-failed", recoveryMayBeRequired: true },
       { kind: "updated" },
+      { kind: "updated", revision: 0 },
       { kind: "blocked" },
+      { kind: "profile-change", files: [] },
     ])
       expect(toolChangeOutcome(unknown, change, copy)).toEqual({
         kind: "failed",
@@ -290,12 +336,125 @@ test("every answer of a preview or an update becomes one readable sentence", () 
   }
 });
 
-test("previewed files and source links are taken only in their expected form", () => {
+test("the sign-in line and the curated action follow what the probe said", () => {
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    const installed = tool({ installed: true });
+    expect(signInLine(installed, copy)).toBe(copy.toolsSignInUnchecked);
+    expect(
+      signInLine(
+        { ...installed, signIn: { state: "signed-in", account: "octo" } },
+        copy,
+      ),
+    ).toBe(copy.toolsSignedInAs.replace("{account}", "octo"));
+    expect(
+      signInLine(
+        {
+          ...installed,
+          signIn: {
+            state: "signed-in",
+            account: "a@b.c",
+            organization: "Spectoda",
+          },
+        },
+        copy,
+      ),
+    ).toBe(
+      copy.toolsSignedInAsOrganization
+        .replace("{account}", "a@b.c")
+        .replace("{organization}", "Spectoda"),
+    );
+    expect(
+      signInLine({ ...installed, signIn: { state: "signed-in" } }, copy),
+    ).toBe(copy.toolsSignedIn);
+    expect(
+      signInLine({ ...installed, signIn: { state: "signed-out" } }, copy),
+    ).toBe(copy.toolsSignedOut);
+    expect(
+      signInLine({ ...installed, signIn: { state: "unknown" } }, copy),
+    ).toBe(copy.toolsSignInUnknown);
+    // Installed and signed in: no curated button at all. Installed without a
+    // known sign-in: "Sign in". Missing: "Install and sign in". An agent tool
+    // has no curated action.
+    expect(
+      curatedActionLabel(
+        { ...installed, signIn: { state: "signed-in", account: "octo" } },
+        copy,
+      ),
+    ).toBeNull();
+    expect(
+      curatedActionLabel(
+        { ...installed, signIn: { state: "signed-out" } },
+        copy,
+      ),
+    ).toBe(copy.toolsSignInAction);
+    expect(curatedActionLabel(installed, copy)).toBe(copy.toolsSignInAction);
+    expect(curatedActionLabel(tool(), copy)).toBe(copy.toolsInstallAction);
+    expect(curatedActionLabel(tool({ setup: "agent" }), copy)).toBeNull();
+  }
+});
+
+test("a note request carries the full next set of notes, sorted; a draft is checked like the Folder state", () => {
+  const noted = [
+    tool({
+      name: "gh",
+      command: "gh",
+      tier: "required",
+      enabled: true,
+      note: "Only the Spectoda org.",
+    }),
+    tool({ enabled: true, note: "Mail of Spectoda." }),
+    tool({ name: "wacli", command: "wacli", tier: "optional" }),
+  ];
+  expect(currentNotes(noted)).toEqual({
+    composio: "Mail of Spectoda.",
+    gh: "Only the Spectoda org.",
+  });
+  expect(Object.keys(nextNotes(noted, "composio", undefined))).toEqual(["gh"]);
+  expect(Object.keys(nextNotes(noted, "wacli", "x"))).toEqual([
+    "composio",
+    "gh",
+    "wacli",
+  ]);
+  expect(nextNotes(noted, "gh", "New.")).toEqual({
+    composio: "Mail of Spectoda.",
+    gh: "New.",
+  });
+  expect(noted.map(takesNote)).toEqual([true, true, false]);
+
+  const en = messages("en");
+  expect(noteDraftView("  Use it for ClickUp.\r\n", undefined, en)).toEqual({
+    note: "Use it for ClickUp.",
+    count: "19 / 600 characters",
+    problem: null,
+    savable: true,
+  });
+  // The recorded text is not saved again; an empty draft is what Clear does.
+  expect(noteDraftView("Same.", "Same.", en).savable).toBe(false);
+  expect(noteDraftView("   ", "Same.", en)).toMatchObject({
+    problem: null,
+    savable: false,
+  });
+  expect(noteDraftView("x".repeat(601), undefined, en)).toMatchObject({
+    count: "601 / 600 characters",
+    problem: "The note is longer than 600 characters.",
+    savable: false,
+  });
+  expect(noteDraftView("1\n2\n3\n4\n5\n6\n7", undefined, en)).toMatchObject({
+    problem: "The note has more than 6 lines.",
+    savable: false,
+  });
   expect(
-    previewedFiles({ files: [{ path: "AGENTS.md" }, { path: 7 }, null] }),
-  ).toEqual(["AGENTS.md"]);
-  expect(previewedFiles({ files: "AGENTS.md" })).toEqual([]);
-  expect(previewedFiles(null)).toEqual([]);
+    noteDraftView(`a${String.fromCharCode(7)}b`, undefined, en).problem,
+  ).toBe(en.toolsNoteControl);
+  expect(
+    noteDraftView(`a${String.fromCharCode(0x202e)}b`, undefined, en).problem,
+  ).toBe(en.toolsNoteControl);
+  // Characters are code points: an emoji counts once.
+  expect(noteDraftView("👍", undefined, en).count).toBe("1 / 600 characters");
+});
+
+test("source links are taken only in their expected form", () => {
   expect(sourceLink("https://github.com/cli/cli#installation")).toBe(
     "https://github.com/cli/cli#installation",
   );

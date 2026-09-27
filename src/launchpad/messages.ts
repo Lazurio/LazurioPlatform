@@ -98,8 +98,6 @@ const en = {
   toolsLoadFailed:
     "The tools could not be read. Try Refresh status; if it keeps failing, run lazurio tools list in the CLI.",
   toolsChecked: "Folder revision {revision} · checked at {time}",
-  toolsSignInNote:
-    "This screen checks whether a tool is installed. It does not check sign-ins; an agent verifies the signed-in account before it uses a tool.",
   toolsTierRequired: "Required",
   toolsTierRequiredNote: "Always part of the agent instructions.",
   toolsTierRecommended: "Recommended",
@@ -125,20 +123,23 @@ const en = {
   toolsDisableNamed: "Disable {name}",
   toolsUsage: "What agents are told",
   toolsSource: "Official source",
-  toolsConfirmEnable:
-    "Enabling {name} adds it to the agent instructions of this Folder.",
-  toolsConfirmDisable:
-    "Disabling {name} removes it from the agent instructions of this Folder. The tool and its sign-in stay as they are.",
-  toolsConfirmFiles: "Rewritten files: {files}.",
-  toolsConfirmNotInstalled:
-    "{name} is not installed yet; agents will report that until it is set up.",
-  toolsConfirm: "Confirm",
-  toolsCancel: "Cancel",
   toolsBusy: "Working…",
-  toolsEnabledDone: "{name} is enabled. Folder revision {revision}.",
-  toolsDisabledDone: "{name} is no longer enabled. Folder revision {revision}.",
+  toolsEnabledDone:
+    "{name} is enabled; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
+  toolsDisabledDone:
+    "{name} is no longer enabled; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
+  toolsEnabledNotInstalled:
+    "{name} is not installed yet; agents will report that until it is set up.",
+  toolsNoteSaved:
+    "Your note on {name} is saved; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
+  toolsNoteCleared:
+    "Your note on {name} is removed; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
+  toolsUndone:
+    "The change of {name} is undone; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
+  toolsUndo: "Undo",
+  toolsUndoNamed: "Undo the change of {name}",
   toolsUnchanged:
-    "Nothing changed: the Folder already has this selection. Reload to see its current state.",
+    "Nothing changed: the Folder already records this. Reload to see its current state.",
   toolsBlockedStale:
     "The Folder changed in the meantime. Reload and try again; nothing was written.",
   toolsBlockedDrift:
@@ -152,6 +153,28 @@ const en = {
   toolsAgentAction: "Set up with an agent",
   toolsAgentActionNamed: "Set up {name} with an agent",
   toolsInstallAction: "Install and sign in",
+  toolsSignInAction: "Sign in",
+  toolsSignedInAs: "Signed in as {account}",
+  toolsSignedInAsOrganization: "Signed in as {account} ({organization})",
+  toolsSignedIn: "Signed in",
+  toolsSignedOut: "Not signed in",
+  toolsSignInUnknown: "Sign-in unknown",
+  toolsSignInUnchecked: "Sign-in not checked",
+  toolsUsageCatalog: "What Lazurio tells agents about this tool:",
+  toolsNoteLabel: "Your note for agents",
+  toolsNoteHint:
+    "Write the intent with which you use this tool here. Agents read it in manual/this-machine.md of this Folder; it grants no access.",
+  toolsNoteCount: "{count} / {max} characters",
+  toolsNoteTooLong: "The note is longer than {max} characters.",
+  toolsNoteTooManyLines: "The note has more than {max} lines.",
+  toolsNoteControl:
+    "The note contains characters that are not allowed (control or text-direction characters).",
+  toolsNoteSave: "Save note",
+  toolsNoteSaveNamed: "Save the note on {name}",
+  toolsNoteClear: "Clear note",
+  toolsNoteClearNamed: "Clear the note on {name}",
+  toolsNoteAfterEnable:
+    "After you enable this tool you can add a note for agents here.",
   toolsInstallHint:
     "Coming in the next release. For now use: Set up with an agent.",
   toolsPromptTitle: "Set up {name} with an agent",
@@ -314,8 +337,6 @@ const cs: Record<MessageKey, string> = {
   toolsLoadFailed:
     "Nástroje se nepodařilo načíst. Zkuste Obnovit stav; když to nepomůže, spusťte v CLI lazurio tools list.",
   toolsChecked: "Revize Folderu {revision} · zjištěno v {time}",
-  toolsSignInNote:
-    "Tahle obrazovka zjišťuje, jestli je nástroj nainstalovaný. Přihlášení nezjišťuje; přihlášený účet si agent ověří, než nástroj použije.",
   toolsTierRequired: "Povinné",
   toolsTierRequiredNote: "Vždy součást instrukcí pro agenty.",
   toolsTierRecommended: "Doporučené",
@@ -341,20 +362,23 @@ const cs: Record<MessageKey, string> = {
   toolsDisableNamed: "Vypnout {name}",
   toolsUsage: "Co se dozvědí agenti",
   toolsSource: "Oficiální zdroj",
-  toolsConfirmEnable:
-    "Zapnutím se {name} přidá do instrukcí pro agenty v tomhle Folderu.",
-  toolsConfirmDisable:
-    "Vypnutím se {name} odebere z instrukcí pro agenty v tomhle Folderu. Nástroj i jeho přihlášení zůstávají, jak jsou.",
-  toolsConfirmFiles: "Přepsané soubory: {files}.",
-  toolsConfirmNotInstalled:
-    "{name} zatím není nainstalováno; agenti to budou hlásit, dokud se nenastaví.",
-  toolsConfirm: "Potvrdit",
-  toolsCancel: "Zrušit",
   toolsBusy: "Pracuje se…",
-  toolsEnabledDone: "{name} je zapnuto. Revize Folderu {revision}.",
-  toolsDisabledDone: "{name} už není zapnuto. Revize Folderu {revision}.",
+  toolsEnabledDone:
+    "{name} je zapnuto; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
+  toolsDisabledDone:
+    "{name} už není zapnuto; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
+  toolsEnabledNotInstalled:
+    "{name} zatím není nainstalováno; agenti to budou hlásit, dokud se nenastaví.",
+  toolsNoteSaved:
+    "Vaše poznámka k {name} je uložená; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
+  toolsNoteCleared:
+    "Vaše poznámka k {name} je odebraná; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
+  toolsUndone:
+    "Změna u {name} je vrácená; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
+  toolsUndo: "Vrátit zpět",
+  toolsUndoNamed: "Vrátit zpět změnu u {name}",
   toolsUnchanged:
-    "Nic se nezměnilo: Folder už tenhle výběr má. Načtěte jeho aktuální stav.",
+    "Nic se nezměnilo: Folder už přesně tohle eviduje. Načtěte jeho aktuální stav.",
   toolsBlockedStale:
     "Folder se mezitím změnil. Načtěte stav a zkuste to znovu; nic se nezapsalo.",
   toolsBlockedDrift:
@@ -368,6 +392,28 @@ const cs: Record<MessageKey, string> = {
   toolsAgentAction: "Nastavit s agentem",
   toolsAgentActionNamed: "Nastavit {name} s agentem",
   toolsInstallAction: "Nainstalovat a přihlásit",
+  toolsSignInAction: "Přihlásit",
+  toolsSignedInAs: "Přihlášeno jako {account}",
+  toolsSignedInAsOrganization: "Přihlášeno jako {account} ({organization})",
+  toolsSignedIn: "Přihlášeno",
+  toolsSignedOut: "Nepřihlášeno",
+  toolsSignInUnknown: "Přihlášení nezjištěno",
+  toolsSignInUnchecked: "Přihlášení se nezjišťovalo",
+  toolsUsageCatalog: "Co o tomhle nástroji agentům říká Lazurio:",
+  toolsNoteLabel: "Vaše poznámka pro agenty",
+  toolsNoteHint:
+    "Napište sem záměr, se kterým nástroj používáte. Agenti ji čtou v manual/this-machine.md tohohle Folderu; neuděluje žádný přístup.",
+  toolsNoteCount: "{count} / {max} znaků",
+  toolsNoteTooLong: "Poznámka je delší než {max} znaků.",
+  toolsNoteTooManyLines: "Poznámka má víc než {max} řádků.",
+  toolsNoteControl:
+    "Poznámka obsahuje nepovolené znaky (řídicí znaky nebo znaky směru textu).",
+  toolsNoteSave: "Uložit poznámku",
+  toolsNoteSaveNamed: "Uložit poznámku k {name}",
+  toolsNoteClear: "Smazat poznámku",
+  toolsNoteClearNamed: "Smazat poznámku k {name}",
+  toolsNoteAfterEnable:
+    "Až nástroj zapnete, můžete sem agentům napsat poznámku.",
   toolsInstallHint:
     "Bude v příštím vydání. Zatím použijte: Nastavit s agentem.",
   toolsPromptTitle: "Nastavit {name} s agentem",
