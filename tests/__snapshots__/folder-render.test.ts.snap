@@ -15,6 +15,8 @@ exports[`rendered AGENTS.md snapshot: local / cs 1`] = `
 - Začni výsledkem a vysvětluj stručně.
 - Pracuj přímo v rozsahu zadání a dostupných nástrojů.
 - Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Principálovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.
+- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu. Předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah Organizace, který do toho repozitáře nepatří. Pak pokračuj na všem, co na odpovědi nestojí; zastav se jen tam, kde bez ní nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi. Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj; plán, priorita a odpovědnost patří do Mission Controlu Organizace (\`manual/working-here.md\`).
+- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a požádej o verdikt na nezměněném headu. Trvá-li reviewer na svém, předlož obě stanoviska Principálovi; review ani branch rules nikdy neobcházej.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém provádějící Mašiny (macos); přístup local nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
@@ -28,7 +30,7 @@ MCP servery přicházejí na řadu až po CLI z katalogu: zjisti ve svém harnes
 Úplný manuál pro agenty na téhle Mašině je v \`manual/\` (generuje ho produkt, needituj ho):
 - [Lazurio](manual/lazurio.md) — co je Lazurio, model spolupráce a jeho hranice.
 - [Tahle Mašina](manual/this-machine.md) — druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Mašiny.
-- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, handoff a kam patří poznatky.
+- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky a kam patří poznatky.
 - [Role](manual/roles.md) — Principál, Kolega, role v Organizaci, Owner, Buddy, Task Agent.
 - [Slovník](manual/glossary.md) — pojmy, které agent na Mašině potřebuje.
 - [Řešení problémů](manual/troubleshooting.md) — aktualizace produktu a obsahu, Machine identita, odmítnutí a hlášení problémů.
@@ -50,6 +52,8 @@ exports[`rendered AGENTS.md snapshot: local / en 1`] = `
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (macos); local access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -63,7 +67,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
@@ -89,6 +93,8 @@ exports[`rendered AGENTS.md snapshot: hosted-personal / cs 1`] = `
 - Začni výsledkem a vysvětluj stručně.
 - Pracuj přímo v rozsahu zadání a dostupných nástrojů.
 - Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Principálovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.
+- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu. Předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah Organizace, který do toho repozitáře nepatří. Pak pokračuj na všem, co na odpovědi nestojí; zastav se jen tam, kde bez ní nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi. Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj; plán, priorita a odpovědnost patří do Mission Controlu Organizace (\`manual/working-here.md\`).
+- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a požádej o verdikt na nezměněném headu. Trvá-li reviewer na svém, předlož obě stanoviska Principálovi; review ani branch rules nikdy neobcházej.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém provádějící Mašiny (linux); přístup remote nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
@@ -104,7 +110,7 @@ MCP servery přicházejí na řadu až po CLI z katalogu: zjisti ve svém harnes
 Úplný manuál pro agenty na téhle Mašině je v \`manual/\` (generuje ho produkt, needituj ho):
 - [Lazurio](manual/lazurio.md) — co je Lazurio, model spolupráce a jeho hranice.
 - [Tahle Mašina](manual/this-machine.md) — druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Mašiny.
-- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, handoff a kam patří poznatky.
+- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky a kam patří poznatky.
 - [Role](manual/roles.md) — Principál, Kolega, role v Organizaci, Owner, Buddy, Task Agent.
 - [Slovník](manual/glossary.md) — pojmy, které agent na Mašině potřebuje.
 - [Řešení problémů](manual/troubleshooting.md) — aktualizace produktu a obsahu, Machine identita, odmítnutí a hlášení problémů.
@@ -130,6 +136,8 @@ exports[`rendered AGENTS.md snapshot: hosted-personal / en 1`] = `
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -145,7 +153,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
@@ -171,6 +179,8 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-personal / cs 1`] = `
 - Začni výsledkem a vysvětluj stručně.
 - Pracuj přímo v rozsahu zadání a dostupných nástrojů.
 - Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Principálovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.
+- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu. Předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah Organizace, který do toho repozitáře nepatří. Pak pokračuj na všem, co na odpovědi nestojí; zastav se jen tam, kde bez ní nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi. Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj; plán, priorita a odpovědnost patří do Mission Controlu Organizace (\`manual/working-here.md\`).
+- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a požádej o verdikt na nezměněném headu. Trvá-li reviewer na svém, předlož obě stanoviska Principálovi; review ani branch rules nikdy neobcházej.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém provádějící Mašiny (linux); přístup remote nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
@@ -186,7 +196,7 @@ MCP servery přicházejí na řadu až po CLI z katalogu: zjisti ve svém harnes
 Úplný manuál pro agenty na téhle Mašině je v \`manual/\` (generuje ho produkt, needituj ho):
 - [Lazurio](manual/lazurio.md) — co je Lazurio, model spolupráce a jeho hranice.
 - [Tahle Mašina](manual/this-machine.md) — druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Mašiny.
-- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, handoff a kam patří poznatky.
+- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky a kam patří poznatky.
 - [Role](manual/roles.md) — Principál, Kolega, role v Organizaci, Owner, Buddy, Task Agent.
 - [Slovník](manual/glossary.md) — pojmy, které agent na Mašině potřebuje.
 - [Řešení problémů](manual/troubleshooting.md) — aktualizace produktu a obsahu, Machine identita, odmítnutí a hlášení problémů.
@@ -212,6 +222,8 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-personal / en 1`] = `
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -227,7 +239,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
@@ -253,6 +265,8 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-team / cs 1`] = `
 - Začni výsledkem a vysvětluj stručně.
 - Pracuj přímo v rozsahu zadání a dostupných nástrojů.
 - Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Principálovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.
+- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu. Předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah Organizace, který do toho repozitáře nepatří. Pak pokračuj na všem, co na odpovědi nestojí; zastav se jen tam, kde bez ní nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi. Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj; plán, priorita a odpovědnost patří do Mission Controlu Organizace (\`manual/working-here.md\`).
+- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a požádej o verdikt na nezměněném headu. Trvá-li reviewer na svém, předlož obě stanoviska Principálovi; review ani branch rules nikdy neobcházej.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém provádějící Mašiny (linux); přístup remote nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
@@ -269,7 +283,7 @@ MCP servery přicházejí na řadu až po CLI z katalogu: zjisti ve svém harnes
 Úplný manuál pro agenty na téhle Mašině je v \`manual/\` (generuje ho produkt, needituj ho):
 - [Lazurio](manual/lazurio.md) — co je Lazurio, model spolupráce a jeho hranice.
 - [Tahle Mašina](manual/this-machine.md) — druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Mašiny.
-- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, handoff a kam patří poznatky.
+- [Jak se tu pracuje](manual/working-here.md) — Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky a kam patří poznatky.
 - [Role](manual/roles.md) — Principál, Kolega, role v Organizaci, Owner, Buddy, Task Agent.
 - [Slovník](manual/glossary.md) — pojmy, které agent na Mašině potřebuje.
 - [Řešení problémů](manual/troubleshooting.md) — aktualizace produktu a obsahu, Machine identita, odmítnutí a hlášení problémů.
@@ -295,6 +309,8 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-team / en 1`] = `
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -311,7 +327,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
@@ -341,6 +357,8 @@ Tailnet peers as the handover records them (this Machine is in the personal zone
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -356,7 +374,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
@@ -383,6 +401,8 @@ exports[`the Assignment line renders the handover's owner.assignment and nothing
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -398,7 +418,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
@@ -425,6 +445,8 @@ exports[`the Assignment line renders the handover's owner.assignment and nothing
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -441,7 +463,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
@@ -467,6 +489,8 @@ exports[`the Owner line names the Team only under hosted-organization-team 1`] =
 - Lead with the outcome and explain concisely.
 - Work directly within task scope and available tools.
 - Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.
+- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (\`manual/working-here.md\`).
+- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the execution Machine's OS (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.
@@ -482,7 +506,7 @@ MCP servers come after the catalog CLIs: discover in your harness which ones it 
 The complete agent manual for this Machine is in \`manual/\` (generated by the product, do not edit):
 - [Lazurio](manual/lazurio.md) — what Lazurio is, the collaboration model and its boundaries.
 - [This Machine](manual/this-machine.md) — kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines.
-- [Working here](manual/working-here.md) — Draft, Publication, worktrees, handoff and where knowledge goes.
+- [Working here](manual/working-here.md) — Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes.
 - [Roles](manual/roles.md) — Principal, Kolega, Organization roles, Owner, Buddy, Task Agent.
 - [Glossary](manual/glossary.md) — the terms an agent on a Machine needs.
 - [Troubleshooting](manual/troubleshooting.md) — product and content updates, Machine identity, refusals and reporting.
