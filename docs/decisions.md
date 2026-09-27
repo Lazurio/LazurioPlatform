@@ -1238,7 +1238,9 @@ start replaces a running one. The tool's own sign-in command runs as the current
 with only `PATH`, `HOME`, `XDG_*` and `NO_COLOR`, and its output is parsed as it
 arrives into a challenge: `gh auth login --hostname github.com --git-protocol ssh
 --web --clipboard=false` prints a one-time code and `https://github.com/login/device`
-(`device-code`); `composio login --no-wait --no-skill-install` prints the dashboard
+(`device-code`; gh 2.101.0 copies the code to the clipboard by default and the flag
+turns that off for this run only, and a gh older than the flag, which never copies,
+is run once more without it); `composio login --no-wait --no-skill-install` prints the dashboard
 link (`url`), and `composio login --poll --no-skill-install` completes it; `wacli auth
 --events --idle-exit 30s [--phone <number>]` emits `qr_code` and `pair_code` events on
 stderr (`qr` with a sequence that replaces the previous code, `pair-code`). Only an
