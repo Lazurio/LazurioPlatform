@@ -330,11 +330,24 @@ export const mcpInstruction: Text = {
   en: "MCP servers come after the catalog CLIs: discover in your harness which ones it offers and use them where no catalog CLI covers the task. MCP servers are never recorded in the Folder, and an available server is not consent to Publication.",
 };
 
+// On an Environment shared by several operators (the Team preset) a sign-in
+// of a tool belongs to the whole Environment, not to the person who made it.
+export const sharedSignInWarning: Text = {
+  cs: "**Sdílené Environment:** účty přihlášené v nástrojích platí pro celé tohle Environment a sdílí je všichni jeho Operátoři i jejich agenti. Přihlašuj tu jen účty, které mají být dostupné celému Teamu; osobní účet sem nepatří.",
+  en: "**Shared Environment:** accounts signed in to the tools apply to this whole Environment and are shared by all its operators and their agents. Sign in only accounts meant for the whole Team; a personal account does not belong here.",
+};
+
+// Whether sign-ins on this preset are shared by several operators.
+export function sharedEnvironment(preset: PresetName): boolean {
+  return workspacePreset(preset).providerIdentity === "brokered-organization";
+}
+
 // The tools of this Environment (decision F18): what to use and in which
 // order. The usage of every tool is in `manual/this-machine.md`.
 function toolsSection(
   tools: readonly string[],
   locale: FolderProfile["locale"],
+  shared: boolean,
 ): string[] {
   const pick = (text: Text) => text[locale];
   return [
@@ -344,6 +357,7 @@ function toolsSection(
       en: "Use these CLIs of the Lazurio catalog first, as `manual/this-machine.md` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.",
     }),
     ...toolLines(tools, locale, "purpose"),
+    ...(shared ? [pick(sharedSignInWarning)] : []),
     pick(mcpInstruction),
   ];
 }
@@ -404,7 +418,7 @@ export function renderInstructions(input: unknown): string {
       en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
     }),
     ...(machine === null ? [] : hostedLines(pick)),
-    ...toolsSection(tools, profile.locale),
+    ...toolsSection(tools, profile.locale, sharedEnvironment(preset)),
     ...manualSection(profile.locale),
     "",
   ].join("\n");

@@ -625,6 +625,7 @@ test.skipIf(process.platform === "win32")(
       );
       expect(await readFolderTools(folder)).toEqual({
         revision: 1,
+        sharedEnvironment: false,
         enabled: [],
         tools: toolSelection([]),
       });
@@ -780,9 +781,9 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-// Catalog tools are signed in by the operator; the shared Team preset allows
-// no personal sign-ins (decision F2), so nothing can be enabled there.
-test("the shared Team preset refuses enabled tools until the Team case is decided", async () => {
+// On the shared Team preset tools can be enabled; the instructions and the
+// manual warn that sign-ins are shared by every operator of the Environment.
+test("the shared Team preset enables tools and warns that sign-ins are shared", async () => {
   const team = {
     ...stored,
     preset: {
@@ -796,11 +797,43 @@ test("the shared Team preset refuses enabled tools until the Team case is decide
     }),
   };
   const { preferences, manifest, inspect } = await planned(team);
-  expect(
-    await planToolsChange(preferences, manifest, 7, ["composio"], inspect),
-  ).toEqual({ kind: "blocked", reason: "tools-need-own-sign-in" });
-  // An empty selection is never refused for this reason.
-  expect(
-    await planToolsChange(preferences, manifest, 7, [], inspect),
-  ).not.toEqual({ kind: "blocked", reason: "tools-need-own-sign-in" });
+  const plan = await planToolsChange(
+    preferences,
+    manifest,
+    7,
+    ["composio"],
+    inspect,
+  );
+  // No refusal exists for this preset any more.
+  expect(plan).not.toEqual({
+    kind: "blocked",
+    reason: "tools-need-own-sign-in",
+  });
+  for (const locale of ["cs", "en"] as const) {
+    const source = {
+      preset: "hosted-organization-team",
+      machine: bindings.team,
+      profile: presetProfile("hosted-organization-team", profile.os, {
+        locale,
+      }),
+      tools: ["composio"],
+    };
+    const warning =
+      locale === "cs" ? "**Sdílené Environment:**" : "**Shared Environment:**";
+    expect(renderInstructions(source)).toContain(warning);
+    expect(renderManual(source)["manual/this-machine.md"] as string).toContain(
+      warning,
+    );
+    // An Environment of one operator carries no such warning.
+    expect(
+      renderInstructions({
+        ...source,
+        preset: "hosted-organization-personal",
+        machine: bindings.organization,
+        profile: presetProfile("hosted-organization-personal", profile.os, {
+          locale,
+        }),
+      }),
+    ).not.toContain(warning);
+  }
 });

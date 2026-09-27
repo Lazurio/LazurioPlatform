@@ -9,6 +9,8 @@ import {
   mcpInstruction,
   parseInstructionSource,
   peerLine,
+  sharedEnvironment,
+  sharedSignInWarning,
   type Text,
   toolLines,
 } from "./render";
@@ -782,10 +784,7 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "- `preset-not-allowed`, `preset-composition`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.",
       "- `preset-not-allowed`, `preset-composition`: the preset is outside what the handover allows, or the fixed axes disagree with it.",
     ),
-    t(
-      "- `tools-need-own-sign-in`: nástroje z katalogu přihlašuje operátor; preset sdíleného Teamu osobní přihlášení nepřipouští, takže na něm nejde nástroj zapnout ani na něj přejít se zapnutými nástroji.",
-      "- `tools-need-own-sign-in`: catalog tools are signed in by the operator; the shared Team preset allows no personal sign-ins, so a tool cannot be enabled there and the preset cannot be chosen while tools are enabled.",
-    ),
+
     t(
       "- `template-upgrade-required`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.",
       "- `template-upgrade-required`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.",
@@ -1068,6 +1067,7 @@ function fromPersonalVm(
 function enabledToolsSection(
   tools: readonly string[],
   locale: Locale,
+  shared: boolean,
 ): readonly Text[] {
   return [
     t("## Zapnuté nástroje", "## Enabled tools"),
@@ -1076,6 +1076,7 @@ function enabledToolsSection(
       "The CLIs of the Lazurio catalog that agents on this Machine are to use: the required ones and those the operator enabled in this Folder (`lazurio tools list`, `lazurio tools enable|disable <tool>`). Enabling is context, not authority or installation: it grants no access, installs nothing and pins no version. Report a missing or signed-out tool to the Principal; install and sign in only on their instruction.",
     ),
     blank,
+    ...(shared ? [sharedSignInWarning, blank] : []),
     ...toolLines(tools, locale, "usage").map(same),
     blank,
     t("### MCP servery", "### MCP servers"),
@@ -1159,7 +1160,7 @@ function thisMachine(source: InstructionSource): string {
       t("## Hranice na téhle Mašině", "## Boundaries on this Machine"),
       ...boundaries(preset),
       blank,
-      ...enabledToolsSection(source.tools, locale),
+      ...enabledToolsSection(source.tools, locale, sharedEnvironment(preset)),
       ...(relationships === undefined
         ? []
         : [

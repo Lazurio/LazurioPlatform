@@ -295,11 +295,22 @@ async function runFolderToolsCommand(
       ? [...new Set([...recorded.enabled, name])].sort()
       : recorded.enabled.filter((tool) => tool !== name);
     const result = await updateTools(folder, Number(revision), tools);
+    // On an Environment shared by several operators a sign-in of the tool is
+    // shared by all of them; say so whenever a tool is enabled there.
+    const shared = enabling && recorded.sharedEnvironment;
     return done(
       result.kind === "blocked" ? 2 : 0,
-      { ...result, tool: name },
+      {
+        ...result,
+        tool: name,
+        ...(shared ? { warning: "shared-environment-sign-ins" } : {}),
+      },
       result.kind === "updated"
-        ? `${name} ${enabling ? "enabled" : "disabled"}; Folder revision ${result.revision}`
+        ? `${name} ${enabling ? "enabled" : "disabled"}; Folder revision ${result.revision}${
+            shared
+              ? "\nWarning: this Environment is shared. Accounts signed in to the tool apply to the whole Environment and are shared by all its operators."
+              : ""
+          }`
         : result.kind === "unchanged"
           ? `${name} is already ${enabling ? "enabled" : "disabled"}`
           : `Blocked: ${result.reason}${"path" in result ? ` (${result.path})` : ""}`,

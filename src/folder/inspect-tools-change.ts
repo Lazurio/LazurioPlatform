@@ -6,6 +6,7 @@ import { withFolderOperationLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState } from "./read-state";
+import { sharedEnvironment } from "./render";
 import { enabledTools } from "./state";
 
 // The read-only twin of `updateTools`, as `inspectProfileChange` is of
@@ -43,6 +44,8 @@ export async function readFolderTools(folder: string) {
     const { preferences } = await readFolderState(stateDirectory);
     return {
       revision: preferences.revision,
+      // Sign-ins are shared by every operator of this Environment.
+      sharedEnvironment: sharedEnvironment(preferences.preset.name),
       enabled: enabledTools(preferences),
       tools: toolSelection(enabledTools(preferences)),
     };
