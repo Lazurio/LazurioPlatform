@@ -183,14 +183,25 @@ async function runOtherCommand(args: string[]): Promise<number> {
     }
   }
   if (args[0] === "tools") {
+    // Ctrl-C cancels a running `tools login` (its process group is killed);
+    // other tools commands end as before.
+    const interrupt = new AbortController();
+    const onInterrupt = () => interrupt.abort();
+    if (args[1] === "login") process.once("SIGINT", onInterrupt);
     try {
-      const { code, text } = await runToolsCommand(args.slice(1));
-      console.log(text);
+      const { code, text } = await runToolsCommand(args.slice(1), {
+        env: process.env,
+        platform: process.platform,
+        signal: interrupt.signal,
+      });
+      if (text) console.log(text);
       return code;
     } catch (error) {
       if (!(error instanceof ToolsUsageError)) throw error;
       console.error(`${error.message}\n${toolsHelp}`);
       return 2;
+    } finally {
+      process.removeListener("SIGINT", onInterrupt);
     }
   }
   if (args[0] === "legacy-paths-inspect") {

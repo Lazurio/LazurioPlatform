@@ -99,16 +99,49 @@ required tool has no toggle and shows "Always on"; it can carry a note.
 read-only text area and "Copy prompt" (Clipboard API; where it is unavailable the text
 is selected for a keyboard copy). The prompt contains no secret, and the operator
 pastes it into a new chat in T3 Code on the Machine. Focus moves into the dialog and
-returns to the button that opened it. Every activatable tool has this button. A
-`launchpad` tool additionally shows a disabled "Install and sign in" (not installed)
-or "Sign in" (installed, not known to be signed in) with the hint that the curated
-flow comes in the next release; an installed and signed-in tool shows neither. That
-flow is not built.
+returns to the button that opened it. Every activatable tool has this button.
+
+**Install and sign in, Sign in, Sign out** (decision F19,
+[environment-tools.md](environment-tools.md#curated-installation-and-login-decision-f19)).
+A `launchpad` tool shows "Install and sign in" when it is missing, "Sign in" when it
+is installed and not known to be signed in, and "Sign out" when it is signed in; an
+`agent` tool shows none of them. The first two open a second dialog: its title names
+the tool, a list of plain steps ("Installing", "Waiting for you", "Signed in", each
+marked done, in progress, next or did not finish) and a status line with
+`aria-live`; focus moves to the title. On a shared Environment the shared sign-ins
+warning and "Continue" come first. The dialog then installs (`/api/tools/install`) when
+needed and starts the login (`/api/tools/login/start`), and polls
+`/api/tools/login/poll` every 2 seconds with the session handle while it is open;
+closing it sends `/api/tools/login/cancel`, clears the code, link or QR from the page
+and returns focus to the card. What it shows:
+
+- gh: the sentence that the code is entered on any device, the code in large
+  selectable characters (with a spelled-out accessible name) and a link to
+  `https://github.com/login/device` in a new tab;
+- composio: a link to the sign-in page in a new tab; after the sign-in a select of the
+  account's organizations with the current one marked "(current)", which switches on
+  change, and the hint that the apps connected in Composio belong to that account and
+  organization, the account of the Environment;
+- wacli: the path in WhatsApp in words, the QR code as an image of the server's SVG
+  (280 CSS px, white, quiet zone, `image-rendering: pixelated`, a text alternative that
+  says what to do), replaced in place when the code rotates, and "Pair with a phone
+  number instead" (a phone field, then the pairing code in large characters and "Show
+  the QR code instead"). After pairing, the note that the first sync runs in the
+  background.
+
+The page accepts a login answer only in its exact form: a link only as https on the
+expected host, a code only in its expected shape, the QR only as the exact SVG the
+server draws (turned into a `data:` image, never inserted as markup). A failure shows
+its reason, "Finish with an agent" (which opens the prepared prompt) where an agent is
+the next step, and "Try again". After a sign-in the card's sign-in line is refreshed
+with the probes. "Sign out" runs `/api/tools/logout` and confirms on the card whether
+the tool forgot the sign-in on this Machine only (gh, composio) or unlinked the device
+(wacli).
 
 Pure view logic lives in `src/launchpad/tools-view.ts` and is tested without a
 DOM (`tests/tools-view.test.ts`); `src/launchpad/tools-panel.ts` holds the DOM and
 renders every server and tool value with `textContent`. HTTP behavior is tested in
-`tests/launchpad-tools.test.ts` with fake tools on a private PATH and a temporary
-home. The section's appearance in a real browser, its keyboard and screen-reader
+`tests/launchpad-tools.test.ts` and `tests/launchpad-curated.test.ts` with fake tools
+on a private PATH, a temporary home and a fake official source. The section's appearance in a real browser, its keyboard and screen-reader
 behavior and the clipboard path have not been qualified by an automated or recorded
 manual run.

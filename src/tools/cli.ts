@@ -7,6 +7,15 @@ import {
 import { updateTools } from "../folder/update-profile";
 import { activatableTools, toolCatalog, toolPrompt } from "./catalog";
 import {
+  type CuratedContext,
+  runComposioOrganization,
+  runInstall,
+  runLogin,
+  runLogout,
+} from "./curated-cli";
+import type { InstallEnvironment } from "./install";
+import type { LoginEnvironment } from "./login";
+import {
   normalizeToolNote,
   quoteToolNote,
   toolNoteLimits,
@@ -66,7 +75,32 @@ tools note <tool> --folder <absolute Folder> --expected-revision <n> (--text <te
   manual/this-machine.md (AGENTS.md says a note exists). Plain text, 1 to 600
   characters after trimming, at most 6 lines, no control characters. It is
   context for agents and grants no access. Same transaction as enable.
-  Exit status: 0 completed/unchanged, 2 blocked or usage, 1 operation failure.`;
+  Exit status: 0 completed/unchanged, 2 blocked or usage, 1 operation failure.
+tools install <tool> [--json]
+  The curated installation of a tool set up in Lazurio (gh, composio, wacli):
+  for the current user, without root, into ~/.local/bin/<tool> from the
+  tool's official source at its latest release (gh and wacli: the release
+  archive, verified against the release's published SHA-256 checksums;
+  composio: its official installer without agent plugins or shell changes).
+  A tool that already works is not touched; a broken copy elsewhere on PATH
+  is not shadowed. On failure it points to the prepared agent prompt.
+tools login <tool> [--phone <+number>] [--json]
+  Signs the operator in to that tool in the foreground: gh prints a one-time
+  code for https://github.com/login/device, composio a sign-in link, wacli a
+  WhatsApp QR code drawn here (or, with --phone, a pairing code). Open it on
+  any device; nothing is copied to the clipboard and no key is typed. Waits
+  until signed in, failed or expired; Ctrl-C cancels. With --json one JSON
+  object per state change (including the code, since this command holds the
+  session). The code or link is never written to a file or log.
+tools logout <tool> [--json]
+  Runs the tool's own sign-out. gh and composio forget the sign-in on this
+  Machine only (revoke it at the provider); wacli unlinks the device.
+tools composio-org [list | switch <id>] [--json]
+  The Composio organizations of the signed-in account, the current one
+  marked, and switching the current one. Apps connected in Composio belong to
+  the account and organization of this Environment.
+  Tools set up by an agent (gogcli, neon) have no curated flow: use
+  lazurio tools prompt <tool>.`;
 
 export class ToolsUsageError extends Error {}
 
@@ -95,6 +129,13 @@ export async function runToolsCommand(
   context: Readonly<{
     env: Readonly<Record<string, string | undefined>>;
     platform: string;
+    /** Where a running login writes each state change (default: stdout). */
+    write?: (line: string) => void;
+    /** Ctrl-C of a running login. */
+    signal?: AbortSignal;
+    /** Test seams of the curated flows. */
+    install?: Partial<InstallEnvironment>;
+    login?: Partial<LoginEnvironment>;
   }> = { env: process.env, platform: process.platform },
 ): Promise<ToolsCommandOutput> {
   let values: ToolsOptions & { locale?: string | undefined };
@@ -112,6 +153,7 @@ export async function runToolsCommand(
         "sign-in": { type: "boolean" },
         text: { type: "string" },
         clear: { type: "boolean" },
+        phone: { type: "string" },
       },
       allowPositionals: true,
     });
@@ -131,6 +173,7 @@ export async function runToolsCommand(
   // Options of one command only.
   if (
     (values["sign-in"] !== undefined && positionals[0] !== "list") ||
+    (values.phone !== undefined && positionals[0] !== "login") ||
     ((values.text !== undefined || values.clear !== undefined) &&
       positionals[0] !== "note")
   )
@@ -190,6 +233,40 @@ export async function runToolsCommand(
     platform: context.platform,
     run: runTool,
   };
+  const curated = ["install", "login", "logout", "composio-org"];
+  if (curated.includes(positionals[0] ?? "")) {
+    const json = values.json === true;
+    const base = {
+      path: context.env.PATH,
+      home: context.env.HOME,
+      xdg: xdgOf(context.env),
+      platform: context.platform,
+      run: runTool,
+    };
+    const curatedContext: CuratedContext = {
+      env: context.env,
+      platform: context.platform,
+      install: { ...base, ...context.install },
+      login: { ...base, ...context.login },
+      write: context.write ?? ((line) => console.log(line)),
+      signal: context.signal,
+    };
+    const [command, name] = positionals;
+    if (command === "composio-org") {
+      const output = await runComposioOrganization(
+        positionals.slice(1),
+        json,
+        curatedContext,
+      );
+      if (output === undefined) throw new ToolsUsageError(usage);
+      return output;
+    }
+    if (positionals.length !== 2 || name === undefined)
+      throw new ToolsUsageError(usage);
+    if (command === "install") return runInstall(name, json, curatedContext);
+    if (command === "logout") return runLogout(name, json, curatedContext);
+    return runLogin(name, values.phone, json, curatedContext);
+  }
   if (positionals[0] === "status" && positionals.length === 1) {
     const result = await toolsStatus(common);
     return {
@@ -225,7 +302,7 @@ export async function runToolsCommand(
 }
 
 const usage =
-  "Usage: tools status [--json] | tools update <tool> [--json] | tools list --folder <Folder> [--sign-in] [--json] | tools enable|disable <tool> --folder <Folder> --expected-revision <n> [--json] | tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear) [--json] | tools prompt <tool> [--locale cs|en] [--json]";
+  "Usage: tools status [--json] | tools update <tool> [--json] | tools list --folder <Folder> [--sign-in] [--json] | tools enable|disable <tool> --folder <Folder> --expected-revision <n> [--json] | tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear) [--json] | tools prompt <tool> [--locale cs|en] [--json] | tools install|logout <tool> [--json] | tools login <tool> [--phone <+number>] [--json] | tools composio-org [list | switch <id>] [--json]";
 
 type ToolsOptions = {
   json?: boolean | undefined;
@@ -234,6 +311,7 @@ type ToolsOptions = {
   "sign-in"?: boolean | undefined;
   text?: string | undefined;
   clear?: boolean | undefined;
+  phone?: string | undefined;
 };
 
 const signInText = (signIn: ToolSignIn): string =>

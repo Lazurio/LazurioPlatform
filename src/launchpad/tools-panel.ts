@@ -2,12 +2,23 @@ import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
 import type { MessageKey } from "./messages";
 import {
-  curatedActionLabel,
+  curatedActions,
   currentNotes,
+  installOutcome,
+  type LoginPhase,
+  type LoginView,
+  loginEndMessage,
+  loginLink,
+  loginSteps,
+  logoutOutcome,
   nextNotes,
   nextSelection,
   noteDraftView,
+  organizationChoices,
+  parseLoginState,
   parseToolsOverview,
+  qrImageSource,
+  signedInMessage,
   signInLine,
   sourceLink,
   type ToolChange,
@@ -57,6 +68,12 @@ export function createToolsPanel(
   const dialogCopy = find<HTMLButtonElement>("#tools-prompt-copy");
   const dialogClose = find<HTMLButtonElement>("#tools-prompt-close");
   const dialogStatus = find<HTMLSpanElement>("#tools-prompt-status");
+  const loginDialog = find<HTMLDialogElement>("#tools-login");
+  const loginTitle = find<HTMLHeadingElement>("#tools-login-title");
+  const loginStepList = find<HTMLOListElement>("#tools-login-steps");
+  const loginStatus = find<HTMLParagraphElement>("#tools-login-status");
+  const loginBody = find<HTMLDivElement>("#tools-login-body");
+  const loginClose = find<HTMLButtonElement>("#tools-login-close");
 
   type Selection = Readonly<{
     tools: readonly string[];
@@ -166,6 +183,468 @@ export function createToolsPanel(
       mcpButton,
     );
   });
+
+  // The curated install and login of one tool in the dialog (decision
+  // F19). The browser holds the login through its session handle; closing
+  // the dialog cancels a running login. Everything shown is text, the QR
+  // code an image of the server's own drawing.
+  type Flow = {
+    tool: ToolOverview;
+    install: boolean;
+    phase: LoginPhase;
+    failedAt: "installing" | "waiting";
+    handle: string | null;
+    timer: ReturnType<typeof setTimeout> | null;
+    turn: number;
+    challenge: string | null;
+    qr: HTMLImageElement | null;
+  };
+  let flow: Flow | null = null;
+  let loginOpener: { name: string; control: string } | null = null;
+
+  function renderSteps() {
+    if (flow === null) return;
+    const copy = options.copy();
+    const keys = {
+      done: "toolsStepDone",
+      current: "toolsStepCurrent",
+      todo: "toolsStepTodo",
+      failed: "toolsStepFailed",
+    } as const;
+    loginStepList.replaceChildren(
+      ...loginSteps(flow.install, flow.phase, flow.failedAt, copy).map(
+        (step) => {
+          const item = element(
+            "li",
+            "",
+            fill(copy[keys[step.state]], { step: step.label }),
+          );
+          item.dataset.state = step.state;
+          if (step.state === "current")
+            item.setAttribute("aria-current", "step");
+          return item;
+        },
+      ),
+    );
+  }
+  function phase(next: LoginPhase, status: string) {
+    if (flow === null) return;
+    flow.phase = next;
+    renderSteps();
+    if (loginStatus.textContent !== status) loginStatus.textContent = status;
+  }
+  function stopPolling() {
+    if (flow?.timer) clearTimeout(flow.timer);
+    if (flow) flow.timer = null;
+  }
+
+  function openLogin(tool: ToolOverview, mode: "install" | "login") {
+    const copy = options.copy();
+    loginOpener = { name: tool.name, control: "curated" };
+    flow = {
+      tool,
+      install: mode === "install",
+      phase: "confirm",
+      failedAt: mode === "install" ? "installing" : "waiting",
+      handle: null,
+      timer: null,
+      turn: 0,
+      challenge: null,
+      qr: null,
+    };
+    loginTitle.textContent = fill(
+      mode === "install" ? copy.toolsLoginTitleInstall : copy.toolsLoginTitle,
+      { name: tool.name },
+    );
+    loginStatus.textContent = "";
+    loginBody.replaceChildren();
+    if (typeof loginDialog.showModal === "function") loginDialog.showModal();
+    else loginDialog.setAttribute("open", "");
+    loginTitle.focus();
+    if (overview?.sharedEnvironment === true) {
+      // Everyone on a shared Environment uses what is signed in here.
+      phase("confirm", copy.toolsShared);
+      const go = element("button", "", copy.toolsLoginContinue);
+      go.type = "button";
+      go.addEventListener("click", () => void begin());
+      const warning = element("p", "tools-warning", copy.toolsShared);
+      const row = element("p", "tool-actions");
+      row.append(go);
+      loginBody.replaceChildren(warning, row);
+      go.focus();
+      return;
+    }
+    void begin();
+  }
+
+  async function begin() {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    const name = current.tool.name;
+    if (current.install) {
+      current.failedAt = "installing";
+      phase("installing", fill(copy.toolsInstalling, { name }));
+      loginBody.replaceChildren(
+        element("p", "", fill(copy.toolsInstalling, { name })),
+      );
+      let value: unknown = null;
+      try {
+        ({ value } = await options.post("/api/tools/install", { tool: name }));
+      } catch {}
+      if (flow !== current) return;
+      const outcome = installOutcome(value, name, copy);
+      if (!outcome.ok) return loginFailed(outcome.message, outcome.agent);
+      current.install = true;
+      loginBody.replaceChildren(element("p", "", outcome.message));
+    }
+    await startLogin();
+  }
+
+  async function startLogin(phone?: string) {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    stopPolling();
+    current.failedAt = "waiting";
+    current.challenge = null;
+    current.qr = null;
+    const turn = ++current.turn;
+    phase("waiting", copy.toolsLoginStarting);
+    if (loginBody.childElementCount === 0 || phone === undefined)
+      loginBody.append(element("p", "tools-muted", copy.toolsLoginStarting));
+    let value: unknown = null;
+    try {
+      ({ value } = await options.post("/api/tools/login/start", {
+        tool: current.tool.name,
+        ...(phone === undefined ? {} : { phone }),
+      }));
+    } catch {}
+    if (flow !== current || current.turn !== turn) return;
+    accept(value);
+  }
+
+  function schedulePoll() {
+    const current = flow;
+    if (current === null || current.handle === null) return;
+    const turn = current.turn;
+    const handle = current.handle;
+    current.timer = setTimeout(async () => {
+      let value: unknown = null;
+      try {
+        ({ value } = await options.post("/api/tools/login/poll", {
+          tool: current.tool.name,
+          session: handle,
+        }));
+      } catch {}
+      if (flow !== current || current.turn !== turn) return;
+      accept(value);
+    }, 2_000);
+  }
+
+  function accept(value: unknown) {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    const state = parseLoginState(value);
+    if (state === null || state.tool !== current.tool.name)
+      return loginFailed(copy.toolsLoginUnreadable, false);
+    if (state.kind === "pending") {
+      current.handle = state.session;
+      phase("waiting", copy.toolsLoginWaiting);
+      showChallenge(state);
+      schedulePoll();
+      return;
+    }
+    current.handle = null;
+    if (state.kind === "signed-in") return signedIn(state);
+    const end = loginEndMessage(state, copy);
+    loginFailed(end.message, end.agent);
+  }
+
+  // Draws the challenge once; a rotated QR code only replaces the image, so
+  // a phone number being typed stays where it is.
+  function showChallenge(state: Extract<LoginView, { kind: "pending" }>) {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    const challenge = state.challenge;
+    if (challenge === undefined) return;
+    const key =
+      challenge.kind === "qr" || challenge.kind === "pair-code"
+        ? `${challenge.kind}:${challenge.sequence}`
+        : `${challenge.kind}:${challenge.kind === "url" ? challenge.url : challenge.code}`;
+    if (current.challenge === key) return;
+    const previous = current.challenge;
+    current.challenge = key;
+    if (
+      challenge.kind === "qr" &&
+      previous?.startsWith("qr:") &&
+      current.qr?.isConnected === true
+    ) {
+      const source = qrImageSource(state.qrSvg);
+      if (source !== null) current.qr.src = source;
+      return;
+    }
+    const code = (value: string, label: string) => {
+      const box = element("p", "tools-code");
+      box.setAttribute("aria-label", `${label}: ${value.split("").join(" ")}`);
+      box.textContent = value;
+      return box;
+    };
+    const link = (href: string, label: string) => {
+      const anchor = element("a", "", label);
+      anchor.href = href;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      const row = element("p", "");
+      row.append(anchor);
+      return row;
+    };
+    if (challenge.kind === "device-code") {
+      const url = loginLink(challenge.url, "github.com");
+      loginBody.replaceChildren(
+        element("p", "", copy.toolsLoginGhText),
+        element("p", "tools-muted", copy.toolsLoginCodeLabel),
+        code(challenge.code, copy.toolsLoginCodeLabel),
+        ...(url === null ? [] : [link(url, copy.toolsLoginGhLink)]),
+      );
+      return;
+    }
+    if (challenge.kind === "url") {
+      const url = loginLink(challenge.url, "dashboard.composio.dev");
+      loginBody.replaceChildren(
+        element("p", "", copy.toolsLoginComposioText),
+        ...(url === null ? [] : [link(url, copy.toolsLoginComposioLink)]),
+      );
+      return;
+    }
+    if (challenge.kind === "pair-code") {
+      const again = element("button", "", copy.toolsLoginQrAgain);
+      again.type = "button";
+      again.addEventListener("click", () => void startLogin());
+      const row = element("p", "tool-actions");
+      row.append(again);
+      const label = fill(copy.toolsLoginPairLabel, { phone: challenge.phone });
+      loginBody.replaceChildren(
+        element("p", "", copy.toolsLoginPairText),
+        element("p", "tools-muted", label),
+        code(challenge.code, label),
+        row,
+      );
+      return;
+    }
+    const source = qrImageSource(state.qrSvg);
+    const image = element("img", "tools-qr");
+    image.alt = copy.toolsLoginQrAlt;
+    image.width = 280;
+    image.height = 280;
+    if (source !== null) image.src = source;
+    current.qr = image;
+    loginBody.replaceChildren(
+      element("p", "", copy.toolsLoginQrText),
+      source === null
+        ? element("p", "tools-warning", copy.toolsLoginUnreadable)
+        : image,
+      phoneForm(),
+    );
+  }
+
+  function phoneForm(): HTMLElement {
+    const copy = options.copy();
+    const form = element("form", "tools-phone");
+    const title = element("p", "", copy.toolsLoginPhoneTitle);
+    const label = element("label", "", copy.toolsLoginPhoneLabel);
+    const input = element("input", "");
+    input.type = "tel";
+    input.id = "tools-login-phone";
+    input.autocomplete = "tel";
+    input.inputMode = "tel";
+    input.maxLength = 32;
+    label.htmlFor = input.id;
+    const problem = element("p", "tool-note-problem");
+    problem.setAttribute("aria-live", "polite");
+    const submit = element("button", "", copy.toolsLoginPhoneAction);
+    submit.type = "submit";
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const number = input.value.trim();
+      if (!/^\+?[0-9 ().-]{7,24}$/.test(number)) {
+        problem.textContent = copy.toolsLoginPhoneInvalid;
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        return;
+      }
+      void startLogin(number.startsWith("+") ? number : `+${number}`);
+    });
+    const row = element("p", "tool-actions");
+    row.append(submit);
+    form.append(title, label, input, problem, row);
+    return form;
+  }
+
+  function signedIn(state: LoginView) {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    stopPolling();
+    const message = signedInMessage(state, copy);
+    phase("signed-in", message);
+    // The status line above already says it; the body adds what follows.
+    loginBody.replaceChildren(
+      ...(current.tool.name === "wacli"
+        ? [element("p", "tools-muted", copy.toolsLoginWacliSync)]
+        : []),
+    );
+    if (current.tool.name === "composio") void organizations();
+    // The card's sign-in line follows.
+    void refresh({ signIn: true });
+  }
+
+  async function organizations() {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    const box = element("div", "tools-orgs");
+    const status = element("p", "tools-muted", copy.toolsComposioOrgLoading);
+    status.setAttribute("aria-live", "polite");
+    box.append(status);
+    loginBody.append(box);
+    let value: unknown = null;
+    try {
+      ({ value } = await options.post("/api/tools/composio/organizations", {}));
+    } catch {}
+    if (flow !== current) return;
+    const choices = organizationChoices(value, copy);
+    if (choices === null || choices.length === 0) {
+      status.textContent = copy.toolsComposioOrgUnavailable;
+      return;
+    }
+    const select = element("select", "");
+    select.id = "tools-login-org";
+    const label = element("label", "", copy.toolsComposioOrgLabel);
+    label.htmlFor = select.id;
+    for (const choice of choices)
+      select.append(new Option(choice.label, choice.id, false, choice.current));
+    const hint = element("p", "tools-muted", copy.toolsComposioOrgHint);
+    hint.id = "tools-login-org-hint";
+    select.setAttribute("aria-describedby", hint.id);
+    status.textContent = "";
+    select.addEventListener("change", async () => {
+      const chosen = choices.find((choice) => choice.id === select.value);
+      if (chosen === undefined) return;
+      select.disabled = true;
+      let answer: unknown = null;
+      try {
+        ({ value: answer } = await options.post(
+          "/api/tools/composio/organization",
+          { id: chosen.id },
+        ));
+      } catch {}
+      if (flow !== current) return;
+      select.disabled = false;
+      const selected =
+        answer !== null &&
+        typeof answer === "object" &&
+        (answer as { kind?: unknown }).kind ===
+          "composio-organization-selected";
+      status.textContent = selected
+        ? fill(copy.toolsComposioOrgSaved, {
+            name: chosen.label.replace(/ \(.*\)$/, ""),
+          })
+        : copy.toolsComposioOrgFailed;
+      if (selected) void refresh({ signIn: true });
+    });
+    box.replaceChildren(label, select, hint, status);
+  }
+
+  function loginFailed(message: string, agent: boolean) {
+    const current = flow;
+    if (current === null) return;
+    const copy = options.copy();
+    stopPolling();
+    current.handle = null;
+    phase("failed", message);
+    const row = element("p", "tool-actions");
+    if (agent) {
+      const finish = element("button", "", copy.toolsFinishWithAgent);
+      finish.type = "button";
+      finish.addEventListener("click", () => {
+        const tool = current.tool;
+        loginDialog.close();
+        const from =
+          groups.querySelector<HTMLElement>(
+            `[data-tool="${tool.name}"][data-control="agent"]`,
+          ) ?? mcpButton;
+        openPrompt(
+          fill(copy.toolsPromptTitle, { name: tool.name }),
+          copy.toolsPromptHint,
+          tool.prompt,
+          from,
+        );
+      });
+      row.append(finish);
+    }
+    const again = element("button", "", copy.toolsLoginTryAgain);
+    again.type = "button";
+    again.addEventListener("click", () => void begin());
+    row.append(again);
+    loginBody.replaceChildren(
+      ...(agent ? [element("p", "tools-muted", copy.toolsAgentFallback)] : []),
+      row,
+    );
+    (row.firstElementChild as HTMLElement | null)?.focus();
+  }
+
+  loginClose.addEventListener("click", () => loginDialog.close());
+  loginDialog.addEventListener("close", () => {
+    const current = flow;
+    flow = null;
+    if (current !== null) {
+      if (current.timer) clearTimeout(current.timer);
+      // Closing the dialog ends a running login and its tool.
+      if (current.handle !== null)
+        void options
+          .post("/api/tools/login/cancel", {
+            tool: current.tool.name,
+            session: current.handle,
+          })
+          .catch(() => undefined);
+    }
+    // No code, link or QR stays in the page.
+    loginBody.replaceChildren();
+    loginStepList.replaceChildren();
+    loginStatus.textContent = "";
+    const target = loginOpener;
+    loginOpener = null;
+    if (target !== null && !dialog.open)
+      groups
+        .querySelector<HTMLElement>(
+          `[data-tool="${target.name}"][data-control="${target.control}"]`,
+        )
+        ?.focus();
+  });
+
+  async function logout(tool: ToolOverview) {
+    if (busy) return;
+    const copy = options.copy();
+    busy = true;
+    notice = null;
+    render();
+    say(copy.toolsBusy);
+    let value: unknown = null;
+    try {
+      ({ value } = await options.post("/api/tools/logout", {
+        tool: tool.name,
+      }));
+    } catch {}
+    busy = false;
+    const outcome = logoutOutcome(value, tool.name, copy);
+    notice = { name: tool.name, outcome, undo: null };
+    say(outcome.message);
+    focus = { name: tool.name, control: "curated" };
+    await refresh({ signIn: true });
+  }
 
   function noteEditor(tool: ToolOverview, copy: Copy): HTMLElement {
     if (!takesNote(tool))
@@ -323,23 +802,37 @@ export function createToolsPanel(
     );
     // The prompt is text already on the page; reading it is never blocked.
     agent.disabled = false;
-    // The curated flow of a `launchpad` tool is a later release: its button
-    // says so and the agent's prompt is the way meanwhile. A tool that is
-    // installed and signed in needs neither.
-    const curated = curatedActionLabel(tool, copy);
-    if (curated !== null) {
-      const install = element("button", "", curated);
-      install.type = "button";
-      install.disabled = true;
-      const hint = element("span", "tools-muted", copy.toolsInstallHint);
-      hint.id = `tools-install-hint-${tool.name}`;
-      install.setAttribute("aria-describedby", hint.id);
-      actions.append(install, agent);
-      item.append(actions, hint);
-    } else {
-      actions.append(agent);
-      item.append(actions);
-    }
+    // The curated flow of a `launchpad` tool (decision F19): install and
+    // sign in, sign in, or sign out. The agent's prompt stays next to it.
+    const curated = curatedActions(tool, copy);
+    const primary = curated.primary;
+    if (primary !== null)
+      actions.append(
+        button(
+          primary.label,
+          tool.name,
+          "curated",
+          () => openLogin(tool, primary.mode),
+          fill(
+            primary.mode === "install"
+              ? copy.toolsInstallActionNamed
+              : copy.toolsSignInActionNamed,
+            { name: tool.name },
+          ),
+        ),
+      );
+    if (curated.logout)
+      actions.append(
+        button(
+          copy.toolsSignOutAction,
+          tool.name,
+          "logout",
+          () => void logout(tool),
+          fill(copy.toolsSignOutNamed, { name: tool.name }),
+        ),
+      );
+    actions.append(agent);
+    item.append(actions);
 
     if (notice?.name === tool.name) {
       const message = element("div", "tool-message");

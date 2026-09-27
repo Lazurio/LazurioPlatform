@@ -175,8 +175,95 @@ const en = {
   toolsNoteClearNamed: "Clear the note on {name}",
   toolsNoteAfterEnable:
     "After you enable this tool you can add a note for agents here.",
-  toolsInstallHint:
-    "Coming in the next release. For now use: Set up with an agent.",
+  toolsInstallActionNamed: "Install {name} and sign in",
+  toolsSignInActionNamed: "Sign in to {name}",
+  toolsSignOutAction: "Sign out",
+  toolsSignOutNamed: "Sign out of {name}",
+  toolsSignedOutLocal:
+    "{name}: signed out on this Machine. The provider still lists this sign-in until you revoke it in your account settings there.",
+  toolsSignedOutRemote:
+    "{name}: signed out; the linked device was removed from your account.",
+  toolsSignOutFailed:
+    "{name}: signing out did not finish ({reason}). Refresh the status to see where it stands.",
+  toolsLoginTitleInstall: "Install and sign in: {name}",
+  toolsLoginTitle: "Sign in: {name}",
+  toolsLoginContinue: "Continue",
+  toolsStepInstalling: "Installing",
+  toolsStepWaiting: "Waiting for you",
+  toolsStepSignedIn: "Signed in",
+  toolsStepDone: "{step}: done",
+  toolsStepCurrent: "{step}: in progress",
+  toolsStepTodo: "{step}: next",
+  toolsStepFailed: "{step}: did not finish",
+  toolsInstalling:
+    "Installing {name} from its official source. This can take a minute.",
+  toolsInstalledNow: "{name} {version} is installed.",
+  toolsAlreadyInstalled:
+    "{name} already works on this Machine; nothing was changed.",
+  toolsInstallFailed:
+    "The installation did not finish (step {stage}: {reason}). Nothing that already worked was changed.",
+  toolsInstallUnsupported:
+    "The installer built into Lazurio does not cover this Machine ({platform} {arch}).",
+  toolsInstallNotOnPath:
+    "~/.local/bin is not on the PATH of this Launchpad, so agents may not find the tool until it is added to the shell profile.",
+  toolsInstallBusy:
+    "This tool is being installed already. Wait for it to finish, then refresh the status.",
+  toolsFinishWithAgent: "Finish with an agent",
+  toolsAgentFallback:
+    "An agent can finish the setup by the written target state of this tool.",
+  toolsLoginStarting: "Starting the sign-in…",
+  toolsLoginGhText:
+    "Open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
+  toolsLoginGhLink: "Open github.com/login/device in a new tab",
+  toolsLoginCodeLabel: "One-time code",
+  toolsLoginComposioText:
+    "Open the Composio sign-in page in a new tab on any device and sign in with your account. The page is valid for 10 minutes. You do not copy any key.",
+  toolsLoginComposioLink: "Open the Composio sign-in page",
+  toolsLoginQrText:
+    "On your phone open WhatsApp, then Settings, Linked devices, Link a device, and point the camera at this code. It changes every few seconds; the newest one is always shown here.",
+  toolsLoginQrAlt:
+    "QR code that links WhatsApp to this Environment. Scan it in WhatsApp on your phone under Settings, Linked devices, Link a device. If you cannot scan it, pair with a phone number below.",
+  toolsLoginPhoneTitle: "Pair with a phone number instead",
+  toolsLoginPhoneLabel: "Your WhatsApp phone number with the country code",
+  toolsLoginPhoneAction: "Get a pairing code",
+  toolsLoginPhoneInvalid:
+    "Enter the number with its country code, for example +420 123 456 789.",
+  toolsLoginPairText:
+    "On your phone open WhatsApp, then Settings, Linked devices, Link a device, then Link with phone number instead, and enter this code:",
+  toolsLoginPairLabel: "Pairing code for {phone}",
+  toolsLoginQrAgain: "Show the QR code instead",
+  toolsLoginWaiting:
+    "Waiting for you to finish. This window checks every 2 seconds.",
+  toolsLoginSignedIn: "You are signed in to {name}.",
+  toolsLoginSignedInAs: "You are signed in to {name} as {account}.",
+  toolsLoginWacliSync:
+    "WhatsApp now copies your recent messages to this Environment in the background. You can close this window.",
+  toolsLoginFailureNotInstalled: "The tool is not installed on this Machine.",
+  toolsLoginFailureUrl:
+    "The tool offered an address that is not its official sign-in page, so it was not shown.",
+  toolsLoginFailureOutput: "The tool answered in a form Lazurio does not know.",
+  toolsLoginFailureExit: "The tool ended without completing the sign-in.",
+  toolsLoginFailureNotConfirmed:
+    "The tool ended, but its status does not say signed in.",
+  toolsLoginFailureSpawn: "The tool could not be started.",
+  toolsLoginExpired:
+    "The sign-in expired before it was finished. Start it again when you are ready.",
+  toolsLoginEnded:
+    "The sign-in is no longer running. Start it again if you still need it.",
+  toolsLoginUnreadable:
+    "The answer of the Launchpad could not be read. Close this window and try again.",
+  toolsLoginTryAgain: "Try again",
+  toolsComposioOrgLabel: "Composio organization of this Environment",
+  toolsComposioOrgCurrent: "{name} (current)",
+  toolsComposioOrgHint:
+    "Apps you connect in Composio belong to this account and organization: the account of the Environment, which its agents use.",
+  toolsComposioOrgSaved:
+    "The Composio organization of this Environment is now {name}.",
+  toolsComposioOrgFailed:
+    "The organization could not be changed. You can change it later with lazurio tools composio-org.",
+  toolsComposioOrgLoading: "Reading your Composio organizations…",
+  toolsComposioOrgUnavailable:
+    "The organizations could not be read. You can choose one later with lazurio tools composio-org.",
   toolsPromptTitle: "Set up {name} with an agent",
   toolsPromptHint:
     "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
@@ -414,8 +501,94 @@ const cs: Record<MessageKey, string> = {
   toolsNoteClearNamed: "Smazat poznámku k {name}",
   toolsNoteAfterEnable:
     "Až nástroj zapnete, můžete sem agentům napsat poznámku.",
-  toolsInstallHint:
-    "Bude v příštím vydání. Zatím použijte: Nastavit s agentem.",
+  toolsInstallActionNamed: "Nainstalovat {name} a přihlásit",
+  toolsSignInActionNamed: "Přihlásit do {name}",
+  toolsSignOutAction: "Odhlásit",
+  toolsSignOutNamed: "Odhlásit z {name}",
+  toolsSignedOutLocal:
+    "{name}: odhlášeno na téhle Mašině. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
+  toolsSignedOutRemote:
+    "{name}: odhlášeno; propojené zařízení bylo z účtu odebráno.",
+  toolsSignOutFailed:
+    "{name}: odhlášení nedoběhlo ({reason}). Obnovte stav a uvidíte, jak to je.",
+  toolsLoginTitleInstall: "Nainstalovat a přihlásit: {name}",
+  toolsLoginTitle: "Přihlásit: {name}",
+  toolsLoginContinue: "Pokračovat",
+  toolsStepInstalling: "Instalace",
+  toolsStepWaiting: "Čeká se na vás",
+  toolsStepSignedIn: "Přihlášeno",
+  toolsStepDone: "{step}: hotovo",
+  toolsStepCurrent: "{step}: probíhá",
+  toolsStepTodo: "{step}: následuje",
+  toolsStepFailed: "{step}: nedoběhlo",
+  toolsInstalling:
+    "{name} se instaluje z oficiálního zdroje. Může to chvíli trvat.",
+  toolsInstalledNow: "{name} {version} je nainstalovaný.",
+  toolsAlreadyInstalled: "{name} na téhle Mašině už funguje; nic se neměnilo.",
+  toolsInstallFailed:
+    "Instalace nedoběhla (krok {stage}: {reason}). Nic, co už fungovalo, se nezměnilo.",
+  toolsInstallUnsupported:
+    "Instalátor zabudovaný v Lazuriu tuhle Mašinu nepokrývá ({platform} {arch}).",
+  toolsInstallNotOnPath:
+    "~/.local/bin není na PATH tohoto Launchpadu, takže ho agenti nemusí najít, dokud se nepřidá do profilu shellu.",
+  toolsInstallBusy:
+    "Tenhle nástroj se už instaluje. Počkejte, až instalace skončí, a obnovte stav.",
+  toolsFinishWithAgent: "Dokončit s agentem",
+  toolsAgentFallback:
+    "Nastavení může dokončit agent podle sepsaného cílového stavu tohoto nástroje.",
+  toolsLoginStarting: "Spouští se přihlášení…",
+  toolsLoginGhText:
+    "Na libovolném zařízení (tomhle počítači, jiném nebo telefonu) otevřete stránku zařízení GitHubu a zadejte tento kód:",
+  toolsLoginGhLink: "Otevřít github.com/login/device v nové záložce",
+  toolsLoginCodeLabel: "Jednorázový kód",
+  toolsLoginComposioText:
+    "Na libovolném zařízení otevřete v nové záložce přihlašovací stránku Composia a přihlaste se svým účtem. Stránka platí 10 minut. Žádný klíč nekopírujete.",
+  toolsLoginComposioLink: "Otevřít přihlašovací stránku Composia",
+  toolsLoginQrText:
+    "V telefonu otevřete WhatsApp, pak Nastavení, Propojená zařízení, Propojit zařízení, a namiřte fotoaparát na tento kód. Kód se každých pár sekund mění; tady je vždy ten nejnovější.",
+  toolsLoginQrAlt:
+    "QR kód, který propojí WhatsApp s tímto Environmentem. Naskenujte ho ve WhatsAppu v telefonu v Nastavení, Propojená zařízení, Propojit zařízení. Když ho naskenovat nejde, spárujte telefonním číslem níže.",
+  toolsLoginPhoneTitle: "Spárovat raději telefonním číslem",
+  toolsLoginPhoneLabel: "Vaše telefonní číslo ve WhatsAppu s předvolbou země",
+  toolsLoginPhoneAction: "Získat párovací kód",
+  toolsLoginPhoneInvalid:
+    "Zadejte číslo s předvolbou země, například +420 123 456 789.",
+  toolsLoginPairText:
+    "V telefonu otevřete WhatsApp, pak Nastavení, Propojená zařízení, Propojit zařízení, dále Propojit telefonním číslem a zadejte tento kód:",
+  toolsLoginPairLabel: "Párovací kód pro {phone}",
+  toolsLoginQrAgain: "Zobrazit raději QR kód",
+  toolsLoginWaiting:
+    "Čeká se, až to dokončíte. Okno to ověřuje každé 2 sekundy.",
+  toolsLoginSignedIn: "Jste přihlášeni do {name}.",
+  toolsLoginSignedInAs: "Jste přihlášeni do {name} jako {account}.",
+  toolsLoginWacliSync:
+    "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do tohoto Environmentu. Okno můžete zavřít.",
+  toolsLoginFailureNotInstalled: "Nástroj na téhle Mašině není nainstalovaný.",
+  toolsLoginFailureUrl:
+    "Nástroj nabídl adresu, která není jeho oficiální přihlašovací stránkou, a proto se nezobrazila.",
+  toolsLoginFailureOutput: "Nástroj odpověděl v podobě, kterou Lazurio nezná.",
+  toolsLoginFailureExit: "Nástroj skončil, aniž by přihlášení dokončil.",
+  toolsLoginFailureNotConfirmed:
+    "Nástroj skončil, ale jeho stav neříká, že je přihlášený.",
+  toolsLoginFailureSpawn: "Nástroj se nepodařilo spustit.",
+  toolsLoginExpired:
+    "Přihlášení vypršelo dřív, než bylo dokončeno. Spusťte ho znovu, až budete připraveni.",
+  toolsLoginEnded:
+    "Přihlášení už neběží. Když ho pořád potřebujete, spusťte ho znovu.",
+  toolsLoginUnreadable:
+    "Odpověď Launchpadu se nepodařilo přečíst. Zavřete okno a zkuste to znovu.",
+  toolsLoginTryAgain: "Zkusit znovu",
+  toolsComposioOrgLabel: "Organizace Composia pro tohle Environment",
+  toolsComposioOrgCurrent: "{name} (aktuální)",
+  toolsComposioOrgHint:
+    "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu Environmentu, který používají jeho agenti.",
+  toolsComposioOrgSaved:
+    "Organizace Composia pro tohle Environment je teď {name}.",
+  toolsComposioOrgFailed:
+    "Organizaci se nepodařilo změnit. Změnit ji můžete později příkazem lazurio tools composio-org.",
+  toolsComposioOrgLoading: "Načítají se vaše organizace v Composiu…",
+  toolsComposioOrgUnavailable:
+    "Organizace se nepodařilo načíst. Vybrat ji můžete později příkazem lazurio tools composio-org.",
   toolsPromptTitle: "Nastavit {name} s agentem",
   toolsPromptHint:
     "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",

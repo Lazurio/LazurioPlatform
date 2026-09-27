@@ -1,7 +1,9 @@
 # Environment tools and operator sign-ins
 
-Proposed bounded pilot procedure under accepted decision 0144. This document does
-not claim an implemented tool installer, authenticated harness or usable Environment.
+Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
+installation and login of three catalog tools (decision F19, below), this document
+does not claim an implemented tool installer, authenticated harness or usable
+Environment.
 Machines delivers the online Machine and selected Platform release; local Platform
 operations and the operator prepare what is needed inside it.
 
@@ -75,16 +77,16 @@ note is plain text of 1 to 600 characters after trimming, at most 6 lines, witho
 control characters. It is the operator's intent for agents on this Environment and
 grants no access. Disabling a tool removes its note.
 
-**Setup modes.** `launchpad`: installation and sign-in will get a curated Launchpad
-flow. `agent`: the Launchpad will only show status, and "install" will open a T3 Code
-chat with the prepared prompt for an agent who installs the tool and guides the
-sign-in. Each tool's `installation` text describes the target state and is the agent's
-manual in both modes (for a `launchpad` tool it is what a fallback agent follows when
-the curated installer fails). The Principal's reason: many tools can be offered
-cheaply through the agent mode, and later usage analytics of which tools operators try
-to install with an agent shows where a curated flow is worth building. Neither flow,
-nor the analytics, is implemented; this revision has the data and the read-only
-surfaces.
+**Setup modes.** `launchpad`: installation and login have a curated flow in the CLI
+and the Launchpad ([F19](decisions.md#f19--curated-installation-and-login-of-catalog-tools),
+below). `agent`: the Launchpad only shows status, and "Set up with an agent" hands the
+prepared prompt to an agent who installs the tool and guides the sign-in. Each tool's
+`installation` text describes the target state and is the agent's manual in both
+modes (for a `launchpad` tool it is what a fallback agent follows when the curated
+installer fails). The Principal's reason: many tools can be offered cheaply through the
+agent mode, and later usage analytics of which tools operators try to install with an
+agent shows where a curated flow is worth building. The analytics are not
+implemented.
 
 The commands are Folder-bound in the style of the profile commands: the Folder is
 always explicit, a mutation names the revision it was decided against, the result is
@@ -153,10 +155,68 @@ taken from the output, as plain text of at most 120 characters; the output itsel
 never returned or logged.
 
 The Tools section itself is described in
-[launchpad-development.md](launchpad-development.md#tools-section). The curated
-install and sign-in flow of a `launchpad` tool is not built: its button ("Install and
-sign in", or "Sign in" for an installed tool that is not signed in) is shown disabled,
-and the prepared agent prompt is the way until it is.
+[launchpad-development.md](launchpad-development.md#tools-section).
+
+### Curated installation and login (decision F19)
+
+For the `launchpad` tools (`gh`, `composio`, `wacli`) on Linux and macOS, x64 and
+arm64. CLI first; the Launchpad serves the same core. The tools set up by an agent
+(`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt <tool>`.
+
+- `tools install <tool> [--json]` installs for the current user, without root, into
+  `~/.local/bin/<command>` from the official source at the latest release. `gh` and
+  `wacli`: the GitHub release archive for the platform, verified against the SHA-256
+  in the release's checksums file before it is read, every archive entry checked
+  (absolute names, `..`, escaping links and special entries refuse the archive), only
+  the binary placed, atomically, 0755. `composio`: the official installer
+  `https://composio.dev/install`, downloaded into a private file first, then run with
+  `COMPOSIO_INSTALL_PLUGINS=0 COMPOSIO_INSTALL_SHELL=none COMPOSIO_INSTALL_HELP=0`
+  (bundle in `~/.composio`, link in `~/.local/bin`, no agent plugins, no shell files).
+  A tool that works anywhere on PATH, or in the standard path, is not touched
+  (`already-installed`); a broken copy elsewhere on PATH is not shadowed
+  (`install-failed` at `preflight`). Failures name the stage (`resolve`, `download`,
+  `checksum`, `extract`, `place`, `installer`, `verify`) and point to the agent prompt;
+  an unsupported platform (Windows included) likewise. Exit 0 installed or already
+  installed, 1 failed or unsupported, 2 usage or refused.
+- `tools login <tool> [--phone <+number>] [--json]` runs the tool's own sign-in in the
+  foreground and shows its challenge: for gh the one-time code and
+  `https://github.com/login/device` (`gh auth login --hostname github.com
+  --git-protocol ssh --web --clipboard=false`; since gh 2.101.0 the code is copied to
+  the clipboard by default, and `--clipboard=false` turns that off for this run only);
+  for composio the dashboard link (`composio login --no-wait --no-skill-install`, then
+  `composio login --poll --no-skill-install`); for wacli the WhatsApp QR code drawn in
+  the terminal on a white background, redrawn when it rotates (`wacli auth --events
+  --idle-exit 30s`), or with `--phone` the pairing code. The code or link is opened on
+  any device; nothing is typed into Lazurio and no key is copied. It waits until signed
+  in (confirmed by the tool's sign-in probe), failed or expired (gh 15 minutes,
+  composio 10, WhatsApp pairing 5); Ctrl-C cancels and kills the tool's process group.
+  After WhatsApp pairing it waits for the first sync of messages. `--json` prints one
+  JSON object per state change, the challenge included, because the running command
+  holds the session. Exit 0 signed in, 1 not, 2 usage or refused.
+- `tools logout <tool> [--json]` runs the tool's own sign-out (`gh auth logout
+  --hostname github.com`, `composio logout`, `wacli auth logout`) and checks it with
+  the probe. gh and composio forget the sign-in on this Machine only: revoke it at the
+  provider as well if it must end there. wacli unlinks the device from the account.
+- `tools composio-org [list | switch <id>] [--json]` lists the Composio organizations
+  of the signed-in account with the current one marked (`composio orgs list`) and
+  switches it (`composio orgs switch --org-id`). The apps connected in Composio belong
+  to the account and organization of this Environment.
+
+The Launchpad offers the same over `POST /api/tools/install {tool}`,
+`/api/tools/login/start {tool, phone?}`, `/api/tools/login/poll {tool, session}`,
+`/api/tools/login/cancel {tool, session}`, `/api/tools/logout {tool}`,
+`/api/tools/composio/organizations {}` and `/api/tools/composio/organization {id}`,
+with the admission, exact-field JSON and `Cache-Control: no-store` of every route.
+`start` answers with the session handle and the first challenge; `poll` and `cancel`
+take that handle, so a challenge goes only to the browser that started the login. A
+pending WhatsApp login carries `qrSvg`, the QR code drawn by the server. A tool the
+catalog does not know, or an `agent` tool, is `409 blocked`.
+
+A challenge is never written to a log, a file, the Folder or an error. The tools keep
+their own pending state in their own stores (composio's pending login in
+`~/.composio`), which is the tool's custody and is not copied anywhere. On a shared
+Environment (the Team preset) the login belongs to the whole Environment, and the
+Launchpad says so before it starts.
 
 ### The standard path (decision 0161, point 6)
 
@@ -259,7 +319,8 @@ identity and exact repository rights before Organization materialization.
 Implement read-only diagnosis and one explicitly approved preparation path first.
 Platform builds no credential broker, account registry, automatic model login or
 package-manager matrix (`lazurio tools` runs one tool's official update path under decision
-0161 and is not a general updater); the team case consumes the existing upstream
+0161 and installs only the curated catalog tools of decision F19; it is not a general
+updater or installer); the team case consumes the existing upstream
 broker rather than adding one. Unknown installation state receives a diagnosis
 and operator repair procedure, not an improvised privileged cleanup. Missing accounts
 remain an explicit pilot prerequisite, not something Machines or a profile can grant.

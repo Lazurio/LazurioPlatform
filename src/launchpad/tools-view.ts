@@ -1,3 +1,4 @@
+import type { LoginChallenge, LoginState } from "../tools/login";
 import {
   normalizeToolNote,
   type ToolNoteProblem,
@@ -222,16 +223,30 @@ export function signInLine(tool: ToolOverview, copy: Copy): string {
       });
 }
 
-/** The label of the (not yet available) curated action of a `launchpad`
- * tool, or null when there is nothing to do: installed and signed in. */
-export function curatedActionLabel(
-  tool: ToolOverview,
-  copy: Copy,
-): string | null {
-  if (tool.setup !== "launchpad") return null;
-  if (!tool.installed) return copy.toolsInstallAction;
-  if (tool.signIn?.state === "signed-in") return null;
-  return copy.toolsSignInAction;
+export type CuratedActions = Readonly<{
+  /** The flow the main button opens: install first, or sign in only. */
+  primary: Readonly<{ mode: "install" | "login"; label: string }> | null;
+  /** A signed-in `launchpad` tool offers "Sign out". */
+  logout: boolean;
+}>;
+
+/** The curated actions of a `launchpad` tool (decision F19): "Install and
+ * sign in" when it is missing, "Sign in" when it is installed and not known
+ * to be signed in, "Sign out" when it is signed in. An `agent` tool has none;
+ * its prepared prompt is the way. */
+export function curatedActions(tool: ToolOverview, copy: Copy): CuratedActions {
+  if (tool.setup !== "launchpad") return { primary: null, logout: false };
+  if (!tool.installed)
+    return {
+      primary: { mode: "install", label: copy.toolsInstallAction },
+      logout: false,
+    };
+  if (tool.signIn?.state === "signed-in")
+    return { primary: null, logout: true };
+  return {
+    primary: { mode: "login", label: copy.toolsSignInAction },
+    logout: false,
+  };
 }
 
 /** The full next selection a request carries: the enabled tools that are not
@@ -406,4 +421,354 @@ export function sourceLink(source: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** A login answer of the server, accepted only in its exact form; a pending
+ * WhatsApp login may carry its QR code as SVG drawn by the server. */
+export type LoginView = LoginState & { qrSvg?: string };
+
+const loginFailures = [
+  "not-installed",
+  "unexpected-url",
+  "unexpected-output",
+  "tool-exit",
+  "not-confirmed",
+  "invalid-phone",
+  "spawn-failed",
+] as const;
+
+function parseChallenge(input: unknown): LoginChallenge | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  const sequence =
+    typeof value.sequence === "number" &&
+    Number.isSafeInteger(value.sequence) &&
+    value.sequence >= 1
+      ? value.sequence
+      : null;
+  if (value.kind === "device-code") {
+    const url = loginLink(value.url, "github.com");
+    return url !== null &&
+      url === "https://github.com/login/device" &&
+      typeof value.code === "string" &&
+      /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(value.code)
+      ? { kind: "device-code", url, code: value.code }
+      : null;
+  }
+  if (value.kind === "url") {
+    const url = loginLink(value.url, "dashboard.composio.dev");
+    return url === null ? null : { kind: "url", url };
+  }
+  if (value.kind === "qr")
+    return typeof value.payload === "string" && sequence !== null
+      ? { kind: "qr", payload: value.payload, sequence }
+      : null;
+  if (value.kind === "pair-code")
+    return typeof value.phone === "string" &&
+      /^\+[0-9]{7,15}$/.test(value.phone) &&
+      typeof value.code === "string" &&
+      /^[A-Z0-9-]{4,16}$/.test(value.code) &&
+      sequence !== null
+      ? { kind: "pair-code", phone: value.phone, code: value.code, sequence }
+      : null;
+  return null;
+}
+
+export function parseLoginState(input: unknown): LoginView | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (!text(value.tool) || !/^[a-z0-9][a-z0-9-]*$/.test(value.tool))
+    return null;
+  const tool = value.tool;
+  switch (value.kind) {
+    case "none":
+    case "expired":
+    case "cancelled":
+      return { kind: value.kind, tool };
+    case "failed":
+      return loginFailures.includes(
+        value.reason as (typeof loginFailures)[number],
+      )
+        ? {
+            kind: "failed",
+            tool,
+            reason: value.reason as (typeof loginFailures)[number],
+          }
+        : null;
+    case "signed-in":
+      if (!optionalText(value.account) || !optionalText(value.organization))
+        return null;
+      return {
+        kind: "signed-in",
+        tool,
+        ...(value.account === undefined ? {} : { account: value.account }),
+        ...(value.organization === undefined
+          ? {}
+          : { organization: value.organization }),
+      };
+    case "pending": {
+      if (
+        typeof value.session !== "string" ||
+        !/^[0-9a-f]{32}$/.test(value.session) ||
+        typeof value.expiresAt !== "string"
+      )
+        return null;
+      const challenge =
+        value.challenge === undefined
+          ? undefined
+          : parseChallenge(value.challenge);
+      if (challenge === null) return null;
+      if (value.qrSvg !== undefined && typeof value.qrSvg !== "string")
+        return null;
+      return {
+        kind: "pending",
+        tool,
+        session: value.session,
+        expiresAt: value.expiresAt,
+        ...(challenge === undefined ? {} : { challenge }),
+        ...(typeof value.qrSvg === "string" ? { qrSvg: value.qrSvg } : {}),
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+/** Only an https link on exactly the expected host is shown as a link. */
+export function loginLink(value: unknown, host: string): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      url.hostname === host &&
+      url.port === "" &&
+      url.username === "" &&
+      url.password === ""
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The server's QR drawing becomes an image source only in the exact form
+ * the server draws (a white square, one black path of module runs): never
+ * markup inserted into the page, and nothing a tool printed. */
+export function qrImageSource(svg: string | undefined): string | null {
+  if (svg === undefined || svg.length > 200_000) return null;
+  const match =
+    /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" viewBox="0 0 (\d{2,3}) \1" shape-rendering="crispEdges"><rect width="\1" height="\1" fill="#fff"\/><path fill="#000" d="(?:M\d+ \d+h\d+v1h-\d+z)*"\/><\/svg>$/.exec(
+      svg,
+    );
+  if (match === null) return null;
+  return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
+export type LoginPhase =
+  | "confirm"
+  | "installing"
+  | "waiting"
+  | "signed-in"
+  | "failed";
+
+export type LoginStep = Readonly<{
+  label: string;
+  state: "done" | "current" | "todo" | "failed";
+}>;
+
+/** The plain steps of the flow: installing (only when it installs), waiting
+ * for you, signed in. */
+export function loginSteps(
+  install: boolean,
+  phase: LoginPhase,
+  failedAt: "installing" | "waiting",
+  copy: Copy,
+): readonly LoginStep[] {
+  const order: readonly ("installing" | "waiting" | "signed-in")[] = install
+    ? ["installing", "waiting", "signed-in"]
+    : ["waiting", "signed-in"];
+  const labels = {
+    installing: copy.toolsStepInstalling,
+    waiting: copy.toolsStepWaiting,
+    "signed-in": copy.toolsStepSignedIn,
+  };
+  const current =
+    phase === "confirm"
+      ? -1
+      : phase === "failed"
+        ? order.indexOf(failedAt)
+        : order.indexOf(phase);
+  return order.map((step, index) => ({
+    label: labels[step],
+    state:
+      phase === "failed" && index === current
+        ? "failed"
+        : phase === "signed-in" && index === current
+          ? "done"
+          : index < current
+            ? "done"
+            : index === current
+              ? "current"
+              : "todo",
+  }));
+}
+
+/** What an install answered: whether the sign-in may follow, and one
+ * sentence. */
+export function installOutcome(
+  input: unknown,
+  name: string,
+  copy: Copy,
+): Readonly<{ ok: boolean; message: string; agent: boolean }> {
+  const value =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : {};
+  if (value.kind === "installed")
+    return {
+      ok: true,
+      agent: false,
+      message: [
+        fill(copy.toolsInstalledNow, {
+          name,
+          version: typeof value.version === "string" ? value.version : "",
+        }).replace("  ", " "),
+        ...(value.onPath === false ? [copy.toolsInstallNotOnPath] : []),
+      ].join(" "),
+    };
+  if (value.kind === "already-installed")
+    return {
+      ok: true,
+      agent: false,
+      message: fill(copy.toolsAlreadyInstalled, { name }),
+    };
+  if (value.kind === "unsupported-platform")
+    return {
+      ok: false,
+      agent: true,
+      message: fill(copy.toolsInstallUnsupported, {
+        platform: text(value.platform) ? value.platform : "?",
+        arch: text(value.arch) ? value.arch : "?",
+      }),
+    };
+  if (value.kind === "install-failed")
+    return {
+      ok: false,
+      agent: true,
+      message: fill(copy.toolsInstallFailed, {
+        stage: text(value.stage) ? value.stage : "?",
+        reason: text(value.reason) ? value.reason : "?",
+      }),
+    };
+  if (value.kind === "blocked" && value.reason === "busy")
+    return { ok: false, agent: false, message: copy.toolsInstallBusy };
+  return { ok: false, agent: true, message: copy.toolsLoginUnreadable };
+}
+
+/** One sentence for a login that ended without a sign-in, and whether the
+ * prepared agent prompt is the next step. */
+export function loginEndMessage(
+  state: LoginView,
+  copy: Copy,
+): Readonly<{ message: string; agent: boolean; retry: boolean }> {
+  if (state.kind === "failed") {
+    const reasons: Record<(typeof loginFailures)[number], MessageKey> = {
+      "not-installed": "toolsLoginFailureNotInstalled",
+      "unexpected-url": "toolsLoginFailureUrl",
+      "unexpected-output": "toolsLoginFailureOutput",
+      "tool-exit": "toolsLoginFailureExit",
+      "not-confirmed": "toolsLoginFailureNotConfirmed",
+      "invalid-phone": "toolsLoginPhoneInvalid",
+      "spawn-failed": "toolsLoginFailureSpawn",
+    };
+    return {
+      message: copy[reasons[state.reason]],
+      agent: state.reason !== "invalid-phone",
+      retry: true,
+    };
+  }
+  if (state.kind === "expired")
+    return { message: copy.toolsLoginExpired, agent: false, retry: true };
+  return { message: copy.toolsLoginEnded, agent: false, retry: true };
+}
+
+/** "You are signed in to gh as octocat (Org)." */
+export function signedInMessage(state: LoginView, copy: Copy): string {
+  if (state.kind !== "signed-in") return "";
+  if (state.account === undefined)
+    return fill(copy.toolsLoginSignedIn, { name: state.tool });
+  const account =
+    state.organization === undefined
+      ? state.account
+      : `${state.account} (${state.organization})`;
+  return fill(copy.toolsLoginSignedInAs, { name: state.tool, account });
+}
+
+export type OrganizationChoice = Readonly<{
+  id: string;
+  label: string;
+  current: boolean;
+}>;
+
+/** Composio's organizations for the select, the current one marked. */
+export function organizationChoices(
+  input: unknown,
+  copy: Copy,
+): readonly OrganizationChoice[] | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (
+    value.kind !== "composio-organizations" ||
+    !Array.isArray(value.organizations)
+  )
+    return null;
+  const choices: OrganizationChoice[] = [];
+  for (const entry of value.organizations) {
+    if (!entry || typeof entry !== "object") return null;
+    const { id, name, current } = entry as Record<string, unknown>;
+    if (
+      typeof id !== "string" ||
+      !/^[A-Za-z0-9_-]{1,100}$/.test(id) ||
+      !text(name) ||
+      typeof current !== "boolean"
+    )
+      return null;
+    choices.push({
+      id,
+      current,
+      label: current ? fill(copy.toolsComposioOrgCurrent, { name }) : name,
+    });
+  }
+  return choices;
+}
+
+/** One sentence for what a logout did. */
+export function logoutOutcome(
+  input: unknown,
+  name: string,
+  copy: Copy,
+): ToolChangeOutcome {
+  const value =
+    input && typeof input === "object" && !Array.isArray(input)
+      ? (input as Record<string, unknown>)
+      : {};
+  if (value.kind === "logged-out")
+    return {
+      kind: "updated",
+      reload: false,
+      message: fill(
+        value.revocation === "remote"
+          ? copy.toolsSignedOutRemote
+          : copy.toolsSignedOutLocal,
+        { name },
+      ),
+    };
+  return {
+    kind: "failed",
+    reload: false,
+    message: fill(copy.toolsSignOutFailed, {
+      name,
+      reason: text(value.reason) ? value.reason : "?",
+    }),
+  };
 }

@@ -1102,7 +1102,7 @@ catalog with `tier`, `setup` and `enabled`) in `/api/profile` and takes
 `{ expectedRevision, tools }` at `POST /api/tools/preview` and `POST /api/tools/update`
 with the status codes of `/api/preview` and `/api/update`.
 
-**Deferred.** Installation of any tool; sign-in flows; the Launchpad UI for tools and
+**Deferred** ([F19](#f19--curated-installation-and-login-of-catalog-tools) later implements the curated installation and login of the `launchpad` tools). Installation of any tool; sign-in flows; the Launchpad UI for tools and
 the hand-over of the prompt to T3 Code; the agent fallback for a failed curated
 installer beyond its text; usage analytics; further catalog entries. The neon texts
 state what was not verified against the vendor's documentation (the npm package name
@@ -1202,3 +1202,123 @@ with the new Folder revision and an "Undo" that restores the state before the ch
 stays for other clients. The note about a tool outside `~/.local/bin` is shown only on
 a hosted preset; on a local workstation any tool on PATH is fine, and the status
 response says which with `hosted`.
+
+## F19 — Curated installation and login of catalog tools
+
+**Principal's decision 2026-09-27 and 2026-09-28 (the F18 line), implemented in this
+revision for `gh`, `composio` and `wacli` on Linux and macOS.** The tools with setup
+mode `launchpad` get a curated flow that installs the tool and signs the operator in
+with as little friction as possible: the operator never copies an API key, and the
+sign-in works on a headless Linux VM whose operator's browser and phone are on another
+device as well as on a local workstation. Maintenance of this catalog is a value of
+the product: every entry has a written target state (`activation.installation`), and
+when a curated installer fails the operator is offered the prepared agent prompt
+(`toolPrompt`), so an agent completes the installation by that text. Tools with setup
+mode `agent` (`gogcli`, `neon`) get no curated flow; nothing changes for them.
+
+**CLI first, Launchpad second, one core.** `src/tools/install.ts` (`installTool`) and
+`src/tools/login.ts` (`createLoginSessions`) are the core. `lazurio tools install`,
+`tools login`, `tools logout` and `tools composio-org` are the first adapter; the
+Launchpad routes `POST /api/tools/install`, `/api/tools/login/start|poll|cancel`,
+`/api/tools/logout` and `/api/tools/composio/organizations|organization` are the
+second. The words follow the tools' own convention (`gh auth login`, `composio login`,
+`wacli auth logout`) in every machine-facing name; people read "Sign in" and "Sign out"
+("Přihlásit", "Odhlásit") in the Launchpad. The earlier names `tools list --sign-in` and
+the `signIn` field of the status response keep their names.
+
+**Installation rules.** For the current user, without root, into the standard path of
+F17: the binary or a link at `~/.local/bin/<command>`; a tool's own home only where
+its official installer creates one (`~/.composio`). A tool that works, found on PATH
+or in the standard path, is never touched (`already-installed`, nothing downloaded,
+nothing written), so there is no downgrade and no second installation; a broken copy
+elsewhere on PATH is not shadowed by a new one (`install-failed` at `preflight`, the
+agent's prompt covers the repair); a broken standard entry (for example a dangling
+link) is replaced. The version is the latest release resolved from the official
+source at install time (the GitHub release API of `cli/cli` and `openclaw/wacli`,
+composio's own installer); nothing is recorded as a pin. Only HTTPS, checked before a
+request and after its redirects. `gh` and `wacli`: the release's published checksums
+file (`gh_<version>_checksums.txt`, `checksums.txt`) gives the SHA-256 of exactly the
+asset, which is verified in memory before the archive is read; every entry of the
+archive is then checked, and an absolute name, a `..` segment, a backslash, a link
+whose target leaves the archive, a device, FIFO or other special entry, an encrypted or
+ZIP64 zip refuses the whole archive; only the one binary (`gh_<v>_<platform>/bin/gh`,
+`wacli`) is taken, written into a private directory (0700) beside its destination,
+made 0755 and renamed into place, and the directory is removed. `composio`: the
+documented installer `https://composio.dev/install` is downloaded into a private file
+first and then run with `COMPOSIO_INSTALL_PLUGINS=0`, `COMPOSIO_INSTALL_SHELL=none` and
+`COMPOSIO_INSTALL_HELP=0` (no agent plugins, no shell startup files); a failed
+download runs nothing. A binary that does not answer `--version` afterwards is removed
+and reported. Results: `installed {version, path, onPath}`, `already-installed`,
+`unsupported-platform` and `install-failed {stage, reason, detail?}`, the last two
+with `fallback: "agent"`. `detail` is at most twelve plain lines of the installer's
+output with every line that looks like a token, key, login link or code withheld.
+Every process is bounded by a timeout that kills its process group; downloads are
+bounded in size. One install per tool at a time in the Launchpad.
+
+**Challenges and their lifetime.** A login is a session in the memory of the process
+that started it (a `tools login` command or the Launchpad server), one per tool; a new
+start replaces a running one. The tool's own sign-in command runs as the current user
+with only `PATH`, `HOME`, `XDG_*` and `NO_COLOR`, and its output is parsed as it
+arrives into a challenge: `gh auth login --hostname github.com --git-protocol ssh
+--web --clipboard=false` prints a one-time code and `https://github.com/login/device`
+(`device-code`; gh 2.101.0 copies the code to the clipboard by default and the flag
+turns that off for this run only, and a gh older than the flag, which never copies,
+is run once more without it); `composio login --no-wait --no-skill-install` prints the dashboard
+link (`url`), and `composio login --poll --no-skill-install` completes it; `wacli auth
+--events --idle-exit 30s [--phone <number>]` emits `qr_code` and `pair_code` events on
+stderr (`qr` with a sequence that replaces the previous code, `pair-code`). Only an
+https URL on exactly the expected host (`github.com/login/device`,
+`dashboard.composio.dev`) becomes a challenge; anything else ends the session as
+`failed`. Signed in is what the tool's existing sign-in probe confirms. A challenge is
+sensitive while it is valid: it is returned only to the holder of the session's random
+handle (the stdout of the running command, an authenticated Launchpad request naming
+the handle) and never written to a log, a file, the Folder, the transaction archive or
+an error; errors are fixed codes. The tools' own stores keep their own pending state
+(composio's pending login in `~/.composio`), which is the tool's custody. Sessions end
+on completion, cancel, expiry (gh 15 minutes, the device code's validity; composio 10
+minutes; WhatsApp pairing 5 minutes) and the owner's shutdown, each killing the tool's
+process group. After WhatsApp pairing the same process runs its first sync; it is left
+to its own idle exit, bounded by 30 minutes, and the CLI waits for it. `tools logout`
+runs the tool's own command and says what it means: gh and composio forget the
+sign-in on this Machine only (the provider still lists it until it is revoked there);
+wacli unlinks the device. The Composio organization is chosen after the sign-in with
+the tool's `orgs list` and `orgs switch --org-id` (the tool's `--org` at login needs a
+user API key, which the operator never handles).
+
+**The QR code.** A readable QR code drawn by the Launchpad is an explicit added value:
+the operator must not fight a broken code drawn in a terminal. The server draws the
+wacli payload as SVG (white background, the four-module quiet zone, one black path,
+crisp edges, nothing of the tool's output but the modules), and the page shows it as an
+image of at least 260 CSS px only in exactly that form. The CLI draws Unicode half
+blocks on an explicit white background (ANSI 30;107), so a dark terminal theme does
+not invert the code. The encoder is the one added dependency, **`uqr` 0.1.3**, pinned
+exactly: MIT, no dependencies, 79 kB, maintained under `unjs`, a port of Project
+Nayuki's reference-quality QR generator, bundled by `bun build --compile`. Writing a
+correct encoder (Reed–Solomon, the version table, masks and their penalties) was not a
+reasonable part of this slice. It is tested against module matrices of two independent
+encoders for fixed payloads, versions, levels and masks.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Show the tool's own terminal QR in the page | Unreadable in a browser, depends on the tool's drawing; rejected |
+| Own encoder | No dependency; several hundred lines of error-correction code to own and review; rejected for this slice |
+| `qrcode-generator` | Well known, MIT, no dependencies; 555 kB, older API; not selected |
+| `uqr` | Small, typed, no dependencies, Nayuki-derived; selected |
+
+**Launchpad.** The card of a `launchpad` tool shows "Install and sign in" (missing),
+"Sign in" (installed, not known to be signed in) or "Sign out" (signed in). The first
+two open a dialog with plain steps (installing, waiting for you, signed in) and an
+`aria-live` status; on a shared Environment the shared sign-ins warning comes before
+anything starts. gh shows the code in large selectable characters and a link to the
+device page in a new tab, with the sentence that the code is entered on any device;
+composio a link in a new tab and, after the sign-in, a select of the organizations
+with the current one marked and the hint that the Environment's connections belong to
+that account and organization; wacli the QR code with its text alternative, the path in
+WhatsApp in words and the alternative of a pairing code for a phone number. The page
+polls every 2 seconds while the dialog is open; closing it cancels the login. A failure
+shows its reason and "Finish with an agent", which opens the prepared prompt.
+
+**Deferred.** Windows (the flows are refused as `unsupported-platform` there), further
+tools, automatic updates of curated tools, the hand-over of the prompt into a T3 Code
+chat, and usage analytics. The real vendor flows are qualified on a test VM, not by this
+revision's tests, which use fake tools and a fake source only.
