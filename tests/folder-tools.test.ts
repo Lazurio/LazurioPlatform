@@ -730,7 +730,7 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-test.skipIf(process.platform !== "linux")(
+test.skipIf(process.platform === "win32")(
   "a handover refresh of a hosted Folder keeps the recorded tools",
   async () => {
     const parent = await realpath(
