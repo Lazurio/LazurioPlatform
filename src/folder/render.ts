@@ -1,4 +1,9 @@
 import {
+  activeTools,
+  parseEnabledTools,
+  type ToolTier,
+} from "../tools/catalog";
+import {
   type MachineBinding,
   type MachinePeer,
   parseMachineBinding,
@@ -13,12 +18,12 @@ import {
   workspacePreset,
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
-import type { FolderPreferences } from "./state";
-import { stateFields } from "./state-fields";
+import { enabledTools, type FolderPreferences } from "./state";
+import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-7";
+export const instructionTemplateRevision = "base-instructions-8";
 
 // Template revisions are ordered by their number. A Folder rendered by an
 // older revision is re-rendered by the next change of the generated Folder
@@ -37,20 +42,30 @@ export function isOlderTemplateRevision(revision: string): boolean {
 }
 
 // What the renderer needs and nothing else: the preset, the immutable Machine
-// binding (null on a workstation) and the profile. Validated as one composition.
+// binding (null on a workstation), the profile and the enabled catalog tools
+// (decision F18). Validated as one composition. A source without `tools` has
+// nothing enabled; the parsed source always names the list.
 export type InstructionSource = Readonly<{
   preset: PresetName;
   machine: MachineBinding | null;
   profile: FolderProfile;
+  tools: readonly string[];
 }>;
 
 export function parseInstructionSource(input: unknown): InstructionSource {
-  const value = stateFields(input, ["preset", "machine", "profile"]);
+  const withTools = ownDataValue(input, "tools") !== undefined;
+  const value = stateFields(input, [
+    "preset",
+    "machine",
+    "profile",
+    ...(withTools ? ["tools"] : []),
+  ]);
   const preset = parsePresetName(value.preset);
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
   validatePresetComposition(presetReference(preset, machine), machine, profile);
-  return Object.freeze({ preset, machine, profile });
+  const tools = withTools ? parseEnabledTools(value.tools) : Object.freeze([]);
+  return Object.freeze({ preset, machine, profile, tools });
 }
 
 export function instructionSource(
@@ -60,6 +75,7 @@ export function instructionSource(
     preset: preferences.preset.name,
     machine: preferences.machine,
     profile: preferences.profile,
+    tools: enabledTools(preferences),
   });
 }
 
@@ -284,8 +300,70 @@ function hostedLines(pick: (text: Text) => string): string[] {
   ];
 }
 
+const tierLabels: Readonly<Record<ToolTier, Text>> = {
+  required: { cs: "povinný", en: "required" },
+  recommended: { cs: "zapnutý", en: "enabled" },
+  optional: { cs: "zapnutý", en: "enabled" },
+};
+
+// One line per tool agents are to use: the required ones and the enabled
+// ones, in catalog order. `text` selects what the line says about the tool.
+export function toolLines(
+  tools: readonly string[],
+  locale: FolderProfile["locale"],
+  text: "purpose" | "usage",
+): string[] {
+  return activeTools(tools).map(
+    ({ name, activation }) =>
+      `- \`${name}\` (${tierLabels[activation.tier][locale]}): ${
+        text === "purpose"
+          ? activation.purpose[locale]
+          : `${activation.purpose[locale]} ${activation.usage[locale]}`
+      }`,
+  );
+}
+
+// The generic instruction for MCP servers, shared by AGENTS.md and the
+// manual. No MCP server is ever recorded in the Folder.
+export const mcpInstruction: Text = {
+  cs: "MCP servery přicházejí na řadu až po CLI z katalogu: zjisti ve svém harnessu, které nabízí, a použij je tam, kde úkol žádné CLI z katalogu nepokrývá. Do Folderu se MCP servery nikdy nezapisují a dostupný server není souhlas s Publikací.",
+  en: "MCP servers come after the catalog CLIs: discover in your harness which ones it offers and use them where no catalog CLI covers the task. MCP servers are never recorded in the Folder, and an available server is not consent to Publication.",
+};
+
+// On an Environment shared by several operators (the Team preset) a sign-in
+// of a tool belongs to the whole Environment, not to the person who made it.
+export const sharedSignInWarning: Text = {
+  cs: "**Sdílené Environment:** účty přihlášené v nástrojích platí pro celé tohle Environment a sdílí je všichni jeho Operátoři i jejich agenti. Přihlašuj tu jen účty, které mají být dostupné celému Teamu; osobní účet sem nepatří.",
+  en: "**Shared Environment:** accounts signed in to the tools apply to this whole Environment and are shared by all its operators and their agents. Sign in only accounts meant for the whole Team; a personal account does not belong here.",
+};
+
+// Whether sign-ins on this preset are shared by several operators.
+export function sharedEnvironment(preset: PresetName): boolean {
+  return workspacePreset(preset).providerIdentity === "brokered-organization";
+}
+
+// The tools of this Environment (decision F18): what to use and in which
+// order. The usage of every tool is in `manual/this-machine.md`.
+function toolsSection(
+  tools: readonly string[],
+  locale: FolderProfile["locale"],
+  shared: boolean,
+): string[] {
+  const pick = (text: Text) => text[locale];
+  return [
+    pick({ cs: "## Nástroje", en: "## Tools" }),
+    pick({
+      cs: "Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje `manual/this-machine.md`. Uvedený nástroj je kontext: neuděluje přístup, nic neinstaluje a nepinuje verzi.",
+      en: "Use these CLIs of the Lazurio catalog first, as `manual/this-machine.md` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.",
+    }),
+    ...toolLines(tools, locale, "purpose"),
+    ...(shared ? [pick(sharedSignInWarning)] : []),
+    pick(mcpInstruction),
+  ];
+}
+
 export function renderInstructions(input: unknown): string {
-  const { preset, machine, profile } = parseInstructionSource(input);
+  const { preset, machine, profile, tools } = parseInstructionSource(input);
   const pick = (text: Text) => (profile.locale === "cs" ? text.cs : text.en);
   return [
     "# Lazurio",
@@ -340,6 +418,7 @@ export function renderInstructions(input: unknown): string {
       en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
     }),
     ...(machine === null ? [] : hostedLines(pick)),
+    ...toolsSection(tools, profile.locale, sharedEnvironment(preset)),
     ...manualSection(profile.locale),
     "",
   ].join("\n");

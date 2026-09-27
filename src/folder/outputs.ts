@@ -16,8 +16,8 @@ export const manualEntries = Object.freeze([
     path: "manual/this-machine.md",
     title: { cs: "Tahle Mašina", en: "This Machine" },
     summary: {
-      cs: "druh, Owner, preset, zóny, co kam smí a SSH na další Mašiny",
-      en: "kind, Owner, preset, zones, what may reach what and SSH to other Machines",
+      cs: "druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Mašiny",
+      en: "kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines",
     },
   },
   {

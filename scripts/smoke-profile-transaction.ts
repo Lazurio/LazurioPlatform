@@ -19,6 +19,7 @@ import { executionOs } from "../src/folder/platform";
 import { prepareProfileChange } from "../src/folder/prepare-profile-change";
 import { outputDigests, previewFolder } from "../src/folder/preview";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
+import { updateTools } from "../src/folder/update-profile";
 
 // Compile this fixture runner for the target OS. It accepts no user path and
 // only creates/removes its own fresh temporary directory; it is not an installer.
@@ -114,8 +115,24 @@ try {
     (await inspectProfileChange(folder, 2, requested)).kind,
     "unchanged",
   );
+  // Enabled catalog tools (decision F18) go through the same transaction; the
+  // key is stored only while something is enabled.
+  const stored = async () =>
+    JSON.parse(await readFile(join(state, "preferences.json"), "utf8"));
+  assert.equal("tools" in (await stored()), false);
+  assert.deepEqual(await updateTools(folder, 2, ["composio"]), {
+    kind: "updated",
+    revision: 3,
+  });
+  assert.deepEqual((await stored()).tools, ["composio"]);
+  assert.match(await readFile(join(folder, "AGENTS.md"), "utf8"), /`composio`/);
+  assert.deepEqual(await updateTools(folder, 3, []), {
+    kind: "updated",
+    revision: 4,
+  });
+  assert.equal("tools" in (await stored()), false);
   assert.equal(
-    (await prepareProfileChange(folder, 2, { profile })).kind,
+    (await prepareProfileChange(folder, 4, { profile })).kind,
     "prepared",
   );
   await writeFile(join(folder, "AGENTS.md"), "Manual edit must survive");
@@ -127,7 +144,7 @@ try {
   assert.equal(
     JSON.parse(await readFile(join(state, "preferences.json"), "utf8"))
       .revision,
-    2,
+    4,
   );
   for (const name of ["organizations", "personalspace"]) {
     assert.equal(
@@ -136,7 +153,7 @@ try {
     );
   }
   console.log(
-    `PASS: ${process.platform}/${process.arch} fixture prepare/retire/apply/resume/finalize, drift refusal and unrelated-byte preservation`,
+    `PASS: ${process.platform}/${process.arch} fixture prepare/retire/apply/resume/finalize, tools enable/disable, drift refusal and unrelated-byte preservation`,
   );
 } finally {
   await rm(folder, { recursive: true, force: true });

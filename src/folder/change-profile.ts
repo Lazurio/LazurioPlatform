@@ -1,3 +1,4 @@
+import { parseEnabledTools } from "../tools/catalog";
 import {
   type MachineBinding,
   machineIdentity,
@@ -20,7 +21,12 @@ import {
   instructionTemplateRevision,
   isOlderTemplateRevision,
 } from "./render";
-import { parseFolderPreferences, parseInstructionManifest } from "./state";
+import {
+  enabledTools,
+  parseFolderPreferences,
+  parseInstructionManifest,
+  withEnabledTools,
+} from "./state";
 import { ownDataValue, stateFields } from "./state-fields";
 
 // One request shape for CLI, Launchpad and a future typed owner request: the
@@ -45,7 +51,8 @@ export function parseProfileRequest(input: unknown): ProfileRequest {
 
 // Shared profile-change planning. The caller reads trusted current state under
 // the common lock and must revalidate before writing. This is not an apply token.
-// A requested profile change keeps the recorded Machine binding.
+// A requested profile change keeps the recorded Machine binding and the
+// recorded enabled tools.
 export async function planProfileChange(
   currentPreferencesInput: unknown,
   currentManifestInput: unknown,
@@ -59,15 +66,41 @@ export async function planProfileChange(
     current,
     currentManifestInput,
     expectedRevision,
-    { ...requested, machine: current.machine },
+    { ...requested, machine: current.machine, tools: enabledTools(current) },
+    inspect,
+  );
+}
+
+// A requested change of the enabled catalog tools (decision F18): the full
+// next selection at the expected revision. The recorded preset, profile and
+// Machine binding are carried forward; the same selection is `unchanged`.
+export async function planToolsChange(
+  currentPreferencesInput: unknown,
+  currentManifestInput: unknown,
+  expectedRevision: number,
+  requestedInput: unknown,
+  inspect: (path: OutputPath) => Promise<ObservedFile>,
+) {
+  const current = parseFolderPreferences(currentPreferencesInput);
+  return planFolderChange(
+    current,
+    currentManifestInput,
+    expectedRevision,
+    {
+      preset: current.preset.name,
+      profile: current.profile,
+      machine: current.machine,
+      tools: parseEnabledTools(requestedInput),
+    },
     inspect,
   );
 }
 
 // The one planner behind every change of the generated Folder: a requested
-// profile change (the binding carried forward) and a refresh from the current
-// handover (the recorded preset and profile carried forward, the binding of
-// the same Machine re-projected). The Machine identity never changes here; the
+// profile change (the binding and the enabled tools carried forward), a
+// requested change of the enabled tools (everything else carried forward) and
+// a refresh from the current handover (the recorded preset, profile and tools
+// carried forward, the binding of the same Machine re-projected). The Machine identity never changes here; the
 // handover-derived rest of the binding (assignment, relationships, document
 // digest) follows the handover. A binding that renders the same bytes is
 // `unchanged` and is not recorded, so a re-apply that only rewrote
@@ -76,6 +109,7 @@ export type FolderChange = Readonly<{
   preset: PresetName | undefined;
   profile: FolderProfile;
   machine: MachineBinding | null;
+  tools: readonly string[];
 }>;
 
 export async function planFolderChange(
@@ -111,6 +145,7 @@ export async function planFolderChange(
       reason: "custom-composition-unavailable",
     } as const;
   const machine = parseMachineBinding(change.machine);
+  const tools = parseEnabledTools(change.tools);
   if (
     JSON.stringify(machineIdentity(machine)) !==
     JSON.stringify(machineIdentity(current.machine))
@@ -158,6 +193,7 @@ export async function planFolderChange(
       preset: preset.name,
       machine,
       profile: change.profile,
+      tools,
     },
     manifest.outputs,
     inspect,
@@ -166,13 +202,18 @@ export async function planFolderChange(
   if (preview.plan.kind === "unchanged") return { kind: "unchanged" } as const;
   if (current.revision === Number.MAX_SAFE_INTEGER)
     return { kind: "blocked", reason: "revision-exhausted" } as const;
-  const preferences = parseFolderPreferences({
-    ...current,
-    revision: current.revision + 1,
-    preset,
-    machine,
-    profile: change.profile,
-  });
+  const preferences = parseFolderPreferences(
+    withEnabledTools(
+      {
+        ...current,
+        revision: current.revision + 1,
+        preset,
+        machine,
+        profile: change.profile,
+      },
+      tools,
+    ),
+  );
   const nextManifest = parseInstructionManifest({
     schemaVersion: 2,
     preferenceRevision: preferences.revision,

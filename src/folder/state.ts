@@ -1,3 +1,4 @@
+import { parseEnabledTools } from "../tools/catalog";
 import { type MachineBinding, parseMachineBinding } from "./machine-binding";
 import { type OutputPath, outputPaths } from "./outputs";
 import {
@@ -6,7 +7,7 @@ import {
   validatePresetComposition,
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
-import { stateFields } from "./state-fields";
+import { ownDataValue, stateFields } from "./state-fields";
 
 export { stateFields } from "./state-fields";
 
@@ -23,6 +24,10 @@ export const folderStateSchemas = Object.freeze({
 // Machine binding recorded from the handover (null on a workstation). The whole
 // composition is validated: an unknown preset, version or disallowed
 // combination never parses.
+// `tools` (decision F18) is the optional list of enabled catalog tools: sorted,
+// unique, `recommended` or `optional` tier only. The key is absent when nothing
+// is enabled, so a Folder that enables nothing keeps the bytes it always had;
+// an empty list is refused, because one selection has one representation.
 export type FolderPreferences = Readonly<{
   schemaVersion: 2;
   revision: number;
@@ -30,7 +35,24 @@ export type FolderPreferences = Readonly<{
   machine: MachineBinding | null;
   profile: FolderProfile;
   customInstructions: string;
+  tools?: readonly string[];
 }>;
+
+export function enabledTools(
+  preferences: Pick<FolderPreferences, "tools">,
+): readonly string[] {
+  return preferences.tools ?? [];
+}
+
+// Preference fields with the given selection: the key present only when
+// something is enabled.
+export function withEnabledTools<T extends Readonly<{ tools?: unknown }>>(
+  fields: T,
+  tools: readonly string[],
+): Omit<T, "tools"> & { tools?: readonly string[] } {
+  const { tools: _, ...rest } = fields;
+  return tools.length === 0 ? rest : { ...rest, tools };
+}
 
 // Manifest schema 2 records one digest per generated output, AGENTS.md and
 // every manual file (decision F14), in the fixed output order. A digest is the
@@ -65,6 +87,7 @@ export function parseOutputDigests(input: unknown): OutputDigests {
 }
 
 export function parseFolderPreferences(input: unknown): FolderPreferences {
+  const withTools = ownDataValue(input, "tools") !== undefined;
   const value = stateFields(input, [
     "schemaVersion",
     "revision",
@@ -72,9 +95,13 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     "machine",
     "profile",
     "customInstructions",
+    ...(withTools ? ["tools"] : []),
   ]);
   if (value.schemaVersion !== 2 || typeof value.customInstructions !== "string")
     throw new Error("Unsupported Folder preferences");
+  const tools = withTools ? parseEnabledTools(value.tools) : undefined;
+  if (tools?.length === 0)
+    throw new Error("Empty enabled tools must be absent");
   const preset = parsePresetReference(value.preset);
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
@@ -88,6 +115,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     // Source is preserved verbatim. This schema neither executes it nor imports
     // effective mandates; composition/conflict handling is a separate consumer.
     customInstructions: value.customInstructions,
+    ...(tools === undefined ? {} : { tools }),
   });
 }
 

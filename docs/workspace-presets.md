@@ -110,10 +110,14 @@ preset recorded as derived that the new assignment no longer derives is
 `.lazurio/preferences.json` (schema 2) stores the **preset reference** (`name`,
 `version`, `selection: derived | explicit`), the **Machine binding** (`null` on a
 workstation; its identity immutable, the rest following the handover) and the profile, under the existing revision discipline
-([migration and recovery](migration-and-recovery.md)). The whole composition is
+([migration and recovery](migration-and-recovery.md)). The optional top-level key
+`tools` holds the enabled catalog tools
+([F18](decisions.md#f18--enabled-tools-of-the-environment)); it is absent when nothing
+is enabled and belongs to neither the preset, the binding nor the profile, so a preset
+or profile change carries it forward unchanged. The whole composition is
 validated on every parse: a preset the recorded handover does not allow never parses.
 The rendered `AGENTS.md` and the six files of `manual/` are a deterministic projection
-of preset, binding and profile ([machine handover](machine-handover.md#what-the-folder-renders));
+of preset, binding, profile and enabled tools ([machine handover](machine-handover.md#what-the-folder-renders));
 the manifest records one digest per generated file.
 
 Do not extend the instruction axes in `src/folder/profile.ts` into a universal

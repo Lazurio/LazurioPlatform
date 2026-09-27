@@ -40,6 +40,22 @@ export async function updateProfile(
   );
 }
 
+// Records the requested selection of enabled catalog tools (decision F18) and
+// re-renders the generated Folder with it: the same planner, transaction,
+// archive and recovery (`profile-resume`) as a profile change.
+export async function updateTools(
+  folder: string,
+  expectedRevision: number,
+  tools: unknown,
+  checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
+) {
+  return changeFolder(
+    folder,
+    { kind: "tools", expectedRevision, tools },
+    checkpoint,
+  );
+}
+
 // Re-renders the generated Folder from the current handover of the same
 // Machine with the recorded preset and profile: the same planner, transaction,
 // archive and recovery (`profile-resume`) as a profile change. Edited or

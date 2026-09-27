@@ -14,9 +14,11 @@ import {
   initializeHandoverFolder,
 } from "../src/folder/initialize-folder";
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
+import { inspectToolsChange } from "../src/folder/inspect-tools-change";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { startLaunchpad } from "../src/launchpad/server";
+import { toolSelection } from "../src/tools/catalog";
 import { bindings } from "./fixtures/machine-bindings";
 
 // A hosted Folder as folder-init adopts it, plus a Launchpad session on it.
@@ -55,6 +57,151 @@ async function hostedSession(
     },
   };
 }
+
+test.skipIf(process.platform === "win32")(
+  "Launchpad tools API previews and records the enabled tools over the same core",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-tools-")),
+    );
+    const folder = join(parent, "Lazurio");
+    const profile = {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    };
+    await initializeFolder(folder, profile);
+    const app = await startLaunchpad(folder);
+    const url = new URL(app.url);
+    const call = (path: string, body: unknown, override = {}) =>
+      fetch(new URL(path, url), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: url.origin,
+          Authorization: `Bearer ${url.hash.slice(1)}`,
+          ...override,
+        },
+        body: JSON.stringify(body),
+      });
+    const enabled = async () =>
+      (
+        (await (await call("/api/profile", {})).json()) as {
+          revision: number;
+          tools: { name: string; enabled: boolean }[];
+        }
+      ).tools
+        .filter((tool) => tool.enabled)
+        .map((tool) => tool.name);
+    try {
+      const before = await readFile(join(folder, "AGENTS.md"), "utf8");
+      const preferences = await readFile(
+        join(folder, ".lazurio", "preferences.json"),
+        "utf8",
+      );
+      for (const path of ["/api/tools/preview", "/api/tools/update"]) {
+        expect(
+          (
+            await call(
+              path,
+              { expectedRevision: 1, tools: ["composio"] },
+              { Authorization: "" },
+            )
+          ).status,
+        ).toBe(403);
+        // Exact keys, a positive revision and a valid selection.
+        expect(
+          (await call(path, { expectedRevision: 0, tools: [] })).status,
+        ).toBe(400);
+        for (const body of [
+          { tools: ["composio"] },
+          { expectedRevision: 1 },
+          { expectedRevision: 1, tools: ["composio"], folder: parent },
+          { expectedRevision: 1, tools: ["gh"] },
+          { expectedRevision: 1, tools: ["t3"] },
+          { expectedRevision: 1, tools: ["wacli", "composio"] },
+          { expectedRevision: 1, tools: "composio" },
+        ]) {
+          const refused = await call(path, body);
+          expect(refused.status).toBe(400);
+          expect(await refused.json()).toEqual({
+            error: "operation-failed",
+            recoveryMayBeRequired: true,
+          });
+        }
+        const stale = await call(path, {
+          expectedRevision: 2,
+          tools: ["composio"],
+        });
+        expect(stale.status).toBe(409);
+        expect(await stale.json()).toEqual({
+          kind: "blocked",
+          reason: "stale-revision",
+        });
+        const same = await call(path, { expectedRevision: 1, tools: [] });
+        expect(same.status).toBe(200);
+        expect(await same.json()).toEqual({ kind: "unchanged" });
+      }
+      const preview = await call("/api/tools/preview", {
+        expectedRevision: 1,
+        tools: ["composio"],
+      });
+      expect(preview.status).toBe(200);
+      expect(await preview.json()).toEqual(
+        JSON.parse(
+          JSON.stringify(await inspectToolsChange(folder, 1, ["composio"])),
+        ),
+      );
+      // Nothing above wrote anything.
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(before);
+      expect(
+        await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
+      ).toBe(preferences);
+      expect(await enabled()).toEqual(["gh"]);
+
+      const updated = await call("/api/tools/update", {
+        expectedRevision: 1,
+        tools: ["composio"],
+      });
+      expect(updated.status).toBe(200);
+      expect(await updated.json()).toEqual({ kind: "updated", revision: 2 });
+      expect(await enabled()).toEqual(["gh", "composio"]);
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        "- `composio` (enabled): ",
+      );
+      // A profile change through the panel keeps the tools.
+      expect(
+        await (
+          await call("/api/update", {
+            expectedRevision: 2,
+            profile: { ...profile, detail: "technical" },
+          })
+        ).json(),
+      ).toEqual({ kind: "updated", revision: 3 });
+      expect(await enabled()).toEqual(["gh", "composio"]);
+      await writeFile(join(folder, "AGENTS.md"), "manual work");
+      const drift = await call("/api/tools/update", {
+        expectedRevision: 3,
+        tools: [],
+      });
+      expect(drift.status).toBe(409);
+      expect(await drift.json()).toEqual({
+        kind: "blocked",
+        reason: "drift",
+        path: "AGENTS.md",
+      });
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(
+        "manual work",
+      );
+    } finally {
+      await app.server.stop(true);
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
 
 test.skipIf(process.platform === "win32")(
   "Launchpad profile API shares core and denies cross-origin or uncredentialed changes",
@@ -104,6 +251,23 @@ test.skipIf(process.platform === "win32")(
         allowedPresets: ["local"],
         machine: null,
         profile,
+        tools: [
+          { name: "gh", tier: "required", setup: "launchpad", enabled: true },
+          {
+            name: "composio",
+            tier: "recommended",
+            setup: "launchpad",
+            enabled: false,
+          },
+          {
+            name: "wacli",
+            tier: "optional",
+            setup: "launchpad",
+            enabled: false,
+          },
+          { name: "gogcli", tier: "optional", setup: "agent", enabled: false },
+          { name: "neon", tier: "optional", setup: "agent", enabled: false },
+        ],
       });
       const candidate = {
         expectedRevision: 1,
@@ -162,6 +326,7 @@ test.skipIf(process.platform === "win32")(
         ],
         machine: bindings.organization,
         profile: session.profile,
+        tools: toolSelection([]),
       });
       const change = {
         expectedRevision: 1,
@@ -206,6 +371,29 @@ test.skipIf(process.platform === "win32")(
       expect(
         await readFile(join(session.folder, "AGENTS.md"), "utf8"),
       ).toContain("hosted-organization-team");
+      // On the shared Team Environment a change that adds a tool carries the
+      // warning that sign-ins are shared, in the preview and in the update; a
+      // change that adds nothing does not.
+      const adding = { expectedRevision: 2, tools: ["composio"] };
+      expect(
+        (await (await session.call("/api/tools/preview", adding)).json())
+          .warning,
+      ).toBe("shared-environment-sign-ins");
+      expect(
+        await (await session.call("/api/tools/update", adding)).json(),
+      ).toEqual({
+        kind: "updated",
+        revision: 3,
+        warning: "shared-environment-sign-ins",
+      });
+      expect(
+        await (
+          await session.call("/api/tools/update", {
+            expectedRevision: 3,
+            tools: [],
+          })
+        ).json(),
+      ).toEqual({ kind: "updated", revision: 4 });
     } finally {
       await session.close();
     }

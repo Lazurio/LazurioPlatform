@@ -8,7 +8,12 @@ import { mkdirOwnedFixture, writeOwnedFixture } from "./owned-files";
 // Tests that exercise the transaction directly start from this.
 export async function writeRenderedFolder(
   folder: string,
-  source: { preset: string; machine: unknown; profile: unknown },
+  source: {
+    preset: string;
+    machine: unknown;
+    profile: unknown;
+    tools?: readonly string[];
+  },
 ) {
   const state = join(folder, ".lazurio");
   const preview = await previewFolder(source, null, async () => ({
@@ -29,6 +34,8 @@ export async function writeRenderedFolder(
     machine: source.machine,
     profile: source.profile,
     customInstructions: "",
+    // Present only when something is enabled (decision F18).
+    ...(source.tools?.length ? { tools: source.tools } : {}),
   });
   const manifest = JSON.stringify({
     schemaVersion: 2,

@@ -959,3 +959,135 @@ so agents on VMs keep the layout for further tools, and `tools status` reports
 
 **Not decided here:** the readback shape and the T3 launcher (Machines).
 
+## F18 — Enabled tools of the Environment
+
+**Principal's decision 2026-09-27 (root decision 0162 and the F17 line), implemented
+in this revision as data, state, rendering and read/write surfaces; installation,
+sign-in flows and Launchpad UI are not built.** Lazurio is CLI-first: the `lazurio`
+CLI and the Launchpad, one thing over one core, care for the tools of an Environment
+and tell agents how to move in it. The operator opts in to tools from a tested
+catalog, and what is on is written into the generated instructions and manual of the
+Lazurio Folder, so agents know they are to use it. Turning a tool off removes it.
+
+**The catalog** (`src/tools/catalog.ts`) gives a tool an `activation` when agents may
+be told to use it:
+
+| Tool | Command | Tier | Setup |
+| --- | --- | --- | --- |
+| `gh` | `gh` | required | launchpad |
+| `composio` | `composio` | recommended | launchpad |
+| `wacli` | `wacli` | optional | launchpad |
+| `gogcli` | `gog` | optional | agent |
+| `neon` | `neon` | optional | agent |
+
+A `required` tool is always on, is never stored and cannot be disabled. The operator's
+other tools (codex, claude, git, node, npm, bun) have no activation and stay what F17
+made them. Each activation carries three texts in `cs` and `en`: `purpose` (one
+sentence), `usage` (when and how an agent uses the tool, with the command that reports
+its sign-in) and `installation` (the target state an installation must reach).
+
+**Context, not authority and not installation.** Enabling a tool grants no access,
+installs nothing, signs in nowhere and pins no version. A tool may be enabled while it
+is not installed; the generated manual tells the agent to report a missing or
+signed-out tool to the Principal. F3 holds unchanged: a generated profile never grants
+permission.
+
+**Priority rule for agents.** First the catalog CLIs that are on, as the generated
+manual describes them. Then MCP servers, under one generic instruction to discover
+what the harness offers. MCP servers are never recorded in the Folder, and an
+available server is not consent to Publication.
+
+**Two setup modes.** `setup: "launchpad"` means installation and sign-in will get a
+curated Launchpad flow. `setup: "agent"` means the Launchpad only shows status, and
+"install" opens a T3 Code chat with a prepared prompt for an agent who installs the
+tool and guides the operator's sign-in; the Launchpad performs no installation. The
+`installation` text is the agent's manual in both cases: the body of the prompt for an
+`agent` tool, and what a fallback agent follows for a `launchpad` tool whose curated
+installer failed. It names the binary and the standard path `~/.local/bin/<command>`
+(F17), the official source, how the operator signs in, the probe that proves it, and
+what must never happen: no secret in chat, Git or a log, no second installation of the
+same tool, no downgrade of a working tool. `toolPrompt` and `lazurio tools prompt
+<tool>` return the prompt: the task, that text, and the rule that after a successful
+installation the agent enables the tool so the Folder instructions name it. The
+Principal's reason for the second mode: many tools can be offered cheaply through the
+agent mode, and later usage analytics of which tools operators try to install with an
+agent shows where a curated flow is worth building. No such analytics exist in this
+revision; F5 (opt-in, content-free measurement) governs them when they do.
+
+**Storage.** `.lazurio/preferences.json` gains one optional top-level key, `tools`: a
+sorted, unique array of enabled catalog names of the `recommended` and `optional`
+tiers, validated against the catalog by the exact-key parser. It is not part of
+`profile`, `machine` or the preset. The key is **absent** when nothing is enabled, so
+every existing Folder keeps byte-identical preferences, and a Folder that disables its
+last tool returns to that shape. A stored empty array is **refused**, not normalized:
+one selection has exactly one stored representation, which is what the transaction's
+byte comparisons rely on. A request (CLI, Launchpad) may name the empty selection; the
+same validator requires it sorted and unique.
+
+**Schema version: not raised.** `folderStateSchemas` stays `preferences: [2]`,
+`manifest: [2]`, and the artifact identity is unchanged. The declared versions answer
+one question at staging: can the new release read what the installed one wrote. It
+can, because every schema-2 document without the key parses as before. A version 3
+would instead have forced a rewrite of every existing Folder, which the byte-identity
+requirement forbids. The transaction journal schema
+(version 3) is unchanged as well: it embeds preferences, and a journal written with a
+non-empty selection is validated by the binary that wrote it.
+
+**Forward-migration boundary.** A Folder with a non-empty `tools` list is unreadable
+by binaries older than this release: their exact-key parser refuses the unknown key,
+so every Folder operation and the Launchpad start fail closed; nothing is rewritten or
+dropped. This is the explicit no-automatic-rollback boundary of
+[migration and recovery](migration-and-recovery.md). For `lazurio update rollback`
+(program rollback is not data rollback, [update.md](update.md)) it means: a Folder
+that enabled nothing rolls back freely; a Folder with enabled tools must have them
+disabled with this release **before** rolling back below it, or is repaired forward by
+returning to this release. The rollback does not do this by itself.
+
+**What guards the rollback.** `lazurio update rollback` runs the self-check of the
+target executable before it switches, and where the installation knows its Folder
+(a supervised Launchpad service installed with `--folder`, which is every hosted
+Machine) that self-check parses the Folder's state. An older binary refuses the
+unknown key, the self-check fails and the rollback ends as `rollback-unavailable`
+with nothing switched. The automatic rollback after an unhealthy activation returns
+to the release that was running, which wrote the state and reads it. An installation
+without a known Folder (a workstation that starts the Launchpad by hand) has no such
+guard: there the rollback switches and the older binary then refuses the Folder until
+the tools are disabled by this release or the product is updated forward again.
+
+**Template revision `base-instructions-8`.** `AGENTS.md` gains the section "Tools"
+(the required and the enabled tools with their purpose, the priority rule and the MCP
+instruction). The per-Machine `manual/this-machine.md` gains "Enabled tools" (each
+tool with its usage, and the MCP instruction). No generated file is added; the output
+list is fixed (F14). Both locales have the same structure. A Folder rendered by
+revision 7 is upgraded by its next change when every file still has its recorded
+digest.
+
+**One planner, one transaction.** A tools change is the third kind of
+`FolderChangeRequest` (`{ kind: "tools", expectedRevision, tools }`) and runs
+`planFolderChange`, preparation, application, archive and recovery (`profile-resume`)
+exactly as a profile change and a handover refresh do. A profile change and a refresh
+carry the recorded tools forward unchanged. The same selection is `unchanged` and is
+not recorded. Every refusal holds: a stale revision, an edited or removed owned file
+by its path, custom instructions, an unknown template revision, a foreign top-level
+entry of a hosted Folder. `inspectToolsChange` is the read-only twin. An instruction
+source without the key renders what the empty selection renders; every product caller
+passes the recorded selection.
+
+**Surfaces.** `lazurio tools list|enable|disable|prompt`
+([environment tools](environment-tools.md)); the Launchpad server returns `tools` (the
+catalog with `tier`, `setup` and `enabled`) in `/api/profile` and takes
+`{ expectedRevision, tools }` at `POST /api/tools/preview` and `POST /api/tools/update`
+with the status codes of `/api/preview` and `/api/update`.
+
+**Deferred.** Installation of any tool; sign-in flows; the Launchpad UI for tools and
+the hand-over of the prompt to T3 Code; the agent fallback for a failed curated
+installer beyond its text; usage analytics; further catalog entries. The neon texts
+state what was not verified against the vendor's documentation (the npm package name
+and Node.js requirement, which the documentation and the repository README state
+differently, and whether the browser sign-in completes on a headless Machine).
+
+**Shared Team preset (Principal 2026-09-27).** Tools can be enabled on the preset with a
+brokered Organization identity (`hosted-organization-team`) too. Accounts signed in to
+the tools there apply to the whole Environment and are shared by all its operators and
+their agents; `AGENTS.md` and `manual/this-machine.md` say so, and enabling a tool
+returns the warning `shared-environment-sign-ins`.

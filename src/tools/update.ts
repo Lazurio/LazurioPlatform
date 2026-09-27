@@ -1,4 +1,4 @@
-import { findTool, type ToolEntry } from "./catalog";
+import { type ToolEntry, toolCatalog } from "./catalog";
 import {
   resolveOnPath,
   type ToolRunner,
@@ -68,16 +68,14 @@ async function updateCommand(
 export async function toolsUpdate(
   input: ToolsUpdateInput,
 ): Promise<ToolsUpdateResult> {
-  const entry = input.catalog
-    ? input.catalog.find((candidate) => candidate.name === input.tool)
-    : findTool(input.tool);
+  // An empty injected catalog means the product's own, as before.
+  const catalog = input.catalog?.length ? input.catalog : toolCatalog;
+  const entry = catalog.find((candidate) => candidate.name === input.tool);
   if (!entry)
     return {
       kind: "tool-unknown",
       tool: input.tool,
-      known: (input.catalog ?? []).length
-        ? (input.catalog ?? []).map((candidate) => candidate.name)
-        : ["codex", "claude", "gh", "git", "node", "npm", "bun"],
+      known: catalog.map((candidate) => candidate.name),
     };
   const status = async () =>
     (await toolsStatus({ ...input, catalog: [entry] })).tools[0] as ToolStatus;

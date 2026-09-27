@@ -28,7 +28,8 @@ reports and, on instruction, runs them; it pins nothing.
 
 The Platform's surface for the operator's tools, implemented in `src/tools/`:
 
-- `tools status [--json]` lists codex, claude, gh, git, node, npm and bun as found on
+- `tools status [--json]` lists codex, claude, gh, git, node, npm, bun, composio,
+  wacli, gog and neon as found on
   the process PATH (first executable of the name, decision 0140 rule), with the real
   path behind a link and the version the tool reports; missing tools carry their
   official source. Read-only, never the network; it does not say "outdated", because
@@ -42,6 +43,65 @@ The Platform's surface for the operator's tools, implemented in `src/tools/`:
   never downgrades on its own, never touches another tool and is not run by
   `lazurio update`, the Launchpad or a Machines apply. An agent runs it only on the
   Principal's explicit instruction (F17).
+
+### Enabled tools of a Folder (decision 0162, F18)
+
+Agents use what the Folder tells them to use. The catalog marks the tools that may be
+named in the generated instructions with a **tier** and a **setup mode**:
+
+| Tool | Command | Tier | Setup |
+| --- | --- | --- | --- |
+| `gh` | `gh` | required: always on, never stored, cannot be disabled | launchpad |
+| `composio` | `composio` | recommended | launchpad |
+| `wacli` | `wacli` | optional | launchpad |
+| `gogcli` | `gog` | optional | agent |
+| `neon` | `neon` | optional | agent |
+
+Enabling is context for agents. It grants no access, installs nothing, signs in
+nowhere and pins no version; a tool may be enabled before it is installed. The enabled
+names are stored in `.lazurio/preferences.json` under the optional key `tools`, absent
+when nothing is enabled ([F18](decisions.md#f18--enabled-tools-of-the-environment)),
+and rendered into `AGENTS.md` ("Tools") and `manual/this-machine.md` ("Enabled tools").
+Agents use the catalog CLIs that are on first, then the MCP servers their harness
+offers, which the Folder never records.
+
+**Setup modes.** `launchpad`: installation and sign-in will get a curated Launchpad
+flow. `agent`: the Launchpad will only show status, and "install" will open a T3 Code
+chat with the prepared prompt for an agent who installs the tool and guides the
+sign-in. Each tool's `installation` text describes the target state and is the agent's
+manual in both modes (for a `launchpad` tool it is what a fallback agent follows when
+the curated installer fails). The Principal's reason: many tools can be offered
+cheaply through the agent mode, and later usage analytics of which tools operators try
+to install with an agent shows where a curated flow is worth building. Neither flow,
+nor the analytics, is implemented; this revision has the data and the read-only
+surfaces.
+
+The commands are Folder-bound in the style of the profile commands: the Folder is
+always explicit, a mutation names the revision it was decided against, the result is
+JSON with `--json`, and the exit status is 0 completed or unchanged, 2 blocked or
+usage, 1 operation failure.
+
+- `tools list --folder <absolute Folder> [--json]` lists the activatable catalog tools
+  only, in catalog order, each with `tier`, `setup`, `enabled` and the live facts of
+  `tools status` for that tool (`installed`, `path`, `realPath`, `version`,
+  `standardPath`, `source`), plus the Folder `revision` a following mutation must
+  name. Read-only.
+- `tools enable <tool> --folder <Folder> --expected-revision <n> [--json]` and
+  `tools disable <tool> …` record the selection and re-render the Folder through the
+  profile transaction (`updated` with the new revision, or `unchanged`). A name the
+  catalog does not offer for activation is `blocked` / `tool-unknown` (exit 2);
+  disabling a required tool is `blocked` / `tool-required` (exit 2); enabling a
+  required tool is `unchanged` (exit 0). The planner's refusals arrive unchanged
+  (`stale-revision`, `drift` with the path, `custom-composition-unavailable`, …). An
+  interrupted change is completed with `profile-resume`.
+- `tools prompt <tool> [--locale cs|en] [--json]` prints the prepared agent prompt:
+  the task, the `installation` text and the rule to enable the tool afterwards.
+  Read-only text, no Folder; the default locale is `en`.
+
+The Launchpad server offers the same over the same core: `tools` in `/api/profile`,
+`POST /api/tools/preview` and `POST /api/tools/update` with
+`{ expectedRevision, tools }`, where `tools` is the full next selection, sorted and
+unique. There is no UI for it yet.
 
 ### The standard path (decision 0161, point 6)
 

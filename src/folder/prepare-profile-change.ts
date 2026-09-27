@@ -1,7 +1,11 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
-import { planFolderChange, planProfileChange } from "./change-profile";
+import {
+  planFolderChange,
+  planProfileChange,
+  planToolsChange,
+} from "./change-profile";
 import { requireClaimedFolderBoundary } from "./handover-layout";
 import { inspectOutput } from "./inventory";
 import { withFolderOperationLock } from "./lock";
@@ -15,6 +19,7 @@ import {
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState, readOwnedStateFile } from "./read-state";
+import { enabledTools } from "./state";
 import {
   type FileIdentity,
   transactionSchemaVersion,
@@ -53,14 +58,20 @@ type FolderState = Awaited<ReturnType<typeof readFolderState>>;
 type Inspect = (path: OutputPath) => ReturnType<typeof inspectOutput>;
 
 // What a change of the generated Folder is planned from: a requested profile
-// change at the expected revision, or a refresh from the current handover
-// that keeps the recorded preset and profile. Both run the one planner and the
-// one transaction below; only the input differs.
+// change at the expected revision, a requested selection of enabled catalog
+// tools at the expected revision (decision F18), or a refresh from the current
+// handover that keeps the recorded preset, profile and tools. All run the one
+// planner and the one transaction below; only the input differs.
 export type FolderChangeRequest =
   | Readonly<{
       kind: "profile";
       expectedRevision: number;
       requested: unknown;
+    }>
+  | Readonly<{
+      kind: "tools";
+      expectedRevision: number;
+      tools: unknown;
     }>
   | Readonly<{ kind: "handover"; machine: MachineBinding }>;
 
@@ -77,6 +88,14 @@ function planRequestedChange(
       request.requested,
       inspect,
     );
+  if (request.kind === "tools")
+    return planToolsChange(
+      state.preferences,
+      state.manifest,
+      request.expectedRevision,
+      request.tools,
+      inspect,
+    );
   // No caller-held revision: the refresh changes no choice of the Principal,
   // it re-renders the recorded ones under the lock from the current handover.
   return planFolderChange(
@@ -87,6 +106,7 @@ function planRequestedChange(
       preset: state.preferences.preset.name,
       profile: state.preferences.profile,
       machine: request.machine,
+      tools: enabledTools(state.preferences),
     },
     inspect,
   );
