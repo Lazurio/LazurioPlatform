@@ -54,7 +54,19 @@ import {
 } from "../src/tools/catalog";
 import { binding, bindings } from "./fixtures/machine-bindings";
 import personal from "./fixtures/machine-context-personal.json";
-import { journeys } from "./folder-render.test";
+
+// Every preset, as in the render tests; declared here because importing a
+// test file would run its tests again under this one.
+const journeys = [
+  { preset: "local", machine: null, os: "macos" },
+  { preset: "hosted-personal", machine: bindings.personal, os: "linux" },
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organization,
+    os: "linux",
+  },
+  { preset: "hosted-organization-team", machine: bindings.team, os: "linux" },
+] as const;
 
 const os = executionOs(process.platform);
 const profile = {
