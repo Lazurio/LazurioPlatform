@@ -5,6 +5,7 @@ import {
   parseFolderPreferences,
   parseInstructionManifest,
   stateFields,
+  toolNotes,
 } from "./state";
 
 export type FileIdentity = Readonly<{ dev: string; ino: string }>;
@@ -86,7 +87,8 @@ export async function validatePreparation(
   const stagedManifestIdentity = identity(marker.manifestIdentity);
   // The staged binding is part of the transition: a refresh carries the
   // re-projected binding of the same Machine, a profile change the recorded
-  // one; the staged enabled tools are the requested or the recorded ones.
+  // one; the staged enabled tools and notes are the requested or the
+  // recorded ones.
   const plan = await planFolderChange(
     previousPreferences,
     previousManifest,
@@ -96,6 +98,7 @@ export async function validatePreparation(
       profile: preferences.profile,
       machine: preferences.machine,
       tools: enabledTools(preferences),
+      notes: toolNotes(preferences),
     },
     async (path) => ({
       kind: "regular",

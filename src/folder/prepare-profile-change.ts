@@ -19,7 +19,7 @@ import {
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState, readOwnedStateFile } from "./read-state";
-import { enabledTools } from "./state";
+import { enabledTools, toolNotes } from "./state";
 import {
   type FileIdentity,
   transactionSchemaVersion,
@@ -59,9 +59,11 @@ type Inspect = (path: OutputPath) => ReturnType<typeof inspectOutput>;
 
 // What a change of the generated Folder is planned from: a requested profile
 // change at the expected revision, a requested selection of enabled catalog
-// tools at the expected revision (decision F18), or a refresh from the current
-// handover that keeps the recorded preset, profile and tools. All run the one
-// planner and the one transaction below; only the input differs.
+// tools at the expected revision with, optionally, the operator's notes on
+// them (decision F18 and its addendum; absent notes keep the recorded ones of
+// the tools that stay on), or a refresh from the current handover that keeps
+// the recorded preset, profile, tools and notes. All run the one planner and
+// the one transaction below; only the input differs.
 export type FolderChangeRequest =
   | Readonly<{
       kind: "profile";
@@ -72,6 +74,7 @@ export type FolderChangeRequest =
       kind: "tools";
       expectedRevision: number;
       tools: unknown;
+      notes?: unknown;
     }>
   | Readonly<{ kind: "handover"; machine: MachineBinding }>;
 
@@ -95,6 +98,7 @@ function planRequestedChange(
       request.expectedRevision,
       request.tools,
       inspect,
+      request.notes,
     );
   // No caller-held revision: the refresh changes no choice of the Principal,
   // it re-renders the recorded ones under the lock from the current handover.
@@ -107,6 +111,7 @@ function planRequestedChange(
       profile: state.preferences.profile,
       machine: request.machine,
       tools: enabledTools(state.preferences),
+      notes: toolNotes(state.preferences),
     },
     inspect,
   );

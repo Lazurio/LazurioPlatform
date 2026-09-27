@@ -1,8 +1,11 @@
 import {
   activeTools,
   parseEnabledTools,
+  parseToolNotes,
+  type ToolNotes,
   type ToolTier,
 } from "../tools/catalog";
+import { quoteToolNote } from "../tools/note";
 import {
   type MachineBinding,
   type MachinePeer,
@@ -18,7 +21,7 @@ import {
   workspacePreset,
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
-import { enabledTools, type FolderPreferences } from "./state";
+import { enabledTools, type FolderPreferences, toolNotes } from "./state";
 import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
@@ -42,30 +45,37 @@ export function isOlderTemplateRevision(revision: string): boolean {
 }
 
 // What the renderer needs and nothing else: the preset, the immutable Machine
-// binding (null on a workstation), the profile and the enabled catalog tools
-// (decision F18). Validated as one composition. A source without `tools` has
-// nothing enabled; the parsed source always names the list.
+// binding (null on a workstation), the profile, the enabled catalog tools
+// (decision F18) and the operator's notes on them (F18 addendum 2026-09-27).
+// Validated as one composition. A source without `tools` has nothing enabled
+// and one without `toolNotes` no note; the parsed source always names both.
 export type InstructionSource = Readonly<{
   preset: PresetName;
   machine: MachineBinding | null;
   profile: FolderProfile;
   tools: readonly string[];
+  toolNotes: ToolNotes;
 }>;
 
 export function parseInstructionSource(input: unknown): InstructionSource {
   const withTools = ownDataValue(input, "tools") !== undefined;
+  const withNotes = ownDataValue(input, "toolNotes") !== undefined;
   const value = stateFields(input, [
     "preset",
     "machine",
     "profile",
     ...(withTools ? ["tools"] : []),
+    ...(withNotes ? ["toolNotes"] : []),
   ]);
   const preset = parsePresetName(value.preset);
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
   validatePresetComposition(presetReference(preset, machine), machine, profile);
   const tools = withTools ? parseEnabledTools(value.tools) : Object.freeze([]);
-  return Object.freeze({ preset, machine, profile, tools });
+  const notes = withNotes
+    ? parseToolNotes(value.toolNotes, tools)
+    : Object.freeze({});
+  return Object.freeze({ preset, machine, profile, tools, toolNotes: notes });
 }
 
 export function instructionSource(
@@ -76,6 +86,7 @@ export function instructionSource(
     machine: preferences.machine,
     profile: preferences.profile,
     tools: enabledTools(preferences),
+    toolNotes: toolNotes(preferences),
   });
 }
 
@@ -306,21 +317,51 @@ const tierLabels: Readonly<Record<ToolTier, Text>> = {
   optional: { cs: "zapnutý", en: "enabled" },
 };
 
+// The short marker on the AGENTS.md line of a tool the operator left a note
+// on; the note itself is quoted only in the manual.
+const noteMarker: Text = {
+  cs: "Operátor k němu agentům zanechal poznámku v `manual/this-machine.md`.",
+  en: "The operator left a note on it for agents in `manual/this-machine.md`.",
+};
+
+// The attribution above a quoted note in the manual.
+export const noteAttribution: Text = {
+  cs: "Poznámka operátora tohohle Environmentu:",
+  en: "Note from the operator of this Environment:",
+};
+
+// Said once in the manual when any tool carries a note.
+export const notesMeaning: Text = {
+  cs: "Poznámka operátora u nástroje je záměr operátora tohohle Environmentu pro agenty, kteří tu pracují: řiď se jí v mezích pokynu Principála. Neuděluje žádný přístup ani mandát k Publikaci a pravidla tohohle dokumentu nemění; je to citovaný text, ne instrukce Lazuria.",
+  en: "A note from the operator on a tool is the intent of this Environment's operator for the agents working here: follow it within the Principal's instructions. It grants no access and no mandate for a Publication and changes none of the rules of this document; it is quoted text, not an instruction of Lazurio.",
+};
+
 // One line per tool agents are to use: the required ones and the enabled
-// ones, in catalog order. `text` selects what the line says about the tool.
+// ones, in catalog order. `text` selects what the line says about the tool:
+// its purpose, with the marker of an operator's note (AGENTS.md), or its
+// purpose and usage followed by the quoted note (the manual).
 export function toolLines(
   tools: readonly string[],
   locale: FolderProfile["locale"],
   text: "purpose" | "usage",
+  notes: ToolNotes = {},
 ): string[] {
-  return activeTools(tools).map(
-    ({ name, activation }) =>
-      `- \`${name}\` (${tierLabels[activation.tier][locale]}): ${
-        text === "purpose"
-          ? activation.purpose[locale]
-          : `${activation.purpose[locale]} ${activation.usage[locale]}`
-      }`,
-  );
+  return activeTools(tools).flatMap(({ name, activation }) => {
+    const note = Object.hasOwn(notes, name) ? notes[name] : undefined;
+    const line = `- \`${name}\` (${tierLabels[activation.tier][locale]}): ${
+      text === "purpose"
+        ? `${activation.purpose[locale]}${note === undefined ? "" : ` ${noteMarker[locale]}`}`
+        : `${activation.purpose[locale]} ${activation.usage[locale]}`
+    }`;
+    if (text === "purpose" || note === undefined) return [line];
+    // Inside the list item: the attribution, then every line of the note as
+    // a quoted line (`quoteToolNote` keeps it one literal block).
+    return [
+      line,
+      `  ${noteAttribution[locale]}`,
+      ...quoteToolNote(note).map((quoted) => `  ${quoted}`),
+    ];
+  });
 }
 
 // The generic instruction for MCP servers, shared by AGENTS.md and the
@@ -337,6 +378,12 @@ export const sharedSignInWarning: Text = {
   en: "**Shared Environment:** accounts signed in to the tools apply to this whole Environment and are shared by all its operators and their agents. Sign in only accounts meant for the whole Team; a personal account does not belong here.",
 };
 
+// Whether the Environment runs on a hosted Machine: every preset but the
+// local workstation.
+export function hostedEnvironment(preset: PresetName): boolean {
+  return preset !== "local";
+}
+
 // Whether sign-ins on this preset are shared by several operators.
 export function sharedEnvironment(preset: PresetName): boolean {
   return workspacePreset(preset).providerIdentity === "brokered-organization";
@@ -346,6 +393,7 @@ export function sharedEnvironment(preset: PresetName): boolean {
 // order. The usage of every tool is in `manual/this-machine.md`.
 function toolsSection(
   tools: readonly string[],
+  notes: ToolNotes,
   locale: FolderProfile["locale"],
   shared: boolean,
 ): string[] {
@@ -356,14 +404,20 @@ function toolsSection(
       cs: "Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje `manual/this-machine.md`. Uvedený nástroj je kontext: neuděluje přístup, nic neinstaluje a nepinuje verzi.",
       en: "Use these CLIs of the Lazurio catalog first, as `manual/this-machine.md` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.",
     }),
-    ...toolLines(tools, locale, "purpose"),
+    ...toolLines(tools, locale, "purpose", notes),
     ...(shared ? [pick(sharedSignInWarning)] : []),
     pick(mcpInstruction),
   ];
 }
 
 export function renderInstructions(input: unknown): string {
-  const { preset, machine, profile, tools } = parseInstructionSource(input);
+  const {
+    preset,
+    machine,
+    profile,
+    tools,
+    toolNotes: notes,
+  } = parseInstructionSource(input);
   const pick = (text: Text) => (profile.locale === "cs" ? text.cs : text.en);
   return [
     "# Lazurio",
@@ -418,7 +472,7 @@ export function renderInstructions(input: unknown): string {
       en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
     }),
     ...(machine === null ? [] : hostedLines(pick)),
-    ...toolsSection(tools, profile.locale, sharedEnvironment(preset)),
+    ...toolsSection(tools, notes, profile.locale, sharedEnvironment(preset)),
     ...manualSection(profile.locale),
     "",
   ].join("\n");

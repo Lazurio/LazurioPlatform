@@ -1,3 +1,5 @@
+import { toolNoteProblem } from "./note";
+
 // The operator's tools that `lazurio tools` reports and, on instruction, updates
 // (decision 0161 / F17, docs/environment-tools.md). A thin orchestration of each
 // tool's OFFICIAL update path: the tool's own updater where it has one, the
@@ -26,12 +28,50 @@ export type ToolText = Readonly<{ cs: string; en: string }>;
 // `launchpad` tool what a fallback agent follows when the curated installer
 // fails. Nothing in this catalog installs anything.
 export type ToolSetup = "launchpad" | "agent";
+// How the Launchpad and `lazurio tools list --sign-in` ask a tool whether it
+// is signed in, and as whom (decision F18, addendum 2026-09-27). The probe is
+// the command the usage text names; it runs only on request, because a tool
+// may contact its provider to verify the sign-in. Signed in means: the
+// command exits 0, `signedOut` does not match its output, and the `account`
+// rules below hold. Only the extracted label ever leaves the probe.
+export type SignInAccount =
+  | Readonly<{
+      kind: "json";
+      /** Candidate paths of the account label in the JSON object the tool
+       * prints (the whole output or one line of it); the first non-empty
+       * string wins. A numeric segment indexes an array. */
+      paths: readonly (readonly string[])[];
+      /** Where the organization label is, when the tool names one. */
+      organization?: readonly string[];
+      /** Signed in only when a label was found. */
+      requireAccount?: boolean;
+      /** Signed in only when this path holds `true`. */
+      flag?: readonly string[];
+      /** Candidate paths of the list of signed-in accounts (`[]` is the
+       * whole document). An empty list is signed out; the label paths are
+       * then read from its first entry. When no candidate is a list the
+       * shape is unknown: signed in by the exit code, without a label. */
+      list?: readonly (readonly string[])[];
+    }>
+  | Readonly<{
+      kind: "regex";
+      /** Capture group 1 is the account label; searched in stdout and
+       * stderr. No match leaves a signed-in probe without a label. */
+      pattern: string;
+    }>;
+export type SignInProbe = Readonly<{
+  argv: readonly string[];
+  account?: SignInAccount;
+  /** Output that means signed out whatever the exit code. */
+  signedOut?: string;
+}>;
 export type ToolActivation = Readonly<{
   tier: ToolTier;
   setup: ToolSetup;
   purpose: ToolText;
   usage: ToolText;
   installation: ToolText;
+  signInProbe?: SignInProbe;
 }>;
 
 export type ToolEntry = Readonly<{
@@ -91,6 +131,14 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     activation: {
       tier: "required",
       setup: "launchpad",
+      signInProbe: {
+        argv: ["auth", "status", "--hostname", "github.com"],
+        account: {
+          kind: "regex",
+          pattern:
+            "Logged in to github\\.com (?:account|as) ([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))",
+        },
+      },
       installation: installation(
         "Cílový stav: `gh` je první spustitelný soubor toho jména na PATH operátora, ve standardní cestě `~/.local/bin/gh`, z oficiálního zdroje https://github.com/cli/cli#installation. Fungující `gh` jinde na PATH zůstává a jen se nahlásí. Operátor se přihlásí příkazem `gh auth login --hostname github.com --git-protocol ssh --web`: v prohlížeči otevře stránku zařízení a zadá jednorázový kód. Důkaz: `gh --version` odpoví a `gh auth status` skončí kódem 0 a jmenuje zamýšlený účet.",
         "Target state: `gh` is the first executable of that name on the operator's PATH, in the standard path `~/.local/bin/gh`, from the official source https://github.com/cli/cli#installation. A working `gh` elsewhere on PATH stays and is only reported. The operator signs in with `gh auth login --hostname github.com --git-protocol ssh --web`: they open the device page in their browser and enter the one-time code. Proof: `gh --version` answers and `gh auth status` exits 0 and names the intended account.",
@@ -142,6 +190,18 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     activation: {
       tier: "recommended",
       setup: "launchpad",
+      // `composio whoami` prints one JSON object line when signed in and
+      // "You are not logged in" otherwise, with exit code 0 either way.
+      signInProbe: {
+        argv: ["whoami"],
+        account: {
+          kind: "json",
+          paths: [["email"]],
+          organization: ["current_org_name"],
+          requireAccount: true,
+        },
+        signedOut: "not logged in",
+      },
       installation: installation(
         "Cílový stav: `composio` ve standardní cestě `~/.local/bin/composio`, nainstalované oficiálním instalátorem podle https://docs.composio.dev/docs/cli; instalátor si smí držet vlastní domov a do `~/.local/bin` vede jen link nebo wrapper. Operátor se přihlásí příkazem `composio login` a odkaz, který příkaz vrátí, otevře ve svém prohlížeči; jednotlivé aplikace pak napojuje `composio link <toolkit>` stejným způsobem. Přihlášení platí pro celé tohle Environment. Důkaz: `composio --version` odpoví a `composio whoami` skončí kódem 0 a jmenuje zamýšlený účet.",
         "Target state: `composio` in the standard path `~/.local/bin/composio`, installed by the official installer per https://docs.composio.dev/docs/cli; the installer may keep its own home, with only a link or wrapper in `~/.local/bin`. The operator signs in with `composio login` and opens the link the command returns in their browser; single applications are then connected with `composio link <toolkit>` the same way. The sign-in holds for this whole Environment. Proof: `composio --version` answers and `composio whoami` exits 0 and names the intended account.",
@@ -165,6 +225,14 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     activation: {
       tier: "optional",
       setup: "launchpad",
+      signInProbe: {
+        argv: ["auth", "status", "--json", "--read-only"],
+        account: {
+          kind: "json",
+          paths: [["phone"], ["linked_jid"]],
+          flag: ["authenticated"],
+        },
+      },
       installation: installation(
         "Cílový stav: `wacli` ve standardní cestě `~/.local/bin/wacli`, z oficiálního zdroje https://github.com/openclaw/wacli (Homebrew tap `openclaw/tap/wacli` nebo předpřipravený archiv z GitHub Releases; link nebo wrapper v `~/.local/bin`). Operátor spáruje CLI příkazem `wacli auth`: QR kód z terminálu naskenuje ve WhatsAppu na obrazovce Propojená zařízení; párování dělá jen on, svým telefonem. Relace je uložená v úložišti nástroje (Linux `~/.local/state/wacli`, jinde `~/.wacli`) a nikam se nekopíruje. Důkaz: `wacli --version` odpoví a `wacli auth status --json` hlásí přihlášený účet.",
         "Target state: `wacli` in the standard path `~/.local/bin/wacli`, from the official source https://github.com/openclaw/wacli (the Homebrew tap `openclaw/tap/wacli` or a prebuilt archive from GitHub Releases; a link or wrapper in `~/.local/bin`). The operator pairs the CLI with `wacli auth`: they scan the terminal QR code in WhatsApp on the Linked devices screen; only they pair, with their own phone. The session lives in the tool's store (Linux `~/.local/state/wacli`, elsewhere `~/.wacli`) and is copied nowhere. Proof: `wacli --version` answers and `wacli auth status --json` reports the signed-in account.",
@@ -188,6 +256,14 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     activation: {
       tier: "optional",
       setup: "agent",
+      signInProbe: {
+        argv: ["auth", "list", "--check", "--json", "--no-input"],
+        account: {
+          kind: "json",
+          paths: [["email"], ["account"]],
+          list: [[], ["accounts"]],
+        },
+      },
       installation: installation(
         "Cílový stav: `gog` ve standardní cestě `~/.local/bin/gog`, z oficiálního zdroje https://github.com/openclaw/gogcli (Homebrew tap `openclaw/tap/gogcli` nebo binárka z vydání projektu; link nebo wrapper v `~/.local/bin`). Řekni operátorovi předem a poctivě, co přihlášení obnáší: potřebuje vlastního OAuth klienta typu Desktop ve svém Google Cloud projektu, jehož staženým souborem se nástroj nastaví (`gog auth credentials set <soubor>`), a souhlas v prohlížeči, po kterém vloží zpět URL přesměrování (`gog auth add <email> --remote --step 1` a potom `--step 2`, nebo `--manual`). Soubor klienta i URL přesměrování s kódem jsou tajemství: předej je jen příkazu a nikde je neopakuj. Na headless Linuxu bez systémové klíčenky potřebuje souborový backend klíčenky heslo; to je tajemství držené v custody operátora, nikdy ve skriptu, Gitu ani chatu; přesné nastavení backendu vezmi z dokumentace gogcli. Důkaz: `gog --version` odpoví a `gog auth list --check --json --no-input` skončí kódem 0 a jmenuje zamýšlený účet.",
         "Target state: `gog` in the standard path `~/.local/bin/gog`, from the official source https://github.com/openclaw/gogcli (the Homebrew tap `openclaw/tap/gogcli` or a binary of the project's releases; a link or wrapper in `~/.local/bin`). Tell the operator up front and honestly what the sign-in takes: their own Desktop OAuth client in their Google Cloud project, whose downloaded file configures the tool (`gog auth credentials set <file>`), and a browser consent after which they paste the redirect URL back (`gog auth add <email> --remote --step 1` and then `--step 2`, or `--manual`). The client file and the redirect URL with its code are secrets: pass them only to the command and repeat them nowhere. On a headless Linux without a system keyring the file keyring backend needs a password; it is a secret held in the operator's custody, never in a script, Git or chat; take the exact backend settings from the gogcli documentation. Proof: `gog --version` answers and `gog auth list --check --json --no-input` exits 0 and names the intended account.",
@@ -211,6 +287,10 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     activation: {
       tier: "optional",
       setup: "agent",
+      signInProbe: {
+        argv: ["me", "-o", "json"],
+        account: { kind: "json", paths: [["email"], ["login"]] },
+      },
       installation: installation(
         "Cílový stav: `neon` (alias `neonctl`) ve standardní cestě `~/.local/bin/neon`, z oficiálního zdroje https://neon.com/docs/reference/cli-install: binárka z vydání `neondatabase/neon-pkgs`, Homebrew formule `neonctl`, nebo npm balíček nad Node.js operátora. Jméno npm balíčku a požadovanou verzi Node.js ověř na té stránce před instalací: dokumentace a README repozitáře `neondatabase/neonctl` je v době zápisu uvádějí různě a Lazurio je neověřilo. Operátor se přihlásí příkazem `neon login` (starší jméno `neon auth`), který otevírá okno prohlížeče k autorizaci; zda to jde dokončit na Mašině bez prohlížeče, ověřeno není. Druhá dokumentovaná cesta je API klíč Neonu v proměnné `NEON_API_KEY`: je to tajemství v custody operátora a nikdy se nepředává v argumentu příkazu, který skončí v historii nebo logu. Kam nástroj přihlášení ukládá, zjisti z `--config-dir` v dokumentaci; ten soubor nekopíruj. Důkaz: `neon --version` odpoví a `neon me -o json` skončí kódem 0 a jmenuje zamýšlený účet.",
         "Target state: `neon` (alias `neonctl`) in the standard path `~/.local/bin/neon`, from the official source https://neon.com/docs/reference/cli-install: a binary of the `neondatabase/neon-pkgs` releases, the Homebrew formula `neonctl`, or the npm package on the operator's Node.js. Verify the npm package name and the required Node.js version on that page before installing: the documentation and the README of the `neondatabase/neonctl` repository state them differently at the time of writing and Lazurio has not verified them. The operator signs in with `neon login` (older name `neon auth`), which opens a browser window for authorization; whether it can be completed on a Machine without a browser is not verified. The other documented way is a Neon API key in the `NEON_API_KEY` variable: it is a secret in the operator's custody and is never passed in a command argument that ends in history or a log. Find where the tool stores the sign-in from `--config-dir` in the documentation; do not copy that file. Proof: `neon --version` answers and `neon me -o json` exits 0 and names the intended account.",
@@ -275,6 +355,44 @@ export function parseEnabledTools(input: unknown): readonly string[] {
   if (Reflect.ownKeys(input).length !== input.length + 1)
     throw new Error("Invalid enabled tools");
   return Object.freeze(names);
+}
+
+export type ToolNotes = Readonly<Record<string, string>>;
+
+// The one validator of the operator's notes (decision F18, addendum
+// 2026-09-27), for stored state and for a request alike: a plain object of own
+// data fields, keyed by the names of activatable tools that are on in the
+// given selection (required, or enabled), in sorted order, each value a note
+// in its stored form (`toolNoteProblem`). Sorted keys give one selection one
+// representation. An empty object is valid; whether it may be stored is the
+// state parser's rule.
+export function parseToolNotes(
+  input: unknown,
+  enabled: readonly string[],
+): ToolNotes {
+  if (typeof input !== "object" || input === null || Array.isArray(input))
+    throw new Error("Invalid tool notes");
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null)
+    throw new Error("Invalid tool notes");
+  const on = activeTools(enabled).map((entry) => entry.name);
+  const notes: Record<string, string> = {};
+  let previous: string | undefined;
+  for (const key of Reflect.ownKeys(input)) {
+    if (typeof key !== "string" || !on.includes(key))
+      throw new Error("A note needs a required or enabled catalog tool");
+    if (previous !== undefined && previous >= key)
+      throw new Error("Tool notes must be sorted");
+    previous = key;
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable)
+      throw new Error("Invalid tool notes");
+    const note: unknown = descriptor.value;
+    if (typeof note !== "string" || toolNoteProblem(note) !== null)
+      throw new Error("Invalid tool note");
+    notes[key] = note;
+  }
+  return Object.freeze(notes);
 }
 
 // What agents on the Environment are told to use: the required tools and the
