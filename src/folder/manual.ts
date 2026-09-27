@@ -365,8 +365,8 @@ const workingHere: readonly Text[] = [
     "- **An issue does not stop the work.** Continue with everything that does not depend on the answer. Stop only where you cannot continue safely without it or where the decision belongs to the Principal.",
   ),
   t(
-    "- **Mandát platí jen pro zápis.** Issue bez pokynu Principála nezavíráš, nepřiřazuješ ani neprioritizuješ. Merge, Release a nasazení zůstávají Publikací na jeho pokyn.",
-    "- **The mandate covers filing only.** You do not close, assign or prioritize an issue without the Principal's instruction. A merge, a Release and a deployment remain a Publication on their instruction.",
+    "- **Mandát platí jen pro zápis.** Issue bez pokynu Principála nezavíráš, nepřiřazuješ ani neprioritizuješ. Merge a nasazení zůstávají Publikací a stejně jako Release se dělají jen na jeho výslovný pokyn.",
+    "- **The mandate covers filing only.** You do not close, assign or prioritize an issue without the Principal's instruction. A merge and a deployment remain a Publication and, like a Release, happen only on their explicit instruction.",
   ),
   t(
     "- **Issue není plán.** Plán, priorita a odpovědnost patří do Mission Controlu Organizace; otevřenou otázku tam místo issue nezapisuj.",
@@ -382,8 +382,8 @@ const workingHere: readonly Text[] = [
     "## Knowledge belongs where others find it",
   ),
   t(
-    "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Vždy jako PR ze svého worktree. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Principál do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost.",
-    "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. Always as a PR from your worktree. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Principal may place in that store; Personalspace and cross-Organization isolation always take precedence.",
+    "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree; GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Principál do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost.",
+    "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree; a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Principal may place in that store; Personalspace and cross-Organization isolation always take precedence.",
   ),
   blank,
   t("## Organizace", "## Organizations"),
