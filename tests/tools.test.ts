@@ -3,6 +3,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readFile,
   realpath,
   stat,
   symlink,
@@ -10,8 +11,15 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { initializeFolder } from "../src/folder/initialize-folder";
+import { executionOs } from "../src/folder/platform";
 import type { ToolEntry } from "../src/tools/catalog";
-import { findTool, toolCatalog } from "../src/tools/catalog";
+import {
+  activatableTools,
+  findTool,
+  toolCatalog,
+  toolPrompt,
+} from "../src/tools/catalog";
 import { runToolsCommand } from "../src/tools/cli";
 import {
   resolveOnPath,
@@ -72,6 +80,10 @@ test("the catalog names the operator's tools with their official update path", (
     "node",
     "npm",
     "bun",
+    "composio",
+    "wacli",
+    "gogcli",
+    "neon",
   ]);
   expect(findTool("codex")?.updater.kind).toBe("installer");
   expect(findTool("claude")?.updater).toEqual({
@@ -242,6 +254,14 @@ test.skipIf(!posix)(
       tool: "t3",
       known: ["bun", "claude", "gh", "codex"],
     });
+    // Without an injected catalog the known names are the product catalog's.
+    expect(
+      await toolsUpdate({ ...common, catalog: undefined, tool: "t3" }),
+    ).toEqual({
+      kind: "tool-unknown",
+      tool: "t3",
+      known: toolCatalog.map((entry) => entry.name),
+    });
     // A download that fails never runs half a script and never passes as an
     // update: the failure and its stderr are reported.
     const download = await toolsUpdate({
@@ -331,6 +351,256 @@ test.skipIf(!posix)(
     await expect(runToolsCommand(["status", "extra"], context)).rejects.toThrow(
       /Usage/,
     );
+    // The Folder options belong to the Folder-bound commands only.
+    for (const args of [
+      ["status", "--folder", root],
+      ["update", "gh", "--expected-revision", "1"],
+    ])
+      await expect(runToolsCommand(args, context)).rejects.toThrow(/Usage/);
+  },
+);
+
+test.skipIf(!posix)(
+  "the Folder-bound CLI surface: list, enable and disable with their exit codes",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "lazurio-tools-folder-")),
+    );
+    const bin = join(root, ".local", "bin");
+    await mkdir(bin, { recursive: true });
+    await fakeTool(bin, "gh", "2.86.0");
+    await fakeTool(bin, "wacli", "0.9.1");
+    const context = {
+      env: { PATH: bin, HOME: root },
+      platform: process.platform,
+    };
+    const folder = join(root, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const run = async (...args: string[]) => {
+      const output = await runToolsCommand([...args, "--json"], context);
+      expect(JSON.parse(output.text)).toEqual(output.result);
+      return { code: output.code, result: output.result };
+    };
+    const list = async () =>
+      (await run("list", "--folder", folder)).result as {
+        kind: string;
+        revision: number;
+        tools: Record<string, unknown>[];
+      };
+    const first = await list();
+    expect(first.kind).toBe("tools-list");
+    expect(first.revision).toBe(1);
+    expect(first.tools).toMatchObject([
+      {
+        name: "gh",
+        tier: "required",
+        setup: "launchpad",
+        enabled: true,
+        installed: true,
+        path: join(bin, "gh"),
+        version: "2.86.0",
+        standardPath: true,
+      },
+      {
+        name: "composio",
+        tier: "recommended",
+        enabled: false,
+        installed: false,
+        source: "https://docs.composio.dev/docs/cli",
+      },
+      {
+        name: "wacli",
+        tier: "optional",
+        setup: "launchpad",
+        enabled: false,
+        installed: true,
+        version: "0.9.1",
+        standardPath: true,
+      },
+      {
+        name: "gogcli",
+        command: "gog",
+        tier: "optional",
+        setup: "agent",
+        enabled: false,
+        installed: false,
+      },
+      {
+        name: "neon",
+        tier: "optional",
+        setup: "agent",
+        enabled: false,
+        installed: false,
+      },
+    ]);
+    const text = await runToolsCommand(["list", "--folder", folder], context);
+    expect(text.code).toBe(0);
+    expect(text.text.split("\n")).toEqual([
+      "revision 1",
+      `gh        required     launchpad  enabled   2.86.0 ${join(bin, "gh")}`,
+      "composio  recommended  launchpad  disabled  missing https://docs.composio.dev/docs/cli",
+      `wacli     optional     launchpad  disabled  0.9.1 ${join(bin, "wacli")}`,
+      "gogcli    optional     agent      disabled  missing https://github.com/openclaw/gogcli",
+      "neon      optional     agent      disabled  missing https://neon.com/docs/reference/neon-cli",
+    ]);
+
+    const enable = (tool: string, revision: number) =>
+      run(
+        "enable",
+        tool,
+        "--folder",
+        folder,
+        "--expected-revision",
+        String(revision),
+      );
+    const disable = (tool: string, revision: number) =>
+      run(
+        "disable",
+        tool,
+        "--folder",
+        folder,
+        "--expected-revision",
+        String(revision),
+      );
+    // Enabling a tool that is not installed is allowed: context, not
+    // installation. Nothing was installed by it.
+    expect(await enable("composio", 1)).toEqual({
+      code: 0,
+      result: { kind: "updated", revision: 2, tool: "composio" },
+    });
+    expect(await resolveOnPath("composio", bin, process.platform)).toBe(
+      undefined,
+    );
+    expect(await enable("composio", 2)).toEqual({
+      code: 0,
+      result: { kind: "unchanged", tool: "composio" },
+    });
+    expect(await enable("wacli", 1)).toEqual({
+      code: 2,
+      result: { kind: "blocked", reason: "stale-revision", tool: "wacli" },
+    });
+    expect(await enable("wacli", 2)).toEqual({
+      code: 0,
+      result: { kind: "updated", revision: 3, tool: "wacli" },
+    });
+    expect(
+      (await list()).tools.map((tool) => [tool.name, tool.enabled]),
+    ).toEqual([
+      ["gh", true],
+      ["composio", true],
+      ["wacli", true],
+      ["gogcli", false],
+      ["neon", false],
+    ]);
+    expect(
+      JSON.parse(
+        await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
+      ).tools,
+    ).toEqual(["composio", "wacli"]);
+    expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+      "- `wacli` (enabled): ",
+    );
+
+    // A required tool is always on; unknown and not activatable names are
+    // refused before the Folder is read.
+    expect(await enable("gh", 99)).toEqual({
+      code: 0,
+      result: { kind: "unchanged", tool: "gh" },
+    });
+    expect(await disable("gh", 3)).toEqual({
+      code: 2,
+      result: { kind: "blocked", reason: "tool-required", tool: "gh" },
+    });
+    for (const tool of ["t3", "codex"])
+      expect(await enable(tool, 3)).toEqual({
+        code: 2,
+        result: {
+          kind: "blocked",
+          reason: "tool-unknown",
+          tool,
+          known: ["gh", "composio", "wacli", "gogcli", "neon"],
+        },
+      });
+
+    expect(await disable("composio", 3)).toEqual({
+      code: 0,
+      result: { kind: "updated", revision: 4, tool: "composio" },
+    });
+    expect(await disable("composio", 4)).toEqual({
+      code: 0,
+      result: { kind: "unchanged", tool: "composio" },
+    });
+    // An edited owned file blocks by path with exit 2.
+    const roles = join(folder, "manual", "roles.md");
+    const original = await readFile(roles, "utf8");
+    await writeFile(roles, "my notes");
+    expect(await disable("wacli", 4)).toEqual({
+      code: 2,
+      result: {
+        kind: "blocked",
+        reason: "drift",
+        path: "manual/roles.md",
+        tool: "wacli",
+      },
+    });
+    await writeFile(roles, original);
+    expect(await disable("wacli", 4)).toEqual({
+      code: 0,
+      result: { kind: "updated", revision: 5, tool: "wacli" },
+    });
+    expect(
+      "tools" in
+        JSON.parse(
+          await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
+        ),
+    ).toBe(false);
+
+    // Usage: the Folder and the revision are explicit, nothing is discovered.
+    for (const args of [
+      ["list"],
+      ["list", "extra", "--folder", folder],
+      ["list", "--folder", folder, "--expected-revision", "5"],
+      ["enable", "wacli", "--folder", folder],
+      ["enable", "wacli", "--expected-revision", "5"],
+      ["enable", "--folder", folder, "--expected-revision", "5"],
+      ["enable", "wacli", "--folder", folder, "--expected-revision", "0"],
+      ["enable", "wacli", "--folder", folder, "--expected-revision", "x"],
+      [
+        "disable",
+        "wacli",
+        "--folder",
+        folder,
+        "--folder",
+        folder,
+        "--expected-revision",
+        "5",
+      ],
+    ])
+      await expect(runToolsCommand(args, context)).rejects.toThrow(/Usage/);
+    // A Folder that is not one is an operation failure, not a refusal.
+    await expect(
+      runToolsCommand(["list", "--folder", join(root, "absent")], context),
+    ).rejects.not.toThrow(/Usage/);
+    await expect(
+      runToolsCommand(
+        [
+          "enable",
+          "wacli",
+          "--folder",
+          join(root, "absent"),
+          "--expected-revision",
+          "1",
+        ],
+        context,
+      ),
+    ).rejects.not.toThrow(/Usage/);
   },
 );
 
@@ -361,3 +631,78 @@ test.skipIf(!posix)(
     await expect(stat(marker)).rejects.toThrow();
   },
 );
+
+test("the prepared agent prompt: task, target state and the rule to enable the tool, in both locales", async () => {
+  // No Folder, no PATH: the prompt is text of the catalog.
+  const context = { env: {}, platform: process.platform };
+  for (const entry of activatableTools())
+    for (const locale of ["cs", "en"] as const) {
+      const prompt = toolPrompt(entry.name, locale);
+      if (prompt === undefined) throw new Error("Expected a prompt");
+      expect(prompt).not.toContain("undefined");
+      expect(prompt).toContain(
+        locale === "cs"
+          ? `Úkol: nainstaluj na téhle Mašině nástroj \`${entry.name}\` (příkaz \`${entry.command}\`)`
+          : `Task: install the tool \`${entry.name}\` (command \`${entry.command}\`) on this Machine`,
+      );
+      expect(prompt).toContain(entry.activation.purpose[locale]);
+      expect(prompt).toContain(entry.activation.installation[locale]);
+      expect(prompt).toContain("`lazurio tools status --json`");
+      expect(
+        prompt.includes(
+          `\`lazurio tools enable ${entry.name} --folder <Folder> --expected-revision <n>\``,
+        ),
+      ).toBe(entry.activation.tier !== "required");
+      const output = await runToolsCommand(
+        ["prompt", entry.name, "--locale", locale, "--json"],
+        context,
+      );
+      expect(output.code).toBe(0);
+      expect(JSON.parse(output.text)).toEqual({
+        kind: "tool-prompt",
+        tool: entry.name,
+        locale,
+        setup: entry.activation.setup,
+        prompt,
+      });
+      expect(
+        (
+          await runToolsCommand(
+            ["prompt", entry.name, "--locale", locale],
+            context,
+          )
+        ).text,
+      ).toBe(prompt);
+    }
+  // Both locales have the same paragraphs.
+  expect(toolPrompt("neon", "cs")?.split("\n").length).toBe(
+    toolPrompt("neon", "en")?.split("\n").length,
+  );
+  // English is the default; a required tool has nothing to enable.
+  expect((await runToolsCommand(["prompt", "gogcli"], context)).text).toBe(
+    toolPrompt("gogcli", "en") as string,
+  );
+  expect(toolPrompt("gh", "en")).toContain(
+    "`gh` is a required tool and is always in the Folder instructions",
+  );
+  for (const name of ["t3", "codex", "gog"]) {
+    expect(toolPrompt(name, "en")).toBeUndefined();
+    const unknown = await runToolsCommand(["prompt", name, "--json"], context);
+    expect(unknown.code).toBe(2);
+    expect(unknown.result).toEqual({
+      kind: "blocked",
+      reason: "tool-unknown",
+      tool: name,
+      known: ["gh", "composio", "wacli", "gogcli", "neon"],
+    });
+  }
+  for (const args of [
+    ["prompt"],
+    ["prompt", "neon", "extra"],
+    ["prompt", "neon", "--locale", "de"],
+    ["prompt", "neon", "--folder", "/tmp"],
+    ["prompt", "neon", "--expected-revision", "1"],
+    ["status", "--locale", "cs"],
+  ])
+    await expect(runToolsCommand(args, context)).rejects.toThrow(/Usage/);
+});

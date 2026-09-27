@@ -3,15 +3,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
+import { inspectToolsChange } from "../folder/inspect-tools-change";
 import { withFolderOperationLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { allowedPresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
-import { stateFields } from "../folder/state";
+import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
-import { updateProfile } from "../folder/update-profile";
+import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
+import { toolSelection } from "../tools/catalog";
 import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
@@ -227,7 +229,30 @@ export async function startLaunchpad(
             allowedPresets: allowedPresets(current.preferences.machine),
             machine: current.preferences.machine,
             profile: current.preferences.profile,
+            // The catalog tools agents may be told to use, with tier and
+            // whether each is on in this Folder (decision F18).
+            tools: toolSelection(enabledTools(current.preferences)),
           });
+        }
+        const revisionOf = (value: unknown) =>
+          typeof value === "number" && Number.isSafeInteger(value) && value >= 1
+            ? value
+            : null;
+        if (
+          ["/api/tools/preview", "/api/tools/update"].includes(url.pathname)
+        ) {
+          // The full next selection at the expected revision, over the same
+          // planner and transaction as a profile change.
+          const value = stateFields(input, ["expectedRevision", "tools"]);
+          const expectedRevision = revisionOf(value.expectedRevision);
+          if (expectedRevision === null)
+            return response({ error: "invalid-revision" }, 400);
+          const operation =
+            url.pathname === "/api/tools/update"
+              ? updateTools
+              : inspectToolsChange;
+          const result = await operation(folder, expectedRevision, value.tools);
+          return response(result, result.kind === "blocked" ? 409 : 200);
         }
         if (!["/api/preview", "/api/update"].includes(url.pathname))
           return response({ error: "not-found" }, 404);
@@ -238,17 +263,14 @@ export async function startLaunchpad(
             ? ["expectedRevision", "preset", "profile"]
             : ["expectedRevision", "profile"],
         );
-        if (
-          typeof value.expectedRevision !== "number" ||
-          !Number.isSafeInteger(value.expectedRevision) ||
-          value.expectedRevision < 1
-        )
+        const expectedRevision = revisionOf(value.expectedRevision);
+        if (expectedRevision === null)
           return response({ error: "invalid-revision" }, 400);
         const operation =
           url.pathname === "/api/update" ? updateProfile : inspectProfileChange;
         const result = await operation(
           folder,
-          value.expectedRevision,
+          expectedRevision,
           withPreset
             ? { preset: value.preset, profile: value.profile }
             : { profile: value.profile },
