@@ -1,6 +1,44 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio — Profile</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio — Profile</title>
+<style>
+#tools { max-width: 60rem; line-height: 1.45; }
+#tools h3 { margin: 1.75rem 0 0.15rem; font-size: 1.05rem; }
+#tools h4 { margin: 0; font-size: 1rem; }
+#tools p { margin: 0.35rem 0; }
+#tools button { font: inherit; padding: 0.3rem 0.75rem; }
+#tools .tools-muted { color: #555; font-size: 0.92rem; }
+#tools .tools-warning { border-left: 0.25rem solid #b26a00; background: #fff6e5; padding: 0.6rem 0.8rem; margin: 0.9rem 0; }
+#tools .tools-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0.9rem 0 0; }
+#tools .tools-list { display: grid; gap: 0.75rem; margin: 0.6rem 0 0; padding: 0; list-style: none; }
+#tools .tool-card { border: 1px solid #c9c9c9; border-radius: 0.5rem; padding: 0.85rem 1rem; background: #fff; }
+#tools .tool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.6rem; }
+#tools .tool-head code { color: #555; }
+#tools .tool-badge { border: 1px solid #c9c9c9; border-radius: 1rem; padding: 0.05rem 0.6rem; font-size: 0.82rem; white-space: nowrap; }
+#tools .tool-badge[data-state="on"] { border-color: #2e7d32; color: #1b5e20; background: #edf7ee; }
+#tools .tool-badge[data-state="off"] { color: #555; }
+#tools .tool-state { font-weight: 600; }
+#tools .tool-state[data-state="missing"] { color: #555; }
+#tools .tool-state[data-state="attention"] { color: #8a5200; }
+#tools .tool-path { font-family: ui-monospace, monospace; font-size: 0.88rem; overflow-wrap: anywhere; color: #333; }
+#tools .tool-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.7rem; }
+#tools .tool-message { border-left: 0.25rem solid #555; background: #f4f4f4; padding: 0.6rem 0.8rem; margin-top: 0.7rem; }
+#tools .tool-message[data-kind="blocked"], #tools .tool-message[data-kind="failed"] { border-left-color: #b3261e; background: #fdf0ef; }
+#tools .tool-message[data-kind="updated"] { border-left-color: #2e7d32; background: #edf7ee; }
+#tools details { margin-top: 0.5rem; }
+#tools .tool-signin[data-state="signed-in"] { color: #1b5e20; }
+#tools .tool-signin[data-state="signed-out"] { color: #8a5200; }
+#tools .tool-note { margin-top: 0.6rem; }
+#tools .tool-note textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 0.3rem; font: inherit; resize: vertical; }
+#tools .tool-note-problem { color: #b3261e; }
+#tools summary { cursor: pointer; color: #333; font-size: 0.92rem; }
+#tools-prompt { width: min(44rem, calc(100vw - 2rem)); border: 1px solid #999; border-radius: 0.5rem; padding: 1.1rem 1.25rem; }
+#tools-prompt::backdrop { background: rgba(0, 0, 0, 0.35); }
+#tools-prompt h3 { margin-top: 0; }
+#tools-prompt textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 0.3rem; font: 0.88rem/1.45 ui-monospace, monospace; resize: vertical; }
+#tools :focus-visible { outline: 2px solid #1a56c4; outline-offset: 2px; }
+</style>
+</head>
 <body>
 <main>
 <h1 data-message="title">Lazurio — Profile</h1>
@@ -31,6 +69,26 @@
 </form>
 <p id="status" role="status">Loading…</p>
 <pre id="result"></pre>
+<section id="tools" aria-labelledby="tools-heading">
+<h2 id="tools-heading" data-message="toolsTitle">Tools</h2>
+<p data-message="toolsIntro">Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.</p>
+<p id="tools-shared" class="tools-warning" role="note" hidden data-message="toolsShared">This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.</p>
+<p class="tools-bar"><button type="button" id="tools-refresh" data-message="toolsRefresh">Refresh status</button> <span id="tools-checked" class="tools-muted"></span></p>
+<p id="tools-announce" role="status" aria-live="polite"></p>
+<div id="tools-groups"></div>
+<h3 id="tools-mcp-heading" data-message="toolsMcpTitle">Connect another app through an MCP server</h3>
+<div class="tool-card">
+<p data-message="toolsMcpText">For an app the catalog does not cover, an agent sets up an MCP server on your request. MCP servers are not recorded in the Lazurio Folder.</p>
+<p class="tool-actions"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Set up an MCP server with an agent</button></p>
+</div>
+<dialog id="tools-prompt" aria-labelledby="tools-prompt-title">
+<h3 id="tools-prompt-title"></h3>
+<p id="tools-prompt-hint"></p>
+<label><span data-message="toolsPromptLabel">Prepared prompt</span>
+<textarea id="tools-prompt-text" readonly rows="14" spellcheck="false"></textarea></label>
+<p class="tool-actions"><button type="button" id="tools-prompt-copy" data-message="toolsCopy">Copy prompt</button> <button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button> <span id="tools-prompt-status" role="status" aria-live="polite"></span></p>
+</dialog>
+</section>
 <section aria-labelledby="apps-heading">
 <h2 id="apps-heading" data-message="appsTitle">Application</h2>
 <p data-message="appsNotice">Explicit development selection. The server must authorize the declared application.</p>

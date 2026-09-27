@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { access, constants, realpath, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
-import { type ToolEntry, toolCatalog } from "./catalog";
+import { type SignInProbe, type ToolEntry, toolCatalog } from "./catalog";
 
 /** A tool process with both streams captured, bounded, or "timeout". */
 export type ToolProcessResult =
@@ -89,8 +89,9 @@ export const runTool: ToolRunner = async (command, timeoutMs, env) => {
 
 /** `lazurio tools status`: the operator's tools as found on the operator's
  * PATH, each the first executable of its name (decision 0140 rule), with the
- * version the tool itself reports. Read-only; never the network; versions are
- * facts, not drift (decision 0161). */
+ * version the tool itself reports. Read-only; the version commands never use
+ * the network (a sign-in probe may, and runs only through `toolsSignIn`);
+ * versions are facts, not drift (decision 0161). */
 export type ToolStatus = Readonly<{
   name: string;
   command: string;
@@ -152,8 +153,10 @@ export function versionOf(output: string): string | undefined {
     .map((entry) => entry.trim())
     .find((entry) => entry.length > 0);
   if (!line) return undefined;
+  // Only a version-shaped token is ever reported. A first line without one is
+  // not echoed: a tool may print anything there, a secret included.
   const token = line.match(/\d+\.\d+(?:\.\d+)?(?:[-+][0-9A-Za-z.-]+)?/);
-  return token ? token[0] : line;
+  return token ? token[0] : undefined;
 }
 
 export async function toolsStatus(
@@ -243,4 +246,167 @@ export async function toolsStatus(
     }
   }
   return { kind: "tools-status", tools };
+}
+
+/** Whether a tool is signed in, and as whom when the tool can tell (decision
+ * F18, addendum 2026-09-27). `unknown`: not installed, no probe, a timeout, a
+ * failure to run, or output the probe cannot read. */
+export type ToolSignIn = Readonly<{
+  state: "signed-in" | "signed-out" | "unknown";
+  account?: string;
+  organization?: string;
+}>;
+
+export type ToolsSignInInput = Readonly<{
+  path: string | undefined;
+  home: string | undefined;
+  /** The XDG base directories of the serving process, when it has them;
+   * nothing else of its environment reaches a probe. */
+  xdg?: Readonly<Record<string, string>> | undefined;
+  run: ToolRunner;
+}>;
+
+const signInTimeoutMs = 10_000;
+const labelLength = 120;
+
+// A label for the page and the terminal: plain text without control or
+// bidirectional formatting characters, trimmed, at most 120 code points.
+export function signInLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const text = Array.from(
+    value
+      .replace(/[\p{Cc}\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/gu, "")
+      .trim(),
+  )
+    .slice(0, labelLength)
+    .join("")
+    .trim();
+  return text.length === 0 ? undefined : text;
+}
+
+// The first JSON object or array the tool printed: the whole output, or else
+// the first line that parses.
+function jsonOf(output: string): unknown {
+  const candidates = [output, ...output.split(/\r?\n/)];
+  for (const candidate of candidates) {
+    const text = candidate.trim();
+    if (!text.startsWith("{") && !text.startsWith("[")) continue;
+    try {
+      const value: unknown = JSON.parse(text);
+      if (value !== null && typeof value === "object") return value;
+    } catch {}
+  }
+  return undefined;
+}
+
+// Own data only; a numeric segment indexes an array.
+function at(value: unknown, path: readonly string[]): unknown {
+  let current = value;
+  for (const segment of path) {
+    if (current === null || typeof current !== "object") return undefined;
+    const key =
+      Array.isArray(current) && /^(0|[1-9][0-9]*)$/.test(segment)
+        ? Number(segment)
+        : segment;
+    if (!Object.hasOwn(current, key)) return undefined;
+    current = (current as Record<string | number, unknown>)[key];
+  }
+  return current;
+}
+
+/** What one probe answer means. Pure: the raw output goes in and only the
+ * state and the extracted labels come out. */
+export function readSignIn(
+  probe: SignInProbe,
+  result: ToolProcessResult,
+): ToolSignIn {
+  if (result === "timeout") return { state: "unknown" };
+  const output = `${result.stdout}\n${result.stderr}`;
+  if (
+    probe.signedOut !== undefined &&
+    new RegExp(probe.signedOut, "i").test(output)
+  )
+    return { state: "signed-out" };
+  if (result.exitCode !== 0) return { state: "signed-out" };
+  const account = probe.account;
+  if (account === undefined) return { state: "signed-in" };
+  if (account.kind === "regex") {
+    const label = signInLabel(new RegExp(account.pattern).exec(output)?.[1]);
+    return label === undefined
+      ? { state: "signed-in" }
+      : { state: "signed-in", account: label };
+  }
+  const document = jsonOf(result.stdout) ?? jsonOf(result.stderr);
+  if (document === undefined) return { state: "unknown" };
+  if (account.flag !== undefined && at(document, account.flag) !== true)
+    return { state: "signed-out" };
+  let subject: unknown = document;
+  if (account.list !== undefined) {
+    const list = account.list
+      .map((path) => at(document, path))
+      .find((value) => Array.isArray(value));
+    // A shape the probe does not know: the exit code decided, no label.
+    if (!Array.isArray(list)) return { state: "signed-in" };
+    if (list.length === 0) return { state: "signed-out" };
+    subject = list[0];
+  }
+  const label = account.paths
+    .map((path) => signInLabel(at(subject, path)))
+    .find((value) => value !== undefined);
+  if (label === undefined)
+    return account.requireAccount === true
+      ? { state: "signed-out" }
+      : { state: "signed-in" };
+  const organization =
+    account.organization === undefined
+      ? undefined
+      : signInLabel(at(subject, account.organization));
+  return {
+    state: "signed-in",
+    account: label,
+    ...(organization === undefined ? {} : { organization }),
+  };
+}
+
+/** The sign-in of every given tool that is installed and has a probe, all
+ * probes in parallel, each bounded by 10 s, with only PATH, HOME and the XDG
+ * base directories in its environment. A probe may contact the tool's
+ * provider, so callers run this only on an explicit request. The raw output
+ * of a probe is never returned or logged. */
+export async function toolsSignIn(
+  tools: readonly Readonly<{
+    probe: SignInProbe | undefined;
+    status: ToolStatus;
+  }>[],
+  input: ToolsSignInInput,
+): Promise<readonly ToolSignIn[]> {
+  const env: Record<string, string> = {};
+  if (input.path) env.PATH = input.path;
+  if (input.home) env.HOME = input.home;
+  for (const [name, value] of Object.entries(input.xdg ?? {}))
+    if (/^XDG_[A-Z_]+$/.test(name) && value) env[name] = value;
+  return Promise.all(
+    tools.map(async ({ probe, status }): Promise<ToolSignIn> => {
+      if (probe === undefined || !status.installed || status.path === undefined)
+        return { state: "unknown" };
+      try {
+        return readSignIn(
+          probe,
+          await input.run([status.path, ...probe.argv], signInTimeoutMs, env),
+        );
+      } catch {
+        return { state: "unknown" };
+      }
+    }),
+  );
+}
+
+// The XDG base directories of an environment, for `toolsSignIn`.
+export function xdgOf(
+  env: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  const xdg: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env))
+    if (/^XDG_[A-Z_]+$/.test(name) && value) xdg[name] = value;
+  return xdg;
 }

@@ -1,3 +1,4 @@
+import type { ToolNotes } from "../tools/catalog";
 import type { MachineBinding, MachinePeer } from "./machine-binding";
 import type { ManualPath } from "./outputs";
 import { type PresetName, presetVersion, workspacePreset } from "./presets";
@@ -7,6 +8,7 @@ import {
   type InstructionSource,
   instructionTemplateRevision,
   mcpInstruction,
+  notesMeaning,
   parseInstructionSource,
   peerLine,
   sharedEnvironment,
@@ -1063,12 +1065,15 @@ function fromPersonalVm(
 
 // The tools agents are to use on this Machine (decision F18): the required
 // catalog tools and the ones the operator enabled in this Folder, each with
-// its usage, then the generic instruction for MCP servers.
+// its usage and the operator's quoted note when there is one, then the
+// generic instruction for MCP servers.
 function enabledToolsSection(
   tools: readonly string[],
+  notes: ToolNotes,
   locale: Locale,
   shared: boolean,
 ): readonly Text[] {
+  const noted = Object.keys(notes).length > 0;
   return [
     t("## Zapnuté nástroje", "## Enabled tools"),
     t(
@@ -1077,7 +1082,8 @@ function enabledToolsSection(
     ),
     blank,
     ...(shared ? [sharedSignInWarning, blank] : []),
-    ...toolLines(tools, locale, "usage").map(same),
+    ...(noted ? [notesMeaning, blank] : []),
+    ...toolLines(tools, locale, "usage", notes).map(same),
     blank,
     t("### MCP servery", "### MCP servers"),
     mcpInstruction,
@@ -1160,7 +1166,12 @@ function thisMachine(source: InstructionSource): string {
       t("## Hranice na téhle Mašině", "## Boundaries on this Machine"),
       ...boundaries(preset),
       blank,
-      ...enabledToolsSection(source.tools, locale, sharedEnvironment(preset)),
+      ...enabledToolsSection(
+        source.tools,
+        source.toolNotes,
+        locale,
+        sharedEnvironment(preset),
+      ),
       ...(relationships === undefined
         ? []
         : [

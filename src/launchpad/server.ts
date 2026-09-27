@@ -18,6 +18,8 @@ import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import { toolSelection } from "../tools/catalog";
+import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
+import { runTool, xdgOf } from "../tools/status";
 import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
@@ -71,6 +73,16 @@ export async function startLaunchpad(
     pill?: UpdatePill | undefined;
   }>,
   hostedOptions: HostedOptions = {},
+  // Where the tools screen reads its live facts: this process's PATH and
+  // home, as `lazurio tools status` does. Trusted composition, never HTTP
+  // input.
+  toolsEnvironment: ToolsEnvironment = {
+    path: process.env.PATH,
+    home: process.env.HOME,
+    xdg: xdgOf(process.env),
+    platform: process.platform,
+    run: runTool,
+  },
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -242,12 +254,34 @@ export async function startLaunchpad(
           typeof value === "number" && Number.isSafeInteger(value) && value >= 1
             ? value
             : null;
+        if (url.pathname === "/api/tools/status") {
+          // The tools screen (decision F18): the recorded selection and notes
+          // joined with the live facts. The version commands never use the
+          // network; the sign-in probes, which may, run only when the body
+          // asks for them with `signIn: true`.
+          const withSignIn = ownDataValue(input, "signIn") !== undefined;
+          const value = stateFields(input, withSignIn ? ["signIn"] : []);
+          if (withSignIn && typeof value.signIn !== "boolean")
+            return response({ error: "invalid-sign-in" }, 400);
+          return response(
+            await toolsOverview(folder, toolsEnvironment, {
+              signIn: value.signIn === true,
+            }),
+          );
+        }
         if (
           ["/api/tools/preview", "/api/tools/update"].includes(url.pathname)
         ) {
-          // The full next selection at the expected revision, over the same
-          // planner and transaction as a profile change.
-          const value = stateFields(input, ["expectedRevision", "tools"]);
+          // The full next selection at the expected revision and, optionally,
+          // the full next set of the operator's notes, over the same planner
+          // and transaction as a profile change.
+          const withNotes = ownDataValue(input, "notes") !== undefined;
+          const value = stateFields(
+            input,
+            withNotes
+              ? ["expectedRevision", "tools", "notes"]
+              : ["expectedRevision", "tools"],
+          );
           const expectedRevision = revisionOf(value.expectedRevision);
           if (expectedRevision === null)
             return response({ error: "invalid-revision" }, 400);
@@ -256,7 +290,12 @@ export async function startLaunchpad(
               ? updateTools
               : inspectToolsChange;
           const recorded = await readFolderTools(folder);
-          const result = await operation(folder, expectedRevision, value.tools);
+          const result = await operation(
+            folder,
+            expectedRevision,
+            value.tools,
+            value.notes,
+          );
           return response(
             result.kind === "blocked"
               ? result

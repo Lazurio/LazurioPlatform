@@ -40,18 +40,23 @@ export async function updateProfile(
   );
 }
 
-// Records the requested selection of enabled catalog tools (decision F18) and
-// re-renders the generated Folder with it: the same planner, transaction,
-// archive and recovery (`profile-resume`) as a profile change.
+// Records the requested selection of enabled catalog tools (decision F18)
+// and, when given, the full next set of the operator's notes on them (F18
+// addendum; without it the recorded notes of the tools that stay on are kept)
+// and re-renders the generated Folder: the same planner, transaction, archive
+// and recovery (`profile-resume`) as a profile change.
 export async function updateTools(
   folder: string,
   expectedRevision: number,
   tools: unknown,
+  notes: unknown = undefined,
   checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
 ) {
   return changeFolder(
     folder,
-    { kind: "tools", expectedRevision, tools },
+    notes === undefined
+      ? { kind: "tools", expectedRevision, tools }
+      : { kind: "tools", expectedRevision, tools, notes },
     checkpoint,
   );
 }
