@@ -17,8 +17,15 @@ import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
-import { toolSelection } from "../tools/catalog";
+import { activatableTools, toolSelection } from "../tools/catalog";
+import { curatedTool, type InstallFetch, installTool } from "../tools/install";
+import {
+  createLoginSessions,
+  type LoginEnvironment,
+  type LoginState,
+} from "../tools/login";
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
+import { qrMatrix, qrSvg } from "../tools/qr";
 import { runTool, xdgOf } from "../tools/status";
 import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
@@ -57,6 +64,23 @@ export type HostedOptions = Readonly<{
   now?: () => number;
 }>;
 
+const curatedRoutes = new Set([
+  "/api/tools/install",
+  "/api/tools/login/start",
+  "/api/tools/login/poll",
+  "/api/tools/login/cancel",
+  "/api/tools/logout",
+  "/api/tools/composio/organizations",
+  "/api/tools/composio/organization",
+]);
+
+// A pending WhatsApp login carries its QR code drawn here as SVG, so the page
+// never draws anything from the tool's output.
+function withQr(state: LoginState): LoginState & { qrSvg?: string } {
+  if (state.kind !== "pending" || state.challenge?.kind !== "qr") return state;
+  return { ...state, qrSvg: qrSvg(qrMatrix(state.challenge.payload)) };
+}
+
 export async function startLaunchpad(
   folder: string,
   applicationAdapters?: Parameters<typeof createApplicationLifecycle>[0],
@@ -83,6 +107,13 @@ export async function startLaunchpad(
     platform: process.platform,
     run: runTool,
   },
+  // Test seams of the curated install and login (decision F19): the
+  // official-source fetcher, the architecture and the login timings.
+  curatedOptions: Readonly<{
+    fetch?: InstallFetch;
+    arch?: string;
+    login?: Partial<LoginEnvironment>;
+  }> = {},
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -121,6 +152,14 @@ export async function startLaunchpad(
   const applications = applicationAdapters
     ? createApplicationLifecycle(applicationAdapters)
     : null;
+  // The curated logins of this Launchpad (decision F19): in memory, held by
+  // the browser that started each one through its session handle, ended on
+  // completion, cancel, expiry and shutdown.
+  const logins = createLoginSessions({
+    ...toolsEnvironment,
+    ...curatedOptions.login,
+  });
+  const installing = new Set<string>();
   let closing = false;
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -270,6 +309,100 @@ export async function startLaunchpad(
           );
         }
         if (
+          url.pathname.startsWith("/api/tools/") &&
+          curatedRoutes.has(url.pathname)
+        ) {
+          // The curated install and login of a `launchpad` tool (decision
+          // F19). A name the catalog does not know, or a tool an agent sets
+          // up, is refused; nothing here takes a path, PATH or command.
+          const withPhone =
+            url.pathname === "/api/tools/login/start" &&
+            ownDataValue(input, "phone") !== undefined;
+          const fields: Record<string, readonly string[]> = {
+            "/api/tools/install": ["tool"],
+            "/api/tools/login/start": withPhone ? ["tool", "phone"] : ["tool"],
+            "/api/tools/login/poll": ["tool", "session"],
+            "/api/tools/login/cancel": ["tool", "session"],
+            "/api/tools/logout": ["tool"],
+            "/api/tools/composio/organizations": [],
+            "/api/tools/composio/organization": ["id"],
+          };
+          const value = stateFields(input, fields[url.pathname] ?? []);
+          if (url.pathname === "/api/tools/composio/organizations") {
+            server.timeout(request, 60);
+            return response(await logins.composioOrganizations());
+          }
+          if (url.pathname === "/api/tools/composio/organization") {
+            if (
+              typeof value.id !== "string" ||
+              !/^[A-Za-z0-9_-]{1,100}$/.test(value.id)
+            )
+              return response({ error: "invalid-organization" }, 400);
+            server.timeout(request, 60);
+            return response(await logins.selectComposioOrganization(value.id));
+          }
+          const tool = value.tool;
+          if (typeof tool !== "string")
+            return response({ error: "invalid-tool" }, 400);
+          if (!activatableTools().some((entry) => entry.name === tool))
+            return response(
+              { kind: "blocked", reason: "tool-unknown", tool },
+              409,
+            );
+          if (curatedTool(tool) === undefined)
+            return response(
+              { kind: "blocked", reason: "setup-agent", tool },
+              409,
+            );
+          if (url.pathname === "/api/tools/install") {
+            if (installing.has(tool))
+              return response({ kind: "blocked", reason: "busy", tool }, 409);
+            installing.add(tool);
+            server.timeout(request, 660);
+            try {
+              return response(
+                await installTool(tool, {
+                  ...toolsEnvironment,
+                  ...(curatedOptions.fetch
+                    ? { fetch: curatedOptions.fetch }
+                    : {}),
+                  ...(curatedOptions.arch ? { arch: curatedOptions.arch } : {}),
+                }),
+              );
+            } finally {
+              installing.delete(tool);
+            }
+          }
+          if (url.pathname === "/api/tools/logout") {
+            server.timeout(request, 90);
+            return response(await logins.logout(tool));
+          }
+          if (url.pathname === "/api/tools/login/start") {
+            if (
+              value.phone !== undefined &&
+              (typeof value.phone !== "string" || tool !== "wacli")
+            )
+              return response({ error: "invalid-phone" }, 400);
+            server.timeout(request, 60);
+            return response(
+              withQr(
+                await logins.start(
+                  tool,
+                  typeof value.phone === "string" ? { phone: value.phone } : {},
+                ),
+              ),
+            );
+          }
+          const handle = value.session;
+          if (typeof handle !== "string" || !/^[0-9a-f]{32}$/.test(handle))
+            return response({ error: "invalid-session" }, 400);
+          return response(
+            url.pathname === "/api/tools/login/poll"
+              ? withQr(logins.poll(tool, handle))
+              : logins.cancel(tool, handle),
+          );
+        }
+        if (
           ["/api/tools/preview", "/api/tools/update"].includes(url.pathname)
         ) {
           // The full next selection at the expected revision and, optionally,
@@ -366,6 +499,7 @@ export async function startLaunchpad(
           // Close admission immediately, before waiting for HTTP requests to drain.
           // Existing requests and shutdown must share the same lifecycle queue.
           const applicationClose = applications?.close();
+          const loginClose = logins.close();
           clearTimeout(reconcile);
           pill?.stop();
           await server.stop(true);
@@ -373,6 +507,7 @@ export async function startLaunchpad(
           if (shellSocket !== null)
             await rm(dirname(shellSocket), { recursive: true, force: true });
           await health?.stop(true);
+          await loginClose;
           const result = applicationClose
             ? await applicationClose
             : Object.freeze({ kind: "closed" as const });
