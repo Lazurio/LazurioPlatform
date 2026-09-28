@@ -201,9 +201,10 @@ export const doctorContextRules: Readonly<
   running: isReleaseVersion,
   tool: oneOf(toolCatalog.map((entry) => entry.name)),
   tier: oneOf(["required", "recommended", "optional"]),
+  // Numeric segments only: a tool prints its version line itself, and a
+  // suffix (`-beta`, `+build`, or any word) is free text; it is omitted.
   toolVersion: (value: unknown) =>
-    typeof value === "string" &&
-    /^\d{1,6}\.\d{1,6}(\.\d{1,6})?([-+][0-9A-Za-z.-]{1,40})?$/.test(value),
+    typeof value === "string" && /^[0-9]{1,6}(\.[0-9]{1,6}){0,3}$/.test(value),
   signIn: oneOf(["signed-in", "signed-out", "unknown"]),
   ssh: oneOf(["linked", "not-linked", "unknown"]),
   organization: (value: unknown) =>

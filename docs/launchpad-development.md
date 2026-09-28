@@ -343,8 +343,10 @@ is fetched (`update-available` is the
 last verified check on disk); nothing restarts. `--sign-in` additionally runs each
 installed tool's sign-in probe, which may contact its provider, exactly as `tools list
 --sign-in`. The heavy reader is the active executable's `self-check`, one process, as in
-`recover`. A test snapshots the whole temporary tree (paths, sizes, modification times)
-before and after and finds it unchanged.
+`recover`. A test snapshots the whole temporary tree (paths, modes, sizes, modification
+times, the SHA-256 of every file and the target of every link) before and after and finds
+it byte-identical. A tool's version is reported only as numeric segments
+(`2.63.0`); a suffix is free text and is omitted.
 
 **Answer.** `{kind: "doctor", verdict: ok|attention|broken, locale, checks}`; every
 check is `{id, outcome: ok|warn|fail|skipped, reason?, context?}` in group order. Ids

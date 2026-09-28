@@ -1,12 +1,14 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
+  readlink,
   realpath,
   rm,
-  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -73,6 +75,7 @@ async function createWorld(
     hosted?: boolean;
     tools?: readonly string[];
     locale?: "cs" | "en";
+    folderName?: string;
   }> = {},
 ): Promise<World> {
   root = await realpath(await mkdtemp(join(tmpdir(), "doc-")));
@@ -89,7 +92,7 @@ async function createWorld(
     env: {},
   });
   if (installed.kind !== "installed") throw new Error("Fixture install failed");
-  const folder = join(home, "Lazurio");
+  const folder = join(home, options.folderName ?? "Lazurio");
   if (options.hosted) {
     await mkdir(join(folder, "organizations"), {
       recursive: true,
@@ -156,6 +159,7 @@ function context(
   world: World,
   options: Readonly<{
     path?: string;
+    toolRun?: ToolRunner;
     health?: NonNullable<DoctorContext["recovery"]>["health"];
     machineContext?: NonNullable<DoctorContext["recovery"]>["machineContext"];
   }> = {},
@@ -166,7 +170,7 @@ function context(
     env: { HOME: world.home, PATH: options.path ?? world.bin },
     executable: join(world.root, "unused"),
     run: processRun(world),
-    toolRun,
+    toolRun: options.toolRun ?? toolRun,
     recovery: {
       now: () => new Date("2026-09-28T10:00:00.000Z"),
       machine: async () => ({
@@ -282,7 +286,9 @@ function expectSameAnswer(human: string, json: { checks: DoctorCheck[] }) {
   });
 }
 
-// Every path under the root with its size and modification time.
+// Every path under the root with its kind, mode, size and modification time;
+// a file also with the SHA-256 of its bytes, a link with its target. Equal
+// before and after is byte identity of the whole tree.
 async function tree(directory: string): Promise<string[]> {
   const entries = await readdir(directory, {
     recursive: true,
@@ -291,8 +297,15 @@ async function tree(directory: string): Promise<string[]> {
   return Promise.all(
     entries.map(async (entry) => {
       const path = join(entry.parentPath, entry.name);
-      const info = await stat(path).catch(() => null);
-      return `${path} ${info?.size ?? "-"} ${info?.mtimeMs ?? "-"}`;
+      const info = await lstat(path).catch(() => null);
+      if (info === null) return `${path} vanished`;
+      const facts = `${path} ${info.mode.toString(8)} ${info.size} ${info.mtimeMs}`;
+      if (info.isSymbolicLink()) return `${facts} -> ${await readlink(path)}`;
+      if (info.isFile())
+        return `${facts} sha256:${createHash("sha256")
+          .update(await readFile(path))
+          .digest("hex")}`;
+      return facts;
     }),
   ).then((lines) => lines.sort());
 }
@@ -387,6 +400,36 @@ test("a Folder state without its lock is not given one: taking the lock would cr
     "folder-state-unrecognized",
   );
   expect(find(result.json, "tool", "gh")?.outcome).toBe("ok");
+});
+
+test("free text in a Folder name, an Organization directory or a tool's version line leaves nowhere", async () => {
+  const world = await createWorld({ folderName: "IncidentOrchid-Lazurio" });
+  await mkdir(join(world.folder, "organizations", "Acme IncidentOrchid"));
+  const result = await doctor(world, [], {
+    toolRun: async (command) => ({
+      exitCode: 0,
+      stdout:
+        command[0]?.split("/").at(-1) === "gh"
+          ? "gh version 2.63.0-versionincidentorchid (2026-01-01)\n"
+          : "0.7.1+incidentorchid\n",
+      stderr: "",
+    }),
+  });
+  // The check keeps its outcome; the version is omitted.
+  expect(find(result.json, "tool", "gh")).toEqual({
+    id: "tool",
+    outcome: "ok",
+    context: { tool: "gh", tier: "required" },
+  });
+  expect(find(result.json, "tool", "composio")?.context).toEqual({
+    tool: "composio",
+    tier: "recommended",
+  });
+  expect(find(result.json, "organization", "invalid")?.outcome).toBe("warn");
+  for (const text of [result.stdout, result.human])
+    expect(text.toLowerCase()).not.toContain("incidentorchid");
+  expectTierOne(result.stdout, world);
+  expectSameAnswer(result.human, result.json);
 });
 
 test("a missing required tool fails, a missing recommended one needs attention", async () => {
