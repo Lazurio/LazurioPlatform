@@ -3,9 +3,22 @@ import { randomBytes } from "node:crypto";
 import { type ActivatableTool, activatableTools } from "./catalog";
 import { plainText } from "./redact";
 import {
+  ghAccount,
+  hasKeyScope,
+  linkSshKey,
+  machineName,
+  removeSshKey,
+  type SshContext,
+  type SshKeyRemoval,
+  type SshLink,
+  type SshRunner,
+  sshKeyScope,
+} from "./ssh-key";
+import {
   readSignIn,
   resolveOnPath,
   signInLabel,
+  type ToolProcessResult,
   type ToolRunner,
   type ToolSignIn,
 } from "./status";
@@ -39,6 +52,8 @@ export type LoginState =
       /** The handle of the session: poll and cancel name it. */
       session: string;
       challenge?: LoginChallenge;
+      /** gh only: signed in, the SSH key of this Machine is being linked. */
+      step?: "ssh-key";
       /** ISO time after which the session ends as `expired`. */
       expiresAt: string;
     }>
@@ -47,6 +62,9 @@ export type LoginState =
       tool: string;
       account?: string;
       organization?: string;
+      /** gh only: whether `git clone git@github.com:…` works as `account`
+       * (decision F19, addendum 2026-09-28). A gh sign-in always says it. */
+      ssh?: SshLink;
     }>
   | Readonly<{ kind: "failed"; tool: string; reason: LoginFailure }>
   | Readonly<{ kind: "expired"; tool: string }>
@@ -59,7 +77,8 @@ export type LoginFailure =
   | "tool-exit"
   | "not-confirmed"
   | "invalid-phone"
-  | "spawn-failed";
+  | "spawn-failed"
+  | "not-signed-in";
 
 export type LogoutResult =
   | Readonly<{
@@ -68,6 +87,8 @@ export type LogoutResult =
       /** gh and composio forget the sign-in on this Machine only; wacli
        * unlinks the device at WhatsApp. */
       revocation: "local-only" | "remote";
+      /** gh only: what happened to this Machine's SSH key on the account. */
+      sshKey?: SshKeyRemoval;
     }>
   | Readonly<{
       kind: "logout-failed";
@@ -118,6 +139,9 @@ export type LoginEnvironment = Readonly<{
   probeIntervalMs?: number;
   /** How long wacli's bootstrap sync may run on after pairing. */
   backgroundMs?: number;
+  /** The Machine's name in the title of its SSH key (default: the system's
+   * host name). */
+  machine?: string;
 }>;
 
 // The lifetimes of the documented flows: a GitHub device code is valid for
@@ -128,6 +152,9 @@ const defaultLifetimes = {
   wacli: 5 * 60_000,
 };
 const probeTimeoutMs = 10_000;
+// Linking the SSH key after the sign-in: every step is bounded by 30 s.
+const sshLinkMs = 5 * 60_000;
+const maxCollected = 1024 * 1024;
 const maxLine = 16 * 1024;
 const maxPendingOutput = 4 * 1024 * 1024;
 
@@ -173,13 +200,11 @@ type Streamed = Readonly<{
   kill: () => void;
 }>;
 
-// One tool process whose output is read line by line as it arrives. The
-// child leads its own process group, so a cancel, an expiry or a shutdown
-// kills its helpers too.
-function spawnLines(
+// One tool process in its own process group, so a cancel, an expiry or a
+// shutdown kills its helpers too.
+function spawnGroup(
   command: readonly string[],
   env: Readonly<Record<string, string>>,
-  onLine: (line: string) => void,
 ): Streamed {
   const [executable, ...args] = command;
   if (!executable) throw new Error("A command is required");
@@ -199,7 +224,21 @@ function spawnLines(
     }
     child.kill("SIGKILL");
   };
-  for (const stream of [child.stdout, child.stderr]) {
+  const exited = new Promise<number>((resolve) => {
+    child.once("error", () => resolve(-1));
+    child.once("close", (code, signal) => resolve(code ?? (signal ? -1 : 0)));
+  });
+  return { child, exited, kill };
+}
+
+// A tool process whose output is read line by line as it arrives.
+function spawnLines(
+  command: readonly string[],
+  env: Readonly<Record<string, string>>,
+  onLine: (line: string) => void,
+): Streamed {
+  const streamed = spawnGroup(command, env);
+  for (const stream of [streamed.child.stdout, streamed.child.stderr]) {
     let buffer = "";
     stream?.setEncoding("utf8");
     stream?.on("data", (chunk: string) => {
@@ -218,11 +257,40 @@ function spawnLines(
       buffer = "";
     });
   }
-  const exited = new Promise<number>((resolve) => {
-    child.once("error", () => resolve(-1));
-    child.once("close", (code, signal) => resolve(code ?? (signal ? -1 : 0)));
-  });
-  return { child, exited, kill };
+  return streamed;
+}
+
+// A tool process whose whole output is kept, bounded, for a parser that
+// reads it at the end (JSON of the GitHub API, the SSH greeting).
+function spawnCollected(
+  command: readonly string[],
+  env: Readonly<Record<string, string>>,
+): Streamed & { result: Promise<ToolProcessResult> } {
+  const streamed = spawnGroup(command, env);
+  const collect = (stream: NodeJS.ReadableStream | null) =>
+    new Promise<string>((resolve) => {
+      const chunks: Buffer[] = [];
+      let length = 0;
+      if (stream === null) return resolve("");
+      stream.on("data", (chunk: Buffer) => {
+        length += chunk.byteLength;
+        if (length > maxCollected) streamed.kill();
+        else chunks.push(chunk);
+      });
+      stream.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+      stream.on("error", () => resolve(""));
+    });
+  const stdout = collect(streamed.child.stdout);
+  const stderr = collect(streamed.child.stderr);
+  const result = (async () => {
+    const exitCode = await streamed.exited;
+    return Object.freeze({
+      exitCode,
+      stdout: await stdout,
+      stderr: await stderr,
+    });
+  })();
+  return { ...streamed, result };
 }
 
 type Terminal = Extract<
@@ -235,6 +303,7 @@ type Session = {
   tool: string;
   expiresAt: number;
   challenge?: LoginChallenge;
+  step?: "ssh-key";
   processes: Set<Streamed>;
   timers: Set<ReturnType<typeof setTimeout>>;
   finished?: Terminal;
@@ -368,71 +437,189 @@ export function createLoginSessions(environment: LoginEnvironment) {
     session.processes.add(child);
   }
 
+  // gh's device flow (`auth login` or `auth refresh`): the one-time code and
+  // the device page become the challenge. `--clipboard=false` keeps the code
+  // out of the clipboard for this invocation whatever the operator
+  // configured; a gh older than the flag (added in 2025) never copies the
+  // code and refuses the flag: then the flow runs once more without it.
+  // Without a terminal gh prints the code and the page instead of waiting for
+  // Enter. The exit code, or undefined when the session ended meanwhile.
+  async function ghDeviceFlow(
+    session: Session,
+    command: readonly string[],
+  ): Promise<number | undefined> {
+    for (const clipboardFlag of [true, false]) {
+      let code: string | undefined;
+      let url: string | undefined;
+      let unknownFlag = false;
+      const child = spawnLines(
+        [...command, ...(clipboardFlag ? ["--clipboard=false"] : [])],
+        processEnv(),
+        counted(session, (line) => {
+          if (/unknown flag: --clipboard/.test(line)) unknownFlag = true;
+          // Only the lines before the challenge are read for it; what gh
+          // prints afterwards is not a sign-in page.
+          if (session.challenge !== undefined) return;
+          const codeMatch =
+            /one-time code(?:\s*\(([A-Z0-9]{4}-[A-Z0-9]{4})\)|:\s*([A-Z0-9]{4}-[A-Z0-9]{4}))/i.exec(
+              line,
+            );
+          if (codeMatch) code = (codeMatch[1] ?? codeMatch[2])?.toUpperCase();
+          const urlMatch = /https?:\/\/[^\s"'<>]+/.exec(line);
+          if (urlMatch) {
+            const accepted = challengeUrl(
+              urlMatch[0].replace(/[.,;:!?)]+$/, ""),
+              ["github.com"],
+            );
+            if (accepted === undefined || accepted !== ghDevicePage) {
+              fail(session, "unexpected-url");
+              return;
+            }
+            url = accepted;
+          }
+          if (code !== undefined && url !== undefined)
+            setChallenge(session, { kind: "device-code", url, code });
+        }),
+      );
+      track(session, child);
+      const exitCode = await child.exited;
+      if (!current(session)) return undefined;
+      session.processes.delete(child);
+      if (exitCode !== 0 && unknownFlag && clipboardFlag) {
+        session.pendingBytes = 0;
+        continue;
+      }
+      return exitCode;
+    }
+    return undefined;
+  }
+
+  // A process of the session with its whole output: a cancel, an expiry or a
+  // shutdown kills it like every other one.
+  const sessionRunner =
+    (session: Session): SshRunner =>
+    async (command, timeoutMs) => {
+      if (!current(session)) throw new Error("The session has ended");
+      const child = spawnCollected(command, probeEnv());
+      track(session, child);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const expired = new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), timeoutMs);
+      });
+      try {
+        const result = await Promise.race([child.result, expired]);
+        if (result === "timeout") child.kill();
+        return result;
+      } finally {
+        if (timer) clearTimeout(timer);
+        session.processes.delete(child);
+      }
+    };
+
+  async function sshContext(session: Session, gh: string): Promise<SshContext> {
+    const [keygen, ssh] = await Promise.all([
+      resolveOnPath("ssh-keygen", environment.path, environment.platform),
+      resolveOnPath("ssh", environment.path, environment.platform),
+    ]);
+    return {
+      home: environment.home ?? "",
+      gh,
+      keygen,
+      ssh,
+      run: sessionRunner(session),
+      alive: () => current(session),
+      machine: environment.machine ?? machineName(),
+    };
+  }
+
+  // Steps 2 to 5 of the gh sign-in (decision F19, addendum 2026-09-28): the
+  // session says "linking the SSH key", then ends signed in with the SSH
+  // outcome, linked or not with its reason.
+  async function linkAndFinish(
+    session: Session,
+    gh: string,
+    signedIn: Readonly<{
+      account: string;
+      scopes: readonly string[] | undefined;
+    }>,
+  ) {
+    if (!current(session)) return;
+    delete session.challenge;
+    session.step = "ssh-key";
+    session.expiresAt = now() + sshLinkMs;
+    notify(session);
+    const ssh: SshLink | "gone" =
+      environment.home === undefined
+        ? { state: "not-linked", reason: "keygen-failed", fallback: "agent" }
+        : !hasKeyScope(signedIn.scopes)
+          ? { state: "not-linked", reason: "scope-missing", fallback: "agent" }
+          : await linkSshKey(await sshContext(session, gh), signedIn.account);
+    if (ssh === "gone" || !current(session)) return;
+    finish(session, {
+      kind: "signed-in",
+      tool: session.tool,
+      account: signedIn.account,
+      ssh,
+    });
+  }
+
   async function startGh(
     session: Session,
     entry: ActivatableTool,
     path: string,
-    clipboardFlag = true,
   ) {
-    let code: string | undefined;
-    let url: string | undefined;
-    let unknownFlag = false;
-    // The documented device flow; `--clipboard=false` keeps the one-time
-    // code out of the clipboard for this invocation whatever the operator
-    // configured (gh 2.101.0 copies it by default). A gh older than the
-    // flag (added in 2025) never copies the code and refuses the flag: then
-    // the flow runs once more without it. Without a terminal gh prints the
-    // code and the page instead of waiting for Enter.
-    const child = spawnLines(
-      [
+    // The documented device flow with the key scope in the same code, so the
+    // operator enters one code and gh may register the Machine's key.
+    const exitCode = await ghDeviceFlow(session, [
+      path,
+      "auth",
+      "login",
+      "--hostname",
+      "github.com",
+      "--git-protocol",
+      "ssh",
+      "--web",
+      "--scopes",
+      sshKeyScope,
+    ]);
+    if (exitCode === undefined || !current(session)) return;
+    if (exitCode !== 0) return fail(session, "tool-exit");
+    const signIn = await probe(entry, path);
+    if (!current(session)) return;
+    if (signIn.state !== "signed-in") return fail(session, "not-confirmed");
+    const signedIn = await ghAccount(sessionRunner(session), path).catch(
+      () => undefined,
+    );
+    if (!current(session)) return;
+    if (signedIn === undefined) return fail(session, "not-confirmed");
+    await linkAndFinish(session, path, signedIn);
+  }
+
+  // "Link SSH key" for a gh that is signed in already: steps 2 to 5, after a
+  // scope refresh through the same kind of device-code session when the
+  // token cannot manage the account's keys (a gh signed in by hand).
+  async function startGhLink(session: Session, path: string) {
+    const run = sessionRunner(session);
+    let signedIn = await ghAccount(run, path).catch(() => undefined);
+    if (!current(session)) return;
+    if (signedIn === undefined) return fail(session, "not-signed-in");
+    if (!hasKeyScope(signedIn.scopes)) {
+      const exitCode = await ghDeviceFlow(session, [
         path,
         "auth",
-        "login",
+        "refresh",
         "--hostname",
         "github.com",
-        "--git-protocol",
-        "ssh",
-        "--web",
-        ...(clipboardFlag ? ["--clipboard=false"] : []),
-      ],
-      processEnv(),
-      counted(session, (line) => {
-        if (/unknown flag: --clipboard/.test(line)) unknownFlag = true;
-        // Only the lines before the challenge are read for it; what gh
-        // prints afterwards is not a sign-in page.
-        if (session.challenge !== undefined) return;
-        const codeMatch =
-          /one-time code(?:\s*\(([A-Z0-9]{4}-[A-Z0-9]{4})\)|:\s*([A-Z0-9]{4}-[A-Z0-9]{4}))/i.exec(
-            line,
-          );
-        if (codeMatch) code = (codeMatch[1] ?? codeMatch[2])?.toUpperCase();
-        const urlMatch = /https?:\/\/[^\s"'<>]+/.exec(line);
-        if (urlMatch) {
-          const accepted = challengeUrl(
-            urlMatch[0].replace(/[.,;:!?)]+$/, ""),
-            ["github.com"],
-          );
-          if (accepted === undefined || accepted !== ghDevicePage) {
-            fail(session, "unexpected-url");
-            return;
-          }
-          url = accepted;
-        }
-        if (code !== undefined && url !== undefined)
-          setChallenge(session, { kind: "device-code", url, code });
-      }),
-    );
-    track(session, child);
-    const exitCode = await child.exited;
-    if (!current(session)) return;
-    if (exitCode !== 0 && unknownFlag && clipboardFlag) {
-      session.processes.delete(child);
-      session.pendingBytes = 0;
-      return startGh(session, entry, path, false);
+        "--scopes",
+        sshKeyScope,
+      ]);
+      if (exitCode === undefined || !current(session)) return;
+      if (exitCode === 0)
+        signedIn =
+          (await ghAccount(run, path).catch(() => undefined)) ?? signedIn;
+      if (!current(session)) return;
     }
-    if (exitCode !== 0) return fail(session, "tool-exit");
-    if ((await confirm(session, entry, path)) === "not-yet")
-      fail(session, "not-confirmed");
+    await linkAndFinish(session, path, signedIn);
   }
 
   async function startComposio(
@@ -604,6 +791,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       ...(session.challenge === undefined
         ? {}
         : { challenge: session.challenge }),
+      ...(session.step === undefined ? {} : { step: session.step }),
       expiresAt: new Date(session.expiresAt).toISOString(),
     };
   };
@@ -620,13 +808,15 @@ export function createLoginSessions(environment: LoginEnvironment) {
      * tool, and waits briefly for the first challenge. */
     async start(
       name: string,
-      options: Readonly<{ phone?: string }> = {},
+      options: Readonly<{ phone?: string; sshKey?: boolean }> = {},
     ): Promise<LoginState> {
       const entry = loginTool(name);
       if (entry === undefined || closed)
         throw new Error("Only a curated catalog tool signs in here");
       if (options.phone !== undefined && name !== "wacli")
         throw new Error("Only wacli pairs with a phone number");
+      if (options.sshKey === true && name !== "gh")
+        throw new Error("Only gh links an SSH key");
       const phone =
         options.phone === undefined ? undefined : normalizePhone(options.phone);
       if (options.phone !== undefined && phone === undefined)
@@ -657,7 +847,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
       later(session, lifetime, expire);
       const flow =
         name === "gh"
-          ? startGh(session, entry, path)
+          ? options.sshKey === true
+            ? startGhLink(session, path)
+            : startGh(session, entry, path)
           : name === "composio"
             ? startComposio(session, entry, path)
             : startWacli(session, entry, path, phone);
@@ -728,6 +920,22 @@ export function createLoginSessions(environment: LoginEnvironment) {
       const path = await locate(entry);
       if (path === undefined)
         return { kind: "logout-failed", tool: name, reason: "not-installed" };
+      // gh: before the sign-in is forgotten, the key Lazurio registered for
+      // this Machine is removed from the account while the token still can.
+      const sshKey =
+        name === "gh" && environment.home !== undefined
+          ? await removeSshKey({
+              home: environment.home,
+              gh: path,
+              run: (command, timeoutMs) =>
+                environment.run(command, timeoutMs, probeEnv()),
+            }).catch(
+              (): SshKeyRemoval => ({
+                state: "not-removed",
+                reason: "tool-exit",
+              }),
+            )
+          : undefined;
       const argv =
         name === "gh"
           ? ["auth", "logout", "--hostname", "github.com"]
@@ -751,6 +959,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
         kind: "logged-out",
         tool: name,
         revocation: name === "wacli" ? "remote" : "local-only",
+        ...(sshKey === undefined ? {} : { sshKey }),
       };
     },
 

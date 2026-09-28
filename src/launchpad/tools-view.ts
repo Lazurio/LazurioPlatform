@@ -6,6 +6,13 @@ import {
   toolNoteProblem,
 } from "../tools/note";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
+import {
+  type SshKeyFacts,
+  type SshLink,
+  type SshLinkFailure,
+  type SshStatus,
+  sshLinkFailures,
+} from "../tools/ssh-key";
 import type { ToolSignIn } from "../tools/status";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
@@ -23,6 +30,34 @@ const text = (value: unknown): value is string =>
 const optionalText = (value: unknown): value is string | undefined =>
   value === undefined || text(value);
 
+const fingerprint = (value: unknown): value is string =>
+  typeof value === "string" && /^SHA256:[A-Za-z0-9+/]{43}$/.test(value);
+
+function parseSshStatus(input: unknown): SshStatus | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (
+    (value.state !== "linked" &&
+      value.state !== "not-linked" &&
+      value.state !== "unknown") ||
+    (value.reason !== undefined &&
+      !["no-key", "not-registered", "scope-missing", "unreadable"].includes(
+        value.reason as string,
+      )) ||
+    (value.fingerprint !== undefined && !fingerprint(value.fingerprint))
+  )
+    return null;
+  return {
+    state: value.state,
+    ...(value.reason === undefined
+      ? {}
+      : { reason: value.reason as NonNullable<SshStatus["reason"]> }),
+    ...(value.fingerprint === undefined
+      ? {}
+      : { fingerprint: value.fingerprint as string }),
+  };
+}
+
 function parseSignIn(input: unknown): ToolSignIn | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -34,12 +69,15 @@ function parseSignIn(input: unknown): ToolSignIn | null {
     !optionalText(value.organization)
   )
     return null;
+  const ssh = value.ssh === undefined ? undefined : parseSshStatus(value.ssh);
+  if (ssh === null) return null;
   return {
     state: value.state,
     ...(value.account === undefined ? {} : { account: value.account }),
     ...(value.organization === undefined
       ? {}
       : { organization: value.organization }),
+    ...(ssh === undefined ? {} : { ssh }),
   };
 }
 
@@ -214,13 +252,25 @@ export function signInLine(tool: ToolOverview, copy: Copy): string {
   if (signIn === undefined) return copy.toolsSignInUnchecked;
   if (signIn.state === "signed-out") return copy.toolsSignedOut;
   if (signIn.state === "unknown") return copy.toolsSignInUnknown;
-  if (signIn.account === undefined) return copy.toolsSignedIn;
-  return signIn.organization === undefined
-    ? fill(copy.toolsSignedInAs, { account: signIn.account })
-    : fill(copy.toolsSignedInAsOrganization, {
-        account: signIn.account,
-        organization: signIn.organization,
-      });
+  const who =
+    signIn.account === undefined
+      ? copy.toolsSignedIn
+      : signIn.organization === undefined
+        ? fill(copy.toolsSignedInAs, { account: signIn.account })
+        : fill(copy.toolsSignedInAsOrganization, {
+            account: signIn.account,
+            organization: signIn.organization,
+          });
+  // gh: "Signed in as octocat · SSH key linked" (decision F19, addendum
+  // 2026-09-28).
+  if (signIn.ssh === undefined) return who;
+  const ssh =
+    signIn.ssh.state === "linked"
+      ? copy.toolsSshLinked
+      : signIn.ssh.state === "not-linked"
+        ? copy.toolsSshNotLinked
+        : copy.toolsSshUnknown;
+  return `${who} · ${ssh}`;
 }
 
 export type CuratedActions = Readonly<{
@@ -228,6 +278,9 @@ export type CuratedActions = Readonly<{
   primary: Readonly<{ mode: "install" | "login"; label: string }> | null;
   /** A signed-in `launchpad` tool offers "Sign out". */
   logout: boolean;
+  /** A signed-in gh whose SSH key is not known to be linked offers "Link
+   * SSH key". */
+  linkSsh: boolean;
 }>;
 
 /** The curated actions of a `launchpad` tool (decision F19): "Install and
@@ -235,17 +288,27 @@ export type CuratedActions = Readonly<{
  * to be signed in, "Sign out" when it is signed in. An `agent` tool has none;
  * its prepared prompt is the way. */
 export function curatedActions(tool: ToolOverview, copy: Copy): CuratedActions {
-  if (tool.setup !== "launchpad") return { primary: null, logout: false };
+  if (tool.setup !== "launchpad")
+    return { primary: null, logout: false, linkSsh: false };
   if (!tool.installed)
     return {
       primary: { mode: "install", label: copy.toolsInstallAction },
       logout: false,
+      linkSsh: false,
     };
   if (tool.signIn?.state === "signed-in")
-    return { primary: null, logout: true };
+    return {
+      primary: null,
+      logout: true,
+      linkSsh:
+        tool.name === "gh" &&
+        tool.signIn.ssh !== undefined &&
+        tool.signIn.ssh.state !== "linked",
+    };
   return {
     primary: { mode: "login", label: copy.toolsSignInAction },
     logout: false,
+    linkSsh: false,
   };
 }
 
@@ -435,7 +498,61 @@ const loginFailures = [
   "not-confirmed",
   "invalid-phone",
   "spawn-failed",
+  "not-signed-in",
 ] as const;
+
+function parseKeyFacts(input: unknown): SshKeyFacts | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  return text(value.path) &&
+    value.path.length <= 4096 &&
+    fingerprint(value.fingerprint) &&
+    typeof value.created === "boolean"
+    ? {
+        path: value.path,
+        fingerprint: value.fingerprint,
+        created: value.created,
+      }
+    : null;
+}
+
+/** The SSH outcome of a gh sign-in, only in its exact form. */
+function parseSshLink(input: unknown): SshLink | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const value = input as Record<string, unknown>;
+  if (value.state === "linked") {
+    const key = parseKeyFacts(value.key);
+    if (
+      key === null ||
+      (value.registration !== "added" &&
+        value.registration !== "already-registered") ||
+      (value.knownHosts !== "added" && value.knownHosts !== "present")
+    )
+      return null;
+    return {
+      state: "linked",
+      key,
+      registration: value.registration,
+      knownHosts: value.knownHosts,
+    };
+  }
+  if (value.state !== "not-linked") return null;
+  if (
+    !sshLinkFailures.includes(value.reason as SshLinkFailure) ||
+    value.fallback !== "agent" ||
+    !optionalText(value.provedAs)
+  )
+    return null;
+  const key = value.key === undefined ? undefined : parseKeyFacts(value.key);
+  if (key === null) return null;
+  return {
+    state: "not-linked",
+    reason: value.reason as SshLinkFailure,
+    ...(key === undefined ? {} : { key }),
+    ...(value.provedAs === undefined ? {} : { provedAs: value.provedAs }),
+    fallback: "agent",
+  };
+}
 
 function parseChallenge(input: unknown): LoginChallenge | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
@@ -495,9 +612,11 @@ export function parseLoginState(input: unknown): LoginView | null {
             reason: value.reason as (typeof loginFailures)[number],
           }
         : null;
-    case "signed-in":
+    case "signed-in": {
       if (!optionalText(value.account) || !optionalText(value.organization))
         return null;
+      const ssh = value.ssh === undefined ? undefined : parseSshLink(value.ssh);
+      if (ssh === null) return null;
       return {
         kind: "signed-in",
         tool,
@@ -505,7 +624,9 @@ export function parseLoginState(input: unknown): LoginView | null {
         ...(value.organization === undefined
           ? {}
           : { organization: value.organization }),
+        ...(ssh === undefined ? {} : { ssh }),
       };
+    }
     case "pending": {
       if (
         typeof value.session !== "string" ||
@@ -520,12 +641,14 @@ export function parseLoginState(input: unknown): LoginView | null {
       if (challenge === null) return null;
       if (value.qrSvg !== undefined && typeof value.qrSvg !== "string")
         return null;
+      if (value.step !== undefined && value.step !== "ssh-key") return null;
       return {
         kind: "pending",
         tool,
         session: value.session,
         expiresAt: value.expiresAt,
         ...(challenge === undefined ? {} : { challenge }),
+        ...(value.step === "ssh-key" ? { step: "ssh-key" as const } : {}),
         ...(typeof value.qrSvg === "string" ? { qrSvg: value.qrSvg } : {}),
       };
     }
@@ -568,36 +691,68 @@ export type LoginPhase =
   | "confirm"
   | "installing"
   | "waiting"
+  | "linking"
   | "signed-in"
   | "failed";
+
+export type LoginStepName =
+  | "installing"
+  | "waiting"
+  | "linking"
+  | "signed-in"
+  | "linked";
 
 export type LoginStep = Readonly<{
   label: string;
   state: "done" | "current" | "todo" | "failed";
 }>;
 
-/** The plain steps of the flow: installing (only when it installs), waiting
- * for you, signed in. */
+/** The steps of one flow: installing (only when it installs), waiting for
+ * you, linking the SSH key (gh), signed in. "Link SSH key" of a signed-in gh
+ * is linking and linked, with waiting for you first when a device code has
+ * to widen the sign-in. */
+export function loginStepOrder(
+  flow: Readonly<{
+    mode: "install" | "login" | "ssh";
+    tool: string;
+    /** "Link SSH key" showed a device code. */
+    refresh?: boolean;
+  }>,
+): readonly LoginStepName[] {
+  if (flow.mode === "ssh")
+    return flow.refresh === true
+      ? ["waiting", "linking", "linked"]
+      : ["linking", "linked"];
+  return [
+    ...(flow.mode === "install" ? (["installing"] as const) : []),
+    "waiting",
+    ...(flow.tool === "gh" ? (["linking"] as const) : []),
+    "signed-in",
+  ];
+}
+
+/** Each step marked done, in progress, next or did not finish. */
 export function loginSteps(
-  install: boolean,
+  order: readonly LoginStepName[],
   phase: LoginPhase,
-  failedAt: "installing" | "waiting",
+  failedAt: "installing" | "waiting" | "linking",
   copy: Copy,
 ): readonly LoginStep[] {
-  const order: readonly ("installing" | "waiting" | "signed-in")[] = install
-    ? ["installing", "waiting", "signed-in"]
-    : ["waiting", "signed-in"];
-  const labels = {
+  const labels: Record<LoginStepName, string> = {
     installing: copy.toolsStepInstalling,
     waiting: copy.toolsStepWaiting,
+    linking: copy.toolsStepLinking,
     "signed-in": copy.toolsStepSignedIn,
+    linked: copy.toolsStepLinked,
   };
   const current =
     phase === "confirm"
       ? -1
       : phase === "failed"
         ? order.indexOf(failedAt)
-        : order.indexOf(phase);
+        : phase === "signed-in"
+          ? order.length - 1
+          : order.indexOf(phase);
   return order.map((step, index) => ({
     label: labels[step],
     state:
@@ -611,6 +766,52 @@ export function loginSteps(
               ? "current"
               : "todo",
   }));
+}
+
+const sshFailureKeys: Record<SshLinkFailure, MessageKey> = {
+  "not-signed-in": "toolsSshFailureNotSignedIn",
+  "scope-missing": "toolsSshFailureScopeMissing",
+  "keygen-missing": "toolsSshFailureKeygenMissing",
+  "keygen-failed": "toolsSshFailureKeygenFailed",
+  "key-passphrase": "toolsSshFailureKeyPassphrase",
+  "key-incomplete": "toolsSshFailureKeyIncomplete",
+  "key-unreadable": "toolsSshFailureKeyUnreadable",
+  "key-in-use": "toolsSshFailureKeyInUse",
+  "register-failed": "toolsSshFailureRegisterFailed",
+  "host-keys-unavailable": "toolsSshFailureHostKeysUnavailable",
+  "host-key-mismatch": "toolsSshFailureHostKeyMismatch",
+  "known-hosts-failed": "toolsSshFailureKnownHostsFailed",
+  "ssh-missing": "toolsSshFailureSshMissing",
+  "proof-failed": "toolsSshFailureProofFailed",
+  "proof-other-account": "toolsSshFailureProofOtherAccount",
+};
+
+/** What a gh sign-in did with the SSH key: linked with the key it uses, or
+ * not linked with the reason and the agent as the next step. */
+export function sshOutcome(
+  state: LoginView,
+  copy: Copy,
+): Readonly<{ linked: boolean; message: string; detail: string }> | null {
+  if (state.kind !== "signed-in" || state.ssh === undefined) return null;
+  const account = state.account ?? "gh";
+  const ssh = state.ssh;
+  if (ssh.state === "linked")
+    return {
+      linked: true,
+      message: fill(copy.toolsSshLinkedDone, { account }),
+      detail: fill(
+        ssh.key.created ? copy.toolsSshKeyCreated : copy.toolsSshKeyReused,
+        { path: ssh.key.path, fingerprint: ssh.key.fingerprint },
+      ),
+    };
+  return {
+    linked: false,
+    message: fill(copy.toolsSshNotLinkedDone, { account }),
+    detail: fill(copy[sshFailureKeys[ssh.reason]], {
+      path: ssh.key?.path ?? "~/.ssh",
+      account: ssh.provedAs ?? "?",
+    }),
+  };
 }
 
 /** What an install answered: whether the sign-in may follow, and one
@@ -680,10 +881,12 @@ export function loginEndMessage(
       "not-confirmed": "toolsLoginFailureNotConfirmed",
       "invalid-phone": "toolsLoginPhoneInvalid",
       "spawn-failed": "toolsLoginFailureSpawn",
+      "not-signed-in": "toolsLoginFailureNotSignedIn",
     };
     return {
       message: copy[reasons[state.reason]],
-      agent: state.reason !== "invalid-phone",
+      agent:
+        state.reason !== "invalid-phone" && state.reason !== "not-signed-in",
       retry: true,
     };
   }
@@ -752,17 +955,43 @@ export function logoutOutcome(
     input && typeof input === "object" && !Array.isArray(input)
       ? (input as Record<string, unknown>)
       : {};
-  if (value.kind === "logged-out")
+  if (value.kind === "logged-out") {
+    const removal =
+      value.sshKey !== null && typeof value.sshKey === "object"
+        ? (value.sshKey as Record<string, unknown>)
+        : undefined;
+    const print = fingerprint(removal?.fingerprint)
+      ? removal?.fingerprint
+      : "?";
+    const ssh: Record<string, MessageKey> = {
+      removed: "toolsSshRemoved",
+      "not-registered": "toolsSshRemovalNotRegistered",
+      "no-key": "toolsSshRemovalNoKey",
+      "kept-not-lazurio": "toolsSshRemovalKept",
+      "not-removed": "toolsSshRemovalFailed",
+    };
+    const key =
+      typeof removal?.state === "string" && Object.hasOwn(ssh, removal.state)
+        ? ssh[removal.state]
+        : removal === undefined
+          ? undefined
+          : "toolsSshRemovalFailed";
     return {
       kind: "updated",
       reload: false,
-      message: fill(
-        value.revocation === "remote"
-          ? copy.toolsSignedOutRemote
-          : copy.toolsSignedOutLocal,
-        { name },
-      ),
+      message: [
+        fill(
+          value.revocation === "remote"
+            ? copy.toolsSignedOutRemote
+            : copy.toolsSignedOutLocal,
+          { name },
+        ),
+        ...(key === undefined
+          ? []
+          : [fill(copy[key], { fingerprint: String(print) })]),
+      ].join(" "),
     };
+  }
   return {
     kind: "failed",
     reload: false,

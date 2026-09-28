@@ -59,7 +59,12 @@ type Tool = {
   version?: string;
   versionError?: string;
   standardPath?: boolean;
-  signIn?: { state: string; account?: string; organization?: string };
+  signIn?: {
+    state: string;
+    account?: string;
+    organization?: string;
+    ssh?: { state: string; reason?: string };
+  };
   note?: string;
   prompt: string;
 };
@@ -608,7 +613,16 @@ test.skipIf(process.platform === "win32")(
       const raw = await response.text();
       const overview = JSON.parse(raw) as Overview;
       expect(overview.tools.map((tool) => [tool.name, tool.signIn])).toEqual([
-        ["gh", { state: "signed-in", account: "octo-cat" }],
+        // No key in this home: signed in, the SSH key not linked; the
+        // private key is never read and nothing connects over SSH.
+        [
+          "gh",
+          {
+            state: "signed-in",
+            account: "octo-cat",
+            ssh: { state: "not-linked", reason: "no-key" },
+          },
+        ],
         [
           "composio",
           {

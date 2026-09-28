@@ -6,10 +6,12 @@ import {
   readFile,
   realpath,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { activatableTools } from "../src/tools/catalog";
 import {
   challengeUrl,
   createLoginSessions,
@@ -18,10 +20,16 @@ import {
   normalizePhone,
   parseComposioOrganizations,
 } from "../src/tools/login";
-import { runTool } from "../src/tools/status";
-import { fakeCodes, fakeLoginTools } from "./fixtures/fake-login-tools";
+import { runTool, toolsSignIn } from "../src/tools/status";
+import {
+  fakeCodes,
+  fakeLoginTools,
+  realSshKeygen,
+} from "./fixtures/fake-login-tools";
 
 const posix = process.platform !== "win32";
+// The gh sign-in links an SSH key, which needs ssh-keygen.
+const keygen = posix && realSshKeygen !== null;
 
 async function home(tools?: Parameters<typeof fakeLoginTools>[1]) {
   const directory = await realpath(
@@ -36,6 +44,7 @@ async function home(tools?: Parameters<typeof fakeLoginTools>[1]) {
     run: runTool,
     firstChallengeMs: 5_000,
     probeIntervalMs: 50,
+    machine: "vm-01",
   };
   return {
     directory,
@@ -151,7 +160,7 @@ test("composio organizations are read only in their exact form", () => {
   ).toBeUndefined();
 });
 
-test.skipIf(!posix)(
+test.skipIf(!keygen)(
   "gh: the device code and page as the challenge, no clipboard, signed in when the probe confirms",
   async () => {
     const opened = await home(["gh"]);
@@ -171,7 +180,7 @@ test.skipIf(!posix)(
       // Exactly the documented command, the clipboard off for this run.
       const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
       expect(calls.trim()).toBe(
-        "auth login --hostname github.com --git-protocol ssh --web --clipboard=false",
+        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key --clipboard=false",
       );
       // Another handle sees nothing.
       expect(sessions.poll("gh", "0".repeat(32))).toEqual({
@@ -179,10 +188,11 @@ test.skipIf(!posix)(
         tool: "gh",
       });
       await opened.approve();
-      expect(await settle(sessions, "gh", started.session)).toEqual({
+      expect(await settle(sessions, "gh", started.session)).toMatchObject({
         kind: "signed-in",
         tool: "gh",
         account: "octocat",
+        ssh: { state: "linked" },
       });
       // The outcome is read once; then the session is gone.
       expect(sessions.poll("gh", started.session).kind).toBe("none");
@@ -210,8 +220,8 @@ test.skipIf(!posix)(
         .trim()
         .split("\n");
       expect(calls).toEqual([
-        "auth login --hostname github.com --git-protocol ssh --web --clipboard=false",
-        "auth login --hostname github.com --git-protocol ssh --web",
+        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key --clipboard=false",
+        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key",
       ]);
     } finally {
       await sessions.close();
@@ -611,9 +621,591 @@ test.skipIf(!posix)(
         kind: "logged-out",
         tool: "gh",
         revocation: "local-only",
+        sshKey: { state: "no-key" },
       });
       const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
       expect(calls).toContain("auth logout --hostname github.com");
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// The SSH key of the gh sign-in (decision F19, addendum 2026-09-28). The real
+// ssh-keygen runs only on files under the temporary home; gh and ssh are
+// fakes on a PATH without system directories.
+
+function makeKey(
+  directory: string,
+  name: string,
+  options: Readonly<{ type?: string; passphrase?: string }> = {},
+) {
+  const path = join(directory, ".ssh", name);
+  const result = Bun.spawnSync(
+    [
+      realSshKeygen as string,
+      "-q",
+      "-t",
+      options.type ?? "ed25519",
+      ...(options.type === "rsa" ? ["-b", "2048"] : []),
+      "-N",
+      options.passphrase ?? "",
+      "-C",
+      "test",
+      "-f",
+      path,
+    ],
+    { env: { HOME: directory }, stdin: "ignore" },
+  );
+  if (result.exitCode !== 0) throw new Error("ssh-keygen failed");
+  return path;
+}
+
+async function sshHome() {
+  const opened = await home(["gh"]);
+  await mkdir(join(opened.directory, ".ssh"), { recursive: true, mode: 0o700 });
+  return opened;
+}
+
+const publicKey = async (path: string) =>
+  (await readFile(`${path}.pub`, "utf8"))
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .join(" ");
+
+// No private key and no public key blob in anything returned.
+async function assertNoKeyMaterial(directory: string, value: unknown) {
+  const text = JSON.stringify(value);
+  for (const name of ["id_ed25519", "id_ecdsa", "id_rsa"]) {
+    const path = join(directory, ".ssh", name);
+    let privateKey: string;
+    try {
+      privateKey = await readFile(path, "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of privateKey.split("\n"))
+      if (line.length > 20 && !line.startsWith("-----"))
+        expect(text.includes(line)).toBe(false);
+    const blob = (await publicKey(path)).split(" ")[1] as string;
+    expect(text.includes(blob)).toBe(false);
+  }
+}
+
+async function signInGh(
+  opened: Awaited<ReturnType<typeof home>>,
+  sessions: ReturnType<typeof createLoginSessions>,
+) {
+  const started = await sessions.start("gh");
+  if (started.kind !== "pending") throw new Error("not pending");
+  await opened.approve();
+  return settle(sessions, "gh", started.session);
+}
+
+const keyLines = async (directory: string) =>
+  (await readFile(join(directory, "gh.keys"), "utf8").catch(() => ""))
+    .trim()
+    .split("\n")
+    .filter((line) => line.length > 0);
+
+test.skipIf(!keygen)(
+  "gh on a fresh Machine: a new ed25519 key, registered, GitHub's host keys, the proof; linking is a step of its own",
+  async () => {
+    const opened = await home(["gh"]);
+    // The proof hangs until the test lets it go, so the linking step is seen.
+    await writeFile(join(opened.directory, "hang.ssh"), "");
+    const sessions = createLoginSessions(opened.environment);
+    try {
+      const started = await sessions.start("gh");
+      if (started.kind !== "pending") throw new Error("not pending");
+      await opened.approve();
+      await waitFor(async () => {
+        try {
+          await readFile(join(opened.directory, "hang.pid"), "utf8");
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      const linking = sessions.poll("gh", started.session);
+      expect(linking).toMatchObject({ kind: "pending", step: "ssh-key" });
+      // The device code is gone once signed in.
+      expect("challenge" in linking).toBe(false);
+      await rm(join(opened.directory, "hang.ssh"));
+      process.kill(
+        Number(await readFile(join(opened.directory, "hang.pid"), "utf8")),
+      );
+      const state = await settle(sessions, "gh", started.session);
+      const key = join(opened.directory, ".ssh", "id_ed25519");
+      if (state.kind !== "signed-in" || state.ssh?.state !== "linked")
+        throw new Error(`not linked: ${JSON.stringify(state)}`);
+      expect(state).toEqual({
+        kind: "signed-in",
+        tool: "gh",
+        account: "octocat",
+        ssh: {
+          state: "linked",
+          key: {
+            path: key,
+            fingerprint: state.ssh.key.fingerprint,
+            created: true,
+          },
+          registration: "added",
+          knownHosts: "added",
+        },
+      });
+      // The fingerprint is the one ssh-keygen prints.
+      const listed = Bun.spawnSync([
+        realSshKeygen as string,
+        "-l",
+        "-f",
+        `${key}.pub`,
+      ]);
+      expect(listed.stdout.toString().split(" ")[1]).toBe(
+        state.ssh.key.fingerprint,
+      );
+      expect((await stat(join(opened.directory, ".ssh"))).mode & 0o777).toBe(
+        0o700,
+      );
+      expect((await stat(key)).mode & 0o777).toBe(0o600);
+      expect(await readFile(`${key}.pub`, "utf8")).toContain("lazurio@vm-01");
+      // Registered once, titled with Lazurio and the Machine.
+      expect(await keyLines(opened.directory)).toEqual([
+        `101\tLazurio: vm-01\t${await publicKey(key)}`,
+      ]);
+      expect(
+        (await readFile(join(opened.directory, ".ssh", "known_hosts"), "utf8"))
+          .trim()
+          .split("\n")
+          .map((line) => line.split(" ")[0]),
+      ).toEqual(["github.com", "github.com", "github.com"]);
+      expect(
+        (await readFile(join(opened.directory, "ssh.calls"), "utf8")).trim(),
+      ).toBe(
+        "-T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com",
+      );
+      const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
+      expect(calls).toContain(
+        `ssh-key add ${key}.pub --title Lazurio: vm-01 --type authentication`,
+      );
+      expect(calls).toContain("api meta --jq .ssh_keys");
+      await assertNoKeyMaterial(opened.directory, state);
+      // The sign-in probe now says the key is linked, without the network
+      // beyond gh's own calls.
+      const probe = activatableTools().find((tool) => tool.name === "gh")
+        ?.activation.signInProbe;
+      const [signIn] = await toolsSignIn(
+        [
+          {
+            probe,
+            status: {
+              name: "gh",
+              command: "gh",
+              installed: true,
+              path: join(opened.directory, ".local", "bin", "gh"),
+              updater: "none",
+              source: "https://github.com/cli/cli#installation",
+            },
+          },
+        ],
+        {
+          path: opened.environment.path,
+          home: opened.directory,
+          run: runTool,
+        },
+      );
+      expect(signIn).toEqual({
+        state: "signed-in",
+        account: "octocat",
+        ssh: { state: "linked", fingerprint: state.ssh.key.fingerprint },
+      });
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "gh: an existing default key is used byte for byte; a key already on the account is not added twice",
+  async () => {
+    const opened = await sshHome();
+    const key = makeKey(opened.directory, "id_ed25519");
+    const before = {
+      private: await readFile(key),
+      public: await readFile(`${key}.pub`),
+      mtime: (await stat(key)).mtimeMs,
+    };
+    await writeFile(
+      join(opened.directory, "gh.keys"),
+      `7\tMy laptop\t${await publicKey(key)}\n`,
+    );
+    const sessions = createLoginSessions(opened.environment);
+    try {
+      const state = await signInGh(opened, sessions);
+      expect(state).toMatchObject({
+        kind: "signed-in",
+        ssh: {
+          state: "linked",
+          key: { path: key, created: false },
+          registration: "already-registered",
+        },
+      });
+      expect(await readFile(key)).toEqual(before.private);
+      expect(await readFile(`${key}.pub`)).toEqual(before.public);
+      expect((await stat(key)).mtimeMs).toBe(before.mtime);
+      expect(await readdir(join(opened.directory, ".ssh"))).toEqual([
+        "id_ed25519",
+        "id_ed25519.pub",
+        "known_hosts",
+      ]);
+      expect(await keyLines(opened.directory)).toHaveLength(1);
+      const keygenCalls = await readFile(
+        join(opened.directory, "ssh-keygen.calls"),
+        "utf8",
+      );
+      expect(keygenCalls).not.toContain("-t ed25519");
+      await assertNoKeyMaterial(opened.directory, state);
+      // Sign-out keeps a key the operator registered by hand.
+      const out = await sessions.logout("gh");
+      expect(out).toMatchObject({
+        kind: "logged-out",
+        sshKey: { state: "kept-not-lazurio" },
+      });
+      expect(await keyLines(opened.directory)).toHaveLength(1);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "gh: a key in use by another account is reported and no second key is created",
+  async () => {
+    const opened = await sshHome();
+    const key = makeKey(opened.directory, "id_ed25519");
+    const bytes = await readFile(key);
+    await writeFile(
+      join(opened.directory, "gh.foreign"),
+      `${await publicKey(key)}\n`,
+    );
+    const sessions = createLoginSessions(opened.environment);
+    try {
+      const state = await signInGh(opened, sessions);
+      expect(state).toMatchObject({
+        kind: "signed-in",
+        account: "octocat",
+        ssh: {
+          state: "not-linked",
+          reason: "key-in-use",
+          key: { path: key, created: false },
+          fallback: "agent",
+        },
+      });
+      expect(await readdir(join(opened.directory, ".ssh"))).toEqual([
+        "id_ed25519",
+        "id_ed25519.pub",
+      ]);
+      expect(await readFile(key)).toEqual(bytes);
+      expect(await keyLines(opened.directory)).toEqual([]);
+      await assertNoKeyMaterial(opened.directory, state);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "gh: a github.com entry that differs from the published keys stops everything; a hashed matching entry is kept",
+  async () => {
+    const opened = await sshHome();
+    // A different host key for github.com, hashed as HashKnownHosts writes it.
+    const other = makeKey(opened.directory, "other", { type: "ecdsa" });
+    const knownHosts = join(opened.directory, ".ssh", "known_hosts");
+    await writeFile(knownHosts, `github.com ${await publicKey(other)}\n`);
+    Bun.spawnSync([realSshKeygen as string, "-H", "-f", knownHosts], {
+      env: { HOME: opened.directory },
+    });
+    await rm(`${knownHosts}.old`, { force: true });
+    await rm(other);
+    await rm(`${other}.pub`);
+    const hashed = await readFile(knownHosts, "utf8");
+    expect(hashed.startsWith("|1|")).toBe(true);
+    const sessions = createLoginSessions(opened.environment);
+    try {
+      const state = await signInGh(opened, sessions);
+      expect(state).toMatchObject({
+        kind: "signed-in",
+        ssh: { state: "not-linked", reason: "host-key-mismatch" },
+      });
+      expect(await readFile(knownHosts, "utf8")).toBe(hashed);
+      await expect(
+        readFile(join(opened.directory, "ssh.calls"), "utf8"),
+      ).rejects.toThrow();
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+    // The published ed25519 key, hashed: recognized, the other two added.
+    const second = await sshHome();
+    const file = join(second.directory, ".ssh", "known_hosts");
+    await writeFile(
+      file,
+      "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl",
+    );
+    Bun.spawnSync([realSshKeygen as string, "-H", "-f", file], {
+      env: { HOME: second.directory },
+    });
+    await rm(`${file}.old`, { force: true });
+    const kept = (await readFile(file, "utf8")).trim();
+    const again = createLoginSessions(second.environment);
+    try {
+      expect(await signInGh(second, again)).toMatchObject({
+        ssh: { state: "linked", knownHosts: "added" },
+      });
+      const lines = (await readFile(file, "utf8")).trim().split("\n");
+      expect(lines[0]).toBe(kept);
+      expect(lines.slice(1).map((line) => line.split(" ")[1])).toEqual([
+        "ecdsa-sha2-nistp256",
+        "ssh-rsa",
+      ]);
+    } finally {
+      await again.close();
+      await second.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "Link SSH key: a gh signed in by hand without the scope gets a refresh code, then the key is linked",
+  async () => {
+    const opened = await sshHome();
+    await writeFile(join(opened.directory, "gh.state"), "octocat\n");
+    await writeFile(
+      join(opened.directory, "gh.scopes"),
+      "gist read:org repo\n",
+    );
+    const sessions = createLoginSessions(opened.environment);
+    const probe = activatableTools().find((tool) => tool.name === "gh")
+      ?.activation.signInProbe;
+    const status = {
+      name: "gh",
+      command: "gh",
+      installed: true,
+      path: join(opened.directory, ".local", "bin", "gh"),
+      updater: "none",
+      source: "https://github.com/cli/cli#installation",
+    } as const;
+    const read = async () =>
+      (
+        await toolsSignIn([{ probe, status }], {
+          path: opened.environment.path,
+          home: opened.directory,
+          run: runTool,
+        })
+      )[0];
+    try {
+      expect(await read()).toEqual({
+        state: "signed-in",
+        account: "octocat",
+        ssh: { state: "not-linked", reason: "no-key" },
+      });
+      const started = await sessions.start("gh", { sshKey: true });
+      expect(started).toMatchObject({
+        kind: "pending",
+        challenge: { kind: "device-code", code: fakeCodes.gh },
+      });
+      if (started.kind !== "pending") throw new Error("not pending");
+      const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
+      expect(calls).toContain(
+        "auth refresh --hostname github.com --scopes admin:public_key --clipboard=false",
+      );
+      expect(calls).not.toContain("auth login");
+      await opened.approve();
+      const state = await settle(sessions, "gh", started.session);
+      expect(state).toMatchObject({
+        kind: "signed-in",
+        account: "octocat",
+        ssh: { state: "linked", key: { created: true } },
+      });
+      expect(await read()).toMatchObject({ ssh: { state: "linked" } });
+      // A second link needs no code: the key is on the account already.
+      const again = await sessions.start("gh", { sshKey: true });
+      if (again.kind !== "pending") throw new Error("not pending");
+      expect(again.challenge).toBeUndefined();
+      expect(await settle(sessions, "gh", again.session)).toMatchObject({
+        ssh: {
+          state: "linked",
+          key: { created: false },
+          registration: "already-registered",
+          knownHosts: "present",
+        },
+      });
+      expect(await keyLines(opened.directory)).toHaveLength(1);
+      // Without a sign-in there is nothing to link.
+      await rm(join(opened.directory, "gh.state"));
+      expect(await sessions.start("gh", { sshKey: true })).toEqual({
+        kind: "failed",
+        tool: "gh",
+        reason: "not-signed-in",
+      });
+      await expect(
+        sessions.start("composio", { sshKey: true }),
+      ).rejects.toThrow();
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "gh: a failing proof, another account greeted, and a key with a passphrase are never reported as linked",
+  async () => {
+    const cases: readonly {
+      prepare: (directory: string) => Promise<void>;
+      expected: Record<string, unknown>;
+    }[] = [
+      {
+        prepare: (directory) => writeFile(join(directory, "ssh.fail"), ""),
+        expected: { state: "not-linked", reason: "proof-failed" },
+      },
+      {
+        // ssh offers id_rsa before id_ed25519; that key belongs to another
+        // account.
+        prepare: async (directory) => {
+          const rsa = makeKey(directory, "id_rsa", { type: "rsa" });
+          await writeFile(
+            join(directory, "gh.foreign"),
+            `${await publicKey(rsa)}\n`,
+          );
+          makeKey(directory, "id_ed25519");
+        },
+        expected: {
+          state: "not-linked",
+          reason: "proof-other-account",
+          provedAs: "someone-else",
+        },
+      },
+      {
+        prepare: async (directory) => {
+          makeKey(directory, "id_ed25519", { passphrase: "not-for-agents" });
+        },
+        expected: { state: "not-linked", reason: "key-passphrase" },
+      },
+    ];
+    for (const { prepare, expected } of cases) {
+      const opened = await sshHome();
+      await prepare(opened.directory);
+      const sessions = createLoginSessions(opened.environment);
+      try {
+        const state = await signInGh(opened, sessions);
+        expect(state).toMatchObject({
+          kind: "signed-in",
+          account: "octocat",
+          ssh: { ...expected, fallback: "agent" },
+        });
+        await assertNoKeyMaterial(opened.directory, state);
+      } finally {
+        await sessions.close();
+        await opened.close();
+      }
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "cancelling the link in any step kills the running step's process group",
+  async () => {
+    for (const step of ["ssh-keygen", "ssh-key-add", "api-meta", "ssh"]) {
+      const opened = await sshHome();
+      await writeFile(join(opened.directory, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.directory, "gh.scopes"),
+        "gist read:org repo admin:public_key\n",
+      );
+      await writeFile(join(opened.directory, `hang.${step}`), "");
+      const sessions = createLoginSessions(opened.environment);
+      try {
+        const started = await sessions.start("gh", { sshKey: true });
+        if (started.kind !== "pending") throw new Error("not pending");
+        const marker = join(opened.directory, "hang.pid");
+        await waitFor(async () => {
+          try {
+            await readFile(marker, "utf8");
+            return true;
+          } catch {
+            return false;
+          }
+        });
+        const helper = Number(await readFile(marker, "utf8"));
+        expect(alive(helper)).toBe(true);
+        expect(sessions.poll("gh", started.session)).toMatchObject({
+          kind: "pending",
+          step: "ssh-key",
+        });
+        expect(sessions.cancel("gh", started.session).kind).toBe("cancelled");
+        await waitFor(() => !alive(helper));
+      } finally {
+        await sessions.close();
+        await opened.close();
+      }
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "sign-out removes only this Machine's key that Lazurio registered; the key files stay",
+  async () => {
+    const opened = await sshHome();
+    const key = makeKey(opened.directory, "id_ed25519");
+    const other = makeKey(opened.directory, "elsewhere");
+    await writeFile(join(opened.directory, "gh.state"), "octocat\n");
+    await writeFile(
+      join(opened.directory, "gh.scopes"),
+      "gist read:org repo admin:public_key\n",
+    );
+    await writeFile(
+      join(opened.directory, "gh.keys"),
+      `5\tLazurio: other-vm\t${await publicKey(other)}\n9\tLazurio: vm-01\t${await publicKey(key)}\n`,
+    );
+    const sessions = createLoginSessions(opened.environment);
+    try {
+      const out = await sessions.logout("gh");
+      expect(out).toMatchObject({
+        kind: "logged-out",
+        tool: "gh",
+        sshKey: { state: "removed" },
+      });
+      await assertNoKeyMaterial(opened.directory, out);
+      expect(await keyLines(opened.directory)).toEqual([
+        `5\tLazurio: other-vm\t${await publicKey(other)}`,
+      ]);
+      expect(
+        await readFile(join(opened.directory, "gh.calls"), "utf8"),
+      ).toContain("ssh-key delete 9 --yes");
+      await stat(key);
+      await stat(`${key}.pub`);
+      // Without the scope nothing is removed, and the result says so.
+      await writeFile(join(opened.directory, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.directory, "gh.scopes"),
+        "gist read:org repo\n",
+      );
+      await writeFile(
+        join(opened.directory, "gh.keys"),
+        `9\tLazurio: vm-01\t${await publicKey(key)}\n`,
+      );
+      expect(await sessions.logout("gh")).toMatchObject({
+        kind: "logged-out",
+        sshKey: { state: "not-removed", reason: "scope-missing" },
+      });
+      expect(await keyLines(opened.directory)).toHaveLength(1);
     } finally {
       await sessions.close();
       await opened.close();

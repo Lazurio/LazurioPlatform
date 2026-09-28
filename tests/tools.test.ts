@@ -978,8 +978,13 @@ exit 1
     expect(plain.tools.some((tool) => "signIn" in tool)).toBe(false);
     const signed = (await run("list", "--folder", folder, "--sign-in"))
       .result as { tools: Record<string, unknown>[] };
+    // No key in this home: gh is signed in, its SSH key is not linked.
     expect(signed.tools.map((tool) => tool.signIn)).toEqual([
-      { state: "signed-in", account: "octo" },
+      {
+        state: "signed-in",
+        account: "octo",
+        ssh: { state: "not-linked", reason: "no-key" },
+      },
       { state: "unknown" },
       { state: "unknown" },
       { state: "unknown" },
@@ -991,7 +996,7 @@ exit 1
       context,
     );
     expect(text.text.split("\n")[1]).toBe(
-      `gh        required     launchpad  enabled   2.86.0 ${join(bin, "gh")}  (signed in as octo)`,
+      `gh        required     launchpad  enabled   2.86.0 ${join(bin, "gh")}  (signed in as octo, SSH key not linked: lazurio tools login gh --ssh-key)`,
     );
 
     const note = (tool: string, revision: number, ...rest: string[]) =>

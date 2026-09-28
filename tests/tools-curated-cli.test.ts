@@ -14,9 +14,14 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { runToolsCommand, ToolsUsageError } from "../src/tools/cli";
 import type { InstallFetch } from "../src/tools/install";
-import { fakeCodes, fakeLoginTools } from "./fixtures/fake-login-tools";
+import {
+  fakeCodes,
+  fakeLoginTools,
+  realSshKeygen,
+} from "./fixtures/fake-login-tools";
 
 const posix = process.platform !== "win32";
+const keygen = posix && realSshKeygen !== null;
 
 async function home(tools?: Parameters<typeof fakeLoginTools>[1]) {
   const directory = await realpath(
@@ -32,7 +37,7 @@ async function home(tools?: Parameters<typeof fakeLoginTools>[1]) {
       env: { HOME: directory, PATH: path },
       platform: process.platform,
       write: (line: string) => lines.push(line),
-      login: { firstChallengeMs: 5_000, probeIntervalMs: 50 },
+      login: { firstChallengeMs: 5_000, probeIntervalMs: 50, machine: "vm-01" },
       ...extra,
     }),
     approve: () => writeFile(join(directory, "approve"), ""),
@@ -84,6 +89,16 @@ test("agent-setup and unknown tools are refused with a pointer; options belong t
   );
   expect(phone.code).toBe(2);
   expect(phone.result).toMatchObject({ reason: "phone-wacli-only" });
+  const ssh = await runToolsCommand(
+    ["login", "composio", "--ssh-key", "--json"],
+    context,
+  );
+  expect(ssh.code).toBe(2);
+  expect(ssh.result).toEqual({
+    kind: "blocked",
+    reason: "ssh-key-gh-only",
+    tool: "composio",
+  });
   for (const args of [
     ["install", "gh", "--phone", "+420123456789"],
     ["install"],
@@ -91,14 +106,16 @@ test("agent-setup and unknown tools are refused with a pointer; options belong t
     ["composio-org", "switch"],
     ["composio-org", "rename", "x"],
     ["logout", "gh", "--folder", "/tmp"],
+    ["logout", "gh", "--ssh-key"],
+    ["install", "gh", "--ssh-key"],
   ])
     await expect(runToolsCommand(args, context)).rejects.toThrow(
       ToolsUsageError,
     );
 });
 
-test.skipIf(!posix)(
-  "tools login --json prints one JSON object per state change and exits 0 when signed in",
+test.skipIf(!keygen)(
+  "tools login --json prints one JSON object per state change and exits 0 when signed in with the SSH key linked",
   async () => {
     const opened = await home(["gh"]);
     try {
@@ -120,15 +137,30 @@ test.skipIf(!posix)(
       const output = await running;
       expect(output.code).toBe(0);
       expect(output.text).toBe("");
-      expect(opened.lines.map((line) => JSON.parse(line).kind)).toEqual([
-        "pending",
-        "signed-in",
-      ]);
-      expect(JSON.parse(opened.lines[1] as string)).toEqual({
+      const kinds = opened.lines.map((line) => JSON.parse(line).kind);
+      expect(kinds[0]).toBe("pending");
+      expect(kinds.at(-1)).toBe("signed-in");
+      expect(JSON.parse(opened.lines.at(-1) as string)).toMatchObject({
         kind: "signed-in",
         tool: "gh",
         account: "octocat",
+        ssh: {
+          state: "linked",
+          key: {
+            path: join(opened.directory, ".ssh", "id_ed25519"),
+            created: true,
+          },
+          registration: "added",
+          knownHosts: "added",
+        },
       });
+      // The private key never reaches the output.
+      const privateKey = await readFile(
+        join(opened.directory, ".ssh", "id_ed25519"),
+        "utf8",
+      );
+      const body = privateKey.split("\n")[1] as string;
+      expect(opened.lines.join("\n")).not.toContain(body);
     } finally {
       await opened.close();
     }
@@ -351,6 +383,52 @@ test.skipIf(!posix)(
         `wacli 0.19.0 installed at ${join(opened.directory, ".local", "bin", "wacli")}`,
       );
       expect(result.text).toContain("Next: lazurio tools login wacli");
+    } finally {
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "tools login gh says whether the SSH key is linked, exits 1 when it is not; --ssh-key links it; logout says what happened to the key",
+  async () => {
+    const opened = await home(["gh"]);
+    try {
+      // The proof fails: signed in, SSH not linked, exit 1, the way forward.
+      await writeFile(join(opened.directory, "ssh.fail"), "");
+      const running = runToolsCommand(["login", "gh"], opened.context());
+      while (!opened.lines.some((line) => line.includes(fakeCodes.gh)))
+        await Bun.sleep(20);
+      await opened.approve();
+      const failed = await running;
+      expect(failed.code).toBe(1);
+      const text = opened.lines.join("\n");
+      expect(text).toContain("gh: signed in as octocat.");
+      expect(text).toContain(
+        "The SSH key is NOT linked: ssh -T git@github.com did not answer with GitHub's greeting.",
+      );
+      expect(text).toContain("lazurio tools login gh --ssh-key");
+      expect(text).toContain("lazurio tools prompt gh");
+      // Linking again, once the proof works: no new code, exit 0.
+      await rm(join(opened.directory, "ssh.fail"));
+      opened.lines.length = 0;
+      const linked = await runToolsCommand(
+        ["login", "gh", "--ssh-key"],
+        opened.context(),
+      );
+      expect(linked.code).toBe(0);
+      const done = opened.lines.join("\n");
+      expect(done).not.toContain(fakeCodes.gh);
+      expect(done).toContain("Linking the SSH key of this Machine");
+      expect(done).toContain(
+        `SSH key linked: ${join(opened.directory, ".ssh", "id_ed25519")} (SHA256:`,
+      );
+      expect(done).toContain("git clone git@github.com:… works as octocat.");
+      const out = await runToolsCommand(["logout", "gh"], opened.context());
+      expect(out.code).toBe(0);
+      expect(out.text).toContain(
+        "was removed from your GitHub account; the key files in ~/.ssh stay.",
+      );
     } finally {
       await opened.close();
     }

@@ -9,6 +9,7 @@ import {
   type LoginView,
   loginEndMessage,
   loginLink,
+  loginStepOrder,
   loginSteps,
   logoutOutcome,
   nextNotes,
@@ -21,6 +22,7 @@ import {
   signedInMessage,
   signInLine,
   sourceLink,
+  sshOutcome,
   type ToolChange,
   type ToolChangeOutcome,
   takesNote,
@@ -190,9 +192,13 @@ export function createToolsPanel(
   // code an image of the server's own drawing.
   type Flow = {
     tool: ToolOverview;
+    /** Install and sign in, sign in, or link the SSH key of a signed-in gh. */
+    mode: "install" | "login" | "ssh";
     install: boolean;
+    /** "Link SSH key" had to show a device code to widen the sign-in. */
+    refresh: boolean;
     phase: LoginPhase;
-    failedAt: "installing" | "waiting";
+    failedAt: "installing" | "waiting" | "linking";
     handle: string | null;
     timer: ReturnType<typeof setTimeout> | null;
     turn: number;
@@ -212,19 +218,26 @@ export function createToolsPanel(
       failed: "toolsStepFailed",
     } as const;
     loginStepList.replaceChildren(
-      ...loginSteps(flow.install, flow.phase, flow.failedAt, copy).map(
-        (step) => {
-          const item = element(
-            "li",
-            "",
-            fill(copy[keys[step.state]], { step: step.label }),
-          );
-          item.dataset.state = step.state;
-          if (step.state === "current")
-            item.setAttribute("aria-current", "step");
-          return item;
-        },
-      ),
+      ...loginSteps(
+        loginStepOrder({
+          mode:
+            flow.mode === "ssh" ? "ssh" : flow.install ? "install" : "login",
+          tool: flow.tool.name,
+          refresh: flow.refresh,
+        }),
+        flow.phase,
+        flow.failedAt,
+        copy,
+      ).map((step) => {
+        const item = element(
+          "li",
+          "",
+          fill(copy[keys[step.state]], { step: step.label }),
+        );
+        item.dataset.state = step.state;
+        if (step.state === "current") item.setAttribute("aria-current", "step");
+        return item;
+      }),
     );
   }
   function phase(next: LoginPhase, status: string) {
@@ -238,14 +251,24 @@ export function createToolsPanel(
     if (flow) flow.timer = null;
   }
 
-  function openLogin(tool: ToolOverview, mode: "install" | "login") {
+  function openLogin(tool: ToolOverview, mode: "install" | "login" | "ssh") {
     const copy = options.copy();
-    loginOpener = { name: tool.name, control: "curated" };
+    loginOpener = {
+      name: tool.name,
+      control: mode === "ssh" ? "link-ssh" : "curated",
+    };
     flow = {
       tool,
+      mode,
       install: mode === "install",
+      refresh: false,
       phase: "confirm",
-      failedAt: mode === "install" ? "installing" : "waiting",
+      failedAt:
+        mode === "install"
+          ? "installing"
+          : mode === "ssh"
+            ? "linking"
+            : "waiting",
       handle: null,
       timer: null,
       turn: 0,
@@ -253,7 +276,11 @@ export function createToolsPanel(
       qr: null,
     };
     loginTitle.textContent = fill(
-      mode === "install" ? copy.toolsLoginTitleInstall : copy.toolsLoginTitle,
+      mode === "install"
+        ? copy.toolsLoginTitleInstall
+        : mode === "ssh"
+          ? copy.toolsLoginTitleSsh
+          : copy.toolsLoginTitle,
       { name: tool.name },
     );
     loginStatus.textContent = "";
@@ -306,11 +333,13 @@ export function createToolsPanel(
     if (current === null) return;
     const copy = options.copy();
     stopPolling();
-    current.failedAt = "waiting";
+    const ssh = current.mode === "ssh";
+    current.failedAt = ssh ? "linking" : "waiting";
     current.challenge = null;
     current.qr = null;
+    current.refresh = false;
     const turn = ++current.turn;
-    phase("waiting", copy.toolsLoginStarting);
+    phase(ssh ? "linking" : "waiting", copy.toolsLoginStarting);
     if (loginBody.childElementCount === 0 || phone === undefined)
       loginBody.append(element("p", "tools-muted", copy.toolsLoginStarting));
     let value: unknown = null;
@@ -318,6 +347,7 @@ export function createToolsPanel(
       ({ value } = await options.post("/api/tools/login/start", {
         tool: current.tool.name,
         ...(phone === undefined ? {} : { phone }),
+        ...(ssh ? { sshKey: true } : {}),
       }));
     } catch {}
     if (flow !== current || current.turn !== turn) return;
@@ -351,8 +381,24 @@ export function createToolsPanel(
       return loginFailed(copy.toolsLoginUnreadable, false);
     if (state.kind === "pending") {
       current.handle = state.session;
-      phase("waiting", copy.toolsLoginWaiting);
-      showChallenge(state);
+      if (state.step === "ssh-key") {
+        // Signed in: the SSH key of this Machine is being linked.
+        current.failedAt = "linking";
+        if (current.challenge !== "linking") {
+          current.challenge = "linking";
+          current.qr = null;
+          loginBody.replaceChildren(
+            element("p", "tools-muted", copy.toolsLoginLinking),
+          );
+        }
+        phase("linking", copy.toolsLoginLinking);
+      } else {
+        if (current.mode === "ssh" && state.challenge !== undefined)
+          current.refresh = true;
+        current.failedAt = "waiting";
+        phase("waiting", copy.toolsLoginWaiting);
+        showChallenge(state);
+      }
       schedulePoll();
       return;
     }
@@ -404,7 +450,13 @@ export function createToolsPanel(
     if (challenge.kind === "device-code") {
       const url = loginLink(challenge.url, "github.com");
       loginBody.replaceChildren(
-        element("p", "", copy.toolsLoginGhText),
+        element(
+          "p",
+          "",
+          current.mode === "ssh"
+            ? copy.toolsLoginRefreshText
+            : copy.toolsLoginGhText,
+        ),
         element("p", "tools-muted", copy.toolsLoginCodeLabel),
         code(challenge.code, copy.toolsLoginCodeLabel),
         ...(url === null ? [] : [link(url, copy.toolsLoginGhLink)]),
@@ -488,6 +540,21 @@ export function createToolsPanel(
     if (current === null) return;
     const copy = options.copy();
     stopPolling();
+    // gh: signed in is complete only with the SSH key linked (decision F19,
+    // addendum 2026-09-28); otherwise the linking step did not finish.
+    const ssh = sshOutcome(state, copy);
+    if (ssh !== null && !ssh.linked) {
+      current.failedAt = "linking";
+      loginFailed(`${ssh.message} ${ssh.detail}`, true);
+      void refresh({ signIn: true });
+      return;
+    }
+    if (ssh !== null) {
+      phase("signed-in", ssh.message);
+      loginBody.replaceChildren(element("p", "tools-muted", ssh.detail));
+      void refresh({ signIn: true });
+      return;
+    }
     const message = signedInMessage(state, copy);
     phase("signed-in", message);
     // The status line above already says it; the body adds what follows.
@@ -587,7 +654,14 @@ export function createToolsPanel(
     }
     const again = element("button", "", copy.toolsLoginTryAgain);
     again.type = "button";
-    again.addEventListener("click", () => void begin());
+    again.addEventListener("click", () => {
+      // Signed in already: trying again links the SSH key only.
+      if (current.failedAt === "linking") {
+        current.mode = "ssh";
+        current.install = false;
+      }
+      void begin();
+    });
     row.append(again);
     loginBody.replaceChildren(
       ...(agent ? [element("p", "tools-muted", copy.toolsAgentFallback)] : []),
@@ -819,6 +893,16 @@ export function createToolsPanel(
               : copy.toolsSignInActionNamed,
             { name: tool.name },
           ),
+        ),
+      );
+    if (curated.linkSsh)
+      actions.append(
+        button(
+          copy.toolsLinkSshAction,
+          tool.name,
+          "link-ssh",
+          () => openLogin(tool, "ssh"),
+          fill(copy.toolsLinkSshNamed, { name: tool.name }),
         ),
       );
     if (curated.logout)

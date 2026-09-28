@@ -12,6 +12,7 @@ import {
   type LogoutResult,
 } from "./login";
 import { qrMatrix, qrTerminal } from "./qr";
+import type { SshKeyRemoval, SshLink, SshLinkFailure } from "./ssh-key";
 
 /** The terminal adapter of the curated flows (decision F19): `tools install`,
  * `tools login`, `tools logout` and `tools composio-org`. The same core the
@@ -149,12 +150,79 @@ const failureText: Record<string, string> = {
   "invalid-phone":
     "the phone number is not an international number (+ country code and number)",
   "spawn-failed": "the tool could not be started",
+  "not-signed-in":
+    "gh is not signed in on this Machine; sign in first: lazurio tools login gh",
 };
+
+const sshFailureText: Record<SshLinkFailure, string> = {
+  "not-signed-in": "gh is not signed in",
+  "scope-missing":
+    "the gh sign-in may not manage the SSH keys of your account (scope admin:public_key)",
+  "keygen-missing": "ssh-keygen is not installed on this Machine",
+  "keygen-failed": "a new key could not be created in ~/.ssh",
+  "key-passphrase":
+    "the existing key {path} is protected by a passphrase, which agents cannot enter; it was left as it is",
+  "key-incomplete":
+    "the existing key {path} has no matching .pub file; it was left as it is",
+  "key-unreadable":
+    "the existing key {path} could not be read; it was left as it is",
+  "key-in-use":
+    "GitHub refuses the key {path} because it is already in use there (another GitHub account or a repository's deploy key); no second key was created",
+  "register-failed": "the key could not be registered on your GitHub account",
+  "host-keys-unavailable": "GitHub's published host keys could not be read",
+  "host-key-mismatch":
+    "~/.ssh/known_hosts holds a github.com host key that differs from the keys GitHub publishes; nothing was changed",
+  "known-hosts-failed": "~/.ssh/known_hosts could not be read or written",
+  "ssh-missing": "ssh is not installed on this Machine",
+  "proof-failed": "ssh -T git@github.com did not answer with GitHub's greeting",
+  "proof-other-account":
+    "GitHub greeted another account over SSH ({provedAs}): another key of this Machine is offered first",
+};
+
+/** One sentence for why the SSH key is not linked. */
+export function sshFailureSentence(
+  ssh: Extract<SshLink, { state: "not-linked" }>,
+): string {
+  return (sshFailureText[ssh.reason] ?? ssh.reason)
+    .replace("{path}", ssh.key?.path ?? "~/.ssh")
+    .replace("{provedAs}", ssh.provedAs ?? "?");
+}
+
+function sshLines(account: string | undefined, ssh: SshLink): string[] {
+  const who = account ?? "the signed-in account";
+  if (ssh.state === "linked")
+    return [
+      `SSH key linked: ${ssh.key.path} (${ssh.key.fingerprint}, ${
+        ssh.key.created ? "created now" : "existing key, unchanged"
+      }; ${
+        ssh.registration === "added"
+          ? "registered on your account now"
+          : "already registered on your account"
+      }). git clone git@github.com:… works as ${who}.`,
+    ];
+  return [
+    `The SSH key is NOT linked: ${sshFailureSentence(ssh)}.`,
+    `git over SSH does not work as ${who} yet. Try again: lazurio tools login gh --ssh-key`,
+    "Or finish it with an agent: lazurio tools prompt gh",
+  ];
+}
+
+/** Whether a login reached its full target: for gh, the SSH key linked. */
+export function loginComplete(state: LoginState): boolean {
+  return (
+    state.kind === "signed-in" &&
+    (state.tool !== "gh" || state.ssh?.state === "linked")
+  );
+}
 
 // What a person reads for one state; `null` when nothing new is to be said.
 function loginLines(state: LoginState): string[] {
   switch (state.kind) {
     case "pending": {
+      if (state.step === "ssh-key")
+        return [
+          "Signed in to GitHub. Linking the SSH key of this Machine: key pair, registration on your account, GitHub's host keys, proof over SSH…",
+        ];
       const challenge = state.challenge;
       if (challenge === undefined) return ["Starting the sign-in…"];
       if (challenge.kind === "device-code")
@@ -193,6 +261,9 @@ function loginLines(state: LoginState): string[] {
           : `${state.tool}: signed in as ${state.account}${
               state.organization === undefined ? "" : ` (${state.organization})`
             }.`,
+        ...(state.tool === "gh" && state.ssh !== undefined
+          ? sshLines(state.account, state.ssh)
+          : []),
         ...(state.tool === "composio"
           ? [
               "Apps connected in Composio belong to this account and its current organization for the whole Environment.",
@@ -221,9 +292,20 @@ export async function runLogin(
   phone: string | undefined,
   json: boolean,
   context: CuratedContext,
+  sshKey = false,
 ): Promise<CuratedOutput> {
   const refused = refuseTool(name, json);
   if (refused) return refused;
+  if (sshKey && name !== "gh") {
+    const result = { kind: "blocked", reason: "ssh-key-gh-only", tool: name };
+    return {
+      code: 2,
+      result,
+      text: json
+        ? JSON.stringify(result)
+        : "--ssh-key applies to gh only (the SSH key of this Machine on GitHub).",
+    };
+  }
   if (phone !== undefined && name !== "wacli") {
     const result = { kind: "blocked", reason: "phone-wacli-only", tool: name };
     return {
@@ -246,10 +328,10 @@ export async function runLogin(
     });
   });
   try {
-    let state = await sessions.start(
-      name,
-      phone === undefined ? {} : { phone },
-    );
+    let state = await sessions.start(name, {
+      ...(phone === undefined ? {} : { phone }),
+      ...(sshKey ? { sshKey } : {}),
+    });
     emit(state);
     let shown = JSON.stringify(state);
     while (state.kind === "pending") {
@@ -278,7 +360,7 @@ export async function runLogin(
       await Promise.race([sessions.settled(), aborted]);
     }
     return {
-      code: state.kind === "signed-in" ? 0 : 1,
+      code: loginComplete(state) ? 0 : 1,
       result: state,
       text: "",
     };
@@ -303,15 +385,44 @@ export async function runLogout(
   }
   const text =
     result.kind === "logged-out"
-      ? result.revocation === "remote"
-        ? `${name}: signed out; the linked device was removed from the account.`
-        : `${name}: signed out on this Machine. The provider still lists this sign-in until you revoke it there.`
+      ? [
+          result.revocation === "remote"
+            ? `${name}: signed out; the linked device was removed from the account.`
+            : `${name}: signed out on this Machine. The provider still lists this sign-in until you revoke it there.`,
+          ...(result.sshKey === undefined
+            ? []
+            : [sshRemovalText(result.sshKey)]),
+        ].join("\n")
       : `${name}: sign-out failed (${result.reason}).`;
   return {
     code: result.kind === "logged-out" ? 0 : 1,
     result,
     text: json ? JSON.stringify(result) : text,
   };
+}
+
+/** What sign-out did with this Machine's SSH key on the GitHub account. */
+export function sshRemovalText(removal: SshKeyRemoval): string {
+  const key =
+    removal.fingerprint === undefined ? "" : ` (${removal.fingerprint})`;
+  const where =
+    "Remove it under GitHub Settings > SSH and GPG keys (https://github.com/settings/keys) if this Machine must lose access.";
+  switch (removal.state) {
+    case "removed":
+      return `The SSH key of this Machine${key} was removed from your GitHub account; the key files in ~/.ssh stay.`;
+    case "not-registered":
+      return `The SSH key of this Machine${key} was not registered on your GitHub account.`;
+    case "no-key":
+      return "This Machine has no SSH key in ~/.ssh; nothing was removed from GitHub.";
+    case "kept-not-lazurio":
+      return `The SSH key of this Machine${key} stays registered on your GitHub account: it was not registered by Lazurio. ${where}`;
+    case "not-removed":
+      return `The SSH key of this Machine${key} may still be registered on your GitHub account: ${
+        removal.reason === "scope-missing"
+          ? "the gh sign-in may not manage SSH keys (scope admin:public_key)"
+          : "gh could not remove it"
+      }. ${where}`;
+  }
 }
 
 export async function runComposioOrganization(
