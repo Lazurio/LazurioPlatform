@@ -1,14 +1,26 @@
+import { randomBytes } from "node:crypto";
+import type { RecoveryResult } from "../recover/recover";
 import { serveHealthSocket } from "./health-socket";
 import { createHostedTrust } from "./hosted-trust";
+import { admitLocal, privatePage, serveShell } from "./page";
 import type { HostedOptions } from "./server";
-import { LaunchpadStartRefused, type StartRefusal } from "./start-check";
+import {
+  checkBundledPage,
+  LaunchpadStartRefused,
+  type StartRefusal,
+} from "./start-check";
 
-/** Recovery mode, minimal (docs/update.md "Recovery mode"): when the Launchpad
- * cannot start normally for a reason it can name, it does not exit. It keeps
- * the port it would have served on and answers every request with that reason:
- * the page as plain text, every API route as a typed refusal, the health
- * socket with 503. The page with the repair action is a later slice; nothing
- * here reads the Folder, starts an application or changes anything.
+/** Recovery mode (docs/update.md "Recovery mode", docs/recovery.md "The
+ * Recovery page"): when the Launchpad cannot start normally for a reason it
+ * can name, it does not exit. It keeps the port it would have served on and
+ * serves the Recovery page: the bundled page, which needs nothing of the
+ * Folder, shows the reason and the result of `GET /api/recovery`, the same
+ * read-only use case as `lazurio recover --json`. Every other API route
+ * answers with the typed refusal, the health socket with 503. When the page
+ * does not serve completely, every page path answers the reason as plain
+ * text. Nothing here reads the Folder itself, starts an application or
+ * changes anything; `collectRecovery` reads the Folder as `lazurio recover`
+ * does.
  */
 export const recoveryCheck = "start-refused";
 
@@ -24,14 +36,21 @@ export async function startRecoveryMode(
     /** The install base whose health socket this instance answers. */
     base?: string | undefined;
     hostedOptions?: HostedOptions | undefined;
+    /** The recovery use case of this installation (`lazurio recover`).
+     * Trusted composition, never HTTP input. */
+    recovery?: (() => Promise<RecoveryResult>) | undefined;
   }>,
 ) {
   const { reason, entry } = input.refusal;
+  const { recovery } = input;
   // Behind the gateway only with the gateway's admission. Without a readable
   // entry the port is unknown: an ephemeral loopback port that no gateway
   // proxies to, so nothing is served through it.
   const trust =
     entry === null ? null : createHostedTrust(entry, input.hostedOptions ?? {});
+  // Locally the Recovery page's evidence needs the credential of the
+  // terminal link, as every read of the normal page does.
+  const token = trust === null ? randomBytes(32).toString("hex") : "";
   const refusal: RecoveryAnswer = Object.freeze({
     error: "recovery-mode",
     check: recoveryCheck,
@@ -44,12 +63,24 @@ export async function startRecoveryMode(
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
   };
+  const plain = () =>
+    new Response(text, {
+      status: 503,
+      headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
+    });
+  // The page, when this executable's bundle serves completely; otherwise the
+  // plain text is the whole page.
+  const shell =
+    reason !== "asset-missing" && (await privatePage(checkBundledPage))
+      ? await serveShell()
+      : null;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: entry === null ? 0 : entry.listenPort,
     development: false,
     maxRequestBodySize: 16 * 1024,
-    async fetch(request) {
+    async fetch(request, server) {
+      const url = new URL(request.url);
       if (trust !== null) {
         const admission = await trust.admit(request);
         if (!admission.ok)
@@ -58,11 +89,44 @@ export async function startRecoveryMode(
             { status: 401, headers },
           );
       }
-      if (new URL(request.url).pathname.startsWith("/api/"))
+      if (request.method === "GET" && url.pathname === "/api/recovery") {
+        if (
+          trust === null &&
+          !admitLocal(request, `http://127.0.0.1:${server.port}`, token)
+        )
+          return Response.json({ error: "denied" }, { status: 403, headers });
+        if (!recovery)
+          return Response.json(
+            { error: "recovery-unavailable" },
+            { status: 503, headers },
+          );
+        try {
+          return Response.json(await recovery(), { headers });
+        } catch {
+          return Response.json(
+            { error: "operation-failed" },
+            { status: 500, headers },
+          );
+        }
+      }
+      if (url.pathname.startsWith("/api/"))
         return Response.json(refusal, { status: 503, headers });
-      return new Response(text, {
-        status: 503,
-        headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" },
+      if (shell === null || request.method !== "GET") return plain();
+      const page = await shell.get(
+        `${url.pathname}${url.search}`,
+        request.headers.get("accept"),
+      );
+      if (page.status === 404) {
+        await page.body?.cancel().catch(() => undefined);
+        return plain();
+      }
+      const type =
+        page.headers.get("content-type") ?? "application/octet-stream";
+      // The document itself still says "not healthy"; its scripts and
+      // styles must answer 200 for the browser to run them.
+      return new Response(page.body, {
+        status: type.startsWith("text/html") ? 503 : page.status,
+        headers: { ...headers, "Content-Type": type },
       });
     },
   });
@@ -75,17 +139,22 @@ export async function startRecoveryMode(
           reason,
         }).catch(async (error: unknown) => {
           await server.stop(true);
+          await shell?.stop();
           throw error;
         });
   let closed: Promise<Readonly<{ kind: "closed" }>> | null = null;
   return {
     server,
-    url: entry === null ? server.url.href : `${entry.externalOrigin}/`,
+    url:
+      entry === null
+        ? `${server.url.href}#${token}`
+        : `${entry.externalOrigin}/`,
     hosted: entry !== null,
     reason,
     close() {
       closed ??= (async () => {
         await server.stop(true);
+        await shell?.stop();
         await health?.stop(true);
         return Object.freeze({ kind: "closed" as const });
       })();

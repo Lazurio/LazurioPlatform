@@ -296,11 +296,22 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
           check: "start-refused",
           reason: "folder-transaction-pending",
         });
+        // The Recovery page from the compiled bundle, and its evidence:
+        // `lazurio recover --json` for this Folder, with the link's credential.
         const page = await fetch(started.url);
-        expect([page.status, await page.text()]).toEqual([
-          503,
-          "Lazurio Launchpad: Recovery mode\ncheck: start-refused\nreason: folder-transaction-pending\n",
-        ]);
+        expect(page.status).toBe(503);
+        expect(await page.text()).toContain('id="section-recovery"');
+        const evidence = await fetch(new URL("/api/recovery", started.url), {
+          headers: {
+            authorization: `Bearer ${new URL(started.url).hash.slice(1)}`,
+          },
+        });
+        expect(evidence.status).toBe(200);
+        expect(await evidence.json()).toMatchObject({
+          kind: "recovery",
+          verdict: "broken",
+          evidence: { check: "folder-state", code: "folder-state-pending" },
+        });
         const health = await fetch("http://launchpad/health", {
           unix: join(base, "update", "launchpad.sock"),
         });

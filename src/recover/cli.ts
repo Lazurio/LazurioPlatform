@@ -74,6 +74,55 @@ function processEnvironment(
   };
 }
 
+/** The environment of the one use case, as `lazurio recover` builds it from
+ * its options: the command and the Launchpad's Recovery page run the same. */
+export function recoveryEnvironment(
+  context: RecoverContext,
+  options: Readonly<{
+    base: string;
+    folder?: string | undefined;
+    locale?: "cs" | "en" | undefined;
+  }>,
+): RecoveryEnvironment {
+  return {
+    base: options.base,
+    identity: context.identity,
+    fixture: embeddedFixture() !== undefined,
+    platform: context.platform,
+    env: context.env,
+    folder: options.folder,
+    hostedFolder: context.hostedFolder,
+    run: context.run ?? runProcess,
+    now: () => new Date(),
+    locale: options.locale,
+    ...processEnvironment(context),
+    ...context.recovery,
+  };
+}
+
+/** What a Launchpad serves as `GET /api/recovery`: exactly `lazurio recover
+ * --json --folder <its Folder>` (with `--base <its base>` when it has one).
+ * One run at a time: a second request waits for the run in flight. Undefined
+ * where this platform has no per-user install base. */
+export function recoverySource(
+  context: RecoverContext,
+  options: Readonly<{ base?: string | undefined; folder: string }>,
+): (() => Promise<RecoveryResult>) | undefined {
+  let base: string;
+  try {
+    base = installBase(context, options.base);
+  } catch {
+    return undefined;
+  }
+  let running: Promise<RecoveryResult> | null = null;
+  return () =>
+    (running ??= collectRecovery(
+      recoveryEnvironment(context, { base, folder: options.folder }),
+    ).finally(() => {
+      running = null;
+    }));
+}
+
 const checkLine = (check: RecoveryCheck) =>
   [
     check.outcome.padEnd(8),
@@ -169,23 +218,16 @@ export async function runRecoverCommand(
     return usage;
   }
   try {
-    const result = await collectRecovery({
-      base,
-      identity: context.identity,
-      fixture: embeddedFixture() !== undefined,
-      platform: context.platform,
-      env: context.env,
-      folder: values.folder,
-      hostedFolder: context.hostedFolder,
-      run: context.run ?? runProcess,
-      now: () => new Date(),
-      locale:
-        values.locale === "cs" || values.locale === "en"
-          ? values.locale
-          : undefined,
-      ...processEnvironment(context),
-      ...context.recovery,
-    });
+    const result = await collectRecovery(
+      recoveryEnvironment(context, {
+        base,
+        folder: values.folder,
+        locale:
+          values.locale === "cs" || values.locale === "en"
+            ? values.locale
+            : undefined,
+      }),
+    );
     return Object.freeze({
       code: result.verdict === "broken" ? exitBroken : exitOk,
       stdout:
