@@ -168,7 +168,12 @@ export async function observeSelfCheck(
         "--json",
         "--base",
         input.base,
-        ...(input.folder === undefined ? [] : ["--folder", input.folder]),
+        // With a Folder the judge (`requireSelfCheck`) expects the Launchpad
+        // probe in the answer, so the observation asks the same question:
+        // read-only, on a private socket (docs/update.md "Activation").
+        ...(input.folder === undefined
+          ? []
+          : ["--folder", input.folder, "--launchpad"]),
       ],
       input.timeoutMs ?? defaultSelfCheckTimeoutMs,
     );
