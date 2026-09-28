@@ -727,6 +727,10 @@ function productUpdate(hosted: boolean): readonly Text[] {
         "- There is no way back: Lazurio never returns to an earlier version. A new version proves itself before the switch; when it fails, it is removed and nothing changes. Repair only goes forward, with a newer release; never copy an older executable and never lower the version.",
       ),
       t(
+        "- Když Launchpad běží v Recovery mode, jeho stránka obnovy ukáže důvod, prompt pro opravného agenta ke zkopírování do nového chatu v T3 Code a připravené issue; nic z toho neopouští tuhle Mašinu automaticky.",
+        "- When the Launchpad is in Recovery mode, its Recovery page shows the reason, the prompt for a repair agent to copy into a new chat in T3 Code and the prepared issue; nothing of it leaves this Machine automatically.",
+      ),
+      t(
         "- `lazurio install` je cesta rolloutu: instaluje nebo opravuje Lazurio z připraveného souboru. Na aktualizaci používej `lazurio update`.",
         "- `lazurio install` is the rollout's path: it installs or repairs Lazurio from a staged file. For an update use `lazurio update`.",
       ),
@@ -771,6 +775,10 @@ function productUpdate(hosted: boolean): readonly Text[] {
     t(
       "- Oprava jde jen dopředu: novější release (`lazurio update`), dokončení přerušené změny Folderu (`lazurio profile-resume`), restart Launchpadu (na Linuxu se službou jednotka `lazurio-launchpad.service`). Nikdy nekopíruj starší binárku, needituj ručně `bin/lazurio` ani `update/high-water` a verzi nesnižuj.",
       "- Repair only goes forward: a newer release (`lazurio update`), finishing an interrupted Folder change (`lazurio profile-resume`), a restart of the Launchpad (on Linux with the service, the unit `lazurio-launchpad.service`). Never copy an older executable, never edit `bin/lazurio` or `update/high-water` by hand, and never lower the version.",
+    ),
+    t(
+      "- Stránka obnovy Launchpadu (v Recovery mode celá stránka, jinak Nastavení → Obnova) nabízí prompt pro opravného agenta ke zkopírování do agentní aplikace a připravené issue; nic z toho neopouští tuhle Mašinu automaticky.",
+      "- The Launchpad's Recovery page (the whole page in Recovery mode, Settings → Recovery otherwise) offers the prompt for a repair agent to copy into your agent app and the prepared issue; nothing of it leaves this Machine automatically.",
     ),
     t(
       "- **Pill** v Launchpadu ukazuje `idle`, `checking`, `available`, `downloading`, `activating` a selhání, která se vrátí do `available` s chybou a možností zkusit znovu. Jedno kliknutí spustí totéž `lazurio update`.",
