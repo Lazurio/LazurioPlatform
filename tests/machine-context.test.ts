@@ -13,7 +13,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "../src/cli";
-import { MachineUsageError, runMachineCommand } from "../src/machine/cli";
+import {
+  MachineUsageError,
+  machineInspection,
+  runMachineCommand,
+} from "../src/machine/cli";
 import {
   bindMachineOperator,
   parseMachineContext,
@@ -22,6 +26,7 @@ import provenance from "../src/machine/schema-provenance.json";
 import { readCustodiedDeclarationBytes } from "../src/providers/owned-json";
 import {
   assignments,
+  entries,
   personalRelationships,
   workRelationships,
 } from "./fixtures/machine-bindings";
@@ -300,6 +305,118 @@ for (const [name, input] of Object.entries({
       "machine-context-invalid",
     );
   });
+// Machines 0.12.93: the optional closed `entry` on both branches.
+for (const [name, input] of Object.entries({
+  "organization VM with its entry": { ...fixture, entry: entries.organization },
+  "personal VM with its entry": { ...personal, entry: entries.personal },
+  "organization VM with assignment, relationships and entry": {
+    ...fixture,
+    owner: { ...fixture.owner, assignment: assignments.operator },
+    relationships: workRelationships,
+    entry: entries.organization,
+  },
+}))
+  test(`0.12.93 accepts ${name} exactly as written, and inspect prints it`, () => {
+    const context = parseMachineContext(bytes(input));
+    expect(JSON.stringify(context)).toBe(JSON.stringify(input));
+    expect(Object.isFrozen(context.entry?.launchpad)).toBe(true);
+    const printed = machineInspection({ context, digest: "a".repeat(64) });
+    expect(printed).toEqual({
+      kind: "machine-context-observed",
+      context,
+      digest: "a".repeat(64),
+      authority: "none",
+    });
+    expect(JSON.parse(JSON.stringify(printed)).context.entry).toEqual(
+      input.entry,
+    );
+  });
+test("a handover without the entry reads, prints and projects exactly as before", () => {
+  for (const input of [fixture, personal]) {
+    const context = parseMachineContext(bytes(input));
+    expect("entry" in context).toBe(false);
+    expect(
+      "entry" in machineInspection({ context, digest: "a".repeat(64) }).context,
+    ).toBe(false);
+  }
+});
+const entry = entries.organization;
+for (const [name, value] of Object.entries({
+  "a listen port of 0": {
+    ...entry,
+    launchpad: { ...entry.launchpad, listen_port: 0 },
+  },
+  "a privileged listen port": {
+    ...entry,
+    launchpad: { ...entry.launchpad, listen_port: 443 },
+  },
+  "an http Launchpad origin": {
+    ...entry,
+    launchpad: {
+      ...entry.launchpad,
+      external_origin: "http://launchpad.workspace.example.lazurio.io",
+    },
+  },
+  "a Launchpad origin with a trailing slash": {
+    ...entry,
+    launchpad: {
+      ...entry.launchpad,
+      external_origin: "https://launchpad.workspace.example.lazurio.io/",
+    },
+  },
+  "an auth endpoint without a path": {
+    ...entry,
+    launchpad: {
+      ...entry.launchpad,
+      auth_check_url: "https://workspace.example.lazurio.io",
+    },
+  },
+  "a cookie name outside the gateway's alphabet": {
+    ...entry,
+    launchpad: { ...entry.launchpad, auth_cookie_name: "lazurio.workspace" },
+  },
+  "an http T3 Code origin": {
+    ...entry,
+    t3code: { external_origin: "http://t3code.workspace.example.lazurio.io" },
+  },
+  "a module template without {module}": {
+    ...entry,
+    modules: { origin_template: "https://workspace.example.lazurio.io" },
+  },
+  "a module template whose first label is not the whole {module}": {
+    ...entry,
+    modules: {
+      origin_template: "https://app-{module}.workspace.example.lazurio.io",
+    },
+  },
+  "a module template with {module} further in": {
+    ...entry,
+    modules: {
+      origin_template: "https://workspace.{module}.example.lazurio.io",
+    },
+  },
+  "a module template with a path": {
+    ...entry,
+    modules: {
+      origin_template: "https://{module}.workspace.example.lazurio.io/app",
+    },
+  },
+  "an entry without modules": {
+    launchpad: entry.launchpad,
+    t3code: entry.t3code,
+  },
+  "an entry with an unknown member": { ...entry, ssh: { port: 22 } },
+  "a null entry": null,
+}))
+  for (const [branch, base] of [
+    ["organization", fixture],
+    ["personal", personal],
+  ] as const)
+    test(`0.12.93 refuses ${name} on the ${branch} branch`, () => {
+      expect(() =>
+        parseMachineContext(bytes({ ...base, entry: value })),
+      ).toThrow("machine-context-invalid");
+    });
 test("ambiguous JSON, invalid UTF-8 and oversized input are refused", () => {
   for (const input of [
     Buffer.from('{"account":null,"account":null}'),

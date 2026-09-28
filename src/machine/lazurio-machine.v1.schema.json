@@ -48,6 +48,7 @@
         },
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
+        "entry": { "$ref": "#/$defs/entry" },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -93,6 +94,7 @@
         },
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "personal" } } }] },
+        "entry": { "$ref": "#/$defs/entry" },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       }
@@ -201,6 +203,40 @@
                 "items": { "type": "string", "maxLength": 253, "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" }
               }
             }
+          }
+        }
+      }
+    },
+    "https_origin": { "description": "https://<hostname>: no port, path, query or trailing slash.", "type": "string", "maxLength": 261, "pattern": "^https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" },
+    "entry": {
+      "description": "How this Machine is entered through its workspace gateway, rendered by Machines from the same route catalog as the gateway (decision 0146). Omitted until the Machine runs a LazurioPlatform release that reads it; a reader vendoring an earlier schema refuses a document carrying it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["launchpad", "t3code", "modules"],
+      "properties": {
+        "launchpad": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "auth_check_url", "auth_cookie_name", "listen_port"],
+          "properties": {
+            "external_origin": { "description": "Origin of the Launchpad on the gateway.", "$ref": "#/$defs/https_origin" },
+            "auth_check_url": { "description": "Gateway endpoint answering 2xx for a valid workspace session cookie.", "type": "string", "maxLength": 512, "pattern": "^https://[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?:/[A-Za-z0-9._~-]+)+$" },
+            "auth_cookie_name": { "description": "The one session cookie the gateway sets for this Machine.", "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+            "listen_port": { "description": "Loopback port the gateway proxies the Launchpad to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
+          }
+        },
+        "t3code": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin"],
+          "properties": { "external_origin": { "description": "Origin of T3 Code on the gateway.", "$ref": "#/$defs/https_origin" } }
+        },
+        "modules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["origin_template"],
+          "properties": {
+            "origin_template": { "description": "Origin of a module: {module} is the whole first label and occurs exactly once; https, no port, path, query or trailing slash. The reader substitutes a module id that already is a DNS label.", "type": "string", "maxLength": 270, "pattern": "^https://\\{module\\}(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" }
           }
         }
       }
