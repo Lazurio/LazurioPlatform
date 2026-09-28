@@ -491,8 +491,8 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
   expect(refreshed.desired["AGENTS.md"].content).toContain("- `wacli`");
 });
 
-test("a Folder rendered by template revision 8 is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-9");
+test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
+  expect(instructionTemplateRevision).toBe("base-instructions-10");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -515,7 +515,7 @@ test("a Folder rendered by template revision 8 is upgraded by a tools change", a
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-9");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-10");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(

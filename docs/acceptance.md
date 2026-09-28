@@ -27,7 +27,7 @@ implemented by the document that records it.
 3. **Verified update check.** Attestation verification, the version floor and the
    availability cache ([product update contract](update.md)).
 4. **Release workflow.** A real GitHub Release produced and attested by the real workflow.
-5. **Activation, rollback and the Launchpad update pill.** Two real versions, candidate
+5. **Activation without rollback, Recovery mode and the Launchpad update pill.** Two real versions, candidate
    failure, reboot, concurrent requests and an update while applications are in use.
    The pill exists: the installed Launchpad polls with the CLI's check, derives the
    contract's states from disk and the `lazurio-update` unit, and its one action starts
@@ -69,7 +69,7 @@ apply/restart or access mandate.
 | Slice | Prerequisite | Smallest real consumer and exit criterion |
 | --- | --- | --- |
 | 0 — Foundation review | Product intent and repository routing | Public architecture, explicit decision amendments, stack comparison, working standalone proof, independent review |
-| 1a — Distribution decisions | Reviewed foundation and accepted stack | **Accepted as decision F13 and the [product update contract](update.md):** HTTPS bootstrap, GitHub Releases as the only origin, Sigstore attestation of the exact-tag release workflow, a durable version floor, two retained versions, the narrow target list and the per-user layout. There are no product-held signing keys and no channels. Still open here: OS publisher signing (Apple Developer ID, notarization, Windows) before public release |
+| 1a — Distribution decisions | Reviewed foundation and accepted stack | **Accepted as decision F13 and the [product update contract](update.md):** HTTPS bootstrap, GitHub Releases as the only origin, Sigstore attestation of the exact-tag release workflow, a durable version floor, only the active version retained (no program rollback since 2026-09-28, [product update](update.md)), the narrow target list and the per-user layout. There are no product-held signing keys and no channels. Still open here: OS publisher signing (Apple Developer ID, notarization, Windows) before public release |
 | 1b — Distribution implementation | Accepted slice 1a contracts | Clean machine runs full installed CLI + Launchpad without source; the evidence list of the product update contract (attested, tampered, wrong-identity, below-floor and offline cases, the native activation journey, one real release candidate) and artifact secret scan |
 | 2 — Environment generation | Slice 1 and ownership/schema contract | Folder Factory produces only owned Lazurio Folder files through the shared CLI/Launchpad core; the shared core applies locally through CLI or Launchpad, starts full app; unknown/edited paths preserved; rollback drill |
 | 3 — Profile capability | Slice 2 and accepted behavior schema | CLI and Launchpad use the same profile use case; deterministic generation, stale revision refusal, session pin/restart and upgrade preservation |

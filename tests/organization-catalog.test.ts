@@ -19,8 +19,8 @@ import {
 import { runCatalogCommand } from "../src/organizations/cli";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import { isExecutableOrganizationState } from "../src/organizations/root-resolution";
-import type { CliContext } from "../src/update/cli";
-import { unitMarker } from "../src/update/service-control";
+import { type CliContext, installBase } from "../src/update/cli";
+import { renderLaunchpadUnit } from "../src/update/install";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -606,14 +606,16 @@ posixTest(
       // No --folder: the supervised unit's `[X-Lazurio] Folder=` line.
       const config = join(home, "config");
       await mkdir(join(config, "systemd/user"), { recursive: true });
-      await writeFile(
-        join(config, "systemd/user/lazurio-launchpad.service"),
-        `${unitMarker}\n[Service]\nExecStart=/bin/true\n\n[X-Lazurio]\nFolder=${folder}\n`,
-      );
       const supervised = cliContext(home, {
         platform: "linux",
         env: { HOME: home, XDG_CONFIG_HOME: config },
       });
+      // The unit of this installation's default base, as the installer
+      // writes it.
+      await writeFile(
+        join(config, "systemd/user/lazurio-launchpad.service"),
+        renderLaunchpadUnit(installBase(supervised, undefined), folder),
+      );
       expect(
         JSON.parse(
           (await run(["organization", "list", "--json"], supervised)).text,
