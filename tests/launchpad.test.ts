@@ -297,15 +297,26 @@ test.skipIf(process.platform === "win32")(
       expect(html).toContain("This Machine");
       expect(html).not.toContain('name="access"');
       expect(html).not.toContain(url.hash.slice(1));
-      // Every settings route serves the same page and nothing else does: a
-      // path outside them needs the credential like any other request.
-      for (const route of ["/settings", "/settings/general", "/settings/tools"])
+      // The catalog home is the page; the developer form is gone from it.
+      expect(html).toContain('id="catalog-tree"');
+      expect(html).not.toContain('id="application"');
+      expect(html).not.toContain("Development fixture only");
+      // Every settings and catalog route serves the same page and nothing
+      // else does: a path outside them needs the credential like any other
+      // request.
+      for (const route of [
+        "/settings",
+        "/settings/general",
+        "/settings/tools",
+        "/o/alpha",
+        "/o/alpha/web",
+        "/o/Alpha%20Co/web",
+      ])
         expect(await (await fetch(new URL(route, url.origin))).text()).toBe(
           html,
         );
-      expect(
-        (await fetch(new URL("/settings/unknown", url.origin))).status,
-      ).toBe(403);
+      for (const route of ["/settings/unknown", "/o", "/o/alpha/web/extra"])
+        expect((await fetch(new URL(route, url.origin))).status).toBe(403);
     } finally {
       await app.server.stop(true);
       await rm(parent, { recursive: true, force: true });

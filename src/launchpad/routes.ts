@@ -12,13 +12,29 @@ export type SettingsSection = (typeof settingsSections)[number];
 /** The section `/settings` itself opens. */
 export const defaultSettingsSection: SettingsSection = "general";
 
+/** The catalog (launchpad-parity B1) is the Launchpad home: `/` is every
+ * Organization's modules, `/o/<org>` one Organization, `/o/<org>/<module>` one
+ * module. `<org>` is the Organization slug and `<module>` the module id, both
+ * as the catalog names them; whether they exist is the catalog's answer, not
+ * the route's. */
 export type PageRoute =
   | Readonly<{ view: "home" }>
+  | Readonly<{ view: "organization"; organization: string }>
+  | Readonly<{ view: "module"; organization: string; module: string }>
   | Readonly<{ view: "settings"; section: SettingsSection }>;
 
-/** Every path the server answers with the page. */
+/** The two frames of the page: the catalog (home, Organization, module) with
+ * the Organizations in the sidebar, and Settings with its navigation. */
+export type PageFrame = "catalog" | "settings";
+export const routeFrame = (route: PageRoute): PageFrame =>
+  route.view === "settings" ? "settings" : "catalog";
+
+/** Every path the server answers with the page. The two catalog patterns are
+ * the server's route parameters; the page reads its segments itself. */
 export const pagePaths: readonly string[] = [
   "/",
+  "/o/:organization",
+  "/o/:organization/:module",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
 ];
@@ -27,11 +43,41 @@ export function settingsPath(section: SettingsSection): string {
   return `/settings/${section}`;
 }
 
+export function organizationPath(organization: string): string {
+  return `/o/${encodeURIComponent(organization)}`;
+}
+
+export function modulePath(organization: string, module: string): string {
+  return `${organizationPath(organization)}/${encodeURIComponent(module)}`;
+}
+
+// One path segment, decoded; null when it is empty or not valid encoding.
+function segment(input: string | undefined): string | null {
+  if (!input) return null;
+  try {
+    const value = decodeURIComponent(input);
+    return value && !/[/\0\r\n]/.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The route of a location path. `/settings` and an unknown section open the
  * default section (the caller rewrites the address to its canonical path);
- * anything else is the Launchpad home. */
+ * `/o/<org>` and `/o/<org>/<module>` are the catalog; anything else is the
+ * Launchpad home. */
 export function pageRoute(pathname: string): PageRoute {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (path.startsWith("/o/")) {
+    const parts = path.slice("/o/".length).split("/");
+    const organization = segment(parts[0]);
+    const module = parts.length === 2 ? segment(parts[1]) : null;
+    if (organization === null || parts.length > 2) return { view: "home" };
+    if (parts.length === 1) return { view: "organization", organization };
+    return module === null
+      ? { view: "home" }
+      : { view: "module", organization, module };
+  }
   if (path !== "/settings" && !path.startsWith("/settings/"))
     return { view: "home" };
   const section = path.slice("/settings/".length);
@@ -45,7 +91,12 @@ export function pageRoute(pathname: string): PageRoute {
 
 /** The canonical path of a route: what the address bar shows for it. */
 export function routePath(route: PageRoute): string {
-  return route.view === "home" ? "/" : settingsPath(route.section);
+  if (route.view === "home") return "/";
+  if (route.view === "organization")
+    return organizationPath(route.organization);
+  if (route.view === "module")
+    return modulePath(route.organization, route.module);
+  return settingsPath(route.section);
 }
 
 /** The label of each section: the same words in the navigation, the
@@ -57,13 +108,26 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
 };
 
 /** What the page says it is: the heading of the view (the current crumb) and
- * the document title. */
+ * the document title. An Organization is named by its display name once the
+ * catalog knows it, by the slug of its route until then. */
 export function routeTitle(
   route: PageRoute,
   copy: Readonly<Record<MessageKey, string>>,
+  displayName: (organization: string) => string | undefined = () => undefined,
 ): Readonly<{ heading: string; document: string }> {
   if (route.view === "home")
     return { heading: copy.homeTitle, document: copy.title };
+  if (route.view === "organization") {
+    const heading = displayName(route.organization) ?? route.organization;
+    return { heading, document: `${heading} — ${copy.title}` };
+  }
+  if (route.view === "module") {
+    const organization = displayName(route.organization) ?? route.organization;
+    return {
+      heading: route.module,
+      document: `${route.module} · ${organization} — ${copy.title}`,
+    };
+  }
   const heading = copy[sectionLabels[route.section]];
   return {
     heading,
