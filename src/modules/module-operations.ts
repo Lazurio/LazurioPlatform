@@ -4,8 +4,16 @@ import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { canonicalOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
-import { ModuleOriginError, moduleOrigin } from "../launchpad/hosted-entry";
-import { type Catalog, readFolderCatalog } from "../organizations/catalog";
+import {
+  isModuleId,
+  ModuleOriginError,
+  moduleOrigin,
+} from "../launchpad/hosted-entry";
+import {
+  type Catalog,
+  type CatalogOrganization,
+  readFolderCatalog,
+} from "../organizations/catalog";
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { createApplicationCoordination } from "./application-coordination";
 import {
@@ -30,7 +38,8 @@ import {
 
 // The module lifecycle of a Folder (launchpad-parity B3, root decision 0167):
 // `lazurio module start|stop|status|logs <Org>/<module>` and the Launchpad's
-// `/api/modules/<org>/<module>/…` answer from this one core. A module is named
+// `/api/modules/<org>/<module>/…` answer from this one core, and so does the
+// gateway's `ensure` on a hosted Machine (B5), by module id. A module is named
 // through the catalog's selection rule and runs its declared app through the
 // existing lifecycle, runners and adapters. There is no state of its own: what
 // runs is what the OS service manager (Linux) or the Launchpad's session
@@ -43,6 +52,10 @@ export const moduleVerbs: readonly ModuleVerb[] = [
   "status",
   "logs",
 ];
+
+/** Every operation of this core: the CLI's verbs and the gateway's `ensure`
+ * (launchpad-parity B5), which only the hosted Launchpad serves. */
+export type ModuleOperation = ModuleVerb | "ensure";
 
 /** Where the module operations run: the environment of the operator's account.
  * Trusted composition, never request input. */
@@ -136,12 +149,13 @@ export function processModuleHost(
  * kept verbatim. */
 export type ModuleBlocked = Readonly<{
   kind: "blocked";
-  operation: ModuleVerb;
+  operation: ModuleOperation;
   reason: string;
   organization?: string;
   module?: string;
   app?: string;
-  /** `organization-ambiguous`: the directories of every candidate. */
+  /** `organization-ambiguous`, `module-ambiguous`: the directories of every
+   * candidate. */
   candidates?: readonly string[];
   /** `toolchain-missing`: which tool and where it is expected. */
   tool?: string;
@@ -157,7 +171,7 @@ export type ModuleState =
 
 export type ModuleAnswer = Readonly<{
   kind: "module";
-  operation: Exclude<ModuleVerb, "logs">;
+  operation: Exclude<ModuleOperation, "logs">;
   organization: string;
   module: string;
   app: string;
@@ -165,7 +179,8 @@ export type ModuleAnswer = Readonly<{
   /** True under the service manager: the app outlives a Launchpad restart. */
   survivesLaunchpadRestart: boolean;
   /** The lifecycle's own result: `started`, `already-managed`,
-   * `group-stopped`, `status`, `not-managed`. */
+   * `group-stopped`, `status`, `not-managed`; for `ensure` also
+   * `start-pending`, a start still running when the answer was due. */
   outcome: string;
   state: ModuleState;
   /** The declared health passed on a listener this app's owner holds. */
@@ -204,6 +219,24 @@ export type ModuleOptions = Readonly<{
 }>;
 
 export const moduleLogLinesDefault = 100;
+
+/** How long `ensure` waits for a started app to report healthy before it
+ * answers "starting": the resident's `openHealthyWaitMs`
+ * (`R:lazurio/runtime/runtime-lib.mjs:44`). The gateway sets no response
+ * timeout of its own (`M:workloads/workspace-vm/ingress.ts:124-159`). */
+export const ensureWaitMsDefault = 20_000;
+/** How often `ensure` reads the status while it waits (the resident's
+ * `openHealthyPollMs`, `R:lazurio/runtime/runtime-lib.mjs:45`). */
+export const ensurePollMsDefault = 250;
+
+export type EnsureOptions = Readonly<{
+  /** Whether this request may start a stopped app: a top-level navigation
+   * (an Open) may; a background fetch or a WebSocket reconnect only reports.
+   * A lifecycle hint, never an access decision. */
+  mayStart: boolean;
+  waitMs?: number | undefined;
+  pollMs?: number | undefined;
+}>;
 
 type Target = Readonly<{
   organization: string;
@@ -249,10 +282,15 @@ export function createModuleOperations(input: {
   const { folder, owner, host } = input;
   const readCatalog = input.readCatalog ?? readFolderCatalog;
   const held = new Map<string, Lifecycle>();
+  // Starts `ensure` has begun and not yet seen end, per app: a burst of
+  // gateway subrequests (a page and its assets, the reloads of the
+  // "starting" page) joins the one start instead of queueing more. Memory of
+  // this process only, gone when the start ends; not state.
+  const ensuring = new Map<string, Promise<ModuleAnswer | ModuleBlocked>>();
   let closing = false;
 
   const blocked = (
-    operation: ModuleVerb,
+    operation: ModuleOperation,
     reason: string,
     extra: Partial<Omit<ModuleBlocked, "kind" | "operation" | "reason">> = {},
   ): ModuleBlocked =>
@@ -287,7 +325,44 @@ export function createModuleOperations(input: {
           selection.candidates.map((entry) => entry.directory),
         ),
       });
-    const organization = selection.organization;
+    return targetOf(operation, selection.organization, moduleName, options);
+  }
+
+  // The gateway names a module only by its exact lazurio.module.v1 id and
+  // serves it at one hostname per Machine (launchpad-parity B4, B5): the id
+  // must name a module of exactly one Organization of the catalog. Every
+  // Organization that lists the id counts, runnable or not, because the
+  // gateway routes the hostname to one of their declared ports; which one is
+  // its choice, so none is guessed here (`module-ambiguous`).
+  async function resolveId(id: string): Promise<Target | ModuleBlocked> {
+    if (!isModuleId(id)) return blocked("ensure", "module-unknown");
+    let catalog: Catalog;
+    try {
+      catalog = await readCatalog(folder);
+    } catch {
+      return blocked("ensure", "folder-unreadable");
+    }
+    const owners = catalog.organizations.filter((organization) =>
+      organization.modules.some((entry) => entry.module === id),
+    );
+    const only = owners[0];
+    if (only === undefined)
+      return blocked("ensure", "module-unknown", { module: id });
+    if (owners.length > 1)
+      return blocked("ensure", "module-ambiguous", {
+        module: id,
+        candidates: Object.freeze(owners.map((entry) => entry.directory)),
+      });
+    // The module's default app only: ensure takes no `--app`.
+    return targetOf("ensure", only, id, {});
+  }
+
+  async function targetOf(
+    operation: ModuleOperation,
+    organization: CatalogOrganization,
+    moduleName: string,
+    options: ModuleOptions,
+  ): Promise<Target | ModuleBlocked> {
     const shownOrganization =
       organization.organization ?? organization.directory;
     const matches = organization.modules.filter(
@@ -374,7 +449,7 @@ export function createModuleOperations(input: {
   // The lifecycle of the target's Organization: held by the Launchpad, one
   // per call for the CLI.
   async function operate<T>(
-    operation: ModuleVerb,
+    operation: ModuleOperation,
     kind: RunnerKind,
     target: Target,
     action: (lifecycle: Lifecycle) => Promise<T>,
@@ -423,14 +498,19 @@ export function createModuleOperations(input: {
     operation: ModuleVerb,
     name: string,
     options: ModuleOptions,
-  ): Promise<
-    | Readonly<{ target: Target; runner: RunnerKind; selection: Selection }>
-    | ModuleBlocked
-  > {
+  ): Promise<Prepared | ModuleBlocked> {
     if (closing) return blocked(operation, "closing");
     if (host.home === undefined) return blocked(operation, "home-unknown");
     const target = await resolve(operation, name, options);
     if ("kind" in target) return target;
+    return owned(operation, target);
+  }
+
+  // The owner's rules of a resolved target.
+  async function owned(
+    operation: ModuleOperation,
+    target: Target,
+  ): Promise<Prepared | ModuleBlocked> {
     const kind = await host.runnerKind();
     const where = {
       organization: target.organization,
@@ -494,6 +574,9 @@ export function createModuleOperations(input: {
     target: Target,
     selection: Selection,
     lifecycle: Lifecycle,
+    // The operation a refusal of the status read names; `ensure` answers
+    // with its own operation but its status read is refused as `status`.
+    refusedAs: ModuleOperation = operation,
   ): Promise<ModuleAnswer | ModuleBlocked> {
     const where = {
       organization: target.organization,
@@ -517,7 +600,7 @@ export function createModuleOperations(input: {
         service: null,
         runtime: null,
       });
-    if (status.kind !== "status") return blocked(operation, status.kind, where);
+    if (status.kind !== "status") return blocked(refusedAs, status.kind, where);
     const service =
       "service" in status && status.service
         ? Object.freeze({
@@ -538,12 +621,46 @@ export function createModuleOperations(input: {
     });
   }
 
+  // Start the prepared app unless it runs: the toolchain from the standard
+  // path, checked before any effect, then the lifecycle's start.
+  async function startOwned({
+    target,
+    runner: kind,
+    selection,
+  }: Prepared): Promise<ModuleAnswer | ModuleBlocked> {
+    const bun =
+      host.bunExecutable ?? join(host.home as string, ".local/bin/bun");
+    const present = await stat(bun)
+      .then(async (entry) => {
+        if (!entry.isFile()) return false;
+        await access(bun, constants.X_OK);
+        return true;
+      })
+      .catch(() => false);
+    if (!present)
+      return blocked("start", "toolchain-missing", {
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
+        tool: "bun",
+        expected: host.bunExecutable === undefined ? standardBun : bun,
+      });
+    return operate("start", kind, target, async (lifecycle) => {
+      const started = await lifecycle.start(selection);
+      if (started.kind !== "started" && started.kind !== "already-managed")
+        return blocked("start", started.kind, {
+          organization: target.organization,
+          module: target.module,
+          app: target.app,
+        });
+      return observe("start", started.kind, kind, target, selection, lifecycle);
+    });
+  }
+
   // Seams of later slices, deliberately not built here:
-  // - P6, the gateway `ensure` (launchpad-parity B5): a navigation to a
-  //   module's hostname starts its default app through `start` and reports
-  //   through `status`; the route lives in the Launchpad, not in this core.
   // - B3 `prepare` and `open` (prepare when needed, start, wait for health,
-  //   the link) compose `lifecycle.prepare` and the same `observe`.
+  //   the link) compose `lifecycle.prepare` and the same `observe`; until
+  //   then `ensure` starts but does not prepare.
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
   return Object.freeze({
@@ -554,42 +671,87 @@ export function createModuleOperations(input: {
     ): Promise<ModuleAnswer | ModuleBlocked> {
       const prepared = await prepare("start", name, options);
       if ("kind" in prepared) return prepared;
-      const { target, runner: kind, selection } = prepared;
-      // The toolchain from the standard path, checked before any effect.
-      const bun =
-        host.bunExecutable ?? join(host.home as string, ".local/bin/bun");
-      const present = await stat(bun)
-        .then(async (entry) => {
-          if (!entry.isFile()) return false;
-          await access(bun, constants.X_OK);
-          return true;
-        })
-        .catch(() => false);
-      if (!present)
-        return blocked("start", "toolchain-missing", {
-          organization: target.organization,
-          module: target.module,
-          app: target.app,
-          tool: "bun",
-          expected: host.bunExecutable === undefined ? standardBun : bun,
-        });
-      return operate("start", kind, target, async (lifecycle) => {
-        const started = await lifecycle.start(selection);
-        if (started.kind !== "started" && started.kind !== "already-managed")
-          return blocked("start", started.kind, {
-            organization: target.organization,
-            module: target.module,
-            app: target.app,
-          });
-        return observe(
-          "start",
-          started.kind,
-          kind,
-          target,
-          selection,
-          lifecycle,
+      return startOwned(prepared);
+    },
+    /** The gateway's `ensure` (launchpad-parity B5): make the default app of
+     * the module with this exact lazurio.module.v1 id run. Healthy now: the
+     * status, at once. Otherwise, when `mayStart`, start it (joining a start
+     * already under way) and wait at most `waitMs` for it to report healthy;
+     * the start goes on after the answer. Refusals keep the operation that
+     * refused: `ensure` when the id names no single runnable default app,
+     * `status` or `start` when the lifecycle refused. */
+    async ensure(
+      id: string,
+      options: EnsureOptions,
+    ): Promise<ModuleAnswer | ModuleBlocked> {
+      const waitMs = options.waitMs ?? ensureWaitMsDefault;
+      const pollMs = options.pollMs ?? ensurePollMsDefault;
+      const deadline = Date.now() + waitMs;
+      if (closing) return blocked("ensure", "closing");
+      if (host.home === undefined) return blocked("ensure", "home-unknown");
+      const target = await resolveId(id);
+      if ("kind" in target) return target;
+      const prepared = await owned("ensure", target);
+      if ("kind" in prepared) return prepared;
+      const { runner: kind, selection } = prepared;
+      const read = (outcome: string | null) =>
+        operate("status", kind, target, (lifecycle) =>
+          observe(
+            "ensure",
+            outcome,
+            kind,
+            target,
+            selection,
+            lifecycle,
+            "status",
+          ),
         );
+      const current = await read(null);
+      if (current.kind === "blocked" || current.healthy || !options.mayStart)
+        return current;
+      const key = `${target.organizationDirectory}\0${target.module}\0${target.app}`;
+      let starting = ensuring.get(key);
+      if (starting === undefined) {
+        const run = startOwned(prepared)
+          .catch(() =>
+            blocked("start", "operation-failed", {
+              organization: target.organization,
+              module: target.module,
+              app: target.app,
+            }),
+          )
+          .finally(() => {
+            if (ensuring.get(key) === run) ensuring.delete(key);
+          });
+        starting = run;
+        ensuring.set(key, run);
+      }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const started = await Promise.race([
+        starting,
+        new Promise<"pending">((resolve) => {
+          timer = setTimeout(
+            () => resolve("pending"),
+            Math.max(0, deadline - Date.now()),
+          );
+        }),
+      ]).finally(() => clearTimeout(timer));
+      if (started === "pending") return read("start-pending");
+      if (started.kind === "blocked") return started;
+      let latest: ModuleAnswer | ModuleBlocked = Object.freeze({
+        ...started,
+        operation: "ensure" as const,
       });
+      while (
+        latest.kind === "module" &&
+        !latest.healthy &&
+        !closing &&
+        Date.now() + pollMs <= deadline
+      ) {
+        await Bun.sleep(pollMs);
+        latest = await read(started.outcome);
+      }
+      return latest;
     },
     /** Stop the app; stopping one that does not run is `not-managed`. */
     async stop(
@@ -689,5 +851,10 @@ export function createModuleOperations(input: {
 }
 
 type Selection = Readonly<{ company: string; module: string; package: string }>;
+type Prepared = Readonly<{
+  target: Target;
+  runner: RunnerKind;
+  selection: Selection;
+}>;
 
 export type ModuleOperations = ReturnType<typeof createModuleOperations>;

@@ -301,7 +301,7 @@ English.
 
 **Not in this slice.** `prepare` and `open` verbs (dependency installation stays with
 the module's own `bun install --frozen-lockfile`; `prerequisites-not-ready` says so),
-the gateway `ensure` (P6), the T3 Code chat link (P7), worktree `--source` (P9), a logs
+the T3 Code chat link (P7), worktree `--source` (P9), a logs
 tail on the page, and the retirement of `/api/apps/*`, `app-request`,
 `--organization-directory` and `--bun-executable`: they keep working unchanged for their
 tests and `scripts/smoke-application-ui.ts`. The seams are marked in
@@ -395,6 +395,104 @@ verified newer release in Czech, usage, and the source CLI in a child process. E
 JSON answer is checked against the tier-1 rules (ids, reasons, context rules, no string
 that is not an identifier, no path of the fixture) and every human answer row by row
 against the JSON.
+
+## Gateway `ensure`
+
+Slice P6 of the Launchpad parity (shaping `docs/launchpad-parity.md` B5, F22 point 3).
+On a hosted Machine a browser that opens a module's hostname reaches the Machines
+gateway, which asks the Launchpad to make the module's default app run and proxies the
+browser to the module's port only when the answer is 204. The Launchpad answers from the
+same core as `lazurio module start|status` (`ensure` in
+`src/modules/module-operations.ts`); there is no new command, and `lazurio module status`
+shows what an `ensure` started.
+
+**The request, as the gateway makes it.** Taken from Machines
+`workloads/workspace-vm/ingress.ts:113-159` (`moduleReadiness`, at `ab84f38`): one
+bodyless `GET /api/internal/hosted/modules/<id>/ensure` (an empty query) to the
+Launchpad's loopback port, `<id>` the exact `lazurio.module.v1` id the gateway catalog
+read from the module's manifest (`gateway-catalog.py:139-148`, `:235`), with `Origin`
+the Launchpad's external origin, `Sec-Fetch-Site: same-origin`, only the session cookie
+(and its chunks), the browser's own `Sec-Fetch-Mode` and `Sec-Fetch-Dest`, and no
+`Authorization`, `DPoP`, `Connection`, `Upgrade` or `Sec-WebSocket-*`. No timeout and no
+retry of its own: the gateway waits for the answer, and its "starting" page reloads the
+browser every 2 s (`Refresh: 2`, `Retry-After: 2`). The route matches the resident's
+(`R:launchpad/src/server.mjs:1377`) byte for byte; only `GET` is served (405 otherwise),
+and only in hosted mode (a workstation Launchpad answers 404: it has no module
+hostnames).
+
+**Admission.** The hosted admission of `docs/hosted-entry.md`, with one addition taken
+from the resident (`R:launchpad/src/request-trust-lib.mjs:72-83`): the internal
+namespace `/api/internal/*` is a lifecycle mutation even on `GET`, so it always needs the
+same-origin rule (`Sec-Fetch-Site: same-origin`, `Origin` equal to the entry's external
+origin) on top of the entry's `Host` and the revalidated session cookie. The `Host` rule
+is the one every route has: the entry's Launchpad hostname. The gateway after the switch
+sends exactly that on this subrequest (launchpad-parity C.2 step 7, F22 point 3), while
+keeping the browser's `Host` on the Launchpad route; a loopback `Host`, which today's
+gateway sends because the resident required it (`ingress.ts:130`), is refused as
+`host-mismatch`. One rule instead of a loopback exception for `/api/internal/*`
+(variant A of B5) keeps a single admission: a process on the Machine that can reach the
+loopback port gains nothing without the session cookie, and the browser never reaches
+the namespace because the gateway answers 404 for it on every public hostname
+(`ingress.ts:54-57`). No fragment token, no forwarded identity header.
+
+**Which app.** The id must name a module of exactly one Organization of the catalog;
+every Organization that lists it counts, runnable or not, because the gateway serves the
+id at one hostname and routes it to one of their declared ports. Two or more:
+`module-ambiguous` with every candidate's directory (the fix is `{organization}` in
+Machines' origin template, launchpad-parity B4). Then the catalog's own rules, as for
+`lazurio module`: a module that cannot run is refused with its catalog reason. Only the
+module's default app (`default_app`) is ever started: `ensure` takes no `--app` and never
+falls back to another declared app.
+
+**Start or only report.** `Sec-Fetch-Mode: navigate` or absent is an Open: a stopped or
+explicitly stopped app starts. Any other mode, or a `Sec-WebSocket-Key`, only reports: a
+background fetch or a WebSocket reconnect never starts an app (the resident's
+`hostedRequestMayStartApp`, `R:launchpad/src/hosted-readiness-lib.mjs:4-8`). A lifecycle
+hint after admission, never an access decision.
+
+**Timing.** Healthy now: 204 at once. Otherwise the start runs, and `ensure` waits for
+the app to report healthy at most 20 s, reading the status every 250 ms (the resident's
+`openHealthyWaitMs` and `openHealthyPollMs`, `R:lazurio/runtime/runtime-lib.mjs:44-45`);
+still not healthy, it answers 503 and the start goes on. Requests that arrive while a
+start of the same app is under way (the page's assets, the reloads of the "starting"
+page) join that start instead of queueing more: a slow declared check runs once and its
+refusal reaches every one of them. That is memory of the running process for the
+duration of one start, not state.
+
+**Answer.** The status is what the gateway reads (`ingress.ts:139-157`):
+
+| Status | Body | Gateway shows | When |
+|---|---|---|---|
+| 204 | none | the app | the default app reports healthy |
+| 503 | the `lazurio module status` answer with `operation: "ensure"` (`outcome: "start-pending"` while the start still runs) | "starting", reload in 2 s | not yet healthy; a report-only request to an app that does not run; `closing`, `coordination-busy` |
+| 404 | `{kind: "blocked", operation: "ensure", reason, …}` | "not available here" | `module-unknown` (also for a string that is not a valid id, which is not echoed), the catalog reasons (`no-app`, `default-app-invalid`, `organization-not-executable`, …), `folder-unreadable` |
+| 409 | `{kind: "blocked", operation: "ensure", reason: "module-ambiguous", candidates}`, or the start's or status read's refusal with `operation: "start"` or `"status"` (`toolchain-missing`, `prerequisites-not-ready`, `port-occupied`, …) | "could not be prepared" (502) | the id is ambiguous; the lifecycle refused |
+| 401 | `{error: "denied", reason}` | "could not be prepared" (502) | admission refused |
+
+Bodies carry no address: `runtime` is null unless the app is healthy, and a healthy
+answer has no body. The resident answered 404 for an ambiguous id and 503 for every
+failed start (the browser then reloaded forever); here the ambiguous id and a refused
+start are 409, so the gateway's "could not be prepared" page says so once. Dependencies
+are not installed by `ensure` (the resident installed them): a module whose declared
+check fails answers `prerequisites-not-ready` until B3's `prepare` exists.
+
+**Verification 2026-09-28.** `tests/launchpad-ensure.test.ts` against the fixture Folder:
+the gateway's exact subrequest (headers from `ingress.ts:124-138`, the M2 `Host`), each
+header dropped or changed (loopback `Host`, module `Host`, no `Origin`, a module
+`Origin`, no `Sec-Fetch-Site`, no or forged cookie: 401), browser routes unchanged;
+unknown, invalid, app-less, invalid-default and ambiguous ids (nothing started, the
+valid second app of the invalid-default module neither); on the Linux path with the
+in-memory user manager a background fetch and a WebSocket reconnect only reporting, a
+navigation starting the default app (204, empty body, one unit, `lazurio module status`
+showing it with the entry's link), repeated requests never starting again, an explicitly
+stopped app starting on the next navigation, `toolchain-missing` as 409 with
+`operation: "start"`, a start still under way answering 503 `start-pending` and becoming
+204, three concurrent navigations joining one failing slow check (one run, three 409
+`prerequisites-not-ready`); on the session path a real synthetic app started by a
+navigation, served on its declared port and ending with its Launchpad; and a
+workstation Launchpad answering 404. `tests/launchpad-hosted-trust.test.ts` covers the
+internal-namespace rule of the admission. A real gateway, Caddy and oauth2-proxy were
+**not** exercised; that is C.5.
 
 ## Tools section
 
