@@ -42,10 +42,11 @@ now drives them over the API. Which Organization states may run applications is 
 one admission rule of the [organization contract](organization-contract.md).
 
 The existing Launchpad server can compose one application lifecycle with trusted
-authorization/toolchain adapters. Its authenticated application API serves both the
-browser controls and the compiled development CLI's `app-request` stdin transport.
-The latter accepts an explicit existing private session URL, operation and declared
-selection, not a second locator, process owner or persisted credential. The standard
+authorization/toolchain adapters. Its authenticated application API serves the
+compiled development CLI's `app-request` stdin transport; until 2026-09-28 it also
+served the page's controls, which slice P4 removed. `app-request` accepts an
+explicit existing private session URL, operation and declared selection, not a
+second locator, process owner or persisted credential. The standard
 `launchpad --folder` command still configures only profiles; production Organization
 bindings and the complete preparation/install journey remain incomplete.
 
@@ -57,7 +58,10 @@ the CLI/server path. These deadlines do not cancel an operation, prove rollback,
 or solve queue admission, reconnect/status tracking and uncooperative adapter
 timeouts; those remain integration work, not reasons to automatically retry a write.
 
-The browser exposes explicit preparation/start/status/link/stop in Czech and English. A link is restricted
+Until 2026-09-28 the page's form exposed explicit preparation/start/status/link/stop
+in Czech and English; since slice P4 the page shows no application control and these
+operations are reachable only through the application API until the module lifecycle
+(P5) brings start, open and stop to the catalog. A link is restricted
 to the selected execution Machine's observed loopback web listener, never production
 metadata. Remote-profile context does not expose that address as a local browser link;
 a qualified remote access route remains required. Process start, health observation,
