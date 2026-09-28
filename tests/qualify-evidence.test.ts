@@ -3,18 +3,21 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  journeys,
   parseEvidence,
   parseLine,
   type QualificationLine,
   qualificationFindings,
-  qualifiedTargets,
 } from "../scripts/qualify/evidence";
 import {
   parseManifest,
   renderManifest,
   sha256Hex,
 } from "../src/update/manifest";
+
+// Acceptance matrix from docs/release-cycle.md. Keep this independent of the
+// gate implementation: dropping a required journey or target must break a test.
+const requiredJourneys = ["J1", "J2", "J3", "J4", "J5", "J6"] as const;
+const requiredTargets = ["linux-x64", "darwin-arm64"] as const;
 
 const commit = "0123456789abcdef0123456789abcdef01234567";
 const bytes = {
@@ -36,7 +39,7 @@ const manifestBytes = renderManifest({
 const manifest = parseManifest(manifestBytes);
 const line = (
   target: keyof typeof bytes,
-  journey: (typeof journeys)[number],
+  journey: (typeof requiredJourneys)[number],
   change: Partial<Record<keyof QualificationLine, unknown>> = {},
 ) => ({
   schema: "lazurio.qualification.v1",
@@ -52,8 +55,8 @@ const line = (
   ...change,
 });
 const everyLine = () =>
-  qualifiedTargets.flatMap((target) =>
-    journeys.map((journey) => line(target, journey)),
+  requiredTargets.flatMap((target) =>
+    requiredJourneys.map((journey) => line(target, journey)),
   );
 const jsonl = (lines: readonly object[]) =>
   `${lines.map((entry) => JSON.stringify(entry)).join("\n")}\n`;
@@ -72,17 +75,32 @@ test("every journey ok once on every target, for the manifest's bytes and commit
   ).toEqual([]);
 });
 
-test("a failed, missing or duplicated journey refuses", () => {
-  const lines = everyLine();
-  lines[2] = line("linux-x64", "J3", { outcome: "failed" });
-  lines.pop();
-  lines.push(line("linux-x64", "J1"));
-  expect(qualificationFindings(manifest, parseEvidence(jsonl(lines)))).toEqual([
-    "linux-x64 J1: recorded twice",
-    "linux-x64 J3: failed",
-    "darwin-arm64 J6: missing",
-  ]);
-});
+for (const target of requiredTargets) {
+  for (const journey of requiredJourneys) {
+    test(`${target} ${journey} is individually required, successful and unique`, () => {
+      const others = everyLine().filter(
+        (entry) => entry.target !== target || entry.journey !== journey,
+      );
+      expect(
+        qualificationFindings(manifest, parseEvidence(jsonl(others))),
+      ).toEqual([`${target} ${journey}: missing`]);
+      expect(
+        qualificationFindings(
+          manifest,
+          parseEvidence(
+            jsonl([...others, line(target, journey, { outcome: "failed" })]),
+          ),
+        ),
+      ).toEqual([`${target} ${journey}: failed`]);
+      expect(
+        qualificationFindings(
+          manifest,
+          parseEvidence(jsonl([...everyLine(), line(target, journey)])),
+        ),
+      ).toEqual([`${target} ${journey}: recorded twice`]);
+    });
+  }
+}
 
 test("evidence of another candidate, commit or executable refuses", () => {
   const lines = everyLine();

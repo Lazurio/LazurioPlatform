@@ -1046,19 +1046,25 @@ const present = (path: string) =>
     () => false,
   );
 
-test.skipIf(!keygen)(
-  "a running gh login asks the Team rule again before every step that changes the account or the Machine",
-  async () => {
-    // The steps in order: the end of the device flow, the start of the key
-    // linking, the key's creation, its registration, known_hosts, the final
-    // "signed in". The rule turns refusing at step n.
-    for (const turn of [1, 2, 3, 4, 5, 6, 0]) {
+// A policy change is tied to an observable effect, never to how many times
+// the implementation happens to consult the policy. Extra checks are harmless.
+for (const boundary of [
+  "before-key",
+  "key-created",
+  "key-registered",
+  "host-trusted",
+  "unchanged",
+] as const) {
+  test.skipIf(!keygen)(
+    `a running gh login respects the Team rule at ${boundary}`,
+    async () => {
       const parent = await realpath(
-        await mkdtemp(join(tmpdir(), "lazurio-team-steps-")),
+        await mkdtemp(join(tmpdir(), "lazurio-team-effects-")),
       );
       const path = await fakeLoginTools(parent, ["gh"]);
-      let asked = 0;
-      const actions: string[] = [];
+      const key = join(parent, ".ssh", "id_ed25519");
+      const registered = join(parent, "gh.keys");
+      const knownHosts = join(parent, ".ssh", "known_hosts");
       const sessions = createLoginSessions({
         path,
         home: parent,
@@ -1069,10 +1075,19 @@ test.skipIf(!keygen)(
         probeIntervalMs: 50,
         machine: "vm-01",
         refused: async (tool, action) => {
-          expect(tool).toBe("gh");
-          actions.push(action);
-          asked += 1;
-          return turn !== 0 && asked >= turn;
+          expect([tool, action]).toEqual(["gh", "login"]);
+          switch (boundary) {
+            case "before-key":
+              return true;
+            case "key-created":
+              return present(key);
+            case "key-registered":
+              return present(registered);
+            case "host-trusted":
+              return present(knownHosts);
+            case "unchanged":
+              return false;
+          }
         },
       });
       try {
@@ -1080,38 +1095,35 @@ test.skipIf(!keygen)(
         if (started.kind !== "pending") throw new Error("not pending");
         await writeFile(join(parent, "approve"), "");
         const state = await settle(sessions, started.session);
-        const key = join(parent, ".ssh", "id_ed25519");
-        const registered = await readFile(join(parent, "gh.keys"), "utf8")
-          .then((text) => text.trim().length > 0)
-          .catch(() => false);
-        const knownHosts = await present(join(parent, ".ssh", "known_hosts"));
-        expect(actions.every((action) => action === "login")).toBe(true);
-        if (turn === 0) {
-          expect(asked).toBe(6);
+        if (boundary === "unchanged") {
           expect(state).toMatchObject({
             kind: "signed-in",
             ssh: { state: "linked" },
           });
-          continue;
+        } else {
+          expect(state).toEqual({
+            kind: "blocked",
+            tool: "gh",
+            reason: "team-environment",
+            action: "login",
+          });
         }
-        expect(asked).toBe(turn);
-        expect(state).toEqual({
-          kind: "blocked",
-          tool: "gh",
-          reason: "team-environment",
-          action: "login",
-        });
-        // Nothing after the refused step happened.
-        expect(await present(key)).toBe(turn > 3);
-        expect(registered).toBe(turn > 4);
-        expect(knownHosts).toBe(turn > 5);
+        // Preserve completed steps; no later side effect or success may follow
+        // loss of permission. The happy path must still reach all three effects.
+        expect(await present(key)).toBe(boundary !== "before-key");
+        expect(await present(registered)).toBe(
+          ["key-registered", "host-trusted", "unchanged"].includes(boundary),
+        );
+        expect(await present(knownHosts)).toBe(
+          ["host-trusted", "unchanged"].includes(boundary),
+        );
       } finally {
         await sessions.close();
         await rm(parent, { recursive: true, force: true });
       }
-    }
-  },
-);
+    },
+  );
+}
 
 test.skipIf(!posix)(
   "a gh login started on a Work Environment stops when a profile change makes it a Team one",
@@ -1226,33 +1238,40 @@ test.skipIf(!posix)(
       );
       // A holder that keeps the lock a moment: the read waits for it.
       const state = join(work.folder, ".lazurio");
-      let release: () => void = () => undefined;
-      const held = withFolderOperationLock(
-        state,
-        () => new Promise<void>((resolve) => (release = resolve)),
-      );
-      await Bun.sleep(20);
+      const acquired = Promise.withResolvers<void>();
+      const release = Promise.withResolvers<void>();
+      const held = withFolderOperationLock(state, async () => {
+        acquired.resolve();
+        await release.promise;
+      });
+      await Promise.race([acquired.promise, held]);
       const waiting = folderPreset(work.folder);
-      await Bun.sleep(150);
-      release();
-      await held;
+      try {
+        // A mutation is refused while the lock is known to be held.
+        await expect(
+          withFolderOperationLock(state, async () => "write"),
+        ).rejects.toThrow("Folder operation busy or requires recovery");
+      } finally {
+        release.resolve();
+        await held;
+      }
       expect(await waiting).toBe("hosted-organization-personal");
       // Bounded: a holder that stays is still refused, as before.
-      let releaseLong: () => void = () => undefined;
-      const long = withFolderOperationLock(
-        state,
-        () => new Promise<void>((resolve) => (releaseLong = resolve)),
-      );
-      await Bun.sleep(20);
-      await expect(
-        withFolderReadLock(state, async () => "read", 100),
-      ).rejects.toBeInstanceOf(FolderOperationBusyError);
-      // A mutation is refused at once, as it always was.
-      await expect(
-        withFolderOperationLock(state, async () => "write"),
-      ).rejects.toThrow("Folder operation busy or requires recovery");
-      releaseLong();
-      await long;
+      const acquiredLong = Promise.withResolvers<void>();
+      const releaseLong = Promise.withResolvers<void>();
+      const long = withFolderOperationLock(state, async () => {
+        acquiredLong.resolve();
+        await releaseLong.promise;
+      });
+      await Promise.race([acquiredLong.promise, long]);
+      try {
+        await expect(
+          withFolderReadLock(state, async () => "read", 100),
+        ).rejects.toBeInstanceOf(FolderOperationBusyError);
+      } finally {
+        releaseLong.resolve();
+        await long;
+      }
     } finally {
       await work.close();
     }
