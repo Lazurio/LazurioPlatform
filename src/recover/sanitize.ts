@@ -199,8 +199,12 @@ const email = new RegExp(
 const genericEmail = new Set(["git@github.com"]);
 const ipv4 =
   /(?<![0-9.])(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![0-9]|\.[0-9])/g;
-const ipv6Candidate =
-  /(?<![0-9A-Za-z:])[0-9A-Fa-f:]*:[0-9A-Fa-f:]*(?![0-9A-Za-z:])/g;
+// A word with a colon in it. An IPv6 address is searched inside it at its
+// colons, because a key often touches it: `addr:fd7a::1`, `{Addr:fd7a::1 …}`,
+// `tailscale0:fd7a:…`.
+const colonWord = /(?<![0-9A-Za-z:])[0-9A-Za-z:]*:[0-9A-Za-z:]*/g;
+// `ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff`
+const ipv6MaximumLength = 39;
 const accountPath = /(\/(?:home|Users)\/)(?!<)([^/\s"'`<>:]+)/g;
 
 function isIpv4(parts: readonly string[]): boolean {
@@ -225,6 +229,39 @@ function isIpv6(candidate: string): boolean {
 }
 const loopbackIpv6 = new Set(["::1", "::"]);
 
+/** Every IPv6 address in a colon word, the leftmost and longest first, each
+ * starting at the word's start or after a colon and ending at its end or
+ * before a colon. */
+function replaceIpv6(word: string, found: Set<PatternKind>): string {
+  let result = "";
+  let start = 0;
+  let copied = 0;
+  while (start < word.length) {
+    let end = Math.min(word.length, start + ipv6MaximumLength);
+    let address: string | undefined;
+    for (; end > start; end--) {
+      if (end < word.length && word[end] !== ":") continue;
+      const candidate = word.slice(start, end);
+      if (isIpv6(candidate)) {
+        address = candidate;
+        break;
+      }
+    }
+    if (address !== undefined) {
+      if (!loopbackIpv6.has(address)) {
+        found.add("ip-address");
+        result += `${word.slice(copied, start)}<ip>`;
+        copied = end;
+      }
+      start = end;
+    }
+    const colon = word.indexOf(":", start);
+    if (colon < 0) break;
+    start = colon + 1;
+  }
+  return result + word.slice(copied);
+}
+
 /** Replace what the patterns find; the replaced kinds are reported.
  *
  * Addresses and e-mail addresses are replaced BEFORE the known values: a
@@ -248,11 +285,7 @@ function replaceAddresses(line: string, found: Set<PatternKind>): string {
       found.add("ip-address");
       return "<ip>";
     })
-    .replace(ipv6Candidate, (candidate) => {
-      if (!isIpv6(candidate) || loopbackIpv6.has(candidate)) return candidate;
-      found.add("ip-address");
-      return "<ip>";
-    });
+    .replace(colonWord, (word) => replaceIpv6(word, found));
 }
 
 function replaceHosts(

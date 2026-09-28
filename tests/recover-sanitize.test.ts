@@ -255,6 +255,28 @@ test("addresses, hostnames and other accounts' homes are replaced by pattern", (
   });
 });
 
+test("an IPv6 address right after a key and a colon is still an address", () => {
+  const sanitizer = createSanitizer({ values: [] });
+  for (const [line, expected] of [
+    ["addr:fd7a:115c:a1e0::1", "addr:<ip>"],
+    ["{Addr:fd7a:115c:a1e0::5 Port:22}", "{Addr:<ip> Port:22}"],
+    ["tailscale0:fd7a:115c:a1e0:ab12:4843:cd96:625c:1a2b", "tailscale0:<ip>"],
+    ["peer=cafe:fd7a:115c::7:", "peer=<ip>:"],
+    ["dst:::1 stays", "dst:::1 stays"],
+    ["Result::Add and std::io and 12:34:56 stay", null],
+    [`sha256:${"ab".repeat(32)}`, null],
+  ] as const) {
+    expect(sanitizer.sanitize(line)).toBe(expected ?? line);
+    if (expected === null || expected === line)
+      expect(sanitizer.gate(line).kind).toBe("clean");
+    else
+      expect(sanitizer.gate(line)).toEqual({
+        kind: "refused",
+        found: ["ip-address"],
+      });
+  }
+});
+
 test("a journal tail is plain and bounded to its lines and bytes", () => {
   const sanitizer = createSanitizer({
     values: [{ kind: "user", value: "canary" }],
