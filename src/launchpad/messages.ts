@@ -92,7 +92,11 @@ const en = {
     "Folder refresh needed: this Folder was rendered by {recorded}, Lazurio renders {product}. Run: {command}",
   toolsTitle: "Tools",
   toolsIntro:
-    "Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.",
+    "Tools are command-line programs that agents use to work with outside services. “Used by agents” guides the agents on this Environment to use a tool. Installing, uninstalling, signing in and signing out are separate acts.",
+  toolsSwitchLabel: "Used by agents",
+  toolsSwitchNamed: "Used by agents: {name}",
+  toolsTeamGithub:
+    "This Team Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Personal GitHub accounts are not signed in here.",
   toolsShared:
     "This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.",
   toolsRefresh: "Refresh status",
@@ -339,7 +343,27 @@ const en = {
   toolsMcpAction: "Set up an MCP server with an agent",
   toolsMcpPromptHint:
     "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
-  title: "Lazurio — Profile",
+  title: "Lazurio Launchpad",
+  homeTitle: "Launchpad",
+  settingsTitle: "Settings",
+  settingsGeneral: "General",
+  settingsBack: "Back",
+  settingsBreadcrumb: "Where you are in Settings",
+  navigationOpen: "Open navigation",
+  technicalDetails: "Technical details",
+  presetHint:
+    "The kind of Machine this Folder is set up for. Only the presets its handover allows are offered.",
+  localeHint:
+    "The language of this page and of the agent instructions in this Folder. It changes once the change is applied.",
+  detailHint:
+    "How agents explain their work: briefly, or with technical explanation and evidence.",
+  coordinationHint:
+    "Whether agents work directly, or delegate within the task and verify the results.",
+  profileHint:
+    "Preview shows what would change in this Folder; nothing is written until you apply it.",
+  toolsDetails: "Details",
+  toolsDetailsNamed: "Details of {name}",
+  toolsPathLabel: "Found at",
   notice: "Development fixture only. No Lazurio installation or migration.",
   legend: "Machine profile",
   machineTitle: "This Machine",
@@ -363,9 +387,9 @@ const en = {
   presetDerived: "derived from the handover",
   presetExplicit: "explicit choice",
   presetLocal: "Local workstation",
-  presetHostedPersonal: "Hosted personal Machine",
-  presetHostedOrganizationPersonal: "Organization work Machine (one operator)",
-  presetHostedOrganizationTeam: "Organization team Machine (shared)",
+  presetHostedPersonal: "Personal",
+  presetHostedOrganizationPersonal: "Work",
+  presetHostedOrganizationTeam: "Work, Team",
   locale: "Language",
   detail: "Detail",
   concise: "Concise",
@@ -478,7 +502,11 @@ const cs: Record<MessageKey, string> = {
     "Folder je potřeba obnovit: vykreslila ho revize šablon {recorded}, Lazurio teď vykresluje {product}. Spusť: {command}",
   toolsTitle: "Nástroje",
   toolsIntro:
-    "Nástroje jsou programy pro příkazovou řádku, kterými agenti v tomhle Environmentu pracují s vnějšími službami. Zapnutím se nástroj zapíše do instrukcí pro agenty v tomhle Folderu; nic se tím neinstaluje a nevzniká žádný přístup. Agenti používají nejdřív zapnuté nástroje a teprve potom MCP servery.",
+    "Nástroje jsou programy pro příkazovou řádku, kterými agenti pracují s vnějšími službami. „Používají agenti“ vede agenty v tomhle Environmentu k tomu, aby nástroj používali. Instalace, odinstalace, přihlášení a odhlášení jsou samostatné kroky.",
+  toolsSwitchLabel: "Používají agenti",
+  toolsSwitchNamed: "Používají agenti: {name}",
+  toolsTeamGithub:
+    "Tohle týmové Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady nepřihlašují.",
   toolsShared:
     "Tohle Environment je sdílené. Účty přihlášené v nástroji platí pro celé Environment a používají je všichni jeho operátoři.",
   toolsRefresh: "Obnovit stav",
@@ -725,7 +753,27 @@ const cs: Record<MessageKey, string> = {
   toolsMcpAction: "Nastavit MCP server s agentem",
   toolsMcpPromptHint:
     "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
-  title: "Lazurio — Profil",
+  title: "Lazurio Launchpad",
+  homeTitle: "Launchpad",
+  settingsTitle: "Nastavení",
+  settingsGeneral: "Obecné",
+  settingsBack: "Zpět",
+  settingsBreadcrumb: "Kde v nastavení jste",
+  navigationOpen: "Otevřít navigaci",
+  technicalDetails: "Technické podrobnosti",
+  presetHint:
+    "Druh Mašiny, pro který je tenhle Folder nastavený. Nabízejí se jen presety, které dovoluje její handover.",
+  localeHint:
+    "Jazyk této stránky a instrukcí pro agenty v tomhle Folderu. Změní se, až změnu použijete.",
+  detailHint:
+    "Jak agenti vysvětlují svou práci: stručně, nebo s technickým vysvětlením a důkazy.",
+  coordinationHint:
+    "Zda agenti pracují přímo, nebo delegují v rozsahu zadání a výsledek ověří.",
+  profileHint:
+    "Náhled ukáže, co by se v tomhle Folderu změnilo; nic se nezapíše, dokud změnu nepoužijete.",
+  toolsDetails: "Podrobnosti",
+  toolsDetailsNamed: "Podrobnosti o {name}",
+  toolsPathLabel: "Umístění",
   notice:
     "Pouze vývojová testovací složka. Nejde o instalaci Lazuria ani migraci.",
   legend: "Profil mašiny",
@@ -751,10 +799,9 @@ const cs: Record<MessageKey, string> = {
   presetDerived: "odvozeno z handoveru",
   presetExplicit: "výslovná volba",
   presetLocal: "Lokální pracovní stanice",
-  presetHostedPersonal: "Hostovaná osobní Mašina",
-  presetHostedOrganizationPersonal:
-    "Pracovní Mašina Organizace (jeden operátor)",
-  presetHostedOrganizationTeam: "Týmová Mašina Organizace (sdílená)",
+  presetHostedPersonal: "Osobní",
+  presetHostedOrganizationPersonal: "Pracovní",
+  presetHostedOrganizationTeam: "Pracovní týmové",
   locale: "Jazyk",
   detail: "Podrobnost",
   concise: "Stručně",

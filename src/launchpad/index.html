@@ -1,149 +1,377 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio — Profile</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio Launchpad</title>
 <style>
-#tools { max-width: 60rem; line-height: 1.45; }
-#tools h3 { margin: 1.75rem 0 0.15rem; font-size: 1.05rem; }
-#tools h4 { margin: 0; font-size: 1rem; }
-#tools p { margin: 0.35rem 0; }
-#tools button { font: inherit; padding: 0.3rem 0.75rem; }
-#tools .tools-muted { color: #555; font-size: 0.92rem; }
-#tools .tools-warning { border-left: 0.25rem solid #b26a00; background: #fff6e5; padding: 0.6rem 0.8rem; margin: 0.9rem 0; }
-#tools .tools-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0.9rem 0 0; }
-#tools .tools-list { display: grid; gap: 0.75rem; margin: 0.6rem 0 0; padding: 0; list-style: none; }
-#tools .tool-card { border: 1px solid #c9c9c9; border-radius: 0.5rem; padding: 0.85rem 1rem; background: #fff; }
-#tools .tool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem 0.6rem; }
-#tools .tool-head code { color: #555; }
-#tools .tool-badge { border: 1px solid #c9c9c9; border-radius: 1rem; padding: 0.05rem 0.6rem; font-size: 0.82rem; white-space: nowrap; }
-#tools .tool-badge[data-state="on"] { border-color: #2e7d32; color: #1b5e20; background: #edf7ee; }
-#tools .tool-badge[data-state="off"] { color: #555; }
-#tools .tool-state { font-weight: 600; }
-#tools .tool-state[data-state="missing"] { color: #555; }
-#tools .tool-state[data-state="attention"] { color: #8a5200; }
-#tools .tool-path { font-family: ui-monospace, monospace; font-size: 0.88rem; overflow-wrap: anywhere; color: #333; }
-#tools .tool-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.7rem; }
-#tools .tool-message { border-left: 0.25rem solid #555; background: #f4f4f4; padding: 0.6rem 0.8rem; margin-top: 0.7rem; }
-#tools .tool-message[data-kind="blocked"], #tools .tool-message[data-kind="failed"] { border-left-color: #b3261e; background: #fdf0ef; }
-#tools .tool-message[data-kind="updated"] { border-left-color: #2e7d32; background: #edf7ee; }
-#tools details { margin-top: 0.5rem; }
-#tools .tool-signin[data-state="signed-in"] { color: #1b5e20; }
-#tools .tool-signin[data-state="signed-out"] { color: #8a5200; }
-#tools .tool-note { margin-top: 0.6rem; }
-#tools .tool-note textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 0.3rem; font: inherit; resize: vertical; }
-#tools .tool-note-problem { color: #b3261e; }
-#tools summary { cursor: pointer; color: #333; font-size: 0.92rem; }
-#tools-prompt { width: min(44rem, calc(100vw - 2rem)); border: 1px solid #999; border-radius: 0.5rem; padding: 1.1rem 1.25rem; }
-#tools-prompt::backdrop { background: rgba(0, 0, 0, 0.35); }
-#tools-prompt h3 { margin-top: 0; }
-#tools-prompt textarea { display: block; box-sizing: border-box; width: 100%; margin-top: 0.3rem; font: 0.88rem/1.45 ui-monospace, monospace; resize: vertical; }
-#tools :focus-visible { outline: 2px solid #1a56c4; outline-offset: 2px; }
-#tools-login { width: min(40rem, calc(100vw - 2rem)); border: 1px solid #999; border-radius: 0.5rem; padding: 1.1rem 1.25rem; }
-#tools-login::backdrop { background: rgba(0, 0, 0, 0.35); }
-#tools-login h3 { margin-top: 0; }
-#tools-login h3:focus { outline: none; }
-#tools-login-status { font-weight: 600; }
-#tools-login-steps { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; margin: 0 0 0.8rem; padding-left: 1.2rem; font-size: 0.92rem; color: #555; }
-#tools-login-steps li[data-state="current"] { color: #111; font-weight: 600; }
-#tools-login-steps li[data-state="done"] { color: #1b5e20; }
-#tools-login-steps li[data-state="failed"] { color: #b3261e; font-weight: 600; }
-#tools-login .tools-code { font: 600 2rem/1.2 ui-monospace, monospace; letter-spacing: 0.12em; user-select: all; margin: 0.4rem 0 0.8rem; }
-#tools-login .tools-qr { display: block; width: 280px; height: 280px; background: #fff; image-rendering: pixelated; margin: 0.6rem 0; }
-#tools-login .tools-phone { border-top: 1px solid #ddd; margin-top: 0.8rem; padding-top: 0.6rem; }
-#tools-login .tools-phone input { display: block; font: inherit; margin-top: 0.3rem; width: min(18rem, 100%); }
-#tools-login .tools-orgs select { display: block; font: inherit; margin-top: 0.3rem; }
-#tools-login .tools-muted { color: #555; font-size: 0.92rem; }
-#tools-login .tools-warning { border-left: 0.25rem solid #b26a00; background: #fff6e5; padding: 0.6rem 0.8rem; }
-#tools-login .tool-note-problem { color: #b3261e; }
-#tools-login .tool-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.7rem; }
-#tools-login button { font: inherit; padding: 0.3rem 0.75rem; }
-#tools-login :focus-visible { outline: 2px solid #1a56c4; outline-offset: 2px; }
+/* The Launchpad follows the settings UX of T3 Code (docs/launchpad-development.md,
+   "Settings"): a sidebar that becomes the settings navigation, a 52 px header
+   with the breadcrumb, sections of grouped rows with the label on the left and
+   the control on the right. Tokens after T3 Code's index.css (zinc light,
+   neutral dark). Plain CSS, no framework. */
+:root {
+  color-scheme: light dark;
+  --bg: oklch(99.2% 0 0);
+  --fg: oklch(27.4% 0.006 286.03);
+  --card: #fff;
+  --border: oklch(92% 0.004 286.32);
+  --input: oklch(87.1% 0.006 286.29);
+  --muted: oklch(98.5% 0 0);
+  --muted-fg: oklch(55.2% 0.016 285.94);
+  --accent: oklch(96.7% 0.001 286.38);
+  --primary: oklch(0.488 0.217 264);
+  --primary-fg: #fff;
+  --destructive: oklch(63.7% 0.237 25.33);
+  --destructive-fg: oklch(50.5% 0.213 27.52);
+  --warning: oklch(76.9% 0.188 70.08);
+  --warning-fg: oklch(55.5% 0.163 49);
+  --success: oklch(69.6% 0.17 162.48);
+  --success-fg: oklch(50.8% 0.118 165.61);
+  --sidebar: oklch(98.5% 0 0);
+  --sidebar-hover: oklch(96.7% 0.001 286.38);
+  --sidebar-selected: #fff;
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: oklch(14.5% 0 0);
+    --fg: oklch(97% 0 0);
+    --card: color-mix(in srgb, oklch(14.5% 0 0) 97%, #fff);
+    --border: rgb(255 255 255 / 8%);
+    --input: rgb(255 255 255 / 12%);
+    --muted: rgb(255 255 255 / 3%);
+    --muted-fg: color-mix(in srgb, oklch(55.6% 0 0) 90%, #fff);
+    --accent: rgb(255 255 255 / 6%);
+    --primary: oklch(0.571 0.21 264);
+    --destructive: color-mix(in srgb, oklch(63.7% 0.237 25.33) 90%, #fff);
+    --destructive-fg: oklch(70.4% 0.191 22.22);
+    --warning-fg: oklch(82.8% 0.189 84.43);
+    --success-fg: oklch(76.5% 0.177 163.22);
+    --sidebar: #000;
+    --sidebar-hover: rgb(255 255 255 / 5%);
+    --sidebar-selected: rgb(255 255 255 / 8%);
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font-sans); -webkit-font-smoothing: antialiased; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+a { color: var(--primary); text-underline-offset: 0.2em; }
+code, pre { font-family: var(--font-mono); font-size: 12px; }
+p { margin: 0; }
+h1, h2, h3, h4 { margin: 0; font-size: 14px; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.icon { width: 16px; height: 16px; flex: none; }
+
+/* Shell: sidebar and page. */
+.app { display: flex; min-height: 100vh; }
+.sidebar { position: sticky; top: 0; display: flex; flex-direction: column; flex: none; width: 16rem; height: 100vh; background: var(--sidebar); border-right: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.sidebar-head { display: flex; align-items: center; gap: 0.5rem; height: 52px; padding: 0 1rem; }
+.wordmark { color: var(--fg); font-weight: 600; letter-spacing: -0.01em; text-decoration: none; }
+.wordmark span { color: var(--muted-fg); font-weight: 500; }
+.sidebar-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0.25rem 0.5rem; }
+.sidebar-foot { display: grid; gap: 0.5rem; padding: 0.5rem; }
+.menu { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.menu-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.625rem; border-radius: var(--radius-control); color: color-mix(in srgb, var(--muted-fg) 80%, transparent); font-weight: 500; text-decoration: none; }
+.menu-item .icon { opacity: 0.6; }
+.menu-item:hover { background: var(--sidebar-hover); color: var(--fg); }
+.menu-item[aria-current="page"] { background: var(--sidebar-selected); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }
+.menu-item[aria-current="page"] .icon { opacity: 1; }
+.sidebar-notice { color: var(--muted-fg); overflow-wrap: anywhere; }
+.sidebar-notice code { display: block; margin-top: 0.35rem; padding: 0.25rem 0.4rem; border-radius: 0.25rem; background: var(--muted); border: 1px solid var(--border); color: var(--fg); font-size: 11px; user-select: all; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sidebar-notice, .update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
+.update #update-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; color: var(--fg); }
+.update #update-pill button { margin-left: auto; }
+.update p:not(#update-pill) { color: var(--muted-fg); }
+.update #update-error, .update #update-state-invalid { color: var(--destructive-fg); }
+.update .stale { color: var(--warning-fg); }
+.page { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.topbar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 0.75rem; height: 52px; padding: 0 1.5rem; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent); }
+.crumbs ol { display: flex; align-items: center; gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.crumbs li { display: flex; align-items: center; min-width: 0; }
+.crumbs li + li::before { content: "/"; margin-right: 0.75rem; color: color-mix(in srgb, var(--muted-fg) 70%, transparent); }
+.crumbs li[hidden] + li::before { content: none; }
+.crumbs a { color: var(--muted-fg); text-decoration: none; }
+.crumbs a:hover { color: var(--fg); }
+.crumbs h1 { font-weight: 500; }
+.crumbs h1:focus { outline: none; }
+.crumbs h1:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.topbar-actions { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+.nav-toggle { display: none; }
+.container { display: flex; flex-direction: column; gap: 2rem; width: 100%; max-width: 56rem; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; }
+.backdrop { display: none; }
+main > section, .stack { display: flex; flex-direction: column; gap: 2rem; min-width: 0; }
+.section-head { display: grid; gap: 0.75rem; }
+
+/* Sections, cards and rows (T3 Code settingsLayout.tsx). */
+.intro { max-width: 42rem; color: color-mix(in srgb, var(--muted-fg) 90%, transparent); font-size: 13px; }
+.group { display: grid; gap: 0.625rem; min-width: 0; margin: 0; padding: 0; border: 0; }
+.group-head { display: grid; gap: 0.15rem; padding: 0 1rem; }
+.group-head h2, .group > legend h2 { color: color-mix(in srgb, var(--fg) 70%, transparent); font-weight: 400; }
+.group > legend { padding: 0 1rem; margin-bottom: 0.625rem; float: left; width: 100%; }
+.group > legend + * { clear: both; }
+.group-note { color: color-mix(in srgb, var(--muted-fg) 80%, transparent); font-size: 12px; }
+.card { margin: 0; padding: 0; list-style: none; border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius: var(--radius-card); background: color-mix(in srgb, var(--card) 40%, transparent); box-shadow: 0 1px 2px rgb(0 0 0 / 3%); }
+.card > * + * { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.row { container-type: inline-size; padding: 0.75rem 1rem; }
+.row-main { display: flex; flex-direction: column; gap: 0.75rem; }
+@container (min-width: 32rem) {
+  .row-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, auto); align-items: center; gap: 2rem; }
+}
+.row-copy { display: grid; gap: 0.2rem; min-width: 0; }
+.row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-height: 1.25rem; color: var(--fg); font-weight: 500; }
+.row-title code { color: var(--muted-fg); font-weight: 400; }
+.row-desc { max-width: 36rem; color: color-mix(in srgb, var(--muted-fg) 85%, var(--fg)); font-size: 13px; line-height: 1.45; }
+.row-status { padding-top: 0.1rem; color: var(--muted-fg); font-size: 12px; }
+.row-control { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 0.5rem; min-width: 0; }
+@container (min-width: 32rem) { .row-control { justify-content: flex-end; } }
+.row:focus-within { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.card > .row:first-child { border-top-left-radius: calc(var(--radius-card) - 1px); border-top-right-radius: calc(var(--radius-card) - 1px); }
+.card > .row:last-child { border-bottom-left-radius: calc(var(--radius-card) - 1px); border-bottom-right-radius: calc(var(--radius-card) - 1px); }
+dl.card { margin: 0; }
+dl.card dt { color: var(--fg); font-weight: 500; }
+dl.card dd { margin: 0; color: var(--muted-fg); overflow-wrap: anywhere; }
+@container (min-width: 32rem) { dl.card dd { text-align: right; } }
+dl.card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; }
+.callout { padding: 0.625rem 0.875rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--muted); font-size: 13px; }
+.callout[data-kind="warning"], .tools-warning { border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); border-radius: var(--radius-control); background: color-mix(in srgb, var(--warning) 10%, transparent); color: var(--fg); padding: 0.625rem 0.875rem; font-size: 13px; }
+.callout[data-kind="warning"] strong { color: var(--warning-fg); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; color: var(--muted-fg); font-size: 12px; }
+details.technical > summary, details.row-details > summary { display: inline-flex; align-items: center; gap: 0.25rem; cursor: pointer; color: var(--muted-fg); font-size: 12px; font-weight: 500; list-style: none; border-radius: 4px; }
+details.technical > summary::-webkit-details-marker, details.row-details > summary::-webkit-details-marker { display: none; }
+details.technical > summary::before, details.row-details > summary::before { content: ""; width: 0.75rem; height: 0.75rem; background: var(--chevron) center / 0.75rem no-repeat; transform: rotate(-90deg); transition: transform 0.15s; }
+details[open].technical > summary::before, details[open].row-details > summary::before { transform: none; }
+details.technical > summary:hover, details.row-details > summary:hover { color: var(--fg); }
+details.technical { padding: 0 1rem; }
+details.technical pre { margin: 0.5rem 0 0; }
+pre { max-height: 20rem; overflow: auto; margin: 0; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--muted); color: var(--muted-fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+pre:empty { display: none; }
+.row:has(> #app-status:empty):has(> #app-link[hidden]) { display: none; }
+
+/* Controls (T3 Code ui/button.tsx, ui/switch.tsx). */
+button, .button { display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; height: 1.75rem; padding: 0 0.5625rem; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font: 500 13px/1 var(--font-sans); white-space: nowrap; cursor: pointer; box-shadow: 0 1px 2px rgb(0 0 0 / 4%); text-decoration: none; }
+button:hover, .button:hover { background: color-mix(in srgb, var(--accent) 60%, var(--card)); }
+button:disabled { opacity: 0.64; cursor: default; pointer-events: none; }
+button.primary { border-color: var(--primary); background: var(--primary); color: var(--primary-fg); box-shadow: inset 0 1px rgb(255 255 255 / 16%), 0 1px 2px rgb(0 0 0 / 8%); }
+button.primary:hover { background: color-mix(in srgb, var(--primary) 90%, #000); }
+button.destructive { color: var(--destructive-fg); }
+button.destructive:hover { border-color: color-mix(in srgb, var(--destructive) 32%, transparent); background: color-mix(in srgb, var(--destructive) 5%, var(--card)); }
+button.ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--muted-fg); }
+button.ghost:hover { background: var(--accent); color: var(--fg); }
+button:focus-visible, .button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, .menu-item:focus-visible, summary:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--primary); }
+.switch { position: relative; width: 1.875rem; height: 1.125rem; padding: 2px; border: 0; border-radius: 999px; background: var(--input); box-shadow: none; justify-content: flex-start; }
+.switch::after { content: ""; width: 0.875rem; height: 0.875rem; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform 0.15s; }
+.switch[aria-checked="true"] { background: var(--primary); }
+.switch[aria-checked="true"]::after { transform: translateX(0.75rem); }
+.switch:hover { background: color-mix(in srgb, var(--input) 80%, var(--fg)); }
+.switch[aria-checked="true"]:hover { background: color-mix(in srgb, var(--primary) 90%, #000); }
+select, input, textarea { border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font: 13px/1.4 var(--font-sans); }
+select { height: 1.75rem; width: 14rem; max-width: 100%; padding: 0 1.75rem 0 0.5rem; appearance: none; background: var(--card) var(--chevron) right 0.4rem center / 1rem no-repeat; cursor: pointer; }
+select:disabled, input:disabled, textarea:disabled { opacity: 0.64; }
+input { height: 1.75rem; padding: 0 0.5rem; width: 14rem; max-width: 100%; }
+textarea { display: block; width: 100%; padding: 0.4rem 0.5rem; resize: vertical; }
+.badge { display: inline-flex; align-items: center; height: 1.125rem; padding: 0 0.375rem; border-radius: 0.25rem; background: var(--accent); color: var(--muted-fg); font-size: 11px; font-weight: 500; white-space: nowrap; }
+fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+
+/* Tools. */
+.tools-list { margin: 0; padding: 0; list-style: none; }
+.tool-state[data-state="attention"], .tool-attention { color: var(--warning-fg); }
+.tool-signin[data-state="signed-in"] { color: var(--success-fg); }
+.tool-signin[data-state="signed-out"], .tool-ssh[data-state="not-linked"] { color: var(--warning-fg); }
+.tools-muted { color: var(--muted-fg); font-size: 12px; }
+.row-details { margin-top: 0.5rem; }
+.row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+.details-body h4 { color: var(--fg); font-size: 12px; font-weight: 500; }
+.details-body section { display: grid; gap: 0.25rem; }
+.details-body .tool-path { font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; color: var(--fg); }
+.details-body .usage { font-size: 13px; }
+.tool-note { display: grid; gap: 0.35rem; }
+.tool-note label { font-size: 12px; font-weight: 500; }
+.tool-note-problem { color: var(--destructive-fg); font-size: 12px; }
+.tool-note-problem:empty { display: none; }
+.tool-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.tool-message { display: grid; gap: 0.5rem; margin-top: 0.625rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--muted); font-size: 13px; }
+.tool-message[data-kind="blocked"], .tool-message[data-kind="failed"] { border-color: color-mix(in srgb, var(--destructive) 35%, transparent); background: color-mix(in srgb, var(--destructive) 6%, transparent); }
+.tool-message[data-kind="updated"] { border-color: color-mix(in srgb, var(--success) 35%, transparent); background: color-mix(in srgb, var(--success) 7%, transparent); }
+.always-on, .switch-label { color: var(--muted-fg); font-size: 12px; white-space: nowrap; }
+.switch-field { display: inline-flex; align-items: center; gap: 0.5rem; }
+.tool-team { color: var(--muted-fg); font-size: 12px; max-width: 36rem; }
+
+/* Dialogs (T3 Code ui/alert-dialog.tsx). */
+dialog { width: min(40rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); padding: 1.5rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--card); color: var(--fg); box-shadow: 0 24px 64px -24px rgb(0 0 0 / 65%); }
+dialog::backdrop { background: rgb(0 0 0 / 32%); backdrop-filter: blur(2px); }
+dialog h2 { margin-bottom: 0.75rem; font-size: 18px; font-weight: 600; line-height: 1.3; }
+dialog h2:focus { outline: none; }
+dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
+#tools-prompt { width: min(44rem, calc(100vw - 2rem)); }
+#tools-prompt label { display: grid; gap: 0.35rem; font-size: 12px; font-weight: 500; }
+#tools-prompt textarea { font: 12px/1.5 var(--font-mono); }
+#tools-prompt-hint { color: var(--muted-fg); }
+.dialog-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; margin: 1rem -1.5rem -1.5rem; padding: 1rem 1.5rem; border-top: 1px solid var(--border); background: color-mix(in srgb, var(--muted) 72%, transparent); }
+.dialog-foot [role="status"] { margin-right: auto; color: var(--muted-fg); font-size: 12px; }
+#tools-login-status { font-weight: 500; }
+#tools-login-steps { display: flex; flex-wrap: wrap; gap: 0.25rem 1.75rem; margin: 0 0 0.75rem; padding-left: 1.1rem; color: var(--muted-fg); font-size: 12px; }
+#tools-login-steps li[data-state="current"] { color: var(--fg); font-weight: 600; }
+#tools-login-steps li[data-state="done"] { color: var(--success-fg); }
+#tools-login-steps li[data-state="failed"] { color: var(--destructive-fg); font-weight: 600; }
+#tools-login .tools-code { font: 600 2rem/1.2 var(--font-mono); letter-spacing: 0.12em; user-select: all; margin: 0.4rem 0 0.8rem; }
+#tools-login .tools-qr { display: block; width: 280px; height: 280px; background: #fff; image-rendering: pixelated; margin: 0.6rem 0; border-radius: 0.5rem; }
+#tools-login .tools-phone { border-top: 1px solid var(--border); margin-top: 0.8rem; padding-top: 0.75rem; }
+#tools-login .tools-phone input, #tools-login .tools-orgs select { display: block; margin-top: 0.3rem; width: min(18rem, 100%); }
+
+/* Narrow viewport: the sidebar is an off-canvas sheet opened from the header
+   (T3 Code ui/sidebar.tsx below 768 px). */
+@media (max-width: 767px) {
+  .sidebar { position: fixed; z-index: 20; left: 0; width: min(20rem, calc(100vw - 0.75rem)); transform: translateX(-100%); visibility: hidden; transition: transform 0.2s, visibility 0s linear 0.2s; box-shadow: 0 0 48px rgb(0 0 0 / 25%); }
+  .app[data-nav-open] .sidebar { transform: none; visibility: visible; transition: transform 0.2s; }
+  .app[data-nav-open] .backdrop { display: block; position: fixed; inset: 0; z-index: 19; background: rgb(0 0 0 / 32%); }
+  .nav-toggle { display: inline-flex; margin-left: -0.375rem; }
+  .topbar { padding: 0 1.25rem; }
+  .container { padding: 1.25rem 0.75rem 3rem; }
+  .group-head, .group > legend, details.technical { padding: 0 0.75rem; }
+  .row { padding: 0.75rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-<main>
-<h1 data-message="title">Lazurio — Profile</h1>
-<p id="notice" data-message="notice">Development fixture only. No Lazurio installation or migration.</p>
-<section id="update" hidden aria-labelledby="update-heading">
-<h2 id="update-heading" data-message="updateTitle">Product update</h2>
-<p id="update-pill" role="status"><span id="update-text"></span> <a id="update-notes" hidden target="_blank" rel="noopener noreferrer" data-message="updateNotes">Release notes</a> <button type="button" id="update-action" hidden></button></p>
+<!-- Icons: Lucide (ISC license, https://lucide.dev), inlined. -->
+<svg hidden aria-hidden="true">
+<symbol id="i-general" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-machine" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01"/><path d="M6 18h.01"/></symbol>
+<symbol id="i-tools" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
+<symbol id="i-panel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+</svg>
+<div class="app" id="app">
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-head"><a class="wordmark" href="/" id="wordmark">Lazurio <span>Launchpad</span></a></div>
+<div class="sidebar-body">
+<nav id="settings-nav" aria-labelledby="settings-nav-label" data-view="settings">
+<span class="sr-only" id="settings-nav-label" data-message="settingsTitle">Settings</span>
+<ul class="menu">
+<li><a class="menu-item" href="/settings/general" data-section="general"><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span data-message="settingsGeneral">General</span></a></li>
+<li><a class="menu-item" href="/settings/machine" data-section="machine"><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span data-message="machineTitle">This Machine</span></a></li>
+<li><a class="menu-item" href="/settings/tools" data-section="tools"><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span data-message="toolsTitle">Tools</span></a></li>
+</ul>
+</nav>
+</div>
+<div class="sidebar-foot">
+<!-- "Folder refresh needed" (F17 addendum): read-only, the command is shown
+     and never run from here. -->
+<p id="update-folder-refresh" class="sidebar-notice" role="note" hidden></p>
+<section id="update" class="update" hidden aria-labelledby="update-heading">
+<h2 id="update-heading" class="sr-only" data-message="updateTitle">Product update</h2>
+<p id="update-pill" role="status"><span id="update-text"></span> <a id="update-notes" hidden target="_blank" rel="noopener noreferrer" data-message="updateNotes">Release notes</a> <button type="button" id="update-action" class="primary" hidden></button></p>
 <p id="update-checked"></p>
 <p id="update-error" hidden></p>
 <p id="update-state-invalid" hidden></p>
-<p id="update-folder-refresh" hidden></p>
 </section>
-<section aria-labelledby="machine-heading">
-<h2 id="machine-heading" data-message="machineTitle">This Machine</h2>
-<p data-message="machineNotice">Recorded from the Machine handover; shown here, changed only by the Machines operator.</p>
-<dl id="machine"></dl>
-</section>
-<form id="profile">
-<fieldset disabled id="choices">
-<legend id="legend" data-message="legend">Machine profile</legend>
-<p><label><span data-message="preset">Workspace preset</span> <select name="preset" id="preset"></select></label> <span id="preset-selection"></span></p>
-<p><label><span data-message="locale">Language</span> <select name="locale"><option value="en">English</option><option value="cs">Čeština</option></select></label></p>
-<p><label><span data-message="detail">Detail</span> <select name="detail"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></label></p>
-<p><label><span data-message="coordination">Coordination</span> <select name="coordination"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></label></p>
-<button type="submit" data-message="preview">Preview</button>
-<button type="button" id="reload" data-message="reload">Reload profile</button>
-<button type="button" id="apply" data-message="apply" disabled>Apply previewed change</button>
+<ul class="menu">
+<li data-view="home"><a class="menu-item" href="/settings/general" id="settings-open"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span data-message="settingsTitle">Settings</span></a></li>
+<li data-view="settings"><a class="menu-item" href="/" id="settings-back"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span data-message="settingsBack">Back</span></a></li>
+</ul>
+</div>
+</aside>
+<div class="backdrop" id="backdrop"></div>
+<div class="page" id="page">
+<header class="topbar">
+<button type="button" class="ghost nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Open navigation</span></button>
+<nav class="crumbs" id="crumbs" aria-labelledby="crumbs-label">
+<span class="sr-only" id="crumbs-label" data-message="settingsBreadcrumb">Where you are in Settings</span>
+<ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle">Settings</a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1></li></ol>
+</nav>
+<div class="topbar-actions">
+<button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
+<button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
+</div>
+</header>
+
+<main id="view-home" class="container" data-view="home">
+<p id="notice" class="callout" data-message="notice">Development fixture only. No Lazurio installation or migration.</p>
+<section class="group" aria-labelledby="apps-heading">
+<div class="group-head"><h2 id="apps-heading" data-message="appsTitle">Application</h2><p class="group-note" data-message="appsNotice">Explicit development selection. The server must authorize the declared application.</p></div>
+<div class="card">
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="app-discovered" data-message="appDiscovered">Observed application</label><p id="app-discovery-status" class="row-status" role="status"></p></div><div class="row-control"><button type="button" id="app-discover" data-message="appDiscover">Read declared applications</button><select id="app-discovered" disabled><option value=""></option></select></div></div></div>
+<form id="application" class="row">
+<fieldset id="app-choices" class="group">
+<legend class="sr-only" data-message="appSelection">Declared application</legend>
+<div class="row-main"><label class="row-title" for="app-company" data-message="appCompany">Organization</label><div class="row-control"><input id="app-company" name="company" required maxlength="100" autocomplete="off"></div></div>
+<div class="row-main"><label class="row-title" for="app-module" data-message="appModule">Module</label><div class="row-control"><input id="app-module" name="module" required maxlength="100" autocomplete="off"></div></div>
+<div class="row-main"><label class="row-title" for="app-package" data-message="appPackage">Package</label><div class="row-control"><input id="app-package" name="package" required maxlength="500" placeholder="app/package.json" autocomplete="off"></div></div>
+<p class="tool-actions">
+<button type="submit" name="operation" value="prepare" data-message="appPrepare">Prepare dependencies</button>
+<button type="submit" name="operation" value="clean-prepare" data-message="appCleanPrepare">Reinstall dependencies (remove node_modules)</button>
+<button type="submit" name="operation" value="start" class="primary" data-message="appStart">Start</button>
+<button type="submit" name="operation" value="status" data-message="appStatus">Status</button>
+<button type="submit" name="operation" value="open" data-message="appOpen">Get application link</button>
+<button type="submit" name="operation" value="stop" class="destructive" data-message="appStop">Stop</button>
+</p>
 </fieldset>
 </form>
-<p id="status" role="status">Loading…</p>
-<pre id="result"></pre>
-<section id="tools" aria-labelledby="tools-heading">
-<h2 id="tools-heading" data-message="toolsTitle">Tools</h2>
-<p data-message="toolsIntro">Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.</p>
+<div class="row"><p id="app-status" class="row-status" role="status"></p><a id="app-link" hidden target="_blank" rel="noopener noreferrer" data-message="appVisit">Open application on this machine</a></div>
+</div>
+<details class="technical"><summary data-message="technicalDetails">Technical details</summary><pre id="app-discovery-result"></pre><pre id="app-result"></pre></details>
+</section>
+</main>
+
+<main id="view-settings" class="container" data-view="settings" hidden>
+<section id="section-general" data-section="general" aria-labelledby="page-heading">
+<form id="profile">
+<fieldset disabled id="choices" class="group">
+<legend><h2 id="legend" data-message="legend">Machine profile</h2></legend>
+<div class="card">
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="preset" data-message="preset">Workspace preset</label><p class="row-desc" id="preset-hint" data-message="presetHint">The kind of Machine this Folder is set up for. Only the presets its handover allows are offered.</p><p class="row-status" id="preset-selection"></p></div><div class="row-control"><select name="preset" id="preset" aria-describedby="preset-hint preset-selection"></select></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label><p class="row-desc" id="locale-hint" data-message="localeHint">The language of this page and of the agent instructions in this Folder. It changes once the change is applied.</p></div><div class="row-control"><select name="locale" id="locale" aria-describedby="locale-hint"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="detail" data-message="detail">Detail</label><p class="row-desc" id="detail-hint" data-message="detailHint">How agents explain their work: briefly, or with technical explanation and evidence.</p></div><div class="row-control"><select name="detail" id="detail" aria-describedby="detail-hint"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="coordination" data-message="coordination">Coordination</label><p class="row-desc" id="coordination-hint" data-message="coordinationHint">Whether agents work directly, or delegate within the task and verify the results.</p></div><div class="row-control"><select name="coordination" id="coordination" aria-describedby="coordination-hint"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="profileHint">Preview shows what would change in this Folder; nothing is written until you apply it.</p><p id="status" class="row-status" role="status">Loading…</p></div><div class="row-control"><button type="submit" data-message="preview">Preview</button><button type="button" id="apply" class="primary" data-message="apply" disabled>Apply previewed change</button></div></div></div>
+</div>
+</fieldset>
+</form>
+<details class="technical"><summary data-message="technicalDetails">Technical details</summary><pre id="result"></pre></details>
+</section>
+
+<section id="section-machine" data-section="machine" aria-labelledby="page-heading" hidden>
+<p class="intro" data-message="machineNotice">Recorded from the Machine handover; shown here, changed only by the Machines operator.</p>
+<dl id="machine" class="card"></dl>
+</section>
+
+<section id="tools" data-section="tools" aria-labelledby="page-heading" hidden>
+<div class="section-head">
+<p class="intro" data-message="toolsIntro">Tools are command-line programs that agents use to work with outside services. “Used by agents” guides the agents on this Environment to use a tool. Installing, uninstalling, signing in and signing out are separate acts.</p>
 <p id="tools-shared" class="tools-warning" role="note" hidden data-message="toolsShared">This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.</p>
-<p class="tools-bar"><button type="button" id="tools-refresh" data-message="toolsRefresh">Refresh status</button> <span id="tools-checked" class="tools-muted"></span></p>
-<p id="tools-announce" role="status" aria-live="polite"></p>
-<div id="tools-groups"></div>
-<h3 id="tools-mcp-heading" data-message="toolsMcpTitle">Connect another app through an MCP server</h3>
-<div class="tool-card">
-<p data-message="toolsMcpText">For an app the catalog does not cover, an agent sets up an MCP server on your request. MCP servers are not recorded in the Lazurio Folder.</p>
-<p class="tool-actions"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Set up an MCP server with an agent</button></p>
+<p class="toolbar"><span id="tools-checked"></span></p>
+<p id="tools-announce" class="sr-only" role="status" aria-live="polite"></p>
+</div>
+<div id="tools-groups" class="stack"></div>
+<section class="group" aria-labelledby="tools-mcp-heading">
+<div class="group-head"><h2 id="tools-mcp-heading" data-message="toolsMcpTitle">Connect another app through an MCP server</h2></div>
+<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="toolsMcpText">For an app the catalog does not cover, an agent sets up an MCP server on your request. MCP servers are not recorded in the Lazurio Folder.</p></div><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Set up an MCP server with an agent</button></div></div></div></div>
+</section>
+</section>
+</main>
+</div>
 </div>
 <dialog id="tools-prompt" aria-labelledby="tools-prompt-title">
-<h3 id="tools-prompt-title"></h3>
+<h2 id="tools-prompt-title"></h2>
 <p id="tools-prompt-hint"></p>
 <label><span data-message="toolsPromptLabel">Prepared prompt</span>
 <textarea id="tools-prompt-text" readonly rows="14" spellcheck="false"></textarea></label>
-<p class="tool-actions"><button type="button" id="tools-prompt-copy" data-message="toolsCopy">Copy prompt</button> <button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button> <span id="tools-prompt-status" role="status" aria-live="polite"></span></p>
+<div class="dialog-foot"><span id="tools-prompt-status" role="status" aria-live="polite"></span><button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button><button type="button" id="tools-prompt-copy" class="primary" data-message="toolsCopy">Copy prompt</button></div>
 </dialog>
 <dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
-<h3 id="tools-login-title" tabindex="-1"></h3>
+<h2 id="tools-login-title" tabindex="-1"></h2>
 <ol id="tools-login-steps"></ol>
 <p id="tools-login-status" role="status" aria-live="polite"></p>
 <div id="tools-login-body"></div>
-<p class="tool-actions"><button type="button" id="tools-login-close" data-message="toolsClose">Close</button></p>
+<div class="dialog-foot"><button type="button" id="tools-login-close" data-message="toolsClose">Close</button></div>
 </dialog>
-</section>
-<section aria-labelledby="apps-heading">
-<h2 id="apps-heading" data-message="appsTitle">Application</h2>
-<p data-message="appsNotice">Explicit development selection. The server must authorize the declared application.</p>
-<button type="button" id="app-discover" data-message="appDiscover">Read declared applications</button>
-<label><span data-message="appDiscovered">Observed application</span>
-<select id="app-discovered" disabled><option value=""></option></select></label>
-<p id="app-discovery-status" role="status"></p>
-<pre id="app-discovery-result"></pre>
-<form id="application">
-<fieldset id="app-choices">
-<legend data-message="appSelection">Declared application</legend>
-<p><label><span data-message="appCompany">Organization</span> <input name="company" required maxlength="100" autocomplete="off"></label></p>
-<p><label><span data-message="appModule">Module</span> <input name="module" required maxlength="100" autocomplete="off"></label></p>
-<p><label><span data-message="appPackage">Package</span> <input name="package" required maxlength="500" placeholder="app/package.json" autocomplete="off"></label></p>
-<button type="submit" name="operation" value="prepare" data-message="appPrepare">Prepare dependencies</button>
-<button type="submit" name="operation" value="clean-prepare" data-message="appCleanPrepare">Reinstall dependencies (remove node_modules)</button>
-<button type="submit" name="operation" value="start" data-message="appStart">Start</button>
-<button type="submit" name="operation" value="status" data-message="appStatus">Status</button>
-<button type="submit" name="operation" value="open" data-message="appOpen">Get application link</button>
-<button type="submit" name="operation" value="stop" data-message="appStop">Stop</button>
-</fieldset>
-</form>
-<p id="app-status" role="status"></p>
-<a id="app-link" hidden target="_blank" rel="noopener noreferrer" data-message="appVisit">Open application on this machine</a>
-<pre id="app-result"></pre>
-</section>
-</main>
 <script type="module" src="./ui.ts"></script>
 </body>
 </html>

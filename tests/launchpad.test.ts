@@ -293,10 +293,19 @@ test.skipIf(process.platform === "win32")(
         "manual work",
       );
       const html = await (await fetch(url.origin)).text();
-      expect(html).toContain("Lazurio — Profile");
+      expect(html).toContain("Lazurio Launchpad");
       expect(html).toContain("This Machine");
       expect(html).not.toContain('name="access"');
       expect(html).not.toContain(url.hash.slice(1));
+      // Every settings route serves the same page and nothing else does: a
+      // path outside them needs the credential like any other request.
+      for (const route of ["/settings", "/settings/general", "/settings/tools"])
+        expect(await (await fetch(new URL(route, url.origin))).text()).toBe(
+          html,
+        );
+      expect(
+        (await fetch(new URL("/settings/unknown", url.origin))).status,
+      ).toBe(403);
     } finally {
       await app.server.stop(true);
       await rm(parent, { recursive: true, force: true });

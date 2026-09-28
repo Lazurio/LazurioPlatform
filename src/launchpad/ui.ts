@@ -4,9 +4,10 @@ import {
   localApplicationLink,
 } from "./application-view";
 import { type MessageKey, messages } from "./messages";
+import { createShell } from "./shell";
 import { createToolsPanel } from "./tools-panel";
 import type { PillStatus } from "./update-pill";
-import { pillView } from "./update-view";
+import { fill, pillView, pillVisible } from "./update-view";
 
 const token = location.hash.slice(1);
 history.replaceState(null, "", location.pathname);
@@ -41,6 +42,9 @@ const controls = {
   presetSelection,
 };
 let copy = messages("en");
+// The frame: routes, the settings navigation, the breadcrumb and the sheet
+// of a narrow viewport.
+const shell = createShell({ copy: () => copy });
 type MachinePeer = {
   name: string;
   kind: string;
@@ -169,7 +173,6 @@ async function load() {
   copy = messages(current.profile.locale);
   renderUpdate();
   document.documentElement.lang = current.profile.locale === "cs" ? "cs" : "en";
-  document.title = copy.title;
   for (const element of document.querySelectorAll<HTMLElement>(
     "[data-message]",
   )) {
@@ -177,8 +180,15 @@ async function load() {
     if (key && Object.hasOwn(copy, key))
       element.textContent = copy[key as MessageKey];
   }
+  shell.relabel();
+  // One settings row per recorded fact: the name on the left, the value on
+  // the right.
   controls.machine.replaceChildren(
-    ...machineRows(current.machine).flatMap(([key, value]) => {
+    ...machineRows(current.machine).map(([key, value]) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const main = document.createElement("div");
+      main.className = "row-main";
       const term = document.createElement("dt");
       term.textContent = copy[key];
       const detail = document.createElement("dd");
@@ -194,7 +204,9 @@ async function load() {
         );
         detail.replaceChildren(list);
       }
-      return [term, detail];
+      main.append(term, detail);
+      row.append(main);
+      return row;
     }),
   );
   controls.presetSelect.replaceChildren(
@@ -459,7 +471,9 @@ let updateNote: string | null = null;
 function renderUpdate() {
   if (!updateStatus || !updateSection) return;
   const view = pillView(updateStatus, copy, Date.now());
-  updateSection.hidden = false;
+  // Only while an update is available (pillVisible); the Folder refresh
+  // line below is independent of the pill.
+  updateSection.hidden = !pillVisible(updateStatus);
   if (updateText) updateText.textContent = view.text;
   if (updateNotes) {
     updateNotes.hidden = view.notesUrl === null;
@@ -483,10 +497,25 @@ function renderUpdate() {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
   }
-  // Read-only: the command is shown, never run from here.
+  // Read-only: the command is shown, never run from here. It stands in its
+  // own selectable monospace line of the sentence.
   if (updateFolderRefresh) {
+    const refresh = updateStatus.folderRefresh;
     updateFolderRefresh.hidden = view.folderRefresh === null;
-    updateFolderRefresh.textContent = view.folderRefresh ?? "";
+    if (refresh === null) updateFolderRefresh.replaceChildren();
+    else {
+      const [before, after = ""] = fill(copy.updateFolderRefresh, {
+        recorded: refresh.recorded,
+        product: refresh.product,
+      }).split("{command}");
+      const command = document.createElement("code");
+      command.textContent = refresh.command;
+      updateFolderRefresh.replaceChildren(
+        (before ?? "").trimEnd(),
+        command,
+        after,
+      );
+    }
   }
 }
 async function refreshUpdate() {

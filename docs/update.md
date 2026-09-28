@@ -308,8 +308,12 @@ state to restore it.
   `GET /api/update/status` (computed from disk and the unit, never the network)
   and `POST /api/update/apply` with the version the pill showed; a version the
   last check no longer names is refused and the pill re-checks. A last verified
-  check older than 24 hours is shown prominently by its age; it changes no
-  state. `state-invalid` is shown with its path and offers no action.
+  check older than 24 hours is shown prominently by its age whenever the pill
+  is shown; it changes no state. `state-invalid` is shown with its path and offers no action. The page
+  shows the pill only while an update is available or under way, after a failed
+  update and with `state-invalid`; "up to date" and a running check show nothing
+  (Principal 2026-09-28, as in T3 Code). The Folder refresh line below is
+  independent of the pill.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
   [--json]`, `--folder <Folder>` on `update` and `update status`, `update
   rollback`, `lazurio install [--service systemd-user]` (from a

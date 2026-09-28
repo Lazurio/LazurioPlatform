@@ -77,7 +77,17 @@ test.skipIf(process.platform === "win32")(
       const page = await fetch(`${base}/`, { headers: valid });
       expect(page.status).toBe(200);
       expect(page.headers.get("content-type")).toContain("text/html");
-      expect(await page.text()).toContain("<html");
+      const shell = await page.text();
+      expect(shell).toContain("<html");
+      // A settings route is the same page through the same admission.
+      expect(
+        await (
+          await fetch(`${base}/settings/tools`, { headers: valid })
+        ).text(),
+      ).toBe(shell);
+      expect(
+        (await fetch(`${base}/settings/tools`, { headers: { host } })).status,
+      ).toBe(401);
       // Wrong Host is not this Machine's entry; forged identity is not evidence.
       expect(
         (
