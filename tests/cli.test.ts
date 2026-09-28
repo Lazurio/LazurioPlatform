@@ -269,6 +269,9 @@ test.skipIf(process.platform === "win32")(
       await rm(temporary, { recursive: true, force: true });
     }
   },
+  // It compiles the CLI and runs it about a dozen times: 2 to 4.4 s on the
+  // hosted runners, against bun's default of 5 s.
+  30_000,
 );
 
 test.skipIf(process.platform === "win32")(
