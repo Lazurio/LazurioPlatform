@@ -3,9 +3,10 @@
 Status: **shaping; the Principal decided H1, H4, H6, the drops of section F and one
 distribution (Ubuntu 24.04) for every hosted Machine, reached by a rebuild with state
 transfer, on 2026-09-28, and H3 in direction: P9 is off the switch line, and a
-preview gets a temporary Environment URL as a lease whose rules are the open design
-detail (B14). H2, H5 and H7 stay open, and implementation proceeds on their
-recommendations (H). Analysis and design only.** Nothing here is implemented. It
+preview gets a temporary Environment URL as a lease (recorded as the 2026-09-28
+addendum of root decision 0167 in HumanAndMachines/Lazurio#442) whose rules are the
+open design detail (B14). H2, H5 and H7 stay open, and implementation proceeds on
+their recommendations (H). Analysis and design only.** Nothing here is implemented. It
 replaces the two-move plan of
 `docs/hosted-launchpad-switch-plan.md` (branch `claude/DEV-6626-distribution-and-migration`)
 and keeps its facts. It depends on the Recovery mode shaping
@@ -42,7 +43,7 @@ could not be checked against code, documentation or a native run.
    Ubuntu VM. Content synchronization, SSH keys in the browser, the Team and Personal
    Environments and macOS follow, in that order. Worktree source (P9) is not on it; a
    pull-request preview gets a temporary Environment URL registered as a lease
-   (H3, direction decided; B14 proposes the rules).
+   (H3, direction decided and recorded in the 0167 addendum; B14 proposes the rules).
 4. **No new Folder state.** Every new capability reads its truth where it already
    lives: Organizations from `organizations/*`, running applications and their source
    from the OS service manager, logs from the journal, URLs from the Machine handover.
@@ -282,7 +283,7 @@ rendering as its gateway:
   "launchpad": { "external_origin": "https://launchpad.<vm>.<org>.lazurio.io",
                  "auth_check_url": "https://<vm>.<org>.lazurio.io/oauth2/auth",
                  "auth_cookie_name": "__Secure-lazurio-workspace",
-                 "listen_port": 0 },
+                 "listen_port": 20000 },
   "t3code":    { "external_origin": "https://t3code.<vm>.<org>.lazurio.io" },
   "modules":   { "origin_template": "https://{module}.<vm>.<org>.lazurio.io" }
 }
@@ -294,8 +295,18 @@ rendering as its gateway:
 | B. Machines writes the live gateway catalog as JSON for the operator to read | Exact routes, but a second file with its own refresh (the catalog timer runs every 30 s, `M:workloads/workspace-vm/gateway.mjs:115-150`) and a second reader |
 | C. Derive from the Launchpad origin by replacing its first label | Composition from a convention; forbidden by `docs/hosted-entry.md:59-63` |
 
+`listen_port` is the real loopback port of the gateway's Launchpad route (the
+resident unit's `--port`, 20000 in the roster of the existing lanes), never 0:
+`parseHostedEntry` refuses a port below 1 (`src/launchpad/hosted-trust.ts:74-79`).
+
 **Recommended: A.** The Platform projects `entry` into the binding
-(`src/machine/binding.ts`), `folder-refresh` re-records it (declaration, not identity,
+(`src/machine/binding.ts`) one member to one: wire `external_origin`,
+`auth_check_url`, `auth_cookie_name`, `listen_port` become the binding's
+`externalOrigin`, `authCheckUrl`, `authCookieName`, `listenPort` (the shape
+`parseHostedEntry` already accepts), `t3code.external_origin` becomes `t3codeOrigin`,
+`modules.origin_template` becomes `moduleOriginTemplate`; the projection validates
+with the same rules as the wire schema and refuses the handover otherwise.
+`folder-refresh` re-records it (declaration, not identity,
 `docs/machine-handover.md:280-295`), and the Launchpad serves hosted from it as today.
 The same `entry.launchpad` shape already parsed by `src/launchpad/hosted-trust.ts:45-86`
 stays. Two Organizations with the same module id on one Machine produce one hostname;
@@ -459,10 +470,11 @@ and host come from the Folder's entry.
 
 ### B14. Worktree previews under a temporary hostname (P9, proposal)
 
-**Direction accepted by the Principal on 2026-09-28 (H3):** the agent registers a
-temporary Environment URL for a worktree, the same way module applications get their
-hostnames, under rules that keep such URLs from accumulating. The rules below are a
-proposal; P9 stays off the switch line.
+**Direction accepted by the Principal on 2026-09-28 (H3), recorded as the
+addendum of root decision 0167 (HumanAndMachines/Lazurio#442):** the agent registers
+a temporary Environment URL for a worktree, the same way module applications get
+their hostnames, under rules that keep such URLs from accumulating. The rules below
+are a proposal; P9 stays off the switch line.
 
 **Lifecycle (B3 terms).** `lazurio module open <Org>/<Module> --source worktree:<name> [--json]`
 prepares the worktree when needed, starts its default app as its own transient unit
@@ -589,10 +601,16 @@ Owned by Machines M2; each step names its readback.
    module list --json`. A `fail`, or a module that ran under the resident and is not
    `executable` now, stops the apply here. The candidate's own start sequence was
    already proven by F21's pre-switch probe (`self-check --launchpad`).
-5. **Point of no return.** Stop and disable the resident unit, remove
-   `~/.config/systemd/user/lazurio-launchpad.service` only when it lacks the
-   Platform's marker line (`src/update/service-control.ts:19-20`), `daemon-reload`.
-   Its modules, children of the resident, stop with it
+5. **Point of no return.** Only after positive proof that
+   `~/.config/systemd/user/lazurio-launchpad.service` is the exact Machines-owned
+   resident unit: its text equals byte for byte the unit Machines renders for this
+   Machine from the roster (the same renderer `workspace_services` used to write it),
+   and it lacks the Platform's marker line (`src/update/service-control.ts:19-20`).
+   Then stop and disable it, remove the file, `daemon-reload`. A unit of that name
+   with any other text is foreign — the product itself classifies it so and refuses
+   to overwrite it (`src/update/install.ts:173-183`) — and the apply stops **here**,
+   naming it, with everything untouched; marker absence alone is never deletion
+   authority. Its modules, children of the resident, stop with it
    (`M:workloads/workspace-vm/README.md:875-880`).
 6. `<base>/bin/lazurio install --base <base> --service systemd-user --folder <home>/Lazurio --json`
    with `XDG_RUNTIME_DIR` set (`M:…/workspace_services/tasks/main.yml:67-68` already
@@ -914,8 +932,9 @@ rows remain proposals of this shaping.
   example Codex over SSH (C.3 item 17); from the web T3 Code on the Machine it does
   not. For that case the Principal accepted that the agent registers a temporary
   Environment URL for a worktree, the same way module applications get their
-  hostnames, and asked for rules so that such URLs do not accumulate. **Open design
-  detail: the rules proposed in B14**: a lease with a 24-hour time to live renewed on
+  hostnames, and asked for rules so that such URLs do not accumulate (recorded as the
+  2026-09-28 addendum of root decision 0167). **Open design detail: the rules
+  proposed in B14**: a lease with a 24-hour time to live renewed on
   every open; ended by unit exit, free port, removed worktree or a merged or closed
   pull request; checked on open and list rather than by a periodic Launchpad check;
   at most 5 per Machine; listed under `module list`; "Stop preview"; the single-hyphen
@@ -958,11 +977,12 @@ Proposed decision, for the Principal's acceptance:
 > Recovery mode (F21) released first; there is no transition hostname and no way back
 > to the resident, and Machines itself does not roll back. (5) The resident's Git
 > client, Mission Control plan browser, notifications, click ranking and recent
-> changes (confirmed by the Principal), takeover audit, maintenance loop and
-> `launchpad.gen3*.json` have no successor. (6) Pull-request previews on hosted Work
-> Machines are not part of the switch; a later slice (P9) gives a worktree a temporary
-> Environment URL registered like a module's hostname, as a lease that ends by itself
-> and never accumulates.
+> changes (confirmed by the Principal), takeover audit and maintenance loop have no
+> successor; that `launchpad.gen3*.json` and its planned slots have none either is the
+> proposal of H5, still unconfirmed (row 0167 point 9). (6) Pull-request previews on
+> hosted Work Machines are not part of the switch; a later slice (P9) gives a worktree
+> a temporary Environment URL registered like a module's hostname, as a lease that
+> ends by itself and never accumulates (direction decided, 0167 addendum; rules B14).
 >
 > Amends F12, F15 (point 2 and the 2026-09-28 addendum's home-page sentence), and F8's
 > "Not done" list (logs; worktree source stays not done).
