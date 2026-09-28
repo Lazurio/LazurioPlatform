@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
+import { isTemplateRevision } from "../folder/render";
 import type { ErrorContext, UpdateErrorCode } from "../update/errors";
+import { isProductVersion } from "../update/identity";
+import { updateStatePaths } from "../update/layout";
 import {
   checkDetail,
   type FailedCheck,
@@ -81,6 +84,63 @@ export type RecoveryEvidence = Readonly<{
    * issue body. */
   journal: string | null;
 }>;
+
+/** Tier 1 for a context (docs/recovery.md "Two tiers"): an explicit
+ * allowlist of keys, each with its own validator. Every other key (a
+ * `message`, a `note`, a `detail`, an `error`) and every value its validator
+ * refuses is dropped. It holds for the product's own check contexts and for
+ * the one read back from the update unit's journal alike. */
+const enumeratedId = (value: unknown) =>
+  typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value);
+const integer = (value: unknown) =>
+  typeof value === "number" && Number.isSafeInteger(value);
+const stateWord = (value: unknown) =>
+  typeof value === "string" && /^[a-z][a-z-]{0,31}$/.test(value);
+const updateStatePath = (value: unknown) =>
+  (updateStatePaths as readonly unknown[]).includes(value);
+const revisionId = (value: unknown) =>
+  integer(value) || (typeof value === "string" && isTemplateRevision(value));
+const contextRules: Readonly<Record<string, (value: unknown) => boolean>> =
+  Object.freeze({
+    reason: enumeratedId,
+    code: enumeratedId,
+    stage: enumeratedId,
+    resource: enumeratedId,
+    check: enumeratedId,
+    exitCode: integer,
+    httpStatus: integer,
+    nRestarts: integer,
+    execMainStatus: integer,
+    activeState: stateWord,
+    subState: stateWord,
+    result: stateWord,
+    path: updateStatePath,
+    version: isProductVersion,
+    expected: isProductVersion,
+    actual: isProductVersion,
+    reported: isProductVersion,
+    active: isProductVersion,
+    latest: isProductVersion,
+    from: isProductVersion,
+    to: isProductVersion,
+    revision: revisionId,
+    recorded: revisionId,
+    product: revisionId,
+    target: (value) =>
+      typeof value === "string" && /^[a-z0-9]+-[a-z0-9]+$/.test(value),
+    errno: (value) => typeof value === "string" && /^E[A-Z]{1,15}$/.test(value),
+  });
+
+export const tierOneContext = (context: ErrorContext): ErrorContext =>
+  Object.freeze(
+    Object.fromEntries(
+      Object.entries(context).filter(
+        ([key, value]) =>
+          Object.hasOwn(contextRules, key) &&
+          (contextRules[key] as (value: unknown) => boolean)(value),
+      ),
+    ),
+  );
 
 /** 12 hex characters of SHA-256 over the check, its code, the one detail of
  * its context and the target, without the version, so one fault meets its

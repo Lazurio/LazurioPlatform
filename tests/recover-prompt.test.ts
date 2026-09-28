@@ -4,6 +4,7 @@ import {
   fingerprint,
   type RecoveryEvidence,
   readableJson,
+  tierOneContext,
 } from "../src/recover/evidence";
 import {
   issueBody,
@@ -296,6 +297,45 @@ test("the largest tier-1 body stays within its bound, untrimmed", () => {
   if (issue.kind !== "prepared") throw new Error("expected a prepared issue");
   expect(Buffer.byteLength(issue.body)).toBeLessThanOrEqual(maxBodyBytes);
   expect(issue.body).not.toContain("yyyy");
+});
+
+test("a context keeps its allowlisted keys with valid values only", () => {
+  expect(
+    tierOneContext({
+      reason: "exit",
+      stage: "unit",
+      exitCode: 1,
+      path: "update/high-water",
+      reported: "1.2.3",
+      revision: 4,
+      recorded: "base-instructions-9",
+      activeState: "failed",
+      // Free text under any key, and keys outside the allowlist.
+      message: "IncidentOrchid",
+      note: "exit",
+      detail: "ERR_X",
+      error: "exit",
+      // An allowlisted key with a value its validator refuses.
+      code: "Incident Orchid",
+      resource: "/srv/UniqueCustomer",
+      check: "IncidentOrchid",
+      active: "latest",
+      product: "/srv/UniqueCustomer",
+      nRestarts: 1.5,
+    }),
+  ).toEqual({
+    reason: "exit",
+    stage: "unit",
+    exitCode: 1,
+    path: "update/high-water",
+    reported: "1.2.3",
+    revision: 4,
+    recorded: "base-instructions-9",
+    activeState: "failed",
+  });
+  // A path outside the update state names is not a path this context carries.
+  expect(tierOneContext({ path: "update/../../srv/x" })).toEqual({});
+  expect(tierOneContext({ path: "/srv/UniqueCustomer" })).toEqual({});
 });
 
 test("the fingerprint ignores the version and tells faults apart", () => {

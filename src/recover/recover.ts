@@ -20,7 +20,7 @@ import {
   type RecoveryCheck,
   skipped,
 } from "./checks";
-import { fingerprint, type RecoveryEvidence } from "./evidence";
+import { fingerprint, type RecoveryEvidence, tierOneContext } from "./evidence";
 import { type PreparedIssue, prepareIssue, type RefusedIssue } from "./issue";
 import {
   askHealth,
@@ -128,28 +128,27 @@ const exists = (path: string) =>
     () => false,
   );
 
-/** A context is tier 1 (docs/recovery.md "Two tiers"): enumerated ids,
- * versions, relative paths, numbers and booleans, never a message. The
- * product's own contexts are such by contract (src/update/errors.ts), but one
- * read back from a journal is not the product's own: an entry of any other
- * shape is dropped, and every string kept is sanitized. */
-const contextKey = /^[A-Za-z][A-Za-z0-9]{0,31}$/;
-const contextWord = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/;
-const tierOne = ([key, value]: [string, string | number | boolean]) =>
-  contextKey.test(key) &&
-  (typeof value !== "string" ||
-    (contextWord.test(value) && !value.split("/").includes("..")));
+/** A context kept to its tier-1 allowlist, then every string sanitized. */
 const cleanContext = (context: ErrorContext, sanitizer: Sanitizer) =>
   Object.freeze(
     Object.fromEntries(
-      Object.entries(context)
-        .filter(tierOne)
-        .map(([key, value]) => [
-          key,
-          typeof value === "string" ? sanitizer.sanitize(value) : value,
-        ]),
+      Object.entries(tierOneContext(context)).map(([key, value]) => [
+        key,
+        typeof value === "string" ? sanitizer.sanitize(value) : value,
+      ]),
     ),
   );
+
+// A kernel release is one token (`6.8.0-45-generic`); anything else is not
+// a structured field.
+const kernelRelease = (value: string) =>
+  /^[A-Za-z0-9][A-Za-z0-9._+~-]{0,63}$/.test(value) ? value : "invalid";
+
+// Only the time, in the one form the product writes.
+const isoTime = (value: string) => {
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? null : new Date(time).toISOString();
+};
 
 export async function collectRecovery(
   environment: RecoveryEnvironment,
@@ -251,6 +250,8 @@ export async function collectRecovery(
           });
   }
   const status = state.status;
+  const lastCheck = status?.lastCheck;
+  const checkedAt = lastCheck == null ? null : isoTime(lastCheck.checkedAt);
   const clean = (check: RecoveryCheck): RecoveryCheck =>
     check.outcome === "skipped"
       ? check
@@ -280,7 +281,7 @@ export async function collectRecovery(
     }),
     platform: Object.freeze({
       os: platform,
-      kernel: sanitizer.sanitize(machine.kernel),
+      kernel: sanitizer.sanitize(kernelRelease(machine.kernel)),
       arch: machine.arch,
       systemd: userManagerPresent(platform, env)
         ? await systemdVersion(command)
@@ -302,12 +303,9 @@ export async function collectRecovery(
         : Object.freeze({ ...unit.facts, lastUpdateFailure }),
     folder: folderObservation.facts,
     lastCheck:
-      status === null || status.lastCheck === null
+      lastCheck == null || checkedAt === null
         ? null
-        : Object.freeze({
-            latest: status.lastCheck.latest,
-            checkedAt: status.lastCheck.checkedAt,
-          }),
+        : Object.freeze({ latest: lastCheck.latest, checkedAt }),
     journal: journal === null ? null : sanitizer.journalTail(journal),
   });
   const issue = prepareIssue(evidence, sanitizer);

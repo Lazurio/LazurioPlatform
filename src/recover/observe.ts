@@ -1,7 +1,11 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { type PresetName, presetNames } from "../folder/presets";
 import { readStateJson } from "../folder/read-state";
-import { instructionTemplateRevision } from "../folder/render";
+import {
+  instructionTemplateRevision,
+  isTemplateRevision,
+} from "../folder/render";
 import {
   type FolderPreferences,
   parseFolderPreferences,
@@ -37,9 +41,12 @@ type Env = Readonly<Record<string, string | undefined>>;
 
 // ---- Folder ---------------------------------------------------------------
 
+/** Tier 1 (docs/recovery.md "Two tiers"): every string is an enumerated
+ * literal or a revision of the product's form, else the literal `invalid`,
+ * never the value the Folder recorded. */
 export type FolderFacts = Readonly<{
-  preset: string;
-  machineKind: "workstation" | "personal-vm" | "workspace-vm";
+  preset: PresetName | "invalid";
+  machineKind: (typeof machineKinds)[number] | "invalid";
   revision: number;
   recordedTemplateRevision: string;
   productTemplateRevision: string;
@@ -54,6 +61,15 @@ export type FolderObservation = Readonly<{
   /** Parsed only for the sanitizer's values and the prompt's locale. */
   preferences: FolderPreferences | null;
 }>;
+
+const machineKinds = ["workstation", "personal-vm", "workspace-vm"] as const;
+const oneOf = <T extends string>(
+  allowed: readonly T[],
+  value: string,
+): T | "invalid" =>
+  (allowed as readonly string[]).includes(value) ? (value as T) : "invalid";
+const whole = (value: number) =>
+  Number.isSafeInteger(value) && value >= 0 ? value : -1;
 
 const stateNames = new Set([
   "preferences.json",
@@ -93,13 +109,18 @@ export async function observeFolder(
     return none(failed("folder-state", "folder-state-unreadable"));
   }
   const facts: FolderFacts = Object.freeze({
-    preset: preferences.preset.name,
-    machineKind: preferences.machine?.kind ?? "workstation",
-    revision: preferences.revision,
-    recordedTemplateRevision: manifest.templateRevision,
+    preset: oneOf(presetNames, preferences.preset.name),
+    machineKind: oneOf(
+      machineKinds,
+      preferences.machine?.kind ?? "workstation",
+    ),
+    revision: whole(preferences.revision),
+    recordedTemplateRevision: isTemplateRevision(manifest.templateRevision)
+      ? manifest.templateRevision
+      : "invalid",
     productTemplateRevision: instructionTemplateRevision,
-    preferencesSchema: preferences.schemaVersion,
-    manifestSchema: manifest.schemaVersion,
+    preferencesSchema: whole(preferences.schemaVersion),
+    manifestSchema: whole(manifest.schemaVersion),
     pendingTransaction,
   });
   const check = pendingTransaction

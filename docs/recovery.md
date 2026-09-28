@@ -95,13 +95,31 @@ splits the bundle in two:
 - **Tier 1, the automatic structured body.** The prepared issue body carries only
   structured, non-free-text fields: versions, digests, target and platform names,
   the ids of failed checks and their codes, unit states and counters, Folder and
-  template revisions, timestamps. A `context` carries enumerated ids, versions,
-  paths relative to the base, numbers and booleans, never a message: every context
-  (of a check and of the last failed `lazurio-update` run) keeps only keys of
-  letters and digits and string values of at most 64 characters of
-  `[A-Za-z0-9._/-]`, not starting with `/` and without a `..` segment; any other
-  entry is dropped before sanitization. This body is what the repair agent files
-  without asking.
+  template revisions, timestamps. Every field has its own syntactic validator
+  (`src/recover/evidence.ts`, `observe.ts`, `recover.ts`). A string copied from the
+  Folder is an enumerated literal (preset, Machine kind) or a revision of the
+  product's form (`base-instructions-<n>`), else the literal `invalid`, never the
+  recorded value; its revision and schema versions are numbers. The kernel release
+  is one token or `invalid`; the last check's time is re-written as ISO 8601. This
+  body is what the repair agent files without asking.
+
+  A `context` (of every check and of the last failed `lazurio-update` run, which
+  is read back from that unit's journal) keeps only these keys, each with a value
+  its validator accepts:
+
+  | Keys | Value |
+  | --- | --- |
+  | `reason`, `code`, `stage`, `resource`, `check` | an id, `^[a-z][a-z0-9-]{0,63}$` |
+  | `exitCode`, `httpStatus`, `nRestarts`, `execMainStatus` | an integer |
+  | `activeState`, `subState`, `result` | a systemd state word, `^[a-z][a-z-]{0,31}$` |
+  | `path` | one of the update state names (`update/high-water`, `update/pending.json`, `updateStatePaths` in `src/update/layout.ts`) |
+  | `version`, `expected`, `actual`, `reported`, `active`, `latest`, `from`, `to` | a product version |
+  | `revision`, `recorded`, `product` | an integer or a template revision `base-instructions-<n>` |
+  | `target` | a target name, `^[a-z0-9]+-[a-z0-9]+$` |
+  | `errno` | an errno name, `^E[A-Z]{1,15}$` |
+
+  Every other key (`message`, `note`, `detail`, `error`, …) and every value its
+  validator refuses is dropped before sanitization.
 - **Tier 2, free text.** The journal tail and any other free text never leave the
   Machine automatically. `evidence.journal` stays in the `--json` output on this
   Machine; it is not in the body, the here-document or the link. It reaches the

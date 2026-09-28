@@ -744,6 +744,67 @@ test("--json keeps the sanitized journal on this Machine; the issue never carrie
   for (const line of lines) expect(prompt.includes(line)).toBe(false);
 });
 
+test("a Folder-recorded template revision that is a path leaves as `invalid`, nowhere as itself", async () => {
+  const world = await createWorld();
+  const manifest = join(world.folder, ".lazurio", "instructions.json");
+  const recorded = JSON.parse(await Bun.file(manifest).text());
+  await writeFile(
+    manifest,
+    JSON.stringify({ ...recorded, templateRevision: "/srv/UniqueCustomer" }),
+    { mode: 0o600 },
+  );
+  await writeFile(join(world.base, "update", "high-water"), "x");
+  const json = await recover(world, ["--folder", world.folder, "--json"]);
+  const human = await recover(world, ["--folder", world.folder]);
+  expect(json.code).toBe(exitBroken);
+  expect(human.code).toBe(exitBroken);
+  const { evidence, issue, prompt } = json.json ?? {};
+  expect(evidence.check).toBe("update-state-invalid");
+  expect(evidence.folder.recordedTemplateRevision).toBe("invalid");
+  expect(issue.kind).toBe("prepared");
+  for (const text of [
+    issue.title,
+    issue.body,
+    issue.shell,
+    issue.link,
+    decodeURIComponent(issue.link),
+    prompt,
+    json.stdout,
+    human.stdout,
+  ])
+    expect(text).not.toContain("UniqueCustomer");
+});
+
+test("a free-text key of the update unit's journal leaves nowhere; its reason does", async () => {
+  const { world } = await cannedWorld();
+  const script = {
+    show: "LoadState=loaded\nActiveState=failed\nSubState=failed\nResult=exit-code\nNRestarts=3\nExecMainStatus=1\n",
+    updateShow: `LoadState=loaded\nActiveState=failed\nInvocationID=${"e".repeat(32)}\n`,
+    updateJournal:
+      '{"kind":"error","code":"self-check-failed","context":{"message":"IncidentOrchid","reason":"exit"}}',
+  };
+  const json = await recover(world, ["--json"], supervisedLinux(world, script));
+  const human = await recover(world, [], supervisedLinux(world, script));
+  expect(json.code).toBe(exitBroken);
+  const { evidence, issue, prompt } = json.json ?? {};
+  expect(evidence.unit.lastUpdateFailure).toEqual({
+    code: "self-check-failed",
+    context: { reason: "exit" },
+  });
+  expect(issue.kind).toBe("prepared");
+  expect(issue.body).toContain('"reason":"exit"');
+  for (const text of [
+    issue.title,
+    issue.body,
+    issue.shell,
+    decodeURIComponent(issue.link),
+    prompt,
+    json.stdout,
+    human.stdout,
+  ])
+    expect(text).not.toContain("IncidentOrchid");
+});
+
 test("the fingerprint names one fault across releases", async () => {
   const fingerprints = new Map<string, string>();
   for (const [running, path] of [
