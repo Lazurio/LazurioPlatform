@@ -1,7 +1,11 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
-export type ServiceManagerProgram = "systemctl" | "systemd-run" | "busctl";
+export type ServiceManagerProgram =
+  | "systemctl"
+  | "systemd-run"
+  | "busctl"
+  | "journalctl";
 export type ServiceManagerProcess = (
   program: ServiceManagerProgram,
   args: readonly string[],
@@ -14,6 +18,8 @@ const executables: Readonly<Record<ServiceManagerProgram, string>> = {
   // Read-only here: the manager's D-Bus properties as JSON, for the values that
   // `systemctl show` cannot render faithfully (argument and environment vectors).
   busctl: "/usr/bin/busctl",
+  // Read-only: the journal of one application unit (`lazurio module logs`).
+  journalctl: "/usr/bin/journalctl",
 };
 
 // The only place that executes the service manager's tools: fixed absolute
@@ -45,7 +51,8 @@ export function createServiceManagerProcess(
           },
           timeout: options.timeoutMs,
           killSignal: "SIGKILL",
-          maxBuffer: 256 * 1024,
+          // A journal tail is bounded by its line count, not by this buffer.
+          maxBuffer: (program === "journalctl" ? 4096 : 256) * 1024,
         },
         (error, stdout, stderr) => {
           const failure = error as

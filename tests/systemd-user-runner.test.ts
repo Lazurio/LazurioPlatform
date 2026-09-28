@@ -24,7 +24,9 @@ import {
   applicationCoordinationLockFile,
   applicationUnitName,
   createSystemdUserRunner,
+  journalLinesMax,
   organizationUnitPrefix,
+  readApplicationJournal,
 } from "../src/modules/systemd-user-runner";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 
@@ -303,8 +305,8 @@ posixTest(
       "--property=UMask=0077",
       "--property=TimeoutStopSec=5s",
       "--property=StandardInput=null",
-      "--property=StandardOutput=null",
-      "--property=StandardError=null",
+      "--property=StandardOutput=journal",
+      "--property=StandardError=journal",
       "--expand-environment=no",
       "--setenv=HOME=/home/admin",
       "--setenv=PATH=/usr/bin:/bin",
@@ -941,8 +943,10 @@ posixTest(
       ["UMask", property("UMask", "0022")],
       ["TimeoutStopSec", property("TimeoutStopSec", "1min 30s")],
       ["StandardInput", property("StandardInput", "tty")],
-      ["StandardOutput", property("StandardOutput", "journal")],
-      ["StandardError", property("StandardError", "journal")],
+      // The policy of an older release, which discarded output: such a unit
+      // is foreign until it is stopped once (launchpad-parity B6).
+      ["StandardOutput", property("StandardOutput", "null")],
+      ["StandardError", property("StandardError", "null")],
       ["KillMode", property("KillMode", "process")],
       ["Restart", property("Restart", "always")],
       [
@@ -1157,5 +1161,54 @@ posixTest(
       kind: "already-managed",
     });
     expect(manager.units.size).toBe(1);
+  },
+);
+
+posixTest(
+  "application output goes to the journal and is read back as a bounded tail of the unit",
+  async () => {
+    const org = await organization("journal");
+    const manager = createFakeServiceManager();
+    const { lifecycle } = launchpad(manager, org);
+    expect(await lifecycle.start(selection)).toEqual({ kind: "started" });
+    const unit = applicationUnitName(org.directory, selection);
+    expect(manager.units.get(unit)?.properties).toMatchObject({
+      StandardOutput: "journal",
+      StandardError: "journal",
+    });
+    manager.log(unit, "first", "second", "third");
+    expect(await readApplicationJournal(manager.run, unit, 2)).toEqual({
+      kind: "journal",
+      lines: ["second", "third"],
+    });
+    // The journal outlives the unit; a unit that wrote nothing has no lines.
+    expect(await lifecycle.stop(selection)).toEqual({ kind: "group-stopped" });
+    expect(await readApplicationJournal(manager.run, unit, 10)).toEqual({
+      kind: "journal",
+      lines: ["first", "second", "third"],
+    });
+    const [call] = manager.commands("journalctl");
+    expect(call?.args).toEqual([
+      "--user",
+      `--unit=${unit}`,
+      "--lines=2",
+      "--output=cat",
+      "--no-pager",
+      "--quiet",
+    ]);
+    // Only a generated unit name and a bounded count are ever asked.
+    for (const [name, lines] of [
+      ["sshd.service", 10],
+      [unit, 0],
+      [unit, journalLinesMax + 1],
+      [unit, 1.5],
+    ] as const)
+      await expect(
+        readApplicationJournal(manager.run, name, lines),
+      ).rejects.toThrow("Bounded journal read");
+    manager.behaviour.unavailable = true;
+    expect(await readApplicationJournal(manager.run, unit, 10)).toEqual({
+      kind: "unavailable",
+    });
   },
 );

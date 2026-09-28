@@ -33,6 +33,9 @@ export function createFakeServiceManager(
   const units = new Map<string, Unit>();
   const populated = new Set<string>();
   const calls: { program: string; args: readonly string[] }[] = [];
+  // What each unit wrote to the user journal, by unit name; it outlives the
+  // unit, as the journal does.
+  const journal = new Map<string, string[]>();
   let invocations = 0;
   const behaviour = {
     // "fail-loaded": systemd-run exits non-zero and leaves a failed record.
@@ -93,6 +96,17 @@ export function createFakeServiceManager(
           .slice(6)
           .map((name) => JSON.stringify(values[name]))
           .join("\n")}\n`,
+      );
+    }
+    if (program === "journalctl") {
+      const unit = option(args, "--unit")[0] as string;
+      const lines = Number(option(args, "--lines")[0]);
+      const written = journal.get(unit) ?? [];
+      return ok(
+        written
+          .slice(Math.max(0, written.length - lines))
+          .map((line) => `${line}\n`)
+          .join(""),
       );
     }
     if (program === "systemd-run") {
@@ -249,6 +263,11 @@ export function createFakeServiceManager(
     run,
     runtimeDirectory,
     units,
+    journal,
+    // The application of a unit writes lines to its output.
+    log(unit: string, ...lines: string[]) {
+      journal.set(unit, [...(journal.get(unit) ?? []), ...lines]);
+    },
     calls,
     behaviour,
     slice,
@@ -279,7 +298,8 @@ export function createFakeServiceManager(
     commands: (verb: string) =>
       calls.filter(
         (call) =>
-          (call.program === verb && ["systemd-run", "busctl"].includes(verb)) ||
+          (call.program === verb &&
+            ["systemd-run", "busctl", "journalctl"].includes(verb)) ||
           (call.program === "systemctl" && call.args[1] === verb),
       ),
   };

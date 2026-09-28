@@ -472,16 +472,19 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
 - **Bounded definition from the validated launch only.** The working directory must be
   inside the owned canonical Organization directory and pass the existing
   owned-directory inspection; the command is an argv array with an absolute executable;
-  nothing is interpolated into a shell, and only `/usr/bin/systemctl` and
-  `/usr/bin/systemd-run` are ever executed, with a sanitized environment
+  nothing is interpolated into a shell, and only `/usr/bin/systemctl`,
+  `/usr/bin/systemd-run`, the read-only `/usr/bin/busctl` and `/usr/bin/journalctl`
+  are ever executed, with a sanitized environment
   (`PATH`, `LC_ALL`, `XDG_RUNTIME_DIR`), bounded time and bounded output, behind one
   injected process adapter (`service-manager-process.ts`). Text with control characters
   is refused.
 - **Properties:** `Type=exec` (a start that cannot execute fails synchronously),
   `KillMode=control-group`, `Restart=no` (a crashed application is reported, never
   resurrected silently), `UMask=0077` (the guard's creation mask), `TimeoutStopSec=5s`,
-  standard streams `null` (the session owner discards them too), and nothing that
-  widens privileges or changes resource limits.
+  standard input `null` and standard output and error to the journal (since slice P5
+  of the Launchpad parity, B6: the OS owns retention and rotation, `lazurio module logs`
+  reads the unit's tail with `journalctl --user --unit=<unit> --output=cat`; until then
+  both were `null`), and nothing that widens privileges or changes resource limits.
 - **Environment is an allowlist.** Exactly the launch environment the guard passes today
   (`HOME`, `PATH`, optional `TMPDIR`, `LAZURIO_RUNTIME_LISTENER_*`). A real user manager
   hands its **own** environment to every service — on the qualification VM that included
@@ -518,7 +521,10 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
   - *Fixed policy*, compared value by value with what the manager reports:
     `Transient=yes`, the transient `FragmentPath`, empty `DropInPaths`
     (`systemctl set-property` writes one), `Type=exec`, `KillMode=control-group`,
-    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput/Output/Error=null`,
+    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput=null`,
+    `StandardOutput/Error=journal` (a unit an older release started with `null` output
+    is therefore foreign, `service-unrecognized`, until it is stopped once with
+    `systemctl --user stop <unit>`),
     a working directory inside the Organization directory.
   - *Variable part* — executable, exact argument vector, the no-expansion flag,
     environment, `UnsetEnvironment` and the working directory. `systemctl show` cannot
@@ -679,7 +685,7 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
   the retained record of a preparation whose owner died is never reclaimed
   automatically. It blocks preparing and starting that tree only; status and Stop are
   never blocked by it.
-- Application output is still discarded (no journal capture decision), source selection
+- Source selection
   beyond the authorized module directory (named worktrees) is not part of the unit.
   Two live owners are serialized by the coordination lock; that is unit-tested, not
   yet natively qualified under load.
