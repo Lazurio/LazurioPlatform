@@ -9,7 +9,7 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { hostname, tmpdir } from "node:os";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { resolveInstallBase } from "../../src/update/base";
 import { nativeTarget, versionOfTag } from "../../src/update/identity";
@@ -34,12 +34,16 @@ import { compareVersions } from "../../src/update/version";
  *   LAZURIO_QUALIFY_DISPOSABLE=1 bun run scripts/qualify/journeys.ts <verify|J1|J2|J3|J4|J5> <candidate directory>
  *
  * `verify` holds the downloaded candidate against its manifest, its
- * attestation and the checked-out commit; run it first. The journeys use the
- * user's REAL install base, `~/Lazurio`, `~/.local/bin` and, on Linux, the
- * REAL systemd user manager (it needs linger), exactly as a person's
- * installation does: that is why they refuse without the variable above and
- * on a Machine that already has an installation. `gh` (signed in) downloads
- * and verifies the older releases J2, J3 and J5 start from.
+ * attestation and the checked-out commit; run it first. HOME must be a
+ * disposable directory that is not the account's home (qualify.yml: a
+ * runner-owned temporary directory, with XDG_* under it). Everything the
+ * journeys write lives under it — the install base, `~/Lazurio`,
+ * `~/.local/bin`, the user units and the downloaded older releases — except
+ * what the systemd user manager itself keeps under XDG_RUNTIME_DIR on Linux,
+ * where the journeys use the REAL user manager exactly as a person's
+ * installation does. They refuse without the variable above, with the
+ * account's own home, and where an installation exists. `gh` (signed in)
+ * downloads and verifies the older releases J2, J3 and J5 start from.
  */
 const repository = "Lazurio/LazurioPlatform";
 const unit = "lazurio-launchpad.service";
@@ -60,8 +64,16 @@ const base =
 const selector = layout(base).selector;
 const folder = join(home, "Lazurio");
 const entry = join(home, ".local", "bin", "lazurio");
+/** Where the product writes user units: `${XDG_CONFIG_HOME:-~/.config}`. */
 const unitFile = (name: string) =>
-  join(home, ".config", "systemd", "user", name);
+  join(
+    process.env.XDG_CONFIG_HOME?.startsWith("/")
+      ? process.env.XDG_CONFIG_HOME
+      : join(home, ".config"),
+    "systemd",
+    "user",
+    name,
+  );
 // The product refuses group-writable Folder parents; runners default to 002.
 process.umask(0o077);
 
@@ -151,6 +163,15 @@ const versions = async () =>
     (name) => !name.startsWith("."),
   );
 
+/** The account's home from the user database; `os.userInfo()` answers HOME. */
+const accountHome = async () =>
+  (
+    await exec(["sh", "-c", 'eval "echo ~$(id -un)"'], {
+      quiet: true,
+      env: process.env,
+    })
+  ).stdout.trim();
+
 // ---- The candidate and the releases it is qualified against ---------------
 
 type Candidate = Readonly<{
@@ -231,7 +252,7 @@ let scratch: string | undefined;
 /** An older release, downloaded and verified the way a custody verifies a
  * staged executable: manifest digest and `gh attestation verify`. */
 async function release(tag: string): Promise<string> {
-  scratch ??= await mkdtemp(join(tmpdir(), "lazurio-qualify-"));
+  scratch ??= await mkdtemp(join(home, "qualify-releases-"));
   const directory = join(scratch, tag);
   await mkdir(directory);
   const file = artifactFile(target);
@@ -794,8 +815,15 @@ if (import.meta.main) {
     );
     process.exit(2);
   }
-  if (process.env.LAZURIO_QUALIFY_DISPOSABLE !== "1" || !home || !base) {
-    console.error("Refused: disposable Machines only (see the header)");
+  if (
+    process.env.LAZURIO_QUALIFY_DISPOSABLE !== "1" ||
+    !home.startsWith("/") ||
+    !base ||
+    home === (await accountHome())
+  ) {
+    console.error(
+      "Refused: a disposable HOME only, never the account's own (see the header)",
+    );
     process.exit(2);
   }
   try {

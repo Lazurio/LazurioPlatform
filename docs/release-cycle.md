@@ -190,6 +190,21 @@ proposed in [recovery mode G.2](recovery-mode.md#g2-proposed-gates): a Folder re
 journey, the Launchpad under the unit with `kill -9` and a restart loop, hosted trust
 behind a stand-in gateway, and an `ubuntu-24.04-arm` runner for `linux-arm64`.
 
+**What a journey may touch.** Each job sets `HOME` to a runner-owned temporary
+directory (`$RUNNER_TEMP/home`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`
+and `XDG_STATE_HOME` under it), and `journeys.ts` refuses the account's own home.
+The install base, the Folder, `~/.local/bin`, the user units and the older releases
+a journey downloads all live there. One system-level exception remains on Ubuntu,
+deliberately: a supervised journey needs the account's real systemd user manager,
+reading units from the isolated `XDG_CONFIG_HOME` and outliving each step. The job
+writes a drop-in `Environment=XDG_CONFIG_HOME=…` for `user@<uid>.service` and runs
+`sudo loginctl enable-linger`; a manager the runner already runs is reported in the
+log and restarted with the drop-in. Linger was kept rather than avoided because
+whether a hosted runner provides a user manager reachable through `XDG_RUNTIME_DIR`
+could not be tested before the first run, and a manager without linger may stop
+between steps. An always-run last step disables linger and removes the drop-in. The
+manager's own runtime state stays under `/run/user/<uid>`.
+
 Every journey writes one line of `lazurio.qualification.v1`
 (`scripts/qualify/evidence.ts`): `tag`, `commit` (the candidate's source), `target`,
 `runner`, `journey`, `proof` (`executable` or `source`), `outcome` (`ok` or `failed`),
@@ -232,7 +247,10 @@ mode happened in between (otherwise `recovery-mode` or `unhealthy`, which refuse
 `scripts/qualify/check-canary.ts` refuses a record that is missing, lasted less than
 8 hours or has not ended, lists no Machine, no work VM or no personal VM, names a
 Machine twice, has a Machine not on the candidate or not healthy, or has any value
-outside its shape — and it never repeats a refused value in its answer. Which
+outside its shape — and it never repeats a refused value in its answer. Times are
+exactly `YYYY-MM-DDThh:mm:ssZ` and must print back as the same text, so an impossible
+date such as `2026-02-30` or `24:00:00` is refused instead of being moved to another
+day. Which
 Machines are in scope is the reviewer's to state; the check cannot see the pilot
 Organization's inventory.
 
@@ -241,11 +259,19 @@ that differs from it only under `qualification/` and `docs/evidence/` (the canar
 record lands after the candidate). The job `qualified` of `release.yml` runs before
 anything is built, drafted or put to the `release` reviewer, and refuses unless:
 the tag carries a canary record `qualification/canary/vX.Y.Z-rc.N.json` (the highest
-N wins) that passes `check-canary.ts`; the tag differs from that candidate's only in
+N wins) that passes `check-canary.ts --provenance`; the tag differs from that candidate's only in
 those two directories; and a successful Qualify run of the default branch left the
 artifact `qualification-vX.Y.Z-rc.N` whose evidence passes `evidence.ts check`
 against the candidate's published manifest. A prerelease passes this job untouched;
 it is qualified after it is published.
+
+**Only a merged record counts.** `--provenance` asks GitHub about the record's
+`pullRequest` and Git about the tag: the pull request is merged, into the default
+branch, and added or changed the record; its merge commit is an ancestor of the final
+tag's commit (the default branch is fetched when the tag's checkout lacks it); and the
+record at the tag is byte-identical to the record at that merge commit. A tag on an
+unmerged branch, or a record edited after its pull request, is refused. A later
+correction of the record is a new pull request, and the record then names that one.
 
 **The fast lane is the path, not the canary.** A fix goes through the same steps:
 a new candidate, the journeys (in parallel, one runner each), the review,

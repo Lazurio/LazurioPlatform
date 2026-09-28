@@ -106,6 +106,21 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
+      # Everything a journey writes lives under a runner-owned temporary
+      # HOME with XDG_* under it: the install base, the Folder, the command
+      # entry, the user units and the older releases. The account's own home
+      # is never used (journeys.ts refuses it).
+      - name: An isolated HOME
+        run: |
+          mkdir -m 700 "$RUNNER_TEMP/home"
+          home=$(cd "$RUNNER_TEMP/home" && pwd -P)
+          {
+            echo "HOME=$home"
+            echo "XDG_CONFIG_HOME=$home/.config"
+            echo "XDG_DATA_HOME=$home/.local/share"
+            echo "XDG_CACHE_HOME=$home/.cache"
+            echo "XDG_STATE_HOME=$home/.local/state"
+          } >> "$GITHUB_ENV"
       - name: The candidate's published assets, verified
         run: |
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/candidate" \
@@ -113,11 +128,29 @@ jobs:
             --pattern "lazurio-$TARGET"
           # Digest, attestation at the tag, and this checkout is its source.
           LAZURIO_QUALIFY_DISPOSABLE=1 bun run scripts/qualify/journeys.ts verify "$RUNNER_TEMP/candidate"
-      - name: A systemd user manager that outlives the session
+      # THE ONE SYSTEM-LEVEL EXCEPTION, undone by the last step. A supervised
+      # journey needs the account's real systemd user manager, and it must
+      # read units from the isolated XDG_CONFIG_HOME and outlive each step:
+      # a drop-in for user@<uid>.service gives it that unit path, and linger
+      # keeps it running without a login session. A manager the runner
+      # already runs is reported and restarted with the drop-in.
+      - name: A systemd user manager for the isolated HOME (exception)
         if: runner.os == 'Linux'
         run: |
-          sudo loginctl enable-linger "$USER"
-          runtime=/run/user/$(id -u)
+          uid=$(id -u)
+          dropin=/etc/systemd/system/user@$uid.service.d
+          sudo mkdir -p "$dropin"
+          printf '[Service]\nEnvironment=XDG_CONFIG_HOME=%s\n' "$XDG_CONFIG_HOME" |
+            sudo tee "$dropin/lazurio-qualification.conf" >/dev/null
+          sudo systemctl daemon-reload
+          if systemctl is-active --quiet "user@$uid.service"; then
+            echo "The runner already runs a user manager; restarting it with the isolated unit path."
+            sudo systemctl restart "user@$uid.service"
+          else
+            echo "No user manager ran for this account; linger starts one."
+          fi
+          sudo loginctl enable-linger "$(id -un)"
+          runtime=/run/user/$uid
           for _ in $(seq 1 60); do [[ -S "$runtime/bus" ]] && break; sleep 0.5; done
           {
             echo "XDG_RUNTIME_DIR=$runtime"
@@ -149,6 +182,13 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
           retention-days: 7
+      - name: Undo the system-level exception
+        if: always() && runner.os == 'Linux'
+        run: |
+          uid=$(id -u)
+          sudo loginctl disable-linger "$(id -un)" || true
+          sudo rm -f "/etc/systemd/system/user@$uid.service.d/lazurio-qualification.conf"
+          sudo systemctl daemon-reload || true
 
   evidence:
     name: Qualification evidence
