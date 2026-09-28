@@ -341,8 +341,9 @@ a personal VM).
 `lazurio launchpad --folder` serves hosted from the recorded `externalOrigin`,
 `authCheckUrl`, `authCookieName` and `listenPort` when the entry is present
 ([hosted entry](hosted-entry.md)); it reads them when it starts, so a changed entry
-takes effect at its next start. `t3codeOrigin` and `moduleOriginTemplate` are recorded
-for the module links and the T3 Code link of later slices. The Platform composes
+takes effect at its next start. `moduleOriginTemplate` gives the module links;
+`t3codeOrigin` is the Chat entry's link to T3 Code
+([Chat entry](launchpad-development.md#chat-entry)), used as recorded. The Platform composes
 nothing but one substitution: `moduleOrigin` (`src/launchpad/hosted-entry.ts`) fills
 the one `{module}` slot with `moduleLabel(id)`, the label the gateway serves the module
 at. That rule is the gateway's, not the Platform's, and textually the same as

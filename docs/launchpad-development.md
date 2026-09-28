@@ -301,7 +301,7 @@ English.
 
 **Not in this slice.** `prepare` and `open` verbs (dependency installation stays with
 the module's own `bun install --frozen-lockfile`; `prerequisites-not-ready` says so),
-the T3 Code chat link (P7), worktree `--source` (P9), a logs
+the T3 Code chat link (P7, since in [Chat entry](#chat-entry)), worktree `--source` (P9), a logs
 tail on the page, and the retirement of `/api/apps/*`, `app-request`,
 `--organization-directory` and `--bun-executable`: they keep working unchanged for their
 tests and `scripts/smoke-application-ui.ts`. The seams are marked in
@@ -493,6 +493,76 @@ navigation, served on its declared port and ending with its Launchpad; and a
 workstation Launchpad answering 404. `tests/launchpad-hosted-trust.test.ts` covers the
 internal-namespace rule of the admission. A real gateway, Caddy and oauth2-proxy were
 **not** exercised; that is C.5.
+
+## Chat entry
+
+Slice P7 of the Launchpad parity (shaping `docs/launchpad-parity.md` B8). On a hosted
+Machine the sidebar starts with **Chat**, in T3 Code's "New thread" place: it opens this
+Machine's T3 Code, as the resident's Chat button does today
+(`R:launchpad/public/app.js:2257-2281`, `R:launchpad/src/t3-chat-lib.mjs`, decided in
+root DEV-6616).
+
+**What the resident does, and what is kept.** The resident's button is hidden until
+`GET /api/chat` says Chat is configured (only behind a gateway); a click posts
+`/api/chat/pair`, the server runs T3's own `auth pairing create --base-dir ~/.t3 --ttl
+60s --label launchpad-chat --json`, reads `credential` from its output and answers
+`<T3 origin>/pair#token=<credential>`, and the page follows it in the same tab. No thread
+is created and no Organization, module or worktree is passed: T3 Code opens at its home,
+paired. All of that is kept, with two changes of source: T3 Code's origin is the recorded
+entry's `t3codeOrigin` (never the resident unit's `LAZURIO_T3CODE_URL`, never composed),
+and the program is the T3 launcher `t3` on this Launchpad's PATH (Machines DEV-6624's
+`~/.local/bin/t3`, the parity design) instead of the unit's
+`LAZURIO_T3CODE_PAIRING_COMMAND`. Its environment is exactly `HOME` and `PATH`; the
+output is never passed on, logged or put in an error, and nothing is recorded.
+
+**Routes.** Behind the admission every other route has (the gateway's session cookie
+hosted, the fragment token locally):
+
+| Route | Answer |
+|---|---|
+| `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate} \| null}`: the recorded entry's public parts, read-only; the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
+| `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON or a credential of another shape); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
+
+**Page.** `src/launchpad/chat-view.ts` (pure, tested) accepts the entry only in the
+recorded shapes and a pairing link only on the recorded T3 Code origin, path `/pair`, no
+query, a `token` fragment. The Chat link's `href` is `t3codeOrigin` itself, so a modified
+click (a new tab) opens T3 Code as a link does. A plain click asks for a pairing link and
+follows it in this tab, as the resident did; when there is none (no launcher, a refused
+call) it follows the plain origin, where T3 Code itself asks a browser it does not know
+to pair. Without an entry (a workstation) the entry is absent, as the resident's button:
+T3 Code runs wherever the operator runs it (launchpad-parity D). The **Recovery page**
+(Settings → Recovery, and Recovery mode) shows **Open T3 Code** next to **Copy the
+prompt** when there is a prompt and an entry: the same origin, a plain link in a new tab
+(`docs/recovery-mode.md` C.3, first slice), never a pairing call, because Recovery mode
+changes nothing. The module page has no link of its own: the resident had none, T3 Code
+cannot start a thread about a module from outside yet (C.3), and the sidebar's Chat
+stands on the module page as on every route.
+
+**Deviations from the resident.** The launcher comes from PATH, not from the unit's
+environment; without it Chat stays visible and opens the plain origin instead of hiding
+(the resident's button was either configured or hidden; here the entry decides whether
+there is a T3 Code, the launcher only whether the browser is paired on the way). A
+refused pairing answers 409 with a reason instead of 502 with the resident's
+`t3_pairing_*` codes, as every blocked Platform answer. `lazurio chat link` (B8's CLI and
+C.5 item 10) is not in this slice.
+
+**Verification 2026-09-28.** `tests/launchpad-chat.test.ts`: a hosted Folder from the
+handover fixture behind a fake auth endpoint (`/api/entry` 401 without the cookie, the
+public parts byte for byte with the auth values absent, 405 for `POST`), a fake launcher
+on a private PATH (missing: nothing run; 401 without same-origin; the resident's exact
+arguments, `HOME` and `PATH` only, the pair URL on the recorded origin; a failing call
+whose stderr holds the credential, non-JSON output and a short credential: one reason,
+the credential absent from the answer; nothing written in the home), a workstation
+(`entry: null` behind the token, no pairing route, nothing run), the page's parsers, the
+markup (hidden, outside every view) and a scan that no source under `src/launchpad`
+builds an origin or hostname from labels. `tests/launchpad-recovery-page.test.ts`: Recovery
+mode answers `/api/entry` behind the admission and refuses the pairing route;
+`tests/recovery-view.test.ts`: the Recovery page's link. Driven in headless Chromium on
+macOS against a workstation Launchpad, with `/api/entry` and `/api/chat/pair` stubbed
+for the hosted case: absent on the workstation; `href` the recorded origin on the home,
+Settings and the Recovery page; a click landing on the pair URL, and on the plain origin
+when the pairing is refused. A real gateway, a real T3 Code and the launcher of
+DEV-6624 were **not** exercised; that is C.5 items 10 and 14.
 
 ## Tools section
 
