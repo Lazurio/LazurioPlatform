@@ -4,9 +4,11 @@ Status: **accepted direction of the Principal (2026-09-19); the adapter for the 
 VM path is implemented (`src/launchpad/hosted-trust.ts`, the entry recorded on the
 Machine binding from the handover), verified by unit tests against a fake auth endpoint
 and by a [native run behind a stand-in gateway](evidence/hosted-entry-linux-arm64-2026-09-26.md);
-the handover field (Machines), the schema re-pin and the canary switch of decision F16
-are pending.** Without a recorded entry the Launchpad serves a loopback origin with a
-fragment-token session exactly as before. See
+the handover field exists in Machines 0.12.93 (not yet written by any Machines role)
+and the vendored schema is re-pinned to it
+([machine handover](machine-handover.md#the-hosted-entry-decision-f16)); the canary
+switch of decision F16 is pending.** Without a recorded entry the Launchpad serves a
+loopback origin with a fragment-token session exactly as before. See
 [decision F11](decisions.md#f11--hosted-admission-is-not-identity) and
 [F16](decisions.md#f16--one-network-per-organization-every-machine-is-reached-the-same-way-and-the-conglomerate-graph-is-the-truth-agents-move-along).
 
@@ -102,10 +104,27 @@ Launchpad uses; nothing new on the wire.
 | Personal laptop / personal VM | None for the laptop; the personal VM keeps its own gateway and its entry | Loopback only on the laptop: no Machine binding, `local` preset, an entry is refused |
 
 The values are part of the **Machine Assignment** (F16): written by Machines as the
-handover on a VM (`entry.launchpad`, finished URLs from the same rendering as the
-gateway), served by the Dashboard after the Account sign-in on a laptop, recorded on the
-Machine binding in the Folder, shown and never edited in the Launchpad. There is one
-writer and no transition path: no environment of the resident unit is read and no CLI
+handover on a VM (`entry`, finished URLs from the same rendering as the gateway),
+served by the Dashboard after the Account sign-in on a laptop, recorded on the
+Machine binding in the Folder, shown and never edited in the Launchpad.
+
+**Where every origin comes from.** Only from the recorded entry, one member to one
+([projection](machine-handover.md#the-hosted-entry-decision-f16)):
+
+| Value | Handover member | Binding |
+|---|---|---|
+| Launchpad origin, auth endpoint, cookie name, loopback port | `entry.launchpad.*` | `entry.externalOrigin`, `authCheckUrl`, `authCookieName`, `listenPort` |
+| T3 Code origin | `entry.t3code.external_origin` | `entry.t3codeOrigin` |
+| A module's origin | `entry.modules.origin_template` | `entry.moduleOriginTemplate`, filled by `moduleOrigin(template, moduleId)` |
+
+The Platform composes nothing but this one substitution: `moduleOrigin` fills the one
+`{module}` slot (the whole first label) with `moduleLabel(moduleId)`, and the rule of
+that label is the gateway's (`label()` of the Machines gateway catalog, the same
+normalization, maximum length and reserved names), so a link names the hostname the
+gateway actually serves. No origin is derived from another (not T3 Code's or a
+module's from the Launchpad's), from a request or from a hostname convention.
+
+There is one writer and no transition path: no environment of the resident unit is read and no CLI
 records an entry; the Machines apply that writes the field also switches the unit.  Selecting the adapter by request sniffing (`Host`, forwarded headers) is
 rejected: headers are not evidence.
 

@@ -9,11 +9,15 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored byte-for-byte in `src/machine/lazurio-machine.v1.schema.json`
-from Machines release **v0.12.61** (tag `v0.12.61`, commit
-`cb305ce22b3bf3aed5ea2fd6342a85d8a294a875`); adjacent `schema-provenance.json`
-records the source tag, commit and byte digest, and a test fails when the vendored
-bytes drift from it. Changes originate in Machines, then the consumer is re-pinned
-and conformance tested. No runtime dependency on a private checkout. The test
+from Machines **0.12.93**: the head of Machines pull request #243 (commit
+`70f418425648f03f93a2bd1829b1f357f361642a`, SHA-256
+`45e2a2f67eca86d191feb48c23d99aa07a207bb490c9a14885b0826f0386cb61`), which adds the
+optional `entry` to the v0.12.61 schema and changes nothing else. The version is not
+tagged yet (`source_tag: null`); when Machines tags it, the pin moves to the tag, and
+a digest other than this one is a new re-pin, not a tag update. Adjacent
+`schema-provenance.json` records the source version, pull request, commit, tag and
+byte digest, and a test fails when the vendored bytes drift from it. Changes
+originate in Machines, then the consumer is re-pinned and conformance tested. No runtime dependency on a private checkout. The test
 fixtures are synthetic, not a customer's rendered identity.
 
 The schema is a `oneOf` with exactly two branches, distinguished by `machine.kind`
@@ -51,6 +55,12 @@ through [`folder-refresh`](#refresh-after-a-handover-rewrite):
   and `https`, the peer's gateway hostnames reachable from here over TCP 443. Names
   only: no node ids, machine keys, tailnet addresses or credentials. Platform renders
   it and enforces nothing; Headscale does.
+
+One field is new in 0.12.93, optional on both branches, closed and without defaults:
+**`entry`**, how the Machine is entered through its workspace gateway
+(`launchpad`, `t3code`, `modules`). It is projected into the binding member by member
+and is not part of the identity either; see [the hosted entry](#the-hosted-entry-decision-f16).
+A handover without it reads, projects and renders exactly as before.
 
 The consumer rejects duplicate keys, unknown fields, invalid UTF-8, documents over
 1 MiB, unsafe file ownership/modes, links and noncanonical parent custody. The
@@ -93,7 +103,7 @@ account, and never from `relationships`. For such a handover the Machines reside
 role passes the preset from the owner infrastructure. `folder-init` records the
 derived preset, or an explicit `--preset` the handover allows, in the Environment
 configuration together with the **Machine binding** (kind, name, owner, team,
-assignment, tailnet node, host, relationships and the handover digest).
+assignment, tailnet node, host, relationships, entry and the handover digest).
 Machines does not rewrite the identity; a Folder adopted for a different Machine is
 refused, never rewritten. Identity is kind, name, Owner (Organization and Team, or
 Principal), tailnet node and host, and it is immutable. Machines rewrites the handover
@@ -165,7 +175,7 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Result | Exit | Meaning |
 | --- | --- | --- |
 | `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
-| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay |
+| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it |
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
@@ -279,19 +289,72 @@ and the communication axes through the ordinary preview → apply flow.
 
 ## The hosted entry (decision F16)
 
-The handover will carry the Machine's **entry** — `entry.launchpad` with the finished
-URLs Machines renders for the gateway (`external_origin`, `auth_check_url`,
-`auth_cookie_name`) and the loopback `listen_port` the gateway proxies to; on a
-personal VM the names have no Organization segment. The Platform never composes these
-URLs and reads no environment for them: the binding records `entry` from the handover
-exactly like the assignment and the relationships (declaration, not identity, so a
-re-apply that adds it keeps the Folder adopted and `folder-refresh` re-renders),
-`manual/this-machine.md` shows it, and `lazurio launchpad --folder` serves on that
-port behind the gateway's admission ([hosted entry](hosted-entry.md)) when it is
-present. One writer: the Machines apply that writes the entry also owns the switch of
+Since Machines 0.12.93 the handover may carry the Machine's **entry**, rendered by
+Machines from the same route catalog as its gateway (Machines `docs/machine-identity.md`,
+section Entry). Machines writes it only to a Machine that runs a Platform release that
+reads it: a Platform vendoring the earlier schema refuses the whole handover.
+
+```json
+"entry": {
+  "launchpad": { "external_origin": "https://launchpad.<vm>.<org>.lazurio.io",
+                 "auth_check_url": "https://<vm>.<org>.lazurio.io/oauth2/auth",
+                 "auth_cookie_name": "__Secure-lazurio-workspace",
+                 "listen_port": 20000 },
+  "t3code":    { "external_origin": "https://t3code.<vm>.<org>.lazurio.io" },
+  "modules":   { "origin_template": "https://{module}.<vm>.<org>.lazurio.io" }
+}
+```
+
+On a personal VM the Machine hostname has no Organization label
+(`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
+
+The binding records it one member to one, as `entry` next to the relationships:
+
+| Handover | Binding (`entry.`) | Rule (the schema's, checked again on the binding) |
+| --- | --- | --- |
+| `launchpad.external_origin` | `externalOrigin` | `https://<hostname>`: lowercase DNS labels, no port, path, query or trailing slash |
+| `launchpad.auth_check_url` | `authCheckUrl` | https hostname and a non-empty path, no port or query |
+| `launchpad.auth_cookie_name` | `authCookieName` | `[A-Za-z0-9_-]{1,128}` |
+| `launchpad.listen_port` | `listenPort` | integer 1024–65535, never 0 |
+| `t3code.external_origin` | `t3codeOrigin` | as `externalOrigin` |
+| `modules.origin_template` | `moduleOriginTemplate` | `{module}` exactly once, as the whole first label; https, no port, path or query |
+
+The entry's values are kept exactly as written; nothing is normalized. The projection checks every
+value by the same rules the schema imposes and refuses the handover
+(`machine-context-invalid`) otherwise; a recorded binding whose entry is anything a
+handover could not carry (for example only the four Launchpad values) is not read.
+`lazurio machine inspect` prints the handover as written, `entry` included, after the
+same projection.
+
+The entry is declaration, not identity: a re-apply that adds, changes or removes it
+keeps the Folder adopted, and `folder-refresh` records it. A changed entry is recorded
+even when no rendered text changes (for example only the T3 Code origin), because the
+Launchpad acts on the recorded values; an unchanged entry and the same rendered bytes
+stay `unchanged`. `manual/this-machine.md` shows the Launchpad origin and loopback port
+(through the Organization's gateway on a work VM, through the Machine's own gateway on
+a personal VM).
+
+`lazurio launchpad --folder` serves hosted from the recorded `externalOrigin`,
+`authCheckUrl`, `authCookieName` and `listenPort` when the entry is present
+([hosted entry](hosted-entry.md)); it reads them when it starts, so a changed entry
+takes effect at its next start. `t3codeOrigin` and `moduleOriginTemplate` are recorded
+for the module links and the T3 Code link of later slices. The Platform composes
+nothing but one substitution: `moduleOrigin` (`src/launchpad/hosted-entry.ts`) fills
+the one `{module}` slot with `moduleLabel(id)`, the label the gateway serves the module
+at. That rule is the gateway's, not the Platform's: exactly `label()` of the Machines
+gateway catalog (`workloads/workspace-vm/gateway-catalog.py`), so `my--notes` is
+served and linked as `my-notes`. Lowercase; every character outside `[a-z0-9]` becomes
+`-`; runs of `-` collapse to one; leading and trailing `-` are stripped; the result is
+cut to the gateway's maximum label length (63) and a trailing `-` stripped again; an
+empty result or a name the gateway reserves (`oauth2`, `api`, `well-known`) is
+refused. The template states the rule, not that a hostname is served: the gateway's
+catalog decides that (it refuses a conflicting port, and two ids with the same label
+share one hostname). The Platform never composes a URL from a hostname convention and
+reads no environment for it.
+
+One writer: the Machines apply that writes the entry also owns the switch of
 `lazurio-launchpad.service` from the resident Launchpad to the installer-written unit
-(exactly one listener on the port, observed). The vendored schema is re-pinned
-byte-for-byte when the Machines release that adds the field exists; until then no
+(exactly one listener on the port, observed). Until a Machines release writes it, no
 Folder records an entry and the Launchpad stays local.
 
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
@@ -383,8 +446,12 @@ it does not qualify either architecture. See [Bun's executable targets](https://
 
 Unit fixtures prove parsing/refusal of both handover branches including the
 v0.12.61 fields (assignment on the Organization branch only, relationships in the
-branch's zone, closed peer shapes), preset derivation from the assignment, that a
-v0.12.59-shaped handover still reads, projects and derives exactly as before, the
+branch's zone, closed peer shapes) and the 0.12.93 `entry` on both branches (its
+projection into the binding, refusal of a port below 1024, an http origin or a
+module template whose first label is not the whole `{module}`, a changed entry
+recorded by the refresh, and the gateway's label of a module id: normalized,
+reserved and empty), preset derivation from the assignment, that a v0.12.59-shaped
+handover still reads, projects and derives exactly as before, the
 rendered assignment and relationships, adoption (used work directories, legacy
 files, foreign entries, idempotence, the Personalspace conflict), directory
 preservation, recognized interruption completion, and the refresh: a personal
@@ -397,8 +464,8 @@ completes through `profile-resume`. A native run of `folder-init`
 with the compiled CLI on a fresh Ubuntu 24.04 ARM64 VM against root-issued
 v0.12.59-shaped fixture handovers of all three kinds is recorded in
 [evidence](evidence/presets-linux-arm64-2026-09-22.md); a native run with a
-v0.12.61 handover carrying `owner.assignment` or `relationships`, and a native
-`folder-refresh`, are not yet recorded.
+v0.12.61 handover carrying `owner.assignment` or `relationships` or a 0.12.93
+handover carrying `entry`, and a native `folder-refresh`, are not yet recorded.
 They do not prove actual
 Machines delivery, a real Machines-delivered VM, a native Launchpad preset change,
 official release hosting and attestation, native Linux x64 execution,
