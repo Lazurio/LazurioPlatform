@@ -322,6 +322,80 @@ status with Open to the loopback URL, Stop, focus on the action, and no action o
 module that cannot run. A real systemd user manager and journal (Ubuntu 24.04) were
 **not** exercised by this slice; that is C.5.
 
+## Doctor
+
+Slice P8 of the Launchpad parity (shaping `docs/launchpad-parity.md` B9): the
+healthy-product readback of an Environment, the machine-readable preflight of C.2 step 4
+and the readback of C.3 item 4. One core, `collectDoctor` in `src/doctor/doctor.ts`;
+the terminal surface is `src/doctor/cli.ts`. `lazurio recover` stays the
+broken-product path with its evidence, prompt and issue; doctor points to it.
+
+**CLI.** `lazurio doctor [--folder <absolute Folder>] [--sign-in] [--json]`. The Folder
+is `--folder`, the supervised unit's, or on a hosted Machine the declared operator's
+(as for `lazurio update`). Exit status: 0 `ok`, 10 `attention` (a `warn`), 3 `broken`
+(a `fail`), 2 usage, 1 the command itself failed.
+
+**Read-only.** Doctor adds no check of its own: every answer comes from a reader the
+product already has, and none of them writes. The Folder's tool selection is read under
+the Folder's read lock (`toolsOverview`) where its state is recognized, and without a
+lock otherwise, since taking the lock of a state without one would create it; nothing
+is fetched (`update-available` is the
+last verified check on disk); nothing restarts. `--sign-in` additionally runs each
+installed tool's sign-in probe, which may contact its provider, exactly as `tools list
+--sign-in`. The heavy reader is the active executable's `self-check`, one process, as in
+`recover`. A test snapshots the whole temporary tree (paths, modes, sizes, modification
+times, the SHA-256 of every file and the target of every link) before and after and finds
+it byte-identical. A tool's version is reported only as numeric segments
+(`2.63.0`); a suffix is free text and is omitted.
+
+**Answer.** `{kind: "doctor", verdict: ok|attention|broken, locale, checks}`; every
+check is `{id, outcome: ok|warn|fail|skipped, reason?, context?}` in group order. Ids
+and reasons are enumerated (`doctorCheckIds`, `doctorReasons`); a check about one tool,
+Organization or module names it in `context` (`tool`, `organization`, `module`). The
+context passes one allowlist, recover's tier 1 (`contextRules`) extended by doctor's
+keys (`doctorContextRules`): enumerated values, releases, counts, template revisions
+and identifier-shaped catalog names. A catalog name that is not an identifier is
+`invalid` (`lazurio organization list` shows it); no path, digest, account or message
+is ever printed. The human form groups the checks in the catalog's columns (control
+characters escaped), Czech or English by the Folder's locale.
+
+| Group | Id | Source | Outcomes |
+| --- | --- | --- | --- |
+| product | `update-state` | `collectRecovery` R2 | `fail state-invalid` with the relative state path |
+| product | `product-version` | `readStatus` running vs active | `warn running-not-active`, `warn not-installed` |
+| product | `self-check` | `collectRecovery` R5 | `fail self-check-failed` with its reason |
+| product | `update-available` | `readStatus` (`last-check.json`) | `warn update-available`; `skipped never-checked` |
+| product | `folder-refresh` | `readStatus.folderRefresh` | `warn folder-refresh-needed`; `skipped not-active` when the running executable is not the active one |
+| product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
+| Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
+| Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
+| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `signIn`/`ssh` ids with `--sign-in` |
+| organizations | `catalog` | `readFolderCatalog` | counts; `warn catalog-unreadable` |
+| organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
+| organizations | `module` | catalog entry | `warn` with the module or Organization reason |
+| launchpad | `launchpad-unit` | `collectRecovery` unit (Linux, supervised) | `fail unit-*`; `skipped no-user-manager`, `not-supervised` |
+| launchpad | `launchpad-health` | `collectRecovery` health socket, `answer` normal/recovery/none/unexpected | `fail launchpad-recovery-mode`, `launchpad-not-answering`, `launchpad-version-mismatch` |
+| machine | `machine-entry` | the recorded binding's `entry` on a hosted preset | `warn entry-not-recorded`; `skipped not-hosted` |
+
+**C.2 step 4.** The apply reads `lazurio doctor --json` and stops on any `fail`; for
+modules it keeps reading `lazurio module list --json`, since only the apply knows which
+modules ran under the resident. A module that is not executable is `warn` here because
+doctor does not know that.
+
+**Not in this slice.** The Launchpad surface `/settings/diagnostics` (B9) and child
+doctors of Organizations or modules.
+
+**Verification 2026-09-28.** `tests/doctor.test.ts` against a temporary install base,
+HOME and Folder with stand-in tools on a temporary PATH: a healthy fixture `ok` with
+nothing written, a pending transaction `broken`, a missing required tool `fail` and a
+missing recommended one `warn`, a module with an invalid default app and an unreadable
+Organization under a non-identifier name `warn`, the hosted binding against the same, a
+rewritten and a foreign handover and none, Recovery mode on the health socket, a
+verified newer release in Czech, usage, and the source CLI in a child process. Every
+JSON answer is checked against the tier-1 rules (ids, reasons, context rules, no string
+that is not an identifier, no path of the fixture) and every human answer row by row
+against the JSON.
+
 ## Gateway `ensure`
 
 Slice P6 of the Launchpad parity (shaping `docs/launchpad-parity.md` B5, F22 point 3).
