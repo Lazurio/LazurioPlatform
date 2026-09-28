@@ -16,6 +16,11 @@ import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
+import {
+  createModuleOperations,
+  type ModuleHost,
+  processModuleHost,
+} from "../modules/module-operations";
 import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import { activatableTools, toolSelection } from "../tools/catalog";
@@ -52,6 +57,10 @@ export type HostedOptions = Readonly<{
   fetcher?: AuthFetcher;
   now?: () => number;
 }>;
+
+// The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
+// are URL-encoded segments naming the module as `lazurio module` does.
+const moduleRoute = /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|stop|status)$/;
 
 // The page itself under each of its routes (`/`, `/settings/tools`, …): the
 // same bundled document, which picks the section from the path. No other
@@ -159,6 +168,10 @@ export async function startLaunchpad(
     arch?: string;
     login?: Partial<LoginEnvironment>;
   }> = {},
+  // Where the module lifecycle runs: this process's account, its standard
+  // Bun and the runner of this platform. Trusted composition, never HTTP
+  // input; tests supply a fake service manager.
+  moduleHost: ModuleHost = processModuleHost(),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -197,6 +210,14 @@ export async function startLaunchpad(
   const applications = applicationAdapters
     ? createApplicationLifecycle(applicationAdapters)
     : null;
+  // The module lifecycle of the catalog: the same core as `lazurio module`.
+  // This Launchpad holds one lifecycle per Organization, so a session app
+  // (macOS) is its child and ends with it; a service app outlives it.
+  const modules = createModuleOperations({
+    folder,
+    owner: "launchpad",
+    host: moduleHost,
+  });
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
@@ -269,6 +290,49 @@ export async function startLaunchpad(
         if (!pill) return response({ error: "update-unavailable" }, 503);
         try {
           return response(await pill.status());
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      const moduleRequest = moduleRoute.exec(url.pathname);
+      if (moduleRequest !== null) {
+        if (request.method !== (moduleRequest[3] === "status" ? "GET" : "POST"))
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        let name: string;
+        let app: string | undefined;
+        try {
+          name = `${decodeURIComponent(moduleRequest[1] as string)}/${decodeURIComponent(moduleRequest[2] as string)}`;
+          if (moduleRequest[3] === "status") {
+            const keys = [...url.searchParams.keys()];
+            if (keys.some((key) => key !== "app") || keys.length > 1)
+              return response({ error: "invalid-query" }, 400);
+            app = url.searchParams.get("app") ?? undefined;
+          } else {
+            if (request.headers.get("content-type") !== "application/json")
+              return response({ error: "invalid-content-type" }, 415);
+            const input: unknown = await request.json();
+            const withApp = ownDataValue(input, "app") !== undefined;
+            const value = stateFields(input, withApp ? ["app"] : []);
+            if (withApp && typeof value.app !== "string")
+              return response({ error: "invalid-app" }, 400);
+            app = value.app as string | undefined;
+          }
+        } catch {
+          return response({ error: "invalid-request" }, 400);
+        }
+        const options = app === undefined ? {} : { app };
+        try {
+          // A start runs the module's declared check first (bounded by
+          // the preparation budget); the request waits for it.
+          if (moduleRequest[3] === "start") server.timeout(request, 660);
+          const result =
+            moduleRequest[3] === "start"
+              ? await modules.start(name, options)
+              : moduleRequest[3] === "stop"
+                ? await modules.stop(name, options)
+                : await modules.status(name, options);
+          return response(result, result.kind === "blocked" ? 409 : 200);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
@@ -598,6 +662,7 @@ export async function startLaunchpad(
           // Close admission immediately, before waiting for HTTP requests to drain.
           // Existing requests and shutdown must share the same lifecycle queue.
           const applicationClose = applications?.close();
+          const moduleClose = modules.close();
           const loginClose = logins.close();
           pill?.stop();
           await server.stop(true);
@@ -609,7 +674,10 @@ export async function startLaunchpad(
           const result = applicationClose
             ? await applicationClose
             : Object.freeze({ kind: "closed" as const });
-          return result;
+          // Session apps of the catalog end with this Launchpad.
+          return (await moduleClose).kind === "closed"
+            ? result
+            : Object.freeze({ kind: "incomplete" as const });
         })().finally(() => {
           closePending = null;
         });

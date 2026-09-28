@@ -51,7 +51,7 @@ const usage =
  * control, line and bidirectional formatting characters are printed as a
  * visible `\u{…}` escape (and a backslash doubled), so no name can move the
  * cursor, hide a column or forge a row. JSON output escapes by itself. */
-const shown = (text: string) =>
+export const shown = (text: string) =>
   text.replace(
     /[\\\p{Cc}\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/gu,
     (character) =>
