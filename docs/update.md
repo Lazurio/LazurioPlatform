@@ -423,7 +423,10 @@ unit `lazurio-launchpad.service` was written by `lazurio install` (its first lin
 is the installer's marker); the Folder path lives in that unit. A unit of that
 name written by anyone else — a Machines resident runtime, a person — makes the
 installation unsupervised: nothing is restarted and that unit is never
-rewritten.
+rewritten. The unit is this installation's only with the marker AND this base's
+exact `ExecStart=` line; a marked unit of another install base is that
+installation's, so this one is unsupervised and `install --service` refuses it as
+`foreign-unit` before anything changes.
 
 The unit `lazurio install --service systemd-user` writes:
 

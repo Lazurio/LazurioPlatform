@@ -3,11 +3,7 @@ import { join } from "node:path";
 import { syncDirectory, writeDurableFile } from "../../durable-file";
 import { storageFailure, UpdateFailure } from "../../errors";
 import { isProductVersion } from "../../identity";
-import {
-  launchpadExecStart,
-  renderLaunchpadUnit,
-  systemdQuote,
-} from "../../install";
+import { renderLaunchpadUnit } from "../../install";
 import {
   layout,
   pruneVersions,
@@ -19,6 +15,8 @@ import {
   launchpadUnit,
   type ServiceControl,
   type ServiceUnits,
+  systemdQuote,
+  unitBelongsToBase,
   unitFolder,
   unitMarker,
 } from "../../service-control";
@@ -99,14 +97,10 @@ const unitText = (units: ServiceUnits, name: string) =>
  * unit on failure, with the Folder it serves; undefined for any other unit. */
 async function legacyLaunchpadUnit(base: string, units: ServiceUnits) {
   const text = await unitText(units, launchpadUnit);
-  if (text === undefined || !text.startsWith(unitMarker)) return undefined;
-  if (!/^OnFailure=/m.test(text)) return undefined;
-  const folder = unitFolder(text);
-  if (folder === undefined) return undefined;
   // A unit of another install base is that installation's to converge.
-  if (!text.split("\n").includes(launchpadExecStart(base, folder)))
-    return undefined;
-  return folder;
+  if (text === undefined || !unitBelongsToBase(text, base)) return undefined;
+  if (!/^OnFailure=/m.test(text)) return undefined;
+  return unitFolder(text);
 }
 
 /** The `ExecStart=` line v0.1.x wrote into the rollback unit of `base`. */

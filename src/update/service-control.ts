@@ -1,20 +1,27 @@
 import { readFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { type UpdateError, updateError, updateErrorCodes } from "./errors";
+import {
+  type UpdateError,
+  UpdateFailure,
+  updateError,
+  updateErrorCodes,
+} from "./errors";
 import { layout } from "./layout";
 import { type ProcessRunner, runProcess } from "./self-check";
 
 /** The part of the OS service manager an activation needs, and nothing more
  * (docs/update.md "State on disk", "Activation"). A supervised installation is
  * one whose systemd user unit `lazurio-launchpad.service` was written by
- * `lazurio install` (its marker is the proof); there is no other supervisor and
- * no recorded setting.
+ * `lazurio install` FOR THIS BASE (its marker and this base's exact
+ * `ExecStart=` are the proof, `unitBelongsToBase`); there is no other
+ * supervisor and no recorded setting.
  */
 export const launchpadUnit = "lazurio-launchpad.service";
 /** First line of every unit `lazurio install` writes. A unit of the same name
  * without it belongs to someone else (a Machines resident runtime, a person):
  * the installation is then NOT supervised, the switch is the commit, and that
- * unit is never restarted or rewritten. */
+ * unit is never restarted or rewritten. The same holds for a marked unit of
+ * another install base. */
 export const unitMarker =
   "# Written by `lazurio install`; rewritten by it, so edit a drop-in instead.";
 /** The transient unit the Launchpad action starts `lazurio update` in, so the
@@ -234,6 +241,52 @@ export function unitFolder(unitText: string): string | undefined {
   return folder !== undefined && isAbsolute(folder) ? folder : undefined;
 }
 
+/** One argument of an `ExecStart=` line. systemd splits on whitespace, expands
+ * `%` specifiers and `$` variables and understands C-style escapes inside
+ * double quotes; a path must survive all of that unchanged.
+ */
+export function systemdQuote(argument: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
+  if (argument === "" || /[\u0000-\u001f\u007f]/.test(argument))
+    throw new UpdateFailure("storage-unavailable", { stage: "unit-argument" });
+  if (/^[A-Za-z0-9_@/.:=+-]+$/.test(argument)) return argument;
+  return `"${argument
+    .replaceAll("\\", "\\\\")
+    .replaceAll('"', '\\"')
+    .replaceAll("%", "%%")
+    .replaceAll("$", "$$$$")}"`;
+}
+
+/** The one line that says which installation and Folder a unit serves. */
+export const launchpadExecStart = (base: string, folder: string) =>
+  `ExecStart=${[
+    layout(base).selector,
+    "launchpad",
+    "--base",
+    base,
+    "--folder",
+    folder,
+  ]
+    .map(systemdQuote)
+    .join(" ")}`;
+
+/** Whether a unit is the installer's Launchpad unit of THIS install base: the
+ * marker on its first line AND an `ExecStart=` that is exactly this base's
+ * line for the Folder the unit records. A marked unit of another base is that
+ * installation's; an unmarked one is someone else's. Either way it is neither
+ * this base's supervisor nor this base's to rewrite. */
+export function unitBelongsToBase(unitText: string, base: string): boolean {
+  if (!unitText.startsWith(unitMarker)) return false;
+  const folder = unitFolder(unitText);
+  if (folder === undefined) return false;
+  try {
+    return unitText.split("\n").includes(launchpadExecStart(base, folder));
+  } catch {
+    // A Folder no ExecStart can carry was never written by the installer.
+    return false;
+  }
+}
+
 /** Null when this installation is not supervised. */
 export async function detectServiceControl(input: {
   base: string;
@@ -246,7 +299,9 @@ export async function detectServiceControl(input: {
   const unitText = await readFile(join(directory, launchpadUnit), "utf8").catch(
     () => undefined,
   );
-  if (unitText === undefined || !unitText.startsWith(unitMarker)) return null;
+  // A unit of another base (or someone else's) leaves this one unsupervised.
+  if (unitText === undefined || !unitBelongsToBase(unitText, input.base))
+    return null;
   const command = { run: input.run ?? runProcess, env: input.env };
   return Object.freeze({
     folder: unitFolder(unitText),

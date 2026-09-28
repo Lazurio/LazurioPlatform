@@ -28,9 +28,12 @@ import {
 import { type ProcessRunner, runProcess } from "./self-check";
 import {
   detectServiceControl,
+  launchpadExecStart,
   launchpadUnit,
   serviceUnits,
   systemctl,
+  systemdQuote,
+  unitBelongsToBase,
   unitMarker,
   userUnitDirectory,
 } from "./service-control";
@@ -65,37 +68,7 @@ import { compareVersions } from "./version";
  * when it is missing or Lazurio's own (`path-entry.ts`).
  */
 
-/** One argument of an `ExecStart=` line. systemd splits on whitespace, expands
- * `%` specifiers and `$` variables and understands C-style escapes inside
- * double quotes; a path must survive all of that unchanged.
- */
-export function systemdQuote(argument: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-  if (argument === "" || /[\u0000-\u001f\u007f]/.test(argument))
-    throw new UpdateFailure("storage-unavailable", { stage: "unit-argument" });
-  if (/^[A-Za-z0-9_@/.:=+-]+$/.test(argument)) return argument;
-  return `"${argument
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replaceAll("%", "%%")
-    .replaceAll("$", "$$$$")}"`;
-}
-
-export { unitMarker };
-
-const execStart = (command: readonly string[]) =>
-  `ExecStart=${command.map(systemdQuote).join(" ")}`;
-
-/** The one line that says which installation and Folder a unit serves. */
-export const launchpadExecStart = (base: string, folder: string) =>
-  execStart([
-    layout(base).selector,
-    "launchpad",
-    "--base",
-    base,
-    "--folder",
-    folder,
-  ]);
+export { launchpadExecStart, systemdQuote, unitMarker };
 
 /** The PATH of the Launchpad and of everything it starts: the operator's
  * standard tool path first (decision F17 addendum 2026-09-28, docs/
@@ -194,17 +167,33 @@ export type InstallResult =
 
 const canonical = (path: string) => isAbsolute(path) && resolve(path) === path;
 
-async function writeUnit(directory: string, name: string, text: string) {
-  const file = join(directory, name);
-  const existing = await readFile(file, "utf8").catch(() => undefined);
-  if (existing === text) return;
-  // A unit of this name that we did not write is someone else's decision.
-  if (existing !== undefined && !existing.startsWith(unitMarker))
+/** The Launchpad unit already in `directory`, refused unless it is this
+ * base's own (`unitBelongsToBase`): an unmarked unit is someone else's
+ * decision, a marked unit of another base is that installation's. Its text,
+ * or undefined when there is none. */
+async function ownUnitOrNone(
+  directory: string,
+  base: string,
+): Promise<string | undefined> {
+  const existing = await readFile(join(directory, launchpadUnit), "utf8").catch(
+    () => undefined,
+  );
+  if (existing !== undefined && !unitBelongsToBase(existing, base))
     throw new UpdateFailure("storage-unavailable", {
       stage: "unit",
       reason: "foreign-unit",
     });
-  await writeDurableFile(directory, name, Buffer.from(text));
+  return existing;
+}
+
+async function writeLaunchpadUnit(
+  directory: string,
+  base: string,
+  text: string,
+) {
+  // Asked again at the write: the unit may have changed since the refusal.
+  if ((await ownUnitOrNone(directory, base)) === text) return;
+  await writeDurableFile(directory, launchpadUnit, Buffer.from(text));
 }
 
 export async function performInstall(
@@ -295,9 +284,11 @@ async function install(input: InstallInput): Promise<InstallResult> {
     throw new UpdateFailure("target-unsupported", { service: "systemd-user" });
   if (service && !canonical(service.folder))
     throw new UpdateFailure("storage-unavailable", { stage: "folder" });
-  const units = service
-    ? ([[launchpadUnit, renderLaunchpadUnit(base, service.folder)]] as const)
-    : [];
+  const unit = service ? renderLaunchpadUnit(base, service.folder) : undefined;
+  // A Launchpad unit that is not this base's is refused before the selector
+  // or anything else changes.
+  if (service && unitDirectory !== undefined)
+    await ownUnitOrNone(unitDirectory, base);
   // The downloaded way in proves its release before the first write.
   const verified = input.release
     ? await verifyOwnRelease(input, input.release)
@@ -329,8 +320,8 @@ async function install(input: InstallInput): Promise<InstallResult> {
   const outcome = await withUpdateLock(base, 0, async () => {
     const paths = layout(base);
     try {
-      // The supervisor is the installer-written unit if there is one; a
-      // foreign unit is nobody's.
+      // The supervisor is the installer-written unit of THIS base if there is
+      // one; a foreign unit, or one of another base, is not ours.
       const control = await detectServiceControl({
         base,
         platform: input.platform,
@@ -428,13 +419,12 @@ async function install(input: InstallInput): Promise<InstallResult> {
   });
   const active = outcome.active;
 
-  if (service && unitDirectory !== undefined) {
+  if (unit !== undefined && unitDirectory !== undefined) {
     const command = { run: input.run ?? runProcess, env: input.env };
     try {
       // The user's own directories are created, never re-moded.
       await mkdir(unitDirectory, { recursive: true });
-      for (const [name, text] of units)
-        await writeUnit(unitDirectory, name, text);
+      await writeLaunchpadUnit(unitDirectory, base, unit);
     } catch (error) {
       throw storageFailure(error, "unit");
     }

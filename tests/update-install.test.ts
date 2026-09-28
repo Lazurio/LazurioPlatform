@@ -225,6 +225,106 @@ test("install --service writes the one Launchpad unit that always restarts and n
   ).toBeNull();
 });
 
+test("the Launchpad unit belongs to the base whose exact ExecStart it carries: another base neither detects it as its supervisor nor rewrites it", async () => {
+  const { input, commands } = await scene();
+  const a = input.base;
+  const b = join(root, "data", "other");
+  const folderA = join(root, "Lazurio A");
+  const folderB = join(root, "Lazurio B");
+  const units = join(root, "config/systemd/user");
+  const detect = (base: string) =>
+    detectServiceControl({
+      base,
+      platform: "linux",
+      env: input.env,
+      run: input.run,
+    });
+  expect(
+    await performInstall({ ...input, service: { folder: folderA } }),
+  ).toMatchObject({ kind: "installed", serviceInstalled: true });
+  const unitA = await readFile(join(units, launchpadUnit), "utf8");
+  expect((await detect(a))?.folder).toBe(folderA);
+
+  // A's marked unit is not B's supervisor: B is unsupervised.
+  expect(await detect(b)).toBeNull();
+  commands.length = 0;
+  // Installing B with its service is refused before B's selector exists …
+  expect(
+    await performInstall({ ...input, base: b, service: { folder: folderB } }),
+  ).toMatchObject({
+    kind: "error",
+    code: "storage-unavailable",
+    context: { stage: "unit", reason: "foreign-unit" },
+  });
+  expect(await readSelector(b)).toBeNull();
+  // … B without a service installs, and touches nothing of A's …
+  expect(await performInstall({ ...input, base: b })).toMatchObject({
+    kind: "installed",
+    active: "1.0.0",
+  });
+  // … the offline update of B with its service is refused before B's selector
+  // changes …
+  await writeFile(input.executable, executable("2.0.0"));
+  const newer = {
+    ...input,
+    base: b,
+    identity: {
+      ...input.identity,
+      version: "2.0.0",
+      commit: commitOf("2.0.0"),
+    },
+  };
+  expect(
+    await performInstall({ ...newer, service: { folder: folderB } }),
+  ).toMatchObject({
+    code: "storage-unavailable",
+    context: { reason: "foreign-unit" },
+  });
+  expect(await readSelector(b)).toBe("1.0.0");
+  // … and without it B is updated unsupervised: A's Launchpad is neither
+  // probed nor restarted.
+  expect(await performInstall(newer)).toMatchObject({
+    kind: "updated",
+    from: "1.0.0",
+    to: "2.0.0",
+    restartRequired: true,
+  });
+  expect(commands).toEqual([]);
+  expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(unitA);
+  expect((await detect(a))?.folder).toBe(folderA);
+
+  // B's own marked unit is still B's: detected, and rewritten for another
+  // Folder — and then it is not A's.
+  await rm(join(units, launchpadUnit));
+  expect(
+    await performInstall({ ...newer, service: { folder: folderA } }),
+  ).toMatchObject({ kind: "installed", serviceInstalled: true });
+  expect((await detect(b))?.folder).toBe(folderA);
+  expect(
+    await performInstall({ ...newer, service: { folder: folderB } }),
+  ).toMatchObject({ kind: "installed", serviceInstalled: true });
+  expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(
+    renderLaunchpadUnit(b, folderB),
+  );
+  expect((await detect(b))?.folder).toBe(folderB);
+  expect(await detect(a)).toBeNull();
+
+  // An unmarked unit (a Machines resident runtime) is neither base's.
+  const resident = `[Service]\nExecStart=${a}/bin/lazurio launchpad --base ${a} --folder ${folderA}\n\n[X-Lazurio]\nFolder=${folderA}\n`;
+  await writeFile(join(units, launchpadUnit), resident);
+  expect(await detect(a)).toBeNull();
+  expect(await detect(b)).toBeNull();
+  for (const [base, folder] of [
+    [a, folderA],
+    [b, folderB],
+  ] as const)
+    expect(
+      await performInstall({ ...newer, base, service: { folder } }),
+    ).toMatchObject({ context: { reason: "foreign-unit" } });
+  expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(resident);
+  expect(await readSelector(a)).toBe("1.0.0");
+});
+
 test("a service is refused where there is no systemd user manager, and when it refuses", async () => {
   const { input } = await scene();
   const folder = join(root, "Lazurio");
