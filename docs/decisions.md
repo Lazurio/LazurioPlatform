@@ -191,7 +191,7 @@ have different transactions and compatibility checks. See [recovery](migration-a
 | Decisions 0091, 0092, 0094 and Machine architecture | Clarify private versus team hosted use, infrastructure ownership and custodian recovery | Personalspace remains private, Buddy not Principal, AI Colleague own identity, parent operator boundary explicit |
 | Decision 0129 (F9) | **Required upstream amendment.** Product upgrade uses artifacts and is a separate operation from content synchronization. Content synchronization keeps 0129's hierarchy, atomic materialization, fast-forward-only rule, sibling quarantine and exclusions, but dirty or wrong-branch checkouts **block** instead of being stashed and switched to `main` | No product updater scanning/rewriting repositories; no reset or auto-merge; Source update retired by cohort; an explicit separate preservation operation replaces the implicit stash |
 | Decision 0144 and the Machine identity schema (F10) | **Conditional upstream amendment.** Only if preset provenance must appear in `lazurio.machine.json`: add the field upstream in the hosting engine, then re-pin and conformance-test here | Identity stays descriptive and grants nothing; nothing is derived from names; `account` stays `null` until its contract exists |
-| Decision 0145 (F12) | No amendment to the decision; Platform needs the upstream finalization readiness to expose a trusted, live-verifiable identity continuity proof before canonical-only roots become executable | Transition-only admission stays the interim gate; no fallback to the deprecated projection; no second schema |
+| Decision 0145 (F12) | No amendment to the decision. **Admission superseded 2026-09-28** (Principal, question H1, decision F22 point 1): canonical-only `current` roots execute now (variant B), without waiting for an upstream identity continuity proof; the proof requirement F12 stated is historical | Transition-only admission is retired, variant A kept one line away for the record; no fallback to the deprecated projection; no second schema; `legacy`, `projection_drift`, `conflict`, `missing` and templates still refuse |
 | Decision 0146 (F11) | No amendment: Platform consumes the per-application hostname, catalog and session model through a hosted request adapter | Gateway authenticates; forwarded identity headers are not trusted; unknown hosts refused |
 | Decisions 0134, 0140 | Installed executable carries its runtime; development/module toolchain checks remain capability-specific | No automatic machine-wide PATH/tool upgrades; packaging does not claim third-party app dependencies bundled |
 | Decision 0142 | Lazurio Folder Factory composes purpose, behavior and locale from versioned inputs | Organization language ownership and stable locale-neutral reason codes preserved |
@@ -553,6 +553,21 @@ Dashboard. The loopback protocol gets an explicit hosted request adapter as requ
 work. Contract: [hosted entry](hosted-entry.md).
 
 ## F12 — Canonical-only Organizations and a deliberately narrow first delivery
+
+**Addendum 2026-09-28 (Principal, question H1 of the Launchpad parity shaping,
+decision F22 point 1): the admission gate below is superseded.** The interim
+transition-only gate ends without the upstream identity continuity proof: no owner of
+that proof was named, and a canonical-only Organization would otherwise lose its
+applications when the Platform Launchpad replaces the resident one. Implemented:
+`isExecutableOrganizationState` in `src/organizations/root-resolution.ts` runs
+variant B, so `transition` and `current` execute and `legacy`, `projection_drift`,
+`conflict`, `missing`, templates and unresolvable roots refuse; variant A stays one
+line away for the record. The exclusions stand: no fallback to the projection, no
+second schema, no local finalization marker. The narrow first delivery in the second
+paragraph is not affected by this addendum.
+
+*Historical text of F12 as accepted on 2026-09-19; its first paragraph (admission and
+exit criterion) is superseded by the addendum above.*
 
 **Accepted direction (2026-09-19), not implemented.** Canonical-only Organizations are
 the target normal case. Admitting only parity-valid `transition` roots is an interim

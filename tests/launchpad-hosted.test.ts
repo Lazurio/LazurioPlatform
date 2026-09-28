@@ -78,6 +78,27 @@ test.skipIf(process.platform === "win32")(
       expect(
         (await fetch(`${base}/settings/tools`, { headers: { host } })).status,
       ).toBe(401);
+      // So is a catalog route, and the catalog is read behind the same
+      // admission as every other route.
+      expect(
+        await (await fetch(`${base}/o/alpha/web`, { headers: valid })).text(),
+      ).toBe(shell);
+      expect(
+        (await fetch(`${base}/o/alpha/web`, { headers: { host } })).status,
+      ).toBe(401);
+      expect(
+        (
+          await fetch(`${base}/api/catalog`, {
+            method: "POST",
+            headers: {
+              host,
+              "content-type": "application/json",
+              origin: entry.externalOrigin,
+            },
+            body: "{}",
+          })
+        ).status,
+      ).toBe(401);
       // Wrong Host is not this Machine's entry; forged identity is not evidence.
       expect(
         (
@@ -117,6 +138,23 @@ test.skipIf(process.platform === "win32")(
       };
       expect(body.revision).toBe(1);
       expect(body.machine.name).toBe(bindings.organization.name);
+      // Admitted, the catalog of the hosted Folder: its organizations/ is
+      // empty here.
+      const catalog = await fetch(`${base}/api/catalog`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...valid,
+          origin: entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+        },
+        body: "{}",
+      });
+      expect(catalog.status).toBe(200);
+      expect(await catalog.json()).toEqual({
+        kind: "catalog",
+        organizations: [],
+      });
       // No bearer token exists in hosted mode: a stray one changes nothing.
       expect(
         (

@@ -10,12 +10,6 @@ const capitalized = (text: string) =>
   `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
 
 const en = {
-  appDiscover: "Read declared applications",
-  appDiscovered: "Observed application",
-  appDiscoveryNotice:
-    "Local declarations only, not access or readiness. Conflicts and unavailable modules are shown below.",
-  appDiscoveryUnavailable:
-    "Application discovery is unavailable. Configure a permitted canonical Organization in the CLI; no legacy fallback is used.",
   appPrepare: "Prepare dependencies",
   appCleanPrepare: "Reinstall dependencies (remove node_modules)",
   appPrepared:
@@ -44,13 +38,6 @@ const en = {
     "Declared health checks passed. This application keeps running when the Launchpad restarts; it does not survive a reboot. Verify the application's function after opening it.",
   appEnded:
     "The application is no longer running; its owner reports it ended. Inspect the result, then start it again or stop it to clear the record.",
-  appsTitle: "Application",
-  appsNotice:
-    "Explicit development selection. The server must authorize the declared application.",
-  appSelection: "Declared application",
-  appCompany: "Organization",
-  appModule: "Module",
-  appPackage: "Package",
   appStart: "Start",
   appStatus: "Status",
   appOpen: "Get application link",
@@ -363,6 +350,60 @@ const en = {
     "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
+  catalogNavigation: "Organizations",
+  catalogBreadcrumb: "Where you are in the Launchpad",
+  catalogIntro:
+    "The Organizations and modules of this Folder, read from its organizations/ directory each time. Starting and opening modules comes with the next release.",
+  catalogRefresh: "Refresh",
+  catalogLoading: "Reading Organizations…",
+  catalogLoadFailed:
+    "The Organizations could not be read. Try Refresh; if it keeps failing, run lazurio organization list in the CLI.",
+  catalogEmpty:
+    "No Organizations in this Folder. An Organization appears here once its repository is in organizations/.",
+  catalogNotFound:
+    "This Organization or module is not in this Folder. It may have been renamed or removed; see all Organizations.",
+  catalogAll: "All Organizations",
+  catalogModules: "Modules",
+  catalogNoModules: "This Organization declares no workspace modules.",
+  catalogOtherModules: "Other modules",
+  catalogOrganization: "Organization",
+  catalogDirectory: "Directory",
+  catalogState: "Resolution state",
+  catalogIssues: "Issues",
+  catalogTeams: "Teams",
+  catalogTeamSource: "Team membership",
+  catalogLegacyTeamAlias:
+    "Read from the legacy alias workspaces/workspace for compatibility; the canonical form is module_slots[].teams.",
+  catalogApps: "Apps",
+  catalogDefaultApp: "Default app",
+  catalogDefaultMark: "default",
+  catalogPath: "Path",
+  catalogStatus: "Can it run",
+  catalogNone: "none",
+  catalogReady: "Can run",
+  catalogReadyNamed: "{name}: can run",
+  catalogBlockedNamed: "{name}: cannot run",
+  catalogReasonCanonical:
+    "No canonical lazurio.organization.json: the Organization cannot be read.",
+  catalogReasonConflict:
+    "The Organization's documents conflict or cannot be read.",
+  catalogReasonNotExecutable:
+    "This Organization's resolution state does not allow its modules to run.",
+  catalogReasonTemplate: "A template Organization; templates never run.",
+  catalogReasonChanged:
+    "The Organization changed while it was being read. Refresh.",
+  catalogReasonUnavailable:
+    "The directory cannot be read: it must be a real directory owned by you and not writable by others.",
+  catalogReasonDuplicate:
+    "Another directory in this Folder declares the same Organization.",
+  catalogReasonDeclaration:
+    "The module's declaration in modules.manifest.json conflicts with another.",
+  catalogReasonModuleUnavailable:
+    "The module's checkout or its lazurio.module.json cannot be read.",
+  catalogReasonExplicitApps: "lazurio.module.json does not list its apps.",
+  catalogReasonNoApp: "The module has no app to run.",
+  catalogReasonDefaultApp:
+    "The default app's runtime declaration is missing or invalid.",
   settingsTitle: "Settings",
   settingsGeneral: "General",
   settingsBack: "Back",
@@ -382,7 +423,6 @@ const en = {
   toolsDetails: "Details",
   toolsDetailsNamed: "Details of {name}",
   toolsPathLabel: "Found at",
-  notice: "Development fixture only. No Lazurio installation or migration.",
   legend: "Machine profile",
   machineTitle: "This Machine",
   machineNotice:
@@ -427,12 +467,6 @@ const en = {
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
-  appDiscover: "Načíst deklarované aplikace",
-  appDiscovered: "Nalezená aplikace",
-  appDiscoveryNotice:
-    "Pouze lokální deklarace, ne oprávnění ani připravenost. Konflikty a nedostupné moduly jsou uvedeny níže.",
-  appDiscoveryUnavailable:
-    "Aplikace nelze načíst. V CLI vyberte povolenou kanonickou organizaci; starý formát se jako náhrada nepoužívá.",
   appPrepare: "Připravit závislosti",
   appCleanPrepare: "Přeinstalovat závislosti (odstranit node_modules)",
   appPrepared:
@@ -461,13 +495,6 @@ const cs: Record<MessageKey, string> = {
     "Deklarované zdravotní kontroly prošly. Tato aplikace běží dál i při restartu Launchpadu; restart počítače nepřežije. Po otevření ověřte funkci aplikace.",
   appEnded:
     "Aplikace už neběží; její vlastník hlásí, že skončila. Prohlédněte výsledek a pak ji znovu spusťte, nebo ji zastavte a záznam tím uvolněte.",
-  appsTitle: "Aplikace",
-  appsNotice:
-    "Výslovný vývojový výběr. Server musí povolit práci s deklarovanou aplikací.",
-  appSelection: "Deklarovaná aplikace",
-  appCompany: "Organizace",
-  appModule: "Modul",
-  appPackage: "Package",
   appStart: "Spustit",
   appStatus: "Stav",
   appOpen: "Získat odkaz aplikace",
@@ -779,6 +806,60 @@ const cs: Record<MessageKey, string> = {
     "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
+  catalogNavigation: "Organizace",
+  catalogBreadcrumb: "Kde v Launchpadu jste",
+  catalogIntro:
+    "Organizace a moduly tohoto Folderu, pokaždé znovu načtené z jeho složky organizations/. Spouštění a otevírání modulů přijde s dalším vydáním.",
+  catalogRefresh: "Načíst znovu",
+  catalogLoading: "Načítám Organizace…",
+  catalogLoadFailed:
+    "Organizace nelze načíst. Zkuste Načíst znovu; když to nepomůže, spusťte v CLI lazurio organization list.",
+  catalogEmpty:
+    "V tomhle Folderu nejsou žádné Organizace. Organizace se tu objeví, jakmile je její repozitář v organizations/.",
+  catalogNotFound:
+    "Tahle Organizace nebo modul v tomhle Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
+  catalogAll: "Všechny Organizace",
+  catalogModules: "Moduly",
+  catalogNoModules: "Tahle Organizace nedeklaruje žádné moduly workspace.",
+  catalogOtherModules: "Ostatní moduly",
+  catalogOrganization: "Organizace",
+  catalogDirectory: "Složka",
+  catalogState: "Stav rozlišení",
+  catalogIssues: "Problémy",
+  catalogTeams: "Teamy",
+  catalogTeamSource: "Členství v Teamech",
+  catalogLegacyTeamAlias:
+    "Kvůli kompatibilitě načteno z legacy aliasu workspaces/workspace; kanonická podoba je module_slots[].teams.",
+  catalogApps: "Aplikace",
+  catalogDefaultApp: "Výchozí aplikace",
+  catalogDefaultMark: "výchozí",
+  catalogPath: "Cesta",
+  catalogStatus: "Lze spustit",
+  catalogNone: "žádné",
+  catalogReady: "Lze spustit",
+  catalogReadyNamed: "{name}: lze spustit",
+  catalogBlockedNamed: "{name}: nelze spustit",
+  catalogReasonCanonical:
+    "Chybí kanonický lazurio.organization.json: Organizaci nelze načíst.",
+  catalogReasonConflict:
+    "Dokumenty Organizace si odporují nebo je nelze přečíst.",
+  catalogReasonNotExecutable:
+    "Stav rozlišení této Organizace nedovoluje spouštět její moduly.",
+  catalogReasonTemplate: "Šablona Organizace; šablony se nikdy nespouštějí.",
+  catalogReasonChanged: "Organizace se během čtení změnila. Načtěte znovu.",
+  catalogReasonUnavailable:
+    "Složku nelze přečíst: musí to být skutečná složka, kterou vlastníte a do které ostatní nemohou zapisovat.",
+  catalogReasonDuplicate:
+    "Jiná složka v tomhle Folderu deklaruje stejnou Organizaci.",
+  catalogReasonDeclaration:
+    "Deklarace modulu v modules.manifest.json je v konfliktu s jinou.",
+  catalogReasonModuleUnavailable:
+    "Checkout modulu nebo jeho lazurio.module.json nelze přečíst.",
+  catalogReasonExplicitApps:
+    "lazurio.module.json neuvádí seznam svých aplikací.",
+  catalogReasonNoApp: "Modul nemá žádnou aplikaci ke spuštění.",
+  catalogReasonDefaultApp:
+    "Deklarace běhu výchozí aplikace chybí nebo je neplatná.",
   settingsTitle: "Nastavení",
   settingsGeneral: "Obecné",
   settingsBack: "Zpět",
@@ -798,8 +879,6 @@ const cs: Record<MessageKey, string> = {
   toolsDetails: "Podrobnosti",
   toolsDetailsNamed: "Podrobnosti o {name}",
   toolsPathLabel: "Umístění",
-  notice:
-    "Pouze vývojová testovací složka. Nejde o instalaci Lazuria ani migraci.",
   legend: "Profil mašiny",
   machineTitle: "Tahle Mašina",
   machineNotice:
