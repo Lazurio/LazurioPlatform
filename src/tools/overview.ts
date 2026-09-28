@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { withFolderOperationLock } from "../folder/lock";
+import { withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
 import { hostedEnvironment, sharedEnvironment } from "../folder/render";
@@ -82,7 +82,7 @@ export async function toolsOverview(
 ): Promise<ToolsOverview> {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
-  const recorded = await withFolderOperationLock(stateDirectory, async () => {
+  const recorded = await withFolderReadLock(stateDirectory, async () => {
     const { preferences } = await readFolderState(stateDirectory);
     return {
       revision: preferences.revision,
@@ -151,7 +151,11 @@ export async function toolsOverview(
           : { standardPath: live.standardPath }),
         ...(signIn === undefined ? {} : { signIn }),
         ...(note === undefined ? {} : { note }),
-        prompt: toolPrompt(entry.name, locale) ?? "",
+        // On a Team Environment gh's prompt signs nobody in.
+        prompt:
+          toolPrompt(entry.name, locale, {
+            team: recorded.sharedEnvironment,
+          }) ?? "",
       };
     }),
     mcpPrompt: mcpServerPrompt(locale),
