@@ -25,12 +25,12 @@ export const organizationRootStates = Object.freeze([
 export type OrganizationRootState = (typeof organizationRootStates)[number];
 
 // Execution admission policy, the rule in ONE place. Which resolved states may
-// run applications is the open question H1 of the Launchpad parity shaping
-// (proposed decision F22 point 1), pending the Principal's answer:
-// - "transition-only" (variant A, decision F12 as accepted): only parity-valid
-//   `transition` executes; a canonical-only `current` root stays readable until
-//   upstream defines a live-verifiable identity continuity proof.
-// - "transition-and-current" (variant B, recommended): `current` executes too.
+// run applications was question H1 of the Launchpad parity shaping, decided by
+// the Principal on 2026-09-28 (decision F22 point 1): variant B.
+// - "transition-only" (variant A, decision F12 as accepted, kept for the
+//   record): only parity-valid `transition` executes; a canonical-only
+//   `current` root stays readable.
+// - "transition-and-current" (variant B, in force): `current` executes too.
 //   The checkout exists because GitHub allowed the clone, and the projection
 //   gate was migration machinery.
 // `legacy` (only the deprecated projection), `projection_drift`, `conflict` and

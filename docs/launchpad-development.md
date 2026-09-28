@@ -151,9 +151,8 @@ with their source `teamsSource`, the root state and `executable`, or a typed `re
 (`organization-not-executable`, `declaration-conflict`, `module-unavailable`,
 `explicit-apps-required`, `no-app`, `default-app-invalid`). Executable means the
 declarations admit a start of the default app under the one admission rule of the
-[organization contract](organization-contract.md) (variant B by default: a
-canonical-only `current` Organization runs, proposed and pending the Principal's
-answer to H1); it is not readiness, provider permission or a lease. A malformed
+[organization contract](organization-contract.md) (variant B, decided 2026-09-28 on
+question H1: a canonical-only `current` Organization runs); it is not readiness, provider permission or a lease. A malformed
 Team membership is reported as `teams-invalid` on the module and never blocks it.
 
 **Teams.** The canonical form is `module_slots[].teams`. The catalog resolves membership

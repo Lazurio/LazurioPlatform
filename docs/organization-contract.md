@@ -50,11 +50,10 @@ interim implementation of the same compatibility-state table, not a second schem
   **transition-only** (variant A, F12 as accepted: only parity-valid `transition`
   executes, a canonical-only `current` root is observable and inspection-only) and
   **transition-and-current** (variant B: `current` executes as well). The default is
-  **variant B, proposed and pending the Principal's answer** (question H1 of the
-  Launchpad parity shaping, proposed decision F22 point 1): the checkout exists
-  because GitHub allowed the clone, and the projection gate was migration machinery.
-  Should the Principal keep F12, the constant flips back to variant A in one line;
-  tests cover both variants. Under either variant `legacy`, `projection_drift`,
+  **variant B, decided by the Principal on 2026-09-28** (question H1 of the
+  Launchpad parity shaping, decision F22 point 1): the checkout exists because
+  GitHub allowed the clone, and the projection gate was migration machinery.
+  Variant A stays one line away for the record and tests cover both variants. Under either variant `legacy`, `projection_drift`,
   `conflict`, `missing`, a template and an unresolvable root refuse before
   descendant inspection, the owner lock, preparation, script start or any write.
   Every present document is normalized with the upstream issue codes (slot path
@@ -74,13 +73,12 @@ interim implementation of the same compatibility-state table, not a second schem
 ## Exit from transition-only admission
 
 Accepted direction (2026-09-19, [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)).
-**Proposed change, pending the Principal's answer (2026-09-28):** the Launchpad
-parity shaping recommends ending the interim gate now (question H1, proposed
-decision F22 point 1), because no owner of the identity continuity proof is named
-and a canonical-only Organization would otherwise lose its applications when the
-Platform Launchpad replaces the resident one. The implementation defaults to that
-recommendation (variant B above) and keeps variant A one line away; the text below
-is F12 as accepted and stays the record until the Principal decides. **Canonical-only Organizations are the target normal case.** Upstream
+**Decided 2026-09-28 (question H1 of the Launchpad parity shaping, decision F22
+point 1):** the interim gate ends now. No owner of the identity continuity proof is
+named, and a canonical-only Organization would otherwise lose its applications when
+the Platform Launchpad replaces the resident one. The implementation runs variant B
+above and keeps variant A one line away for the record; the text below is F12 as
+accepted and stays as history of the gate. **Canonical-only Organizations are the target normal case.** Upstream
 decision 0145 deprecates the legacy projection and makes `current` the end state of
 every Organization. Admitting only parity-valid `transition` roots, as described above,
 is an **interim gate** tied to upstream finalization readiness. It is not a product
