@@ -390,9 +390,8 @@ export function createToolsPanel(
         if (current.challenge !== "linking") {
           current.challenge = "linking";
           current.qr = null;
-          loginBody.replaceChildren(
-            element("p", "tools-muted", copy.toolsLoginLinking),
-          );
+          // The status line carries the sentence; the body stays empty.
+          loginBody.replaceChildren();
         }
         phase("linking", copy.toolsLoginLinking);
       } else {
