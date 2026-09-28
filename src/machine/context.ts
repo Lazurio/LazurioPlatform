@@ -42,6 +42,19 @@ export type MachineRelationships<Zone extends MachineZone = MachineZone> =
 export type OrganizationAssignment =
   | Readonly<{ kind: "operator"; github_login: string; github_id: number }>
   | Readonly<{ kind: "team" }>;
+// How the Machine is entered through its workspace gateway, rendered by
+// Machines from the same route catalog as the gateway (Machines 0.12.93).
+// Optional and closed on both branches; finished values, never a convention.
+export type MachineEntry = Readonly<{
+  launchpad: Readonly<{
+    external_origin: string;
+    auth_check_url: string;
+    auth_cookie_name: string;
+    listen_port: number;
+  }>;
+  t3code: Readonly<{ external_origin: string }>;
+  modules: Readonly<{ origin_template: string }>;
+}>;
 type MachineInstalled = Readonly<{
   machines_release: Readonly<{
     repository: string;
@@ -75,6 +88,7 @@ export type OrganizationWorkspaceContext = Readonly<{
   }>;
   network?: MachineNetwork;
   relationships?: MachineRelationships<"work">;
+  entry?: MachineEntry;
   installed: MachineInstalled;
   account: null;
 }>;
@@ -100,6 +114,7 @@ export type PersonalMachineContext = Readonly<{
   }>;
   network: MachineNetwork;
   relationships?: MachineRelationships<"personal">;
+  entry?: MachineEntry;
   installed: MachineInstalled;
   account: null;
 }>;

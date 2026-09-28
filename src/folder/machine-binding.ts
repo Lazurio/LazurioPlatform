@@ -1,3 +1,7 @@
+import {
+  isHttpsOrigin,
+  isModuleOriginTemplate,
+} from "../launchpad/hosted-entry";
 import { type HostedEntry, parseHostedEntry } from "../launchpad/hosted-trust";
 import { ownDataValue, stateFields } from "./state-fields";
 
@@ -47,6 +51,15 @@ export type MachineRelationships = Readonly<{
   peers: readonly MachinePeer[];
 }>;
 
+// The hosted entry of this Machine (decision F16), projected from the
+// handover's `entry` (Machines 0.12.93) one member to one: the Launchpad's four
+// values that hosted admission reads (`entry.launchpad`), T3 Code's origin
+// (`entry.t3code.external_origin`) and the module origin rule
+// (`entry.modules.origin_template`). Finished values from the same rendering as
+// the gateway; declaration, not identity.
+export type MachineEntry = HostedEntry &
+  Readonly<{ t3codeOrigin: string; moduleOriginTemplate: string }>;
+
 export type MachineBinding = Readonly<{
   contextDigest: string;
   kind: "personal-vm" | "workspace-vm";
@@ -60,7 +73,7 @@ export type MachineBinding = Readonly<{
   relationships?: MachineRelationships;
   /** The hosted entry of this Machine (decision F16): finished URLs written by
    * Machines from the same rendering as the gateway; declaration, not identity. */
-  entry?: HostedEntry;
+  entry?: MachineEntry;
 }>;
 
 // Exactly the shapes the vendored lazurio.machine.v1 schema imposes on the
@@ -234,6 +247,28 @@ function relationships(input: unknown): MachineRelationships {
   });
 }
 
+// All six members or none, each by the rule of the wire schema, as written.
+export function parseMachineEntry(input: unknown): MachineEntry {
+  const {
+    t3codeOrigin,
+    moduleOriginTemplate,
+    ...launchpad
+  }: Record<string, unknown> = stateFields(input, [
+    "externalOrigin",
+    "authCheckUrl",
+    "authCookieName",
+    "listenPort",
+    "t3codeOrigin",
+    "moduleOriginTemplate",
+  ]);
+  const hosted = parseHostedEntry(launchpad);
+  if (!isHttpsOrigin(t3codeOrigin))
+    throw new Error("Invalid hosted entry T3 Code origin");
+  if (!isModuleOriginTemplate(moduleOriginTemplate))
+    throw new Error("Invalid hosted entry module origin template");
+  return Object.freeze({ ...hosted, t3codeOrigin, moduleOriginTemplate });
+}
+
 export function parseMachineBinding(input: unknown): MachineBinding | null {
   if (input === null) return null;
   const withRelationships = ownDataValue(input, "relationships") !== undefined;
@@ -278,7 +313,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
       tailnet === null ? null : Object.freeze({ headscaleHostname: tailnet }),
     host: Object.freeze({ kind: host.kind, id: host.id }),
   };
-  const entry = withEntry ? parseHostedEntry(value.entry) : undefined;
+  const entry = withEntry ? parseMachineEntry(value.entry) : undefined;
   if (!withRelationships)
     return Object.freeze(entry ? { ...binding, entry } : binding);
   const related = relationships(value.relationships);
