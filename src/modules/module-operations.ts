@@ -535,6 +535,14 @@ export function createModuleOperations(input: {
     });
   }
 
+  // Seams of later slices, deliberately not built here:
+  // - P6, the gateway `ensure` (launchpad-parity B5): a navigation to a
+  //   module's hostname starts its default app through `start` and reports
+  //   through `status`; the route lives in the Launchpad, not in this core.
+  // - B3 `prepare` and `open` (prepare when needed, start, wait for health,
+  //   the link) compose `lifecycle.prepare` and the same `observe`.
+  // - P9 `--source worktree:<name>` selects another checkout; until then every
+  //   verb runs the module's own checkout.
   return Object.freeze({
     /** Start the module's app (its default, or `app`) unless it runs. */
     async start(

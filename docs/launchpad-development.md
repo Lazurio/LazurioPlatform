@@ -86,7 +86,7 @@ the frame.
 | This Machine (read-only handover) | Settings → This Machine, one row per recorded fact |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
 | Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Principal 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
-| Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog, its API kept until P5 |
+| Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
 `apps/web/src/`, and the installed T3 Code 0.0.42 bundle):
@@ -209,16 +209,11 @@ The current Organization or module is `aria-current="page"`. "Refresh" is the pa
 action in the header. Below 768 px the sidebar is the same off-canvas sheet as in
 Settings, and choosing a row closes it.
 
-**What a module row shows, and what not yet.** Name, Teams, default app, and "Can run"
-or the reason in words with its code. There is no start, open, stop or logs action
-and no disabled button in its place: the module lifecycle `lazurio module
-status|prepare|start|open|stop|logs` and its page actions are the next slice (P5),
-which also retires `/api/apps/*`, `app-request` and the development flags
-`--organization-directory` and `--bun-executable`. Until then those keep working
-unchanged for their tests and `scripts/smoke-application-ui.ts`, which drives them
-over the API. `src/launchpad/catalog-view.ts` holds the pure presentation (tested in
-`tests/catalog-view.test.ts`), `src/launchpad/catalog-panel.ts` the DOM, drawn with
-`textContent` only.
+**What a module row shows.** Name, Teams, default app, and "Can run" or the reason in
+words with its code. Rows carry no action; the module's page carries its lifecycle
+([below](#module-lifecycle)). `src/launchpad/catalog-view.ts` holds the pure
+presentation (tested in `tests/catalog-view.test.ts`), `src/launchpad/catalog-panel.ts`
+the DOM, drawn with `textContent` only.
 
 **Verification 2026-09-28.** Unit and HTTP tests (`tests/organization-catalog.test.ts`,
 `tests/catalog-view.test.ts`, `tests/launchpad-routes.test.ts`, the hosted test) use a
@@ -232,6 +227,99 @@ Organization and module routes with focus on the heading, the breadcrumb, back a
 forward, a deep link with the token, an unknown route, Settings and Escape back,
 the narrow sheet, light and dark, without page errors. Screen-reader output was not
 qualified by a manual run.
+
+## Module lifecycle
+
+Slice P5 of the Launchpad parity (shaping `docs/launchpad-parity.md` B3, B4, B6; root
+decision 0167 points 1–2, command names kept from the resident). One core,
+`createModuleOperations` in `src/modules/module-operations.ts`, answers the CLI and the
+Launchpad; tests compare their outputs.
+
+**CLI first.** `lazurio module start|stop|status <Org>/<module> [--app <package>]
+[--folder <F>] [--json]` and `lazurio module logs <Org>/<module> [--lines N]` (default
+100, at most 1000). `<Org>` is selected by the catalog's one rule
+(`selectCatalogOrganization`): a slug that two directories declare is refused as
+`organization-ambiguous` with every candidate's directory, a module that cannot run is
+refused with its catalog reason (`no-app`, `default-app-invalid`,
+`organization-not-executable`, `template-not-runtime`, …), an undeclared `--app` as
+`app-unknown` and a declared one without a valid runtime as `app-not-runnable`. A
+named `--app` still runs when the module's only fault is its default app. The Folder is
+found as for `module list`. Exit status: 0 done, 2 refused, 1 the Folder could not be
+read.
+
+**What runs, and who owns it.** Start runs the module's default app (or `--app`) from
+its own declaration through the existing lifecycle (`src/modules/lifecycle.ts`), the
+runners and `localApplicationAdapters`: the declared start check, then the dev script,
+never a hostname convention. The toolchain is the operator's Bun at
+`<home>/.local/bin/bun` (B2); missing, start is refused as `toolchain-missing` before any
+effect (`--bun-executable` stays a development flag of the old panel only). On Linux with
+a reachable user manager the app is a transient systemd user unit (`systemd-user`
+runner): it survives a Launchpad restart (same `InvocationID`), ends with a reboot, and
+writes to the journal (`StandardOutput/Error=journal`); `logs` is `journalctl --user
+--unit=<unit> --lines=N --output=cat`. The app's `PATH` is the installed unit's line
+(`~/.local/bin:/usr/local/bin:/usr/bin:/bin`), so the CLI and the Launchpad start
+identical units. On macOS the app is a child of the Launchpad session (`session`
+runner), as before: the Launchpad holds one lifecycle per Organization and its apps end
+with it; the CLI, another process, answers `launchpad-required`, and `logs`
+`logs-unavailable` (session logs are the macOS line, P14). **No Folder state:** the
+running state is the service manager's or the session's; every call reads the catalog
+again. Lifecycle refusals keep their codes (`port-occupied`, `prerequisites-not-ready`,
+`coordination-busy`, `service-unrecognized`, …); a throw inside the lifecycle is
+`operation-failed` (most often a module that is not a declared self-owned Bun package).
+
+**Answer.** `{kind: "module", operation, organization, module, app, runner,
+survivesLaunchpadRestart, outcome, state, healthy, service, runtime, runtimeReason?}`;
+`outcome` is the lifecycle's own result (`started`, `already-managed`, `group-stopped`,
+`status`, `not-managed`), `state` one of `running`, `starting`, `stopping`, `ended`,
+`stopped`, `service` the unit and invocation (null for a session app). `runtime.url`,
+the name root `AGENTS.md` uses, is present only while the app reports healthy: locally
+the loopback address its owner observed; on a hosted Machine only
+`moduleOrigin(template, id)` of the recorded entry (`src/launchpad/hosted-entry.ts`), for
+the module's default app, which is what the gateway serves; never a loopback address.
+Without a recorded entry there is no link (`runtimeReason: "hosted-entry-missing"`), and
+a non-default app on a hosted Machine has none either (`hosted-app-not-default`).
+Refusals are `{kind: "blocked", operation, reason, …}`.
+
+**HTTP.** `GET /api/modules/<org>/<module>/status[?app=<package>]`, `POST
+/api/modules/<org>/<module>/start` and `…/stop` with `{}` or `{"app": "<package>"}`,
+each segment URL-encoded, behind the existing admission (the fragment token locally,
+the gateway's cookie hosted; `POST` also same-origin). The body is the CLI's `--json`
+object: 200 when done, 409 when refused.
+
+**Page.** The route `/o/<org>/<module>` of an executable module shows an "Application"
+card in the settings-row pattern: a status dot (green running and healthy, amber
+starting or not ready, red ended, grey stopped or unknown) with one sentence, who keeps
+it running ("Keeps running when the Launchpad restarts" or "Ends when this Launchpad
+ends"), why a healthy app has no link, the sentence after the last action in a polite
+live region, and on the right "Open" (a new tab, only the root of an https hostname or a
+loopback port) and the one primary action, Start or Stop. After Start the page reads the
+status once a second until the app reports healthy, about half a minute at most; the
+keyboard focus returns to the action. Pure presentation in
+`src/launchpad/module-view.ts` (tested in `tests/module-view.test.ts`), Czech and
+English.
+
+**Not in this slice.** `prepare` and `open` verbs (dependency installation stays with
+the module's own `bun install --frozen-lockfile`; `prerequisites-not-ready` says so),
+the gateway `ensure` (P6), the T3 Code chat link (P7), worktree `--source` (P9), a logs
+tail on the page, and the retirement of `/api/apps/*`, `app-request`,
+`--organization-directory` and `--bun-executable`: they keep working unchanged for their
+tests and `scripts/smoke-application-ui.ts`. The seams are marked in
+`src/modules/module-operations.ts`.
+
+**Verification 2026-09-28.** `tests/module-operations.test.ts` over the catalog's
+fixture Folder: every refusal equal from the CLI and over HTTP; the Linux path against
+the in-memory user manager (`tests/fixtures/fake-service-manager.ts`) with the compiled
+process guard running the declared start check (start from the page, CLI and HTTP
+status equal, `already-managed`, logs, a Launchpad restart keeping the invocation, stop
+from the CLI, `toolchain-missing`); the hosted link from a recorded entry and its
+absence without one; the session path with a real synthetic app, `launchpad-required`
+and `logs-unavailable` from the CLI, and the app ending with its Launchpad. The unit
+policy transition (an older unit with `null` output is `service-unrecognized`) is in
+`tests/systemd-user-runner.test.ts`. The page was driven in headless Chromium against the
+compiled executable on macOS with a temporary home and Folder: Start, the healthy
+status with Open to the loopback URL, Stop, focus on the action, and no action on a
+module that cannot run. A real systemd user manager and journal (Ubuntu 24.04) were
+**not** exercised by this slice; that is C.5.
 
 ## Tools section
 

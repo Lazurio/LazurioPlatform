@@ -36,9 +36,11 @@ catalog of the Folder ([launchpad development](launchpad-development.md#launchpa
 read from every directory in `<Folder>/organizations/` by `lazurio organization list`,
 `lazurio module list` and `POST /api/catalog`; the panel's discovery and selection form
 is gone from the page. `POST /api/apps/discover`, the application operations
-`/api/apps/*` and `app-request` described here are unchanged and stay until the
-module lifecycle `lazurio module …` (P5) retires them; `scripts/smoke-application-ui.ts`
-now drives them over the API. Which Organization states may run applications is the
+`/api/apps/*` and `app-request` described here are unchanged; the module lifecycle
+`lazurio module start|stop|status|logs` (slice P5,
+[launchpad development](launchpad-development.md#module-lifecycle)) runs the catalog's
+modules over the same lifecycle core beside them, and their retirement is still open;
+`scripts/smoke-application-ui.ts` drives them over the API. Which Organization states may run applications is the
 one admission rule of the [organization contract](organization-contract.md).
 
 The existing Launchpad server can compose one application lifecycle with trusted
@@ -60,8 +62,8 @@ timeouts; those remain integration work, not reasons to automatically retry a wr
 
 Until 2026-09-28 the page's form exposed explicit preparation/start/status/link/stop
 in Czech and English; since slice P4 the page shows no application control and these
-operations are reachable only through the application API until the module lifecycle
-(P5) brings start, open and stop to the catalog. A link is restricted
+operations are reachable only through the application API; since slice P5 the
+catalog's module page starts, stops and opens a module's app through `/api/modules/…`. A link is restricted
 to the selected execution Machine's observed loopback web listener, never production
 metadata. Remote-profile context does not expose that address as a local browser link;
 a qualified remote access route remains required. Process start, health observation,
@@ -675,10 +677,10 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
   with the account's last login session. That is a Machine setting Lazurio does not
   change; a hosted workspace preset must decide it.
 - **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
-- **Start and preparation without a Launchpad.** `app-request` status and stop work
-  from the CLI alone for service-owned applications (below); start, open and
-  preparation still need a configured Launchpad, because they need its toolchain and
-  launch composition.
+- **Preparation without a Launchpad.** Since slice P5 `lazurio module start|stop|status|logs`
+  work from the CLI alone for service-owned applications, with the operator's Bun from
+  `~/.local/bin/bun`; `app-request` status and stop still work as below. Preparation
+  (`prepare`, `clean-prepare`) and a one-step `open` are not yet CLI verbs.
 - **Survival across a product activation** is not yet exercised (there is no activation
   of a running Launchpad yet); a graceful and a killed Launchpad are.
 - **Operator recovery of an interrupted preparation** stays explicit and unqualified:

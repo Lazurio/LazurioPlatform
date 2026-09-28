@@ -60,6 +60,9 @@ export type HostedOptions = Readonly<{
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
+// Not here yet: the gateway's `GET /api/internal/hosted/modules/<id>/ensure`
+// (P6, B5) answers from the same `modules` core, and the T3 Code chat link
+// (P7, B8) is its own route.
 const moduleRoute = /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|stop|status)$/;
 
 // The page itself under each of its routes (`/`, `/settings/tools`, …): the
