@@ -694,12 +694,11 @@ export function createToolsPanel(
     loginStatus.textContent = "";
     const target = loginOpener;
     loginOpener = null;
+    // The row is read again after a sign-in and its buttons are disabled
+    // meanwhile: the render after that read places the focus.
     if (target !== null && !dialog.open)
-      groups
-        .querySelector<HTMLElement>(
-          `[data-tool="${target.name}"][data-control="${target.control}"]`,
-        )
-        ?.focus();
+      if (busy) focus = target;
+      else focusRow(target);
   });
 
   async function logout(tool: ToolOverview) {
@@ -1049,13 +1048,22 @@ export function createToolsPanel(
     // A control is disabled while the panel is busy and cannot take the
     // focus then; the render after the read places it.
     if (focus !== null && !busy) {
-      groups
-        .querySelector<HTMLElement>(
-          `[data-tool="${focus.name}"][data-control="${focus.control}"]`,
-        )
-        ?.focus();
+      focusRow(focus);
       focus = null;
     }
+  }
+
+  // The named control of a tool's row or, when a sign-in or sign-out
+  // replaced it (Sign in became Sign out), the row's first action.
+  function focusRow(target: { name: string; control: string }) {
+    (
+      groups.querySelector<HTMLElement>(
+        `[data-tool="${target.name}"][data-control="${target.control}"]`,
+      ) ??
+      groups.querySelector<HTMLElement>(
+        `li[data-tool="${target.name}"] .row-control button`,
+      )
+    )?.focus();
   }
 
   function say(message: string) {
