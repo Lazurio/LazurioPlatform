@@ -1,7 +1,8 @@
 # Recovery mode instead of rollback
 
-Status: **shaping; the Principal decided Q1, Q2, Q3, Q5, Q6 and the last switch-back
-of H on 2026-09-28. Q4 and Q7 stay open. Analysis and design only.** Nothing here is
+Status: **shaping; the Principal decided Q1, Q2, Q3, Q5, Q6, the last switch-back of
+H and one distribution for every hosted Machine on 2026-09-28; Q4 was decided on his
+delegation the same day. Q7 stays open. Analysis and design only.** Nothing here is
 implemented. The proposed decision F21 at the end amends F13, the F17 addendum and the
 product update contract once the Principal accepts it.
 
@@ -22,9 +23,10 @@ product update contract once the Principal accepts it.
    hosted gateway serves a static page that sends the operator to T3 Code.
 5. **Every entry into Recovery mode ends on GitHub** as a sanitized issue (root
    decision 0163), repaired or not (Q2, decided 2026-09-28). Each such issue closes
-   only with a regression test. Whether the Machine files it directly into the public
-   product repository or into a private intake from which the maintainers write the
-   public issue is Q4, still open; the recommendation is the private intake (E.3).
+   only with a regression test. The automatic issue goes to the public product
+   repository and carries only structured fields after the deterministic gate; the
+   journal tail and any free text stay on the Machine until the repair agent attaches
+   them after reading them (Q4, decided 2026-09-28 by delegation; E.1, E.3).
 6. **Gates force quality.** Journeys on disposable Ubuntu and macOS runners against
    the real release candidate, a canary stage of 8 hours on every hosted Machine of
    the pilot Organization (Q5, decided 2026-09-28), and a release job that refuses a
@@ -184,7 +186,7 @@ The page is never served without the gateway's admission.
 
 **Recommended: 1 + 3 on one core, 2b as the hosted fallback.** The use case
 `collectRecovery` returns the failed check, the bundle and the prompt; `lazurio
-recover [--json | --prompt | --issue-body]` prints it and the Launchpad in Recovery
+recover [--json | --prompt | --issue-body | --attachment]` prints it and the Launchpad in Recovery
 mode renders it. For R4 the gateway's static page says: "The Lazurio Launchpad on
 this Machine is not running. Open T3 Code and start a chat with: *The Lazurio
 Launchpad is down. Follow `manual/troubleshooting.md`, section Recovery mode, in the
@@ -244,11 +246,15 @@ stop rule. It exists in `cs` and `en`; the English text:
 >    Launchpad page loads normally. Tell the operator what was wrong and what you
 >    changed.
 > 7. **Record it on GitHub either way.** Search the issues of `Lazurio/LazurioPlatform`
->    for `<fingerprint>`. An open match gets a comment; otherwise create an issue with
->    `lazurio recover --issue-body`. Read the body before you send it and remove
->    anything the sanitizer missed; when you are not sure it is public-safe, do not
->    send it: hand the body to the operator. Without a GitHub sign-in or network, give
->    the operator the prepared body and its link.
+>    for `<fingerprint>`. An open match gets a comment with
+>    `lazurio recover --issue-body`; otherwise create an issue with it. That body
+>    carries only structured fields and has passed Lazurio's deterministic gate; show
+>    the operator exactly what you sent. The journal tail and any other free text
+>    (`lazurio recover --attachment`) stay on this Machine: attach them as a comment
+>    only when the fix needs them, after you have read them and the same gate has
+>    passed them; when you are not sure they are public-safe, do not attach them. If
+>    the gate refuses the body, do not send it: hand it to the operator. Without a
+>    GitHub sign-in or network, give the operator the prepared body and its link.
 > 8. If no release repairs it, tell the operator that the Launchpad stays in Recovery
 >    mode until a fixed release, and that T3 Code, the tools and the repositories are
 >    not affected. Stop there; work around nothing.
@@ -259,13 +265,9 @@ bounded to moving forward. An issue follows even a successful local repair becau
 state the product could not handle, whoever caused it, is a missing test (Q2, decided
 2026-09-28: "otherwise the repair never becomes a test").
 
-Step 7 is written for variant (a) of Q4, which is still open (E.3). Under the
-recommended variant (c) it reads instead: search the **public** issues of
-`Lazurio/LazurioPlatform` for `<fingerprint>` (a known fault then shows its public
-issue and regression test); submit `lazurio recover --issue-body` to the product's
-private intake in every case, a known fault as one more occurrence; show the operator
-the exact body that left the Machine and the intake's receipt. Reading the body
-before it leaves and the fail-closed rule stay as written.
+Step 7 follows Q4, decided on the Principal's delegation on 2026-09-28 (E.3): the
+automatic issue is structured only; free text leaves the Machine only as the agent's
+attachment after reading, and the operator does not confirm.
 
 ## E. The evidence bundle for GitHub
 
@@ -273,18 +275,32 @@ before it leaves and the fail-closed rule stay as written.
 
 The bundle is a structured document (`lazurio.recovery.v1`) of enumerated fields plus
 one bounded free-text tail. Structure first: an enumerated field cannot leak what it
-does not contain.
+does not contain. It has two tiers (Q4, E.3):
 
-| Field | Source |
-| --- | --- |
-| `check`, `code`, `context` | The failed R-check and its stable error code |
-| `product` | `version`, `commit`, `target`, `fixture` of the running and of the active executable (`self-check`) |
-| `platform` | OS, kernel release, architecture, systemd version (Linux), Bun version embedded |
-| `install` | `active`, `highWater`, `stateInvalid` (path relative to the base), the list of installed versions, whether a legacy `previous` or marker exists |
-| `unit` | `LoadState`, `ActiveState`, `SubState`, `Result`, `NRestarts`, `ExecMainStatus` of `lazurio-launchpad.service`; the last `lazurio-update` failure code (`src/update/service-control.ts:145-187`) |
-| `folder` | Preset kind (`local`, `hosted-personal`, organization presets), recorded and product template revision, preference and manifest schema versions, whether a transaction is pending and its phase |
-| `lastCheck` | `latest`, `checkedAt` |
-| `journal` | Last lines of the Launchpad unit's journal for the failing invocation, sanitized (E.2) |
+- **Tier 1, the automatic structured body** (`lazurio recover --issue-body`): only
+  fields whose values are versions, digests, target and platform names, ids of failed
+  checks and error codes, unit states and counters, Folder and template revisions,
+  and timestamps. `context` carries enumerated stage and reason ids, never a message
+  string. This is what the agent files without asking.
+- **Tier 2, attached free text** (`lazurio recover --attachment`): the journal tail
+  and any error message or other free text. It stays in the local bundle
+  (`<base>/recovery/<timestamp>.json`, owner-only) and reaches the issue only as a
+  comment the repair agent attaches after reading it under the sanitizer.
+
+The deterministic gate of E.2 is the hard rule for both tiers: tier 1 must validate
+against the closed schema and pass the residual check; tier 2 passes the sanitizer and
+the residual check before the agent may attach it.
+
+| Field | Source | Tier |
+| --- | --- | --- |
+| `check`, `code`, `context` | The failed R-check and its stable error code | 1 |
+| `product` | `version`, `commit`, `target`, `fixture` of the running and of the active executable (`self-check`) | 1 |
+| `platform` | OS, kernel release, architecture, systemd version (Linux), Bun version embedded | 1 |
+| `install` | `active`, `highWater`, `stateInvalid` (path relative to the base), the list of installed versions, whether a legacy `previous` or marker exists | 1 |
+| `unit` | `LoadState`, `ActiveState`, `SubState`, `Result`, `NRestarts`, `ExecMainStatus` of `lazurio-launchpad.service`; the last `lazurio-update` failure code (`src/update/service-control.ts:145-187`) | 1 |
+| `folder` | Preset kind (`local`, `hosted-personal`, organization presets), recorded and product template revision, preference and manifest schema versions, whether a transaction is pending and its phase | 1 |
+| `lastCheck` | `latest`, `checkedAt` | 1 |
+| `journal` | Last lines of the Launchpad unit's journal for the failing invocation, sanitized (E.2) | 2 |
 
 Never collected: the Folder's files, `organizations/` entries by name, preferences
 contents, the handover, environment variables, tool sign-in state, anything under
@@ -308,7 +324,7 @@ issue it lacks:
    structured fields; in the tail, a run equal to a known product commit or artifact
    digest is kept.
 3. **A residual check that fails closed.** If any known private value survives,
-   `--issue-body` refuses and the agent hands the body to the operator (root
+   `--issue-body` (or `--attachment`) refuses and the agent hands the body to the operator (root
    `manual/github-issues.md:75-78`).
 4. **Journal-sized bounds.** 80 lines and 8 KB for the tail; the body under 6 KB so it
    fits a prefilled issue link.
@@ -317,27 +333,48 @@ A test plants canaries (tokens of each shape, a user name, a hostname, Organizat
 names, a tailnet address, an e-mail) in every source and asserts none reaches the
 body; it is also part of J6.
 
-### E.3 Who approves, where the issue goes first (Q4, open)
+### E.3 Who approves, what leaves the Machine (Q4, decided)
 
 Root decision 0163 lets the agent file an issue after a duplicate check and
 sanitization without asking (`manual/decision-register.md:99`,
-`manual/github-issues.md:55-60`). In every variant the operator sees what leaves: the
-page shows the exact sanitized bundle, and the agent shows the body in the chat in
-the turn it sends it. Closing and prioritizing stay with the Principal. The product's
-public repository is `Lazurio/LazurioPlatform` (Issues enabled); the root routing
-table (`manual/github-issues.md:16`) needs a row for it, and under (c) also for the
-intake.
+`manual/github-issues.md:55-60`). The operator sees what leaves: the page shows the
+exact sanitized bundle, and the agent shows the body in the chat in the turn it sends
+it. Closing and prioritizing stay with the Principal. The product's public repository
+is `Lazurio/LazurioPlatform` (Issues enabled); the root routing table
+(`manual/github-issues.md:16`) needs a row for it.
 
-The Principal did not decide whether the operator confirms before an issue leaves the
-Machine; he suggested "some internal agent pass that goes through it before it is
-published" and asked for a recommendation. Three variants:
+**Decision, 2026-09-28, taken on the Principal's delegation: variant (a), narrowed.**
+The automatic issue goes to the public product repository and carries only the
+structured, non-free-text fields of tier 1 (E.1): versions, target, platform, the ids
+of failed checks, unit state, Folder and template revisions, after the deterministic
+gate. The journal tail and any free text never leave the Machine automatically: they
+stay in the local recovery bundle and reach the issue only when the repair agent
+attaches them after reading them under the sanitizer (tier 2). The deterministic gate
+is the hard rule for both tiers. The operator does not confirm and sees the exact body
+that left the Machine. No new intake service is built; the private intake (c) is the
+fallback, revisited only if the structured issues prove insufficient for fixes.
+
+Why this narrowing: free text is where a sanitizer can miss something, and over
+enumerated fields the gate can prove what it lets through. The automatic path
+therefore contains nothing the gate cannot prove, and what is left to judgement (tier
+2) goes through the reading of an agent that knows the fault. Its costs: the automatic
+issue says less, so some fixes will need the agent's attachment or a reproduction
+from the structured facts; an attached tail that passes the gate and the reading
+still reaches everyone if both miss something; a Team Environment still has only the
+prefilled link (E.5).
+
+**What was considered.** The Principal had not decided whether the operator confirms
+before an issue leaves the Machine; he suggested "some internal agent pass that goes
+through it before it is published" and asked for a recommendation. Three variants were
+compared; the table describes (a) as first proposed, with the free-text tail in the
+automatic body.
 
 - **(a) Direct public issue.** After the deterministic gate of E.2 and the agent's
   reading, the agent files into `Lazurio/LazurioPlatform`. (The earlier
   recommendation.)
 - **(b) Direct public issue, confirmed.** As (a), and the operator confirms the body
   in the chat or on the page before it is sent.
-- **(c) Private intake.** The Machine never files into the public repository. It
+- **(c) Private intake, now the fallback.** The Machine never files into the public repository. It
   submits the body to a private intake of the product's maintainers: a private intake
   repository behind a small intake endpoint (or a channel like GitHub's private
   vulnerability reporting). A maintainer-side agent pass reads each intake issue,
@@ -367,16 +404,14 @@ the maintainers; it could serve Personal and Work Environments before an endpoin
 exists, but it is meant for vulnerabilities, fills the security advisory list, and
 whether an App installation token may submit one is **unverified**.
 
-**Recommended: (c), with the deterministic gate of E.2 kept on the Machine as the
-first layer** (the residual check still refuses a body that is not provably clean).
-Two independent gates and a reader stand between a Machine and the public, and a
-miss of the first reaches a bounded group instead of everyone. Its honest costs: an
-endpoint, a private repository and a scheduled agent pass to build and operate,
-contrary to the wish for a thin product; a latency before the public issue exists;
-maintainers who see the residue the first gate missed; and the volume of Q2, since
-locally repaired entries are recorded as well. Until the endpoint exists nothing is
-filed publicly from a Machine: the body stays in `<base>/recovery/` and the operator
-hands it on. **This stays the Principal's open question.**
+The shaping had recommended (c), with the deterministic gate kept on the Machine as
+the first layer: two independent gates and a reader between a Machine and the public.
+Its costs decided against it for now: an endpoint, a private repository and a
+scheduled agent pass to build and operate, contrary to the wish for a thin product; a
+latency before the public issue exists; maintainers who see the residue the first
+gate missed; and the volume of Q2, since locally repaired entries are recorded as
+well. The narrowed (a) takes the free text out of the automatic path instead. If (c)
+is revisited, the paragraph above says what it needs.
 
 ### E.4 Duplicates
 
@@ -384,17 +419,17 @@ The fingerprint is 12 hex characters of SHA-256 over `check`, `code`,
 `context.stage`/`context.reason` and `target`, without the version, so one fault meets
 its issue across releases. The title ends in `[rf-<fingerprint>]`; the agent searches
 `--state all`. An open match gets a comment; a closed match is a regression and gets a
-new issue linking it. Under (c) of E.3 this search and its comment move to the intake
-endpoint or the maintainer pass; the Machine only reads the public issues.
+new issue linking it. The occurrence comment is a tier-1 body as well (version,
+platform, unit state); a tier-2 attachment is a separate comment by the agent.
 
 ### E.5 No GitHub sign-in, no network
 
 - **No sign-in** (always so on a Team Environment, `docs/decisions.md:832-836`):
   `recover` prints a prefilled link
   `https://github.com/Lazurio/LazurioPlatform/issues/new?title=…&body=…` for the
-  operator's own browser, and the body as text. Under (c) of E.3 a prefilled link to
-  a private repository answers 404 to anyone without access, so the path is the
-  intake endpoint, which needs no sign-in.
+  operator's own browser, and the body as text. The link carries the tier-1 body
+  only; tier-2 free text is never put into a link. (The Team bot cannot file into
+  another organization's repository, E.3; **unverified** against the broker.)
 - **No network:** no agent runs either. The page shows the bundle to copy and
   `recover` writes it to `<base>/recovery/<timestamp>.json` (owner-only) for the next
   agent. Nothing retries in the background.
@@ -490,8 +525,12 @@ Ubuntu 24.04 (noble) for Organization work VMs (Machines
 `workloads/workspace-vm/ansible/roles/workspace_network/tasks/install.yml:2-6`).
 Release notes and the manual call every other distribution "unverified"; the Linux
 executables are not refused there, only not qualified. Hosted personal VMs run
-Debian 13 (Machines `docs/personal-vm.md:119-120`), so under this rule they are
-unverified until the Principal decides otherwise.
+Debian 13 today (Machines `docs/personal-vm.md:119-120`), only because the pool
+host's creation script produced it, for no technical reason. The Principal decided on
+2026-09-28 that they move to Ubuntu 24.04 at the next Machines rollout, so every
+hosted Machine runs one distribution. It is a rebuild, not an in-place upgrade: the
+Personalspace is Git and is cloned again. Until a personal VM is rebuilt it is
+"unverified".
 
 | Journey | Ubuntu | macOS |
 | --- | --- | --- |
@@ -531,7 +570,9 @@ hours on one Environment.
 `qualify.yml` passed, the candidate is rolled by its exact tag to all hosted Machines
 of the pilot Organization on which Machines installs the Platform, whatever their
 Environment kind, through the Organization's owner overlay pin (Plan, Permit and
-apply per Machine, the existing path). A Machine that cannot take the
+apply per Machine, the existing path). Personal VMs count once they run Ubuntu
+24.04; until their rebuild (G.2) they are "unverified", outside the count, and named
+as such in the evidence. A Machine that cannot take the
 candidate blocks the stage; excluding one is an explicit, named line in the evidence
 PR that the `release` reviewer accepts or refuses. The 8 hours start when the last of
 these Machines runs the candidate, proven by its `lazurio update status --json`
@@ -544,8 +585,8 @@ the Principal's choice and is named only in private owner records, never here.
   answers `healthy` at the start and at the end;
 - the Launchpad's health: `/health` answers the candidate's version in normal mode,
   and `NRestarts` of the unit does not grow except by deliberate restarts;
-- no Recovery issue filed, in the public repository or the intake of E.3, whose body
-  names the candidate;
+- no Recovery issue filed in the public repository whose structured body names the
+  candidate;
 - module starts: modules the operators use start and open through the Launchpad or
   `lazurio module open`. Until the Platform Launchpad serves hosted Machines
   ([Launchpad parity](launchpad-parity.md)), the resident Launchpad still starts
@@ -750,10 +791,13 @@ Proposed wording, in the style of `docs/decisions.md`:
 > can name, it keeps running and serves one page with one action: start a repair
 > agent with a prepared assignment and the sanitized evidence. `lazurio recover` is the
 > same use case on the CLI. The agent repairs forward within the assignment's mandate
-> or files the evidence as an issue for `Lazurio/LazurioPlatform` (root decision 0163),
-> through the path the Principal chooses in Q4; every entry into Recovery mode is
-> recorded, also after a local repair ("otherwise the repair never becomes a test"),
-> and each such issue closes with a regression test. The Launchpad unit restarts
+> or files the evidence as an issue in `Lazurio/LazurioPlatform` (root decision 0163)
+> without the operator's confirmation. The automatic body carries only structured,
+> non-free-text fields that passed a deterministic gate; the journal tail and any free
+> text leave the Machine only when the repair agent attaches them after reading them
+> under the same gate, and the operator sees the exact body that left. Every entry
+> into Recovery mode is recorded, also after a local repair ("otherwise the repair
+> never becomes a test"), and each such issue closes with a regression test. The Launchpad unit restarts
 > always and never ends `failed`. When the executable cannot run at all, the hosted
 > gateway serves a static page that sends the operator to T3 Code and the Folder's
 > manual. On a workstation the operator copies the prompt into the agent application.
@@ -763,7 +807,8 @@ Proposed wording, in the style of `docs/decisions.md`:
 > Ubuntu and macOS runners against the real release candidate, and a canary stage of
 > 8 hours on every hosted Machine of the pilot Organization with its evidence; the
 > release job refuses a final tag without the former. Linux means Ubuntu in the first
-> phase; other distributions are unverified.
+> phase; other distributions are unverified. Every hosted Machine runs Ubuntu 24.04;
+> hosted personal VMs are rebuilt on it at the next Machines rollout.
 >
 > **Machines too.** An apply completes or does not start and never returns to an
 > earlier release as a way of repair; defects are repaired by a new release through
@@ -781,6 +826,7 @@ Proposed wording, in the style of `docs/decisions.md`:
 > | Keep only the automatic switch-back after an unhealthy restart | Smaller, but the new version was observable and may have written state; it is rollback by the rule above; rejected |
 > | Recovery page from a separate program | Survives a broken executable; a second runtime and supervisor to build and qualify; rejected in favour of the gateway's static page |
 > | Recovery mode in the Launchpad plus `lazurio recover` | One core, no new process, reaches the operator where they already are; selected |
+> | A private intake from which maintainers write the public issue | Two gates and a reader before the public; an endpoint, a private repository and an agent pass to run; kept as the fallback if structured issues prove insufficient for fixes |
 >
 > This amends F4, F13, the F17 addendum of 2026-09-28 (point 3), F18 and F19 as listed
 > in [recovery mode](recovery-mode.md#i-decisions-to-amend), and the
@@ -791,8 +837,9 @@ Proposed wording, in the style of `docs/decisions.md`:
 ### J.1 Slices, each reviewable and releasable
 
 1. **Decision and contract.** F21 and the rewritten texts of A.2. No code.
-2. **`lazurio recover` and the sanitizer.** Core use case, R2/R5, bundle, issue body,
-   fingerprint, prefilled link, canary tests. Additive; first release that files
+2. **`lazurio recover` and the sanitizer.** Core use case, R2/R5, bundle, the
+   structured issue body and the tier-2 attachment, fingerprint, prefilled link,
+   canary tests. Additive; first release that files
    evidence.
 3. **Recovery mode in the Launchpad.** R1 instead of exit, the one-action page, health
    `503`, admission from the handover, the manual section at `base-instructions-10`.
@@ -821,11 +868,13 @@ Proposed wording, in the style of `docs/decisions.md`:
   **Decided 2026-09-28:** yes, "otherwise the repair never becomes a test".
 - **Q3 — Workstation: is "copy the prompt into your agent app" enough?** **Decided
   2026-09-28:** yes for now; revisit when T3 Code can start a thread from outside.
-- **Q4 — Operator confirmation before an issue leaves the Machine?** **Open.** The
-  Principal suggested an internal agent pass before publication and asked for a
-  recommendation. Recommended: variant (c) of E.3, a private intake with a
-  maintainer-side agent pass that writes the public issue, the deterministic gate
-  kept on the Machine as the first layer, and no operator confirmation.
+- **Q4 — Operator confirmation before an issue leaves the Machine?** **Decided
+  2026-09-28 on the Principal's delegation:** no confirmation; variant (a) narrowed
+  (E.3). The automatic issue in the public repository carries only structured fields
+  after the deterministic gate; the journal tail and free text stay on the Machine
+  until the repair agent attaches them after reading them under the same gate. The
+  private intake (c), which this shaping had recommended, is the fallback if the
+  structured issues prove insufficient for fixes.
 - **Q5 — Canary soak?** **Decided 2026-09-28:** 8 hours on every hosted Machine of the
   pilot Organization (G.3), not 24 hours on one Environment.
 - **Q6 — Does "no rollback" bind Machines too?** Its resident and T3 release trees
@@ -846,9 +895,9 @@ Proposed wording, in the style of `docs/decisions.md`:
 - Whether `v0.1.1`–`v0.1.7` were qualified without an evidence document.
 - T3 Code's thread-start interface: upstream pull requests are open, and the
   `Lazurio/t3code` fork was not inspected.
-- For Q4 (c): whether the "Lazurio for GitHub" broker can host the intake endpoint,
-  whether an App installation token may submit a private vulnerability report, and
-  the exact GitHub behaviour of the Team bot's token outside its installation; all
-  read from GitHub's documented model, none tried.
-- Whether hosted personal VMs, which run Debian 13 today, stay "unverified" under
-  "Linux means Ubuntu" or join the qualified set; the Principal's call.
+- The exact GitHub behaviour of the Team bot's token outside its installation (E.3,
+  E.5); for the fallback (c), whether the "Lazurio for GitHub" broker can host an
+  intake endpoint and whether an App installation token may submit a private
+  vulnerability report. All read from GitHub's documented model, none tried.
+- Whether the structured tier-1 body alone is enough to reproduce most faults; the
+  first field failures show it, and they decide whether (c) is revisited.
