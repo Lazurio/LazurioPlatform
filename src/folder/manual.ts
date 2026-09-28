@@ -691,6 +691,13 @@ const toolLayout: readonly Text[] = [
   ),
 ];
 
+// The one read-only health view of the Environment (launchpad-parity B9, P8):
+// the same bullet on a hosted Machine and a workstation.
+const doctor: Text = t(
+  "- `lazurio doctor` ukáže stav Environmentu jen pro čtení (produkt, Folder, nástroje, Organizace a moduly, Launchpad); nic nemění.",
+  "- `lazurio doctor` shows the Environment's state read-only (product, Folder, tools, Organizations and modules, Launchpad); it changes nothing.",
+);
+
 // Who updates the product on this Machine: its operator, through the one
 // updater `lazurio update`, on a workstation and on a hosted Machine alike
 // (decision F17 addendum 2026-09-28). On a hosted Machine the Machines pin is
@@ -718,6 +725,7 @@ function productUpdate(hosted: boolean): readonly Text[] {
         "- `lazurio update status [--json]` je jen pro čtení a smíš ho použít kdykoli, abys nahlásil běžící, aktivní a poslední známou verzi.",
         "- `lazurio update status [--json]` is read-only; use it at any time to report the running, active and latest known version.",
       ),
+      doctor,
       t(
         "- Po aktualizaci můžou být generované soubory Folderu (`AGENTS.md`, `manual/`) starší než produkt. `lazurio update` i `lazurio update status` pak hlásí „Folder refresh needed“. Obnoví je `lazurio machine folder-refresh`, spusť ho jako součást téže aktualizace. Upravený generovaný soubor obnovu zablokuje s `drift` a cestou souboru; nic se nepřepíše.",
         "- After an update the Folder's generated files (`AGENTS.md`, `manual/`) can be older than the product. `lazurio update` and `lazurio update status` then say \"Folder refresh needed\". `lazurio machine folder-refresh` refreshes them; run it as part of the same update. An edited generated file blocks the refresh with `drift` and the file's path; nothing is overwritten.",
@@ -764,6 +772,7 @@ function productUpdate(hosted: boolean): readonly Text[] {
       "- `lazurio update status [--json]` ukáže běžící, aktivní a poslední známou verzi a čas poslední ověřené kontroly. Poslední kontrola starší než den znamená, že Mašina nedosáhne na GitHub; nic se tím nemění.",
       "- `lazurio update status [--json]` shows the running, active and latest known version and the time of the last verified check. A last check older than a day is a sign the Machine cannot reach GitHub; it changes nothing.",
     ),
+    doctor,
     t(
       "- Po aktualizaci můžou být generované soubory Folderu starší než produkt. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` i pill v Launchpadu pak hlásí „Folder refresh needed“ s přesným příkazem: znovu použij nezměněný profil (v profilovém panelu Launchpadu náhled a použití, nebo nahlášený `lazurio profile-update`). Upravený generovaný soubor obnovu zablokuje s `drift`; nic se nepřepíše.",
       '- After an update the Folder\'s generated files can be older than the product. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` and the Launchpad pill then say "Folder refresh needed" with the exact command: apply the unchanged profile again (preview and apply in the Launchpad profile panel, or the reported `lazurio profile-update`). An edited generated file blocks the refresh with `drift`; nothing is overwritten.',
