@@ -121,8 +121,10 @@ jobs:
           [[ -n "$candidate" ]] ||
             refuse "no canary record qualification/canary/v$VERSION-rc.N.json at $TAG"
           echo "Candidate: $candidate"
-          # 2. 8 hours on every Machine of the pilot Organization, on the candidate.
-          bun run scripts/qualify/check-canary.ts "qualification/canary/$candidate.json"
+          # 2. 8 hours on every Machine of the pilot Organization, on the
+          #    candidate; and the record is the one its pull request merged
+          #    into the default branch, a merge in this tag's history.
+          bun run scripts/qualify/check-canary.ts --provenance "qualification/canary/$candidate.json"
           # 3. The same source: the final tag differs from the candidate only
           #    by evidence.
           git rev-parse --verify --quiet "refs/tags/$candidate^{commit}" >/dev/null ||

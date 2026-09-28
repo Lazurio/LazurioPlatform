@@ -2,7 +2,11 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { canaryFindings } from "../scripts/qualify/check-canary";
+import {
+  canaryFindings,
+  type Provenance,
+  provenanceFindings,
+} from "../scripts/qualify/check-canary";
 
 const candidate = "v1.2.0-rc.1";
 const now = new Date("2026-09-02T12:00:00Z");
@@ -50,6 +54,36 @@ test("a canary shorter than 8 hours, or not over yet, refuses", () => {
   expect(
     canaryFindings(record({ end: "yesterday evening" }), candidate, now),
   ).toEqual(["start and end must be UTC times (YYYY-MM-DDThh:mm:ssZ)"]);
+});
+
+test("an impossible calendar time is not a time: no normalizing to another day", () => {
+  const invalid = ["start and end must be UTC times (YYYY-MM-DDThh:mm:ssZ)"];
+  for (const [start, end] of [
+    ["2026-02-30T08:00:00Z", "2026-02-30T16:05:00Z"],
+    ["2026-13-01T08:00:00Z", "2026-13-01T16:05:00Z"],
+    ["2026-09-01T08:00:00Z", "2026-09-01T24:00:00Z"],
+    ["2026-09-01T08:00:60Z", "2026-09-01T16:05:00Z"],
+    ["2026-09-01T08:00:00.000Z", "2026-09-01T16:05:00Z"],
+    ["2026-09-01T08:00:00+00:00", "2026-09-01T16:05:00Z"],
+  ])
+    expect(canaryFindings(record({ start, end }), candidate, now)).toEqual(
+      invalid,
+    );
+  // A real leap day is a time.
+  expect(
+    canaryFindings(
+      record({ start: "2024-02-29T08:00:00Z", end: "2024-02-29T16:00:00Z" }),
+      candidate,
+      now,
+    ),
+  ).toEqual([]);
+  expect(
+    canaryFindings(
+      record({ start: "2026-02-29T08:00:00Z", end: "2026-02-29T16:00:00Z" }),
+      candidate,
+      now,
+    ),
+  ).toEqual(invalid);
 });
 
 test("a Machine that is not on the candidate or not healthy refuses", () => {
@@ -174,4 +208,81 @@ test("the CLI: the candidate is the file name; a missing record refuses", async 
   const renamed = join(directory, "v1.2.0-rc.2.json");
   await writeFile(renamed, JSON.stringify(record()));
   expect(check(renamed)[0]).toBe(1);
+});
+
+const path = `qualification/canary/${candidate}.json`;
+const bytes = (text: string) => new TextEncoder().encode(text);
+const merged = (change: Partial<Provenance> = {}): Provenance => ({
+  pull: {
+    merged: true,
+    baseRef: "main",
+    mergeCommit: "a".repeat(40),
+  },
+  defaultBranch: "main",
+  files: ["docs/release-cycle.md", path],
+  mergeIsAncestor: true,
+  recordAtTag: bytes('{"schema":"lazurio.canary.v1"}\n'),
+  recordAtMerge: bytes('{"schema":"lazurio.canary.v1"}\n'),
+  ...change,
+});
+
+test("provenance: the record its pull request merged into the default branch, in the final tag's history, passes", () => {
+  expect(provenanceFindings(path, merged())).toEqual([]);
+});
+
+test("provenance: an open pull request, another base, or a merge outside the tag's history refuses", () => {
+  // What an unmerged tag would carry: an open pull request's record.
+  expect(
+    provenanceFindings(
+      path,
+      merged({
+        pull: { merged: false, baseRef: "main", mergeCommit: "b".repeat(40) },
+        mergeIsAncestor: false,
+        recordAtMerge: null,
+      }),
+    ),
+  ).toEqual([
+    "the pull request of the record is not merged",
+    "its merge commit is not an ancestor of the final tag",
+    "the record is absent at its merge commit",
+  ]);
+  expect(
+    provenanceFindings(
+      path,
+      merged({
+        pull: {
+          merged: true,
+          baseRef: "release-x",
+          mergeCommit: "a".repeat(40),
+        },
+      }),
+    ),
+  ).toEqual(["the pull request was not merged into the default branch"]);
+  expect(provenanceFindings(path, merged({ mergeIsAncestor: false }))).toEqual([
+    "its merge commit is not an ancestor of the final tag",
+  ]);
+  expect(
+    provenanceFindings(
+      path,
+      merged({ pull: { merged: true, baseRef: "main", mergeCommit: null } }),
+    ),
+  ).toEqual(["the pull request has no merge commit"]);
+  expect(provenanceFindings(path, merged({ pull: null }))).toEqual([
+    "the pull request of the record could not be read",
+  ]);
+});
+
+test("provenance: a pull request that did not carry the record, or a record changed after it, refuses", () => {
+  expect(
+    provenanceFindings(path, merged({ files: ["docs/release-cycle.md"] })),
+  ).toEqual(["the pull request did not add or change the record"]);
+  // One byte differs: the tag carries a record nobody merged.
+  expect(
+    provenanceFindings(
+      path,
+      merged({ recordAtTag: bytes('{"schema":"lazurio.canary.v1"} \n') }),
+    ),
+  ).toEqual([
+    "the record at the final tag differs from the record its pull request merged",
+  ]);
 });

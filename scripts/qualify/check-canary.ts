@@ -8,7 +8,11 @@ import { basename } from "node:path";
  * reviewer adds `qualification/canary/<candidate>.json` by a pull request;
  * the release job of the final tag runs this check on it:
  *
- *   bun run scripts/qualify/check-canary.ts qualification/canary/<candidate>.json
+ *   bun run scripts/qualify/check-canary.ts [--provenance] qualification/canary/<candidate>.json
+ *
+ * Without `--provenance` the check is offline: the record alone. With it (the
+ * release job) the record must also be the one its pull request merged into
+ * the default branch, and that merge must be in the final tag's history.
  *
  * The record is public. Every value has a narrow shape, so there is no place
  * for free text: a Machine is an opaque id, never a hostname, a client or an
@@ -48,7 +52,7 @@ export type CanaryRecord = Readonly<{
 }>;
 
 const candidatePattern = /^v(\d+\.\d+\.\d+)-rc\.(\d+)$/;
-const timePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const timePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const machinePattern = /^[0-9a-f]{16,64}$/;
 const loginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 const pullRequestPattern =
@@ -71,8 +75,16 @@ const exactKeys = (value: Record<string, unknown>, keys: readonly string[]) =>
   keys.every((key) => Object.hasOwn(value, key));
 const matches = (value: unknown, pattern: RegExp) =>
   typeof value === "string" && pattern.test(value);
-const instant = (value: unknown) =>
-  matches(value, timePattern) ? Date.parse(value as string) : Number.NaN;
+/** A real UTC time in the one accepted form: `Date` normalizes 2026-02-30
+ * to March 2, so the parsed time must print back as exactly the text. */
+function instant(value: unknown): number {
+  if (!matches(value, timePattern)) return Number.NaN;
+  const time = Date.parse(value as string);
+  return !Number.isNaN(time) &&
+    new Date(time).toISOString() === (value as string).replace(/Z$/, ".000Z")
+    ? time
+    : Number.NaN;
+}
 
 /** What refuses this record for `candidate` at `now`; empty when it passes.
  * A finding names a position and a rule, never a value from the record. */
@@ -141,31 +153,188 @@ export function canaryFindings(
   return findings;
 }
 
+/** What the release job learns about where the record came from: the pull
+ * request it names, and the record as that pull request merged it. */
+export type Provenance = Readonly<{
+  /** `null`: the pull request could not be read. */
+  pull: Readonly<{
+    merged: boolean;
+    baseRef: string;
+    mergeCommit: string | null;
+  }> | null;
+  defaultBranch: string;
+  /** The files the pull request added or changed. */
+  files: readonly string[];
+  /** `git merge-base --is-ancestor <merge commit> <final tag's commit>`. */
+  mergeIsAncestor: boolean;
+  /** The record at the final tag and at the merge commit (`null`: absent). */
+  recordAtTag: Uint8Array;
+  recordAtMerge: Uint8Array | null;
+}>;
+
+/** The record at the final tag is the one its pull request merged into the
+ * default branch, and that merge is in the tag's history. Findings name the
+ * rule only, never a value of the record. */
+export function provenanceFindings(
+  path: string,
+  provenance: Provenance,
+): string[] {
+  const { pull } = provenance;
+  if (pull === null)
+    return ["the pull request of the record could not be read"];
+  const findings: string[] = [];
+  if (!pull.merged)
+    findings.push("the pull request of the record is not merged");
+  if (pull.baseRef !== provenance.defaultBranch)
+    findings.push("the pull request was not merged into the default branch");
+  if (!provenance.files.includes(path))
+    findings.push("the pull request did not add or change the record");
+  if (pull.mergeCommit === null || !/^[0-9a-f]{40}$/.test(pull.mergeCommit))
+    return [...findings, "the pull request has no merge commit"];
+  if (!provenance.mergeIsAncestor)
+    findings.push("its merge commit is not an ancestor of the final tag");
+  if (provenance.recordAtMerge === null)
+    findings.push("the record is absent at its merge commit");
+  else if (
+    Buffer.compare(provenance.recordAtTag, provenance.recordAtMerge) !== 0
+  )
+    findings.push(
+      "the record at the final tag differs from the record its pull request merged",
+    );
+  return findings;
+}
+
+const repository = "Lazurio/LazurioPlatform";
+
+async function output(command: string[]) {
+  const child = Bun.spawn(command, {
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const bytes = new Uint8Array(await new Response(child.stdout).arrayBuffer());
+  return {
+    code: await child.exited,
+    bytes,
+    text: new TextDecoder().decode(bytes).trim(),
+  };
+}
+
+/** The thin adapter: GitHub's answer about the pull request (gh, with the
+ * job's GH_TOKEN) and Git's about the checked-out final tag (HEAD). */
+async function readProvenance(
+  path: string,
+  pullRequest: string,
+): Promise<Provenance> {
+  const number = pullRequest.slice(pullRequest.lastIndexOf("/") + 1);
+  const api = async (route: string, jq: string) => {
+    const answer = await output(["gh", "api", "--paginate", route, "--jq", jq]);
+    if (answer.code !== 0) throw new Error("GitHub API");
+    return answer.text;
+  };
+  const defaultBranch = await api(`repos/${repository}`, ".default_branch");
+  let pull: Provenance["pull"] = null;
+  let files: string[] = [];
+  try {
+    const answer = JSON.parse(
+      await api(
+        `repos/${repository}/pulls/${number}`,
+        "{merged, baseRef: .base.ref, mergeCommit: .merge_commit_sha}",
+      ),
+    );
+    pull = {
+      merged: answer.merged === true,
+      baseRef: String(answer.baseRef),
+      mergeCommit:
+        typeof answer.mergeCommit === "string" ? answer.mergeCommit : null,
+    };
+    files = (
+      await api(`repos/${repository}/pulls/${number}/files`, ".[].filename")
+    ).split("\n");
+  } catch {}
+  const mergeCommit = pull?.mergeCommit ?? null;
+  let mergeIsAncestor = false;
+  let recordAtMerge: Uint8Array | null = null;
+  if (mergeCommit !== null && /^[0-9a-f]{40}$/.test(mergeCommit)) {
+    // The merge commit is on the default branch; a tag checkout may not have it.
+    if (
+      (await output(["git", "cat-file", "-e", `${mergeCommit}^{commit}`]))
+        .code !== 0
+    )
+      await output([
+        "git",
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "origin",
+        defaultBranch,
+      ]);
+    mergeIsAncestor =
+      (
+        await output([
+          "git",
+          "merge-base",
+          "--is-ancestor",
+          mergeCommit,
+          "HEAD",
+        ])
+      ).code === 0;
+    const atMerge = await output(["git", "show", `${mergeCommit}:${path}`]);
+    recordAtMerge = atMerge.code === 0 ? atMerge.bytes : null;
+  }
+  const atTag = await output(["git", "show", `HEAD:${path}`]);
+  if (atTag.code !== 0) throw new Error("The record is not in the final tag");
+  return {
+    pull,
+    defaultBranch,
+    files,
+    mergeIsAncestor,
+    recordAtTag: atTag.bytes,
+    recordAtMerge,
+  };
+}
+
 if (import.meta.main) {
-  const path = process.argv[2];
-  if (process.argv.length !== 3 || path === undefined) {
+  // `--provenance` (the release job, with GH_TOKEN and the final tag checked
+  // out): after the record passes, it must be the one its pull request
+  // merged into the default branch, in the tag's history.
+  const args = process.argv.slice(2);
+  const provenance = args[0] === "--provenance";
+  const path = provenance ? args[1] : args[0];
+  const candidate = basename(path ?? "").replace(/\.json$/, "");
+  if (
+    args.length !== (provenance ? 2 : 1) ||
+    path === undefined ||
+    (provenance && path !== `qualification/canary/${candidate}.json`)
+  ) {
     console.error(
-      "Usage: check-canary.ts qualification/canary/<vX.Y.Z-rc.N>.json",
+      "Usage: check-canary.ts [--provenance] qualification/canary/<vX.Y.Z-rc.N>.json",
     );
     process.exit(2);
   }
-  const candidate = basename(path).replace(/\.json$/, "");
   let findings: string[];
+  let record: CanaryRecord | undefined;
   try {
-    findings = canaryFindings(
-      JSON.parse(await readFile(path, "utf8")),
-      candidate,
-      new Date(),
-    );
+    record = JSON.parse(await readFile(path, "utf8"));
+    findings = canaryFindings(record, candidate, new Date());
   } catch {
     findings = [`no readable canary record for ${candidate}`];
   }
+  if (provenance && findings.length === 0 && record !== undefined)
+    try {
+      findings = provenanceFindings(
+        path,
+        await readProvenance(path, record.pullRequest),
+      );
+    } catch {
+      findings = ["the provenance of the record could not be read"];
+    }
   if (findings.length) {
     console.error(`Refused: the canary of ${candidate} does not pass.`);
     for (const finding of findings) console.error(`  ${finding}`);
     process.exit(1);
   }
   console.log(
-    `The canary of ${candidate} passed: ${canaryHours} hours on every listed Machine.`,
+    `The canary of ${candidate} passed: ${canaryHours} hours on every listed Machine${provenance ? ", recorded by a pull request merged into the default branch before this tag" : ""}.`,
   );
 }
