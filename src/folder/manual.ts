@@ -804,6 +804,19 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Mašiny, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
       "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Machine identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
     ),
+    ...(hosted
+      ? [
+          blank,
+          t(
+            "## Odkazy na aplikace z téhle Mašiny",
+            "## Application links from this Machine",
+          ),
+          t(
+            "Tahle Mašina je hostovaná: `localhost` a `127.0.0.1` existují jen uvnitř ní a Operátor je ve svém prohlížeči neotevře. Nikdy mu neposílej localhost link. Odkaz na aplikaci je její hostované jméno přes gateway téhle Mašiny (`<app>.<mašina>.<org>.lazurio.io`, na osobní VM `<app>.<login>.lazurio.io`, decision 0146), jak ho uvádí Launchpad; dokud aplikace hostované jméno nemá, napiš to v handoffu místo odkazu.",
+            "This Machine is hosted: `localhost` and `127.0.0.1` exist only inside it and the operator cannot open them in their browser. Never send the operator a localhost link. The link to an application is its hosted name through this Machine's gateway (`<app>.<machine>.<org>.lazurio.io`, on a personal VM `<app>.<login>.lazurio.io`, decision 0146), as the Launchpad states it; until an application has a hosted name, say so in the handoff instead of a link.",
+          ),
+        ]
+      : []),
     blank,
     ...productUpdate(hosted),
     ...(preset === "hosted-personal" ? [] : [blank, ...organizationContent]),
