@@ -59,11 +59,17 @@ export function executable(
       : { templateRevision: options.templateRevision }),
     base: { active: null, highWater: null },
     folder: { preferences: 1, manifest: 1 },
+  });
+  // As the product does: the probe answers only when it was asked for
+  // (`--launchpad`); a caller that judges the answer must ask the question
+  // (LazurioPlatform issue #74).
+  const withProbe = JSON.stringify({
+    ...JSON.parse(report),
     launchpad: { probe: "ok" },
   });
   const probe =
     options.launchpadRefused === undefined
-      ? ""
+      ? `case " $* " in *" --launchpad "*) echo '${withProbe}'; exit 0;; esac\n`
       : `case " $* " in *" --launchpad "*) echo '${JSON.stringify({ launchpadRefused: options.launchpadRefused })}'; exit 1;; esac\n`;
   return new TextEncoder().encode(
     `#!/bin/sh\n${options.healthy === false ? "exit 1\n" : ""}${probe}echo '${report}'\n`,
