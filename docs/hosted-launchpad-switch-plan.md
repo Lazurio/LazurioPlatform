@@ -10,7 +10,7 @@ Sources and exact heads:
 - `M:` Machines `main` at `7b2bcaa`
   (`organizations/HumanAndMachine-ai_GEN3/productionspace/Machines`). Open PRs
   #178 and #220 were read.
-- `R:` legacy root repository `main` (`/Users/matejsuchanek/Lazurio`).
+- `R:` legacy root repository `HumanAndMachines/Lazurio` at `main`.
 
 ## 0. Recommendation in one paragraph
 
