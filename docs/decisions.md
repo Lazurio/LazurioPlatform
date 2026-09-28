@@ -805,6 +805,23 @@ Not decided here: the shape of the hosted request adapter (F11 shaping follows) 
 the order of Machines releases; the legacy root repository's own rename of
 `company.gen3.json` → `lazurio.organization.json` is unaffected.
 
+**Addendum 2026-09-28 (Principal, after clicking through the preview of the Tools
+section): the Launchpad's Settings follow T3 Code.** "I would like to keep to the UX
+of settings the way T3 Code has it solved." The Platform Launchpad gets a Settings
+area in T3 Code's pattern: the sidebar turns into the settings navigation, a header
+with the breadcrumb, sections of grouped rows with the label and description on the
+left and the control on the right, switches for yes/no, Back in the sidebar footer
+and Escape to leave, an off-canvas sheet below 768 px, light and dark from the system.
+Each section is a route (`/settings/general`, `/settings/machine`, `/settings/tools`),
+never an `.html` file; the server serves the one page under exactly those paths and
+the credential never travels in the path. The page's existing settings move in
+without new ones: the Folder profile to General, the handover to This Machine, the
+Tools section to Tools, the update pill to the sidebar footer (with a reserved place
+for the Folder refresh indication above it); the development Application panel stays
+on the Launchpad home. Plain CSS, no framework and no new dependency; Czech and
+English. Patterns, sources and deliberate differences:
+[launchpad development](launchpad-development.md#settings-structure-routes-and-the-t3-code-pattern).
+
 ## F16 — One network per Organization: every Machine is reached the same way, and the Conglomerate graph is the truth agents move along
 
 **Principal's decision 2026-09-25, direction; not implemented.** Recorded from the

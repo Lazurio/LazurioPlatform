@@ -53,6 +53,80 @@ native three-OS acceptance remain open. Module discovery/start/status/stop must 
 use the reviewed manifest and existing lifecycle owner; this panel implements none
 of them. The original bounded proof is unchanged and is not relabelled as a full UI.
 
+## Settings: structure, routes and the T3 Code pattern
+
+The Launchpad is one page with two views (decision F15 addendum 2026-09-28): the
+Launchpad home (`/`, the development Application panel) and Settings. Settings follows
+the settings UX of T3 Code, as the Principal asked, in plain CSS inside
+`src/launchpad/index.html` and without a framework or a new dependency.
+
+**Routes.** `/settings/general`, `/settings/machine` and `/settings/tools`; `/settings`
+and an unknown section open General and the address bar is rewritten to the canonical
+path. The paths live in `src/launchpad/routes.ts` (pure, tested in
+`tests/launchpad-routes.test.ts`); the server serves the same bundled page under
+exactly these paths (`pagePaths`) and nothing else, locally and through the hosted
+shell listener after admission. A path never carries the credential: locally the
+fragment token of the terminal link is read once and kept in page memory, and moving
+between routes uses `history.pushState`, so the page never reloads and the token
+stays. A deep link works as the first address (`/settings/tools#<token>`) or, hosted,
+through the gateway; a local link opened in a new tab without the token shows the
+page but its reads are refused, as before. `src/launchpad/shell.ts` holds the DOM of
+the frame.
+
+**What went where** (every setting the page had; none was added):
+
+| Before | Now |
+| --- | --- |
+| Machine profile: Workspace preset, Language, Detail, Coordination, Preview, Apply previewed change, the status line | Settings → General, one group of rows; Preview and Apply in its last row |
+| Reload profile | Settings → General, page action in the header |
+| JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
+| This Machine (read-only handover) | Settings → This Machine, one row per recorded fact |
+| Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
+| Product update pill | Sidebar footer above Settings/Back, visible from every route; the reserved `#folder-refresh` notice (another slice) sits right above it |
+| Application (development lifecycle) | Launchpad home `/`, not a setting |
+
+**Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
+`apps/web/src/`, and the installed T3 Code 0.0.42 bundle):
+
+- the sidebar becomes the settings navigation on a settings route, a flat list with an
+  icon per section, 32 px rows, 8 px radius, the current item on a lighter surface with
+  `aria-current="page"` (`AppSidebarLayout.tsx`, `SettingsSidebarNav.tsx`,
+  `ui/sidebar.tsx`);
+- the sidebar footer has "Settings" on the Launchpad home and "Back" inside Settings;
+  Back goes to the Launchpad home, not through the browser history, and the update
+  pill sits in the same footer (`sidebar/SidebarChrome.tsx`, `mainAppLocation.ts`);
+- Escape leaves Settings unless something else took it (`hooks/useNavigateBack.ts`);
+- a 52 px header with the breadcrumb "Settings / Tools", the current item
+  `aria-current="page"`, and page-level actions on its right (`SettingsBreadcrumb.tsx`,
+  `WorkspacePageHeader.tsx`, `routes/settings.tsx`);
+- content 56 rem wide at most, 24 px padding, 32 px between sections
+  (`WorkspacePageContainer.tsx`, `settingsLayout.tsx`);
+- a section is a quiet heading (14 px, regular, 70 % foreground) over a card with a
+  12 px radius, a faint border and dividers between rows; a row has the title (14 px
+  medium), the description (13 px muted) and a status line (12 px) on the left and the
+  control on the right, and stacks below 32 rem of its own width (container query)
+  (`settingsLayout.tsx`, `SettingsGroup.tsx`);
+- yes/no is a switch (`role="switch"`, 18 px), an enumerated choice a select; 28 px
+  buttons with an 8 px radius, outline by default, the primary filled, sign-out in the
+  destructive-outline style (`ui/switch.tsx`, `ui/button.tsx`);
+- dialogs with a 16 px radius, a large shadow, a dimmed backdrop and a footer bar with
+  the actions on the right (`ui/alert-dialog.tsx`);
+- below 768 px the sidebar is an off-canvas sheet opened from a header button; choosing
+  a section closes it (`ui/sidebar.tsx`);
+- the colour tokens of `index.css`: zinc in light, neutral in dark, the same primary,
+  through `prefers-color-scheme`; the system font stack.
+
+**Deliberate differences.** Moving between sections adds a history entry (T3 Code
+replaces it), so back and forward move between sections as the Principal asked.
+Choosing a section keeps the focus on the navigation item as in T3 Code, but every
+other move (Settings, Back, the breadcrumb, back/forward, a section chosen in the
+narrow sheet) focuses the heading of the new view and the document title names it.
+Escape does not leave Settings from a form field, so an unsaved note is not left
+behind by a stray key. T3 Code's settings search, `/` shortcut, resizable sidebar and
+per-row reset are not built: the page has three sections and no defaults to reset to.
+The General settings keep the explicit Preview → Apply of a Folder change instead of
+T3 Code's immediate apply. Icons are Lucide (ISC), inlined as SVG symbols.
+
 ## Tools section
 
 The page has a section "Tools" / "Nástroje" (decision F18,
@@ -65,15 +139,19 @@ status" (with them again), and shows:
   instructions, and that agents use enabled tools first and MCP servers second;
 - on a shared Environment (the Team preset) the warning that signed-in accounts are
   shared by all operators; it is repeated in the confirmation of an enable;
-- three groups, **Required**, **Recommended** and **Optional**, in catalog order. A
-  card carries the tool's name, its one-line purpose, the enabled state, the setup
-  mode, the installed version and path or "not installed", a failed version check,
-  and one line about the sign-in: "Signed in as <account>" (with the organization for
+- three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
+  a settings group of rows. A row carries on the left the tool's name, its one-line
+  purpose and one status line (installed version or "not installed", then the
+  sign-in), a failed version check below it, and on the right the one action
+  ("Install and sign in", "Sign in", "Sign out" or, for a tool an agent sets up, "Set up
+  with an agent") and the enable switch ("Always on" for a required tool). The sign-in
+  reads: "Signed in as <account>" (with the organization for
   composio), "Signed in", "Not signed in", "Sign-in unknown" or "Sign-in not checked".
   Only on a hosted Machine (`hosted`) does a PATH entry outside `~/.local/bin` add a
   note and the amber attention state; on a local workstation any tool on PATH is fine;
-- behind "What agents are told" the catalog usage text (read-only), the official
-  source and, for a required or enabled tool, a text area "Your note for agents" with
+- behind "Details" the path where the tool was found, "What agents are told" (the
+  catalog usage text, read-only), the official source, for a `launchpad` tool the
+  "Set up with an agent" fallback, and, for a required or enabled tool, a text area "Your note for agents" with
   a character counter and "Save note" / "Clear note"; a disabled optional tool says
   that a note can be added after enabling it. The counter and the checks use the rules
   of the Folder state (`src/tools/note.ts`), so a note the server would refuse cannot
@@ -81,12 +159,14 @@ status" (with them again), and shows:
 - a card "Connect another app through an MCP server" with the generic prepared prompt.
   MCP servers are never recorded in the Folder, so this card enables nothing.
 
-**Enable, disable and notes** take one click. The button sends the full next
+**Enable, disable and notes** take one click (the switch is a `role="switch"` button
+named "Enable <tool>" with `aria-checked`). The button sends the full next
 selection (and, for a note, the full next set of notes) with the shown revision to
 `/api/tools/update`; the page no longer uses `/api/tools/preview`, which stays for
 other clients. After a recorded change the card confirms politely what happened, that
 the agent instructions of this Folder were rewritten and the new Folder revision, with
-an "Undo" that sends the state before the change at that new revision; enabling a tool
+an "Undo" that sends the state before the change at that new revision and takes the
+focus once the page has read the new state; enabling a tool
 that is not installed says so, and on the Team preset the shared sign-ins warning
 follows an enable. The whole page then reloads its state, so the revision advances
 for the profile form as well and a profile preview made before the change is dropped.
@@ -99,7 +179,8 @@ required tool has no toggle and shows "Always on"; it can carry a note.
 read-only text area and "Copy prompt" (Clipboard API; where it is unavailable the text
 is selected for a keyboard copy). The prompt contains no secret, and the operator
 pastes it into a new chat in T3 Code on the Machine. Focus moves into the dialog and
-returns to the button that opened it. Every activatable tool has this button.
+returns to the button that opened it (opening its "Details" again when the button sits
+there). Every activatable tool has this button.
 
 **Install and sign in, Sign in, Sign out** (decision F19,
 [environment-tools.md](environment-tools.md#curated-installation-and-login-decision-f19)).
@@ -142,6 +223,10 @@ Pure view logic lives in `src/launchpad/tools-view.ts` and is tested without a
 DOM (`tests/tools-view.test.ts`); `src/launchpad/tools-panel.ts` holds the DOM and
 renders every server and tool value with `textContent`. HTTP behavior is tested in
 `tests/launchpad-tools.test.ts` and `tests/launchpad-curated.test.ts` with fake tools
-on a private PATH, a temporary home and a fake official source. The section's appearance in a real browser, its keyboard and screen-reader
-behavior and the clipboard path have not been qualified by an automated or recorded
-manual run.
+on a private PATH, a temporary home and a fake official source. On 2026-09-28 the Settings layout was driven in headless Chromium (Playwright) against
+a temporary Folder, fake tools on a private PATH and a temporary home: routes, deep
+links, back/forward, Escape, focus after navigation, the narrow sheet, the gh dialog
+(focus to its title, Escape, focus back to the row), enable with Undo and a Czech
+round trip, light and dark, without page errors; the update pill and the shared
+Environment were shown by intercepting their answers in the browser. Screen-reader
+output and the clipboard path have not been qualified by a recorded manual run.
