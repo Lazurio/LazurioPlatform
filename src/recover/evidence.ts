@@ -1,7 +1,15 @@
 import { createHash } from "node:crypto";
+import { constants } from "node:os";
 import { isTemplateRevision } from "../folder/render";
-import type { ErrorContext, UpdateErrorCode } from "../update/errors";
-import { isProductVersion } from "../update/identity";
+import {
+  type ErrorContext,
+  type UpdateErrorCode,
+  updateErrorCodes,
+  updateErrorReasons,
+  updateErrorResources,
+  updateErrorStages,
+} from "../update/errors";
+import { updateTargets } from "../update/identity";
 import { updateStatePaths } from "../update/layout";
 import {
   checkDetail,
@@ -10,8 +18,16 @@ import {
   type RecoveryCheckId,
   type RecoveryCode,
   type RecoveryRule,
+  recoveryCheckIds,
 } from "./checks";
-import type { FolderFacts, UnitFacts } from "./observe";
+import {
+  type FolderFacts,
+  healthReasons,
+  serviceResults,
+  serviceSubStates,
+  type UnitFacts,
+  unitActiveStates,
+} from "./observe";
 
 /** The evidence bundle (docs/recovery-mode.md E.1): enumerated fields plus
  * one bounded, sanitized tail of the Launchpad unit's journal. Structure
@@ -86,50 +102,57 @@ export type RecoveryEvidence = Readonly<{
 }>;
 
 /** Tier 1 for a context (docs/recovery.md "Two tiers"): an explicit
- * allowlist of keys, each with its own validator. Every other key (a
- * `message`, a `note`, a `detail`, an `error`) and every value its validator
- * refuses is dropped. It holds for the product's own check contexts and for
- * the one read back from the update unit's journal alike. */
-const enumeratedId = (value: unknown) =>
-  typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value);
+ * allowlist of keys. An id-valued key admits only the finite values the
+ * product itself defines, taken from the constants beside the code that emits
+ * them, never a shape; a version admits only the release form, digits only.
+ * Every other key (a `message`, a `note`, a `detail`, an `error`) and every
+ * value outside its list is dropped. It holds for the product's own check
+ * contexts and for the one read back from the update unit's journal alike. */
+const oneOf =
+  (...lists: readonly (readonly unknown[])[]) =>
+  (value: unknown) =>
+    lists.some((list) => list.includes(value));
 const integer = (value: unknown) =>
   typeof value === "number" && Number.isSafeInteger(value);
-const stateWord = (value: unknown) =>
-  typeof value === "string" && /^[a-z][a-z-]{0,31}$/.test(value);
-const updateStatePath = (value: unknown) =>
-  (updateStatePaths as readonly unknown[]).includes(value);
+/** The product's release form (docs/release-cycle.md): `X.Y.Z` or
+ * `X.Y.Z-rc.N`. A wider version string could carry a word. */
+export const isReleaseVersion = (value: unknown): value is string =>
+  typeof value === "string" &&
+  /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})(-rc\.[1-9]\d{0,5})?$/.test(
+    value,
+  );
 const revisionId = (value: unknown) =>
   integer(value) || (typeof value === "string" && isTemplateRevision(value));
-const contextRules: Readonly<Record<string, (value: unknown) => boolean>> =
-  Object.freeze({
-    reason: enumeratedId,
-    code: enumeratedId,
-    stage: enumeratedId,
-    resource: enumeratedId,
-    check: enumeratedId,
-    exitCode: integer,
-    httpStatus: integer,
-    nRestarts: integer,
-    execMainStatus: integer,
-    activeState: stateWord,
-    subState: stateWord,
-    result: stateWord,
-    path: updateStatePath,
-    version: isProductVersion,
-    expected: isProductVersion,
-    actual: isProductVersion,
-    reported: isProductVersion,
-    active: isProductVersion,
-    latest: isProductVersion,
-    from: isProductVersion,
-    to: isProductVersion,
-    revision: revisionId,
-    recorded: revisionId,
-    product: revisionId,
-    target: (value) =>
-      typeof value === "string" && /^[a-z0-9]+-[a-z0-9]+$/.test(value),
-    errno: (value) => typeof value === "string" && /^E[A-Z]{1,15}$/.test(value),
-  });
+export const contextRules: Readonly<
+  Record<string, (value: unknown) => boolean>
+> = Object.freeze({
+  reason: oneOf(updateErrorReasons, healthReasons),
+  code: oneOf(updateErrorCodes),
+  stage: oneOf(updateErrorStages),
+  resource: oneOf(updateErrorResources),
+  check: oneOf(recoveryCheckIds),
+  exitCode: integer,
+  httpStatus: integer,
+  nRestarts: integer,
+  execMainStatus: integer,
+  activeState: oneOf(unitActiveStates, ["unknown"]),
+  subState: oneOf(serviceSubStates, ["unknown"]),
+  result: oneOf(serviceResults, ["unknown"]),
+  path: oneOf(updateStatePaths),
+  version: isReleaseVersion,
+  expected: isReleaseVersion,
+  actual: isReleaseVersion,
+  reported: isReleaseVersion,
+  active: isReleaseVersion,
+  latest: isReleaseVersion,
+  from: isReleaseVersion,
+  to: isReleaseVersion,
+  revision: revisionId,
+  recorded: revisionId,
+  product: revisionId,
+  target: oneOf(updateTargets),
+  errno: oneOf(Object.keys(constants.errno)),
+});
 
 export const tierOneContext = (context: ErrorContext): ErrorContext =>
   Object.freeze(

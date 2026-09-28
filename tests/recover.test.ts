@@ -609,7 +609,8 @@ test("canaries in every source never reach the issue body, which passes the gate
   expect(evidence.failed).toEqual(["launchpad-unit", "launchpad-health"]);
   expect(evidence.platform).toEqual({
     os: "linux",
-    kernel: "6.8.0-<host>",
+    // Only the numbers of the release: its suffix is free-form.
+    kernel: "6.8.0",
     arch: "arm64",
     systemd: 255,
     bun: "1.4.2",
@@ -803,6 +804,56 @@ test("a free-text key of the update unit's journal leaves nowhere; its reason do
     human.stdout,
   ])
     expect(text).not.toContain("IncidentOrchid");
+});
+
+test("an id-shaped value outside the product's own list leaves nowhere; a known reason does", async () => {
+  const { world } = await cannedWorld();
+  const script = {
+    show: "LoadState=loaded\nActiveState=failed\nSubState=failed\nResult=exit-code\nNRestarts=3\nExecMainStatus=1\n",
+    updateShow: `LoadState=loaded\nActiveState=failed\nInvocationID=${"e".repeat(32)}\n`,
+  };
+  const run = (reason: string) => ({
+    ...script,
+    updateJournal: `{"kind":"error","code":"self-check-failed","context":{"reason":"${reason}","stage":"incidentorchid","resource":"incidentorchid","check":"incidentorchid","activeState":"incidentorchid","reported":"1.0.0-incidentorchid"}}`,
+  });
+  const json = await recover(
+    world,
+    ["--json"],
+    supervisedLinux(world, run("incidentorchid")),
+  );
+  const human = await recover(
+    world,
+    [],
+    supervisedLinux(world, run("incidentorchid")),
+  );
+  expect(json.code).toBe(exitBroken);
+  const { evidence, issue, prompt } = json.json ?? {};
+  expect(evidence.unit.lastUpdateFailure).toEqual({
+    code: "self-check-failed",
+    context: {},
+  });
+  expect(issue.kind).toBe("prepared");
+  for (const text of [
+    issue.title,
+    issue.body,
+    issue.shell,
+    issue.link,
+    decodeURIComponent(issue.link),
+    prompt,
+    json.stdout,
+    human.stdout,
+  ])
+    expect(text.toLowerCase()).not.toContain("incidentorchid");
+  // A reason the product emits survives.
+  const known = await recover(
+    world,
+    ["--json"],
+    supervisedLinux(world, run("exit")),
+  );
+  expect(known.json?.evidence.unit.lastUpdateFailure.context).toEqual({
+    reason: "exit",
+  });
+  expect(known.json?.issue.body).toContain('"reason":"exit"');
 });
 
 test("the fingerprint names one fault across releases", async () => {

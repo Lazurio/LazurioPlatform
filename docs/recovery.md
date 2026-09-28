@@ -95,31 +95,44 @@ splits the bundle in two:
 - **Tier 1, the automatic structured body.** The prepared issue body carries only
   structured, non-free-text fields: versions, digests, target and platform names,
   the ids of failed checks and their codes, unit states and counters, Folder and
-  template revisions, timestamps. Every field has its own syntactic validator
-  (`src/recover/evidence.ts`, `observe.ts`, `recover.ts`). A string copied from the
-  Folder is an enumerated literal (preset, Machine kind) or a revision of the
+  template revisions, timestamps. Every field has its own validator
+  (`src/recover/evidence.ts`, `observe.ts`, `recover.ts`), and an id-valued field
+  admits only finite product-defined values, never a shape. A string copied from
+  the Folder is an enumerated literal (preset, Machine kind) or a revision of the
   product's form (`base-instructions-<n>`), else the literal `invalid`, never the
-  recorded value; its revision and schema versions are numbers. The kernel release
-  is one token or `invalid`; the last check's time is re-written as ISO 8601. This
-  body is what the repair agent files without asking.
+  recorded value; its revision and schema versions are numbers. A version the
+  Machine recorded (active, high-water mark, installed, the active executable's,
+  the last check's latest) is kept in the release form `X.Y.Z` or `X.Y.Z-rc.N`
+  (`docs/release-cycle.md`), digits only, else `invalid`. The unit's states are
+  systemd's own values or `unknown`. The kernel release keeps only its numbers
+  (`6.8.0` of `6.8.0-45-generic`); the last check's time is re-written as ISO 8601.
+  This body is what the repair agent files without asking.
 
   A `context` (of every check and of the last failed `lazurio-update` run, which
   is read back from that unit's journal) keeps only these keys, each with a value
-  its validator accepts:
+  from its finite product-defined list or of its numeric form:
 
-  | Keys | Value |
-  | --- | --- |
-  | `reason`, `code`, `stage`, `resource`, `check` | an id, `^[a-z][a-z0-9-]{0,63}$` |
-  | `exitCode`, `httpStatus`, `nRestarts`, `execMainStatus` | an integer |
-  | `activeState`, `subState`, `result` | a systemd state word, `^[a-z][a-z-]{0,31}$` |
-  | `path` | one of the update state names (`update/high-water`, `update/pending.json`, `updateStatePaths` in `src/update/layout.ts`) |
-  | `version`, `expected`, `actual`, `reported`, `active`, `latest`, `from`, `to` | a product version |
-  | `revision`, `recorded`, `product` | an integer or a template revision `base-instructions-<n>` |
-  | `target` | a target name, `^[a-z0-9]+-[a-z0-9]+$` |
-  | `errno` | an errno name, `^E[A-Z]{1,15}$` |
+  | Keys | Value | Source of the list |
+  | --- | --- | --- |
+  | `reason` | a reason the product emits | `updateErrorReasons` (`src/update/errors.ts`) and `healthReasons` (`src/recover/observe.ts`) |
+  | `code` | an update error code | `updateErrorCodes` (`src/update/errors.ts`) |
+  | `stage` | a stage the update code emits | `updateErrorStages` (`src/update/errors.ts`) |
+  | `resource` | a release resource | `updateErrorResources` (`src/update/errors.ts`) |
+  | `check` | a recovery check id | `recoveryCheckIds` (`src/recover/checks.ts`) |
+  | `path` | an update state name | `updateStatePaths` (`src/update/layout.ts`) |
+  | `activeState`, `subState`, `result` | systemd's value, or `unknown` | `unitActiveStates`, `serviceSubStates`, `serviceResults` (`src/recover/observe.ts`) |
+  | `target` | a release target | `updateTargets` (`src/update/identity.ts`) |
+  | `errno` | an errno name | `os.constants.errno` of the runtime |
+  | `version`, `expected`, `actual`, `reported`, `active`, `latest`, `from`, `to` | a version in the release form | `isReleaseVersion` (`src/recover/evidence.ts`) |
+  | `revision`, `recorded`, `product` | an integer or `base-instructions-<n>` | `isTemplateRevision` (`src/folder/render.ts`) |
+  | `exitCode`, `httpStatus`, `nRestarts`, `execMainStatus` | an integer | |
 
-  Every other key (`message`, `note`, `detail`, `error`, …) and every value its
-  validator refuses is dropped before sanitization.
+  Every other key (`message`, `note`, `detail`, `error`, …) and every value outside
+  its list is dropped before sanitization. The helpers that build an update
+  context take these lists as types, and a test holds every `reason`, `stage`,
+  `resource` and `check` literal written in `src/update/`, `src/recover/` and the
+  update pill to its list, so a new value cannot pass the allowlist silently or be
+  dropped unnoticed.
 - **Tier 2, free text.** The journal tail and any other free text never leave the
   Machine automatically. `evidence.journal` stays in the `--json` output on this
   Machine; it is not in the body, the here-document or the link. It reaches the

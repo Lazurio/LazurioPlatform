@@ -20,7 +20,12 @@ import {
   type RecoveryCheck,
   skipped,
 } from "./checks";
-import { fingerprint, type RecoveryEvidence, tierOneContext } from "./evidence";
+import {
+  fingerprint,
+  isReleaseVersion,
+  type RecoveryEvidence,
+  tierOneContext,
+} from "./evidence";
 import { type PreparedIssue, prepareIssue, type RefusedIssue } from "./issue";
 import {
   askHealth,
@@ -139,10 +144,16 @@ const cleanContext = (context: ErrorContext, sanitizer: Sanitizer) =>
     ),
   );
 
-// A kernel release is one token (`6.8.0-45-generic`); anything else is not
-// a structured field.
+// Only the numbers of a kernel release (`6.8.0` of `6.8.0-45-generic`): the
+// rest is a free-form suffix any build may choose.
 const kernelRelease = (value: string) =>
-  /^[A-Za-z0-9][A-Za-z0-9._+~-]{0,63}$/.test(value) ? value : "invalid";
+  /^\d{1,4}\.\d{1,4}(\.\d{1,4})?/.exec(value)?.[0] ?? "invalid";
+
+// A version the Machine recorded is tier 1 only in the release form.
+const release = (value: string) =>
+  isReleaseVersion(value) ? value : "invalid";
+const maybeRelease = (value: string | null) =>
+  value === null ? null : release(value);
 
 // Only the time, in the one form the product writes.
 const isoTime = (value: string) => {
@@ -277,11 +288,17 @@ export async function collectRecovery(
     checks: cleanChecks,
     product: Object.freeze({
       running: Object.freeze({ ...identity, fixture: environment.fixture }),
-      active: selfCheck.identity,
+      active:
+        selfCheck.identity === null
+          ? null
+          : Object.freeze({
+              ...selfCheck.identity,
+              version: release(selfCheck.identity.version),
+            }),
     }),
     platform: Object.freeze({
       os: platform,
-      kernel: sanitizer.sanitize(kernelRelease(machine.kernel)),
+      kernel: kernelRelease(machine.kernel),
       arch: machine.arch,
       systemd: userManagerPresent(platform, env)
         ? await systemdVersion(command)
@@ -289,10 +306,10 @@ export async function collectRecovery(
       bun: machine.bun,
     }),
     install: Object.freeze({
-      active,
-      highWater: status?.highWater ?? null,
+      active: maybeRelease(active),
+      highWater: maybeRelease(status?.highWater ?? null),
       stateInvalid: status?.stateInvalid ?? null,
-      versions: Object.freeze(await installedVersions(base)),
+      versions: Object.freeze((await installedVersions(base)).map(release)),
       supervised,
       legacyPrevious: await exists(join(base, "previous")),
       legacyMarker: await exists(join(base, "update", "pending.json")),
@@ -305,7 +322,7 @@ export async function collectRecovery(
     lastCheck:
       lastCheck == null || checkedAt === null
         ? null
-        : Object.freeze({ latest: lastCheck.latest, checkedAt }),
+        : Object.freeze({ latest: release(lastCheck.latest), checkedAt }),
     journal: journal === null ? null : sanitizer.journalTail(journal),
   });
   const issue = prepareIssue(evidence, sanitizer);

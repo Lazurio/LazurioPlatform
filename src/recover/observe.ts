@@ -261,9 +261,70 @@ const unitProperties = [
   "ExecMainStatus",
 ] as const;
 
-// A systemd state word, or nothing that could carry text into the evidence.
-const stateWord = (value: string | undefined) =>
-  value !== undefined && /^[a-z][a-z-]{0,31}$/.test(value) ? value : "unknown";
+/** The values systemd defines for the properties read (systemd's unit and
+ * service state tables), and `unknown` for anything else: a finite list, so
+ * nothing read here can carry text into the evidence. */
+export const unitLoadStates = [
+  "stub",
+  "loaded",
+  "not-found",
+  "bad-setting",
+  "error",
+  "merged",
+  "masked",
+] as const;
+export const unitActiveStates = [
+  "active",
+  "reloading",
+  "inactive",
+  "failed",
+  "activating",
+  "deactivating",
+  "maintenance",
+  "refreshing",
+] as const;
+export const serviceSubStates = [
+  "dead",
+  "condition",
+  "start-pre",
+  "start",
+  "start-post",
+  "running",
+  "exited",
+  "reload",
+  "reload-signal",
+  "reload-notify",
+  "stop",
+  "stop-watchdog",
+  "stop-sigterm",
+  "stop-sigkill",
+  "stop-post",
+  "final-watchdog",
+  "final-sigterm",
+  "final-sigkill",
+  "failed",
+  "dead-before-auto-restart",
+  "failed-before-auto-restart",
+  "dead-resources-pinned",
+  "auto-restart",
+  "auto-restart-queued",
+  "cleaning",
+] as const;
+export const serviceResults = [
+  "success",
+  "resources",
+  "protocol",
+  "timeout",
+  "exit-code",
+  "signal",
+  "core-dump",
+  "watchdog",
+  "start-limit-hit",
+  "oom-kill",
+  "exec-condition",
+] as const;
+const stateWord = (allowed: readonly string[], value: string | undefined) =>
+  value !== undefined && allowed.includes(value) ? value : "unknown";
 const count = (value: string | undefined) =>
   value !== undefined && /^\d{1,9}$/.test(value) ? Number(value) : null;
 
@@ -299,10 +360,10 @@ export async function observeUnit(
     if (split > 0) properties.set(line.slice(0, split), line.slice(split + 1));
   }
   const facts: UnitFacts = Object.freeze({
-    loadState: stateWord(properties.get("LoadState")),
-    activeState: stateWord(properties.get("ActiveState")),
-    subState: stateWord(properties.get("SubState")),
-    result: stateWord(properties.get("Result")),
+    loadState: stateWord(unitLoadStates, properties.get("LoadState")),
+    activeState: stateWord(unitActiveStates, properties.get("ActiveState")),
+    subState: stateWord(serviceSubStates, properties.get("SubState")),
+    result: stateWord(serviceResults, properties.get("Result")),
     nRestarts: count(properties.get("NRestarts")),
     execMainStatus: count(properties.get("ExecMainStatus")),
   });
@@ -412,6 +473,9 @@ export async function askHealth(
   } catch {}
   return Object.freeze({ kind: "unexpected" });
 }
+
+/** The reasons the health check itself writes into its context. */
+export const healthReasons = ["unexpected-answer", "no-answer"] as const;
 
 /** A supervised Launchpad must answer with the active version. Without a
  * supervisor no socket is expected: an answer is reported, silence is not

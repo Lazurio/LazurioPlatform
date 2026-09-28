@@ -5,7 +5,7 @@ import {
   parseFolderPreferences,
   parseInstructionManifest,
 } from "../folder/state";
-import { UpdateFailure } from "./errors";
+import { type UpdateErrorReason, UpdateFailure } from "./errors";
 import {
   embeddedFixture,
   embeddedIdentity,
@@ -166,7 +166,7 @@ export async function requireSelfCheck(input: {
   timeoutMs?: number | undefined;
   run?: ProcessRunner | undefined;
 }): Promise<string | null> {
-  const failed = (reason: string, exitCode?: number) =>
+  const failed = (reason: UpdateErrorReason, exitCode?: number) =>
     new UpdateFailure("self-check-failed", {
       reason,
       ...(exitCode === undefined ? {} : { exitCode }),

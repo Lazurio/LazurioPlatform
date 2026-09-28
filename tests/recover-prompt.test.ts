@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { failed, ok, skipped } from "../src/recover/checks";
+import { failed, ok, recoveryCheckIds, skipped } from "../src/recover/checks";
 import {
   fingerprint,
   type RecoveryEvidence,
@@ -12,8 +12,14 @@ import {
   prepareIssue,
   type RefusedIssue,
 } from "../src/recover/issue";
+import { healthReasons } from "../src/recover/observe";
 import { recoveryPrompt } from "../src/recover/prompt";
 import { createSanitizer, type Sanitizer } from "../src/recover/sanitize";
+import {
+  updateErrorReasons,
+  updateErrorResources,
+  updateErrorStages,
+} from "../src/update/errors";
 
 // The repair agent's assignment and the issue it files, from fixed facts.
 
@@ -333,9 +339,74 @@ test("a context keeps its allowlisted keys with valid values only", () => {
     recorded: "base-instructions-9",
     activeState: "failed",
   });
+  // An id-shaped value outside the product's own list is not an id.
+  expect(
+    tierOneContext({
+      reason: "incidentorchid",
+      code: "incidentorchid",
+      stage: "incidentorchid",
+      resource: "incidentorchid",
+      check: "incidentorchid",
+      subState: "incidentorchid",
+      target: "incidentorchid-x64",
+      errno: "EINCIDENTORCHID",
+      reported: "1.0.0-incidentorchid",
+      exitCode: 1,
+    }),
+  ).toEqual({ exitCode: 1 });
+  expect(
+    tierOneContext({
+      code: "state-invalid",
+      check: "launchpad-health",
+      target: "linux-x64",
+      errno: "EACCES",
+      reported: "1.2.3-rc.4",
+    }),
+  ).toEqual({
+    code: "state-invalid",
+    check: "launchpad-health",
+    target: "linux-x64",
+    errno: "EACCES",
+    reported: "1.2.3-rc.4",
+  });
   // A path outside the update state names is not a path this context carries.
   expect(tierOneContext({ path: "update/../../srv/x" })).toEqual({});
   expect(tierOneContext({ path: "/srv/UniqueCustomer" })).toEqual({});
+});
+
+test("every id literal the product writes into a context is in its list", async () => {
+  // The helpers that build a context take the typed lists; a literal written
+  // straight into a context object is found here, so a new one cannot drift
+  // past the allowlist silently.
+  const lists: Readonly<Record<string, readonly unknown[]>> = {
+    reason: [...updateErrorReasons, ...healthReasons],
+    stage: updateErrorStages,
+    resource: updateErrorResources,
+    check: recoveryCheckIds,
+  };
+  const files = [
+    ...[...new Bun.Glob("src/update/*.ts").scanSync(".")],
+    ...[...new Bun.Glob("src/recover/*.ts").scanSync(".")],
+    "src/launchpad/update-pill.ts",
+  ];
+  const outside: string[] = [];
+  let found = 0;
+  for (const file of files) {
+    const text = await Bun.file(file).text();
+    for (const match of text.matchAll(
+      // Not an option declaration such as `check: { type: "boolean" }`.
+      /\b(reason|stage|resource|check):\s*(?![\s{])([^,}\n]*)/g,
+    )) {
+      const [, key, value] = match as unknown as [string, string, string];
+      for (const literal of value.matchAll(/"([^"]*)"/g)) {
+        found++;
+        if (!(lists[key] as readonly unknown[]).includes(literal[1]))
+          outside.push(`${file}: ${key} ${literal[1]}`);
+      }
+    }
+  }
+  expect(found).toBeGreaterThan(30);
+  expect(outside).toEqual([]);
 });
 
 test("the fingerprint ignores the version and tells faults apart", () => {

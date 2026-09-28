@@ -27,6 +27,92 @@ export const updateErrorCodes = [
 ] as const;
 export type UpdateErrorCode = (typeof updateErrorCodes)[number];
 
+/** The finite values of the id-valued context keys of an update error. They
+ * are a contract like the codes: an outside observer and `lazurio recover`
+ * (docs/recovery.md "Two tiers") admit exactly these and drop anything else.
+ * The helpers that build a context take these types; a literal written
+ * straight into a context is held to these lists by tests/recover-prompt.test.ts.
+ */
+export const updateErrorReasons = [
+  // self-check (self-check.ts)
+  "not-executable",
+  "timeout",
+  "exit",
+  "output",
+  "identity-mismatch",
+  "fixture",
+  "base",
+  "folder",
+  // transport and download (transport.ts, download.ts)
+  "connection",
+  "http",
+  "redirect",
+  "not-found",
+  "size",
+  "digest",
+  // the release documents (manifest.ts, update.ts, install.ts)
+  "target",
+  "json",
+  "schema",
+  "version",
+  "source-commit",
+  "minimum-updater-version",
+  "notes-url",
+  "targets",
+  "tag-mismatch",
+  "commit-mismatch",
+  "below-floor",
+  "file",
+  // attestation (attestation.ts)
+  "envelope",
+  "payload-type",
+  "statement",
+  "subject",
+  "verification",
+  // install, activation, rollback (install.ts, activation.ts, update.ts)
+  "foreign-unit",
+  "none",
+  "missing",
+  "self-check",
+  // the Launchpad's update pill (src/launchpad/update-pill.ts)
+  "interrupted",
+] as const;
+export type UpdateErrorReason = (typeof updateErrorReasons)[number];
+
+export const updateErrorStages = [
+  "activate",
+  "base",
+  "child",
+  "commit",
+  "copy",
+  "disk-check",
+  "download",
+  "executable",
+  "folder",
+  "high-water",
+  "install",
+  "lock",
+  "service",
+  "stage",
+  "start",
+  "switch-back",
+  "systemd-run",
+  "timeout",
+  "trust-cache",
+  "unit",
+  "unit-argument",
+] as const;
+export type UpdateErrorStage = (typeof updateErrorStages)[number];
+
+export const updateErrorResources = [
+  "latest",
+  "manifest",
+  "bundle",
+  "artifact",
+  "version",
+] as const;
+export type UpdateErrorResource = (typeof updateErrorResources)[number];
+
 /** The four exit statuses. Every failure, and `busy`, is 1: automation reads
  * the code from `--json`, never from the status.
  */
@@ -64,7 +150,10 @@ export class UpdateFailure extends Error {
 }
 
 /** A filesystem error as a typed failure; the errno name is safe to show. */
-export function storageFailure(error: unknown, stage: string): UpdateFailure {
+export function storageFailure(
+  error: unknown,
+  stage: UpdateErrorStage,
+): UpdateFailure {
   if (error instanceof UpdateFailure) return error;
   const errno = (error as NodeJS.ErrnoException | undefined)?.code;
   if (errno === "ENOSPC" || errno === "EDQUOT")
