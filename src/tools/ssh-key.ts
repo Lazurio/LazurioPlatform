@@ -222,14 +222,22 @@ const exists = async (path: string) => {
   }
 };
 
-/** This Machine's key: the first default name whose private key exists, in
- * the order ed25519, ecdsa, rsa. Only the `.pub` file is read. */
+/** This Machine's key: the first default name that has a private key or a
+ * public file, in the order ed25519, ecdsa, rsa. Only the `.pub` file is
+ * read; a public file without its private key has no usable public key. */
 export async function machineKey(home: string): Promise<LocalKey | undefined> {
   const directory = join(home, ".ssh");
   for (const name of keyNames) {
     const privatePath = join(directory, name);
-    if (!(await exists(privatePath))) continue;
     const publicPath = `${privatePath}.pub`;
+    if (!(await exists(privatePath))) {
+      // A public file without its private key: the name is taken. Creating
+      // a key under it would overwrite that file, so it counts as a key
+      // that is incomplete, and nothing is created beside or over it.
+      if (await exists(publicPath))
+        return { name, privatePath, publicPath, publicKey: undefined };
+      continue;
+    }
     let publicKey: string | undefined;
     try {
       const info = await stat(publicPath);

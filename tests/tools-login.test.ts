@@ -857,7 +857,7 @@ test.skipIf(!keygen)(
       expect(await readFile(key)).toEqual(before.private);
       expect(await readFile(`${key}.pub`)).toEqual(before.public);
       expect((await stat(key)).mtimeMs).toBe(before.mtime);
-      expect(await readdir(join(opened.directory, ".ssh"))).toEqual([
+      expect((await readdir(join(opened.directory, ".ssh"))).sort()).toEqual([
         "id_ed25519",
         "id_ed25519.pub",
         "known_hosts",
@@ -879,6 +879,38 @@ test.skipIf(!keygen)(
     } finally {
       await sessions.close();
       await opened.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "gh: a public key file without its private key is never overwritten and no key is created",
+  async () => {
+    for (const name of ["id_ed25519", "id_rsa"]) {
+      const opened = await sshHome();
+      const made = makeKey(opened.directory, name);
+      const orphan = await readFile(`${made}.pub`);
+      await rm(made);
+      const sessions = createLoginSessions(opened.environment);
+      try {
+        const state = await signInGh(opened, sessions);
+        expect(state).toMatchObject({
+          kind: "signed-in",
+          ssh: {
+            state: "not-linked",
+            reason: "key-incomplete",
+            fallback: "agent",
+          },
+        });
+        expect(await readdir(join(opened.directory, ".ssh"))).toEqual([
+          `${name}.pub`,
+        ]);
+        expect(await readFile(`${made}.pub`)).toEqual(orphan);
+        expect(await keyLines(opened.directory)).toEqual([]);
+      } finally {
+        await sessions.close();
+        await opened.close();
+      }
     }
   },
 );
@@ -906,7 +938,7 @@ test.skipIf(!keygen)(
           fallback: "agent",
         },
       });
-      expect(await readdir(join(opened.directory, ".ssh"))).toEqual([
+      expect((await readdir(join(opened.directory, ".ssh"))).sort()).toEqual([
         "id_ed25519",
         "id_ed25519.pub",
       ]);
