@@ -944,8 +944,8 @@ apply and an Update button fed by `Lazurio/t3code` releases; T3 always runs tool
 the operator's PATH, and recovery goes through `lazurio` from the recovery runtime, not
 through a PATH fallback (Machines, DEV-6624).
 
-**Platform.** The hosted manual section "Updates on this Machine" now says that the pin
-owns the product and the generated files, not the operator's tools, and that an agent
+**Platform.** The hosted manual section "Updates on this Machine" now says (until the
+addendum of 2026-09-28 below) that the pin owns the product and the generated files, not the operator's tools, and that an agent
 updates operator tools only on the Principal's explicit instruction in the thread and
 otherwise only reports versions (template revision `base-instructions-6`, so every
 Folder re-renders on its next refresh). `lazurio update` remains the only product
@@ -981,6 +981,71 @@ so agents on VMs keep the layout for further tools, and `tools status` reports
 `standardPath`.
 
 **Not decided here:** the readback shape and the T3 launcher (Machines).
+
+**Addendum 2026-09-28 (Principal): the operator owns the Lazurio version; the pin
+is a minimum.** Recorded from the Principal's decisions of 2026-09-28. (1) There is
+**one updater**, `lazurio update`. The operator of an Environment updates Lazurio
+themselves, on a hosted Machine (Remote Environment) exactly as on their own computer,
+without any rollout: "updating Lazurio is the operator's update of a tool, not a
+rollout". (2) A rollout **may** still move a working Lazurio forward, because
+operators sometimes forget to update and sometimes it is needed. So the provider's pin
+is a **minimum**: a rollout installs Lazurio when it is absent or broken, raises a
+Machine that is below the pin to the pinned release, and never moves a Machine below
+what it already runs — the existing floor and high-water rule of F13
+([product update](update.md#offline-update)), which already refuses a lower pin with
+`below-floor`. (3) Forward repair over rollback: no new rollback machinery;
+`lazurio update rollback` stays what it is, the way back from a failed update.
+(4) Linux first, then macOS; Windows later.
+
+This changes one point of this decision: the installed Platform release leaves the
+pinned baseline for its **version**. The baseline still delivers the first
+installation and repairs a broken one; the version belongs to the operator like the
+tools of 0161 point 2, with the one difference that a rollout may raise it to the pin.
+
+*The standard entry `~/.local/bin/lazurio`* (0161 point 6) now exists. `lazurio
+install`, the first installation and the offline update alike, links it to the install
+base's selector `<base>/bin/lazurio` by one atomic rename, creating `~/.local/bin`
+(`0755`) when it is missing. An entry that already points to the selector is left
+alone; a link to the selector of a Lazurio install base (another base, or one that is gone) is replaced; a dangling link of any other shape is someone else's and stays; when `~/.local` or `~/.local/bin` is itself a link or not a directory, nothing is written through it (`conflict`, `parent`); a
+regular file, a directory or a link to anything else is **never** overwritten — the
+installation still succeeds and its result (`entry.state: "conflict"`, human and JSON)
+names what is there and what the operator or an agent should do. Shell profiles are
+never edited. The result reports whether `~/.local/bin` is on the process PATH (the
+directory it tells the operator to put on PATH is `~/.local/bin` when the link exists)
+and warns, with both paths, when another program named `lazurio` resolves first (the
+legacy root CLI linked by Bun into `~/.bun/bin`, for example); it changes nothing about
+that program.
+
+*"Folder refresh needed."* A product update never writes the Folder (F14). So
+`lazurio update`, `lazurio update status` and the installed Launchpad's update pill say
+"Folder refresh needed" with the exact command when the Folder records an older
+template revision than the active product renders: `lazurio machine folder-refresh`
+on a hosted Machine; on a workstation the unchanged profile applied again
+(`lazurio profile-update` with the recorded choices at the current revision, or
+preview and apply in the profile panel), which the one planner turns into the same
+template upgrade. It only reads; nothing is refreshed automatically, and an edited
+generated file still blocks the refresh with `drift`. The Folder is `--folder`, the
+supervised unit's, or on a hosted Machine the declared operator's from the handover.
+The updater learns the revision a new version renders from that version's own
+self-check report (`templateRevision`), before activating it; an executable older
+than this addendum does not state it and nothing is reported rather than a guess — so
+the first update performed by `v0.1.7` or older reports no refresh, and
+`lazurio update status` of the new version does.
+
+*The generated manual* no longer forbids `lazurio update`, `lazurio update rollback`
+or `lazurio install` on a hosted Machine and no longer says the pin owns the product
+version: the operator owns it; an agent runs `lazurio update` when the operator asks
+(a change of the Environment, never on its own initiative) and `update status` freely;
+the pin is a minimum and a rollout never lowers a version; the refresh command follows
+an update; `lazurio update rollback` is for a failed update. Template revision
+`base-instructions-9` (revision 8 shipped in `v0.1.7`), so every Folder re-renders on
+its next refresh. A unit test checks that no generated output, in any preset or
+locale, still forbids `lazurio update` or gives the product version to the pin.
+
+Root decision 0161 still lists "the installed release" among what the pin holds; it
+is amended by a separate pull request in the root repository. What the Machines role
+must do differently is the contract in
+[machine handover](machine-handover.md#what-the-machines-role-does-with-the-lazurio-version-f17-addendum-2026-09-28).
 
 ## F18 — Enabled tools of the Environment
 

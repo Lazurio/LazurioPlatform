@@ -161,8 +161,8 @@ const lazurio: readonly Text[] = [
     "## Machines and the Platform meet at the handover",
   ),
   t(
-    "Machines dodá Mašinu online: systém, síť, SSH a sudo, identitu Mašiny v `lazurio.machine.json`, vstup přes sdílenou Auth gateway a nainstalovaný release Lazuria. Od té chvíle všechno uvnitř, tedy Folder, Organizace, moduly, nástroje, přihlášení a jejich aktualizace, patří nainstalovanému produktu přes CLI `lazurio` a Operátorovi Mašiny (decision 0144). Na hostované Mašině vybírá release produktu pin provozovatele Machines; nástroje operátora pin nevlastní, operátor si je aktualizuje sám a rollout je jen oprava baseline (decision 0161, `manual/troubleshooting.md`). Soubor s identitou pojmenovává Mašinu, jejího Ownera a vyšší hranici; nic neautorizuje.",
-    "Machines delivers a Machine online: system, network, SSH and sudo, the Machine identity in `lazurio.machine.json`, entry through the shared Auth gateway and an installed Lazurio release. From then on everything inside, the Folder, Organizations, modules, tools, sign-ins and their updates, belongs to the installed product through the `lazurio` CLI and the Machine's operator (decision 0144). On a hosted Machine the Machines operator's pin selects the product release; the operator's tools are not owned by the pin, the operator updates them and the rollout is only a repair of the baseline (decision 0161, `manual/troubleshooting.md`). The identity file names the Machine, its Owner and the higher boundary; it authorizes nothing.",
+    "Machines dodá Mašinu online: systém, síť, SSH a sudo, identitu Mašiny v `lazurio.machine.json`, vstup přes sdílenou Auth gateway a nainstalovaný release Lazuria. Od té chvíle všechno uvnitř, tedy Folder, Organizace, moduly, nástroje, přihlášení a jejich aktualizace, patří nainstalovanému produktu přes CLI `lazurio` a Operátorovi Mašiny (decision 0144). Verzi Lazuria vlastní operátor: pin provozovatele Machines je jen minimum, na které rollout Lazurio nainstaluje nebo zvedne, a verzi nikdy nesníží (decision F17). Nástroje operátora pin nevlastní vůbec, operátor si je aktualizuje sám a rollout je jen oprava baseline (decision 0161, `manual/troubleshooting.md`). Soubor s identitou pojmenovává Mašinu, jejího Ownera a vyšší hranici; nic neautorizuje.",
+    "Machines delivers a Machine online: system, network, SSH and sudo, the Machine identity in `lazurio.machine.json`, entry through the shared Auth gateway and an installed Lazurio release. From then on everything inside, the Folder, Organizations, modules, tools, sign-ins and their updates, belongs to the installed product through the `lazurio` CLI and the Machine's operator (decision 0144). The operator owns the version of Lazurio: the Machines operator's pin is only a minimum that a rollout installs or raises Lazurio to, and it never lowers a version (decision F17). The operator's tools are not owned by the pin at all; the operator updates them and the rollout is only a repair of the baseline (decision 0161, `manual/troubleshooting.md`). The identity file names the Machine, its Owner and the higher boundary; it authorizes nothing.",
   ),
   blank,
   t("## Kde žije která pravda", "## Where which truth lives"),
@@ -528,8 +528,8 @@ const glossary: readonly Text[] = [
     "| Operator (Operátor) | The OS account owning the Folder on a Machine; on a work VM the assigned person. |",
   ),
   t(
-    "| Provozovatel Machines (Machines operator) | Kdo Mašinu přes Machines dodává a aktualizuje: baseline Mašiny, pinnutý release produktu a handover; nástroje operátora ne (decision 0161). |",
-    "| Machines operator | Whoever delivers and updates the Machine through Machines: the Machine's baseline, the pinned product release and the handover; not the operator's tools (decision 0161). |",
+    "| Provozovatel Machines (Machines operator) | Kdo Mašinu přes Machines dodává a aktualizuje: baseline Mašiny, první instalaci a opravu Lazuria (pin je minimum) a handover; verzi Lazuria ani nástroje operátora ne (decisions 0161, F17). |",
+    "| Machines operator | Whoever delivers and updates the Machine through Machines: the Machine's baseline, the first installation and repair of Lazurio (the pin is a minimum) and the handover; not the version of Lazurio or the operator's tools (decisions 0161, F17). |",
   ),
   t(
     "| Principál (Principal) | Ten, pro koho Agent pracuje; drží pravomoce a poslední slovo. |",
@@ -666,9 +666,6 @@ const glossary: readonly Text[] = [
   ),
 ];
 
-// Who updates the product on this Machine. On a workstation the Principal
-// does, through the product's own update; on a hosted Machine the Machines
-// pin does, and an agent only reports.
 // Where the operator's tools live on every Machine (decision 0161 point 6):
 // one installation in one standard path, so Machines, `lazurio tools`, the
 // doctor and a repair all look in the same place and an agent installing a
@@ -694,34 +691,56 @@ const toolLayout: readonly Text[] = [
   ),
 ];
 
+// Who updates the product on this Machine: its operator, through the one
+// updater `lazurio update`, on a workstation and on a hosted Machine alike
+// (decision F17 addendum 2026-09-28). On a hosted Machine the Machines pin is
+// only a minimum a rollout installs or raises to; an agent updates on the
+// operator's request and names the Folder refresh that follows.
 function productUpdate(hosted: boolean): readonly Text[] {
   if (hosted)
     return [
       t("## Aktualizace na téhle Mašině", "## Updates on this Machine"),
       t(
-        "Verzi nainstalovaného produktu a generované soubory tohohle Folderu vlastní pin provozovatele Machines (Machines operator): ten reviewuje a aplikuje release, který se nainstaluje offline (`lazurio install --base`) a Folder znovu vykreslí (`lazurio machine folder-init`, `lazurio machine folder-refresh`). Novější release tak převykreslí `AGENTS.md` i `manual/`, pokud žádný generovaný soubor nebyl upraven. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun a další na PATH operátora) pin nevlastní: operátor si je aktualizuje sám oficiálními instalátory a jejich verze jsou fakt, ne drift; rollout obnoví jen chybějící nebo slepý link v `~/.local/bin`, a je-li nefunkční sama binárka, spustí oficiální instalátor nástroje v baseline verzi (ten zapisuje do svého domova jako při každé instalaci); funkčnímu nástroji verzi nemění a konfigurace, přihlášení ani historie se nedotýká (decision 0161). Když si operátor prostředí rozbije tak, že agenti nefungují, rollout obnoví jen baseline Mašiny a nástroje operátora přeinstaluje do standardní cesty pravidlem „jen chybějící nebo rozbité, nikdy downgrade“; Machines apply sám žádného agenta nespouští, jen vrátí readback `lazurio doctor` a `lazurio tools status`, a opravu zbytku spustí rolloutující Task Agent s mandátem operátora podle `manual/troubleshooting.md`.",
-        "The installed product version and this Folder's generated files are owned by the Machines operator's pin: they review and apply a release, which is installed offline (`lazurio install --base`) and re-renders the Folder (`lazurio machine folder-init`, `lazurio machine folder-refresh`). A newer release therefore re-renders `AGENTS.md` and `manual/` as long as no generated file was edited. The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun and whatever else is on the operator's PATH) are not owned by the pin: the operator updates them with the official installers and their versions are facts, not drift; a rollout recreates only a missing or dangling link in `~/.local/bin`, and when the binary itself is non-functional runs the tool's official installer at the baseline version (which writes into its own home as on any installation); it never changes a working tool's version and never touches configuration, sign-ins or history (decision 0161). When the operator breaks the Environment so that agents no longer work, the rollout restores only the Machine's baseline and reinstalls the operator's tools into the standard path under the rule 'only missing or broken, never a downgrade'; the Machines apply itself starts no agent, it only returns the `lazurio doctor` and `lazurio tools status` readback, and the rolling-out Task Agent starts the repair of the rest with the operator's mandate per `manual/troubleshooting.md`.",
+        "Verzi Lazuria na tomhle Environmentu vlastní operátor. Aktualizace Lazuria je aktualizace nástroje operátorem, ne rollout (decision F17). Pin provozovatele Machines (Machines operator) je jen minimum: rollout Lazurio nainstaluje, když chybí nebo je rozbité, a Mašinu pod pinem smí zvednout. Verzi nikdy nesníží.",
+        "The operator owns the version of Lazurio on this Environment. Updating Lazurio is the operator's update of a tool, not a rollout (decision F17). The Machines operator's pin is only a minimum: a rollout installs Lazurio when it is missing or broken, and may raise a Machine that is below the pin. It never lowers a version.",
       ),
       blank,
       t(
-        "- Nespouštěj tu `lazurio update`, `lazurio update rollback` ani `lazurio install`. Verze produktu, kterou si nainstaluješ sám, je mimo pin: další nasazení od provozovatele na nižší verzi nepůjde a na Mašině už neběží to, co prošlo review.",
-        "- Do not run `lazurio update`, `lazurio update rollback` or `lazurio install` here. A product version you install yourself falls outside the pin: the operator's next apply will not go below it, and the Machine no longer runs what was reviewed.",
+        "Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun a další na PATH operátora) pin nevlastní: operátor si je aktualizuje sám oficiálními instalátory a jejich verze jsou fakt, ne drift; rollout obnoví jen chybějící nebo slepý link v `~/.local/bin`, a je-li nefunkční sama binárka, spustí oficiální instalátor nástroje v baseline verzi (ten zapisuje do svého domova jako při každé instalaci); funkčnímu nástroji verzi nemění a konfigurace, přihlášení ani historie se nedotýká (decision 0161). Když si operátor prostředí rozbije tak, že agenti nefungují, rollout obnoví jen baseline Mašiny a nástroje operátora přeinstaluje do standardní cesty pravidlem „jen chybějící nebo rozbité, nikdy downgrade“; Machines apply sám žádného agenta nespouští, jen vrátí readback `lazurio doctor` a `lazurio tools status`, a opravu zbytku spustí rolloutující Task Agent s mandátem operátora podle `manual/troubleshooting.md`.",
+        "The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun and whatever else is on the operator's PATH) are not owned by the pin: the operator updates them with the official installers and their versions are facts, not drift; a rollout recreates only a missing or dangling link in `~/.local/bin`, and when the binary itself is non-functional runs the tool's official installer at the baseline version (which writes into its own home as on any installation); it never changes a working tool's version and never touches configuration, sign-ins or history (decision 0161). When the operator breaks the Environment so that agents no longer work, the rollout restores only the Machine's baseline and reinstalls the operator's tools into the standard path under the rule 'only missing or broken, never a downgrade'; the Machines apply itself starts no agent, it only returns the `lazurio doctor` and `lazurio tools status` readback, and the rolling-out Task Agent starts the repair of the rest with the operator's mandate per `manual/troubleshooting.md`.",
+      ),
+      blank,
+      t(
+        "- `lazurio update` aktualizuje Lazurio. Je to změna Environmentu: spusť ho, když o to operátor požádá, ne z vlastní iniciativy.",
+        "- `lazurio update` updates Lazurio. It is a change of the Environment: run it when the operator asks for it, not on your own initiative.",
       ),
       t(
-        "- `lazurio update status [--json]` je jen pro čtení a smíš ho použít, abys nahlásil běžící, aktivní a poslední známou verzi.",
-        "- `lazurio update status [--json]` is read-only; use it to report the running, active and latest known version.",
+        "- `lazurio update status [--json]` je jen pro čtení a smíš ho použít kdykoli, abys nahlásil běžící, aktivní a poslední známou verzi.",
+        "- `lazurio update status [--json]` is read-only; use it at any time to report the running, active and latest known version.",
       ),
       t(
-        "- Když je produkt zastaralý (starší verze, než úkol potřebuje, nebo poslední kontrola starší než den), řekni to Principálovi i s důkazem; pin aktualizuje provozovatel Machines.",
-        "- When the product is outdated (an older version than the task needs, or a last check older than a day), tell the Principal with the evidence; the Machines operator updates the pin.",
+        "- Po aktualizaci můžou být generované soubory Folderu (`AGENTS.md`, `manual/`) starší než produkt. `lazurio update` i `lazurio update status` pak hlásí „Folder refresh needed“. Obnoví je `lazurio machine folder-refresh`, spusť ho jako součást téže aktualizace. Upravený generovaný soubor obnovu zablokuje s `drift` a cestou souboru; nic se nepřepíše.",
+        "- After an update the Folder's generated files (`AGENTS.md`, `manual/`) can be older than the product. `lazurio update` and `lazurio update status` then say \"Folder refresh needed\". `lazurio machine folder-refresh` refreshes them; run it as part of the same update. An edited generated file blocks the refresh with `drift` and the file's path; nothing is overwritten.",
+      ),
+      t(
+        "- `lazurio update rollback` se po nepovedené aktualizaci vrátí na předchozí verzi; floor nikdy nesnižuje.",
+        "- `lazurio update rollback` returns to the previous version after a failed update; it never lowers the version floor.",
+      ),
+      t(
+        "- `lazurio install` je cesta rolloutu: instaluje nebo opravuje Lazurio z připraveného souboru. Na aktualizaci používej `lazurio update`.",
+        "- `lazurio install` is the rollout's path: it installs or repairs Lazurio from a staged file. For an update use `lazurio update`.",
+      ),
+      t(
+        "- Když je produkt zastaralý (starší verze, než úkol potřebuje, nebo poslední kontrola starší než den), řekni to operátorovi i s důkazem a nabídni `lazurio update`.",
+        "- When the product is outdated (an older version than the task needs, or a last check older than a day), tell the operator with the evidence and offer `lazurio update`.",
       ),
       t(
         "- Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun a další) aktualizuj jen na výslovný pokyn Principála v tomhle threadu: `lazurio tools update <nástroj>` spustí oficiální updater nebo instalátor právě toho jednoho nástroje; kde žádný není, vypíše jen oficiální zdroj. Bez pokynu jen nahlas, co je nainstalované (`lazurio tools status`), nebo chybějící nástroj s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si operátor udělal sám.",
         "- Update the operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun and the rest) only on the Principal's explicit instruction in this thread: `lazurio tools update <tool>` runs the official updater or installer of exactly that one tool; where there is none, it prints only the official source. Without an instruction, only report what is installed (`lazurio tools status`) or a missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the operator made themselves.",
       ),
       t(
-        "- Když `lazurio` není v `PATH`, nainstalovaný příkaz je `~/.local/share/lazurio/bin/lazurio`.",
-        "- When `lazurio` is not on `PATH`, the installed command is `~/.local/share/lazurio/bin/lazurio`.",
+        "- Příkaz je `~/.local/bin/lazurio`. Když `lazurio` není v `PATH`, spusť `~/.local/share/lazurio/bin/lazurio`.",
+        "- The command is `~/.local/bin/lazurio`. When `lazurio` is not on `PATH`, run `~/.local/share/lazurio/bin/lazurio`.",
       ),
       blank,
       ...toolLayout,
@@ -740,6 +759,10 @@ function productUpdate(hosted: boolean): readonly Text[] {
     t(
       "- `lazurio update status [--json]` ukáže běžící, aktivní a poslední známou verzi a čas poslední ověřené kontroly. Poslední kontrola starší než den znamená, že Mašina nedosáhne na GitHub; nic se tím nemění.",
       "- `lazurio update status [--json]` shows the running, active and latest known version and the time of the last verified check. A last check older than a day is a sign the Machine cannot reach GitHub; it changes nothing.",
+    ),
+    t(
+      "- Po aktualizaci můžou být generované soubory Folderu starší než produkt. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` i pill v Launchpadu pak hlásí „Folder refresh needed“ s přesným příkazem: znovu použij nezměněný profil (v profilovém panelu Launchpadu náhled a použití, nebo nahlášený `lazurio profile-update`). Upravený generovaný soubor obnovu zablokuje s `drift`; nic se nepřepíše.",
+      '- After an update the Folder\'s generated files can be older than the product. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` and the Launchpad pill then say "Folder refresh needed" with the exact command: apply the unchanged profile again (preview and apply in the Launchpad profile panel, or the reported `lazurio profile-update`). An edited generated file blocks the refresh with `drift`; nothing is overwritten.',
     ),
     t(
       "- `lazurio update rollback` se po vlastním self-checku té binárky vrátí na předchozí verzi; floor nikdy nesnižuje.",

@@ -38,6 +38,11 @@ release that publishes every platform at once.
 - **One core, one command.** CLI and Launchpad run the same `lazurio update`.
   There is no second updater, no worker entrypoint and no installer logic
   outside the product.
+- **The operator owns the version.** The operator of the Environment runs
+  `lazurio update`, on a hosted Machine as on their own computer. A provider's pin
+  is a minimum: a rollout installs a missing or broken installation and may raise
+  one below the pin through the offline update, and never lowers a version
+  ([F17 addendum 2026-09-28](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
 - **Explicit activation.** Checking and showing availability are automatic;
   download and activation start only from `lazurio update` or the Launchpad
   action.
@@ -138,6 +143,18 @@ mechanism; there are no channels. A Machine that committed a release candidate
 follows that line: it takes the next version at or above it, and returning to an
 older line is a new installation.
 
+**The command on PATH.** `lazurio install`, first installation and offline update
+alike, links the standard entry `~/.local/bin/lazurio` (root decision 0161 point 6)
+to the selector `<base>/bin/lazurio` by one atomic rename, and creates
+`~/.local/bin` (`0755`) when it is missing. An entry already pointing to the selector
+is left alone; a link to the selector of a Lazurio install base (another base, or one that is gone) is replaced; a dangling link of any other shape is someone else's and stays; when `~/.local` or `~/.local/bin` is itself a link or not a directory, nothing is written through it (`conflict`, `parent`); a regular file, a directory or a link to anything else is never
+overwritten. The result's `entry` says which (`created`, `present`, `replaced`,
+`conflict`, `failed`), whether `~/.local/bin` is on the process PATH, which other
+`lazurio` resolves first on it (`shadowedBy`, changed in no way) and, in `next`, what
+the operator or an agent should do. `path`, the directory to put on PATH, is
+`~/.local/bin` when the link exists and `<base>/bin` otherwise. The installation
+never fails because of its entry, and shell profiles are never edited.
+
 **First installation** is trusted through HTTPS, and says so. `install.sh`
 downloads the latest binary from the origin and checks it against the manifest.
 When `gh` is present it runs `gh attestation verify` before executing anything.
@@ -187,7 +204,8 @@ restarted or rewritten.
 
 A Machine delivered by Machines receives the Platform from a custody-staged,
 digest-pinned binary, never from the network ([machine handover](machine-handover.md),
-"Delivery by the Machines role"). The same command that installs it also moves an
+"Delivery by the Machines role"); the pin is a minimum, and after that the operator
+updates with `lazurio update`. The same command that installs it also moves an
 existing installation forward: `<staged>/lazurio install --base <base>` run from an
 executable **newer** than the active version is the offline update. It takes the
 update contract's own steps with the bytes coming from the staged file instead of a
@@ -293,13 +311,27 @@ state to restore it.
   check older than 24 hours is shown prominently by its age; it changes no
   state. `state-invalid` is shown with its path and offers no action.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
-  [--json]`, `update rollback`, `lazurio install [--service systemd-user]` (from a
+  [--json]`, `--folder <Folder>` on `update` and `update status`, `update
+  rollback`, `lazurio install [--service systemd-user]` (from a
   newer executable over an existing installation: the offline update),
   `lazurio --version`. `lazurio launchpad --folder <Folder>` serves behind the
   Organization's gateway when the Folder records a hosted entry
   ([hosted entry](hosted-entry.md)); the pill and `POST /api/update/apply` pass the
   gateway's admission like every other request there. Other commands print a one-line notice from
   `last-check.json` and never touch the network for it.
+- **Folder refresh needed.** An update never writes the Folder
+  ([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). When the
+  Folder records an older template revision than the active product renders, the
+  results of `lazurio update` (`updated` and `up-to-date`), `update status` and
+  the pill carry `folderRefresh {folder, recorded, product, command}` and a person
+  reads "Folder refresh needed" with that command: `lazurio machine
+  folder-refresh` on a hosted Machine, `lazurio profile-update` with the recorded
+  choices at the current revision on a workstation. The Folder is `--folder`, the
+  supervised unit's, the Launchpad's own, or on a hosted Machine the declared
+  operator's from the handover; none known, nothing is said. The updater learns
+  the revision of a new version from its `self-check` report
+  (`templateRevision`); a version that does not state it is reported as nothing,
+  never guessed. Reading only: no lock, no write, never a reason to refuse.
 - **Exit status.** `0` success or up to date, `10` update available (`--check`),
   `2` usage, `1` failure or busy. `--json` carries one stable error code from a
   short list (`network-unavailable`, `release-invalid`, `attestation-invalid`,
@@ -314,7 +346,8 @@ state to restore it.
 1. Local: the pill and the CLI notice, fed by the poller.
 2. Observed: `lazurio update status --json` is what an outside observer reads:
    running, active and latest known version and the time of the last verified
-   check. Today that observer is the Machines readback on hosted Machines; later
+   check. Today that observer is the Machines readback on hosted Machines, which
+   observes the version and does not own it; later
    it is the managed service once a Machine is enrolled through Lazurio Account.
    An unused installation that nobody observes gets an OS-scheduled check only
    when a real consumer needs it.

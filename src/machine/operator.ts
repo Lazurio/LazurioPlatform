@@ -1,7 +1,11 @@
 import { execFile } from "node:child_process";
 import { lstat, realpath } from "node:fs/promises";
 import { promisify } from "node:util";
-import { MachineContextError } from "./context";
+import {
+  bindMachineOperator,
+  MachineContextError,
+  readMachineContext,
+} from "./context";
 
 export function parseOperatorRecord(output: string, uid: number) {
   const lines = output.trimEnd().split("\n");
@@ -60,5 +64,18 @@ export async function readLinuxOperator() {
     return parseOperatorRecord(stdout, uid);
   } catch {
     throw new MachineContextError("machine-operator-unavailable");
+  }
+}
+
+// The Folder of a hosted Machine, when this process is its declared operator:
+// what `lazurio update` and `update status` report a needed refresh against
+// (decision F17 addendum 2026-09-28). Read-only; anywhere else — a
+// workstation, another account, a missing or invalid handover — there is none.
+export async function hostedOperatorFolder(): Promise<string | undefined> {
+  try {
+    const { context } = await readMachineContext();
+    return bindMachineOperator(context, await readLinuxOperator());
+  } catch {
+    return undefined;
   }
 }

@@ -73,10 +73,11 @@ function emit(output: CommandOutput): number {
 // The installed Launchpad of this base answers the updater's health question,
 // commits an activation whose updater is gone, and serves the update pill on
 // the same update core and service the CLI uses.
-async function installedLaunchpad(explicitBase: string) {
+async function installedLaunchpad(explicitBase: string, folder: string) {
   const context = processContext();
   const base = installBase(context, explicitBase);
-  const environment = await updateEnvironment(context, base);
+  // The pill reports a needed refresh of the Folder this Launchpad serves.
+  const environment = await updateEnvironment(context, base, folder);
   return {
     base,
     version: context.identity.version,
@@ -485,7 +486,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       // the Launchpad of that installation.
       values.base === undefined
         ? undefined
-        : await installedLaunchpad(values.base),
+        : await installedLaunchpad(values.base, values.folder),
     );
     console.log(
       JSON.stringify({

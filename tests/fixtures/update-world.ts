@@ -32,12 +32,20 @@ export const commitOf = (version: string) =>
 /** `healthy: false` is a version whose self-check fails. */
 export function executable(
   version: string,
-  options: Readonly<{ healthy?: boolean; commit?: string }> = {},
+  options: Readonly<{
+    healthy?: boolean;
+    commit?: string;
+    /** The template revision it says it renders; absent like an old one. */
+    templateRevision?: string;
+  }> = {},
 ): Uint8Array {
   const report = JSON.stringify({
     schemaVersion: 1,
     identity: { version, commit: options.commit ?? commitOf(version), target },
     fixture: false,
+    ...(options.templateRevision === undefined
+      ? {}
+      : { templateRevision: options.templateRevision }),
     base: { active: null, previous: null, highWater: null },
     folder: { preferences: 1, manifest: 1 },
   });
@@ -53,7 +61,11 @@ export type World = Readonly<{
   origin: FixtureOrigin;
   release(
     version: string,
-    options?: Partial<FixtureRelease> & { latest?: boolean; healthy?: boolean },
+    options?: Partial<FixtureRelease> & {
+      latest?: boolean;
+      healthy?: boolean;
+      templateRevision?: string;
+    },
   ): Promise<void>;
   environment(
     running: string,
@@ -115,10 +127,12 @@ export async function createWorld(
           version,
           commit: commitOf(version),
           artifacts: {
-            [target]: executable(
-              version,
-              release.healthy === false ? { healthy: false } : {},
-            ),
+            [target]: executable(version, {
+              ...(release.healthy === false ? { healthy: false } : {}),
+              ...(release.templateRevision === undefined
+                ? {}
+                : { templateRevision: release.templateRevision }),
+            }),
           },
           ...release,
         },

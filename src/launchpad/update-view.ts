@@ -31,6 +31,7 @@ export type PillView = Readonly<{
   stale: boolean;
   error: string | null;
   stateInvalid: string | null;
+  folderRefresh: string | null;
 }>;
 
 export function pillView(
@@ -85,5 +86,13 @@ export function pillView(
       status.stateInvalid === null
         ? null
         : fill(copy.updateStateInvalid, { path: status.stateInvalid }),
+    folderRefresh:
+      status.folderRefresh === null
+        ? null
+        : fill(copy.updateFolderRefresh, {
+            recorded: status.folderRefresh.recorded,
+            product: status.folderRefresh.product,
+            command: status.folderRefresh.command,
+          }),
   });
 }

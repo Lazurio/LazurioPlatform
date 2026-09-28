@@ -1,3 +1,4 @@
+import type { FolderRefresh } from "../folder/refresh-needed";
 import { type UpdateError, UpdateFailure, updateError } from "../update/errors";
 import { isProductVersion } from "../update/identity";
 import type { Activation, Activator } from "../update/launchpad-activation";
@@ -44,6 +45,9 @@ export type PillStatus = Readonly<{
   action: PillAction | null;
   error: UpdateError | null;
   stateInvalid: string | null;
+  /** This Launchpad's Folder renders an older template revision than the
+   * running product: said with the exact command, never done here. */
+  folderRefresh: FolderRefresh | null;
 }>;
 
 export const staleAfterMs = 24 * 60 * 60_000;
@@ -129,6 +133,7 @@ export function derivePillStatus(input: PillInput): PillStatus {
     action,
     error,
     stateInvalid: status.stateInvalid,
+    folderRefresh: status.folderRefresh,
   });
 }
 

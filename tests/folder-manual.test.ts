@@ -186,8 +186,8 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
       expect(
         troubleshooting.includes(
           locale === "cs"
-            ? "Nespouštěj tu `lazurio update`"
-            : "Do not run `lazurio update`",
+            ? "Verzi Lazuria na tomhle Environmentu vlastní operátor."
+            : "The operator owns the version of Lazurio on this Environment.",
         ),
       ).toBe(hosted);
       expect(
@@ -200,6 +200,62 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
           locale === "cs" ? "## Obsah Organizací" : "## Organization content",
         ),
       ).toBe(journey.preset !== "hosted-personal");
+    }
+});
+
+// The operator owns the version of Lazurio and updates it with the one
+// updater, on a hosted Machine too; the provider's pin is a minimum (decision
+// F17 addendum 2026-09-28). No generated text may still forbid the update or
+// hand the version to the pin, and every text names the refresh that follows.
+test("no generated output forbids lazurio update or gives the product version to the pin", () => {
+  const forbidding = [
+    /(do not|don't|never) run `lazurio (update|install)/i,
+    /nespouštěj[^.\n]*`lazurio (update|install)/i,
+    /owned by the Machines operator's pin/i,
+    /pin selects the product release/i,
+    /updated by the Machines operator through the pinned release/i,
+    /the Machines operator updates the pin/i,
+    /vlastní pin provozovatele Machines/i,
+    /vybírá release produktu pin/i,
+    /pin aktualizuje provozovatel Machines/i,
+    /aktualizuje provozovatel Machines \(Machines operator\) přes pinnutý release/i,
+  ];
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const path of outputPaths)
+        for (const pattern of forbidding)
+          expect([path, locale, pattern.test(outputs[path])]).toEqual([
+            path,
+            locale,
+            false,
+          ]);
+      const hosted = journey.machine !== null;
+      const troubleshooting = outputs["manual/troubleshooting.md"];
+      // The refresh after an update is named with its real command.
+      expect(troubleshooting).toContain(
+        hosted
+          ? "`lazurio machine folder-refresh`"
+          : "`lazurio profile-update`",
+      );
+      expect(troubleshooting).toContain("Folder refresh needed");
+      expect(troubleshooting).toContain("`lazurio update rollback`");
+      if (hosted) {
+        expect(outputs["AGENTS.md"]).toContain(
+          locale === "cs"
+            ? "Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá"
+            : "The operator owns the version of Lazurio: run `lazurio update` when they ask for it",
+        );
+        expect(troubleshooting).toContain(
+          locale === "cs"
+            ? "Pin provozovatele Machines (Machines operator) je jen minimum"
+            : "The Machines operator's pin is only a minimum",
+        );
+      }
     }
 });
 

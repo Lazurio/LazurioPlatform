@@ -440,6 +440,9 @@ const updateError =
 const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
   "#update-state-invalid",
 );
+const updateFolderRefresh = document.querySelector<HTMLParagraphElement>(
+  "#update-folder-refresh",
+);
 if (
   !updateSection ||
   !updateText ||
@@ -447,7 +450,8 @@ if (
   !updateAction ||
   !updateChecked ||
   !updateError ||
-  !updateStateInvalid
+  !updateStateInvalid ||
+  !updateFolderRefresh
 )
   throw new Error("Missing update UI");
 let updateStatus: PillStatus | null = null;
@@ -478,6 +482,11 @@ function renderUpdate() {
   if (updateStateInvalid) {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
+  }
+  // Read-only: the command is shown, never run from here.
+  if (updateFolderRefresh) {
+    updateFolderRefresh.hidden = view.folderRefresh === null;
+    updateFolderRefresh.textContent = view.folderRefresh ?? "";
   }
 }
 async function refreshUpdate() {
