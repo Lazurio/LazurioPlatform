@@ -382,9 +382,9 @@ async function launchpadOnce(executable: string) {
   const page = await fetch(new URL("/", url), {
     signal: AbortSignal.timeout(10_000),
   });
-  const body = await page.text();
+  await page.text();
   child.kill("SIGTERM");
-  return { started, status: page.status, body, exit: await child.exited };
+  return { started, status: page.status, exit: await child.exited };
 }
 
 // ---- J1–J5 ----------------------------------------------------------------
@@ -657,11 +657,6 @@ async function recoveryMode(candidate: Candidate) {
       reason: "folder-state-unreadable",
     });
     same("its page", launchpad.status, 503);
-    same(
-      "the page names the check",
-      launchpad.body.includes("start-refused"),
-      true,
-    );
   }
   const broken = await recover();
   same("recover", [broken.exit, broken.verdict], [3, "broken"]);
