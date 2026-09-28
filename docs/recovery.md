@@ -24,9 +24,10 @@ base or the Folder. When something is broken it prints
    its rerun of `lazurio recover --json` names the Folder this run read with
    `--folder`, so the proof of success reads the same Folder,
 3. the sanitized body of an issue for the public product repository
-   `Lazurio/LazurioPlatform`, the exact `gh issue list` search for a duplicate and
-   the exact `gh issue create` command with the body as a here-document, and a
-   prefilled `issues/new` link for a browser without `gh`.
+   `Lazurio/LazurioPlatform`, structured fields only (tier 1, below), the exact
+   `gh issue list` search for a duplicate and the exact `gh issue create` command
+   with the body as a here-document, and a prefilled `issues/new` link for a
+   browser without `gh`.
 
 **Filing is not this command's act.** It is the repair agent's, under the standing
 mandate for issues (root decision 0163): after a duplicate search, with a body that
@@ -74,7 +75,7 @@ where a user manager exists, Bun), the install state (active, high-water mark,
 code, the Folder's preset, Machine kind, revision, recorded and product template
 revision, schema versions and a pending transaction, the last verified check, and a
 bounded tail of the Launchpad unit's journal (80 lines, 8 KB, lines cut at 500
-characters).
+characters), which stays on the Machine (tier 2, below).
 
 Never collected: the Folder's files, preferences contents, the handover, environment
 variables, tool sign-in state, anything under `personalspace/`.
@@ -85,6 +86,31 @@ version, so one fault meets its issue across releases. The title ends in
 `[rf-…]`; the search uses `--state all`, so a closed match is found as a regression.
 
 ## What may leave the Machine
+
+### Two tiers
+
+The shaping's decision on what leaves (Q4, `docs/recovery-mode.md` E.1 and E.3)
+splits the bundle in two:
+
+- **Tier 1, the automatic structured body.** The prepared issue body carries only
+  structured, non-free-text fields: versions, digests, target and platform names,
+  the ids of failed checks and their codes, unit states and counters, Folder and
+  template revisions, timestamps. A `context` carries enumerated ids, versions,
+  paths relative to the base, numbers and booleans, never a message: every context
+  (of a check and of the last failed `lazurio-update` run) keeps only keys of
+  letters and digits and string values of at most 64 characters of
+  `[A-Za-z0-9._/-]`, not starting with `/` and without a `..` segment; any other
+  entry is dropped before sanitization. This body is what the repair agent files
+  without asking.
+- **Tier 2, free text.** The journal tail and any other free text never leave the
+  Machine automatically. `evidence.journal` stays in the `--json` output on this
+  Machine; it is not in the body, the here-document or the link. It reaches the
+  issue only as a comment the repair agent attaches after reading it under the
+  sanitizer and judging it public-safe.
+
+The sanitizer and the gate below hold for both tiers.
+
+### The sanitizer
 
 The sanitizer (`src/recover/sanitize.ts`) sits **beside** `src/tools/redact.ts` and
 reuses its credential shapes and its plain-text rule, which now have one exported
@@ -136,9 +162,11 @@ final body it looks for every known value (outside the placeholders it wrote), e
 credential shape, every untolerated long run, every pattern and any control
 character. If anything is found, the result is a typed refusal naming the kinds
 (`organization`, `ip-address`, …), never the value; no body, command or link is
-prepared, and the prompt tells the agent to send nothing. The body is bounded to
-6 KB after sanitization by dropping the oldest journal lines; a link longer than
-8000 characters carries the title only.
+prepared, and the prompt tells the agent to send nothing. The tier-1 body is bounded
+to 6 KB after sanitization; it has no free text to drop, so nothing is trimmed: a
+test holds the largest body the evidence can produce under the bound, and a body
+above it (a bug) is still prepared whole for `gh`, with a link that carries the title
+only. A link longer than 8000 characters carries the title only too.
 
 Known limits, stated rather than hidden:
 
@@ -149,7 +177,7 @@ Known limits, stated rather than hidden:
 - A private value that is a common word replaces that word everywhere (safe, less
   readable); a name with a credential word in it (`secret-plans`) withholds its line.
 - The prompt stays on this Machine and names the real Folder path in its commands;
-  its evidence is the sanitized bundle.
+  its evidence is the tier-1 fields of the sanitized bundle.
 
 ## What does not exist yet
 

@@ -9,7 +9,10 @@ import type { LeakKind, Sanitizer } from "./sanitize";
  * repository is public. */
 export const issueRepository = productOrigin.repository;
 
-/** Body bound, so it fits a prefilled issue link. */
+/** The bound of a tier-1 body (docs/recovery.md "Two tiers"). The body has
+ * no free text to drop, so nothing is trimmed to meet it: a test holds the
+ * largest body the evidence can produce under it, and a body above it (a bug)
+ * is still prepared whole for `gh`, with a link that carries the title only. */
 export const maxBodyBytes = 6 * 1024;
 /** Longer links are cut by browsers and GitHub; the link then carries the
  * title only and the body is pasted. */
@@ -53,7 +56,11 @@ function fenced(language: string, content: string): string {
   return `${fence}${language}\n${content}\n${fence}`;
 }
 
-function bodyText(evidence: RecoveryEvidence, journal: readonly string[]) {
+/** Tier 1 only (docs/recovery.md "Two tiers"): the structured fields of the
+ * evidence. The journal tail and any other free text never enter the body;
+ * they stay on the Machine and reach the issue only as a comment the repair
+ * agent attaches after reading them. */
+function bodyText(evidence: RecoveryEvidence) {
   const { journal: _, ...fields } = evidence;
   const running = evidence.product.running;
   return [
@@ -66,42 +73,20 @@ function bodyText(evidence: RecoveryEvidence, journal: readonly string[]) {
     `- Product: ${running.version} (${running.target})`,
     `- Failed checks: ${evidence.failed.map((id) => `\`${id}\``).join(", ")}`,
     "",
-    "Prepared by Lazurio and sanitized on the Machine. A state the product could not handle is a missing test: this issue closes with a regression test.",
+    "Prepared by Lazurio and sanitized on the Machine. It carries structured fields only; the journal and other free text stayed on the Machine. A state the product could not handle is a missing test: this issue closes with a regression test.",
     "",
     `### Evidence (${evidence.schema})`,
     "",
     fenced("json", readableJson(fields)),
-    ...(evidence.journal === null
-      ? []
-      : [
-          "",
-          "### Launchpad unit journal, last lines, sanitized",
-          "",
-          journal.length === 0
-            ? "(nothing fits the size bound of this body)"
-            : fenced("text", journal.join("\n")),
-        ]),
     "",
   ].join("\n");
 }
 
-/** The body within its bound, measured after `finish` (the sanitizer):
- * journal lines are dropped from the oldest. */
-export function issueBody(
+/** The body, passed through `finish` (the sanitizer). */
+export const issueBody = (
   evidence: RecoveryEvidence,
   finish: (text: string) => string = (text) => text,
-): string {
-  const journal =
-    evidence.journal === null || evidence.journal === ""
-      ? []
-      : evidence.journal.split("\n");
-  let body = finish(bodyText(evidence, journal));
-  while (Buffer.byteLength(body) > maxBodyBytes && journal.length > 0) {
-    journal.shift();
-    body = finish(bodyText(evidence, journal));
-  }
-  return body;
-}
+): string => finish(bodyText(evidence));
 
 /** One word for a POSIX shell. */
 export const shellWord = (word: string) =>
@@ -155,7 +140,8 @@ export function prepareIssue(
   ]);
   const newIssue = `https://github.com/${issueRepository}/issues/new`;
   const withBody = `${newIssue}?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-  const bodyInLink = withBody.length <= maxLinkLength;
+  const bodyInLink =
+    Buffer.byteLength(body) <= maxBodyBytes && withBody.length <= maxLinkLength;
   return Object.freeze({
     kind: "prepared",
     repository: issueRepository,

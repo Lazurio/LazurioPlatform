@@ -111,6 +111,10 @@ test("the prompt in English: task, evidence, mandate, never, proof, GitHub, stop
     `\`gh issue list --repo Lazurio/LazurioPlatform --state all --search '"${evidence.fingerprint}" in:title'\``,
   );
   expect(prompt).toContain("root decision 0163");
+  // Tier 2 stays here: the journal reaches the issue only as a comment.
+  expect(paragraphs[9]).toContain(
+    "The body carries structured fields only. `evidence.journal` (the sanitized tail of the Launchpad's journal) and any other free text stay on this Machine: you may attach them to the issue only as a comment, after you have read them yourself and judged them public-safe; never in the body you create the issue with.",
+  );
   expect(prompt.endsWith("Stop there; work around nothing.")).toBe(true);
 });
 
@@ -136,6 +140,9 @@ test("the prompt in Czech, supervised, with the same facts", () => {
     "`journalctl --user --unit lazurio-launchpad.service --lines 80`",
   );
   expect(prompt).toContain("**Nikdy:** `lazurio update rollback`");
+  expect(prompt).toContain(
+    "Tělo nese jen strukturovaná pole. `evidence.journal` (sanitizovaný konec journalu Launchpadu) a jakýkoli jiný volný text zůstávají na téhle Mašině: k issue je smíš přidat jen jako komentář, až si je sám přečteš a usoudíš, že jsou veřejně bezpečné; nikdy ne do těla, se kterým issue zakládáš.",
+  );
   // No Folder was read: the rerun detects it the same way.
   expect(prompt).toContain("sám: `lazurio recover --json`.");
   // A Folder path is one shell word in every command that names it.
@@ -178,7 +185,7 @@ test("prepareIssue refuses what the gate refuses and prepares nothing of it", ()
   });
   const careless: Sanitizer = { ...leaky, sanitize: (text) => text };
   const result = prepareIssue(
-    { ...evidence, journal: "error in globex from 100.64.0.3" },
+    { ...evidence, context: { path: "globex", peer: "100.64.0.3" } },
     careless,
   );
   expect(result).toEqual({
@@ -189,22 +196,106 @@ test("prepareIssue refuses what the gate refuses and prepares nothing of it", ()
   expect(JSON.stringify(result)).not.toContain("globex");
 });
 
-test("the body stays within its bound by dropping the oldest journal lines", () => {
-  const journal = Array.from(
-    { length: 80 },
-    (_, n) => `${n} ${"x ".repeat(48)}`,
-  ).join("\n");
-  const body = issueBody({ ...evidence, journal });
-  expect(Buffer.byteLength(body)).toBeLessThanOrEqual(maxBodyBytes);
-  expect(body).toContain(`79 ${"x ".repeat(48)}`.trimEnd());
-  expect(body).not.toContain(`\n0 ${"x ".repeat(48)}`.trimEnd());
-  // The JSON of the body is the evidence without its journal.
-  const json = /```json\n([\s\S]*?)\n```/.exec(body)?.[1] ?? "";
+test("the prepared issue is tier 1: no journal line, even when the evidence has a journal", () => {
+  const journal = [
+    "Started Lazurio Launchpad on this Machine.",
+    "error: the Folder state could not be read",
+    "```",
+    "Main process exited, code=exited, status=1/FAILURE",
+  ].join("\n");
+  const issue = prepareIssue({ ...evidence, journal }, sanitizer);
+  if (issue.kind !== "prepared") throw new Error("expected a prepared issue");
+  const leaving = [
+    issue.title,
+    issue.body,
+    issue.shell,
+    decodeURIComponent(issue.link),
+  ].join("\n");
+  for (const line of journal.split("\n").filter((line) => line !== "```"))
+    expect([line, leaving.includes(line)]).toEqual([line, false]);
+  expect(leaving).not.toContain('"journal"');
+  // The same body as without a journal: the JSON is the evidence without it.
+  expect(issue.body).toBe(issueBody(evidence, sanitizer.sanitize));
+  const json = /```json\n([\s\S]*?)\n```/.exec(issue.body)?.[1] ?? "";
   const { journal: _, ...fields } = evidence;
   expect(JSON.parse(json)).toEqual(JSON.parse(JSON.stringify(fields)));
-  // A journal line with backticks cannot close the fence early.
-  const fenced = issueBody({ ...evidence, journal: "```\nnot the end" });
-  expect(fenced).toContain("````text\n```\nnot the end\n````");
+});
+
+test("the largest tier-1 body stays within its bound, untrimmed", () => {
+  // Every check failed with its widest context, the last failed update run,
+  // the Folder, the active executable and a long list of installed versions.
+  const version = "10.20.30-rc.40";
+  const word = "x".repeat(64);
+  const checks = [
+    failed("update-state-invalid", "state-invalid", {
+      path: "update/pending.json",
+    }),
+    failed("folder-state", "folder-state-unrecognized"),
+    failed("self-check-failed", "self-check-failed", {
+      reason: "identity-mismatch",
+      exitCode: 255,
+    }),
+    failed("launchpad-unit", "unit-restarting", {
+      activeState: "activating",
+      subState: "auto-restart",
+      result: "exit-code",
+      nRestarts: 999_999_999,
+      execMainStatus: 999_999_999,
+    }),
+    failed("launchpad-health", "launchpad-version-mismatch", {
+      reported: version,
+      active: version,
+    }),
+  ];
+  const executable = {
+    version,
+    commit: "a".repeat(40),
+    target: "darwin-arm64",
+    fixture: false,
+  };
+  const widest: RecoveryEvidence = {
+    ...evidence,
+    failed: checks.map((entry) => entry.id),
+    checks,
+    product: { running: executable, active: executable },
+    platform: { ...evidence.platform, kernel: word },
+    install: {
+      ...evidence.install,
+      active: version,
+      highWater: version,
+      stateInvalid: "update/pending.json",
+      versions: Array.from({ length: 12 }, () => version),
+      supervised: true,
+      legacyMarker: true,
+    },
+    unit: {
+      loadState: "loaded",
+      activeState: "activating",
+      subState: "auto-restart",
+      result: "exit-code",
+      nRestarts: 999_999_999,
+      execMainStatus: 999_999_999,
+      lastUpdateFailure: {
+        code: "rollback-unavailable",
+        context: { resource: word, reason: word, stage: word, detail: word },
+      },
+    },
+    folder: {
+      preset: "hosted-personal",
+      machineKind: "workspace-vm",
+      revision: 999_999_999,
+      recordedTemplateRevision: word,
+      productTemplateRevision: word,
+      preferencesSchema: 99,
+      manifestSchema: 99,
+      pendingTransaction: true,
+    },
+    journal: "y".repeat(8 * 1024),
+  };
+  const issue = prepareIssue(widest, sanitizer);
+  if (issue.kind !== "prepared") throw new Error("expected a prepared issue");
+  expect(Buffer.byteLength(issue.body)).toBeLessThanOrEqual(maxBodyBytes);
+  expect(issue.body).not.toContain("yyyy");
 });
 
 test("the fingerprint ignores the version and tells faults apart", () => {

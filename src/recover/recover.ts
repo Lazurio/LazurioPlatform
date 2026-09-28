@@ -128,15 +128,26 @@ const exists = (path: string) =>
     () => false,
   );
 
-/** Every string of a context, sanitized: contexts are small by contract, but
- * one read from a journal is not the product's own. */
+/** A context is tier 1 (docs/recovery.md "Two tiers"): enumerated ids,
+ * versions, relative paths, numbers and booleans, never a message. The
+ * product's own contexts are such by contract (src/update/errors.ts), but one
+ * read back from a journal is not the product's own: an entry of any other
+ * shape is dropped, and every string kept is sanitized. */
+const contextKey = /^[A-Za-z][A-Za-z0-9]{0,31}$/;
+const contextWord = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,63}$/;
+const tierOne = ([key, value]: [string, string | number | boolean]) =>
+  contextKey.test(key) &&
+  (typeof value !== "string" ||
+    (contextWord.test(value) && !value.split("/").includes("..")));
 const cleanContext = (context: ErrorContext, sanitizer: Sanitizer) =>
   Object.freeze(
     Object.fromEntries(
-      Object.entries(context).map(([key, value]) => [
-        key,
-        typeof value === "string" ? sanitizer.sanitize(value) : value,
-      ]),
+      Object.entries(context)
+        .filter(tierOne)
+        .map(([key, value]) => [
+          key,
+          typeof value === "string" ? sanitizer.sanitize(value) : value,
+        ]),
     ),
   );
 

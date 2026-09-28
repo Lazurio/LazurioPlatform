@@ -597,7 +597,8 @@ test("canaries in every source never reach the issue body, which passes the gate
       show: failedUnit,
       journal,
       updateShow: `LoadState=loaded\nActiveState=failed\nInvocationID=${"e".repeat(32)}\n`,
-      updateJournal: `{"kind":"error","code":"self-check-failed","context":{"reason":"exit","note":"${world.home}"}}`,
+      // Tier 1: an id is kept; a path, a message and an odd key are not.
+      updateJournal: `{"kind":"error","code":"self-check-failed","context":{"reason":"exit","exitCode":1,"note":"${world.home}","message":"cannot read the Folder","up":"../x","bad key":"exit"}}`,
     }),
     machineContext: handoverContext,
   });
@@ -615,7 +616,7 @@ test("canaries in every source never reach the issue body, which passes the gate
   });
   expect(evidence.unit.lastUpdateFailure).toEqual({
     code: "self-check-failed",
-    context: { reason: "exit", note: "~" },
+    context: { reason: "exit", exitCode: 1 },
   });
   expect(issue.kind).toBe("prepared");
   expect(issue.repository).toBe("Lazurio/LazurioPlatform");
@@ -662,12 +663,6 @@ test("canaries in every source never reach the issue body, which passes the gate
   expect(
     JSON.parse(/```json\n([\s\S]*?)\n```/.exec(issue.body)?.[1] ?? ""),
   ).toEqual(fields);
-  // The product's own commit survives; withheld lines are marked.
-  expect(issue.body).toContain(`commit ${commitOf("1.0.0")}`);
-  expect(issue.body).toContain("[line withheld]");
-  expect(issue.body).toContain(
-    "Started Lazurio Launchpad for <folder> on <host>.",
-  );
   expect(Buffer.byteLength(issue.body)).toBeLessThanOrEqual(6 * 1024);
   expect(issue.title).toBe(
     `Recovery: launchpad-unit (unit-restarting) on ${target} [${evidence.fingerprint}]`,
@@ -711,6 +706,42 @@ test("canaries in every source never reach the issue body, which passes the gate
     { env: {}, stdout: "pipe" },
   );
   expect(new TextDecoder().decode(shell.stdout)).toBe(issue.body);
+});
+
+test("--json keeps the sanitized journal on this Machine; the issue never carries it", async () => {
+  const { world, journal } = await cannedWorld();
+  const result = await recover(world, ["--json"], {
+    ...supervisedLinux(world, {
+      show: "LoadState=loaded\nActiveState=failed\nSubState=failed\nResult=exit-code\nNRestarts=3\nExecMainStatus=1\n",
+      journal,
+    }),
+  });
+  expect(result.code).toBe(exitBroken);
+  const { evidence, issue, prompt } = result.json ?? {};
+  // Tier 2 is in the local output, sanitized: the product's own commit
+  // survives, withheld lines are marked, known values are placeholders.
+  const lines: string[] = evidence.journal.split("\n");
+  expect(lines).toContain("Started Lazurio Launchpad for <folder> on <host>.");
+  expect(lines).toContain(
+    `lazurio 1.0.0 (commit ${commitOf("1.0.0")}, target ${target})`,
+  );
+  expect(lines).toContain("[line withheld]");
+  expect(lines).toContain("Main process exited, code=exited, status=1/FAILURE");
+  expect(evidence.journal).not.toContain(world.folder);
+  // Tier 1 leaves: not one journal line in the title, body, command or link.
+  expect(issue.kind).toBe("prepared");
+  const leaving = [
+    issue.title,
+    issue.body,
+    issue.shell,
+    decodeURIComponent(issue.link),
+  ].join("\n");
+  for (const line of lines)
+    expect([line, leaving.includes(line)]).toEqual([line, false]);
+  expect(leaving).not.toContain('"journal"');
+  // The prompt names it as tier 2 and does not carry it either.
+  expect(prompt).toContain("`evidence.journal`");
+  for (const line of lines) expect(prompt.includes(line)).toBe(false);
 });
 
 test("the fingerprint names one fault across releases", async () => {

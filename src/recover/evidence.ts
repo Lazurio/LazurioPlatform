@@ -12,7 +12,9 @@ import type { FolderFacts, UnitFacts } from "./observe";
 
 /** The evidence bundle (docs/recovery-mode.md E.1): enumerated fields plus
  * one bounded, sanitized tail of the Launchpad unit's journal. Structure
- * first: a field cannot leak what it does not contain. Never collected: the
+ * first: a field cannot leak what it does not contain. The fields are tier 1,
+ * the issue body; the journal is tier 2 and stays on the Machine
+ * (docs/recovery.md "Two tiers"). Never collected: the
  * Folder's files, Organization entries by name, preference contents, the
  * handover, environment variables, tool sign-in state, anything under
  * `personalspace/`. */
@@ -75,7 +77,8 @@ export type RecoveryEvidence = Readonly<{
     | null;
   folder: FolderFacts | null;
   lastCheck: Readonly<{ latest: string; checkedAt: string }> | null;
-  /** Sanitized; null where no journal can be read. */
+  /** Sanitized; null where no journal can be read. Tier 2: never in the
+   * issue body. */
   journal: string | null;
 }>;
 
