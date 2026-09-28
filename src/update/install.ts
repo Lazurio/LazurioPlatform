@@ -1,6 +1,7 @@
-import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { activate, reconcilePending, withUpdateLock } from "./activation";
+import type { AttestationVerifier } from "./attestation";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
@@ -11,6 +12,12 @@ import {
   swapSelector,
   versionFloor,
 } from "./layout";
+import {
+  bundleFile,
+  manifestFile,
+  maxBundleBytes,
+  maxManifestBytes,
+} from "./manifest";
 import {
   ensurePathEntry,
   entryDirectory,
@@ -32,14 +39,22 @@ import {
   sha256File,
   stagedMatches,
 } from "./stage";
-import type { ErrorResult } from "./update";
+import { type ErrorResult, verifyReleaseDocuments } from "./update";
 import { compareVersions } from "./version";
 
 /** `lazurio install [--service systemd-user]`: the running executable stages
- * ITSELF as the first version (docs/update.md "First installation"). It
- * verifies nothing about itself — a check performed by downloaded bytes is not
- * authentication; first installation is trusted through HTTPS by whoever ran
- * `install.sh`, or by the custody that staged the binary. Convergent: repeated
+ * ITSELF as the first version (docs/update.md "First installation"). There are
+ * two ways in, and they are kept apart:
+ * - **Downloaded** (`install.sh`, `--verify-release <directory>`): before
+ *   anything is written, the executable holds itself against the release it
+ *   says it is — the manifest and the Sigstore bundle downloaded beside it —
+ *   through the same verification `lazurio update` runs on a release. Any
+ *   refusal leaves nothing behind. What that proves, and what it cannot, is
+ *   docs/update.md "First installation".
+ * - **Staged** (the Machines role, `--base` from a digest-pinned file): no
+ *   release files and no network; the custody that pinned and staged the
+ *   bytes is the authority, and the executable verifies nothing about itself.
+ * Convergent: repeated
  * with the active version, it completes what is missing and changes nothing.
  * Run from a NEWER executable over an existing installation it is the offline
  * update (docs/update.md "Offline update"): the same staging, self-check,
@@ -129,11 +144,20 @@ export function renderRollbackUnit(base: string): string {
   ].join("\n");
 }
 
+/** The downloaded way in: the release files beside the executable and the
+ * compiled-in verifier. Absent, the staged way in. */
+export type ReleaseCheck = Readonly<{
+  /** Holds `manifest.json` and `lazurio.sigstore.json` of the release. */
+  directory: string;
+  verify: AttestationVerifier;
+}>;
+
 export type InstallInput = Readonly<{
   base: string;
   /** `process.execPath`: the file that is running. */
   executable: string;
   identity: ProductIdentity;
+  release?: ReleaseCheck | undefined;
   platform: string;
   env: Readonly<Record<string, string | undefined>>;
   /** Present: install the systemd user service for this Folder. */
@@ -197,6 +221,70 @@ export async function performInstall(
   }
 }
 
+/** One release file, read only if it is a regular file within its limit. */
+async function releaseFile(
+  directory: string,
+  name: string,
+  limit: number,
+): Promise<Uint8Array> {
+  const resource = name === manifestFile ? "manifest" : "bundle";
+  let bytes: Uint8Array;
+  try {
+    const path = join(directory, name);
+    const info = await lstat(path);
+    if (!info.isFile() || info.size > limit) throw new Error(resource);
+    bytes = await readFile(path);
+  } catch {
+    throw new UpdateFailure("release-invalid", { resource, reason: "file" });
+  }
+  if (bytes.byteLength > limit)
+    throw new UpdateFailure("release-invalid", { resource, reason: "size" });
+  return bytes;
+}
+
+/** The downloaded way in: this executable is the artifact of its own target
+ * in a release of its own version and commit, and the release workflow at
+ * that tag attested the manifest and those bytes. Returns the digest the
+ * staged copy is held against, so the file that was verified is the file
+ * that is installed. Reads and verifies; writes nothing.
+ */
+async function verifyOwnRelease(
+  input: InstallInput,
+  release: ReleaseCheck,
+): Promise<string> {
+  const { identity } = input;
+  let sha256: string;
+  let size: number;
+  try {
+    sha256 = await sha256File(input.executable);
+    size = (await stat(input.executable)).size;
+  } catch (error) {
+    throw storageFailure(error, "executable");
+  }
+  const { manifest, artifact } = await verifyReleaseDocuments({
+    manifestBytes: await releaseFile(
+      release.directory,
+      manifestFile,
+      maxManifestBytes,
+    ),
+    bundle: () => releaseFile(release.directory, bundleFile, maxBundleBytes),
+    version: identity.version,
+    target: identity.target,
+    verify: release.verify,
+  });
+  if (manifest.sourceCommit !== identity.commit)
+    throw new UpdateFailure("release-invalid", {
+      resource: "manifest",
+      reason: "commit-mismatch",
+    });
+  if (artifact.size !== size || artifact.sha256 !== sha256)
+    throw new UpdateFailure("release-invalid", {
+      resource: "artifact",
+      reason: artifact.size !== size ? "size" : "digest",
+    });
+  return sha256;
+}
+
 async function install(input: InstallInput): Promise<InstallResult> {
   const { base, identity, service } = input;
   if (!canonical(base))
@@ -213,18 +301,23 @@ async function install(input: InstallInput): Promise<InstallResult> {
         [rollbackUnit, renderRollbackUnit(base)],
       ] as const)
     : [];
+  // The downloaded way in proves its release before the first write.
+  const verified = input.release
+    ? await verifyOwnRelease(input, input.release)
+    : undefined;
 
   // Stage this executable under `versions/<its version>` unless those exact
   // bytes are already there. Scratch belongs to the lock holder.
   const stage = async () => {
     const paths = layout(base);
-    const sha256 = await sha256File(input.executable);
+    const sha256 = verified ?? (await sha256File(input.executable));
     if (await stagedMatches(base, identity.version, sha256)) return false;
     await rm(paths.scratch, { recursive: true, force: true });
     await mkdir(paths.scratch, { mode: 0o700 });
     const copy = join(paths.scratch, "artifact");
     await copyFile(input.executable, copy);
-    // Hold the copy against the digest: the file could have changed.
+    // Hold the copy against the digest (the verified one on the downloaded
+    // way in): the file could have changed.
     if ((await sha256File(copy)) !== sha256)
       throw new UpdateFailure("storage-unavailable", { stage: "copy" });
     await placeVersion({
