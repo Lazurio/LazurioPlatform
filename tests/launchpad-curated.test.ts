@@ -285,6 +285,7 @@ test.skipIf(!keygen)(
         state: "signed-in",
         account: "octocat",
         ssh: { state: "linked", fingerprint },
+        identity: "person",
       });
       // "Link SSH key" of a signed-in gh: no code, the same key.
       const link = await opened.json("/api/tools/login/start", {
