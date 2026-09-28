@@ -44,9 +44,10 @@ export function localApplicationAdapters(input: {
     throw new Error(
       "Application coordination belongs exactly to owner-surviving runners",
     );
-  // Admission is the root resolution state, re-derived at every boundary: only a
-  // `transition` root with exact projection parity resolves; canonical-only
-  // `current`, drift, conflict, legacy-only, template or an unresolvable root throw
+  // Admission is the root resolution state, re-derived at every boundary through
+  // the one admission rule (`isExecutableOrganizationState` in root-resolution):
+  // every state it does not admit (drift, conflict, legacy-only, and `current`
+  // under the transition-only variant), a template or an unresolvable root throw
   // here, before the owner lock, preparation, script start or any write.
   const authorize: Adapters["authorize"] = (selection) =>
     resolveOrganizationApplication(selected.cwd, selection);
