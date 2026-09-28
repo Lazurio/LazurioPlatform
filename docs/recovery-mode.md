@@ -528,8 +528,10 @@ executables are not refused there, only not qualified. Hosted personal VMs run
 Debian 13 today (Machines `docs/personal-vm.md:119-120`), only because the pool
 host's creation script produced it, for no technical reason. The Principal decided on
 2026-09-28 that they move to Ubuntu 24.04 at the next Machines rollout, so every
-hosted Machine runs one distribution. It is a rebuild, not an in-place upgrade: the
-Personalspace is Git and is cloned again. Until a personal VM is rebuilt it is
+hosted Machine runs one distribution. It is a rebuild with state transfer, not an
+in-place upgrade: the Machine keeps its identity, tailnet node and SSH host keys, and
+the owner's home, sign-ins and Buddy are carried over, so nothing is set up again
+([Launchpad parity](launchpad-parity.md), slice M6). Until a personal VM is rebuilt it is
 "unverified".
 
 | Journey | Ubuntu | macOS |
@@ -567,12 +569,14 @@ Decided by the Principal on 2026-09-28 (Q5), replacing the earlier proposal of 2
 hours on one Environment.
 
 **What "every Machine of the pilot Organization" means for the release job.** After
-`qualify.yml` passed, the candidate is rolled by its exact tag to all hosted Machines
-of the pilot Organization on which Machines installs the Platform, whatever their
-Environment kind, through the Organization's owner overlay pin (Plan, Permit and
-apply per Machine, the existing path). Personal VMs count once they run Ubuntu
-24.04; until their rebuild (G.2) they are "unverified", outside the count, and named
-as such in the evidence. A Machine that cannot take the
+`qualify.yml` passed, the candidate is rolled by its exact tag to the stage's
+Machines. **Scope confirmed by the Principal on 2026-09-28:** the work VMs of the
+pilot Organization plus the personal VMs of its operators. Each is rolled through
+the path that pins its release: the Organization's owner overlay for work VMs, the
+personal lane's pin for personal VMs (Plan, Permit and apply per Machine, the existing
+path). Personal VMs count once they run Ubuntu 24.04; until their rebuild (G.2) they
+are "unverified", outside the count, and named as such in the evidence. A Machine
+that cannot take the
 candidate blocks the stage; excluding one is an explicit, named line in the evidence
 PR that the `release` reviewer accepts or refuses. The 8 hours start when the last of
 these Machines runs the candidate, proven by its `lazurio update status --json`
