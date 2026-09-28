@@ -809,7 +809,7 @@ Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Roug
 | P12 | Team: server refuses personal gh; Tools shows the broker identity (B12) | P | — | S | — | merged: #66 |
 | M4 | Team lane of M2 (shared account, broker unchanged) | M | M2, P12 | S | — | no pull request |
 | — | **Team Environment line: switch line + P10 + P11 + P12 + M4** | | | | | |
-| P13 | Cookie chunks in hosted admission; Personalspace modules (B11) | P | P5 | M | — | Personalspace half: pull request from `claude/DEV-6628-personalspace-modules`; cookie chunks: issue #76 |
+| P13 | Cookie chunks in hosted admission; Personalspace modules (B11) | P | P5 | M | — | cookie chunks: merged (#85, issue #76); Personalspace half: this pull request (`claude/DEV-6628-personalspace-modules`) |
 | M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 **with state transfer** (Principal, 2026-09-28): the Machine keeps its identity, tailnet node and SSH host keys; the owner's home, sign-ins and Buddy are carried; about one hour of outage, announced to the owner beforehand; acceptance: no new sign-in or pairing (T3 Code pairing, the Buddy with its memory, SSH keys and host identity, `gh`), each proven by a readback (see below) | M | the inventory of carried state | M | run the one distribution every hosted Machine runs, with nothing to set up again | design merged: Machines #247; slices R2–R8 open |
 | M5 | Personal lane of M2 (entry without Organization segment) | M | M2, P13, M6 | S | — | no pull request |
 | — | **Personal Machine line: switch line + P11 + P13 + M6 (rebuild with state transfer) + M5** | | | | | |
