@@ -173,6 +173,35 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
       }),
     ),
   ).toEqual({ ok: true });
+  // The internal namespace (the gateway's `ensure`) is state-changing even on
+  // GET: the same-origin rule applies; any other GET keeps the read rule.
+  const internal = (headers: Record<string, string>) =>
+    new Request(
+      "http://127.0.0.1:20000/api/internal/hosted/modules/web/ensure",
+      { headers: { host, ...headers } },
+    );
+  expect(await trust.admit(internal(good))).toEqual({
+    ok: false,
+    reason: "origin-mismatch",
+  });
+  expect(
+    await trust.admit(
+      internal({
+        ...good,
+        origin: entry.externalOrigin,
+        "sec-fetch-site": "same-site",
+      }),
+    ),
+  ).toEqual({ ok: false, reason: "origin-mismatch" });
+  expect(
+    await trust.admit(
+      internal({
+        ...good,
+        origin: entry.externalOrigin,
+        "sec-fetch-site": "same-origin",
+      }),
+    ),
+  ).toEqual({ ok: true });
   // A positive answer is cached for two minutes, keyed by the cookie value.
   expect(calls.length).toBe(2);
   clock += 119_000;
