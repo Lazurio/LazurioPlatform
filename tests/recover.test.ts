@@ -488,6 +488,10 @@ const canaries = {
   host: "canary-box",
   organizations: ["Acme-Canary", "globex-canary"],
   repositories: ["moonshot-canary", "ledger-canary"],
+  // The checkout directory is not the GitHub login (`<Owner>_GEN3`): these
+  // are known only from each Organization's declaration.
+  declaredLogins: ["AcmeCanary", "GlobexCanary"],
+  declaredRoots: ["acme-root", "globex-root"],
   login: "canary-login",
   tailnetIp: "100.64.0.77",
   ipv6: "fd7a:115c:a1e0::77",
@@ -520,6 +524,27 @@ async function cannedWorld() {
         ),
         { recursive: true },
       );
+  const [acme, globex] = canaries.organizations;
+  const [acmeLogin, globexLogin] = canaries.declaredLogins;
+  const [acmeRoot, globexRoot] = canaries.declaredRoots;
+  await writeFile(
+    join(world.folder, "organizations", `${acme}`, "lazurio.organization.json"),
+    JSON.stringify({
+      organization: { forge_binding: { locator: acmeLogin } },
+      root_repository: { locator: `${acmeLogin}/${acmeRoot}` },
+    }),
+    { mode: 0o600 },
+  );
+  await writeFile(
+    join(world.folder, "organizations", `${globex}`, "company.gen3.json"),
+    JSON.stringify({
+      company: {
+        github_org: globexLogin,
+        repository: `git@github.com:${globexLogin}/${globexRoot}.git`,
+      },
+    }),
+    { mode: 0o600 },
+  );
   await writeUnit(world);
   const journal = [
     `Started Lazurio Launchpad for ${world.folder} on ${canaries.host}.`,
@@ -530,6 +555,8 @@ async function cannedWorld() {
     `mail ${canaries.email}; entry https://${canaries.lazurioHost}`,
     `gh: signed in as ${canaries.login}`,
     `handover ${canaries.handoverOrganization} ${canaries.handoverRepository}`,
+    `git@github.com:${acmeLogin}/${acmeRoot}.git: fetch failed`,
+    `remote https://github.com/${globexLogin}/${globexRoot} denied`,
     ...tokens.map((token) => `tool said ${token}`),
     "Main process exited, code=exited, status=1/FAILURE",
   ].join("\n");
@@ -605,6 +632,8 @@ test("canaries in every source never reach the issue body, which passes the gate
     canaries.host,
     ...canaries.organizations,
     ...canaries.repositories,
+    ...canaries.declaredLogins,
+    ...canaries.declaredRoots,
     canaries.login,
     canaries.tailnetIp,
     canaries.ipv6,

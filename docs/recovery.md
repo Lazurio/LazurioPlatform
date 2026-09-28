@@ -110,7 +110,10 @@ Per line, in this order:
    `USER`, `LOGNAME`, the account name, the host name), the names under the
    Folder's `organizations/` and under each Organization's `workspace/`,
    `productionspace/` and legacy `modules/` (names only, at most 256 Organizations
-   and 2048 repositories), the Machine binding the Folder records and the Machine
+   and 2048 repositories), each Organization's slug, GitHub login and root
+   repository as its `lazurio.organization.json` or legacy `company.gen3.json`
+   declares them (the checkout directory need not be the login, `<Owner>_GEN3`;
+   nothing else of those files is read), the Machine binding the Folder records and the Machine
    handover (Machine, Owner, Team, assignment login and id, tailnet node, host,
    custody repository, peers and their hosts, the hosted entry's hostnames).
 4. A long run (32 or more of `[A-Za-z0-9+/_=-]`) withholds the line unless it is
@@ -137,7 +140,7 @@ prepared, and the prompt tells the agent to send nothing. The body is bounded to
 
 Known limits, stated rather than hidden:
 
-- The GitHub login is known only from the Machine binding or the handover. On a
+- A person's GitHub login is known only from the Machine binding or the handover. On a
   workstation it is not read from `gh` (that would be a sign-in probe and possibly
   network); where it equals the account name it is covered by that.
 - Values shorter than two characters and `localhost` are not treated as private.

@@ -2,13 +2,17 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { MachineBinding } from "../folder/machine-binding";
 import type { MachineContext } from "../machine/context";
+import { readOwnedJson } from "../providers/owned-json";
 import type { PrivateKind, PrivateValue } from "./sanitize";
 
 /** The known private values of this Machine that the sanitizer replaces
  * (docs/recovery.md "What may leave the Machine"). Names only: the Folder
  * contributes the names of the entries under `organizations/` and of the
  * repositories under each Organization's `workspace/`, `productionspace/` and
- * legacy `modules/`, never a file's content. `personalspace/` is not listed.
+ * legacy `modules/`, and from each Organization's own declaration its slug,
+ * GitHub login and root repository, because the checkout directory need not
+ * be the login (`<Owner>_GEN3`). No other content is read. `personalspace/`
+ * is not listed.
  */
 export type MachineFacts = Readonly<{
   home: string | undefined;
@@ -21,41 +25,6 @@ export type MachineFacts = Readonly<{
 const maxOrganizations = 256;
 const maxRepositories = 2048;
 const repositoryAreas = ["workspace", "productionspace", "modules"] as const;
-
-async function names(directory: string, limit: number): Promise<string[]> {
-  try {
-    return (await readdir(directory))
-      .filter((name) => !name.startsWith("."))
-      .sort()
-      .slice(0, limit);
-  } catch {
-    return [];
-  }
-}
-
-/** Organization and repository names found in the Folder. */
-export async function folderNames(folder: string): Promise<PrivateValue[]> {
-  const result: PrivateValue[] = [];
-  const organizations = await names(
-    join(folder, "organizations"),
-    maxOrganizations,
-  );
-  let repositories = 0;
-  for (const organization of organizations) {
-    result.push({ kind: "organization", value: organization });
-    for (const area of repositoryAreas) {
-      if (repositories >= maxRepositories) break;
-      for (const repository of await names(
-        join(folder, "organizations", organization, area),
-        maxRepositories - repositories,
-      )) {
-        result.push({ kind: "repository", value: repository });
-        repositories++;
-      }
-    }
-  }
-  return result;
-}
 
 const hostOf = (url: string) => {
   try {
@@ -80,6 +49,86 @@ const value = (
   input: string | number | null | undefined,
 ): PrivateValue[] =>
   input === null || input === undefined ? [] : [{ kind, value: String(input) }];
+
+async function names(directory: string, limit: number): Promise<string[]> {
+  try {
+    return (await readdir(directory))
+      .filter((name) => !name.startsWith("."))
+      .sort()
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+const field = (input: unknown, ...path: readonly string[]) => {
+  let value = input;
+  for (const key of path) {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return undefined;
+    value = (value as Readonly<Record<string, unknown>>)[key];
+  }
+  return typeof value === "string" ? value : undefined;
+};
+
+// `Owner/name` of a locator or of a git remote URL.
+const ownerAndName = (input: string | undefined) =>
+  /([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(input ?? "")?.[1];
+
+/** The names an Organization declares for itself: the canonical
+ * `lazurio.organization.json` and the legacy `company.gen3.json`, whichever
+ * exist. Read for their names only, so an invalid document still gives what
+ * it can and an unreadable one gives nothing. */
+async function declaredNames(directory: string): Promise<PrivateValue[]> {
+  const read = (name: string) =>
+    readOwnedJson(join(directory, name)).catch(() => null);
+  const canonical = await read("lazurio.organization.json");
+  const legacy = await read("company.gen3.json");
+  return [
+    ...value("organization", field(canonical, "organization", "slug")),
+    ...value(
+      "organization",
+      field(canonical, "organization", "forge_binding", "locator"),
+    ),
+    ...value("organization", field(legacy, "company", "slug")),
+    ...value("organization", field(legacy, "company", "github_org")),
+    ...[
+      field(canonical, "root_repository", "locator"),
+      field(legacy, "company", "root_repository"),
+      field(legacy, "company", "repository"),
+    ].flatMap((locator) => {
+      const repository = ownerAndName(locator);
+      return repository === undefined ? [] : repositoryValues(repository);
+    }),
+  ];
+}
+
+/** Organization and repository names found in the Folder. */
+export async function folderNames(folder: string): Promise<PrivateValue[]> {
+  const result: PrivateValue[] = [];
+  const organizations = await names(
+    join(folder, "organizations"),
+    maxOrganizations,
+  );
+  let repositories = 0;
+  for (const organization of organizations) {
+    result.push({ kind: "organization", value: organization });
+    result.push(
+      ...(await declaredNames(join(folder, "organizations", organization))),
+    );
+    for (const area of repositoryAreas) {
+      if (repositories >= maxRepositories) break;
+      for (const repository of await names(
+        join(folder, "organizations", organization, area),
+        maxRepositories - repositories,
+      )) {
+        result.push({ kind: "repository", value: repository });
+        repositories++;
+      }
+    }
+  }
+  return result;
+}
 
 type Peer = Readonly<{
   name: string;
