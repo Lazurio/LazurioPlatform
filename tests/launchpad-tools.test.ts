@@ -64,6 +64,7 @@ type Tool = {
     account?: string;
     organization?: string;
     ssh?: { state: string; reason?: string };
+    identity?: string;
   };
   note?: string;
   prompt: string;
@@ -621,6 +622,8 @@ test.skipIf(process.platform === "win32")(
             state: "signed-in",
             account: "octo-cat",
             ssh: { state: "not-linked", reason: "no-key" },
+            // A token gh keeps in its keyring: a person's sign-in.
+            identity: "person",
           },
         ],
         [
@@ -638,11 +641,14 @@ test.skipIf(process.platform === "win32")(
         ["neon", { state: "unknown" }],
       ]);
       expect(parseToolsOverview(JSON.parse(raw))).toEqual(JSON.parse(raw));
-      // Exactly the catalog probes of the installed tools ran, once each.
+      // Exactly the catalog probes of the installed tools ran, once each;
+      // gh first with its JSON status, and since this gh answers none, with
+      // the text form.
       expect(
         opened.commands.filter((command) => command[1] !== "--version").sort(),
       ).toEqual(
         [
+          [join(standard, "gh"), "auth", "status", "--json", "hosts"],
           [join(standard, "gh"), "auth", "status", "--hostname", "github.com"],
           [join(standard, "composio"), "whoami"],
           [join(standard, "wacli"), "auth", "status", "--json", "--read-only"],

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { toolSelection } from "../tools/catalog";
 import { planToolsChange } from "./change-profile";
 import { inspectOutput } from "./inventory";
-import { withFolderOperationLock } from "./lock";
+import { withFolderOperationLock, withFolderReadLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState } from "./read-state";
@@ -59,7 +59,7 @@ export function sharedSignInsWarning(
 export async function readFolderTools(folder: string) {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
-  return withFolderOperationLock(stateDirectory, async () => {
+  return withFolderReadLock(stateDirectory, async () => {
     const { preferences } = await readFolderState(stateDirectory);
     return {
       revision: preferences.revision,
