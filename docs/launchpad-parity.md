@@ -1,8 +1,9 @@
 # Launchpad parity: the Platform Launchpad replaces the resident Launchpad
 
-Status: **shaping; the Principal decided H1, H3, H4, H6 and the drops of section F on
-2026-09-28. H2, H5 and H7 stay open, and implementation proceeds on their
-recommendations (H). Analysis and design only.** Nothing here is implemented. It
+Status: **shaping; the Principal decided H1, H4, H6, the drops of section F and one
+distribution (Ubuntu 24.04) for every hosted Machine on 2026-09-28, and H3 in part:
+P9 is off the switch line, while the preview path is an open design question. H2, H5
+and H7 stay open, and implementation proceeds on their recommendations (H). Analysis and design only.** Nothing here is implemented. It
 replaces the two-move plan of
 `docs/hosted-launchpad-switch-plan.md` (branch `claude/DEV-6626-distribution-and-migration`)
 and keeps its facts. It depends on the Recovery mode shaping
@@ -37,9 +38,9 @@ could not be checked against code, documentation or a native run.
    with logs, the gateway `ensure`, the Chat entry into T3 Code, a read-only
    `lazurio doctor`, and the Machines switch release qualified on a disposable local
    Ubuntu VM. Content synchronization, SSH keys in the browser, the Team and Personal
-   Environments and macOS follow, in that order. Worktree source (P9) is not on it:
-   pull-request previews on hosted Work Machines go through SSH port forwarding (H3,
-   decided 2026-09-28).
+   Environments and macOS follow, in that order. Worktree source (P9) is not on it;
+   how a pull-request preview on a hosted Work Machine reaches the operator is an
+   open design question (H3).
 4. **No new Folder state.** Every new capability reads its truth where it already
    lives: Organizations from `organizations/*`, running applications and their source
    from the OS service manager, logs from the journal, URLs from the Machine handover.
@@ -76,7 +77,7 @@ the gap blocks the switch of one hosted Work Environment (`hosted-organization-p
 | 5 | Open (one click) | Install if needed → start or reuse → wait healthy → return URL; records `usage.json` (`R:…/runtime-lib.mjs:1185-1316`) | `entrypoint` returns a loopback URL (`src/modules/lifecycle.ts:430-494`); shown only locally (`src/launchpad/ui.ts:421-430`) | One-action Open; external-origin links on hosted | yes |
 | 6 | Health | Declared health probe, `GET|POST …/health` (`R:…/runtime-lib.mjs:3430`) | Readiness observation inside start/status, with control-group ownership (`src/modules/health.ts:48`, `docs/module-adoption.md:523-527`) | None (Platform is stronger) | no |
 | 7 | Logs | `launchpad/logs/apps/<id>.log`, `GET …/logs` (`R:…/runtime-lib.mjs:1897`); stripped on the Personalspace lane (`R:launchpad/src/server.mjs:1330-1336`) | Output discarded: `StandardOutput=null` (`src/modules/systemd-user-runner.ts:77-79`; `docs/module-adoption.md:667`) | Logs | yes |
-| 8 | Source: `main` or worktree | Every mutating action names `{type:"main"}` or `{type:"worktree",slug}` (`R:lazurio/runtime/runtime-source-lib.mjs:3-20`); choice per browser tab in memory (`R:launchpad/public/app.js:4868-4920`); CLI always `main` | Not supported (`docs/module-adoption.md:668-669`) | Worktree source | no (H3, decided: previews by SSH port forwarding; P9 later or dropped, E) |
+| 8 | Source: `main` or worktree | Every mutating action names `{type:"main"}` or `{type:"worktree",slug}` (`R:lazurio/runtime/runtime-source-lib.mjs:3-20`); choice per browser tab in memory (`R:launchpad/public/app.js:4868-4920`); CLI always `main` | Not supported (`docs/module-adoption.md:668-669`) | Worktree source | no (H3: P9 off the switch line and kept; the preview path is open, E) |
 | 9 | Ports and leases | Port only in `lazurio.module.json`; same-module/worktree peer replaced; same-Organization collision refused; cross-Organization takeover needs confirmation and is audited (`R:…/runtime-lib.mjs:3021-3195`, `:977-1016`) | Leases declared and resolved (`src/modules/runtime.ts:86-177`); an occupied port is refused (`src/modules/listener-observation.ts:72-75`) | Takeover as an explicit Stop of the holder (workstation only) | macOS |
 | 10 | Hosted `ensure` | `GET /api/internal/hosted/modules/<id>/ensure` from the gateway; `Sec-Fetch-Mode: navigate` or none starts, a WebSocket or fetch does not; 204 healthy, 503 starting, 404 unknown (`R:launchpad/src/server.mjs:1376-1404`; `R:launchpad/src/hosted-readiness-lib.mjs:4-8`; `R:launchpad/docs/hosted-workspace-parity-contract.md:120-135`) | No `/api/internal/*`; every GET but update status is 405 (`src/launchpad/server.ts:223-233`) | `ensure` | yes |
 | 11 | Hosted stop semantics | Stop holds until the next Open (`R:…/runtime-lib.mjs:1375-1391`; root decision 0137) | Stop stops the unit; nothing restarts it (`docs/module-adoption.md:538-546`) | None: the same semantics fall out of `ensure` | no |
@@ -529,11 +530,14 @@ from the operator's computer (17). Every item has one expected answer.
 14. "Chat" → T3 Code opens paired; a new thread runs `lazurio --version`.
 15. The update pill takes the next patch; modules keep running; item 3 again.
 16. A repeated Machines apply changes nothing; modules keep running.
-17. A pull-request preview (H3, decided 2026-09-28): an agent starts the worktree's
-    application on a free loopback port of the Machine, outside the Launchpad's
-    lifecycle, and forwards it over SSH (`ssh -L`); the operator's
+17. A pull-request preview, where an agent on the operator's own computer is
+    connected to the Environment over SSH (for example Codex over SSH): the agent
+    starts the worktree's application on a free loopback port of the Machine,
+    outside the Launchpad's lifecycle, and forwards it (`ssh -L`); the operator's
     `http://localhost:<port>` link opens it, and the `main` module on its own
-    hostname is unaffected. No Launchpad route, hostname or `--source` is involved.
+    hostname is unaffected. The Principal confirmed on 2026-09-28 that this works only
+    in that setup; from the web T3 Code on the Machine there is no such path, and
+    that case is the open design question of H3, not an item of this checklist.
     Machines sets no forwarding rule for work VMs, so OpenSSH's default permits it;
     **unverified** on the live fleet.
 
@@ -566,7 +570,10 @@ slice M3:
   fleet runs: Machines asserts Ubuntu noble for Organization work VMs
   (`M:workloads/workspace-vm/ansible/roles/workspace_network/tasks/install.yml:2-6`).
   Linux means Ubuntu in the first phase; other distributions are "unverified"
-  (Principal, 2026-09-28). The Platform's hosted-entry evidence already used a local
+  (Principal, 2026-09-28). Hosted personal VMs, Debian 13 today
+  (`M:docs/personal-vm.md:119-120`), are rebuilt on Ubuntu 24.04 at the next
+  Machines rollout (Principal, 2026-09-28), so one qualification VM release covers
+  every hosted Machine. The Platform's hosted-entry evidence already used a local
   VM (`docs/evidence/hosted-entry-linux-arm64-2026-09-26.md`). It is
   applied by the Machines playbook **with the previous Machines release first** (so the
   resident runs with a real module), then with M2;
@@ -615,7 +622,7 @@ What the resident does on a workstation that the Platform must do:
 | CLI reaches the running Launchpad | `server.json` locator plus identity check (`R:lazurio/core/module-lifecycle-client-lib.mjs:227-250`) | A control socket under the install base (0600, next to the existing health socket, `src/update/layout.ts:41`): `lazurio module …` on macOS talks to it; when no Launchpad runs, `start`/`open` launch it detached first |
 | Open the Launchpad | `lazurio launchpad serve` prints `LAZURIO_LAUNCHPAD_URL=…` | `lazurio launchpad open [--json]`: starts or reuses, asks the control socket for a fresh loopback URL with a new token, prints it; the token is never stored |
 | Desktop launcher | `.app` bundle running `Launchpad.command` from the root checkout | An `.app` written by `lazurio install` that runs `lazurio launchpad open` and hands the URL to the default browser; no root checkout; signed with the release (F13's OS-signing gate) |
-| Worktree source | Per-tab choice | Only if P9 is kept (E): B3 `--source`. Otherwise the agent runs the worktree's application on a free localhost port, which on a workstation is already the operator's link |
+| Worktree source | Per-tab choice | P9, B3 `--source`, once the preview design of H3 exists; until then the agent runs the worktree's application on a free localhost port, which on a workstation is already the operator's link |
 | Migration from the root checkout | — | `docs/distribution-and-migration.md` D (rename aside, adopt) |
 
 | Variant for the macOS Launchpad process | Assessment |
@@ -644,7 +651,7 @@ Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Roug
 | P6 | Hosted `ensure` (B5) | P | P5 | S | follow a cold direct link to a module |
 | P7 | `lazurio chat link` and the Chat button (B8) | P | P3; T3 launcher on PATH (M) | S | enter T3 Code from the Launchpad without pasting a token |
 | P8 | `lazurio doctor` read-only; `/settings/diagnostics` (B9) | P | P4, P5 | S | get one readback of the Environment's health |
-| P9 | Worktree source `--source main|worktree:<name>` (B3); later slice, recommended to drop (strictness notes) | P | P5 | S | run a worktree through the Launchpad's lifecycle on a workstation (prepare, logs, port lease, one Stop) |
+| P9 | Worktree source `--source main|worktree:<name>` (B3); later slice, kept; its shape waits for the preview design of H3 | P | P5; H3 | S–M | preview a pull request's worktree through the Launchpad's lifecycle (prepare, logs, port lease, one Stop), on a workstation and, depending on H3, on a hosted Machine |
 | M2 | Switch release (C.2): resident removed, gateway snippet and `ensure` Host, entry written, `install --service`, `launchpad.gen3*` removed, F21 static page | M | P1–P8 released; M3 | M | — (qualification only) |
 | M3 | Local Ubuntu VM qualification harness (C.5) | M | — | M | qualify any Machines release before a real Machine |
 | O1 | One Work Machine switched; then the others | O | M2 | S each | use the Platform Launchpad only |
@@ -656,23 +663,21 @@ Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Roug
 | M4 | Team lane of M2 (shared account, broker unchanged) | M | M2, P12 | S | — |
 | — | **Team Environment line: switch line + P10 + P11 + P12 + M4** | | | | |
 | P13 | Cookie chunks in hosted admission; Personalspace modules (B11) | P | P5 | M | — |
-| M5 | Personal lane of M2 (entry without Organization segment) | M | M2, P13 | S | — |
-| — | **Personal Machine line: switch line + P11 + P13 + M5** | | | | |
+| M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 (Principal, 2026-09-28): a new VM, not an in-place upgrade; the Personalspace is Git and is cloned again | M | — | M | run the one distribution every hosted Machine runs |
+| M5 | Personal lane of M2 (entry without Organization segment) | M | M2, P13, M6 | S | — |
+| — | **Personal Machine line: switch line + P11 + P13 + M6 + M5** | | | | |
 | P14 | Workstation adoption (`folder-init --adopt`), control socket, `launchpad open`, session logs, port "Stop holder" action | P | P5; distribution slice S5 | M | run the Platform Launchpad over all Organizations on a Mac |
 | P15 | macOS `.app` from `lazurio install` | P | P14; OS signing | M | start Lazurio from the Dock |
-| — | **macOS workstation line: P1 (unsupervised parts), P4, P5 (session runner), P8, P10, P14, P15 (P9 only if kept), and the migration of `docs/distribution-and-migration.md` D** | | | | |
+| — | **macOS workstation line: P1 (unsupervised parts), P4, P5 (session runner), P8, P9 (once H3 is designed), P10, P14, P15, and the migration of `docs/distribution-and-migration.md` D** | | | | |
 
-Strictness notes: P9 is off the switch line (H3, decided 2026-09-28): previews of a
-pull request on hosted Work Machines are made by an agent through SSH port forwarding,
-and the operator gets a localhost link (C.3 item 17); no stable URL is needed. P9
-stays a later slice. What it would still be good for is a workstation, where the
-resident offered a per-tab choice between `main` and a worktree: the Launchpad would
-prepare the worktree, show its logs, hold the module's port lease and stop it with
-one Stop. **Recommended: drop P9** and record worktree source as not carried over
-(F), reopened only when a workstation consumer asks for it, as F8 conditions its
-other additions. On a workstation the agent already runs a worktree's application on
-localhost, which is the operator's link, and `--source` would add a second source
-identity to every lifecycle verb and to `ensure` for no current consumer. P11 is off
+Strictness notes: P9 is off the switch line and is not dropped (H3, Principal
+2026-09-28). SSH port forwarding to a localhost link works only when an agent on the
+operator's own computer is connected to the Environment over SSH (C.3 item 17); from
+the web T3 Code on the Machine it does not. How a preview reaches the operator in
+that case is an open design question, to be solved properly later (H3). P9 then
+carries the lifecycle part that any answer needs: prepare the worktree, show its
+logs, hold the module's port lease and stop it with one Stop, on a workstation (where
+the resident offered a per-tab choice) and on a hosted Machine. P11 is off
 the line because an agent in T3 can edit `authorized_keys`. P10 is off it
 for existing Machines because their repositories exist and the manual already tells
 agents to fast-forward. P8 is on it because the apply's preflight and readback need a
@@ -681,9 +686,14 @@ machine-readable answer.
 Linux means Ubuntu in the first phase (Principal, 2026-09-28): P2, P5 and M3 are
 qualified on Ubuntu 24.04, the release Machines provisions for Organization work VMs
 (C.5); other distributions are "unverified" in release notes and the manual. Hosted
-personal VMs run Debian 13 (`M:docs/personal-vm.md:119-120`), so the Personal Machine
-line (P13, M5) would ship unverified until the Principal decides whether Debian 13
-joins the qualified set.
+personal VMs run Debian 13 today (`M:docs/personal-vm.md:119-120`), only because the
+pool host's creation script produced it. The Principal decided on 2026-09-28 that they
+move to Ubuntu 24.04 at the next Machines rollout, as a rebuild. **Recommended: a
+separate Machines slice M6** rather than a part of M5. The next Machines rollout may
+come before M2 and P13, and M5 waits for both; the rebuild is a per-owner operation
+with its own evidence (a new VM, the Personalspace cloned again) and is independent
+of the Launchpad; M5 then depends on M6, so the personal lane of the switch is
+qualified on Ubuntu only.
 
 ## F. What we deliberately do not carry over
 
@@ -694,9 +704,7 @@ rows remain proposals of this shaping.
 |---|---|
 | Git client in the browser: worktree create from Mission Control plans, "Publikovat draft" (`git add -A`, commit, push), Git read model with background fetch (`R:launchpad/src/worktree-actions-lib.mjs:56-75`, `:428-507`) | **Decided 2026-09-28.** Agents in T3 do Git with the worktree discipline of the manual (F14); a browser commit of `git add -A` bypasses it; Git and GitHub are the history owners |
 | Mission Control plan browser | **Decided 2026-09-28.** Mission Control is an Organization application; the Launchpad opens it like any module |
-| Notifications, "most used", recent changes, `usage.json` ranking (`R:launchpad/src/server.mjs:981-1003`) | **Decided 2026-09-28.** Click-derived state with no decision behind it; root `ARCHITECTURE.md:269-270` already calls click evidence non-authoritative |
-| Worktree source, the per-tab choice between `main` and a worktree (`R:launchpad/public/app.js:4868-4920`) | Proposed with the recommendation to drop P9 (E): previews go through SSH port forwarding on hosted Machines (H3) and localhost on a workstation; reopened when a workstation consumer asks |
-| Cross-Organization port takeover with audit log (`R:…/runtime-lib.mjs:977-1016`, `:3156-3195`) | Replaced by refusal plus an explicit Stop (D) |
+| Notifications, "most used", recent changes, `usage.json` ranking (`R:launchpad/src/server.mjs:981-1003`) | **Decided 2026-09-28.** Click-derived state with no decision behind it; root `ARCHITECTURE.md:269-270` already calls click evidence non-authoritative || Cross-Organization port takeover with audit log (`R:…/runtime-lib.mjs:977-1016`, `:3156-3195`) | Replaced by refusal plus an explicit Stop (D) |
 | Hosted maintenance loop re-deriving the app set every 15 s (`R:launchpad/src/server.mjs:545-552`) | On-demand `ensure` needs no background loop |
 | Source-hash "stale server" restarts (`R:lazurio/core/server-identity-lib.mjs:227-247`) | The product is a versioned executable; only `lazurio update` changes it |
 | `launchpad.gen3.json`, `launchpad.gen3.local.json`, planned slots, `personalspace_owner` | F15 point 2 gave them a successor in Folder preferences; no consumer needs planned slots, and the Personalspace owner is the one Personalspace present or the handover's Owner. Proposed: no successor at all (H5) |
@@ -741,9 +749,15 @@ rows remain proposals of this shaping.
   the switch only after F21 is released?** **Open.** Recommendation: yes. It is the
   only way to have no side-by-side period and no rollback.
 - **H3 — Are pull-request previews on hosted Work Machines used today** (the handoff
-  line "Zkontroluj si to v aplikaci")? **Decided 2026-09-28: no stable URL.** An agent
-  makes the preview through SSH port forwarding and the operator gets a localhost link
-  (C.3 item 17). P9 is off the switch line; recommended to drop (E).
+  line "Zkontroluj si to v aplikaci")? **Decided 2026-09-28 in part:** P9 is off the
+  switch line and is not dropped. SSH port forwarding with a localhost link works
+  only when an agent on the operator's own computer is connected to the Environment
+  over SSH, for example Codex over SSH (C.3 item 17); from the web T3 Code on the
+  Machine it does not. **Open: design the preview path**, to be solved properly
+  later. Candidates: SSH forwarding from the operator's computer, and a per-worktree
+  hostname through the gateway (which would need `entry.modules` and the gateway
+  catalog to name a worktree, and `ensure` to start it, B4, B5). P9's lifecycle part
+  serves either.
 - **H4 — New Work Machines between the switch and P10:** created with the switch
   release and their Organizations cloned by the T3 agent from the manual, or held on
   the previous Machines release until P10? **Decided 2026-09-28, as recommended:**
@@ -784,8 +798,8 @@ Proposed decision, for the Principal's acceptance:
 > client, Mission Control plan browser, notifications, click ranking and recent
 > changes (confirmed by the Principal), takeover audit, maintenance loop and
 > `launchpad.gen3*.json` have no successor. (6) Pull-request previews on hosted Work
-> Machines go through SSH port forwarding to a localhost link; worktree source is not
-> part of the switch.
+> Machines are not part of the switch; their path is designed later, and worktree
+> source (P9) stays a later slice.
 >
 > Amends F12, F15 (point 2 and the 2026-09-28 addendum's home-page sentence), and F8's
 > "Not done" list (logs; worktree source stays not done).
@@ -795,8 +809,11 @@ Proposed decision, for the Principal's acceptance:
 - Which root state (`transition` or `current`) each real Organization is in, and
   whether their modules are all "self-owned Bun packages" the Platform can run.
 - Whether SSH local port forwarding works on every live Work Machine for the previews
-  of H3; Machines sets no forwarding rule for work VMs, and C.5 proves it on the
-  qualification VM.
+  of C.3 item 17; Machines sets no forwarding rule for work VMs, and C.5 proves it on
+  the qualification VM.
+- How a pull-request preview reaches an operator who works only in the web T3 Code on
+  the Machine (H3, open): SSH forwarding needs an agent on the operator's own
+  computer, and a per-worktree hostname through the gateway is not designed.
 - Whether the T3 launcher `~/.local/bin/t3` (Machines DEV-6624) is merged and present
   on every Machine; the branch was unmerged at `7b2bcaa` per the Machines reading.
 - What `~/.local/share/lazurio/operator-kit/` contains and who else reads it.
