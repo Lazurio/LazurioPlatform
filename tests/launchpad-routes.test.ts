@@ -49,6 +49,7 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/general",
     "/settings/machine",
     "/settings/tools",
+    "/settings/recovery",
   ]);
 });
 
