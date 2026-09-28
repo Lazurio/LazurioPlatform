@@ -47,6 +47,11 @@ import {
   applicationCoordinationLockFile,
   createSystemdUserRunner,
 } from "./modules/systemd-user-runner";
+import {
+  CatalogUsageError,
+  catalogHelp,
+  runCatalogCommand,
+} from "./organizations/cli";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
 import { recoverHelp, runRecoverCommand } from "./recover/cli";
@@ -212,6 +217,17 @@ async function runOtherCommand(args: string[]): Promise<number> {
       process.removeListener("SIGINT", onInterrupt);
     }
   }
+  if (args[0] === "organization" || args[0] === "module") {
+    try {
+      const { code, text } = await runCatalogCommand(args, processContext());
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof CatalogUsageError)) throw error;
+      console.error(`${error.message}\n${catalogHelp}`);
+      return 2;
+    }
+  }
   if (args[0] === "legacy-paths-inspect") {
     const { values, tokens } = parseArgs({
       args: args.slice(1),
@@ -364,6 +380,7 @@ Refuses an occupied canonical target, conflicting declarations or observed drift
 No files, locks, provider requests or applications are created. Output may contain
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
+    console.log(catalogHelp);
     console.log(updateHelp);
     console.log(recoverHelp);
     console.log(machineHelp);
