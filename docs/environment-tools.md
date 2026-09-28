@@ -150,8 +150,10 @@ seen there.
 **Sign-in state** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
 With `signIn: true` (the page sends it on load and on "Refresh status") or
 `tools list --sign-in`, each installed tool's catalog sign-in probe runs as well:
-`gh auth status --hostname github.com`, `composio whoami`, `wacli auth status --json
---read-only`, `gog auth list --check --json --no-input`, `neon me -o json`. These may
+for gh `gh auth status --json hosts` (gh 2.81.0 and later) and, for an older gh that
+does not know `--json` there, `gh auth status --hostname github.com`; `composio
+whoami`, `wacli auth status --json --read-only`, `gog auth list --check --json
+--no-input`, `neon me -o json`. These may
 contact the tool's provider to verify its token, which is why they run only on
 request. They run in parallel, 10 s each, with only `PATH`, `HOME` and `XDG_*` in their
 environment. `signIn` is `{ state: "signed-in" | "signed-out" | "unknown", account?,
@@ -166,7 +168,18 @@ never returned or logged. A signed-in gh also carries `ssh` ([F19 addendum
 `.pub` of this Machine's default key and one call of `gh api "user/keys?per_page=100"`
 (`not-linked` with `no-key` or `not-registered`; `unknown` with `scope-missing` when
 the token cannot read keys, or `unreadable`). The private key is not read and nothing
-connects over SSH on a status call.
+connects over SSH on a status call. gh's JSON status is asked for exactly one field,
+`hosts`, and never with `--show-token`, so gh leaves the token out; only the active
+github.com entry's `state`, `login`, `tokenSource` and `scopes` are read (with `--json`
+gh always exits 0 and `state` says `success`, `error` or `timeout`). A signed-in gh
+carries `identity` as well, read from the same answer: `person` (a user account whose token gh stores itself, in its
+keyring or its hosts file: what a sign-in leaves and `gh auth logout` removes), `app`
+(a GitHub App's own identity: a `…[bot]` login or an installation token `ghs_…`),
+`variable` (a token from `GH_TOKEN`, `GITHUB_TOKEN` or another `*_TOKEN` variable,
+which `gh auth logout` cannot remove) or `unknown`. The account label keeps a `[bot]`
+suffix. On a Team Environment the gh line says "uses Lazurio for GitHub" instead of the
+state of an SSH key, and the Organization's App identity reads "works as
+lazurio-for-github[bot]" instead of "signed in as" ([below](#gh-on-a-team-environment)).
 
 The Tools section itself is described in
 [launchpad-development.md](launchpad-development.md#tools-section).
@@ -260,8 +273,95 @@ key content or a public key's blob; only the key's path and SHA-256 fingerprint.
 A challenge is never written to a log, a file, the Folder or an error. The tools keep
 their own pending state in their own stores (composio's pending login in
 `~/.composio`), which is the tool's custody and is not copied anywhere. On a shared
-Environment (the Team preset) the login belongs to the whole Environment, and the
-Launchpad says so before it starts.
+Environment (the Team preset) a composio or wacli login belongs to the whole
+Environment, and the Launchpad and `tools login` say so before it starts; gh is not
+signed in there at all (next section).
+
+#### gh on a Team Environment
+
+Principal's decision 2026-09-28 ([F19 addendum](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
+there are three kinds of Environment, Personal, Work (one operator) and Work Team
+(`hosted-organization-team`, shared by several operators). A Team Environment works in
+GitHub through the GitHub App "Lazurio for GitHub" installed under the Organization;
+a person's account is not signed in there and a person's SSH key is not linked. The
+earlier temporary exception that let any account sign in on a Team VM has ended.
+
+- `tools login gh` and `tools login gh --ssh-key` are refused before anything runs:
+  `{ kind: "blocked", reason: "team-environment", tool: "gh", action: "login" |
+  "ssh-key" }`, exit 2, and the sentence "This Team Environment works in GitHub through
+  Lazurio for GitHub, set up by the Organization. Personal GitHub accounts are not
+  signed in here." (Czech on the Launchpad: "Tohle týmové Environment pracuje v GitHubu
+  přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady
+  nepřihlašují."). `/api/tools/login/start` (with or without `sshKey`) answers the same
+  object with `409`, like every other refusal of these routes; `/api/tools/login/poll`
+  of gh cancels the session and answers it too; `cancel` stays allowed.
+- `tools logout gh` and `/api/tools/logout` stay allowed exactly when gh's active
+  account is a person's (`identity: "person"`): removing a personal account left on a
+  shared Machine by the ended exception is what the rule wants, and the sign-out
+  removes the SSH key Lazurio registered for this Machine as everywhere else. A GitHub
+  App identity, a token from a variable, a gh that is not signed in or a sign-in whose
+  kind gh does not tell is never signed out: `blocked` / `team-environment` with
+  `action: "logout"` and the sentence "Only a personal GitHub account left signed in
+  here is signed out, and gh reports none; Lazurio does not sign out the Organization's
+  GitHub identity." The Launchpad offers "Sign out" on the Team gh row only in that
+  case, with the same rule (`src/tools/team-github.ts`).
+- A session started before the Environment became a Team one does not finish: before
+  every step that changes the account or the Machine (the end of the device flow, a
+  scope refresh, the start of the key linking, the key's creation, its registration,
+  `known_hosts`, the final "signed in") the session asks the rule again and ends as
+  `{ kind: "blocked", reason: "team-environment", tool: "gh", action }` when the
+  preset is now Team. A profile update in the Launchpad that makes its Folder a Team
+  Environment ends a running gh session at once, and a `poll` answers the refusal. A
+  preset the Launchpad cannot read ends the session as `failed` /
+  `environment-unreadable`.
+- composio and wacli are unaffected: allowed, with the shared sign-ins warning.
+- **How the kind of Environment is known.** The Launchpad serves one Folder and reads
+  its recorded preset on each of these requests (a profile change may switch it while
+  it runs). `tools login` and `tools logout` take no Folder: on a hosted Machine they
+  read the preset of the declared operator's Folder, found from the root-issued
+  handover `/etc/lazurio/lazurio.machine.json` and the effective account exactly as
+  `lazurio update` finds it. The handover alone does not decide it (an ambiguous
+  handover derives no preset, and the operator may choose another allowed preset), the
+  Folder does. Where there is no such Folder (a workstation, another account, a
+  missing or invalid handover, a Folder not initialized or not readable) the commands
+  behave as before and say nothing. `tools list --folder` reads the named Folder.
+- **The Organization's brokered gh.** On a Team Machine gh is normally the
+  Organization's brokered wrapper, which of all `gh auth` commands answers exactly
+  `gh auth status --json hosts`, as `lazurio-for-github[bot]`. The JSON status reads it
+  as signed in with `identity: "app"`: the Launchpad row says "Works as
+  lazurio-for-github[bot] · Uses Lazurio for GitHub" ("Pracuje jako
+  lazurio-for-github[bot] · Používá Lazurio for GitHub"), `tools list --sign-in` says
+  "works as lazurio-for-github[bot], uses Lazurio for GitHub", no sign-out is offered
+  and a logout is refused.
+- **Installing gh there.** `tools install gh` installs as everywhere, but ends with the
+  sentence above instead of "Next: lazurio tools login gh". The Launchpad's Team gh row
+  offers "Install" ("Nainstalovat") only while gh is missing, never "Install and sign
+  in"; its notice says what was installed and the same sentence.
+- **The agent prompt.** `lazurio tools prompt gh` reads the hosted operator Folder's
+  preset like `login` does. On a Team Environment it prints gh's Team target state
+  instead of the sign-in and the SSH key: a working `gh` on PATH (normally the
+  brokered one, which stays as it is), installed from the official source only when
+  none works, and "Do not sign in gh or link a key: the Environment works in GitHub
+  through Lazurio for GitHub, set up by the Organization." Where the kind is not known
+  the prompt keeps the sign-in steps and adds "On a Team Environment
+  (hosted-organization-team) do not sign in gh or link a key: the Environment works in
+  GitHub through Lazurio for GitHub, set up by the Organization." (Czech: "V týmovém
+  Environmentu (hosted-organization-team) gh nepřihlašuj a klíč nepropojuj: Environment
+  pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace."). The
+  Launchpad of a Team Folder hands the Team prompt, so its "Set up with an agent"
+  fallback is shown on the gh row again.
+- **Known limits.** A personal account stored behind an active broker token is not the
+  active account, is not offered for sign-out and is removed by hand; a personal token
+  in `~/.config/gh` of a Machine whose gh is the wrapper is out of this sign-out's
+  reach. gh stores a sign-in when its code is approved: a preset switched by another
+  process while the operator approves is seen only afterwards, so no key is linked but
+  the person's account is then signed in there and offered for sign-out. Without a
+  readable hosted operator Folder the CLI cannot tell a Team
+  Environment and behaves as on a workstation (the Launchpad, which serves its Folder,
+  fails closed instead).
+- **Not built.** The path through Lazurio for GitHub is not part of the Platform:
+  nothing here provisions the App, its broker or a brokered `gh`. The product refuses
+  the personal sign-in and relies on what the Machine delivers.
 
 ### The standard path (decision 0161, point 6)
 
@@ -339,12 +439,13 @@ not implemented. On a team hosted workspace the operator account is shared, so t
 sign-in column above changes:
 
 - **No personal sign-ins.** Nobody runs a personal `gh auth login`, stores a personal
-  token or SSH key, or copies a session onto the shared account. (Open: the Team
-  preset can already enable tools and sign in to them for the whole Environment, F18
-  addendum; the curated gh sign-in then also links an SSH key for the whole
-  Environment. How that meets this direction is not decided.) Diagnosis that finds a
-  personal provider credential there reports it as a defect to be removed through its
-  owner; it is never used.
+  token or SSH key, or copies a session onto the shared account. The curated gh
+  sign-in and SSH key linking are refused there, and a personal account left signed in
+  can be signed out ([gh on a Team Environment](#gh-on-a-team-environment), Principal
+  2026-09-28). Tools that serve the whole Team (composio, wacli) may be signed in for
+  the whole Environment with the shared sign-ins warning (F18 addendum). Diagnosis
+  that finds a personal provider credential there reports it as a defect to be removed
+  through its owner; it is never used.
 - **Provider identity is brokered.** Git and GitHub operations use the platform App
   identity through the Organization's token broker: short-lived, repository-scoped
   tokens, the App's private key never on the Machine. Platform diagnoses that the

@@ -31,6 +31,7 @@ import {
   machineHelp,
   runMachineCommand,
 } from "./machine/cli";
+import { hostedOperatorFolder } from "./machine/operator";
 import { createApplicationCoordination } from "./modules/application-coordination";
 import {
   type ApplicationRunner,
@@ -198,6 +199,8 @@ async function runOtherCommand(args: string[]): Promise<number> {
         env: process.env,
         platform: process.platform,
         signal: interrupt.signal,
+        // gh on a Team Environment: the hosted operator Folder's preset.
+        hostedFolder: hostedOperatorFolder,
       });
       if (text) console.log(text);
       return code;

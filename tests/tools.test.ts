@@ -984,6 +984,7 @@ exit 1
         state: "signed-in",
         account: "octo",
         ssh: { state: "not-linked", reason: "no-key" },
+        identity: "person",
       },
       { state: "unknown" },
       { state: "unknown" },

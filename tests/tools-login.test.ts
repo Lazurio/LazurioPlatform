@@ -821,6 +821,7 @@ test.skipIf(!keygen)(
         state: "signed-in",
         account: "octocat",
         ssh: { state: "linked", fingerprint: state.ssh.key.fingerprint },
+        identity: "person",
       });
     } finally {
       await sessions.close();
@@ -1046,6 +1047,7 @@ test.skipIf(!keygen)(
         state: "signed-in",
         account: "octocat",
         ssh: { state: "not-linked", reason: "no-key" },
+        identity: "person",
       });
       const started = await sessions.start("gh", { sshKey: true });
       expect(started).toMatchObject({
