@@ -159,6 +159,9 @@ export function createToolsPanel(
             )
           : null;
     opener = null;
+    // The agent's button of a `launchpad` tool sits behind "Details".
+    const holder = target?.closest("details");
+    if (holder && !holder.open) holder.open = true;
     target?.focus();
   });
   dialogClose.addEventListener("click", closePrompt);
@@ -706,87 +709,33 @@ export function createToolsPanel(
     return box;
   }
 
+  // One settings row per tool (the row pattern of T3 Code's settings): name,
+  // purpose and state on the left, the one action and the switch on the
+  // right; the path, what agents are told, the note and the agent's prompt
+  // behind "Details".
   function card(tool: ToolOverview, copy: Copy): HTMLLIElement {
-    const item = element("li", "tool-card");
+    const item = element("li", "row");
     item.dataset.tool = tool.name;
-    const head = element("div", "tool-head");
-    head.append(element("h4", "", tool.name));
+    const main = element("div", "row-main");
+    const text = element("div", "row-copy");
+    const title = element("h3", "row-title", tool.name);
     if (tool.command !== tool.name)
-      head.append(element("code", "", tool.command));
-    const state = element(
-      "span",
-      "tool-badge",
-      tool.tier === "required"
-        ? copy.toolsAlwaysOn
-        : tool.enabled
-          ? copy.toolsEnabled
-          : copy.toolsDisabled,
-    );
-    state.dataset.state = tool.enabled ? "on" : "off";
-    head.append(
-      state,
-      element(
-        "span",
-        "tool-badge",
-        tool.setup === "agent"
-          ? copy.toolsSetupAgent
-          : copy.toolsSetupLaunchpad,
-      ),
-    );
-    item.append(head, element("p", "", tool.purpose));
+      title.append(element("code", "", tool.command));
+    text.append(title, element("p", "row-desc", tool.purpose));
 
     const view = toolStatusView(tool, copy, overview?.hosted === true);
-    const status = element("p", "");
+    const status = element("p", "row-status");
     const headline = element("span", "tool-state", view.headline);
     headline.dataset.state = view.state;
-    status.append(headline);
-    item.append(status);
-    if (view.path !== null) item.append(element("p", "tool-path", view.path));
-    for (const note of view.notes)
-      item.append(element("p", "tools-muted", note));
-    const signIn = element("p", "tool-signin", signInLine(tool, copy));
+    const separator = element("span", "", " · ");
+    separator.setAttribute("aria-hidden", "true");
+    const signIn = element("span", "tool-signin", signInLine(tool, copy));
     signIn.dataset.state = tool.signIn?.state ?? "unchecked";
-    item.append(signIn);
+    status.append(headline, separator, signIn);
+    text.append(status);
+    for (const note of view.notes)
+      text.append(element("p", "row-status tool-attention", note));
 
-    const details = element("details", "");
-    details.open = opened.has(tool.name);
-    details.addEventListener("toggle", () => {
-      if (details.open) opened.add(tool.name);
-      else opened.delete(tool.name);
-    });
-    details.append(
-      element("summary", "", copy.toolsUsage),
-      element("p", "tools-muted", copy.toolsUsageCatalog),
-      element("p", "", tool.usage),
-    );
-    const link = sourceLink(tool.source);
-    if (link !== null) {
-      const source = element("p", "tools-muted");
-      const anchor = element("a", "", copy.toolsSource);
-      anchor.href = link;
-      anchor.target = "_blank";
-      anchor.rel = "noopener noreferrer";
-      source.append(anchor);
-      details.append(source);
-    }
-    details.append(noteEditor(tool, copy));
-    item.append(details);
-
-    const actions = element("p", "tool-actions");
-    if (tool.tier !== "required") {
-      const enable = !tool.enabled;
-      actions.append(
-        button(
-          enable ? copy.toolsEnable : copy.toolsDisable,
-          tool.name,
-          "toggle",
-          () => void toggle(tool, enable),
-          fill(enable ? copy.toolsEnableNamed : copy.toolsDisableNamed, {
-            name: tool.name,
-          }),
-        ),
-      );
-    }
     const agent = button(
       copy.toolsAgentAction,
       tool.name,
@@ -802,12 +751,15 @@ export function createToolsPanel(
     );
     // The prompt is text already on the page; reading it is never blocked.
     agent.disabled = false;
+
+    const controls = element("div", "row-control");
     // The curated flow of a `launchpad` tool (decision F19): install and
-    // sign in, sign in, or sign out. The agent's prompt stays next to it.
+    // sign in, sign in, or sign out. A tool an agent sets up has the agent's
+    // prompt as its action instead.
     const curated = curatedActions(tool, copy);
     const primary = curated.primary;
     if (primary !== null)
-      actions.append(
+      controls.append(
         button(
           primary.label,
           tool.name,
@@ -821,18 +773,86 @@ export function createToolsPanel(
           ),
         ),
       );
-    if (curated.logout)
-      actions.append(
-        button(
-          copy.toolsSignOutAction,
-          tool.name,
-          "logout",
-          () => void logout(tool),
-          fill(copy.toolsSignOutNamed, { name: tool.name }),
-        ),
+    if (curated.logout) {
+      const signOut = button(
+        copy.toolsSignOutAction,
+        tool.name,
+        "logout",
+        () => void logout(tool),
+        fill(copy.toolsSignOutNamed, { name: tool.name }),
       );
-    actions.append(agent);
-    item.append(actions);
+      signOut.className = "destructive";
+      controls.append(signOut);
+    }
+    if (tool.setup !== "launchpad") controls.append(agent);
+    if (tool.tier === "required")
+      controls.append(element("span", "always-on", copy.toolsAlwaysOn));
+    else {
+      const enable = !tool.enabled;
+      const toggler = button(
+        "",
+        tool.name,
+        "toggle",
+        () => void toggle(tool, enable),
+        fill(copy.toolsEnableNamed, { name: tool.name }),
+      );
+      toggler.className = "switch";
+      toggler.setAttribute("role", "switch");
+      toggler.setAttribute("aria-checked", String(tool.enabled));
+      controls.append(toggler);
+    }
+    main.append(text, controls);
+    item.append(main);
+
+    const details = element("details", "row-details");
+    details.open = opened.has(tool.name);
+    details.addEventListener("toggle", () => {
+      if (details.open) opened.add(tool.name);
+      else opened.delete(tool.name);
+    });
+    const summary = element("summary", "", copy.toolsDetails);
+    summary.setAttribute(
+      "aria-label",
+      fill(copy.toolsDetailsNamed, { name: tool.name }),
+    );
+    const body = element("div", "details-body");
+    if (view.path !== null) {
+      const where = element("section", "");
+      where.append(
+        element("h4", "", copy.toolsPathLabel),
+        element("p", "tool-path", view.path),
+      );
+      body.append(where);
+    }
+    const usage = element("section", "");
+    usage.append(
+      element("h4", "", copy.toolsUsage),
+      element("p", "tools-muted", copy.toolsUsageCatalog),
+      element("p", "usage", tool.usage),
+    );
+    const link = sourceLink(tool.source);
+    if (link !== null) {
+      const source = element("p", "tools-muted");
+      const anchor = element("a", "", copy.toolsSource);
+      anchor.href = link;
+      anchor.target = "_blank";
+      anchor.rel = "noopener noreferrer";
+      source.append(anchor);
+      usage.append(source);
+    }
+    body.append(usage, noteEditor(tool, copy));
+    if (tool.setup === "launchpad") {
+      const fallback = element("section", "");
+      const row = element("p", "tool-actions");
+      row.append(agent);
+      fallback.append(
+        element("h4", "", copy.toolsAgentAction),
+        element("p", "tools-muted", copy.toolsAgentFallback),
+        row,
+      );
+      body.append(fallback);
+    }
+    details.append(summary, body);
 
     if (notice?.name === tool.name) {
       const message = element("div", "tool-message");
@@ -868,6 +888,7 @@ export function createToolsPanel(
       if (choices.childElementCount > 0) message.append(choices);
       item.append(message);
     }
+    item.append(details);
     return item;
   }
 
@@ -887,16 +908,23 @@ export function createToolsPanel(
       return;
     }
     groups.replaceChildren(
-      ...toolGroups(overview.tools, copy).flatMap((group) => {
-        const heading = element("h3", "", group.title);
+      ...toolGroups(overview.tools, copy).map((group) => {
+        const section = element("section", "group");
+        const heading = element("h2", "", group.title);
         heading.id = `tools-group-${group.tier}`;
-        const list = element("ul", "tools-list");
+        section.setAttribute("aria-labelledby", heading.id);
+        const head = element("div", "group-head");
+        head.append(heading, element("p", "group-note", group.note));
+        const list = element("ul", "card tools-list");
         list.setAttribute("aria-labelledby", heading.id);
         list.replaceChildren(...group.tools.map((tool) => card(tool, copy)));
-        return [heading, element("p", "tools-muted", group.note), list];
+        section.append(head, list);
+        return section;
       }),
     );
-    if (focus !== null) {
+    // A control is disabled while the panel is busy and cannot take the
+    // focus then; the render after the read places it.
+    if (focus !== null && !busy) {
       groups
         .querySelector<HTMLElement>(
           `[data-tool="${focus.name}"][data-control="${focus.control}"]`,
