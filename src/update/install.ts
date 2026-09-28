@@ -1,16 +1,17 @@
 import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { activate, reconcilePending, withUpdateLock } from "./activation";
+import { activate, withUpdateLock } from "./activation";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
 import {
   layout,
+  readHighWater,
   readSelector,
-  readUpdateState,
   swapSelector,
   versionFloor,
 } from "./layout";
+import { removeRollbackLeftovers } from "./migrations/remove-rollback";
 import {
   ensurePathEntry,
   entryDirectory,
@@ -21,7 +22,7 @@ import { type ProcessRunner, runProcess } from "./self-check";
 import {
   detectServiceControl,
   launchpadUnit,
-  rollbackUnit,
+  serviceUnits,
   systemctl,
   unitMarker,
   userUnitDirectory,
@@ -70,11 +71,39 @@ export { unitMarker };
 const execStart = (command: readonly string[]) =>
   `ExecStart=${command.map(systemdQuote).join(" ")}`;
 
+/** The one line that says which installation and Folder a unit serves. */
+export const launchpadExecStart = (base: string, folder: string) =>
+  execStart([
+    layout(base).selector,
+    "launchpad",
+    "--base",
+    base,
+    "--folder",
+    folder,
+  ]);
+
+/** The PATH of the Launchpad and of everything it starts: the operator's
+ * standard tool path first (decision F17 addendum 2026-09-28, docs/
+ * environment-tools.md "The standard path"), then the system directories.
+ * `%h` is the home directory of the user running the service manager
+ * (systemd.unit(5), "Specifiers"). */
+export const unitPath = "%h/.local/bin:/usr/local/bin:/usr/bin:/bin";
+
 /** `ExecStart` is the SELECTOR, so a restart runs whatever version is active.
- * A version that cannot stay up hits the start limit, the unit fails, and
- * `OnFailure=` starts the rollback unit (docs/update.md "Interrupted
- * activation"). `[X-Lazurio]` is ignored by systemd: it is where the updater
- * reads the Folder from, so the Folder lives in this unit and nowhere else.
+ * The Launchpad must always run (docs/update.md "Recovery mode"), so the unit
+ * restarts it after EVERY exit, clean or not (`Restart=always`,
+ * systemd.service(5), "Restart="), five seconds apart, and never ends in the
+ * `failed` state. That needs the start rate limit switched off: systemd.unit(5)
+ * says of `StartLimitIntervalSec=`/`StartLimitBurst=` that they "apply to all
+ * kinds of starts (including manual), not just those triggered by the
+ * Restart= logic", that a unit which reaches the limit is "not attempted to be
+ * restarted anymore", and that the interval may be set "to 0 to disable any
+ * kind of rate limiting". Any finite limit could be reached by manual or
+ * updater restarts in a row; 0, pinned in `[Unit]`, also overrides a
+ * manager-wide `DefaultStartLimitIntervalSec=`. There is no `OnFailure=`:
+ * nothing ever runs an earlier version. `[X-Lazurio]` is ignored by systemd:
+ * it is where the updater reads the Folder from, so the Folder lives in this
+ * unit and nowhere else.
  */
 export function renderLaunchpadUnit(base: string, folder: string): string {
   // Read back verbatim, so it must be one line; quoting is ExecStart's.
@@ -83,48 +112,19 @@ export function renderLaunchpadUnit(base: string, folder: string): string {
     unitMarker,
     "[Unit]",
     "Description=Lazurio Launchpad",
-    "StartLimitIntervalSec=60",
-    "StartLimitBurst=5",
-    `OnFailure=${rollbackUnit}`,
+    "StartLimitIntervalSec=0",
     "",
     "[Service]",
-    execStart([
-      layout(base).selector,
-      "launchpad",
-      "--base",
-      base,
-      "--folder",
-      folder,
-    ]),
-    "Restart=on-failure",
-    "RestartSec=2",
+    `Environment=PATH=${unitPath}`,
+    launchpadExecStart(base, folder),
+    "Restart=always",
+    "RestartSec=5",
     "",
     "[Install]",
     "WantedBy=default.target",
     "",
     "[X-Lazurio]",
     `Folder=${folder}`,
-    "",
-  ].join("\n");
-}
-
-/** Static: runs the PREVIOUS version, which is the one known to work. */
-export function renderRollbackUnit(base: string): string {
-  return [
-    unitMarker,
-    "[Unit]",
-    "Description=Lazurio rollback of an interrupted activation",
-    "",
-    "[Service]",
-    "Type=oneshot",
-    execStart([
-      join(layout(base).previous, "lazurio"),
-      "update",
-      "rollback",
-      "--auto",
-      "--base",
-      base,
-    ]),
     "",
   ].join("\n");
 }
@@ -208,10 +208,7 @@ async function install(input: InstallInput): Promise<InstallResult> {
   if (service && !canonical(service.folder))
     throw new UpdateFailure("storage-unavailable", { stage: "folder" });
   const units = service
-    ? ([
-        [launchpadUnit, renderLaunchpadUnit(base, service.folder)],
-        [rollbackUnit, renderRollbackUnit(base)],
-      ] as const)
+    ? ([[launchpadUnit, renderLaunchpadUnit(base, service.folder)]] as const)
     : [];
 
   // Stage this executable under `versions/<its version>` unless those exact
@@ -239,17 +236,32 @@ async function install(input: InstallInput): Promise<InstallResult> {
   const outcome = await withUpdateLock(base, 0, async () => {
     const paths = layout(base);
     try {
+      // The supervisor is the installer-written unit if there is one; a
+      // foreign unit is nobody's.
+      const control = await detectServiceControl({
+        base,
+        platform: input.platform,
+        env: input.env,
+        run: input.run,
+      });
+      // Like every mutating update command, first converge what an
+      // installation from before the first release without rollback left
+      // (the migration validates the whole update state before it touches
+      // anything; a marker without a selector stays untouched as
+      // `state-invalid`).
+      await removeRollbackLeftovers({
+        base,
+        service: control,
+        units: serviceUnits(input),
+      });
       const selected = await readSelector(base);
       if (selected === null) {
         // First installation — or a tree whose selector is missing or
-        // damaged while its durable state survived. The whole update state is
-        // read and validated first, as every reconciler does: a marker without
-        // a selector is a state no crash produces and stays untouched
-        // (`state-invalid`). The surviving high-water mark is the floor: a
-        // lower executable never becomes active through this branch. A
-        // missing mark means the floor is this version, and only a committed
-        // activation ever writes one.
-        const { highWater: floor } = await readUpdateState(base);
+        // damaged while its durable state survived. The surviving high-water
+        // mark is the floor: a lower executable never becomes active through
+        // this branch. A missing mark means the floor is this version, and
+        // only an activation ever writes one.
+        const floor = await readHighWater(base);
         if (floor !== null && compareVersions(identity.version, floor) < 0)
           throw new UpdateFailure("release-invalid", {
             resource: "version",
@@ -275,19 +287,8 @@ async function install(input: InstallInput): Promise<InstallResult> {
         await swapSelector(base, identity.version);
         return { active: identity.version, updated: null };
       }
-      // An installation exists. Like every mutating update command it begins
-      // by reconciling a leftover marker — before deciding anything, including
-      // whether there is anything to do. The supervisor is the installer-
-      // written unit if there is one; a foreign unit is nobody's.
-      const control = await detectServiceControl({
-        base,
-        platform: input.platform,
-        env: input.env,
-        run: input.run,
-      });
-      await reconcilePending({ base, service: control });
-      const from = await readSelector(base);
-      if (from === null) throw new UpdateFailure("not-installed");
+      // An installation exists.
+      const from = selected;
       // The same version again changes nothing.
       if (from === identity.version) return { active: from, updated: null };
       // Another version: the offline update, by the contract's own steps.

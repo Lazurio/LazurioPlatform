@@ -11,7 +11,6 @@ import { type ProcessRunner, runProcess } from "./self-check";
  * no recorded setting.
  */
 export const launchpadUnit = "lazurio-launchpad.service";
-export const rollbackUnit = "lazurio-rollback.service";
 /** First line of every unit `lazurio install` writes. A unit of the same name
  * without it belongs to someone else (a Machines resident runtime, a person):
  * the installation is then NOT supervised, the switch is the commit, and that
@@ -34,6 +33,28 @@ export function userUnitDirectory(
         ? join(env.HOME, ".config")
         : undefined;
   return config === undefined ? undefined : join(config, "systemd", "user");
+}
+
+/** The installer's user units on this Machine: where they live and how the
+ * manager rereads them. Null where there is no systemd user manager to ask. */
+export type ServiceUnits = Readonly<{
+  directory: string;
+  /** `systemctl --user daemon-reload`; false when the manager refused. */
+  reload(): Promise<boolean>;
+}>;
+
+export function serviceUnits(input: {
+  platform: string;
+  env: Readonly<Record<string, string | undefined>>;
+  run?: ProcessRunner | undefined;
+}): ServiceUnits | null {
+  const directory = userUnitDirectory(input.env);
+  if (input.platform !== "linux" || directory === undefined) return null;
+  const command = { run: input.run ?? runProcess, env: input.env };
+  return Object.freeze({
+    directory,
+    reload: () => systemctl(command, "daemon-reload"),
+  });
 }
 
 export interface ServiceControl {
@@ -186,7 +207,9 @@ export async function readUpdateUnitFailure(
   return null;
 }
 
-/** `GET /health` on the supervised Launchpad's socket under the base. */
+/** `GET /health` on the supervised Launchpad's socket under the base: the
+ * version it reports in normal mode. Recovery mode answers 503 and is null
+ * here, like a Launchpad that does not answer at all. */
 export async function launchpadHealth(base: string): Promise<string | null> {
   try {
     const response = await fetch("http://launchpad/health", {
@@ -228,10 +251,9 @@ export async function detectServiceControl(input: {
   return Object.freeze({
     folder: unitFolder(unitText),
     async restartLaunchpad() {
-      // A version that crash-looped leaves the unit in `start-limit-hit`, and
-      // systemd then refuses even a manual restart — exactly when the previous
-      // version must be brought back. Its status says only whether there was
-      // anything to reset.
+      // A unit written before the first release without rollback can still
+      // sit in `start-limit-hit`, and systemd then refuses even a manual
+      // restart. Its status says only whether there was anything to reset.
       await systemctl(command, "reset-failed", launchpadUnit);
       if (!(await systemctl(command, "restart", launchpadUnit)))
         throw new Error("Service restart failed");

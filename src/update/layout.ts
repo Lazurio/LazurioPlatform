@@ -29,12 +29,10 @@ export const layout = (base: string) =>
   Object.freeze({
     bin: join(base, "bin"),
     selector: join(base, "bin", executableName),
-    previous: join(base, "previous"),
     versions: join(base, "versions"),
     update: join(base, "update"),
     lock: join(base, "update", "lock"),
     highWater: join(base, "update", "high-water"),
-    pending: join(base, "update", "pending.json"),
     lastCheck: join(base, "update", "last-check.json"),
     scratch: join(base, "update", "scratch"),
     /** Where the supervised Launchpad answers its health question. */
@@ -76,9 +74,6 @@ async function readVersionLink(
 /** `bin/lazurio` is the only selector of the active version. */
 export const readSelector = (base: string) =>
   readVersionLink(layout(base).selector, /^\.\.\/versions\/([^/]+)\/lazurio$/);
-/** `previous` is the rollback target. */
-export const readPrevious = (base: string) =>
-  readVersionLink(layout(base).previous, /^versions\/([^/]+)$/);
 
 /** Replace a symlink by one atomic rename and make the directory durable: a
  * reader — or a Machine that loses power — sees the old or the new target,
@@ -110,11 +105,6 @@ export async function swapSelector(base: string, version: string) {
   );
 }
 
-export async function setPrevious(base: string, version: string) {
-  if (!isProductVersion(version)) throw new Error("Invalid version");
-  await replaceLink(base, "previous", `versions/${version}`);
-}
-
 /** Remove a version directory whose files are read-only. */
 export async function removeVersion(base: string, version: string) {
   const directory = versionDirectory(base, version);
@@ -122,16 +112,16 @@ export async function removeVersion(base: string, version: string) {
   await rm(directory, { recursive: true, force: true });
 }
 
-/** After a committed activation only the active and the previous version are
- * kept. Entries that are not versions are someone else's and stay.
+/** After an activation only the active version is kept: there is no way back
+ * to keep another for (docs/update.md "Activation"). Entries that are not
+ * versions are someone else's and stay.
  */
 export async function pruneVersions(base: string): Promise<void> {
   const active = await readSelector(base);
   // Without a readable selector nothing is known to be safe to delete.
   if (active === null) return;
-  const keep = new Set([active, await readPrevious(base)]);
   for (const entry of await readdir(layout(base).versions).catch(() => []))
-    if (isProductVersion(entry) && !keep.has(entry))
+    if (isProductVersion(entry) && entry !== active)
       await removeVersion(base, entry).catch(() => undefined);
 }
 
@@ -141,8 +131,8 @@ const absent = (error: unknown) =>
 const stateInvalid = (path: string) =>
   new UpdateFailure("state-invalid", { path });
 
-/** `update/high-water`: the highest version whose activation was ever
- * committed. It only rises. A missing mark means the floor is the active
+/** `update/high-water`: the highest version that was ever activated. It only
+ * rises. A missing mark means the floor is the active
  * version; one that exists and cannot be understood is NOT "no floor" — that
  * would permit the downgrade the mark exists to refuse — it is `state-invalid`.
  */
@@ -177,81 +167,4 @@ export async function versionFloor(base: string): Promise<string | null> {
   const highWater = await readHighWater(base);
   if (active === null || highWater === null) return active ?? highWater;
   return compareVersions(active, highWater) >= 0 ? active : highWater;
-}
-
-/** `update/pending.json {from, to}`: the activation marker of a supervised
- * installation, written before the switch and deleted by the commit or the
- * undo. One that cannot be read as exactly that is `state-invalid`.
- */
-export type PendingActivation = Readonly<{ from: string; to: string }>;
-
-export async function readPending(
-  base: string,
-): Promise<PendingActivation | null> {
-  let text: string;
-  try {
-    text = await readFile(layout(base).pending, "utf8");
-  } catch (error) {
-    if (absent(error)) return null;
-    throw stateInvalid("update/pending.json");
-  }
-  try {
-    const value = JSON.parse(text) as Partial<PendingActivation> | null;
-    if (isProductVersion(value?.from) && isProductVersion(value?.to))
-      return Object.freeze({ from: value.from, to: value.to });
-  } catch {}
-  throw stateInvalid("update/pending.json");
-}
-
-/** What a marker means, from what is on disk alone (docs/update.md
- * "Reconciling the marker"). Every combination a crash cannot produce throws
- * `state-invalid` and is left exactly as it was found.
- */
-export type MarkerState =
-  | Readonly<{ kind: "absent" }>
-  /** Crashed before the switch, or after an undo: the marker is stale. */
-  | Readonly<{ kind: "not-switched"; pending: PendingActivation }>
-  | Readonly<{ kind: "switched"; pending: PendingActivation }>;
-
-async function markerState(base: string): Promise<MarkerState> {
-  const pending = await readPending(base);
-  if (pending === null) return Object.freeze({ kind: "absent" });
-  const active = await readSelector(base);
-  if (active === pending.from)
-    return Object.freeze({ kind: "not-switched", pending });
-  if (active === pending.to && (await readPrevious(base)) === pending.from)
-    return Object.freeze({ kind: "switched", pending });
-  throw stateInvalid("update/pending.json");
-}
-
-/** The ONE step every reconciler begins with — a mutating update command, a
- * starting Launchpad and the rollback unit alike: read and validate the WHOLE
- * update state, and only then decide. An unreadable high-water mark is
- * `state-invalid` whatever the marker says, so nothing is undone, restarted or
- * deleted on top of state a person must look at first.
- */
-export type UpdateState = Readonly<{
-  highWater: string | null;
-  marker: MarkerState;
-}>;
-
-export async function readUpdateState(base: string): Promise<UpdateState> {
-  const highWater = await readHighWater(base);
-  return Object.freeze({ highWater, marker: await markerState(base) });
-}
-
-export const writePending = (
-  base: string,
-  pending: PendingActivation,
-  write: DurableWriter = writeDurableFile,
-) =>
-  write(
-    layout(base).update,
-    "pending.json",
-    Buffer.from(`${JSON.stringify({ from: pending.from, to: pending.to })}\n`),
-  );
-
-export async function deletePending(base: string): Promise<void> {
-  await rm(layout(base).pending, { force: true });
-  await syncDirectory(layout(base).update);
 }

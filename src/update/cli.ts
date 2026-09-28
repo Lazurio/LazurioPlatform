@@ -4,6 +4,7 @@ import {
   type FolderRefresh,
   folderRefreshText,
 } from "../folder/refresh-needed";
+import { LaunchpadStartRefused } from "../launchpad/start-check";
 import { hostedOperatorFolder } from "../machine/operator";
 import {
   createAttestationVerifier,
@@ -31,11 +32,9 @@ import { updateNotice } from "./last-check";
 import { layout } from "./layout";
 import { entryLinked } from "./path-entry";
 import { type ProcessRunner, selfCheckReport } from "./self-check";
-import { detectServiceControl } from "./service-control";
+import { detectServiceControl, serviceUnits } from "./service-control";
 import {
   checkForUpdate,
-  performAutomaticRollback,
-  performRollback,
   performUpdate,
   readStatus,
   type UpdateEnvironment,
@@ -57,14 +56,19 @@ install [--service systemd-user --folder <absolute Folder>] [--json]
   reported and left unchanged. Shell profiles are not edited: the result says
   whether ~/.local/bin is on PATH and whether another lazurio resolves first.
   With --service (Linux) it writes, enables and starts
-  the systemd user unit lazurio-launchpad.service for that Folder, and the
-  static lazurio-rollback.service its OnFailure= starts.
+  the systemd user unit lazurio-launchpad.service for that Folder; the unit
+  restarts the Launchpad after every exit and never ends failed.
 update [--version <vX.Y.Z[-rc.N]>] [--folder <absolute Folder>] [--json]
   Checks the latest release (or exactly the named tag), verifies its Sigstore
-  attestation, downloads, runs the new executable's self-check and activates
-  it. Supervised: restarts the Launchpad and requires it to report the new
-  version within 30 seconds, otherwise the previous version is selected again.
-  Never moves below the highest version this installation ever accepted.
+  attestation, downloads, runs the new executable's self-check and, on a
+  supervised installation, its Launchpad start read-only on a private socket.
+  A candidate that fails is removed and nothing changes. Only then is it
+  activated; the switch is final and there is no way back to an earlier
+  version. Supervised: restarts the Launchpad and requires it to report the
+  new version within 30 seconds, otherwise activation-unhealthy: the new
+  version stays active and its Launchpad shows Recovery mode or is not
+  running; repair goes forward. Never moves below the highest version this
+  installation ever accepted.
   It never writes the Folder. When the Folder renders an older template
   revision than the product, the result says "Folder refresh needed" with the
   exact command (folderRefresh in --json). The Folder is --folder, the
@@ -73,15 +77,12 @@ update --check [--version <tag>] [--json]
   Verifies and reports; downloads and activates nothing.
   Exit 0 up to date, 10 update available.
 update status [--folder <absolute Folder>] [--json]
-  Running, active, previous and latest known version, and a needed Folder
-  refresh as above; never touches the network.
-update rollback [--auto] [--json]
-  Activates the previous version after its own self-check, by the same restart
-  and health rule. --auto is what lazurio-rollback.service runs: it acts only
-  on an interrupted activation and otherwise does nothing.
-self-check --json [--base <install base>] [--folder <absolute Folder>]
+  Running, active and latest known version, and a needed Folder refresh as
+  above; never touches the network.
+self-check --json [--base <install base>] [--folder <absolute Folder> [--launchpad]]
   What this executable is and whether it can read the install base and the
-  Folder's state. Reads only; the updater runs it on a new version.
+  Folder's state; --launchpad also runs its Launchpad start read-only on a
+  private socket. Reads only; the updater runs it on a new version.
 Exit status: 0 success or up to date, 10 update available, 2 usage, 1 failure
 or busy. --json carries one stable error code. --base <absolute directory>
 names another install base (the service units use it).`;
@@ -169,6 +170,7 @@ export async function updateEnvironment(
         : sigstoreTrustedRoot(layout(base).sigstore),
     ),
     service,
+    units: serviceUnits(context),
     folder: folder ?? service?.folder,
     run: context.run,
     ...context.environment,
@@ -228,21 +230,36 @@ export async function selfCheckCommand(
         json: { type: "boolean" },
         base: { type: "string" },
         folder: { type: "string" },
+        launchpad: { type: "boolean" },
       },
     });
-    if (!values.json) return usage("self-check --json [--base] [--folder]");
+    if (!values.json || (values.launchpad && values.folder === undefined))
+      return usage(
+        "self-check --json [--base] [--folder <Folder> [--launchpad]]",
+      );
     return Object.freeze({
       code: exitOk,
       stdout: JSON.stringify(
         await selfCheckReport(
-          { base: values.base, folder: values.folder },
+          {
+            base: values.base,
+            folder: values.folder,
+            launchpad: values.launchpad,
+          },
           context.identity,
         ),
       ),
     });
-  } catch {
+  } catch (error) {
     // No reason is printed: it could quote Folder content or a private path.
-    return Object.freeze({ code: exitFailure, stderr: "Self-check failed" });
+    // A refused Launchpad probe names only its enumerated condition.
+    return Object.freeze({
+      code: exitFailure,
+      ...(error instanceof LaunchpadStartRefused
+        ? { stdout: JSON.stringify({ launchpadRefused: error.reason }) }
+        : {}),
+      stderr: "Self-check failed",
+    });
   }
 }
 
@@ -312,7 +329,7 @@ export async function runUpdateCommand(
   context: CliContext = processContext(),
 ): Promise<CommandOutput> {
   const synopsis =
-    "update [--check] [--version <tag>] [--folder <Folder>] [--json] | update status [--folder <Folder>] [--json] | update rollback [--auto] [--json]";
+    "update [--check] [--version <tag>] [--folder <Folder>] [--json] | update status [--folder <Folder>] [--json]";
   try {
     const { values, positionals } = parseArgs({
       args: [...args],
@@ -321,7 +338,6 @@ export async function runUpdateCommand(
       options: {
         check: { type: "boolean" },
         version: { type: "string" },
-        auto: { type: "boolean" },
         base: { type: "string" },
         folder: { type: "string" },
         json: { type: "boolean" },
@@ -331,13 +347,11 @@ export async function runUpdateCommand(
     const json = values.json === true;
     if (
       rest.length > 0 ||
-      !(action === undefined || action === "status" || action === "rollback") ||
+      !(action === undefined || action === "status") ||
       (action !== undefined &&
         (values.check || values.version !== undefined)) ||
-      (action !== "rollback" && values.auto) ||
       (values.folder !== undefined &&
-        (action === "rollback" ||
-          values.check ||
+        (values.check ||
           !isAbsolute(values.folder) ||
           resolve(values.folder) !== values.folder))
     )
@@ -353,10 +367,8 @@ export async function runUpdateCommand(
     const base = installBase(context, values.base);
     // The Folder a needed refresh is reported against: the named one, the
     // supervised unit's, or on a hosted Machine the declared operator's.
-    // Only the two commands that report it look for one.
-    const reports = action === undefined || action === "status";
     let environment = await updateEnvironment(context, base, values.folder);
-    if (reports && environment.folder === undefined && context.hostedFolder)
+    if (environment.folder === undefined && context.hostedFolder)
       environment = Object.freeze({
         ...environment,
         folder: await context.hostedFolder(),
@@ -372,14 +384,15 @@ export async function runUpdateCommand(
           ? [
               `running ${status.running}`,
               `active ${status.active ?? "none"}`,
-              `previous ${status.previous ?? "none"}`,
               `latest known ${status.lastCheck?.latest ?? "never checked"}${
                 status.lastCheck
                   ? ` (checked ${status.lastCheck.checkedAt})`
                   : ""
               }`,
-              ...(status.pending
-                ? [`activation of ${status.pending.to} is not committed`]
+              ...(status.legacyRollbackState
+                ? [
+                    "state of the former rollback is left; the next lazurio update or lazurio install removes it",
+                  ]
                 : []),
               ...(status.stateInvalid
                 ? [`state-invalid: ${status.stateInvalid}`]
@@ -387,20 +400,6 @@ export async function runUpdateCommand(
               ...refresh(status.folderRefresh),
             ].join("\n")
           : "",
-      );
-    }
-    if (action === "rollback") {
-      const result = await (values.auto
-        ? performAutomaticRollback(environment)
-        : performRollback(environment));
-      return render(
-        result,
-        json,
-        result.kind === "rolled-back"
-          ? `Rolled back from ${result.from} to ${result.to}.`
-          : result.kind === "reconciled"
-            ? `Interrupted activation: ${result.outcome}.`
-            : "",
       );
     }
     if (values.check) {
