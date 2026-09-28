@@ -103,8 +103,8 @@ export function issueBody(
   return body;
 }
 
-// One word for a POSIX shell.
-const shellWord = (word: string) =>
+/** One word for a POSIX shell. */
+export const shellWord = (word: string) =>
   /^[A-Za-z0-9_@%+=:,./-]+$/.test(word)
     ? word
     : `'${word.replaceAll("'", "'\\''")}'`;

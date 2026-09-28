@@ -99,7 +99,14 @@ test("the prompt in English: task, evidence, mandate, never, proof, GitHub, stop
     "**Never:** `lazurio update rollback` or any other way back to an earlier version",
   );
   expect(prompt).toContain("deleting update state to get past `state-invalid`");
-  expect(prompt).toContain('answers `"verdict": "healthy"`');
+  // The rerun reads the same Folder this run read: on a workstation only
+  // --folder names it, and without it folder-state is skipped.
+  expect(paragraphs[3]).toBe(
+    "1. Read the current state yourself: `lazurio recover --json --folder /srv/Lazurio`.",
+  );
+  expect(paragraphs[8]).toStartWith(
+    '6. **Success is proven** when `lazurio recover --json --folder /srv/Lazurio` answers `"verdict": "healthy"`',
+  );
   expect(prompt).toContain(
     `\`gh issue list --repo Lazurio/LazurioPlatform --state all --search '"${evidence.fingerprint}" in:title'\``,
   );
@@ -129,6 +136,19 @@ test("the prompt in Czech, supervised, with the same facts", () => {
     "`journalctl --user --unit lazurio-launchpad.service --lines 80`",
   );
   expect(prompt).toContain("**Nikdy:** `lazurio update rollback`");
+  // No Folder was read: the rerun detects it the same way.
+  expect(prompt).toContain("sám: `lazurio recover --json`.");
+  // A Folder path is one shell word in every command that names it.
+  const spaced = recoveryPrompt(
+    { evidence, issue: prepared, folder: "/srv/My Lazurio", supervised: true },
+    "en",
+  );
+  expect(spaced).toContain(
+    "`lazurio recover --json --folder '/srv/My Lazurio'`",
+  );
+  expect(spaced).toContain(
+    "`lazurio install --service systemd-user --folder '/srv/My Lazurio'`",
+  );
   expect(prompt).toContain(evidence.fingerprint);
   expect(prompt).toContain("Tam skonči; nic neobcházej.");
   // The English prompt is not mixed in.

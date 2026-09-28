@@ -1,6 +1,6 @@
 import { type RecoveryEvidence, readableJson } from "./evidence";
 import type { PreparedIssue, RefusedIssue } from "./issue";
-import { searchText } from "./issue";
+import { searchText, shellWord } from "./issue";
 
 /** The repair agent's assignment (docs/recovery-mode.md D), in the shape of
  * the tool prompts (`toolPrompt`, src/tools/catalog.ts): the task, first read
@@ -29,11 +29,19 @@ export function recoveryPrompt(
   const { evidence, issue, folder, supervised } = facts;
   const pick = (text: Text) => text[locale];
   const folderWord = folder ?? "<Folder>";
+  const folderArgument = folder === undefined ? "<Folder>" : shellWord(folder);
+  // The rerun must read the Folder this run read: on a workstation only
+  // --folder names it. Without one, the rerun detects it the same way.
+  const recover = code(
+    folder === undefined
+      ? "lazurio recover --json"
+      : `lazurio recover --json --folder ${folderArgument}`,
+  );
   const { journal: _, ...fields } = evidence;
   const units = supervised
     ? {
-        cs: ` ${code(`lazurio install --service systemd-user --folder ${folderWord}`)}, aby se sjednotily jednotky služby; ${code("systemctl --user restart lazurio-launchpad.service")};`,
-        en: ` ${code(`lazurio install --service systemd-user --folder ${folderWord}`)} to converge the service units; ${code("systemctl --user restart lazurio-launchpad.service")};`,
+        cs: ` ${code(`lazurio install --service systemd-user --folder ${folderArgument}`)}, aby se sjednotily jednotky služby; ${code("systemctl --user restart lazurio-launchpad.service")};`,
+        en: ` ${code(`lazurio install --service systemd-user --folder ${folderArgument}`)} to converge the service units; ${code("systemctl --user restart lazurio-launchpad.service")};`,
       }
     : { cs: "", en: "" };
   const byHand = supervised
@@ -62,8 +70,8 @@ export function recoveryPrompt(
       en: "**Evidence** collected and sanitized by Lazurio:",
     })}\n\n\`\`\`json\n${readableJson(fields)}\n\`\`\``,
     pick({
-      cs: `1. Skutečný stav si přečti sám: ${code("lazurio recover --json")}.${byHand.cs}`,
-      en: `1. Read the current state yourself: ${code("lazurio recover --json")}.${byHand.en}`,
+      cs: `1. Skutečný stav si přečti sám: ${recover}.${byHand.cs}`,
+      en: `1. Read the current state yourself: ${recover}.${byHand.en}`,
     }),
     pick({
       cs: "2. Než cokoli změníš, pojmenuj operátorovi příčinu dvěma větami.",
@@ -82,8 +90,8 @@ export function recoveryPrompt(
       en: `5. **Never:** ${code("lazurio update rollback")} or any other way back to an earlier version; installing a version below the active one or the high-water mark; copying an older executable anywhere; editing ${code("bin/lazurio")} or ${code("update/high-water")} by hand; deleting update state to get past ${code("state-invalid")}; printing a secret.`,
     }),
     pick({
-      cs: `6. **Úspěch je doložený**, když ${code("lazurio recover --json")} odpoví ${code('"verdict": "healthy"')} a stránka Launchpadu se normálně načte. Řekni operátorovi, co bylo špatně a co jsi změnil.`,
-      en: `6. **Success is proven** when ${code("lazurio recover --json")} answers ${code('"verdict": "healthy"')} and the Launchpad page loads normally. Tell the operator what was wrong and what you changed.`,
+      cs: `6. **Úspěch je doložený**, když ${recover} odpoví ${code('"verdict": "healthy"')} a stránka Launchpadu se normálně načte. Řekni operátorovi, co bylo špatně a co jsi změnil.`,
+      en: `6. **Success is proven** when ${recover} answers ${code('"verdict": "healthy"')} and the Launchpad page loads normally. Tell the operator what was wrong and what you changed.`,
     }),
     pick(github),
     pick({

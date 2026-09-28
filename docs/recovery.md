@@ -20,7 +20,9 @@ base or the Folder. When something is broken it prints
 
 1. the checks,
 2. the prompt for a repair agent in Czech or English (`--locale`, default the
-   language the Folder records, else English), built from the facts of this run,
+   language the Folder records, else English), built from the facts of this run;
+   its rerun of `lazurio recover --json` names the Folder this run read with
+   `--folder`, so the proof of success reads the same Folder,
 3. the sanitized body of an issue for the public product repository
    `Lazurio/LazurioPlatform`, the exact `gh issue list` search for a duplicate and
    the exact `gh issue create` command with the body as a here-document, and a
