@@ -180,7 +180,7 @@ On a new computer Lazurio is installed by one command, and from then on it updat
 itself with `lazurio update`:
 
 ```sh
-curl -fsSL https://lazurio.ai/install | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh
 ```
 
 Until the website route is deployed, and until a release carries `install.sh` as an
@@ -370,16 +370,16 @@ The website lives in another repository; this is its contract.
   text/x-shellscript; charset=utf-8` (or `text/plain; charset=utf-8`); no
   `Content-Encoding` unless the client asked for one; `Cache-Control: public,
   max-age=300` at most, so a new release takes over within minutes. Checkable at any
-  time: the SHA-256 of `curl -fsSL https://lazurio.ai/install` equals that of the
+  time: the SHA-256 of `curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install` equals that of the
   release asset, and `gh attestation verify install.sh --bundle lazurio.sigstore.json
   --repo Lazurio/LazurioPlatform` accepts it, because `install.sh` is an attested
   subject.
 - **HTTPS only.** Plain `http://lazurio.ai/install` redirects to the HTTPS route and
   serves nothing else.
 - **Order.** `releases/latest/download/install.sh` exists only from the first release
-  built by a workflow that attaches it; the route goes live after that release. The
-  change of `release.yml` that attaches and attests `install.sh` is its own pull
-  request and is not merged yet; until it is, no release carries the asset.
+  built by a workflow that attaches it; the route goes live after that release.
+  `release.yml` attaches `install.sh` of the tag and makes it an attested subject;
+  releases up to v0.1.7 were built before that and carry no such asset.
 
 ## State on disk
 

@@ -1674,7 +1674,7 @@ personal sign-in and relies on what the Machine delivers.
 Recorded from the Principal's words: "with one command I am able to install the
 lazurio platform (CLI and Launchpad) on a customer's new laptop". The first
 installation is one command, an install script served from `https://lazurio.ai/install`
-(`curl -fsSL https://lazurio.ai/install | sh`); it installs the Platform, the CLI and
+(`curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh`); it installs the Platform, the CLI and
 the Launchpad as one program, and afterwards Lazurio takes over with `lazurio update`.
 Platforms in order: Linux, then macOS; Windows later. npm is not the primary door. The
 same day: **Lazurio is installed exactly the standard way on every Environment**;
@@ -1701,9 +1701,8 @@ in [product update](update.md#first-installation). (4) `lazurio install prompt`
 prints the prepared prompt an agent follows to straighten a non-standard installation
 (standard layout, deviations found, what the agent may do, what only on the operator's
 instruction, how success is proven); `lazurio install` points to it whenever it finds
-a deviation. (5) `release.yml` is to attach `install.sh` of the tag to every release and
-make it an attested subject (its own pull request, not merged yet), so that
-`releases/latest/download/install.sh` is what the
+a deviation. (5) `release.yml` attaches `install.sh` of the tag to every release and
+makes it an attested subject, so that `releases/latest/download/install.sh` is what the
 website serves, by redirect (recommended) or as a byte-identical proxy; the contract
 is in [product update](update.md#serving-httpslazurioaiinstall).
 
