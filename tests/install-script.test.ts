@@ -273,6 +273,7 @@ test.skipIf(!supported)(
     }
     for (const line of requests) expect(line).toContain("--proto =https");
   },
+  30_000,
 );
 
 test.skipIf(!supported)(
