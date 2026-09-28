@@ -552,6 +552,7 @@ const loginFailures = [
   "invalid-phone",
   "spawn-failed",
   "not-signed-in",
+  "environment-unreadable",
 ] as const;
 
 function parseKeyFacts(input: unknown): SshKeyFacts | null {
@@ -655,6 +656,17 @@ export function parseLoginState(input: unknown): LoginView | null {
     case "expired":
     case "cancelled":
       return { kind: value.kind, tool };
+    // The Team rule stopped the session (Principal 2026-09-28).
+    case "blocked":
+      return value.reason === "team-environment" &&
+        (value.action === "login" || value.action === "ssh-key")
+        ? {
+            kind: "blocked",
+            tool,
+            reason: "team-environment",
+            action: value.action,
+          }
+        : null;
     case "failed":
       return loginFailures.includes(
         value.reason as (typeof loginFailures)[number],
@@ -953,14 +965,19 @@ export function loginEndMessage(
       "invalid-phone": "toolsLoginPhoneInvalid",
       "spawn-failed": "toolsLoginFailureSpawn",
       "not-signed-in": "toolsLoginFailureNotSignedIn",
+      "environment-unreadable": "toolsLoginFailureEnvironment",
     };
     return {
       message: copy[reasons[state.reason]],
       agent:
-        state.reason !== "invalid-phone" && state.reason !== "not-signed-in",
+        state.reason !== "invalid-phone" &&
+        state.reason !== "not-signed-in" &&
+        state.reason !== "environment-unreadable",
       retry: true,
     };
   }
+  if (state.kind === "blocked")
+    return { message: copy.toolsTeamGithub, agent: false, retry: false };
   if (state.kind === "expired")
     return { message: copy.toolsLoginExpired, agent: false, retry: true };
   return { message: copy.toolsLoginEnded, agent: false, retry: true };

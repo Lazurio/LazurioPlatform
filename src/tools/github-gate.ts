@@ -69,6 +69,25 @@ export async function githubRefusal(
     : undefined;
 }
 
+/** Whether the rule refuses a gh sign-in or key linking on an Environment of
+ * that preset now: what a running session asks again before each step that
+ * changes the account or the Machine (`LoginEnvironment.refused`). */
+export function githubLoginRefused(
+  preset: PresetName | undefined,
+  tool: string,
+  action: "login" | "ssh-key",
+): boolean {
+  return (
+    preset !== undefined &&
+    githubActionRefused({
+      brokered:
+        workspacePreset(preset).providerIdentity === "brokered-organization",
+      tool,
+      action,
+    })
+  );
+}
+
 /** What a person reads about a refusal. */
 export function githubRefusalText(
   refusal: GithubRefusal,

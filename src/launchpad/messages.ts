@@ -323,6 +323,8 @@ const en = {
     "Over SSH GitHub greeted another account ({account}): another key of this Machine is offered first.",
   toolsLoginFailureNotSignedIn:
     "gh is not signed in on this Machine. Sign in first; the SSH key is linked as part of it.",
+  toolsLoginFailureEnvironment:
+    "The kind of this Environment could not be read, so the sign-in stopped before changing anything further.",
   toolsSshRemoved:
     "The SSH key of this Machine ({fingerprint}) was removed from your GitHub account; the key files stay on this Machine.",
   toolsSshRemovalNotRegistered:
@@ -737,6 +739,8 @@ const cs: Record<MessageKey, string> = {
     "GitHub přes SSH pozdravil jiný účet ({account}): tahle Mašina nabízí nejdřív jiný klíč.",
   toolsLoginFailureNotSignedIn:
     "gh na téhle Mašině není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
+  toolsLoginFailureEnvironment:
+    "Druh tohoto Environmentu se nepodařilo přečíst, proto se přihlášení zastavilo dřív, než by cokoli dalšího změnilo.",
   toolsSshRemoved:
     "SSH klíč téhle Mašiny ({fingerprint}) byl z vašeho účtu GitHubu odebrán; soubory klíče na Mašině zůstávají.",
   toolsSshRemovalNotRegistered:

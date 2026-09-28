@@ -68,6 +68,15 @@ export type LoginState =
       ssh?: SshLink;
     }>
   | Readonly<{ kind: "failed"; tool: string; reason: LoginFailure }>
+  /** gh on a Team Environment (Principal 2026-09-28): the Environment became
+   * a Team one while the session ran, so it stopped before the next step
+   * that changes the account or the Machine. */
+  | Readonly<{
+      kind: "blocked";
+      tool: string;
+      reason: "team-environment";
+      action: "login" | "ssh-key";
+    }>
   | Readonly<{ kind: "expired"; tool: string }>
   | Readonly<{ kind: "cancelled"; tool: string }>;
 
@@ -79,7 +88,10 @@ export type LoginFailure =
   | "not-confirmed"
   | "invalid-phone"
   | "spawn-failed"
-  | "not-signed-in";
+  | "not-signed-in"
+  /** The kind of Environment could not be read before a step that changes
+   * the account or the Machine, so the session stopped (fail closed). */
+  | "environment-unreadable";
 
 export type LogoutResult =
   | Readonly<{
@@ -143,6 +155,12 @@ export type LoginEnvironment = Readonly<{
   /** The Machine's name in the title of its SSH key (default: the system's
    * host name). */
   machine?: string;
+  /** The Team rule of `team-github.ts`, asked again before every step of a
+   * gh session that changes the account or the Machine: the end of the
+   * device flow, the start of the SSH key linking, each of its writing
+   * sub-steps and the final "signed in". True: refused now. Absent: nothing
+   * to re-check (a workstation). */
+  refused?: (tool: string, action: "login" | "ssh-key") => Promise<boolean>;
 }>;
 
 // The lifetimes of the documented flows: a GitHub device code is valid for
@@ -296,12 +314,14 @@ function spawnCollected(
 
 type Terminal = Extract<
   LoginState,
-  { kind: "signed-in" | "failed" | "expired" | "cancelled" }
+  { kind: "signed-in" | "failed" | "blocked" | "expired" | "cancelled" }
 >;
 
 type Session = {
   id: string;
   tool: string;
+  /** gh: a sign-in or the linking of the SSH key of a signed-in gh. */
+  action: "login" | "ssh-key";
   expiresAt: number;
   challenge?: LoginChallenge;
   step?: "ssh-key";
@@ -394,6 +414,33 @@ export function createLoginSessions(environment: LoginEnvironment) {
   }
   const fail = (session: Session, reason: LoginFailure) =>
     finish(session, { kind: "failed", tool: session.tool, reason });
+  const block = (session: Session) =>
+    finish(session, {
+      kind: "blocked",
+      tool: session.tool,
+      reason: "team-environment",
+      action: session.action,
+    });
+  // The Team rule asked again before a step that changes the account or the
+  // Machine: false when the session ended, is refused now (it ends as
+  // `blocked`) or the kind of Environment could not be read (it fails).
+  async function mayProceed(session: Session): Promise<boolean> {
+    if (!current(session)) return false;
+    if (environment.refused === undefined) return true;
+    let refused: boolean;
+    try {
+      refused = await environment.refused(session.tool, session.action);
+    } catch {
+      if (current(session)) fail(session, "environment-unreadable");
+      return false;
+    }
+    if (!current(session)) return false;
+    if (refused) {
+      block(session);
+      return false;
+    }
+    return true;
+  }
   const setChallenge = (session: Session, challenge: LoginChallenge) => {
     if (!current(session)) return;
     session.challenge = challenge;
@@ -539,6 +586,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       ssh,
       run: sessionRunner(session),
       alive: () => current(session),
+      proceed: () => mayProceed(session),
       machine: environment.machine ?? machineName(),
     };
   }
@@ -554,7 +602,8 @@ export function createLoginSessions(environment: LoginEnvironment) {
       scopes: readonly string[] | undefined;
     }>,
   ) {
-    if (!current(session)) return;
+    // Before the linking starts.
+    if (!(await mayProceed(session))) return;
     delete session.challenge;
     session.step = "ssh-key";
     session.expiresAt = now() + sshLinkMs;
@@ -566,6 +615,8 @@ export function createLoginSessions(environment: LoginEnvironment) {
           ? { state: "not-linked", reason: "scope-missing", fallback: "agent" }
           : await linkSshKey(await sshContext(session, gh), signedIn.account);
     if (ssh === "gone" || !current(session)) return;
+    // Before the final "signed in".
+    if (!(await mayProceed(session))) return;
     finish(session, {
       kind: "signed-in",
       tool: session.tool,
@@ -595,6 +646,8 @@ export function createLoginSessions(environment: LoginEnvironment) {
     ]);
     if (exitCode === undefined || !current(session)) return;
     if (exitCode !== 0) return fail(session, "tool-exit");
+    // Before the login is completed.
+    if (!(await mayProceed(session))) return;
     const signIn = await probe(entry, path);
     if (!current(session)) return;
     if (signIn.state !== "signed-in") return fail(session, "not-confirmed");
@@ -615,6 +668,8 @@ export function createLoginSessions(environment: LoginEnvironment) {
     if (!current(session)) return;
     if (signedIn === undefined) return fail(session, "not-signed-in");
     if (!hasKeyScope(signedIn.scopes)) {
+      // A scope refresh changes the account's token.
+      if (!(await mayProceed(session))) return;
       const exitCode = await ghDeviceFlow(session, [
         path,
         "auth",
@@ -625,6 +680,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
         sshKeyScope,
       ]);
       if (exitCode === undefined || !current(session)) return;
+      if (!(await mayProceed(session))) return;
       if (exitCode === 0)
         signedIn =
           (await ghAccount(run, path).catch(() => undefined)) ?? signedIn;
@@ -840,6 +896,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       const session: Session = {
         id: randomBytes(16).toString("hex"),
         tool: name,
+        action: options.sshKey === true ? "ssh-key" : "login",
         expiresAt: now() + lifetime,
         processes: new Set(),
         timers: new Set(),
@@ -921,6 +978,14 @@ export function createLoginSessions(environment: LoginEnvironment) {
       }
       finish(running, { kind: "cancelled", tool: name });
       return { kind: "cancelled", tool: name };
+    },
+
+    /** Ends a running session of the tool as refused by the Team rule: the
+     * Launchpad calls it when a profile change makes the Environment a Team
+     * one. The holder's next poll reads the refusal. */
+    refuse(name: string): void {
+      const running = sessions.get(name);
+      if (running !== undefined) block(running);
     },
 
     /** Runs the tool's own logout command and checks the result with its probe. */

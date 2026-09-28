@@ -292,6 +292,7 @@ export async function runToolsCommand(
       ...(command === "install" || command === "login" || command === "logout"
         ? { preset: await hostedEnvironmentPreset(context.hostedFolder) }
         : {}),
+      presetNow: () => hostedEnvironmentPreset(context.hostedFolder),
     };
     if (command === "composio-org") {
       const output = await runComposioOrganization(

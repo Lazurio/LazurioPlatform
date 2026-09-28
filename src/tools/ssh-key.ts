@@ -131,10 +131,19 @@ export type SshContext = Readonly<{
   run: SshRunner;
   /** False once the owner of the run ended it (cancel, expiry, shutdown). */
   alive: () => boolean;
+  /** Asked before every step that writes (the key's creation, its
+   * registration, `known_hosts`): false ends the run as `gone`, because its
+   * owner refused it meanwhile (the Environment became a Team one). */
+  proceed?: () => Promise<boolean>;
   machine: string;
 }>;
 
 const stepTimeoutMs = 30_000;
+
+// Before a step that writes: the owner still wants the run.
+const proceed = async (context: SshContext) =>
+  (context.proceed === undefined || (await context.proceed())) &&
+  context.alive();
 
 // "type base64" of a public key line, when it is one.
 export function publicKeyOf(line: string): string | undefined {
@@ -384,6 +393,8 @@ async function ensureKey(
     return { key: facts, publicPath: existing.publicPath };
   }
   if (context.keygen === undefined) return failed("keygen-missing");
+  // Before the key is created.
+  if (!(await proceed(context))) return "gone";
   const directory = join(context.home, ".ssh");
   try {
     if (!(await exists(directory))) {
@@ -532,6 +543,8 @@ async function ensureKnownHosts(
   }
   const missing = published.filter((key) => !present.includes(key));
   if (missing.length === 0) return "present";
+  // Before `known_hosts` is written.
+  if (!(await proceed(context))) return "gone";
   try {
     const directory = join(context.home, ".ssh");
     if (!(await exists(directory))) {
@@ -575,6 +588,7 @@ export async function linkSshKey(
   if ("state" in ensured) return ensured;
   const { key, publicPath } = ensured;
   // Step 3: gh's own command, which adds nothing when the account has the key.
+  if (!(await proceed(context))) return "gone";
   let added: ToolProcessResult;
   try {
     added = await context.run(

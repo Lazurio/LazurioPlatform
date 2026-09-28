@@ -18,7 +18,11 @@ import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import { activatableTools, toolSelection } from "../tools/catalog";
-import { folderPreset, githubRefusal } from "../tools/github-gate";
+import {
+  folderPreset,
+  githubLoginRefused,
+  githubRefusal,
+} from "../tools/github-gate";
 import { curatedTool, type InstallFetch, installTool } from "../tools/install";
 import {
   createLoginSessions,
@@ -163,9 +167,14 @@ export async function startLaunchpad(
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
+  // A running gh session asks the Team rule again, on this Folder's current
+  // preset, before every step that changes the account or the Machine
+  // (Principal 2026-09-28).
   const logins = createLoginSessions({
     ...toolsEnvironment,
     ...curatedOptions.login,
+    refused: async (tool, action) =>
+      githubLoginRefused(await folderPreset(folder), tool, action),
   });
   const installing = new Set<string>();
   let closing = false;
@@ -441,8 +450,11 @@ export async function startLaunchpad(
           if (url.pathname === "/api/tools/login/poll") {
             const refusal = await teamRefusal("login");
             if (refusal !== undefined) {
-              logins.cancel(tool, handle);
-              return response(refusal, 409);
+              // The session ends as refused; its holder reads that refusal
+              // (with the session's own action), or the generic one.
+              logins.refuse(tool);
+              const ended = logins.poll(tool, handle);
+              return response(ended.kind === "blocked" ? ended : refusal, 409);
             }
           }
           return response(
@@ -506,6 +518,13 @@ export async function startLaunchpad(
             ? { preset: value.preset, profile: value.profile }
             : { profile: value.profile },
         );
+        // A profile change that makes this a Team Environment ends a running
+        // gh sign-in or key linking at once: its holder reads the refusal.
+        if (url.pathname === "/api/update" && result.kind === "updated") {
+          const preset = await folderPreset(folder).catch(() => undefined);
+          if (preset === undefined || githubLoginRefused(preset, "gh", "login"))
+            logins.refuse("gh");
+        }
         return response(result, result.kind === "blocked" ? 409 : 200);
       } catch {
         return response(

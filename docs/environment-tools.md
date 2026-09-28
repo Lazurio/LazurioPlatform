@@ -301,6 +301,15 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   here is signed out, and gh reports none; Lazurio does not sign out the Organization's
   GitHub identity." The Launchpad offers "Sign out" on the Team gh row only in that
   case, with the same rule (`src/tools/team-github.ts`).
+- A session started before the Environment became a Team one does not finish: before
+  every step that changes the account or the Machine (the end of the device flow, a
+  scope refresh, the start of the key linking, the key's creation, its registration,
+  `known_hosts`, the final "signed in") the session asks the rule again and ends as
+  `{ kind: "blocked", reason: "team-environment", tool: "gh", action }` when the
+  preset is now Team. A profile update in the Launchpad that makes its Folder a Team
+  Environment ends a running gh session at once, and a `poll` answers the refusal. A
+  preset the Launchpad cannot read ends the session as `failed` /
+  `environment-unreadable`.
 - composio and wacli are unaffected: allowed, with the shared sign-ins warning.
 - **How the kind of Environment is known.** The Launchpad serves one Folder and reads
   its recorded preset on each of these requests (a profile change may switch it while
@@ -340,7 +349,10 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
 - **Known limits.** A personal account stored behind an active broker token is not the
   active account, is not offered for sign-out and is removed by hand; a personal token
   in `~/.config/gh` of a Machine whose gh is the wrapper is out of this sign-out's
-  reach. Without a readable hosted operator Folder the CLI cannot tell a Team
+  reach. gh stores a sign-in when its code is approved: a preset switched by another
+  process while the operator approves is seen only afterwards, so no key is linked but
+  the person's account is then signed in there and offered for sign-out. Without a
+  readable hosted operator Folder the CLI cannot tell a Team
   Environment and behaves as on a workstation (the Launchpad, which serves its Folder,
   fails closed instead).
 - **Not built.** The path through Lazurio for GitHub is not part of the Platform:

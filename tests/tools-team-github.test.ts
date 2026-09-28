@@ -6,6 +6,7 @@ import {
   readFile,
   realpath,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -32,6 +33,7 @@ import { sharedSignInsText } from "../src/tools/curated-cli";
 import { ghJsonStatusArgs, readGhJsonStatus } from "../src/tools/gh-status";
 import { hostedEnvironmentPreset } from "../src/tools/github-gate";
 import type { InstallFetch } from "../src/tools/install";
+import { createLoginSessions, type LoginState } from "../src/tools/login";
 import type { ToolOverview } from "../src/tools/overview";
 import { runTool, type ToolSignIn } from "../src/tools/status";
 import {
@@ -40,7 +42,7 @@ import {
   teamGithubLogoutText,
   teamGithubText,
 } from "../src/tools/team-github";
-import { fakeLoginTools } from "./fixtures/fake-login-tools";
+import { fakeLoginTools, realSshKeygen } from "./fixtures/fake-login-tools";
 import { bindings } from "./fixtures/machine-bindings";
 
 const posix = process.platform !== "win32";
@@ -1010,6 +1012,190 @@ test.skipIf(!posix)(
       } finally {
         await opened.close();
       }
+    }
+  },
+);
+
+const keygen = posix && realSshKeygen !== null;
+
+// Polls the holder's session until it is no longer pending.
+async function settle(
+  sessions: ReturnType<typeof createLoginSessions>,
+  handle: string,
+): Promise<LoginState> {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    await sessions.changed("gh", handle, 100);
+    const state = sessions.poll("gh", handle);
+    if (state.kind !== "pending") return state;
+    if (Date.now() > deadline) throw new Error("Session did not settle");
+  }
+}
+
+const present = (path: string) =>
+  stat(path).then(
+    () => true,
+    () => false,
+  );
+
+test.skipIf(!keygen)(
+  "a running gh login asks the Team rule again before every step that changes the account or the Machine",
+  async () => {
+    // The steps in order: the end of the device flow, the start of the key
+    // linking, the key's creation, its registration, known_hosts, the final
+    // "signed in". The rule turns refusing at step n.
+    for (const turn of [1, 2, 3, 4, 5, 6, 0]) {
+      const parent = await realpath(
+        await mkdtemp(join(tmpdir(), "lazurio-team-steps-")),
+      );
+      const path = await fakeLoginTools(parent, ["gh"]);
+      let asked = 0;
+      const actions: string[] = [];
+      const sessions = createLoginSessions({
+        path,
+        home: parent,
+        xdg: {},
+        platform: process.platform,
+        run: runTool,
+        firstChallengeMs: 5_000,
+        probeIntervalMs: 50,
+        machine: "vm-01",
+        refused: async (tool, action) => {
+          expect(tool).toBe("gh");
+          actions.push(action);
+          asked += 1;
+          return turn !== 0 && asked >= turn;
+        },
+      });
+      try {
+        const started = await sessions.start("gh");
+        if (started.kind !== "pending") throw new Error("not pending");
+        await writeFile(join(parent, "approve"), "");
+        const state = await settle(sessions, started.session);
+        const key = join(parent, ".ssh", "id_ed25519");
+        const registered = await readFile(join(parent, "gh.keys"), "utf8")
+          .then((text) => text.trim().length > 0)
+          .catch(() => false);
+        const knownHosts = await present(join(parent, ".ssh", "known_hosts"));
+        expect(actions.every((action) => action === "login")).toBe(true);
+        if (turn === 0) {
+          expect(asked).toBe(6);
+          expect(state).toMatchObject({
+            kind: "signed-in",
+            ssh: { state: "linked" },
+          });
+          continue;
+        }
+        expect(asked).toBe(turn);
+        expect(state).toEqual({
+          kind: "blocked",
+          tool: "gh",
+          reason: "team-environment",
+          action: "login",
+        });
+        // Nothing after the refused step happened.
+        expect(await present(key)).toBe(turn > 3);
+        expect(registered).toBe(turn > 4);
+        expect(knownHosts).toBe(turn > 5);
+      } finally {
+        await sessions.close();
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a gh login started on a Work Environment stops when a profile change makes it a Team one",
+  async () => {
+    const work = await environment("hosted-organization-personal", ["gh"]);
+    const app = await startLaunchpad(
+      work.folder,
+      undefined,
+      undefined,
+      undefined,
+      {},
+      {
+        path: work.path,
+        home: work.home,
+        xdg: {},
+        platform: process.platform,
+        run: runTool,
+      },
+      {
+        login: {
+          firstChallengeMs: 5_000,
+          probeIntervalMs: 50,
+          machine: "vm-01",
+        },
+      },
+    );
+    const url = new URL(app.url);
+    const call = async (route: string, body: unknown) => {
+      const response = await fetch(new URL(route, url), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: url.origin,
+          Authorization: `Bearer ${url.hash.slice(1)}`,
+        },
+        body: JSON.stringify(body),
+      });
+      return {
+        status: response.status,
+        body: (await response.json()) as Record<string, unknown>,
+      };
+    };
+    try {
+      const started = await call("/api/tools/login/start", { tool: "gh" });
+      expect(started.status).toBe(200);
+      expect(started.body).toMatchObject({
+        kind: "pending",
+        challenge: { kind: "device-code" },
+      });
+      const session = started.body.session as string;
+      // The operator switches the preset in General, through the real
+      // profile update.
+      const profile = (await call("/api/profile", {})).body;
+      const updated = await call("/api/update", {
+        expectedRevision: profile.revision,
+        preset: "hosted-organization-team",
+        profile: profile.profile,
+      });
+      expect(updated).toMatchObject({
+        status: 200,
+        body: { kind: "updated" },
+      });
+      // The device code is approved in the browser only now.
+      await writeFile(join(work.home, "approve"), "");
+      await Bun.sleep(300);
+      expect(
+        await call("/api/tools/login/poll", { tool: "gh", session }),
+      ).toEqual({
+        status: 409,
+        body: {
+          kind: "blocked",
+          tool: "gh",
+          reason: "team-environment",
+          action: "login",
+        },
+      });
+      // The login did not complete and no key exists or was registered.
+      expect(await present(join(work.home, "gh.state"))).toBe(false);
+      expect(await present(join(work.home, ".ssh", "id_ed25519"))).toBe(false);
+      expect(await present(join(work.home, "gh.keys"))).toBe(false);
+      expect(await work.ghCalls()).not.toContain("ssh-key add");
+      const status = await call("/api/tools/status", { signIn: true });
+      expect(
+        (status.body.tools as Record<string, unknown>[])[0]?.signIn,
+      ).toEqual({ state: "signed-out" });
+      // And a new one is refused from the start (the Team rule as before).
+      expect(
+        (await call("/api/tools/login/start", { tool: "gh" })).body,
+      ).toMatchObject({ kind: "blocked", reason: "team-environment" });
+    } finally {
+      await app.close();
+      await work.close();
     }
   },
 );

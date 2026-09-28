@@ -1610,6 +1610,26 @@ the rule accepts, because only the App identity belongs on a Team Environment. T
 wrapper's behaviour was read from its source and reproduced by a fake gh; the real
 wrapper is qualified on a Team Machine.
 
+*A session that outlives the preset.* A gh session is re-checked, not only started
+under the rule: the login core asks the rule again (`LoginEnvironment.refused`) before
+every step that changes the account or the Machine — when the device flow has ended
+and before the login is completed, before a scope refresh of "Link SSH key" and after
+it, before the SSH key linking starts, before the key is created, before it is
+registered, before `known_hosts` is written, and before the final "signed in". When
+the preset is now Team the session ends as `{ kind: "blocked", reason:
+"team-environment", tool: "gh", action: "login" | "ssh-key" }` and nothing after that
+step happens; the CLI exits 2 with the Team sentence. The Launchpad reads its Folder's
+preset for that; the CLI reads the hosted operator Folder's preset again. A preset that
+cannot be read ends a Launchpad session as `failed` / `environment-unreadable` (fail
+closed). The Launchpad also ends a running gh session at once, as refused, when a
+profile update (`/api/update`) makes its Folder a Team Environment, and a `poll` of gh
+on a Team Environment ends the session and answers the refusal. Limit: gh stores a
+sign-in itself when the code is approved in the browser; a preset switched by another
+process (a CLI `profile-update`) while the operator approves is seen only after that,
+so the session stops before any key step but the account is then signed in there, a
+person's account left on a Team Environment that the Tools section offers to sign
+out.
+
 *Installing and the agent prompt.* Installing gh is not a sign-in and stays allowed.
 `tools install gh` on a Team Environment (the preset read as for `login`) ends with the
 Team sentence instead of "Next: lazurio tools login gh"; the Launchpad's Team gh row
