@@ -5,6 +5,7 @@ import {
   isOlderTemplateRevision,
   isTemplateRevision,
 } from "../folder/render";
+import { enabledTools } from "../folder/state";
 import { machineBinding } from "../machine/binding";
 import {
   type Catalog,
@@ -435,18 +436,23 @@ function toolCheck(tool: ToolRow): DoctorCheck {
     : check("tool", "ok", undefined, context);
 }
 
-/** The Folder's tool selection under its read lock (`toolsOverview`), or
- * without a readable Folder the catalog's own tiers over `toolsStatus`. */
+/** The Folder's tool selection under its read lock (`toolsOverview`), only
+ * where the Folder's state is recognized: taking the lock of a state without
+ * one would create it. Otherwise `toolsStatus` over the catalog's tiers, with
+ * the selection the Folder recorded when it can be read at all. */
 async function toolRows(
-  folder: string | undefined,
+  folder: Awaited<ReturnType<typeof observeFolder>>,
+  directory: string | undefined,
   tools: ToolsEnvironment,
   signIn: boolean,
 ): Promise<readonly ToolRow[]> {
-  if (folder !== undefined)
+  if (directory !== undefined && folder.check.outcome === "ok")
     try {
-      const overview = await toolsOverview(folder, tools, { signIn });
+      const overview = await toolsOverview(directory, tools, { signIn });
       return overview.tools;
     } catch {}
+  const enabled =
+    folder.preferences === null ? [] : enabledTools(folder.preferences);
   const catalog = activatableTools();
   const status = await toolsStatus({ ...tools, catalog });
   const signIns = signIn
@@ -463,7 +469,8 @@ async function toolRows(
     return {
       name: entry.name,
       tier: entry.activation.tier,
-      enabled: entry.activation.tier === "required",
+      enabled:
+        entry.activation.tier === "required" || enabled.includes(entry.name),
       installed: live?.installed ?? false,
       version: live?.version,
       versionError: live?.versionError,
@@ -569,7 +576,8 @@ export async function collectDoctor(
   const observed = await observeFolder(folder);
   const handover = await environment.machineContext().catch(() => null);
   const tools = await toolRows(
-    observed.preferences === null ? undefined : folder,
+    observed,
+    folder,
     environment.tools,
     environment.signIn === true,
   );

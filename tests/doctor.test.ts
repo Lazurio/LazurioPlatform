@@ -374,6 +374,21 @@ test("a pending Folder transaction is broken: exit 3, the tools still read", asy
   );
 });
 
+test("a Folder state without its lock is not given one: taking the lock would create it", async () => {
+  const world = await createWorld();
+  await rm(join(world.folder, ".lazurio", ".operation-lock"), {
+    recursive: true,
+  });
+  const before = await tree(world.root);
+  const result = await doctor(world);
+  expect(await tree(world.root)).toEqual(before);
+  expect(result.code).toBe(exitBroken);
+  expect(find(result.json, "folder-state")?.reason).toBe(
+    "folder-state-unrecognized",
+  );
+  expect(find(result.json, "tool", "gh")?.outcome).toBe("ok");
+});
+
 test("a missing required tool fails, a missing recommended one needs attention", async () => {
   const world = await createWorld({ tools: ["composio"] });
   const missingGh = await doctor(world);
