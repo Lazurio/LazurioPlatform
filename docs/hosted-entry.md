@@ -171,6 +171,19 @@ stopped app may start (a navigation) or is only reported (a background fetch, a
 WebSocket reconnect); it is a lifecycle hint after admission, never an access decision.
 A Launchpad without a recorded entry has no such route (404).
 
+### The T3 Code link: Chat
+
+The Launchpad's Chat entry (slice P7, [contract](launchpad-development.md#chat-entry))
+opens T3 Code at the recorded `t3codeOrigin`, never at a name derived from the
+Launchpad's own hostname. `GET /api/entry` hands the page the entry's public parts
+(Launchpad origin, T3 Code origin, module origin rule) read-only, behind this admission;
+the auth endpoint, cookie name and port are not among them. On a click the server asks
+T3's own CLI (the launcher `t3` on its PATH) for a one-time pairing token and answers
+`<t3codeOrigin>/pair#token=…`, the resident's shape; the token rides only in the
+fragment of that navigation. The pairing route is a state-changing request under the
+same-origin rule above; a Launchpad without an entry has neither the link nor the
+route. T3 Code's own admission behind the gateway is unchanged (not in scope below).
+
 ### The adapter
 
 - **Listener.** Loopback always; additionally the Machine's tailnet address when the

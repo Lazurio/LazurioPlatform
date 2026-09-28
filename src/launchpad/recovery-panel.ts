@@ -13,13 +13,15 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // The Recovery section of Settings and, in Recovery mode, the whole page
 // (docs/recovery.md "The Recovery page"). It reads `GET /api/recovery`, the
 // same result as `lazurio recover --json`, and changes nothing: the only
-// actions copy a prepared text to the clipboard or open GitHub's prefilled
-// issue form in a new tab. Every value is shown as text.
+// actions copy a prepared text to the clipboard, open T3 Code (hosted) or
+// GitHub's prefilled issue form in a new tab. Every value is shown as text.
 export function createRecoveryPanel(
   options: Readonly<{
     /** `GET /api/recovery` with the page's credential. */
     get: () => Promise<{ value: unknown; ok: boolean }>;
     copy: () => Copy;
+    /** The recorded entry's T3 Code origin, or null (a workstation). */
+    t3codeOrigin: () => string | null;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -105,7 +107,10 @@ export function createRecoveryPanel(
         ? copy.recoveryLoadFailed
         : "";
     if (result === null) return body.replaceChildren();
-    const view = recoveryView(result, copy, { journal });
+    const view = recoveryView(result, copy, {
+      journal,
+      t3codeOrigin: options.t3codeOrigin(),
+    });
     const blocks: Node[] = [];
     const summary = element("p", "callout", view.summary);
     if (view.verdict === "broken") summary.dataset.kind = "warning";
@@ -152,7 +157,17 @@ export function createRecoveryPanel(
       button.dataset.control = "copy-prompt";
       button.addEventListener("click", () => copyText(area.value, area, said));
       const actions = element("div", "toolbar");
-      actions.append(button, said);
+      actions.append(button);
+      // Hosted: T3 Code, where the prompt goes, in a new tab; a plain link.
+      if (view.chat !== null) {
+        const link = element("a", "button", view.chat.label);
+        link.href = view.chat.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.dataset.control = "open-t3";
+        actions.append(link);
+      }
+      actions.append(said);
       blocks.push(
         group(copy.recoveryPromptTitle, copy.recoveryPromptText, area, actions),
       );

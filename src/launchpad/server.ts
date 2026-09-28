@@ -40,6 +40,7 @@ import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { runTool, xdgOf } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
+import { issueChatLink, publicEntry } from "./chat";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
@@ -63,7 +64,6 @@ export type HostedOptions = Readonly<{
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
-// Not here yet: the T3 Code chat link (P7, B8) is its own route.
 const moduleRoute = /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|stop|status)$/;
 
 // The gateway's `ensure` (launchpad-parity B5), the path the Machines gateway
@@ -282,6 +282,14 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
+      if (url.pathname === "/api/entry") {
+        // The recorded entry's public parts, read-only (launchpad-parity B8):
+        // the page links to these origins and composes none. `null` on a
+        // workstation, which has no entry.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        return response({ kind: "entry", entry: publicEntry(entry) });
+      }
       const ensureRequest = ensureRoute.exec(url.pathname);
       if (ensureRequest !== null) {
         // Only behind a gateway: a workstation has no module hostnames.
@@ -369,6 +377,16 @@ export async function startLaunchpad(
             return response({ error: "invalid-version" }, 400);
           const result = await pill.apply(value.version);
           return response(result, result.kind === "started" ? 200 : 409);
+        }
+        if (url.pathname === "/api/chat/pair") {
+          // Chat (launchpad-parity B8): a one-time T3 Code pairing link for
+          // this admitted browser, minted by T3's own CLI. Only behind a
+          // gateway: a workstation's T3 Code is wherever the operator runs it.
+          stateFields(input, []);
+          if (entry === null) return response({ error: "not-found" }, 404);
+          server.timeout(request, 30);
+          const result = await issueChatLink(entry, toolsEnvironment);
+          return response(result, result.kind === "blocked" ? 409 : 200);
         }
         if (url.pathname === "/api/apps/discover") {
           stateFields(input, []);

@@ -236,7 +236,8 @@ What the page shows:
 2. The verdict and every check with its outcome, code or skip reason and context.
 3. When broken: the prompt for a repair agent with **Copy the prompt** (on a hosted
    Machine it goes into a new chat in T3 Code, on a workstation into the agent app
-   the operator uses; decided 2026-09-28, Q3 of the shaping), the prepared issue
+   the operator uses; decided 2026-09-28, Q3 of the shaping) and, on a hosted Machine,
+   **Open T3 Code**, the recorded entry's T3 Code origin in a new tab, the prepared issue
    (title, body preview, **Copy the gh command**, which copies `issue.shell`, and the
    prefilled `issues/new` link opening in a new tab) or, when the gate refused the
    body, only the kinds of what survived, the tier-1 evidence exactly as the issue
@@ -247,9 +248,13 @@ What the page shows:
 `GET /api/recovery` returns exactly the object `lazurio recover --json --folder
 <the Launchpad's Folder>` prints (with `--base <its base>` when it was started with
 one, otherwise the default install base, as the command uses), built by the same
-function (`recoveryEnvironment`, `src/recover/cli.ts`); one run at a time. There is no
-route that changes anything: nothing is filed, nothing is written, nothing reaches
-the network, and every other API route still answers Recovery mode's typed refusal.
+function (`recoveryEnvironment`, `src/recover/cli.ts`); one run at a time. Besides it
+Recovery mode answers only `GET /api/entry`, the recorded entry's public parts, from
+which the page takes the T3 Code link next to the prompt
+([Chat entry](launchpad-development.md#chat-entry)). There is no route that changes
+anything: nothing is filed, nothing is written, nothing reaches the network, and every
+other API route (the Chat pairing route among them) still answers Recovery mode's typed
+refusal.
 
 **Admission.** Hosted, the page and `/api/recovery` sit behind the gateway's
 admission, as the normal page does; Recovery mode answers through the gateway only

@@ -16,10 +16,7 @@ import {
 import { parseMachineEntry } from "../src/folder/machine-binding";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import {
-  type AuthFetcher,
-  parseHostedEntry,
-} from "../src/launchpad/hosted-trust";
+import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import {
   startOrRecover,
   startRecoveryMode,
@@ -253,11 +250,13 @@ test.skipIf(process.platform === "win32")(
 test.skipIf(process.platform === "win32")(
   "hosted Recovery mode keeps the gateway's port and admission",
   async () => {
-    const entry = parseHostedEntry({
+    const entry = parseMachineEntry({
       externalOrigin: "https://launchpad.workspace.example.lazurio.io",
       authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
       authCookieName: "__Secure-lazurio-workspace",
       listenPort: freePort(),
+      t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
+      moduleOriginTemplate: "https://{module}.workspace.example.lazurio.io",
     });
     const fetcher: AuthFetcher = async (_url, init) =>
       new Headers(init.headers).get("cookie") ===

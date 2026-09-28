@@ -1,4 +1,6 @@
 import { createCatalogPanel } from "./catalog-panel";
+import type { PublicEntry } from "./chat";
+import { chatHref, chatPairLink, parseEntryAnswer } from "./chat-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
@@ -41,6 +43,16 @@ const controls = {
 };
 let locale: "cs" | "en" = "en";
 let copy = messages(locale);
+// The recorded entry's public parts (`GET /api/entry`); null on a workstation
+// and until read. The Chat link and the Recovery page's T3 Code link.
+let entry: PublicEntry | null = null;
+const [chatMenu, chat] = ((menu, link) => {
+  if (!menu || !link) throw new Error("Missing chat UI");
+  return [menu, link] as const;
+})(
+  document.querySelector<HTMLUListElement>("#chat-menu"),
+  document.querySelector<HTMLAnchorElement>("#chat"),
+);
 // The Launchpad home: the catalog of this Folder's Organizations and modules
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
@@ -62,6 +74,7 @@ const recovery = createRecoveryPanel({
     return { value: await response.json(), ok: response.ok };
   },
   copy: () => copy,
+  t3codeOrigin: () => chatHref(entry),
 });
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
 // the sheet of a narrow viewport.
@@ -212,6 +225,7 @@ function relabel() {
       element.textContent = copy[key as MessageKey];
   }
   shell.relabel();
+  renderChat();
   recovery.render();
 }
 async function post(path: string, body: unknown) {
@@ -376,6 +390,59 @@ controls.apply.addEventListener("click", async () => {
     controls.choices.disabled = false;
   }
 });
+// Chat (launchpad-parity B8): the recorded entry's T3 Code origin as a plain
+// link, shown only with an entry. A plain click first asks the server for a
+// one-time pairing link on that origin and follows it in this tab, as the
+// resident did (`R:launchpad/public/app.js:2257-2281`); when there is none
+// (no T3 launcher, a failed call) it follows the plain origin, where T3 Code
+// itself asks an unpaired browser to pair. A modified click opens the plain
+// origin as a link does.
+function renderChat() {
+  const href = chatHref(entry);
+  chatMenu.hidden = href === null;
+  chat.hidden = href === null;
+  if (href === null) chat.removeAttribute("href");
+  else chat.href = href;
+  chat.title = copy.chatTitle;
+}
+chat.addEventListener("click", async (event) => {
+  const current = entry;
+  if (
+    current === null ||
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  )
+    return;
+  event.preventDefault();
+  if (chat.getAttribute("aria-disabled") === "true") return;
+  chat.setAttribute("aria-disabled", "true");
+  let target = current.t3codeOrigin;
+  try {
+    const { value, ok } = await post("/api/chat/pair", {});
+    target = (ok && chatPairLink(value, current.t3codeOrigin)) || target;
+  } catch {}
+  location.assign(target);
+});
+// Back from T3 Code restores this page from the bfcache with the link still
+// held by the click that navigated away.
+window.addEventListener("pageshow", () =>
+  chat.removeAttribute("aria-disabled"),
+);
+async function readEntry() {
+  try {
+    const { value, ok } = await get("/api/entry");
+    entry = ok ? parseEntryAnswer(value) : null;
+  } catch {
+    entry = null;
+  }
+  renderChat();
+  recovery.render();
+}
+void readEntry();
 load().catch(() => {
   controls.status.textContent = copy.loadFailed;
   // The tools section says for itself that it could not be read.

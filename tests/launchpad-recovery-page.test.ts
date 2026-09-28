@@ -3,11 +3,9 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
+import { parseMachineEntry } from "../src/folder/machine-binding";
 import { executionOs } from "../src/folder/platform";
-import {
-  type AuthFetcher,
-  parseHostedEntry,
-} from "../src/launchpad/hosted-trust";
+import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import {
   startOrRecover,
   startRecoveryMode,
@@ -250,11 +248,13 @@ test.skipIf(process.platform === "win32")(
     });
     const listenPort = probe.port;
     probe.stop(true);
-    const entry = parseHostedEntry({
+    const entry = parseMachineEntry({
       externalOrigin: "https://launchpad.workspace.example.lazurio.io",
       authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
       authCookieName: "__Secure-lazurio-workspace",
       listenPort,
+      t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
+      moduleOriginTemplate: "https://{module}.workspace.example.lazurio.io",
     });
     const fetcher: AuthFetcher = async (_url, init) =>
       new Headers(init.headers).get("cookie") ===
@@ -282,7 +282,12 @@ test.skipIf(process.platform === "win32")(
       const base = `http://127.0.0.1:${listenPort}`;
       const host = "launchpad.workspace.example.lazurio.io";
       const valid = { host, cookie: "__Secure-lazurio-workspace=valid" };
-      for (const path of ["/", "/settings/recovery", "/api/recovery"]) {
+      for (const path of [
+        "/",
+        "/settings/recovery",
+        "/api/recovery",
+        "/api/entry",
+      ]) {
         const denied = await fetch(`${base}${path}`, { headers: { host } });
         expect([path, denied.status, await denied.json()]).toEqual([
           path,
@@ -300,6 +305,34 @@ test.skipIf(process.platform === "win32")(
         "healthy",
       ]);
       expect(reads).toBe(1);
+      // The repair agent's T3 Code link: the recorded entry's public parts,
+      // read-only, behind the same admission. Nothing else of the API.
+      const recorded = await fetch(`${base}/api/entry`, { headers: valid });
+      expect([recorded.status, await recorded.json()]).toEqual([
+        200,
+        {
+          kind: "entry",
+          entry: {
+            launchpadOrigin: entry.externalOrigin,
+            t3codeOrigin: entry.t3codeOrigin,
+            moduleOriginTemplate: entry.moduleOriginTemplate,
+          },
+        },
+      ]);
+      const pairing = await fetch(`${base}/api/chat/pair`, {
+        method: "POST",
+        headers: {
+          ...valid,
+          origin: entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      });
+      expect([pairing.status, (await pairing.json()).error]).toEqual([
+        503,
+        "recovery-mode",
+      ]);
     } finally {
       await app.close();
     }

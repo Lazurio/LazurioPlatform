@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { RecoveryResult } from "../recover/recover";
+import { publicEntry } from "./chat";
 import { serveHealthSocket } from "./health-socket";
 import { createHostedTrust } from "./hosted-trust";
 import { admitLocal, privatePage, serveShell } from "./page";
@@ -19,7 +20,8 @@ export { recoveryCheck };
  * can name, it does not exit. It keeps the port it would have served on and
  * serves the Recovery page: the bundled page, which needs nothing of the
  * Folder, shows the reason and the result of `GET /api/recovery`, the same
- * read-only use case as `lazurio recover --json`. Every other API route
+ * read-only use case as `lazurio recover --json`, and `GET /api/entry`, the
+ * recorded entry's public parts for the page's T3 Code link. Every other API route
  * answers with the typed refusal, the health socket with 503. When the page
  * does not serve completely, every page path answers the reason as plain
  * text. Nothing here reads the Folder itself, starts an application or
@@ -111,6 +113,19 @@ export async function startRecoveryMode(
             { status: 500, headers },
           );
         }
+      }
+      // The recorded entry's public parts, as in normal mode: the page's
+      // link to T3 Code for the repair agent (docs/recovery-mode.md C.3).
+      if (request.method === "GET" && url.pathname === "/api/entry") {
+        if (
+          trust === null &&
+          !admitLocal(request, `http://127.0.0.1:${server.port}`, token)
+        )
+          return Response.json({ error: "denied" }, { status: 403, headers });
+        return Response.json(
+          { kind: "entry", entry: publicEntry(entry) },
+          { headers },
+        );
       }
       if (url.pathname.startsWith("/api/"))
         return Response.json(refusal, { status: 503, headers });
