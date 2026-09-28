@@ -1,4 +1,4 @@
-import { appendFile, readFile } from "node:fs/promises";
+import { appendFile, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import {
@@ -8,6 +8,7 @@ import {
   type ReleaseManifest,
   sha256Hex,
 } from "../../src/update/manifest";
+import { streamRedacted } from "./redact";
 
 /** The qualification evidence of a release candidate (docs/release-cycle.md
  * "Qualification and the canary"). Every journey of `qualify.yml` on every
@@ -40,6 +41,24 @@ export const qualifiedTargets = ["linux-x64", "darwin-arm64"] as const;
  * that needs a hook no release executable has). */
 export const proofs = ["executable", "source"] as const;
 
+/** Why a journey failed, as one enumerated id: the journey writes it to the
+ * file named by LAZURIO_QUALIFY_DETAIL; `exit` when it wrote none (a suite,
+ * or a crash before it could). The job log holds the diagnostics. */
+export const failureDetails = [
+  "assertion",
+  "command-failed",
+  "no-json",
+  "launchpad-not-up",
+  "not-healthy",
+  "wait-timeout",
+  "no-user-manager",
+  "installation-present",
+  "candidate-unverified",
+  "internal",
+  "exit",
+] as const;
+export type FailureDetail = (typeof failureDetails)[number];
+
 export type QualificationLine = Readonly<{
   schema: typeof qualificationSchema;
   tag: string;
@@ -51,6 +70,8 @@ export type QualificationLine = Readonly<{
   outcome: "ok" | "failed";
   durationMs: number;
   sha256: string;
+  /** Only on a failed line (lines written before it carry none). */
+  detail?: FailureDetail;
 }>;
 
 const keys = [
@@ -76,8 +97,11 @@ export function parseLine(text: string): QualificationLine {
     typeof value !== "object" ||
     value === null ||
     Array.isArray(value) ||
-    Object.keys(value).length !== keys.length ||
+    Object.keys(value).length !== keys.length + ("detail" in value ? 1 : 0) ||
     !keys.every((key) => key in value) ||
+    ("detail" in value &&
+      (value.outcome !== "failed" ||
+        !failureDetails.includes(value.detail as FailureDetail))) ||
     value.schema !== qualificationSchema ||
     !isText(value.tag, /^v\d+\.\d+\.\d+-rc\.\d+$/) ||
     !isText(value.commit, /^[0-9a-f]{40}$/) ||
@@ -129,7 +153,9 @@ export function qualificationFindings(
       const line = seen.get(`${target} ${journey}`);
       if (line === undefined) findings.push(`${target} ${journey}: missing`);
       else if (line.outcome !== "ok")
-        findings.push(`${target} ${journey}: ${line.outcome}`);
+        findings.push(
+          `${target} ${journey}: ${line.outcome}${line.detail ? ` (${line.detail})` : ""}`,
+        );
     }
   return findings;
 }
@@ -164,13 +190,30 @@ async function runJourney(args: string[]): Promise<number> {
     );
   const manifest = parseManifest(await readFile(join(candidate, manifestFile)));
   const executable = await readFile(join(candidate, artifactFile(target)));
+  // Next to the evidence, never in a shared temporary directory.
+  const detailFile = `${out}.detail`;
+  await rm(detailFile, { force: true });
   const started = performance.now();
   const child = Bun.spawn(command, {
+    env: { ...process.env, LAZURIO_QUALIFY_DETAIL: detailFile },
     stdin: "ignore",
-    stdout: "inherit",
-    stderr: "inherit",
+    stdout: "pipe",
+    stderr: "pipe",
   });
+  // The job log is public: the journey's output reaches it only redacted,
+  // line by line as it happens (a J6 suite prints nothing else).
+  await Promise.all([
+    streamRedacted(child.stdout, (line) => console.log(line)),
+    streamRedacted(child.stderr, (line) => console.error(line)),
+  ]);
   const code = await child.exited;
+  const written = (await readFile(detailFile, "utf8").catch(() => "")).trim();
+  await rm(detailFile, { force: true });
+  const detail: FailureDetail = failureDetails.includes(
+    written as FailureDetail,
+  )
+    ? (written as FailureDetail)
+    : "exit";
   // Validated by the same parser a reader uses: nothing unreadable is written.
   const line = parseLine(
     JSON.stringify({
@@ -184,10 +227,13 @@ async function runJourney(args: string[]): Promise<number> {
       outcome: code === 0 ? "ok" : "failed",
       durationMs: Math.round(performance.now() - started),
       sha256: sha256Hex(executable),
+      ...(code === 0 ? {} : { detail }),
     }),
   );
   await appendFile(out, `${JSON.stringify(line)}\n`);
-  console.log(`${line.target} ${line.journey}: ${line.outcome}`);
+  console.log(
+    `${line.target} ${line.journey}: ${line.outcome}${line.detail ? ` (${line.detail})` : ""}`,
+  );
   return code === 0 ? 0 : 1;
 }
 

@@ -22,6 +22,9 @@ import {
   sha256Hex,
 } from "../../src/update/manifest";
 import { compareVersions } from "../../src/update/version";
+import type { FailureDetail } from "./evidence";
+import { launchpadOnce } from "./launchpad-once";
+import { logLines, redact } from "./redact";
 
 /** The journeys J1–J5 of the release qualification (docs/release-cycle.md
  * "Qualification and the canary") against the REAL release candidate: the
@@ -86,11 +89,26 @@ const productEnv = Object.fromEntries(
 
 type Result = { code: number; stdout: string; stderr: string };
 
+/** A failure with its enumerated detail for the evidence line. */
+class JourneyFailure extends Error {
+  constructor(
+    readonly detail: FailureDetail,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 async function exec(
   command: readonly string[],
-  options: { quiet?: boolean; env?: Record<string, string | undefined> } = {},
+  options: {
+    quiet?: boolean;
+    env?: Record<string, string | undefined>;
+    /** How many trailing output lines the log keeps (default 30). */
+    lines?: number;
+  } = {},
 ): Promise<Result> {
-  if (!options.quiet) console.log(`$ ${command.join(" ")}`);
+  if (!options.quiet) console.log(redact(`$ ${command.join(" ")}`));
   const child = Bun.spawn([...command], {
     env: options.env ?? productEnv,
     stdin: "ignore",
@@ -104,15 +122,19 @@ async function exec(
   ]);
   const code = await child.exited;
   if (!options.quiet)
-    for (const line of `${stdout}\n${stderr}`.trim().split("\n").slice(-30))
-      if (line) console.log(`  > ${line.slice(0, 300)}`);
+    // Redacted before it is printed: the job log is public.
+    for (const line of logLines(`${stdout}\n${stderr}`, options.lines))
+      console.log(`  > ${line}`);
   return { code, stdout, stderr };
 }
 
 async function must(command: readonly string[], env?: Record<string, string>) {
   const result = await exec(command, env ? { env } : {});
   if (result.code !== 0)
-    throw new Error(`${command[0]} ${command[1] ?? ""}: exit ${result.code}`);
+    throw new JourneyFailure(
+      "command-failed",
+      `${command[0]} ${command[1] ?? ""}: exit ${result.code}`,
+    );
   return result;
 }
 
@@ -122,27 +144,32 @@ async function json(command: readonly string[], quiet = false): Promise<any> {
   try {
     return { exit: result.code, ...JSON.parse(result.stdout) };
   } catch {
-    throw new Error(`${command.slice(0, 2).join(" ")}: no JSON answer`);
+    throw new JourneyFailure(
+      "no-json",
+      `${command.slice(0, 2).join(" ")}: no JSON answer`,
+    );
   }
 }
 
 function same(label: string, actual: unknown, expected: unknown) {
   if (!Bun.deepEquals(actual, expected))
-    throw new Error(
+    throw new JourneyFailure(
+      "assertion",
       `${label}: got ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
     );
-  console.log(`  PASS ${label}: ${JSON.stringify(actual)}`);
+  console.log(redact(`  PASS ${label}: ${JSON.stringify(actual)}`));
 }
 
 async function waitFor(
   label: string,
   seconds: number,
   condition: () => Promise<boolean>,
+  detail: FailureDetail = "wait-timeout",
 ) {
   const deadline = Date.now() + seconds * 1000;
   while (!(await condition().catch(() => false))) {
     if (Date.now() > deadline)
-      throw new Error(`${label}: not within ${seconds} s`);
+      throw new JourneyFailure(detail, `${label}: not within ${seconds} s`);
     await Bun.sleep(500);
   }
   console.log(`  PASS ${label}`);
@@ -358,6 +385,9 @@ const launchpadOn = (version: string) => async () =>
     join(base, "versions", version, "lazurio") &&
   (await exists(layout(base).healthSocket));
 
+const launchpadUp = (label: string, version: string) =>
+  waitFor(label, 60, launchpadOn(version), "launchpad-not-up");
+
 const recover = (quiet = false) =>
   json([selector, "recover", "--json", "--folder", folder], quiet);
 // biome-ignore lint/suspicious/noExplicitAny: product JSON
@@ -375,37 +405,55 @@ async function healthy() {
     (!supervised ||
       (checkOf(result, "launchpad-unit")?.outcome === "ok" &&
         checkOf(result, "launchpad-health")?.outcome === "ok"));
-  await waitFor("lazurio recover: healthy", 60, async () =>
-    passes(await recover(true)),
+  await waitFor(
+    "lazurio recover: healthy",
+    60,
+    async () => passes(await recover(true)),
+    "not-healthy",
   );
   const result = await recover();
   same("recover verdict", [result.exit, result.verdict], [0, "healthy"]);
 }
 
-/** An unsupervised Launchpad started once: its first line, the page's HTTP
- * status, and its exit on SIGTERM. The session token is never printed. */
-async function launchpadOnce(executable: string) {
-  const child = Bun.spawn([executable, "launchpad", "--folder", folder], {
-    env: productEnv,
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "inherit",
-  });
-  const reader = child.stdout.getReader();
-  let text = "";
-  const deadline = Date.now() + 60_000;
-  while (!text.includes("\n") && Date.now() < deadline) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    text += new TextDecoder().decode(value);
+/** What the job log needs to explain a failure on a disposable runner: the
+ * unit, its journal, the install base and the installed product's status. */
+async function diagnostics() {
+  console.log("---- diagnostics ----");
+  const env = process.env;
+  if (supervised) {
+    for (const command of [
+      ["systemctl", "--user", "status", unit, "--no-pager"],
+      ["journalctl", "--user", "-u", unit, "--no-pager", "-n", "80"],
+      [
+        "systemctl",
+        "--user",
+        "show",
+        unit,
+        "-p",
+        "ActiveState,SubState,Result,NRestarts,ExecMainStatus",
+      ],
+      [
+        "systemctl",
+        "--user",
+        "status",
+        "lazurio-rollback.service",
+        "--no-pager",
+      ],
+    ])
+      await exec(command, { env, lines: 120 });
+    for (const name of [unit, "lazurio-rollback.service"]) {
+      const text = await readFile(unitFile(name), "utf8").catch(() => null);
+      console.log(`---- ${unitFile(name)} ----`);
+      for (const line of logLines(text ?? "(absent)", 120))
+        console.log(`  | ${line}`);
+    }
   }
-  const { url, ...started } = JSON.parse(text.split("\n")[0] ?? "");
-  const page = await fetch(new URL("/", url), {
-    signal: AbortSignal.timeout(10_000),
+  await exec(["ls", "-la", base, layout(base).update, layout(base).versions], {
+    env,
   });
-  await page.text();
-  child.kill("SIGTERM");
-  return { started, status: page.status, exit: await child.exited };
+  if (await exists(selector))
+    await exec([selector, "update", "status", "--json"]);
+  console.log("---- end of diagnostics ----");
 }
 
 // ---- J1–J5 ----------------------------------------------------------------
@@ -489,13 +537,13 @@ async function firstInstall(candidate: Candidate) {
     );
     same("install.sh --service exit status", service.code, 0);
     same("unit enabled", await systemctl("is-enabled", unit), "enabled");
-    await waitFor(
-      "Launchpad on the candidate",
-      60,
-      launchpadOn(candidate.version),
-    );
+    await launchpadUp("Launchpad on the candidate", candidate.version);
   } else {
-    const launchpad = await launchpadOnce(entry);
+    const launchpad = await launchpadOnce({
+      executable: entry,
+      folder,
+      env: productEnv,
+    });
     same(
       "Launchpad started",
       launchpad.started.scope,
@@ -520,7 +568,7 @@ async function updateFromPrevious(candidate: Candidate) {
     (await installStaged(old)).kind,
     "installed",
   );
-  if (supervised) await waitFor(`Launchpad on ${from}`, 60, launchpadOn(from));
+  if (supervised) await launchpadUp(`Launchpad on ${from}`, from);
   const updated = await json([
     selector,
     "update",
@@ -541,11 +589,7 @@ async function updateFromPrevious(candidate: Candidate) {
     candidate.commit,
   );
   if (supervised)
-    await waitFor(
-      "Launchpad on the candidate",
-      60,
-      launchpadOn(candidate.version),
-    );
+    await launchpadUp("Launchpad on the candidate", candidate.version);
   const again = await json([selector, "update", "--json"]);
   same("the candidate's own update: up to date", again.kind, "up-to-date");
   const status = await json([selector, "update", "status", "--json"]);
@@ -579,10 +623,14 @@ async function probeRefusal(candidate: Candidate) {
     (await installStaged(old)).kind,
     "installed",
   );
+  // The previous release's Launchpad must be up BEFORE the fault: a release
+  // without Recovery mode (0.1.7) exits at start on a pending transaction
+  // and its unit restarts it until it fails, so inducing the fault first
+  // tests that release's start, not the candidate's probe.
+  if (supervised) await launchpadUp(`Launchpad on ${from}`, from);
   const pending = join(folder, ".lazurio", "transaction");
   await mkdir(pending);
   if (supervised) {
-    await waitFor(`Launchpad on ${from}`, 60, launchpadOn(from));
     const pid = await unitProperty("MainPID");
     const refused = await json([candidate.executable, "install", "--json"]);
     same(
@@ -671,7 +719,11 @@ async function recoveryMode(candidate: Candidate) {
       restarts,
     );
   } else {
-    const launchpad = await launchpadOnce(selector);
+    const launchpad = await launchpadOnce({
+      executable: selector,
+      folder,
+      env: productEnv,
+    });
     same("Launchpad started", launchpad.started, {
       scope: "recovery-mode",
       check: "start-refused",
@@ -739,11 +791,7 @@ async function migration(candidate: Candidate) {
       (await readFile(unitFile(unit), "utf8")).includes("OnFailure="),
       true,
     );
-    await waitFor(
-      `Launchpad on ${last}`,
-      60,
-      launchpadOn(versionOfTag(last) as string),
-    );
+    await launchpadUp(`Launchpad on ${last}`, versionOfTag(last) as string);
   }
   const updated = await json([
     selector,
@@ -834,11 +882,15 @@ if (import.meta.main) {
         (await exists(folder)) ||
         (await exists(unitFile(unit)))
       )
-        throw new Error("This Machine already has an installation");
+        throw new JourneyFailure(
+          "installation-present",
+          "This Machine already has an installation",
+        );
       if (supervised) {
         const manager = await systemctl("is-system-running");
         if (manager !== "running" && manager !== "degraded")
-          throw new Error(
+          throw new JourneyFailure(
+            "no-user-manager",
             `No systemd user manager (${manager || "none"}); linger?`,
           );
       }
@@ -848,8 +900,17 @@ if (import.meta.main) {
     }
     console.log(`${name}: ok`);
   } catch (error) {
-    console.error(`${name}: FAILED — ${(error as Error).message}`);
+    console.error(redact(`${name}: FAILED — ${(error as Error).message}`));
     process.exitCode = 1;
+    const detail: FailureDetail =
+      name === "verify"
+        ? "candidate-unverified"
+        : error instanceof JourneyFailure
+          ? error.detail
+          : "internal";
+    if (process.env.LAZURIO_QUALIFY_DETAIL)
+      await writeFile(process.env.LAZURIO_QUALIFY_DETAIL, `${detail}\n`);
+    if (name !== "verify") await diagnostics();
   } finally {
     if (scratch) await rm(scratch, { recursive: true, force: true });
   }
