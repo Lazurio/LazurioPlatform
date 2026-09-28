@@ -130,7 +130,8 @@ rejected: headers are not evidence.
 
 ### Admission, as in production today
 
-A state-changing request is trusted only when `Sec-Fetch-Site` is `same-origin`,
+A state-changing request (every method but `GET` and `HEAD`, and every request under
+`/api/internal/`, which may start an app) is trusted only when `Sec-Fetch-Site` is `same-origin`,
 `Origin` equals the configured external origin, exactly the named cookie is present, and a
 request carrying only that cookie to the configured auth endpoint answers 2xx within 3 s.
 A short positive cache (2 minutes, keyed by the cookie's digest) bounds auth-endpoint load
@@ -139,6 +140,36 @@ navigations and a 401 for fetches and sockets. No forwarded identity header, no 
 cookie, no `Host` is evidence. Admission says "this browser may enter this Machine"; who
 the person is comes from the Lazurio Account; what they may touch in a repository comes
 from GitHub (F11).
+
+### The internal route: the gateway's `ensure`
+
+`GET /api/internal/hosted/modules/<id>/ensure` is the one route the gateway itself
+calls, never a browser: when a browser opens a module's hostname, the gateway asks the
+Launchpad on its loopback port to make the module's default app run and proxies the
+browser only on 204 (Machines `workloads/workspace-vm/ingress.ts:113-159`; contract,
+statuses and tests in [launchpad-development.md](launchpad-development.md#gateway-ensure)).
+Its admission is this one with nothing relaxed:
+
+- **Host.** The entry's Launchpad hostname, as on every route. The gateway keeps the
+  browser's `Host` on the Launchpad route and sends the Launchpad's own `Host` on this
+  subrequest (launchpad-parity F22 point 3, C.2 step 7). A loopback `Host`, which the
+  resident required and today's gateway still sends (`ingress.ts:130`), is refused
+  (`host-mismatch`); there is no loopback exception for `/api/internal/*`, so there is
+  one admission rule, not two.
+- **Same-origin, although it is a `GET`.** The gateway sets `Origin` to the Launchpad's
+  external origin and `Sec-Fetch-Site: same-origin`; the Launchpad requires both, as it
+  does for every state-changing request, because this `GET` may start an app (the
+  resident's rule, `R:launchpad/src/request-trust-lib.mjs:72-83`).
+- **The session cookie**, forwarded alone by the gateway and revalidated here as for
+  any request. No fragment token, no forwarded identity header.
+- **Not reachable from a browser.** The gateway answers 404 for `/api/internal/*` on
+  every public hostname before admission (`ingress.ts:54-57`); a process on the
+  Machine that reaches the loopback port still needs a valid session cookie.
+
+The browser's `Sec-Fetch-Mode` travels with the subrequest and decides only whether a
+stopped app may start (a navigation) or is only reported (a background fetch, a
+WebSocket reconnect); it is a lifecycle hint after admission, never an access decision.
+A Launchpad without a recorded entry has no such route (404).
 
 ### The adapter
 

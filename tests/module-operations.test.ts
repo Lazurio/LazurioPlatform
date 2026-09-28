@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { cp, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
@@ -10,19 +10,17 @@ import { startLaunchpad } from "../src/launchpad/server";
 import { runModuleCommand } from "../src/modules/module-cli";
 import type { ModuleHost } from "../src/modules/module-operations";
 import { createSessionRunner } from "../src/modules/session-runner";
-import {
-  applicationUnitName,
-  createSystemdUserRunner,
-  readApplicationJournal,
-} from "../src/modules/systemd-user-runner";
+import { applicationUnitName } from "../src/modules/systemd-user-runner";
 import type { CliContext } from "../src/update/cli";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 import { bindings, organizationWithEntry } from "./fixtures/machine-bindings";
 import {
-  mkdirOwnedFixture as mkdir,
-  writeOwnedFixture as writeFile,
-} from "./fixtures/owned-files";
+  compilePlatform,
+  linuxHost as moduleHost,
+  runnable,
+} from "./fixtures/module-host";
+import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
 
 // The module lifecycle of the catalog (launchpad-parity B3): `lazurio module
 // start|stop|status|logs` and `/api/modules/<org>/<module>/…` over one core.
@@ -39,24 +37,7 @@ beforeAll(async () => {
   if (!supported) return;
   root = await realpath(await mkdtemp(join(tmpdir(), "module-operations-")));
   binary = join(root, "platform");
-  const build = Bun.spawn(
-    [
-      process.execPath,
-      "build",
-      resolve("src/cli.ts"),
-      "--compile",
-      "--no-compile-autoload-dotenv",
-      "--no-compile-autoload-bunfig",
-      "--outfile",
-      binary,
-    ],
-    { stdout: "ignore", stderr: "pipe" },
-  );
-  const [error, code] = await Promise.all([
-    new Response(build.stderr).text(),
-    build.exited,
-  ]);
-  expect(code, error).toBe(0);
+  await compilePlatform(binary);
 });
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
@@ -72,106 +53,11 @@ function cliContext(home: string): CliContext {
   };
 }
 
-// A module of the fixture Folder made runnable: an exact Bun, a declared
-// start check that passes, a lockfile and a dev script serving the declared
-// port. Returns the declared port.
-async function runnable(folder: string, directory: string, id: string) {
-  const moduleDirectory = join(
-    folder,
-    "organizations",
-    directory,
-    "workspace",
-    id,
-  );
-  const manifest = JSON.parse(
-    await readFile(join(moduleDirectory, "lazurio.module.json"), "utf8"),
-  );
-  const port = manifest.port_leases[0].port as number;
-  const app = join(moduleDirectory, "app");
-  const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
-  pkg.packageManager = `bun@${Bun.version}`;
-  // One local dependency, so the lockfile exists.
-  pkg.dependencies = { "fixture-dependency": "file:./dependency" };
-  await mkdir(join(app, "dependency"));
-  await writeFile(
-    join(app, "dependency/package.json"),
-    JSON.stringify({ name: "fixture-dependency", version: "1.0.0" }),
-  );
-  pkg.scripts = {
-    dev: `"${process.execPath}" --no-env-file server.ts`,
-    check: `"${process.execPath}" --no-env-file check.ts`,
-  };
-  pkg.lazurio.preparation = {
-    schema_version: "lazurio.preparation.v1",
-    owner_package: "app/package.json",
-    check_script: "check",
-  };
-  await writeFile(join(app, "package.json"), JSON.stringify(pkg));
-  await writeFile(join(app, "check.ts"), "process.exit(0);");
-  await writeFile(
-    join(app, "server.ts"),
-    'console.log("synthetic module listening"); Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch: () => new Response("synthetic module") });',
-  );
-  const install = Bun.spawn([process.execPath, "install", "--lockfile-only"], {
-    cwd: app,
-    env: { HOME: join(folder, ".."), PATH: "/usr/bin:/bin" },
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  expect(await install.exited).toBe(0);
-  return port;
-}
-
-// A Linux host over the in-memory user manager: a started unit's main
-// process (pid 4242) listens on the declared port and answers its health.
-async function linuxHost(
+const linuxHost = (
   manager: ReturnType<typeof createFakeServiceManager>,
   home: string,
   port: number,
-): Promise<ModuleHost> {
-  return {
-    platform: "linux",
-    home,
-    path: "/usr/bin:/bin",
-    runtimeDirectory: manager.runtimeDirectory,
-    platformExecutable: binary,
-    bunExecutable: process.execPath,
-    runnerKind: async () => "systemd-user",
-    createRunner: (_kind, organizationDirectory) =>
-      createSystemdUserRunner({
-        organizationDirectory,
-        runtimeDirectory: manager.runtimeDirectory,
-        run: manager.run,
-        controlGroupEmpty: manager.controlGroupEmpty,
-        confirmStopMs: 200,
-        sleep: () => Bun.sleep(1),
-        observeBindings: async () => ({
-          kind: "observed",
-          bindings: [...manager.units.values()].some(
-            (unit) => unit.active === "active",
-          )
-            ? [
-                {
-                  pid: 4242,
-                  group: 4242,
-                  uid: 1000,
-                  fd: 3,
-                  host: "127.0.0.1",
-                  port,
-                },
-              ]
-            : [],
-        }),
-        probeHealth: async () => ({ kind: "responding", status: 200 }),
-        processControlGroup: async (pid) =>
-          pid === 4242
-            ? `${manager.slice}/${[...manager.units.keys()][0]}`
-            : "/user.slice/user-1000.slice/session-3.scope",
-      }),
-    readJournal: (unit, lines) =>
-      readApplicationJournal(manager.run, unit, lines),
-  };
-}
+) => moduleHost(manager, home, port, binary);
 
 // Local Launchpad requests with the fragment token, as the page sends them.
 function client(app: Awaited<ReturnType<typeof startLaunchpad>>) {

@@ -102,7 +102,8 @@ export type HostedTrustOptions = Readonly<{
 }>;
 
 /** The admission of docs/hosted-entry.md: `Host` is the configured origin's
- * host; a state-changing request is same-origin from the configured origin;
+ * host; a state-changing request (any method but GET and HEAD, and every
+ * request under `/api/internal/`) is same-origin from the configured origin;
  * exactly the named cookie, forwarded alone, makes the configured auth
  * endpoint answer 2xx within the timeout. Nothing else is evidence — not a
  * forwarded identity header, not another cookie, not the request's own URL.
@@ -148,9 +149,21 @@ export function createHostedTrust(
   return Object.freeze({
     entry,
     async admit(request: Request): Promise<Admission> {
+      // One Host rule for every route, the gateway's `ensure` included: after
+      // the switch the gateway keeps the browser's Host on the Launchpad
+      // route and sends the Launchpad's own Host on its `ensure` subrequest
+      // (launchpad-parity F22 point 3, B5 variant B). A loopback Host, which
+      // the resident required, is not this entry and is refused.
       if (request.headers.get("host") !== host)
         return { ok: false, reason: "host-mismatch" };
-      if (request.method !== "GET" && request.method !== "HEAD") {
+      // The internal namespace (`/api/internal/*`, the gateway's `ensure`) is
+      // a lifecycle mutation even on GET: it may start an app, so it always
+      // needs the same-origin rule, as in the resident
+      // (`R:launchpad/src/request-trust-lib.mjs:72-83`).
+      if (
+        (request.method !== "GET" && request.method !== "HEAD") ||
+        new URL(request.url).pathname.startsWith("/api/internal/")
+      ) {
         if (
           request.headers.get("sec-fetch-site") !== "same-origin" ||
           request.headers.get("origin") !== entry.externalOrigin
