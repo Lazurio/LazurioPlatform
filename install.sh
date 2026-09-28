@@ -1,8 +1,8 @@
 #!/bin/sh
 # Lazurio in one command (docs/update.md "First installation"):
 #
-#   curl -fsSL https://lazurio.ai/install | sh
-#   curl -fsSL https://lazurio.ai/install | sh -s -- --service systemd-user --folder /absolute/Folder
+#   curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh
+#   curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh -s -- --service systemd-user --folder /absolute/Folder
 #   LAZURIO_VERSION=v1.2.3-rc.1 sh install.sh     # one exact tag instead of the latest release
 #
 # Installs the Lazurio Platform (the `lazurio` CLI and the Launchpad, one

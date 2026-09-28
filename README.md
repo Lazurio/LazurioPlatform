@@ -3,14 +3,14 @@
 **Install Lazurio with one command** (Linux x64 and arm64, macOS on Apple silicon):
 
 ```sh
-curl -fsSL https://lazurio.ai/install | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh
 ```
 
 `lazurio.ai/install` serves this once the website route is deployed. Until then, and
 until a release carries `install.sh` as an asset, use the script of this repository:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/Lazurio/LazurioPlatform/main/install.sh | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/Lazurio/LazurioPlatform/main/install.sh | sh
 ```
 
 It installs the `lazurio` CLI and the Launchpad (one program) for your user, without
