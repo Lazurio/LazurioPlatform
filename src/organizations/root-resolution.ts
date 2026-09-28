@@ -24,20 +24,33 @@ export const organizationRootStates = Object.freeze([
 ] as const);
 export type OrganizationRootState = (typeof organizationRootStates)[number];
 
-// Execution admission policy, one home. Only parity-valid `transition` executes
-// in this interim. `legacy` (only the deprecated projection) never executes
-// here. `current` (canonical file alone) stays diagnostically readable but is
-// not executable: the root contract (decision 0145, manual
-// lazurio-manifest-family "Compatibility states") lets the projection disappear
-// only after `lazurio migrate organization-manifest --finalize` has gated every
-// mutation-capable reader, and a valid digest proves the projection's content,
-// not that finalization happened. `current` becomes executable only once the
-// pinned Core envelope carries an explicit, verified finalization admission
-// signal. Drift, conflict and missing refuse.
+// Execution admission policy, the rule in ONE place. Which resolved states may
+// run applications is the open question H1 of the Launchpad parity shaping
+// (proposed decision F22 point 1), pending the Principal's answer:
+// - "transition-only" (variant A, decision F12 as accepted): only parity-valid
+//   `transition` executes; a canonical-only `current` root stays readable until
+//   upstream defines a live-verifiable identity continuity proof.
+// - "transition-and-current" (variant B, recommended): `current` executes too.
+//   The checkout exists because GitHub allowed the clone, and the projection
+//   gate was migration machinery.
+// `legacy` (only the deprecated projection), `projection_drift`, `conflict` and
+// `missing` never execute under either variant. Flipping the variant is this
+// one constant; every consumer asks `isExecutableOrganizationState`.
+export const executionAdmissionVariants = Object.freeze({
+  "transition-only": Object.freeze(["transition"] as const),
+  "transition-and-current": Object.freeze(["transition", "current"] as const),
+});
+export type ExecutionAdmissionVariant = keyof typeof executionAdmissionVariants;
+export const executionAdmission: ExecutionAdmissionVariant =
+  "transition-and-current";
+
 export function isExecutableOrganizationState(
   state: OrganizationRootState,
+  variant: ExecutionAdmissionVariant = executionAdmission,
 ): boolean {
-  return state === "transition";
+  return (
+    executionAdmissionVariants[variant] as readonly OrganizationRootState[]
+  ).includes(state);
 }
 
 type Data = Readonly<Record<string, unknown>>;
