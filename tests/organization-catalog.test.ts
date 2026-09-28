@@ -515,6 +515,34 @@ posixTest(
           join(folder, "missing"),
         ]),
       ).toMatchObject({ code: 1, result: { reason: "folder-unreadable" } });
+      // The product entry point prints the same and exits with the code.
+      const cli = async (args: string[]) => {
+        const child = Bun.spawn(
+          [process.execPath, join(import.meta.dir, "../src/cli.ts"), ...args],
+          {
+            env: { HOME: home, PATH: join(home, "bin") },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        const [code, stdout, stderr] = await Promise.all([
+          child.exited,
+          new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
+        ]);
+        return { code, stdout, stderr };
+      };
+      expect(
+        await cli(["organization", "list", "--folder", folder, "--json"]),
+      ).toEqual({ code: 0, stdout: `${organizations.text}\n`, stderr: "" });
+      expect(
+        await cli(["module", "list", "nobody", "--folder", folder]),
+      ).toMatchObject({
+        code: 2,
+      });
+      const usage = await cli(["organization", "show"]);
+      expect(usage.code).toBe(2);
+      expect(usage.stderr).toContain("organization list [--folder");
       for (const args of [
         ["organization"],
         ["organization", "list", "alpha"],
