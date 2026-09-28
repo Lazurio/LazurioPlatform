@@ -12,13 +12,13 @@ import {
   swapSelector,
   versionFloor,
 } from "./layout";
-import { removeRollbackLeftovers } from "./migrations/remove-rollback";
 import {
   bundleFile,
   manifestFile,
   maxBundleBytes,
   maxManifestBytes,
 } from "./manifest";
+import { removeRollbackLeftovers } from "./migrations/remove-rollback";
 import {
   ensurePathEntry,
   entryDirectory,
