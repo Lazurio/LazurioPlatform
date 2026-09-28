@@ -9,14 +9,14 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored byte-for-byte in `src/machine/lazurio-machine.v1.schema.json`
-from Machines **0.12.93**: the head of Machines pull request #243 (commit
-`63826c8e6fcbf39f72947fc5c7c34ae9af104589`, SHA-256
+from Machines **v0.12.93** (tag commit `ab84f387f517dd6bd06b2af2939a9a746a02533b`,
+the merge of pull request #243; SHA-256
 `1ccce08bd774aea62367085b13bb4afcc8c443f07a4b645f0ae7ebcd16aaf09d`), which adds the
 optional `entry` to the v0.12.61 schema and changes nothing else; its
 `origin_template` description says the reader substitutes the gateway label of a
-module id, never the id itself. The version is not tagged yet (`source_tag: null`);
-the final pin to tag `v0.12.93` follows after #243 merges, and a digest other than
-this one is a new re-pin, not a tag update. Adjacent
+module id, never the id itself. The bytes at the tag equal the bytes of the PR head
+`63826c8` the pin was first taken from; a digest other than this one is a new
+re-pin, not a tag update. Adjacent
 `schema-provenance.json` records the source version, pull request, commit, tag and
 byte digest, and a test fails when the vendored bytes drift from it. Changes
 originate in Machines, then the consumer is re-pinned and conformance tested. No runtime dependency on a private checkout. The test
