@@ -96,7 +96,9 @@ Inside that group, immediately before publishing, it lists the published final
 releases and refuses a final version that is not greater than every one of them;
 the draft is then deleted and nothing is published. Only after that check does it
 publish, with `latest` set explicitly for a final version and never for a
-prerelease. Two tags pushed together therefore publish one after the other, and
+prerelease. Before anything is built, a final tag is refused unless its release
+candidate passed the qualification journeys and the canary stage
+([qualification and the canary](release-cycle.md#qualification-and-the-canary)). Two tags pushed together therefore publish one after the other, and
 the lower one fails closed. Every action is pinned by commit. The file name
 `release.yml` is permanent: it is the trust entry point of every installed
 client.
