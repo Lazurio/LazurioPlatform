@@ -36,6 +36,7 @@ function canonicalDocument(
   slug: string,
   kind: "organization" | "template",
   teams: { slug: string; display_name: string }[],
+  locator = slug,
 ) {
   return {
     schema_version: "lazurio.organization.v1",
@@ -46,7 +47,7 @@ function canonicalDocument(
       metadata: {},
       forge_binding: {
         forge: "github",
-        locator: slug,
+        locator,
         binding_state: "unverified",
       },
     },
@@ -75,13 +76,15 @@ async function writeOrganization(
     kind?: "organization" | "template";
     teams?: { slug: string; display_name: string }[];
     modules: ModuleFixture[];
+    // The GitHub login, when the slug is not one.
+    forge?: string;
   },
 ) {
   const root = join(folder, "organizations", directory);
   await mkdir(root, { recursive: true });
   const inventory = {
     company: options.slug,
-    github_org: options.slug,
+    github_org: options.forge ?? options.slug,
     module_slots: options.modules.map((module) => {
       const slot: Slot = { path: `workspace/${module.id}`, slug: module.id };
       if (module.teams !== undefined) slot.teams = module.teams;
@@ -92,6 +95,7 @@ async function writeOrganization(
     options.slug,
     options.kind ?? "organization",
     options.teams ?? [],
+    options.forge,
   );
   const expected = expectedLegacyProjection(document, inventory);
   document.compatibility.legacy_projection.sha256 = expected.hash;
@@ -553,6 +557,57 @@ posixTest(
         ["organization", "list", "--other"],
       ])
         await expect(run(args)).rejects.toThrow("Usage");
+    });
+  },
+  30_000,
+);
+
+posixTest(
+  "the terminal columns show a slug or directory name with control characters as visible escapes",
+  async () => {
+    await folderFixture(async (folder) => {
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      // A slug written by an Organization repository's members and a
+      // directory name under organizations/: neither may drive the terminal.
+      await writeOrganization(folder, "evil", {
+        slug: "evil\u001b[8m",
+        forge: "evil",
+        state: "transition",
+        modules: [{ id: "web" }],
+      });
+      const forged =
+        "zz\n\u001b[2K\rforged-org  transition  1 module  executable";
+      await mkdir(join(folder, "organizations", forged));
+      const run = (args: string[]) =>
+        runCatalogCommand([...args, "--folder", folder], cliContext(home));
+      const control = /(?!\n)\p{Cc}/u;
+
+      const organizations = (await run(["organization", "list"])).text;
+      expect(organizations).not.toMatch(control);
+      const rows = organizations.split("\n");
+      expect(rows).toHaveLength(6);
+      expect(rows.find((row) => row.startsWith("evil"))).toStartWith(
+        "evil\\u{1b}[8m  ",
+      );
+      expect(rows.at(-1)).toStartWith(
+        "zz\\u{a}\\u{1b}[2K\\u{d}forged-org  transition  1 module  executable  ",
+      );
+      expect(rows.at(-1)).not.toEndWith("executable");
+
+      const modules = (await run(["module", "list"])).text;
+      expect(modules).not.toMatch(control);
+      expect(modules).toContain("evil\\u{1b}[8m/web  ");
+      const named = (await run(["module", "list", forged])).text;
+      expect(named).not.toMatch(control);
+      expect(named).toStartWith("zz\\u{a}\\u{1b}[2K\\u{d}forged-org");
+      // JSON keeps the exact text; JSON.stringify escapes it by itself.
+      expect(
+        JSON.parse((await run(["organization", "list", "--json"])).text)
+          .organizations,
+      ).toContainEqual(
+        expect.objectContaining({ organization: "evil\u001b[8m" }),
+      );
     });
   },
   30_000,

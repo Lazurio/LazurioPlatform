@@ -42,8 +42,23 @@ export type CatalogCommandOutput = Readonly<{
 const usage =
   "Usage: organization list [--folder <Folder>] [--json] | module list [<Organization>] [--folder <Folder>] [--json]";
 
+/** A name as the terminal shows it. A slug is written by an Organization
+ * repository's members and a directory name by anyone who can create one;
+ * control, line and bidirectional formatting characters are printed as a
+ * visible `\u{…}` escape (and a backslash doubled), so no name can move the
+ * cursor, hide a column or forge a row. JSON output escapes by itself. */
+const shown = (text: string) =>
+  text.replace(
+    /[\\\p{Cc}\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/gu,
+    (character) =>
+      character === "\\"
+        ? "\\\\"
+        : `\\u{${character.codePointAt(0)?.toString(16)}}`,
+  );
+
 /** Columns aligned to the widest cell, like `lazurio tools list`. */
-function columns(rows: readonly (readonly string[])[]): string[] {
+function columns(input: readonly (readonly string[])[]): string[] {
+  const rows = input.map((row) => row.map(shown));
   const widths = rows.reduce<number[]>(
     (width, row) =>
       row.map((cell, index) => Math.max(width[index] ?? 0, cell.length)),
@@ -161,7 +176,7 @@ export async function runCatalogCommand(
     return done(
       2,
       { kind: "blocked", reason: "organization-unknown", organization: name },
-      `No Organization ${name} in this Folder (or its slug is ambiguous); see lazurio organization list.`,
+      `No Organization ${shown(name)} in this Folder (or its slug is ambiguous); see lazurio organization list.`,
     );
   const modules = catalogModules(catalog, organization);
   return done(
@@ -179,7 +194,7 @@ export async function runCatalogCommand(
       modules,
     },
     organization?.reason !== undefined && organization.modules.length === 0
-      ? `${organization.organization ?? organization.directory}: ${organization.reason}`
+      ? `${shown(organization.organization ?? organization.directory)}: ${organization.reason}`
       : moduleLines(modules),
   );
 }
