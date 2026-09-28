@@ -108,10 +108,21 @@ test("a line is exactly the schema", () => {
     { ...valid, durationMs: 1.5 },
     { ...valid, tag: "v1.2.0" },
     { ...valid, runner: "Runner With Spaces" },
+    // A detail belongs to a failed line and is one of the enumerated ids.
+    { ...valid, detail: "exit" },
+    { ...valid, outcome: "failed", detail: "the unit said something" },
   ])
     expect(() => parseLine(JSON.stringify(invalid))).toThrow(
       "Not a lazurio.qualification.v1 line",
     );
+  const failed = { ...valid, outcome: "failed", detail: "not-healthy" };
+  expect(parseLine(JSON.stringify(failed))).toEqual(
+    failed as QualificationLine,
+  );
+  // Lines written before the detail existed stay readable.
+  expect(
+    parseLine(JSON.stringify({ ...valid, outcome: "failed" })).detail,
+  ).toBe(undefined);
   const { proof: _, ...missing } = valid;
   expect(() => parseLine(JSON.stringify(missing))).toThrow();
 });
@@ -152,12 +163,35 @@ test("the CLI: run records the command's outcome and exits with it; check reads 
     ).exitCode;
   expect(run("J1", ["true"])).toBe(0);
   expect(run("J2", ["false"])).toBe(1);
+  // A journey names why it failed through the file the wrapper gives it.
+  expect(
+    run("J3", [
+      "sh",
+      "-c",
+      'echo launchpad-not-up > "$LAZURIO_QUALIFY_DETAIL"; exit 1',
+    ]),
+  ).toBe(1);
+  // Anything outside the enumeration is recorded as a plain exit.
+  expect(
+    run("J4", [
+      "sh",
+      "-c",
+      'echo "a free text" > "$LAZURIO_QUALIFY_DETAIL"; exit 1',
+    ]),
+  ).toBe(1);
   const lines = parseEvidence(await readFile(out, "utf8"));
   expect(
-    lines.map(({ journey, outcome, sha256 }) => [journey, outcome, sha256]),
+    lines.map(({ journey, outcome, sha256, detail }) => [
+      journey,
+      outcome,
+      sha256,
+      detail,
+    ]),
   ).toEqual([
-    ["J1", "ok", sha256Hex(bytes["linux-x64"])],
-    ["J2", "failed", sha256Hex(bytes["linux-x64"])],
+    ["J1", "ok", sha256Hex(bytes["linux-x64"]), undefined],
+    ["J2", "failed", sha256Hex(bytes["linux-x64"]), "exit"],
+    ["J3", "failed", sha256Hex(bytes["linux-x64"]), "launchpad-not-up"],
+    ["J4", "failed", sha256Hex(bytes["linux-x64"]), "exit"],
   ]);
   const check = Bun.spawnSync(
     [
@@ -172,7 +206,10 @@ test("the CLI: run records the command's outcome and exits with it; check reads 
     { stdout: "pipe", stderr: "pipe" },
   );
   expect(check.exitCode).toBe(1);
-  expect(check.stderr.toString()).toContain("linux-x64 J2: failed");
+  expect(check.stderr.toString()).toContain("linux-x64 J2: failed (exit)");
+  expect(check.stderr.toString()).toContain(
+    "linux-x64 J3: failed (launchpad-not-up)",
+  );
   const full = join(directory, "full.jsonl");
   await writeFile(full, jsonl(everyLine()));
   const passed = Bun.spawnSync(

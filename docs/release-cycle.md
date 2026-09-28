@@ -181,6 +181,12 @@ never a fixture origin:
 | J5 | A layout with rollback (`v0.1.6` updated offline to `v0.1.7`: `previous`, and with the service the rollback unit and `OnFailure=`) updated to the candidate by the last updater with rollback; the candidate's first command removes all of it | unit rewritten, rollback unit gone | `previous` gone | executable |
 | J6 | A kill after every activation step converges forward (`tests/update-kill.test.ts`) | yes | yes | source |
 
+In J3 on Ubuntu the previous release's supervised Launchpad must be up before the
+Folder transaction is induced: a release without Recovery mode (`v0.1.7`) exits at
+start on a pending transaction, so a fault induced first tests that release's start,
+not the candidate's probe (the first qualification, of `v0.1.8-rc.2`, failed exactly
+so).
+
 J6 needs a hook inside the activation that no release executable has, so it runs the
 candidate's own suite at the verified commit. A real reboot stays in the manual VM
 qualification (`scripts/qualify-update-linux.sh`): a runner cannot reboot and
@@ -208,7 +214,14 @@ manager's own runtime state stays under `/run/user/<uid>`.
 Every journey writes one line of `lazurio.qualification.v1`
 (`scripts/qualify/evidence.ts`): `tag`, `commit` (the candidate's source), `target`,
 `runner`, `journey`, `proof` (`executable` or `source`), `outcome` (`ok` or `failed`),
-`durationMs` and `sha256` of the executable that ran. The `evidence` job joins the
+`durationMs` and `sha256` of the executable that ran; a failed line also carries
+`detail`, one enumerated id of why (`assertion`, `command-failed`, `no-json`,
+`launchpad-not-up`, `not-healthy`, `wait-timeout`, `no-user-manager`,
+`installation-present`, `candidate-unverified`, `internal`, or `exit` when the
+journey named none). On a failure the job log also carries the diagnostics: the
+unit's status, its last 80 journal lines, `ActiveState`, `SubState`, `Result`,
+`NRestarts` and `ExecMainStatus`, the unit files, the install base and `lazurio
+update status --json` of the installed product. The `evidence` job joins the
 lines into the artifact `qualification-<tag>` (kept 90 days, also when a journey
 failed) and fails unless every journey is `ok` exactly once on every target, for
 exactly the bytes and the commit of the candidate's published manifest.
