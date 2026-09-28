@@ -3,7 +3,7 @@
 **Install Lazurio with one command** (Linux x64 and arm64, macOS on Apple silicon):
 
 ```sh
-curl -fsSL https://lazurio.ai/install | sh
+curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh
 ```
 
 `lazurio.ai/install` serves this once the website route is deployed. Until then, and
