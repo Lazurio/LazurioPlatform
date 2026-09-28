@@ -63,7 +63,8 @@ Application panel stays on the home needs the Principal's amendment. Settings fo
 the settings UX of T3 Code, as the Principal asked, in plain CSS inside
 `src/launchpad/index.html` and without a framework or a new dependency.
 
-**Routes.** `/settings/general`, `/settings/machine` and `/settings/tools`; `/settings`
+**Routes.** `/settings/general`, `/settings/machine`, `/settings/tools` and
+`/settings/recovery` (the read-only [Recovery page](recovery.md#the-recovery-page)); `/settings`
 and an unknown section open General and the address bar is rewritten to the canonical
 path. The paths live in `src/launchpad/routes.ts` (pure, tested in
 `tests/launchpad-routes.test.ts`); the server serves the same bundled page under
