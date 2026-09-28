@@ -119,6 +119,13 @@ export function organizationWithEntry(listenPort = 20000) {
     entry: handoverEntry("workspace.example.lazurio.io", listenPort),
   });
 }
+// A personal VM of `example` with its entry on `port`.
+export function personalWithEntry(listenPort = 20000) {
+  return binding({
+    ...personal,
+    entry: handoverEntry("example.lazurio.io", listenPort),
+  });
+}
 export const bindings = Object.freeze({
   personal: binding(personal),
   // v0.12.59 shapes: a Team without assignment, and no Team at all.

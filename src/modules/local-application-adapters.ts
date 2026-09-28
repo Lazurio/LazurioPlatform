@@ -30,6 +30,13 @@ export function localApplicationAdapters(input: {
   // Required with a runner whose applications outlive this owner: application
   // operations are then coordinated by a lock that dies with its holder.
   coordination?: ReturnType<typeof createApplicationCoordination>;
+  // The admission of a selection under `organizationDirectory`: an
+  // Organization root's by default, a Personalspace owner directory's with
+  // `resolvePersonalspaceApplication` (launchpad-parity B11).
+  resolveApplication?: (
+    directory: string,
+    selection: unknown,
+  ) => Promise<Readonly<{ moduleDirectory: string }>>;
 }): Adapters {
   const selected = parseProcessLaunch({
     executable: input.bunExecutable,
@@ -49,8 +56,10 @@ export function localApplicationAdapters(input: {
   // every state it does not admit (drift, conflict, legacy-only, and `current`
   // under the transition-only variant), a template or an unresolvable root throw
   // here, before the owner lock, preparation, script start or any write.
+  const resolveApplication =
+    input.resolveApplication ?? resolveOrganizationApplication;
   const authorize: Adapters["authorize"] = (selection) =>
-    resolveOrganizationApplication(selected.cwd, selection);
+    resolveApplication(selected.cwd, selection);
   const preflight =
     (
       check: boolean,

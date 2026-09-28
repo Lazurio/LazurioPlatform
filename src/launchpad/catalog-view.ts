@@ -5,6 +5,7 @@ import type {
   CatalogTeam,
   ModuleReason,
   OrganizationReason,
+  PersonalspaceReason,
 } from "../organizations/catalog";
 import {
   catalogOrganizationKey,
@@ -20,7 +21,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // server is shown as text, never as markup.
 
 const reasonKeys: Readonly<
-  Record<OrganizationReason | ModuleReason, MessageKey>
+  Record<OrganizationReason | PersonalspaceReason | ModuleReason, MessageKey>
 > = {
   "canonical-documents-required": "catalogReasonCanonical",
   "organization-conflict": "catalogReasonConflict",
@@ -29,6 +30,8 @@ const reasonKeys: Readonly<
   "organization-changed": "catalogReasonChanged",
   "organization-unavailable": "catalogReasonUnavailable",
   "organization-duplicate": "catalogReasonDuplicate",
+  "personalspace-ambiguous": "catalogReasonPersonalspaceAmbiguous",
+  "personalspace-unavailable": "catalogReasonPersonalspaceUnavailable",
   "declaration-conflict": "catalogReasonDeclaration",
   "module-unavailable": "catalogReasonModuleUnavailable",
   "explicit-apps-required": "catalogReasonExplicitApps",
@@ -219,7 +222,7 @@ function isModule(value: unknown): value is CatalogModule {
         text((app as Record<string, unknown>).kind),
     ) &&
     orNull(entry.defaultApp) &&
-    text(entry.state) &&
+    orNull(entry.state) &&
     typeof entry.executable === "boolean" &&
     (entry.reason === undefined || text(entry.reason))
   );
@@ -254,7 +257,8 @@ export function parseCatalog(input: unknown): Catalog | null {
   const value = input as Record<string, unknown>;
   return value.kind === "catalog" &&
     Array.isArray(value.organizations) &&
-    value.organizations.every(isOrganization)
+    value.organizations.every(isOrganization) &&
+    (value.personalspace === undefined || isOrganization(value.personalspace))
     ? (value as Catalog)
     : null;
 }

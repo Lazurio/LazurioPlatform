@@ -36,7 +36,10 @@ import { exitBroken } from "../src/recover/cli";
 import type { ToolRunner } from "../src/tools/status";
 import { performInstall } from "../src/update/install";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
-import { writeOrganization } from "./fixtures/catalog-folder";
+import {
+  writeOrganization,
+  writePersonalspaceModule,
+} from "./fixtures/catalog-folder";
 import { handoverEntry } from "./fixtures/machine-bindings";
 import organizationContext from "./fixtures/machine-context.json";
 import { commitOf, executable, target } from "./fixtures/update-world";
@@ -490,6 +493,32 @@ test("a module that is not executable needs attention with its typed reason", as
   });
   expect(result.stdout).not.toContain("Acme");
   expect(result.human).not.toContain("Acme");
+  expectTierOne(result.stdout, world);
+  expectSameAnswer(result.human, result.json);
+});
+
+test("the Personalspace's modules are never named or counted (launchpad-parity B11)", async () => {
+  const world = await createWorld();
+  await writeOrganization(world.folder, "alpha", {
+    slug: "alpha",
+    state: "current",
+    modules: [{ id: "web" }],
+  });
+  for (const id of ["privatenotes", "privatediary"])
+    await writePersonalspaceModule(
+      world.folder,
+      "privateowner_GEN3",
+      "privatelogin",
+      { id, broken: id === "privatediary" },
+    );
+  const result = await doctor(world);
+  expect(find(result.json, "catalog")?.context).toEqual({
+    organizations: 1,
+    modules: 1,
+  });
+  for (const text of [result.stdout, result.human])
+    for (const name of ["private", "personalspace"])
+      expect(text).not.toContain(name);
   expectTierOne(result.stdout, world);
   expectSameAnswer(result.human, result.json);
 });

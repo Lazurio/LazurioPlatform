@@ -23,7 +23,9 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   module's own declaration, unless it already runs. The Organization is named
   as in module list: its slug, or its directory name; a slug that two
   directories declare is refused (organization-ambiguous), and a module that
-  cannot run is refused with its catalog reason. On Linux with a user service
+  cannot run is refused with its catalog reason. On a Folder with a
+  Personalspace (a workstation, a personal VM) its modules are named
+  personalspace/<module>. On Linux with a user service
   manager the app is a transient systemd user service: it keeps running when
   the Launchpad restarts, ends with a reboot, and its output goes to the
   journal. Elsewhere apps are children of the Launchpad session and are
@@ -60,6 +62,8 @@ const explanations: Readonly<Record<string, string>> = {
   "organization-ambiguous":
     "More than one Organization directory declares this slug; none of them runs. Name one by its directory.",
   "module-unknown": "No such module; see lazurio module list <Organization>.",
+  "personalspace-unavailable":
+    "The Personalspace cannot be read: personalspace/ must hold exactly one directory, owned by you and not writable by others.",
   "app-unknown": "Not a declared app of this module; see lazurio module list.",
   "app-not-runnable": "This app's runtime declaration is missing or invalid.",
   "launchpad-required":

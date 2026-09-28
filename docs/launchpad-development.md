@@ -185,6 +185,43 @@ workstation without a unit names it. Human output is aligned columns as in
 `organization list --json`), behind the same admission as every other route: the
 fragment token locally, the gateway's cookie hosted.
 
+**The Personalspace group (P13, launchpad-parity B11).** On a preset that has a
+Personalspace (`local`, `hosted-personal`: `personalspace: "present"` in
+`src/folder/presets.ts`) the catalog carries one more group, `personalspace`, with the
+modules in `<Folder>/personalspace/<owner>/workspace/<module>/`, the glob the
+Machines gateway serves (`M:workloads/workspace-vm/gateway-catalog.py:106-107`, where
+the module id is the manifest's `id`, `:139-148`). An Organization preset never reads
+`personalspace/`; nor does a Folder whose state cannot be read (fail closed). The
+preset is read from `preferences.json` without the Folder lock, as `observeFolder`
+reads it: its Personalspace policy never changes for a Folder, because each Machine
+kind allows only presets of one policy. There is no Organization manifest and no new
+state: a directory in `workspace/` named like a module id that holds a
+`lazurio.module.json` is a module, its declared `id` must be its directory name, and
+it is read by the same module reader as an Organization slot
+(`observeModuleDirectory` in `src/organizations/read-applications.ts`), with the same
+module reasons. Executable means the module's own declaration admits a start of its
+default app; there are no Teams (`teams: []`, `teamsSource: "none"`), no root state
+(`state: null`) and no company check against an identity, since nothing but the
+module declares one. The group has the shape of an Organization named
+`personalspace` (`directory`, `organization` and the modules' `organization` are that
+literal; the owner's directory name is never in any output) and sits in the catalog's
+own `personalspace` field, not in `organizations`, so no reader of Organizations (the
+Doctor's checks, the table of `organization list`) lists it by accident; `module
+list`, the selection rule (`catalogGroups` in `catalog-selection.ts`) and the page add
+it after the Organizations. Exactly one owner directory is expected (hidden entries
+are skipped): with two or more, which one is the Principal's is not guessed, none is
+read, and the group is listed with `personalspace-ambiguous` and no modules (decision
+0091); an owner directory or `workspace/` that is not the operator's own is
+`personalspace-unavailable`. An Organization whose slug is `personalspace` is
+ambiguous with the group under the selection rule. The resident addressed these apps
+as `<owner login>/<module>` (its `company` was the owner,
+`R:lazurio/runtime/personalspace-lib.mjs:1126`, selected by
+`R:lazurio/core/module-lifecycle-client-lib.mjs:297,385`) and its CLI refused them on a
+personal server (`:76`); the Platform names them `personalspace/<module>` instead, so
+no output carries the login. The company a module declares is still part of its
+transient unit's readable name (`applicationUnitName`), as it was in the resident's
+inventory.
+
 **Routes.** `/` is every Organization's modules with their default app; `/o/<org>` one
 Organization (directory, resolution state, Teams, issues, then its modules per Team);
 `/o/<org>/<module>` one module (Organization, Teams, apps with the default marked,
@@ -370,7 +407,7 @@ characters escaped), Czech or English by the Folder's locale.
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
 | tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `signIn`/`ssh` ids with `--sign-in` |
-| organizations | `catalog` | `readFolderCatalog` | counts; `warn catalog-unreadable` |
+| organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
 | organizations | `module` | catalog entry | `warn` with the module or Organization reason |
 | launchpad | `launchpad-unit` | `collectRecovery` unit (Linux, supervised) | `fail unit-*`; `skipped no-user-manager`, `not-supervised` |
@@ -435,8 +472,9 @@ loopback port gains nothing without the session cookie, and the browser never re
 the namespace because the gateway answers 404 for it on every public hostname
 (`ingress.ts:54-57`). No fragment token, no forwarded identity header.
 
-**Which app.** The id must name a module of exactly one Organization of the catalog;
-every Organization that lists it counts, runnable or not, because the gateway serves the
+**Which app.** The id must name a module of exactly one Organization of the catalog,
+the Personalspace group counting as one (`personalspace` in `candidates`);
+every group that lists it counts, runnable or not, because the gateway serves the
 id at one hostname and routes it to one of their declared ports. Two or more:
 `module-ambiguous` with every candidate's directory (the fix is `{organization}` in
 Machines' origin template, launchpad-parity B4). Then the catalog's own rules, as for
