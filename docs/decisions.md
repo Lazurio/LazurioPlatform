@@ -1006,7 +1006,7 @@ tools of 0161 point 2, with the one difference that a rollout may raise it to th
 install`, the first installation and the offline update alike, links it to the install
 base's selector `<base>/bin/lazurio` by one atomic rename, creating `~/.local/bin`
 (`0755`) when it is missing. An entry that already points to the selector is left
-alone; a dangling link or a link into another Lazurio install base is replaced; a
+alone; a link to the selector of a Lazurio install base (another base, or one that is gone) is replaced; a dangling link of any other shape is someone else's and stays; when `~/.local` or `~/.local/bin` is itself a link or not a directory, nothing is written through it (`conflict`, `parent`); a
 regular file, a directory or a link to anything else is **never** overwritten — the
 installation still succeeds and its result (`entry.state: "conflict"`, human and JSON)
 names what is there and what the operator or an agent should do. Shell profiles are

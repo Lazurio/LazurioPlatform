@@ -147,8 +147,7 @@ older line is a new installation.
 alike, links the standard entry `~/.local/bin/lazurio` (root decision 0161 point 6)
 to the selector `<base>/bin/lazurio` by one atomic rename, and creates
 `~/.local/bin` (`0755`) when it is missing. An entry already pointing to the selector
-is left alone; a dangling link or a link into another Lazurio install base is
-replaced; a regular file, a directory or a link to anything else is never
+is left alone; a link to the selector of a Lazurio install base (another base, or one that is gone) is replaced; a dangling link of any other shape is someone else's and stays; when `~/.local` or `~/.local/bin` is itself a link or not a directory, nothing is written through it (`conflict`, `parent`); a regular file, a directory or a link to anything else is never
 overwritten. The result's `entry` says which (`created`, `present`, `replaced`,
 `conflict`, `failed`), whether `~/.local/bin` is on the process PATH, which other
 `lazurio` resolves first on it (`shadowedBy`, changed in no way) and, in `next`, what

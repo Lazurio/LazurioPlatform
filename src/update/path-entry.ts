@@ -29,14 +29,17 @@ export type PathEntry = Readonly<{
   /** The selector it points to: `<base>/bin/lazurio`. */
   target: string;
   /** `present`: it already pointed to the selector and was left alone.
-   * `replaced`: a dangling link or a link into another Lazurio install base.
+   * `replaced`: a link to the selector of a Lazurio install base, another one
+   * or one that is gone.
    * `conflict`: something that is not Lazurio's; left unchanged.
    * `failed`: the directory or the link could not be written. */
   state: "created" | "present" | "replaced" | "conflict" | "failed";
   /** `conflict` only: what occupies the entry. */
   occupant: Readonly<{
-    kind: "file" | "link" | "other";
-    /** A link's literal target. */
+    /** `parent`: `~/.local` or `~/.local/bin` is itself not a plain
+     * directory, so the entry would land somewhere else. */
+    kind: "file" | "link" | "other" | "parent";
+    /** A link's literal target; for `parent` the path of that component. */
     target?: string;
   }> | null;
   /** `~/.local/bin` is a directory of this process's PATH. */
@@ -61,7 +64,9 @@ const absent = (error: unknown) =>
 
 /** Whether an existing link at the entry belongs to Lazurio: it points to
  * `<directory>/bin/lazurio` and that is an install base's selector, or it
- * points to nothing at all.
+ * has that shape under a directory named as an install base is and the base
+ * is gone. Any other link is someone else's, working or dangling: a dangling
+ * link may point to a volume that is not mounted right now.
  */
 async function classifyLink(
   entry: string,
@@ -70,31 +75,42 @@ async function classifyLink(
   const literal = await readlink(entry);
   const pointed = resolve(dirname(entry), literal);
   if (pointed === selector) return "present";
+  if (
+    basename(pointed) !== executableName ||
+    basename(dirname(pointed)) !== "bin"
+  )
+    return "foreign";
+  const base = dirname(dirname(pointed));
+  let dangling = false;
   try {
     await stat(entry);
   } catch (error) {
-    // Dangling: it runs nothing, so nothing is taken from anyone.
-    if (absent(error)) return "replace";
-    throw error;
+    if (!absent(error)) throw error;
+    dangling = true;
   }
-  if (
-    basename(pointed) === executableName &&
-    basename(dirname(pointed)) === "bin" &&
-    (await readSelector(dirname(dirname(pointed)))) !== null
-  )
-    return "replace";
-  return "foreign";
+  if (dangling)
+    return basename(base).toLowerCase() === executableName
+      ? "replace"
+      : "foreign";
+  return (await readSelector(base)) !== null ? "replace" : "foreign";
 }
 
 /** Create a missing directory with 0755, whatever the umask; an existing one
- * is the user's and is never re-moded. */
-async function ensureDirectory(directory: string) {
+ * is the user's and is never re-moded. False when the component exists and
+ * is not a plain directory (a link, a file): nothing is written through it. */
+async function ensureDirectory(directory: string): Promise<boolean> {
+  try {
+    return (await lstat(directory)).isDirectory();
+  } catch (error) {
+    if (!absent(error)) throw error;
+  }
   try {
     await mkdir(directory, { mode: 0o755 });
     await chmod(directory, 0o755);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
+  return (await lstat(directory)).isDirectory();
 }
 
 /** One atomic rename puts the link in place: a reader sees the old entry or
@@ -144,14 +160,22 @@ export async function ensurePathEntry(
   let occupant: PathEntry["occupant"] = null;
   try {
     let found: Awaited<ReturnType<typeof lstat>> | null = null;
-    try {
-      found = await lstat(path);
-    } catch (error) {
-      if (!absent(error)) throw error;
-    }
-    if (found === null) {
-      await ensureDirectory(join(home, ".local"));
-      await ensureDirectory(directory);
+    // Each component of the standard path is looked at itself, never
+    // through a link: the entry is written only into the real ~/.local/bin.
+    let parent: string | null = null;
+    for (const component of [join(home, ".local"), directory])
+      if (parent === null && !(await ensureDirectory(component)))
+        parent = component;
+    if (parent === null)
+      try {
+        found = await lstat(path);
+      } catch (error) {
+        if (!absent(error)) throw error;
+      }
+    if (parent !== null) {
+      state = "conflict";
+      occupant = Object.freeze({ kind: "parent" as const, target: parent });
+    } else if (found === null) {
       await placeLink(path, target);
       state = "created";
     } else if (found.isSymbolicLink()) {
@@ -194,13 +218,15 @@ export async function ensurePathEntry(
   const next: string[] = [];
   if (state === "conflict")
     next.push(
-      `${path} is ${
-        occupant?.kind === "link"
-          ? `a link to ${occupant.target}`
-          : occupant?.kind === "file"
-            ? "a regular file"
-            : "not a file or a link"
-      } that is not Lazurio's; it was left unchanged. Until it is resolved, run Lazurio as ${target}. Move that entry aside only on the operator's instruction, then run \`lazurio install\` again.`,
+      occupant?.kind === "parent"
+        ? `${occupant.target} is not a plain directory, so ${path} was not written. Run Lazurio as ${target}. Put ${dirname(target)} on your PATH, or make ${occupant.target} a plain directory on the operator's instruction and run \`lazurio install\` again.`
+        : `${path} is ${
+            occupant?.kind === "link"
+              ? `a link to ${occupant.target}`
+              : occupant?.kind === "file"
+                ? "a regular file"
+                : "not a file or a link"
+          } that is not Lazurio's; it was left unchanged. Until it is resolved, run Lazurio as ${target}. Move that entry aside only on the operator's instruction, then run \`lazurio install\` again.`,
     );
   if (state === "failed")
     next.push(

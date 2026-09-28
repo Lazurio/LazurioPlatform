@@ -3,6 +3,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   readlink,
   realpath,
@@ -72,10 +73,11 @@ test("install creates ~/.local/bin (0755 whatever the umask) and the entry linki
   expect((await lstat(entry)).ino).toBe(inode);
 });
 
-test("a dangling link and a link into another Lazurio install base are replaced", async () => {
+test("a link to a Lazurio selector, of a base that is gone or of another base, is replaced", async () => {
   const { home, bin, entry, selector, install } = await scene();
   await mkdir(bin, { recursive: true });
-  await symlink(join(home, "gone/bin/lazurio"), entry);
+  // The selector of an install base that no longer exists.
+  await symlink(join(home, "gone/lazurio/bin/lazurio"), entry);
   expect(await install()).toMatchObject({ entry: { state: "replaced" } });
   expect(await readlink(entry)).toBe(selector);
 
@@ -91,6 +93,66 @@ test("a dangling link and a link into another Lazurio install base are replaced"
   await symlink(join(older, "bin/lazurio"), entry);
   expect(await install()).toMatchObject({ entry: { state: "replaced" } });
   expect(await readlink(entry)).toBe(selector);
+});
+
+test("a dangling link that is not a Lazurio selector is someone else's and stays", async () => {
+  const { home, bin, entry, install } = await scene();
+  await mkdir(bin, { recursive: true });
+  for (const foreign of [
+    join(home, "volumes/unmounted/foreign-tool"),
+    join(home, "gone/bin/lazurio"),
+    join(home, "other/bin/foreign"),
+  ]) {
+    await rm(entry, { force: true });
+    await symlink(foreign, entry);
+    expect(await install()).toMatchObject({
+      kind: "installed",
+      entry: {
+        state: "conflict",
+        occupant: { kind: "link", target: foreign },
+      },
+    });
+    expect(await readlink(entry)).toBe(foreign);
+  }
+});
+
+test("a linked ~/.local or ~/.local/bin is not written through", async () => {
+  for (const linked of [".local", ".local/bin"]) {
+    const { home, base, selector, install } = await scene();
+    const elsewhere = join(home, "elsewhere");
+    await mkdir(elsewhere, { recursive: true });
+    // Something replaceable waits where the link leads.
+    await symlink(
+      join(home, "gone/lazurio/bin/lazurio"),
+      join(elsewhere, "lazurio"),
+    );
+    if (linked === ".local/bin")
+      await mkdir(join(home, ".local"), { recursive: true });
+    else await mkdir(join(elsewhere, "bin"));
+    await symlink(elsewhere, join(home, linked));
+    const result = await install();
+    expect(result).toMatchObject({
+      kind: "installed",
+      path: join(base, "bin"),
+      entry: {
+        state: "conflict",
+        occupant: { kind: "parent", target: join(home, linked) },
+      },
+    });
+    expect(result.kind === "installed" && result.entry?.next[0]).toContain(
+      `Run Lazurio as ${selector}`,
+    );
+    if (linked === ".local")
+      expect(await readdir(join(elsewhere, "bin"))).toEqual([]);
+    expect(await readlink(join(elsewhere, "lazurio"))).toBe(
+      join(home, "gone/lazurio/bin/lazurio"),
+    );
+    expect((await readdir(elsewhere)).sort()).toEqual(
+      // With ~/.local linked, the install base (~/.local/share) lives there
+      // too; the entry itself is not written.
+      linked === ".local" ? ["bin", "lazurio", "share"] : ["lazurio"],
+    );
+  }
 });
 
 test("a regular file, a foreign link or a directory is never overwritten; install succeeds and says what to do", async () => {
