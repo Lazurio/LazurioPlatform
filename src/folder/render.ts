@@ -38,6 +38,10 @@ function templateRevisionNumber(revision: string): number | null {
   return match === null ? null : Number(match[1]);
 }
 
+/** A template revision of this product's form, whatever its number. */
+export const isTemplateRevision = (revision: string) =>
+  templateRevisionNumber(revision) !== null;
+
 export function isOlderTemplateRevision(
   revision: string,
   than: string = instructionTemplateRevision,

@@ -6,7 +6,7 @@ import {
   parseInstructionManifest,
 } from "../folder/state";
 import { isStartRefusal } from "../launchpad/start-check";
-import { UpdateFailure } from "./errors";
+import { type UpdateErrorReason, UpdateFailure } from "./errors";
 import {
   embeddedFixture,
   embeddedIdentity,
@@ -182,7 +182,7 @@ export async function requireSelfCheck(input: {
   run?: ProcessRunner | undefined;
 }): Promise<string | null> {
   const failed = (
-    reason: string,
+    reason: UpdateErrorReason,
     extra: Readonly<Record<string, string | number>> = {},
   ) => new UpdateFailure("self-check-failed", { reason, ...extra });
   let result: ProcessResult;

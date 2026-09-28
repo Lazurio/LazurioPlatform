@@ -59,6 +59,7 @@ import {
 } from "./organizations/cli";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import { recoverHelp, runRecoverCommand } from "./recover/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import {
   type CommandOutput,
@@ -169,6 +170,9 @@ export async function runCli(args: string[]): Promise<number> {
   if (args[0] === "install")
     return emit(await runInstallCommand(args.slice(1)));
   if (args[0] === "update") return emit(await runUpdateCommand(args.slice(1)));
+  // Like the update commands: its output is the answer, with no notice.
+  if (args[0] === "recover")
+    return emit(await runRecoverCommand(args.slice(1)));
   const code = await runOtherCommand(args);
   // Every other command ends with the one-line notice (docs/update.md
   // "Surfaces"): from `last-check.json` only, on stderr, never the network.
@@ -382,6 +386,7 @@ private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     console.log(catalogHelp);
     console.log(updateHelp);
+    console.log(recoverHelp);
     console.log(machineHelp);
     return 0;
   }
