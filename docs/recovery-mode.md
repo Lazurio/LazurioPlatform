@@ -574,13 +574,15 @@ Machines. **Scope confirmed by the Principal on 2026-09-28:** the work VMs of th
 pilot Organization plus the personal VMs of its operators. Each is rolled through
 the path that pins its release: the Organization's owner overlay for work VMs, the
 personal lane's pin for personal VMs (Plan, Permit and apply per Machine, the existing
-path). Personal VMs count once they run Ubuntu 24.04; until their rebuild (G.2) they
-are "unverified", outside the count, and named as such in the evidence. A Machine
-that cannot take the
-candidate blocks the stage; excluding one is an explicit, named line in the evidence
-PR that the `release` reviewer accepts or refuses. The 8 hours start when the last of
-these Machines runs the candidate, proven by its `lazurio update status --json`
-(`active` equals the candidate) and a healthy Launchpad. The pilot Organization is
+path). Root decision 0166 point 6 requires both groups, so the rebuild of the
+operators' personal VMs on Ubuntu 24.04 (G.2, parity slice M6) comes BEFORE the first
+canary stage: the stage does not start until every in-scope Machine, work VMs and the
+operators' personal VMs alike, runs the candidate, and no final release passes with a
+personal VM missing from the count. A Machine that cannot take the candidate blocks
+the stage. Narrowing the scope is a decision of the Principal recorded in the
+register, never a line the `release` reviewer accepts. The 8 hours start when the
+last of these Machines runs the candidate, proven by its `lazurio update status
+--json` (`active` equals the candidate) and a healthy Launchpad. The pilot Organization is
 the Principal's choice and is named only in private owner records, never here.
 
 **What is observed during the 8 hours**, on every Machine:
@@ -811,8 +813,9 @@ Proposed wording, in the style of `docs/decisions.md`:
 > Ubuntu and macOS runners against the real release candidate, and a canary stage of
 > 8 hours on every hosted Machine of the pilot Organization with its evidence; the
 > release job refuses a final tag without the former. Linux means Ubuntu in the first
-> phase; other distributions are unverified. Every hosted Machine runs Ubuntu 24.04;
-> hosted personal VMs are rebuilt on it at the next Machines rollout.
+> phase; other distributions are unverified. The target is Ubuntu 24.04 on every
+> hosted Machine: Organization work VMs run it today, hosted personal VMs run Debian
+> 13 until their rebuild at the next Machines rollout, which precedes the first canary.
 >
 > **Machines too.** An apply completes or does not start and never returns to an
 > earlier release as a way of repair; defects are repaired by a new release through
