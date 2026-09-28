@@ -392,6 +392,9 @@ export function createModuleOperations(input: {
       try {
         let lifecycle = held.get(target.organizationDirectory);
         if (lifecycle === undefined) {
+          // A shutdown that already drained the held lifecycles never gets
+          // a new one behind its back.
+          if (closing) return blocked(operation, "closing");
           lifecycle = lifecycleFor(kind, target.organizationDirectory);
           held.set(target.organizationDirectory, lifecycle);
         }
