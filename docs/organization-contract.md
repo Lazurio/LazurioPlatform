@@ -44,27 +44,43 @@ interim implementation of the same compatibility-state table, not a second schem
   missing inventory is `conflict`. This recognizes drift only where parity is
   proven and is stricter than upstream, never looser.
 - Execution admission (`resolveOrganizationApplication`, hence Launchpad/CLI
-  `prepare`, `clean-prepare` and `start`) accepts only parity-valid `transition`;
-  it is the single executable state. A canonical-only `current` root is observable
-  and inspection-only until a separately proven finalization: decision 0145 lets
-  the projection disappear only after the finalization gate has covered every
-  mutation-capable reader, and a valid digest proves the projection's content, not
-  that the gate ran. `current` becomes executable only once the pinned Core
-  envelope carries an explicit, verified finalization admission signal. `legacy`,
-  `projection_drift`, `conflict`, `missing`, a template and an unresolvable root
-  refuse before descendant inspection, the owner lock, preparation, script start
-  or any write. Every present document is normalized with the upstream issue codes
-  (slot path grammar and scope, `module_port_pool` range, legacy identity and
-  schema) before any state is assigned.
+  `prepare`, `clean-prepare` and `start`, and `executable` in the Folder catalog)
+  asks one rule, `isExecutableOrganizationState` in
+  `src/organizations/root-resolution.ts`, with two variants in one constant:
+  **transition-only** (variant A, F12 as accepted: only parity-valid `transition`
+  executes, a canonical-only `current` root is observable and inspection-only) and
+  **transition-and-current** (variant B: `current` executes as well). The default is
+  **variant B, proposed and pending the Principal's answer** (question H1 of the
+  Launchpad parity shaping, proposed decision F22 point 1): the checkout exists
+  because GitHub allowed the clone, and the projection gate was migration machinery.
+  Should the Principal keep F12, the constant flips back to variant A in one line;
+  tests cover both variants. Under either variant `legacy`, `projection_drift`,
+  `conflict`, `missing`, a template and an unresolvable root refuse before
+  descendant inspection, the owner lock, preparation, script start or any write.
+  Every present document is normalized with the upstream issue codes (slot path
+  grammar and scope, `module_port_pool` range, legacy identity and schema) before
+  any state is assigned.
 - Discovery stays inspection-only: `applications-observed` carries the resolution
-  state and an explicit `admission: executable | inspection-only`; a
-  `projection_drift` root is still listed from the canonical file but is not
-  executable. Conflict returns `organization-conflict` with issue codes only.
+  state and an explicit `admission: executable | inspection-only`; a root the
+  admission rule does not execute (`projection_drift`, and `current` under variant
+  A) is still listed from the canonical file but is not executable. Conflict
+  returns `organization-conflict` with issue codes only.
+- The Folder catalog (`lazurio organization list`, `lazurio module list`, the
+  Launchpad home) applies this reader to every directory in
+  `<Folder>/organizations/`; a candidate that cannot be read, a template and two
+  candidates declaring one slug are isolated with a typed reason and never hide
+  the others. See [launchpad development](launchpad-development.md#launchpad-home-the-catalog).
 
 ## Exit from transition-only admission
 
-Accepted direction (2026-09-19, [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)),
-not implemented. **Canonical-only Organizations are the target normal case.** Upstream
+Accepted direction (2026-09-19, [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)).
+**Proposed change, pending the Principal's answer (2026-09-28):** the Launchpad
+parity shaping recommends ending the interim gate now (question H1, proposed
+decision F22 point 1), because no owner of the identity continuity proof is named
+and a canonical-only Organization would otherwise lose its applications when the
+Platform Launchpad replaces the resident one. The implementation defaults to that
+recommendation (variant B above) and keeps variant A one line away; the text below
+is F12 as accepted and stays the record until the Principal decides. **Canonical-only Organizations are the target normal case.** Upstream
 decision 0145 deprecates the legacy projection and makes `current` the end state of
 every Organization. Admitting only parity-valid `transition` roots, as described above,
 is an **interim gate** tied to upstream finalization readiness. It is not a product

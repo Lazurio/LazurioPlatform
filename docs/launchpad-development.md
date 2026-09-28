@@ -56,7 +56,10 @@ of them. The original bounded proof is unchanged and is not relabelled as a full
 ## Settings: structure, routes and the T3 Code pattern
 
 The Launchpad is one page with two views (decision F15 addendum 2026-09-28): the
-Launchpad home (`/`, the development Application panel) and Settings. Settings follows
+Launchpad home and Settings. Since slice P4 of the Launchpad parity the home is the
+catalog of the Folder's Organizations and modules
+([below](#launchpad-home-the-catalog)); the addendum's sentence that the development
+Application panel stays on the home needs the Principal's amendment. Settings follows
 the settings UX of T3 Code, as the Principal asked, in plain CSS inside
 `src/launchpad/index.html` and without a framework or a new dependency.
 
@@ -83,7 +86,7 @@ the frame.
 | This Machine (read-only handover) | Settings → This Machine, one row per recorded fact |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
 | Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Principal 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
-| Application (development lifecycle) | Launchpad home `/`, not a setting |
+| Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog, its API kept until P5 |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
 `apps/web/src/`, and the installed T3 Code 0.0.42 bundle):
@@ -126,6 +129,90 @@ behind by a stray key. T3 Code's settings search, `/` shortcut, resizable sideba
 per-row reset are not built: the page has three sections and no defaults to reset to.
 The General settings keep the explicit Preview → Apply of a Folder change instead of
 T3 Code's immediate apply. Icons are Lucide (ISC), inlined as SVG symbols.
+
+## Launchpad home: the catalog
+
+Slice P4 of the Launchpad parity (shaping `docs/launchpad-parity.md` B1 on its review
+branch; proposed decision F22, not yet the Principal's). The home shows the
+Organizations and modules of the Folder the Launchpad serves; the developer form and
+its "Development fixture only" banner are gone.
+
+**Source.** One core, `readFolderCatalog` in `src/organizations/catalog.ts`: every
+directory in `<Folder>/organizations/` (not files, not hidden entries) is one candidate,
+resolved by the canonical reader (`read-applications.ts`, `root-resolution.ts`). No
+allowlist, no planned slots, no `launchpad.gen3*.json`, no state: the catalog is
+recomputed on every read. A candidate that cannot be read keeps its typed reason
+(`canonical-documents-required`, `organization-conflict`, `template-not-runtime`,
+`organization-changed`, `organization-unavailable` for a link or a directory that is
+not the operator's) and never hides the others; two candidates that declare the same
+slug are both `organization-duplicate`, because `<Org>/<Module>` would be ambiguous.
+Per module: Organization slug, module id, path, apps and the default app, Teams
+(`module_slots[].teams`, N:M), the root state and `executable`, or a typed `reason`
+(`organization-not-executable`, `declaration-conflict`, `module-unavailable`,
+`explicit-apps-required`, `no-app`, `default-app-invalid`). Executable means the
+declarations admit a start of the default app under the one admission rule of the
+[organization contract](organization-contract.md) (variant B by default: a
+canonical-only `current` Organization runs, proposed and pending the Principal's
+answer to H1); it is not readiness, provider permission or a lease. A malformed
+`teams` value is reported as `teams-invalid` on the module and never blocks it.
+
+**CLI first.** `lazurio organization list [--folder <F>] [--json]` prints the catalog
+(`--json`: exactly the object below), `lazurio module list [<Org>] [--folder <F>]
+[--json]` its modules, for one Organization named by slug (case-insensitive) or
+directory name. Without `--folder` the Folder is found as `lazurio update` finds it:
+the supervised unit's `[X-Lazurio] Folder=`, otherwise the hosted Machine's declared
+operator (`standardFolder` in `src/update/cli.ts`, one function for both); a
+workstation without a unit names it. Human output is aligned columns as in
+`lazurio tools list`.
+
+**HTTP.** `POST /api/catalog` with `{}` answers the same catalog (tests compare it to
+`organization list --json`), behind the same admission as every other route: the
+fragment token locally, the gateway's cookie hosted.
+
+**Routes.** `/` is every Organization's modules with their default app; `/o/<org>` one
+Organization (directory, resolution state, Teams, issues, then its modules per Team);
+`/o/<org>/<module>` one module (Organization, Teams, apps with the default marked,
+path, resolution state, whether it can run). `<org>` is the slug and each segment is
+URL-encoded; an Organization that could not be read has no route and is shown with
+its reason on `/`. A route the Folder does not have says so with a link to all
+Organizations. The paths live in `src/launchpad/routes.ts` next to the settings
+routes, the server answers them with the same page (Bun route parameters) and nothing
+deeper, and they behave like the settings routes: deep links, back and forward,
+focus on the heading, the breadcrumb "Organization / module", the document title.
+
+**Sidebar in T3 Code's pattern.** On the home frame the sidebar lists "All
+Organizations", then each Organization as a group (T3's projects) with its modules as
+rows (T3's threads) and a status dot (green: can run; grey: cannot, with the reason
+in the row's accessible name), under a subheader per Team: the declared Teams in
+their order, Teams a module names without a declaration, then "Other modules"; a
+module of two Teams is a row under both, and without any Team there is no subheader.
+The current Organization or module is `aria-current="page"`. "Refresh" is the page
+action in the header. Below 768 px the sidebar is the same off-canvas sheet as in
+Settings, and choosing a row closes it.
+
+**What a module row shows, and what not yet.** Name, Teams, default app, and "Can run"
+or the reason in words with its code. There is no start, open, stop or logs action
+and no disabled button in its place: the module lifecycle `lazurio module
+status|prepare|start|open|stop|logs` and its page actions are the next slice (P5),
+which also retires `/api/apps/*`, `app-request` and the development flags
+`--organization-directory` and `--bun-executable`. Until then those keep working
+unchanged for their tests and `scripts/smoke-application-ui.ts`, which drives them
+over the API. `src/launchpad/catalog-view.ts` holds the pure presentation (tested in
+`tests/catalog-view.test.ts`), `src/launchpad/catalog-panel.ts` the DOM, drawn with
+`textContent` only.
+
+**Verification 2026-09-28.** Unit and HTTP tests (`tests/organization-catalog.test.ts`,
+`tests/catalog-view.test.ts`, `tests/launchpad-routes.test.ts`, the hosted test) use a
+fixture Folder with two Organizations (one `transition` with a module in two Teams,
+one canonical-only `current`), one invalid, one template, a linked candidate and a
+duplicated slug; both admission variants were run by flipping the one constant. The
+home was driven in headless Chromium (Playwright) against an isolated home, an empty
+PATH and a temporary fixture Folder, in English and Czech: no form or banner, four
+groups, a module under two Teams, no row actions, sidebar and body links to the
+Organization and module routes with focus on the heading, the breadcrumb, back and
+forward, a deep link with the token, an unknown route, Settings and Escape back,
+the narrow sheet, light and dark, without page errors. Screen-reader output was not
+qualified by a manual run.
 
 ## Tools section
 

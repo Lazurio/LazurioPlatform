@@ -31,6 +31,16 @@ Discovery does not install application authorization adapters: a discovery-only 
 still refuses app control. Live provider/operation binding remains a separate missing
 integration, not an implied permission from this local view.
 
+**Since 2026-09-28 (slice P4 of the Launchpad parity)** the Launchpad home is the
+catalog of the Folder ([launchpad development](launchpad-development.md#launchpad-home-the-catalog)),
+read from every directory in `<Folder>/organizations/` by `lazurio organization list`,
+`lazurio module list` and `POST /api/catalog`; the panel's discovery and selection form
+is gone from the page. `POST /api/apps/discover`, the application operations
+`/api/apps/*` and `app-request` described here are unchanged and stay until the
+module lifecycle `lazurio module …` (P5) retires them; `scripts/smoke-application-ui.ts`
+now drives them over the API. Which Organization states may run applications is the
+one admission rule of the [organization contract](organization-contract.md).
+
 The existing Launchpad server can compose one application lifecycle with trusted
 authorization/toolchain adapters. Its authenticated application API serves both the
 browser controls and the compiled development CLI's `app-request` stdin transport.
@@ -56,8 +66,9 @@ opening a page and functional acceptance are distinct results.
 Run `bun run scripts/smoke-application-ui.ts cs` and the same command with `en` using
 an explicitly supplied external Playwright installation and its Chromium (for example,
 via the test environment's `NODE_PATH`). This optional local harness compiles the CLI,
-creates synthetic Folder/module data and an isolated browser, opens the synthetic app,
-then stops its owner and removes only its temporary fixture. It is not a release gate
+creates synthetic Folder/module data, drives the Launchpad's application API (since
+2026-09-28; before that the page's form), opens the synthetic app in an isolated
+browser, then stops its owner and removes only its temporary fixture. It is not a release gate
 or evidence of either real candidate's installation/DB readiness. The main `bun run
 check` includes transport, lifecycle and presentation unit/integration tests; it does
 not implicitly download a browser or run this separate browser harness.
