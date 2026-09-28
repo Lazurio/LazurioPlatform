@@ -119,9 +119,9 @@ Machine binding in the Folder, shown and never edited in the Launchpad.
 
 The Platform composes nothing but this one substitution: `moduleOrigin` fills the one
 `{module}` slot (the whole first label) with `moduleLabel(moduleId)`, and the rule of
-that label is the gateway's (`label()` of the Machines gateway catalog, the same
-normalization, maximum length and reserved names), so a link names the hostname the
-gateway actually serves. No origin is derived from another (not T3 Code's or a
+that label is the gateway's, textually the same as Machines' `moduleLabel` (a valid
+lazurio.module.v1 id only, dash runs collapsed and stripped, at most 63 characters,
+reserved names refused), so a link names the hostname the gateway actually serves. No origin is derived from another (not T3 Code's or a
 module's from the Launchpad's), from a request or from a hostname convention.
 
 There is one writer and no transition path: no environment of the resident unit is read and no CLI

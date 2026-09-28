@@ -12,10 +12,20 @@ const authCheck = new RegExp(`^https://${hostname}(?:/[A-Za-z0-9._~-]+)+$`);
 const cookieName = /^[A-Za-z0-9_-]{1,128}$/;
 const modulePlaceholder = "{module}";
 const originTemplate = new RegExp(`^https://\\{module\\}(?:\\.${dnsLabel})+$`);
-// The gateway's own constants (Machines workloads/workspace-vm/gateway-catalog.py:
-// APPLICATION_MAX and RESERVED).
-const applicationMax = 63;
-const reserved = new Set(["oauth2", "api", "well-known"]);
+// The gateway's rule for the first label of a module hostname, textually the
+// one of Machines `workloads/workspace-vm/machine-entry.ts` (gateway-catalog.py
+// `MODULE_ID`, `label`, `RESERVED`, decision 0146): a lazurio.module.v1 id is
+// lowercase letters, digits and dashes, at most 128 characters; the label
+// collapses runs of dashes, strips dashes at both ends and is at most 63
+// characters; the reserved names are never served.
+export const MODULE_ID_MAX = 128;
+export const MODULE_LABEL_MAX = 63;
+export const RESERVED_LABELS: ReadonlySet<string> = new Set([
+  "oauth2",
+  "api",
+  "well-known",
+]);
+const MODULE_ID = /^[a-z0-9][a-z0-9-]*$/;
 
 /** `https://<hostname>`: no port, path, query or trailing slash. */
 export function isHttpsOrigin(value: unknown): value is string {
@@ -57,6 +67,7 @@ export class ModuleOriginError extends Error {
   constructor(
     public readonly code:
       | "module-origin-template-invalid"
+      | "module-label-invalid"
       | "module-label-empty"
       | "module-label-reserved"
       | "module-origin-too-long",
@@ -65,32 +76,33 @@ export class ModuleOriginError extends Error {
   }
 }
 
-/** The one DNS label the gateway serves a module id at: exactly the gateway
- * catalog's `label()` (Machines gateway-catalog.py, decision 0146). Lowercase;
- * every character outside [a-z0-9] becomes `-`; runs of `-` collapse to one;
- * leading and trailing `-` are stripped; the result is cut to the gateway's
- * maximum label length and a trailing `-` stripped again. An empty result or
- * a name the gateway reserves for itself is refused. */
-export function moduleLabel(moduleId: string): string {
-  // Not a string is no label at all, as `label()` answers None for it.
-  if (typeof moduleId !== "string")
-    throw new ModuleOriginError("module-label-empty");
-  const label = moduleId
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "-")
+/** The one DNS label the gateway serves a module id at. An id that is not a
+ * valid lazurio.module.v1 id is refused (the gateway serves nothing for it);
+ * otherwise the gateway's `label()`. An empty label or a name the gateway
+ * reserves for itself is refused. Never the id itself: the gateway serves
+ * `my--notes` at `my-notes.<vm>.<domain>`. */
+export function moduleLabel(id: unknown): string {
+  if (
+    typeof id !== "string" ||
+    id.length > MODULE_ID_MAX ||
+    !MODULE_ID.test(id)
+  )
+    throw new ModuleOriginError("module-label-invalid");
+  const label = id
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, applicationMax)
+    .slice(0, MODULE_LABEL_MAX)
     .replace(/-+$/, "");
   if (label === "") throw new ModuleOriginError("module-label-empty");
-  if (reserved.has(label)) throw new ModuleOriginError("module-label-reserved");
+  if (RESERVED_LABELS.has(label))
+    throw new ModuleOriginError("module-label-reserved");
   return label;
 }
 
 /** The origin of one module: the declared template with the gateway's label
  * of the module id in its one `{module}` slot. The template states the rule;
  * the gateway's catalog decides whether that hostname is actually served. */
-export function moduleOrigin(template: string, moduleId: string): string {
+export function moduleOrigin(template: string, moduleId: unknown): string {
   if (!isModuleOriginTemplate(template))
     throw new ModuleOriginError("module-origin-template-invalid");
   const result = template.replace(modulePlaceholder, moduleLabel(moduleId));

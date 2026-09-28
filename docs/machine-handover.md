@@ -341,13 +341,15 @@ takes effect at its next start. `t3codeOrigin` and `moduleOriginTemplate` are re
 for the module links and the T3 Code link of later slices. The Platform composes
 nothing but one substitution: `moduleOrigin` (`src/launchpad/hosted-entry.ts`) fills
 the one `{module}` slot with `moduleLabel(id)`, the label the gateway serves the module
-at. That rule is the gateway's, not the Platform's: exactly `label()` of the Machines
-gateway catalog (`workloads/workspace-vm/gateway-catalog.py`), so `my--notes` is
-served and linked as `my-notes`. Lowercase; every character outside `[a-z0-9]` becomes
-`-`; runs of `-` collapse to one; leading and trailing `-` are stripped; the result is
-cut to the gateway's maximum label length (63) and a trailing `-` stripped again; an
-empty result or a name the gateway reserves (`oauth2`, `api`, `well-known`) is
-refused. The template states the rule, not that a hostname is served: the gateway's
+at. That rule is the gateway's, not the Platform's, and textually the same as
+`moduleLabel` in Machines `workloads/workspace-vm/machine-entry.ts` (the gateway
+catalog's `MODULE_ID`, `label()` and `RESERVED`): an id that is not a valid
+lazurio.module.v1 id (`^[a-z0-9][a-z0-9-]*$`, at most 128 characters) is refused
+(`module-label-invalid`) and never lowercased or rewritten, because the gateway serves
+nothing for it; otherwise runs of `-` collapse to one, `-` at both ends is stripped,
+the result is cut to 63 characters and a trailing `-` stripped again, so `my--notes`
+is served and linked as `my-notes`; an empty label or a name the gateway reserves
+(`oauth2`, `api`, `well-known`) is refused. The template states the rule, not that a hostname is served: the gateway's
 catalog decides that (it refuses a conflicting port, and two ids with the same label
 share one hostname). The Platform never composes a URL from a hostname convention and
 reads no environment for it.
