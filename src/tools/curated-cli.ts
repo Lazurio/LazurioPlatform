@@ -1,4 +1,11 @@
+import type { PresetName } from "../folder/presets";
+import { sharedEnvironment } from "../folder/render";
 import { activatableTools } from "./catalog";
+import {
+  githubLoginRefused,
+  githubRefusal,
+  githubRefusalText,
+} from "./github-gate";
 import {
   curatedTool,
   type InstallEnvironment,
@@ -13,6 +20,7 @@ import {
 } from "./login";
 import { qrMatrix, qrTerminal } from "./qr";
 import type { SshKeyRemoval, SshLink, SshLinkFailure } from "./ssh-key";
+import { teamGithubText } from "./team-github";
 
 /** The terminal adapter of the curated flows (decision F19): `tools install`,
  * `tools login`, `tools logout` and `tools composio-org`. The same core the
@@ -28,7 +36,17 @@ export type CuratedContext = Readonly<{
   write: (line: string) => void;
   /** Ctrl-C: cancels a running login. */
   signal?: AbortSignal | undefined;
+  /** The kind of Environment when it is known (the hosted operator Folder's
+   * preset); undefined on a workstation, where nothing changes. */
+  preset?: PresetName | undefined;
+  /** The same read again now: a running gh login re-checks the Team rule
+   * before every step that changes the account or the Machine. */
+  presetNow?: (() => Promise<PresetName | undefined>) | undefined;
 }>;
+
+/** On an Environment shared by several operators (the Team preset). */
+export const sharedSignInsText =
+  "Warning: this Environment is shared. Accounts signed in to the tool apply to the whole Environment and are shared by all its operators.";
 
 export type CuratedOutput = Readonly<{
   code: number;
@@ -88,7 +106,7 @@ const stageText: Record<string, string> = {
   verify: "when the installed tool was checked",
 };
 
-export function installText(result: InstallResult): string {
+export function installText(result: InstallResult, team = false): string {
   switch (result.kind) {
     case "installed":
       return [
@@ -101,7 +119,10 @@ export function installText(result: InstallResult): string {
           : [
               "~/.local/bin is not on this PATH: add it in your shell profile so the tool is found.",
             ]),
-        `Next: lazurio tools login ${result.tool}`,
+        // A Team Environment's gh is not signed in (Principal 2026-09-28).
+        team && result.tool === "gh"
+          ? teamGithubText.en
+          : `Next: lazurio tools login ${result.tool}`,
       ].join("\n");
     case "already-installed":
       return `${result.tool} ${result.version ?? ""} already works at ${result.path}; nothing was changed.`.replace(
@@ -136,7 +157,12 @@ export async function runInstall(
         ? 0
         : 1,
     result,
-    text: json ? JSON.stringify(result) : installText(result),
+    text: json
+      ? JSON.stringify(result)
+      : installText(
+          result,
+          context.preset !== undefined && sharedEnvironment(context.preset),
+        ),
   };
 }
 
@@ -152,6 +178,8 @@ const failureText: Record<string, string> = {
   "spawn-failed": "the tool could not be started",
   "not-signed-in":
     "gh is not signed in on this Machine; sign in first: lazurio tools login gh",
+  "environment-unreadable":
+    "the kind of this Environment could not be read, so the sign-in stopped before changing anything further",
 };
 
 const sshFailureText: Record<SshLinkFailure, string> = {
@@ -276,6 +304,8 @@ function loginLines(state: LoginState): string[] {
         `Sign-in of ${state.tool} failed: ${failureText[state.reason] ?? state.reason}.`,
         `Finish it with an agent: lazurio tools prompt ${state.tool}`,
       ];
+    case "blocked":
+      return [teamGithubText.en];
     case "expired":
       return [
         `The sign-in of ${state.tool} expired before it was completed. Start it again: lazurio tools login ${state.tool}`,
@@ -316,7 +346,39 @@ export async function runLogin(
         : "--phone applies to wacli only (WhatsApp pairing).",
     };
   }
-  const sessions = createLoginSessions(context.login);
+  const presetNow = context.presetNow;
+  const sessions = createLoginSessions({
+    ...context.login,
+    ...(presetNow === undefined
+      ? {}
+      : {
+          refused: async (tool, action) =>
+            githubLoginRefused(await presetNow(), tool, action),
+        }),
+  });
+  // gh on a Team Environment (Principal 2026-09-28): neither a person's
+  // sign-in nor their SSH key; the Organization's Lazurio for GitHub is the
+  // way. Refused before anything runs.
+  const refusal = await githubRefusal(
+    context.preset,
+    name,
+    sshKey ? "ssh-key" : "login",
+    sessions,
+  );
+  if (refusal !== undefined) {
+    await sessions.close();
+    return {
+      code: 2,
+      result: refusal,
+      text: json ? JSON.stringify(refusal) : githubRefusalText(refusal, "en"),
+    };
+  }
+  if (
+    !json &&
+    context.preset !== undefined &&
+    sharedEnvironment(context.preset)
+  )
+    context.write(sharedSignInsText);
   const emit = (state: LoginState) => {
     if (json) context.write(JSON.stringify(state));
     else for (const line of loginLines(state)) context.write(line);
@@ -360,7 +422,8 @@ export async function runLogin(
       await Promise.race([sessions.settled(), aborted]);
     }
     return {
-      code: loginComplete(state) ? 0 : 1,
+      // A refusal of the Team rule is a refusal like every other one.
+      code: loginComplete(state) ? 0 : state.kind === "blocked" ? 2 : 1,
       result: state,
       text: "",
     };
@@ -379,6 +442,20 @@ export async function runLogout(
   const sessions = createLoginSessions(context.login);
   let result: LogoutResult;
   try {
+    // A Team Environment signs out a person's account left there, never
+    // the Organization's identity (Principal 2026-09-28).
+    const refusal = await githubRefusal(
+      context.preset,
+      name,
+      "logout",
+      sessions,
+    );
+    if (refusal !== undefined)
+      return {
+        code: 2,
+        result: refusal,
+        text: json ? JSON.stringify(refusal) : githubRefusalText(refusal, "en"),
+      };
     result = await sessions.logout(name);
   } finally {
     await sessions.close();

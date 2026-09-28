@@ -4,8 +4,12 @@ import { join } from "node:path";
 import {
   closeOnExecFlag,
   darwinFilesystemName,
+  FolderOperationBusyError,
   lockDirectoryDescriptor,
 } from "./native-lock";
+
+export { FolderOperationBusyError };
+
 import { inspectOwnedDirectory } from "./owned-directory";
 
 const marker = "lazurio-directory-flock-v1\n";
@@ -39,7 +43,7 @@ export async function acquireFolderOperationLock(stateDirectory: string) {
   }
   const observed = await inspectOwnedDirectory(path);
   if (!created && !(await readdir(path)).includes("protocol"))
-    throw new Error(
+    throw new FolderOperationBusyError(
       "Folder operation busy or requires recovery; unrecognized lock",
     );
   const handle = await open(
@@ -160,5 +164,32 @@ export async function withFolderOperationLock<T>(
     return await operation(lock.assertHeld);
   } finally {
     await lock.release();
+  }
+}
+
+/** A short READ of the Folder's state under the same lock, for readers that
+ * run beside each other in one process (the Launchpad's status, the Team
+ * rule's preset reads of a running gh session, a poll): the lock is
+ * exclusive and non-blocking, so two such reads at the same moment would
+ * refuse one of them as busy. A read waits for the holder instead, a
+ * bounded time (default 3 s), and then fails as before. Mutations keep the
+ * immediate refusal of `withFolderOperationLock`. */
+export async function withFolderReadLock<T>(
+  stateDirectory: string,
+  operation: (assertHeld: () => Promise<void>) => Promise<T>,
+  waitMs = 3_000,
+): Promise<T> {
+  const deadline = Date.now() + waitMs;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await withFolderOperationLock(stateDirectory, operation);
+    } catch (error) {
+      if (
+        !(error instanceof FolderOperationBusyError) ||
+        Date.now() >= deadline
+      )
+        throw error;
+      await Bun.sleep(Math.min(10 * attempt, 100));
+    }
   }
 }

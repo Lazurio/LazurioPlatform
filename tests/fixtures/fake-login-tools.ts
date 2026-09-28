@@ -48,6 +48,18 @@ tab=$(printf '\\t')
 has() { want="$1"; shift; for a in "$@"; do [ "$a" = "$want" ] && return 0; done; return 1; }
 after() { want="$1"; shift; prev=""; for a in "$@"; do if [ "$prev" = "$want" ]; then echo "$a"; return 0; fi; prev="$a"; done; return 1; }
 scope() { [ -f "$HOME/gh.scopes" ] && for s in $(cat "$HOME/gh.scopes"); do [ "$s" = "$1" ] && return 0; done; return 1; }
+if [ -f "$HOME/gh.broker" ]; then
+  # The Organization's brokered gh of a Team Environment (the GitHub App
+  # adapter's brokered-gh.mjs): of all \`gh auth\` commands it answers exactly
+  # \`auth status --json hosts\`, as the App's bot; this fake refuses
+  # everything else.
+  [ "$*" = "--version" ] && { echo "gh version 2.97.0 (2026-07-01)"; exit 0; }
+  if [ "$*" = "auth status --json hosts" ]; then
+    echo '{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"lazurio-for-github[bot]","tokenSource":"lazurio-broker-live-proof","scopes":"","gitProtocol":"https"}]}}'
+    exit 0
+  fi
+  echo "Error: this gh command is disabled in a hosted Team Workspace" >&2; exit 1
+fi
 case "$1" in
 --version) echo "gh version 2.101.0 (2026-09-01)"; exit 0;;
 auth)
@@ -72,6 +84,18 @@ auth)
     echo "✓ Authentication complete." >&2
     exit 0;;
   status)
+    # gh 2.81.0 added --json to auth status; $HOME/gh.nojson is an older gh.
+    if [ "$3" = "--json" ]; then
+      if [ -f "$HOME/gh.nojson" ]; then echo "unknown flag: --json" >&2; echo "Usage:  gh auth status [flags]" >&2; exit 1; fi
+      [ "$*" = "auth status --json hosts" ] || { echo "Unknown JSON field" >&2; exit 1; }
+      if [ -f "$HOME/gh.state" ]; then
+        scopes=""; for s in $(cat "$HOME/gh.scopes" 2>/dev/null); do scopes="$scopes, $s"; done
+        printf '{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","scopes":"%s","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")" "\${scopes#, }"
+      else
+        echo '{"hosts":{}}'
+      fi
+      exit 0
+    fi
     if [ -f "$HOME/gh.state" ]; then
       echo "github.com"
       echo "  ✓ Logged in to github.com account $(cat "$HOME/gh.state") (keyring)"

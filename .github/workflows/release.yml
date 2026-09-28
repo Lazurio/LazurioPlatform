@@ -4,8 +4,9 @@ name: Release
 #
 #   tag vX.Y.Z[-rc.N] -> check -> build every target on its own runner
 #                     -> publish: manifest, ONE Sigstore attestation over the
-#                        manifest and every executable, a draft release with
-#                        everything attached, the ordering gate, publish once.
+#                        manifest, every executable and install.sh, a draft
+#                        release with everything attached, the ordering gate,
+#                        publish once.
 #
 # THE NAME OF THIS FILE IS PERMANENT. Every installed client accepts a release
 # only when its attestation names `.github/workflows/release.yml` at the exact
@@ -151,7 +152,14 @@ jobs:
           bun run scripts/release-manifest.ts --version "$VERSION" --commit "$GITHUB_SHA" \
             --directory "$RUNNER_TEMP/release"
           cat "$RUNNER_TEMP/release/manifest.json"
-      # ONE attestation whose subjects are the manifest and every executable.
+      # The one-command installer of this very tag, byte for byte: what
+      # releases/latest/download/install.sh (and lazurio.ai/install) serves.
+      # It is not in the manifest, whose targets are executables only.
+      - name: install.sh is a release asset
+        run: cp install.sh "$RUNNER_TEMP/release/install.sh"
+      # ONE attestation whose subjects are the manifest, every executable and
+      # install.sh. Clients require their digests to be AMONG the subjects, so
+      # an added subject changes nothing for them.
       - id: attest
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -160,6 +168,7 @@ jobs:
             ${{ runner.temp }}/release/lazurio-linux-x64
             ${{ runner.temp }}/release/lazurio-linux-arm64
             ${{ runner.temp }}/release/lazurio-darwin-arm64
+            ${{ runner.temp }}/release/install.sh
       - name: The bundle is a release asset
         env:
           BUNDLE: ${{ steps.attest.outputs.bundle-path }}
@@ -182,7 +191,8 @@ jobs:
             "$RUNNER_TEMP/release/lazurio.sigstore.json" \
             "$RUNNER_TEMP/release/lazurio-linux-x64" \
             "$RUNNER_TEMP/release/lazurio-linux-arm64" \
-            "$RUNNER_TEMP/release/lazurio-darwin-arm64"
+            "$RUNNER_TEMP/release/lazurio-darwin-arm64" \
+            "$RUNNER_TEMP/release/install.sh"
       - name: Ordering gate, immediately before publishing
         run: |
           # A final version must be greater than EVERY published final

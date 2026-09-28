@@ -24,7 +24,7 @@ export type FolderRefresh = Readonly<{
 
 // A path survives a POSIX shell unchanged: bare when it is plain, otherwise
 // in single quotes.
-const shellWord = (word: string) =>
+export const shellWord = (word: string) =>
   /^[A-Za-z0-9_@%+=:,./-]+$/.test(word)
     ? word
     : `'${word.replaceAll("'", "'\\''")}'`;
