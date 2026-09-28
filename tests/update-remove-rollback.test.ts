@@ -435,3 +435,31 @@ test("units the installer did not write, or wrote for another install base, stay
   );
   expect(reloads).toEqual([]);
 });
+
+test("the installer's rollback unit of another install base stays: it is that installation's to converge", async () => {
+  await arrange({ active: "1.1.0", previous: "1.0.0", highWater: "1.1.0\n" });
+  const { directory, units, reloads } = await unitScene();
+  const otherRollback = legacyRollbackUnit(join(world.root, "other"));
+  await writeFile(join(directory, "lazurio-rollback.service"), otherRollback);
+  expect(await readStatus(world.environment("1.1.0", { units }))).toMatchObject(
+    { legacyRollbackState: true },
+  );
+  expect(
+    await withUpdateLock(world.base, 0, () =>
+      removeRollbackLeftovers({ base: world.base, service: null, units }),
+    ),
+  ).toMatchObject({
+    rollbackUnitRemoved: false,
+    launchpadUnitRewritten: false,
+    previousRemoved: true,
+  });
+  expect(await readdir(directory)).toEqual(["lazurio-rollback.service"]);
+  expect(
+    await readFile(join(directory, "lazurio-rollback.service"), "utf8"),
+  ).toBe(otherRollback);
+  expect(reloads).toEqual([]);
+  // Only another base's unit is left: nothing of THIS base's rollback remains.
+  expect(await readStatus(world.environment("1.1.0", { units }))).toMatchObject(
+    { legacyRollbackState: false },
+  );
+});

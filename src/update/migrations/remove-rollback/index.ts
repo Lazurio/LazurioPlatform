@@ -3,7 +3,11 @@ import { join } from "node:path";
 import { syncDirectory, writeDurableFile } from "../../durable-file";
 import { storageFailure, UpdateFailure } from "../../errors";
 import { isProductVersion } from "../../identity";
-import { launchpadExecStart, renderLaunchpadUnit } from "../../install";
+import {
+  launchpadExecStart,
+  renderLaunchpadUnit,
+  systemdQuote,
+} from "../../install";
 import {
   layout,
   pruneVersions,
@@ -105,8 +109,28 @@ async function legacyLaunchpadUnit(base: string, units: ServiceUnits) {
   return folder;
 }
 
-async function legacyRollbackUnit(units: ServiceUnits): Promise<boolean> {
-  return (await unitText(units, rollbackUnit))?.startsWith(unitMarker) ?? false;
+/** The `ExecStart=` line v0.1.x wrote into the rollback unit of `base`. */
+const rollbackExecStart = (base: string) =>
+  `ExecStart=${[
+    join(legacy(base).previous, "lazurio"),
+    "update",
+    "rollback",
+    "--auto",
+    "--base",
+    base,
+  ]
+    .map(systemdQuote)
+    .join(" ")}`;
+
+/** The installer's rollback unit of THIS base; a unit of another install base
+ * is that installation's to converge. */
+async function legacyRollbackUnit(
+  base: string,
+  units: ServiceUnits,
+): Promise<boolean> {
+  const text = await unitText(units, rollbackUnit);
+  if (text === undefined || !text.startsWith(unitMarker)) return false;
+  return text.split("\n").includes(rollbackExecStart(base));
 }
 
 /** Read-only, for `update status`: whether anything of the former rollback is
@@ -121,7 +145,7 @@ export async function legacyRollbackState(
     marker.kind !== "absent" ||
     (await exists(legacy(base).previous)) ||
     (units !== null &&
-      ((await legacyRollbackUnit(units)) ||
+      ((await legacyRollbackUnit(base, units)) ||
         (await legacyLaunchpadUnit(base, units)) !== undefined))
   );
 }
@@ -190,7 +214,7 @@ async function migrate(
   let rollbackUnitRemoved = false;
   let launchpadUnitRewritten = false;
   if (units !== null) {
-    if (await legacyRollbackUnit(units)) {
+    if (await legacyRollbackUnit(base, units)) {
       await rm(join(units.directory, rollbackUnit), { force: true });
       rollbackUnitRemoved = true;
     }
