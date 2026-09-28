@@ -1,10 +1,12 @@
 # Recovery mode instead of rollback
 
-Status: **shaping; the Principal decided Q1, Q2, Q3, Q5, Q6, the last switch-back of
-H and one distribution for every hosted Machine on 2026-09-28; Q4 was decided on his
-delegation the same day. Q7 stays open. Analysis and design only.** Nothing here is
-implemented. The proposed decision F21 at the end amends F13, the F17 addendum and the
-product update contract once the Principal accepts it.
+Status: **shaping, accepted as
+[F21](decisions.md#f21--recovery-mode-instead-of-rollback) on 2026-09-28 (root
+decision 0166).** The Principal decided Q1, Q2, Q3, Q5, Q6, the last switch-back of H
+and one distribution for every hosted Machine; Q4 was decided on his delegation the
+same day. Q7 was not put to him and was implemented as recommended (the field is
+dropped). The analysis below is kept as written; what is implemented, and what is
+not, is the state paragraph of F21.
 
 ## Recommendation
 
@@ -779,7 +781,10 @@ static page for the Launchpad host (C.2, 2b); and its own rule without rollback
 - **Machines** (separate decision, not this repository's): no rollback in applies,
   forward repair through a new release, and staged rings (G.4, G.5; Q6).
 
-Proposed wording, in the style of `docs/decisions.md`:
+Proposed wording, in the style of `docs/decisions.md`. **Recorded as F21 in
+[decisions](decisions.md#f21--recovery-mode-instead-of-rollback) on 2026-09-28**,
+where it is corrected to what the Principal decided; the block below is kept as
+proposed:
 
 > ## F21 — Recovery mode instead of rollback
 >

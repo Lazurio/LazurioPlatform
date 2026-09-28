@@ -193,6 +193,8 @@ have different transactions and compatibility checks. See [recovery](migration-a
 | Decision 0144 and the Machine identity schema (F10) | **Conditional upstream amendment.** Only if preset provenance must appear in `lazurio.machine.json`: add the field upstream in the hosting engine, then re-pin and conformance-test here | Identity stays descriptive and grants nothing; nothing is derived from names; `account` stays `null` until its contract exists |
 | Decision 0145 (F12) | No amendment to the decision. **Admission superseded 2026-09-28** (Principal, question H1, decision F22 point 1): canonical-only `current` roots execute now (variant B), without waiting for an upstream identity continuity proof; the proof requirement F12 stated is historical | Transition-only admission is retired, variant A kept one line away for the record; no fallback to the deprecated projection; no second schema; `legacy`, `projection_drift`, `conflict`, `missing` and templates still refuse |
 | Decision 0146 (F11) | No amendment: Platform consumes the per-application hostname, catalog and session model through a hosted request adapter | Gateway authenticates; forwarded identity headers are not trusted; unknown hosts refused |
+| Decision 0166 (F21) | No amendment: **accepted 2026-09-28** (Principal, questions Q1–Q6 of the recovery-mode shaping). No program rollback; Recovery mode with a repair agent or a sanitized issue for every entry; quality gates and an 8-hour canary on the pilot Organization's work VMs and its operators' personal VMs. Within this repository it amends F4, F13, F17 (with its addendum point 3) and F18; in the root it replaces 0161's mention of the Platform's own rollback | Atomic failure, refusal before the switch, floor and high-water stay; no shorter or narrower canary without the Principal's decision recorded in the register; Machines' own rule is a separate Machines decision, not done |
+| Decisions 0167 and 0168 (F22) | No amendment: **accepted 2026-09-28** (Principal, questions H1, H4, H6, H3 in direction, the drops of the parity shaping). The Platform Launchpad replaces the resident in one Machines apply; Ubuntu 24.04 on every hosted Machine, personal VMs by a rebuild with state transfer. Amends F8's "Not done" list, F12's admission (its addendum) and F15; in the root 0167 amends 0137 and 0049, and 0168 ends the 0159 exception on Team Environments | No side-by-side period, transition hostname or way back; no new Folder state; `entry` written only by Machines; H2, H5, H7 and the preview lease rules (B14) stay open |
 | Decisions 0134, 0140 | Installed executable carries its runtime; development/module toolchain checks remain capability-specific | No automatic machine-wide PATH/tool upgrades; packaging does not claim third-party app dependencies bundled |
 | Decision 0142 | Lazurio Folder Factory composes purpose, behavior and locale from versioned inputs | Organization language ownership and stable locale-neutral reason codes preserved |
 | Collaboration constitution / 0132 | Define coordinator acceptance with real harness capability and independent verification | Principal retains scope, access and publication authority |
@@ -232,7 +234,8 @@ No legacy FSL source is relicensed and no automatic Apache transition applies.
 A candidate's provenance includes source repository and full commit, dependency
 lockfile, toolchain pin, target, artifact digest and signed release metadata. A digest
 alone detects corruption but does not authenticate its publisher. Trust bootstrap,
-signing-key rotation, rollback retention and Windows/macOS distribution signing
+signing-key rotation and Windows/macOS distribution signing (rollback retention left
+this list with F21)
 must be implemented and exercised before public release. The controlled pilot exception
 above defers OS publisher signing only, not release verification, preservation or recovery.
 No keys or workflows
@@ -271,7 +274,8 @@ Machine and real Lazurio Environment before stable release. These are not altern
 override alone cannot prove daily activation. Repeated PATH rewriting and a separate
 candidate updater are rejected because they create conflicting selectors. Extend the
 installer's existing version selection and lifecycle owner; details remain proposals.
-Build failure preserves active software. Program rollback and data recovery are separate.
+Build failure preserves active software. There is no program rollback (F21); data is
+repaired forward.
 
 ## F5 — Profiles, evidence and the single marketplace
 
@@ -586,6 +590,10 @@ reconciliation are outside the canary path. Analytics stays default-off and
 consent-bound per [profile evidence](profile-evidence.md) and can never block an update.
 
 ## F13 — Release trust is GitHub artifact attestation
+
+**Amended by F21 (2026-09-28).** The durable version floor and the high-water mark
+stay and refuse a downgrade; there is no retained previous version and no program
+rollback.
 
 **Accepted direction (2026-09-19), not implemented.** A product release is a GitHub
 Release of the public repository `Lazurio/LazurioPlatform`, built by one protected
@@ -972,7 +980,7 @@ Environment and fixes the rest per the Lazurio Environment manuals.
 **Two layers.** The **provider baseline** is what a Remote Environment stands on and
 must exist even when the operator breaks everything: system, accounts and sudo,
 network and Headscale, gateway with certificates and admission, resident, Platform
-(with its own floor and rollback, F13/F14), the Lazurio Folder with its manuals, and a
+(with its own floor, F13/F14, and no program rollback, F21), the Lazurio Folder with its manuals, and a
 **recovery runtime for an agent** (Codex or Claude Code, `gh`, `git`, Node at a
 known-good version) in a path owned by the Machine's installation authority (root on
 Linux, the installing admin on macOS), outside the operator's PATH; only the Environment
@@ -1044,7 +1052,9 @@ Machine that is below the pin to the pinned release, and never moves a Machine b
 what it already runs — the existing floor and high-water rule of F13
 ([product update](update.md#offline-update)), which already refuses a lower pin with
 `below-floor`. (3) Forward repair over rollback: no new rollback machinery;
-`lazurio update rollback` stays what it is, the way back from a failed update.
+`lazurio update rollback` stays what it is, the way back from a failed update. *(The
+second half is withdrawn by F21 the same day: `lazurio update rollback` is removed and
+a failed update is repaired forward.)*
 (4) Linux first, then macOS; Windows later.
 
 This changes one point of this decision: the installed Platform release leaves the
@@ -1087,7 +1097,9 @@ or `lazurio install` on a hosted Machine and no longer says the pin owns the pro
 version: the operator owns it; an agent runs `lazurio update` when the operator asks
 (a change of the Environment, never on its own initiative) and `update status` freely;
 the pin is a minimum and a rollout never lowers a version; the refresh command follows
-an update; `lazurio update rollback` is for a failed update. Template revision
+an update; `lazurio update rollback` is for a failed update (since
+`base-instructions-10`, F21, the manual says there is no way back and describes
+Recovery mode instead). Template revision
 `base-instructions-9` (revision 8 shipped in `v0.1.7`), so every Folder re-renders on
 its next refresh. A unit test checks that no generated output, in any preset or
 locale, still forbids `lazurio update` or gives the product version to the pin.
@@ -1170,6 +1182,10 @@ would instead have forced a rewrite of every existing Folder, which the byte-ide
 requirement forbids. The transaction journal schema
 (version 3) is unchanged as well: it embeds preferences, and a journal written with a
 non-empty selection is validated by the binary that wrote it.
+
+*Amended by F21 (2026-09-28): there is no program rollback; of the two paragraphs
+below only the fact stands that an older executable refuses such a Folder, fail
+closed.*
 
 **Forward-migration boundary.** A Folder with a non-empty `tools` list is unreadable
 by binaries older than this release: their exact-key parser refuses the unknown key,
@@ -1282,6 +1298,8 @@ exact-key parser refuses the unknown key, fail closed, nothing rewritten). The s
 versions stay unchanged for the same reason as for `tools`. Before a program rollback
 below this release, remove the notes (and disable the tools) with this release, or
 repair forward by returning to it; the rollback guard described above holds unchanged.
+*(Amended by F21: there is no program rollback; an older executable refusing such a
+Folder is what stands.)*
 
 *Surfaces.* `lazurio tools note <tool> --folder <F> --expected-revision <n> (--text
 <text> | --clear)`; `tools list` shows each tool's note. `POST /api/tools/preview` and
@@ -1746,3 +1764,214 @@ installed product.
 
 **Not in this decision:** Windows; the website route itself (another repository);
 OS publisher signing, which stays a gate before public release (F13).
+
+## F21 — Recovery mode instead of rollback
+
+**Principal's decision 2026-09-28, accepted.** The authority is root decision 0166
+(HumanAndMachines/Lazurio#442); this entry records how it binds the Platform. The
+analysis and design are [recovery mode](recovery-mode.md), whose questions Q1–Q6 the
+Principal decided the same day (Q4 by delegation). Recorded from the Principal's words:
+rollback must not be the safety net; when something breaks, the Environment starts an
+agent that repairs forward, or delivers every material for a fix to GitHub, and the
+pressure lands on tests and CI/CD so that releases become stable. "No back doors for
+rollback!"
+
+1. **No program rollback** (0166 point 1; Q1). `lazurio update rollback`, `--auto`,
+   `lazurio-rollback.service`, `OnFailure=`, the retained `previous` version,
+   `pending.json` and the switch-back after an unhealthy restart are removed; the
+   switch-back is rollback, because the new version had already run (Q1). What stays
+   is not rollback: an operation fails atomically, nothing changes before a candidate
+   has proven itself (verification, self-check and a read-only Launchpad start on a
+   private socket), and the floor with its high-water mark refuses a downgrade. The
+   switch is the commit; after it the only direction is forward.
+2. **Recovery mode** (0166 point 2; Q3). When the Launchpad cannot serve its normal
+   page for a reason it can name, it keeps running and serves one page with one
+   action: a repair agent with a prepared assignment and the sanitized evidence.
+   `lazurio recover` is the same use case on the CLI. The Launchpad unit restarts
+   always and never ends `failed`. On a workstation, copying the prompt into the
+   operator's agent application is enough for now (Q3), revisited when T3 Code can
+   start a thread from outside. When the executable cannot run at all, the hosted
+   gateway serves a static page that sends the operator to T3 Code (Machines).
+3. **Every entry into Recovery mode ends on GitHub** (0166 point 2; Q2), also after
+   a local repair, "otherwise the repair never becomes a test". Each such issue closes
+   only with a regression test under `tests/recovery/<fingerprint>/`.
+4. **Where the issue goes** (0166 point 8; Q4, delegated by the Principal and decided
+   by the Task Agent). The automatic issue goes to this public repository and carries
+   only structured fields after a deterministic sanitizing gate (version, target,
+   platform, failed check identifiers, unit state, Folder and template revision). The
+   journal tail and any free text stay in the local recovery bundle and reach the
+   issue only when the repair agent attaches them after reading them under the same
+   gate. The operator does not confirm and sees the exact body that left. No intake
+   service; a private intake is reconsidered only if structured issues prove
+   insufficient for fixes.
+5. **Quality instead** (0166 points 3, 5 and 6; Q5). A final release requires the
+   journeys J1–J6 on disposable Ubuntu and macOS runners against the real release
+   candidate ([gates](recovery-mode.md#g-what-forces-quality-instead)), and a canary
+   stage of **8 hours on the work VMs of the pilot Organization and on the personal
+   VMs of its operators**, with its evidence. Releases go out in stages: qualification
+   VM, pilot Organization, then further Organizations step by step. A shorter canary
+   or a narrower set of Machines for a named release exists only as the Principal's
+   decision recorded in the register, never as a line in an evidence pull request.
+   Linux means Ubuntu in the first phase; the rebuild of the hosted personal VMs on
+   Ubuntu 24.04 (F22 point 5) comes before the first canary stage, and no final
+   release passes with a personal VM missing from it.
+6. **Machines too** (0166 point 4; Q6). An apply completes or does not start and never
+   returns to an earlier release as a way of repair. What stays, because it is not
+   rollback: the atomic, pre-validated gateway configuration, forward completion of an
+   interrupted apply and the provider's rescue access as the emergency way in. What
+   goes: the restore of the previous resident tree and of the previous T3 Code release
+   tree. A failed apply returns full evidence to the agent running the rollout, which
+   repairs forward with a new Plan or files an issue. Its application in Machines is a
+   separate Machines decision.
+7. **Accepted consequence** (0166 point 7). A release that passes every gate and
+   still fails on one Machine leaves that Machine's Launchpad in Recovery mode until a
+   fixed release; T3 Code, the operator's tools, the Folder and the repositories are
+   unaffected. The update to the first release without rollback is performed by the
+   old updater, which may switch back once; that last switch-back is accepted.
+
+Q7 (whether `update status` keeps a `previous` field) was not put to the Principal; it
+was implemented as recommended: the field is dropped.
+
+**Amends** F4 (rollback retention; "program rollback and data recovery are
+separate"), F13 (no retained previous version), F17 and its 2026-09-28 addendum point
+3 (`lazurio update rollback` is withdrawn), F18 (its rollback paragraphs) and the
+[product update](update.md) contract; each amended place carries a pointer here. In
+the root register, 0166 replaces 0161's mention of the Platform's own rollback; 0164
+and 0166 are one rule, forward repair.
+
+**Open.** The separate Machines decision and the Machines texts that still describe
+rollback ([recovery mode](recovery-mode.md) G.4, H); the staged rings (G.5); a passing
+qualification; the start of a T3 Code thread from outside (Q3); repair of a damaged
+active executable at the same version; deletion of the remove-rollback migration once
+`minimum_updater_version` reaches the first release without rollback.
+
+**State on the evening of 2026-09-28.** Merged in this repository: the shaping (#64);
+`lazurio recover` with its checks, tier-1 evidence, refusing sanitizer and repair
+prompt (#69) and its probe fix (#78, issue #74); activation without undo, the
+always-restarting unit, minimal Recovery mode and the remove-rollback migration (#67,
+`base-instructions-10`); the Recovery page (#72); `qualify.yml` with J1–J6 and the
+canary record a final tag requires (#75). Released only as the pre-releases
+`v0.1.8-rc.1` and `v0.1.8-rc.2`; the latest release `v0.1.7` still contains rollback.
+The first real qualification run, on `v0.1.8-rc.2`, failed: J3 on `ubuntu-24.04` (the
+previous release's Launchpad did not come up within 60 s), the other eleven journey
+runs passed; no candidate is qualified and no canary has started. Not done: the
+Machines part (its decision, the gateway's static page, the role texts) and the
+rebuild of the personal VMs that precedes the first canary.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep rollback as a safety net | Fast relief on one Machine; hides faults and keeps a second code path alive; rejected by the Principal |
+| Keep only the automatic switch-back after an unhealthy restart | Smaller, but the new version was observable and may have written state; it is rollback by the rule above; rejected (Q1) |
+| Recovery page from a separate program | Survives a broken executable; a second runtime and supervisor to build and qualify; rejected in favour of the gateway's static page |
+| Recovery mode in the Launchpad plus `lazurio recover` | One core, no new process, reaches the operator where they already are; selected |
+| A private intake from which maintainers write the public issue | Two gates and a reader before the public; an endpoint, a private repository and an agent pass to run; kept as the fallback if structured issues prove insufficient (Q4) |
+
+## F22 — The Platform Launchpad reaches parity and replaces the resident in one apply
+
+**Principal's decision 2026-09-28, accepted.** The authority is root decision 0167 with
+its addendum of the same day (HumanAndMachines/Lazurio#442, #443); the Team
+Environment part follows root decision 0168. The analysis is
+[Launchpad parity](launchpad-parity.md), whose questions H1, H4 and H6, H3 in
+direction and the drops of its section F the Principal decided. Recorded from the
+Principal's words: "Let us give maximum priority to finishing the Platform Launchpad,
+so that we do not have to deal with this parallel run at all", and "take the concepts
+of the old Launchpad and do them properly in the new Launchpad".
+
+1. **Canonical-only Organizations are executable** (0167 point 5; H1). F12's
+   transition-only admission ends (F12 addendum): `transition` and `current` roots
+   run applications.
+2. **Concepts, CLI first, no new Folder state** (0167 point 1). Organizations and
+   modules are read from the Folder's `organizations/`; module operations are CLI
+   first (`lazurio module …`, `lazurio organization …`), run without a Launchpad, use
+   the operator's Bun from `~/.local/bin` and log to the journal; the Launchpad
+   composes the same core. On Linux modules are systemd user units that survive a
+   Launchpad restart, on macOS they stay session-bound (0167 amends root 0137);
+   modules run from `main` (0167 amends root 0049).
+3. **The handover carries `entry`** (the Launchpad, T3 Code and the module origin
+   template), written only by Machines; the gateway keeps the browser's `Host` and
+   sends the Launchpad's `Host` on `ensure`. The entry is declaration, not identity:
+   the Platform records it whenever the handover carries it, and writing it is not
+   switching ([machine handover](machine-handover.md#the-hosted-entry-decision-f16)).
+4. **One apply, no side-by-side period** (0167 point 2). A hosted Machine switches in
+   one Machines apply that removes the resident unit after read-only checks. There is
+   no period with both Launchpads, no transition hostname and no way back to the
+   resident; Recovery mode (F21) is released first, and Machines itself does not roll
+   back (F21 point 6). The order of the apply is the shaping's proposal (H2 below).
+5. **Ubuntu 24.04 on every hosted Machine** (0167 point 3 and its addendum). The first
+   usable version targets hosted Remote Environments on Linux, which means Ubuntu in
+   the first phase; other distributions are "unverified". Hosted personal VMs move
+   from Debian 13 to Ubuntu 24.04 at the next Machines rollout, as a **rebuild with
+   state transfer that is seamless for the Owner**: about an hour of outage is
+   acceptable, but the Owner sets up no SSH key, sign-in or Buddy again. The Machine's
+   identity, its tailnet node, its SSH host keys and the operator's home with the
+   Buddy's state are restored, each proven by a readback. The Buddy's secrets are
+   carried byte for byte without rotation; the pool host keeps the old disk for 14
+   days, and booting it in that window is only a manual last-resort step of the
+   operator, not a product mechanism and not a way back in the sense of F21. The
+   Principal's own personal VM is rebuilt first, the second at any time, the third in
+   a window agreed with its Owner. The rebuild stays separate from the switch and
+   precedes the first canary stage (F21 point 5). macOS and Windows follow, Windows
+   once a Platform build for Windows exists.
+6. **Deliberately not carried over** (0167 point 4; section F). The browser Git client
+   (a worktree from a plan, publishing a draft by commit and push), the Mission Control
+   plan browser, notifications, "most used" and recent changes, and the other drops
+   of [section F](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over) have
+   no successor. Git is done by agents in T3 Code under the manual's worktree
+   discipline, and click-derived state has no decision behind it.
+7. **Pull-request previews** (0167 addendum; H3 in direction). Worktree source (P9) is
+   off the switch line. A preview from the web T3 Code on a hosted Machine gets a
+   temporary Environment URL that the agent registers like a module's hostname, as a
+   lease that ends by itself and never accumulates (the Principal's examples: cleanup
+   after 24 hours and when the port disappears). The hosted Folder manual tells agents
+   how previews work so that they never send the operator a localhost link; until an
+   application has a hosted name, the handoff says so instead of a link. On a
+   workstation, worktree source is a later slice.
+8. **New Work Machines** (0167 point 6; H4): until content synchronization (P10), the
+   agent in T3 Code clones their Organizations from the manual.
+9. **Team Environments** (0167 point 7, 0168; H6). Commits, pull requests and issues
+   from a Team Environment carry `Lazurio-Environment: <machine>.<org>` beside root
+   decision 0148's `Lazurio-Workspace`, a direction for the broker and Machines that is
+   not built. A Team Environment works in GitHub through the Organization's bot right
+   after handover; the Platform refuses a personal `gh` sign-in and SSH key there and
+   allows the sign-out of a personal account left behind (F19 addendum).
+10. The new Launchpad shell that another Kolega's plan builds in the resident is a
+    proof of concept and an input to the Platform Launchpad (0167 point 8).
+
+**Open.** H2: the point of no return after read-only preflights inside the one apply
+([C.2](launchpad-parity.md#c2-the-apply-in-order)); recommended, and the Machines
+switch draft follows it. H5: `launchpad.gen3.json` and `launchpad.gen3.local.json`
+with its planned slots and Personalspace owner have no successor, amending F15 point
+2; 0167 point 9 records it as a proposal the Principal neither confirmed nor
+questioned. H7: the command names `lazurio module …` and `lazurio organization …` are
+kept from the resident; recommended and implemented. The rules of the preview lease
+(time to live, renewal, end conditions, the cap per Machine;
+[B14](launchpad-parity.md#b14-worktree-previews-under-a-temporary-hostname-p9-proposal))
+are a proposal, not a decision. Implementation proceeds on the recommendations; H5
+and H7 can still change before the first final release that contains P4 and P5,
+without migrating anything.
+
+**Amends** F12 (its admission; see the F12 addendum), F15 (point 2, subject to H5, and
+the 2026-09-28 addendum's sentence that the development Application panel stays on
+the Launchpad home: the home is the catalog) and F8's "Not done" list (module logs are
+done; worktree source stays not done).
+
+**State on the evening of 2026-09-28.** Merged in this repository (slices of
+[Launchpad parity](launchpad-parity.md#e-slices)): the shaping (#65); P1, F21's
+slices (#67, #69, #72, #78); P2, the unit's `PATH` line (in #67); P3, the handover
+entry with the schema re-pinned to Machines v0.12.93, which released M1 (#71); P4, the
+catalog home and admission variant B (#68); P5, the module lifecycle (#73); P6, the
+gateway's `ensure` (#79); P7, Chat into T3 Code (#80); P8, `lazurio doctor` (#77); P12,
+the Team rule for `gh` (#66). Open: M2, the switch apply (Machines #248, Draft, not
+declarable until a Platform candidate with P1–P8 has passed `qualify.yml`); M3, the
+local Ubuntu VM qualification harness (Machines #244, Draft, no real run yet); M6, the
+rebuild, whose design is merged (Machines #247) and whose slices R2–R8 are open; the
+first real qualification run (`v0.1.8-rc.2`) failing J3 on Ubuntu (F21); issue #76,
+hosted admission refusing a session cookie split into chunks (P13). P9 follows the
+switch. The resident Launchpad serves every hosted Machine until the switch release.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Run both Launchpads side by side on a transition hostname | Gentle, but two Launchpads, a second hostname and a way back to maintain; rejected by the Principal |
+| Port the resident's code | Carries a Git client, a plan browser and click ranking nobody decided; rejected: concepts, not code |
+| Keep transition-only admission until an identity continuity proof | The proof has no owner; every migrated Organization would lose its applications at the switch; rejected (H1) |
+| Parity by concept, CLI first, one Machines apply (selected) | No new Folder state and no parallel run; the switch waits for Recovery mode and a qualified candidate |
