@@ -5,7 +5,7 @@
 # used, from the bundle built by `scripts/qualify-update-linux.ts`:
 #
 #   LAZURIO_QUALIFY_DISPOSABLE=1 bash <bundle>/qualify-update-linux.sh before-reboot
-#   sudo reboot          # a REAL reboot in the middle of an activation
+#   sudo reboot          # a REAL reboot: the unit starts the active version at boot
 #   LAZURIO_QUALIFY_DISPOSABLE=1 bash <bundle>/qualify-update-linux.sh after-reboot
 #
 # It uses the user's REAL install base (~/.local/share/lazurio), Folder
@@ -35,11 +35,9 @@ BASE=$HOME/.local/share/lazurio
 FOLDER=$HOME/Lazurio
 WORK=$HOME/update-qual-work
 UNIT=lazurio-launchpad.service
-ROLLBACK_UNIT=lazurio-rollback.service
 UNIT_DIR=$HOME/.config/systemd/user
 L=$BASE/bin/lazurio
 FAILED=0
-SCRIPT_STARTED=$(date '+%H:%M:%S.%N' | cut -c1-12)
 
 say() { printf '%s\n' "$*"; }
 step() { say ""; say "== $* =="; STEP_STARTED=$(date +%s%N); }
@@ -61,16 +59,28 @@ wait_for() { # wait_for <seconds> <command…>
 }
 lz() { "$L" "$@"; }
 selected() { readlink "$L" | cut -d/ -f3; }
-previous() { readlink "$BASE/previous" | cut -d/ -f2; }
 high_water() { cat "$BASE/update/high-water" 2>/dev/null; }
-marker() { cat "$BASE/update/pending.json" 2>/dev/null; }
+versions() { ls "$BASE/versions" | tr '\n' ' '; }
+# What only program rollback used, which a release without rollback never
+# writes: `previous`, the activation marker and the rollback unit.
+legacy() { for p in "$BASE/previous" "$BASE/update/pending.json" "$UNIT_DIR/lazurio-rollback.service"; do [ -e "$p" ] || [ -L "$p" ] && echo "$p"; done; }
 unit_pid() { systemctl --user show "$UNIT" -p MainPID --value; }
 launchpad_on() { # a live unit whose main process IS that version's executable
   [ "$(systemctl --user is-active "$UNIT")" = active ] &&
     [ "$(readlink "/proc/$(unit_pid)/exe")" = "$BASE/versions/$1/lazurio" ] &&
     [ -S "$BASE/update/launchpad.sock" ]
 }
-state() { say "   state: selector=$(selected) previous=$(previous) high-water=$(high_water) marker=$(marker)"; }
+state() { say "   state: selector=$(selected) versions=$(versions)high-water=$(high_water) unit=$(systemctl --user is-active "$UNIT")/$(systemctl --user show "$UNIT" -p SubState --value) restarts=$(systemctl --user show "$UNIT" -p NRestarts --value)"; }
+# The unit must never end `failed`: sampled for <seconds>, it restarts and
+# never reaches the state (Restart=always, no start rate limit).
+never_failed() { # never_failed <seconds>
+  local deadline=$(($(date +%s) + $1)) seen=""
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    [ "$(systemctl --user is-active "$UNIT")" = failed ] && seen=failed
+    sleep 0.5
+  done
+  [ -z "$seen" ]
+}
 start_fixture() {
   echo "$1" >"$BUNDLE/tree/latest"
   "$BUNDLE/update-fixture-server" --tree "$BUNDLE/tree" --port "$PORT" >"$WORK/fixture.log" 2>&1 &
@@ -81,21 +91,6 @@ latest() { echo "$1" >"$BUNDLE/tree/latest"; say "   latest -> $1"; }
 # Runs `lazurio update …` and records its output and exit status.
 OUT=$WORK/update.out
 update() { lz update "$@" >"$OUT" 2>"$WORK/update.err"; echo "exit=$?" >>"$OUT"; sed 's/^/   > /' "$OUT"; }
-# Runs it in the background and kills it with SIGKILL as soon as the selector
-# names <version>: what a power loss right after the switch leaves behind.
-# With `boot`, the Machine "comes back": the unit starts what the selector names.
-update_killed_after_switch() {
-  # The executable itself, not a shell function: `$!` must be the updater.
-  "$L" update --json >"$OUT" 2>&1 &
-  local updater=$! exe
-  exe=$(readlink "/proc/$updater/exe" | sed "s|$BASE|<base>|")
-  until [ "$(selected)" = "$1" ] || ! kill -0 "$updater" 2>/dev/null; do sleep 0.02; done
-  kill -9 "$updater" 2>/dev/null && say "   SIGKILL -> updater (pid $updater, $exe) right after the switch to $1"
-  wait "$updater" 2>/dev/null
-  if pgrep -f "lazurio update" >/dev/null; then fail "an updater is still alive"; else pass "no updater is alive"; fi
-  if [ "${2:-}" = boot ]; then systemctl --user --no-block restart "$UNIT"; fi
-}
-
 say "phase $PHASE: target $TARGET, commit $COMMIT, $(systemctl --version | head -n 1), $(uname -r)"
 say "linger: $(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)"
 
@@ -104,7 +99,7 @@ if [ "$PHASE" = before-reboot ]; then
   mkdir -p "$WORK" || exit 2
   for v in 1.0.0 1.1.0 1.1.5 1.2.0 1.3.0; do say "   $("$BUNDLE/lazurio-$v" --version)"; done
 
-  step "1. install --service systemd-user: the downloaded executable installs ITSELF and the units"
+  step "1. install --service systemd-user: the downloaded executable installs ITSELF and the one Launchpad unit"
   start_fixture v1.0.0
   "$BUNDLE/lazurio-1.0.0" folder-init --folder "$FOLDER" --access local --purpose human --locale en --detail concise --coordination direct >/dev/null || fail "folder-init"
   # Ubuntu's default umask: the layout must be owner-only regardless.
@@ -114,20 +109,27 @@ if [ "$PHASE" = before-reboot ]; then
   expect "selector" "$(selected)" 1.0.0
   expect "modes of base bin versions update (umask 002)" "$(stat -c %a "$BASE" "$BASE/bin" "$BASE/versions" "$BASE/update" | tr '\n' ' ')" "700 700 700 700 "
   expect "mode of the executable" "$(stat -c %a "$BASE/versions/1.0.0/lazurio")" 500
-  say "   units written by the installer:"
-  sed 's/^/   | /' "$UNIT_DIR/$UNIT" "$UNIT_DIR/$ROLLBACK_UNIT"
-  expect "unit enabled" "$(systemctl --user is-enabled "$UNIT")" enabled
   wait_for 30 launchpad_on 1.0.0 && pass "Launchpad active; the kernel runs versions/1.0.0/lazurio through the selector; health socket present" || fail "Launchpad is not on 1.0.0"
+  say "   the unit written by the installer:"
+  sed 's/^/   | /' "$UNIT_DIR/$UNIT"
+  expect "unit enabled" "$(systemctl --user is-enabled "$UNIT")" enabled
+  expect "Restart=" "$(systemctl --user show "$UNIT" -p Restart --value)" always
+  expect "RestartUSec" "$(systemctl --user show "$UNIT" -p RestartUSec --value)" 5s
+  expect "StartLimitIntervalUSec (0: no start rate limit, never failed)" "$(systemctl --user show "$UNIT" -p StartLimitIntervalUSec --value)" 0
+  expect "OnFailure=" "$(systemctl --user show "$UNIT" -p OnFailure --value)" ""
+  expect "PATH of the Launchpad" "$(tr '\0' '\n' <"/proc/$(unit_pid)/environ" 2>/dev/null | sed -n 's/^PATH=//p')" "$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin"
+  expect "nothing of rollback" "$(legacy)" ""
+  systemd-analyze --user verify "$UNIT_DIR/$UNIT" >"$WORK/verify.out" 2>&1
+  expect "systemd-analyze verify accepts the unit (exit status)" "$?" 0
+  sed 's/^/   | /' "$WORK/verify.out"
   expect "no high-water mark yet: the floor is the active version" "$(high_water)" ""
   # The harness's faults live in a DROP-IN next to the installer's unit, not in
-  # the product: a gate that delays, refuses or kills the Launchpad of 1.2.0.
+  # the product: a gate that refuses the Launchpad of 1.2.0 while the fault is set.
   cat >"$WORK/unit-gate.sh" <<GATE
 #!/bin/sh
 fault=\$(cat "$WORK/fault" 2>/dev/null)
 case "\$(readlink "$L")" in *versions/1.2.0/*) ;; *) exit 0 ;; esac
 [ "\$1" = pre ] && [ "\$fault" = refuse-1.2.0 ] && exit 1
-[ "\$1" = pre ] && [ "\$fault" = slow-1.2.0 ] && sleep 20
-[ "\$1" = post ] && [ "\$fault" = crash-1.2.0 ] && { sleep 1; kill -9 "\$2"; }
 exit 0
 GATE
   chmod 700 "$WORK/unit-gate.sh"
@@ -141,61 +143,58 @@ DROPIN
   systemctl --user daemon-reload
   took
 
-  step "2. A -> B (1.0.0 -> 1.1.0): attested release, restart, health at the new version, commit"
+  step "2. A -> B (1.0.0 -> 1.1.0): attested release, self-check and Launchpad probe, switch, restart, health at the new version"
   latest v1.1.0
   lz update --check >"$OUT" 2>&1; expect "update --check exit status (10 = available)" "$?" 10
   OLD_PID=$(unit_pid)
   update --json
   expect "result" "$(field kind <"$OUT")" updated
   expect "selector" "$(selected)" 1.1.0
-  expect "previous" "$(previous)" 1.0.0
-  expect "high-water raised at commit" "$(high_water)" 1.1.0
-  expect "marker deleted by the commit" "$(marker)" ""
+  expect "high-water follows the switch" "$(high_water)" 1.1.0
+  expect "only the active version is kept" "$(versions)" "1.1.0 "
+  expect "nothing of rollback" "$(legacy)" ""
   launchpad_on 1.1.0 && pass "Launchpad active on 1.1.0 (pid $OLD_PID -> $(unit_pid))" || fail "Launchpad is not on 1.1.0"
-  # Only now does `previous` exist, which the rollback unit's ExecStart names.
-  systemd-analyze --user verify "$UNIT_DIR/$UNIT" "$UNIT_DIR/$ROLLBACK_UNIT" >"$WORK/verify.out" 2>&1
-  expect "systemd-analyze verify accepts both units (exit status)" "$?" 0
-  sed 's/^/   | /' "$WORK/verify.out"
   say "   \$ lazurio --version"; lz --version | sed 's/^/   > /'
   took
 
-  step "3. failed B (1.2.0 refused at start): automatic switch-back within the health deadline"
+  step "3. B (1.2.0) refused at start under the unit: activation-unhealthy, nothing switched back, the unit restarts and never ends failed"
   latest v1.2.0
   echo refuse-1.2.0 >"$WORK/fault"
   update --json
-  expect "typed error" "$(field code <"$OUT")" activation-failed
+  expect "typed error" "$(field code <"$OUT")" activation-unhealthy
   expect "exit status" "$(grep -o 'exit=.*' "$OUT")" exit=1
-  expect "selector" "$(selected)" 1.1.0
-  expect "an undone activation never raised the mark" "$(high_water)" 1.1.0
-  expect "marker deleted by the undo" "$(marker)" ""
-  wait_for 20 launchpad_on 1.1.0 && pass "Launchpad healthy again on 1.1.0" || fail "Launchpad not back on 1.1.0: $(systemctl --user is-active "$UNIT")"
-  say "   rollback unit during that attempt (updater alive, lock held -> it must do nothing):"
-  journalctl --user -u "$ROLLBACK_UNIT" -o cat --no-pager 2>/dev/null | tail -n 3 | sed 's/^/   | /'
-  lz update --check >/dev/null 2>&1; expect "the retry is the same action (check exit 10)" "$?" 10
-  took
-
-  step "4. power loss after the switch + crashing 1.2.0 -> OnFailure=lazurio-rollback.service undoes (no updater, no command)"
-  echo crash-1.2.0 >"$WORK/fault"
-  update_killed_after_switch 1.2.0 boot
+  expect "selector stays on the new version" "$(selected)" 1.2.0
+  expect "the mark follows the switch" "$(high_water)" 1.2.0
+  expect "only the active version is kept" "$(versions)" "1.2.0 "
+  say "   nobody runs any command now; systemd alone is in charge for 40 s"
+  never_failed 40 && pass "the unit never reached failed" || fail "the unit reached failed"
   state
-  expect "the dead updater left the marker" "$(marker)" '{"from":"1.1.0","to":"1.2.0"}'
-  say "   nobody runs any command now; systemd alone is in charge"
-  undone() { [ "$(selected)" = 1.1.0 ] && [ -z "$(marker)" ] && launchpad_on 1.1.0; }
-  wait_for 90 undone && pass "rollback unit switched back, reset the failed unit and restarted it: Launchpad on 1.1.0" || fail "not undone: $(systemctl --user is-active "$UNIT") / $(systemctl --user show "$UNIT" -p Result --value)"
-  state
-  expect "the mark was not raised" "$(high_water)" 1.1.0
-  say "   journal of the rollback unit:"
-  journalctl --user -u "$ROLLBACK_UNIT" -o cat --no-pager 2>/dev/null | tail -n 4 | sed 's/^/   | /'
-  took
-
-  step "5a. power loss after the switch to a HEALTHY 1.2.0 — followed by a REAL reboot"
-  echo slow-1.2.0 >"$WORK/fault" # only so that the updater is killed before it can commit
-  update_killed_after_switch 1.2.0
-  rm -f "$WORK/fault"
-  state
+  RESTARTS=$(systemctl --user show "$UNIT" -p NRestarts --value)
+  if [ "${RESTARTS:-0}" -ge 3 ]; then pass "it kept restarting: NRestarts=$RESTARTS"; else fail "NRestarts=$RESTARTS"; fi
   expect "selector" "$(selected)" 1.2.0
-  expect "the dead updater left the marker" "$(marker)" '{"from":"1.1.0","to":"1.2.0"}'
-  expect "not committed: the mark is still" "$(high_water)" 1.1.0
+  expect "nothing of rollback" "$(legacy)" ""
+  rm -f "$WORK/fault"
+  say "   the fault is repaired; still nobody runs a command"
+  wait_for 30 launchpad_on 1.2.0 && pass "the unit's next restart brought 1.2.0 up healthy by itself" || fail "Launchpad is not on 1.2.0"
+  took
+
+  step "4. a candidate whose Launchpad would not start is refused BEFORE the switch; nothing changes"
+  latest v1.3.0
+  mkdir "$FOLDER/.lazurio/transaction"
+  LP_PID=$(unit_pid)
+  update --json
+  expect "typed error" "$(field code <"$OUT")" self-check-failed
+  expect "reason" "$(field reason <"$OUT")" launchpad-refused
+  expect "refusal" "$(field refusal <"$OUT")" folder-transaction-pending
+  expect "selector unchanged" "$(selected)" 1.2.0
+  expect "the candidate was removed" "$(versions)" "1.2.0 "
+  expect "the Launchpad was never restarted (pid)" "$(unit_pid)" "$LP_PID"
+  rmdir "$FOLDER/.lazurio/transaction"
+  latest v1.2.0
+  took
+
+  step "5a. a REAL reboot of an installation on 1.2.0"
+  state
   sync
   took
   say ""
@@ -208,44 +207,38 @@ fi
 FAILED=$(cat "$WORK/failed-before-reboot" 2>/dev/null || echo 1)
 say "uptime: $(uptime -p); boot id $(cat /proc/sys/kernel/random/boot_id)"
 
-step "5b. after the reboot: the Launchpad of 1.2.0 started healthy by itself and committed the marker"
-committed() { [ -z "$(marker)" ] && [ "$(high_water)" = 1.2.0 ]; }
-wait_for 90 committed && pass "marker deleted and mark raised to 1.2.0 without any command" || fail "not committed"
+step "5b. after the reboot: the unit started the active 1.2.0 by itself; there is nothing to commit or undo"
+wait_for 90 launchpad_on 1.2.0 && pass "Launchpad active on 1.2.0 after boot" || fail "Launchpad is not on 1.2.0"
 state
-wait_for 30 launchpad_on 1.2.0 && pass "Launchpad active on 1.2.0 after boot" || fail "Launchpad is not on 1.2.0"
 say "   system boot: $(who -b | sed 's/^ *system boot *//')"
 say "   Launchpad started: $(journalctl --user -b -u "$UNIT" -o short-precise --no-pager | grep -m 1 'Started' | cut -d' ' -f1-3)"
-say "   high-water written: $(stat -c %y "$BASE/update/high-water")  (the Launchpad commits once it outlived its first 15 s)"
-say "   update commands run by anyone between the boot and that commit: none (this script started at $SCRIPT_STARTED and only reads until here)"
-expect "previous" "$(previous)" 1.1.0
+expect "nothing of rollback" "$(legacy)" ""
 lz update status | sed 's/^/   > /'
 took
 
-step "6. explicit rollback 1.2.0 -> 1.1.0: previous after its own self-check, same restart and health rule"
+step "6. there is no way back: no rollback command, no retained version, nothing below the floor by name"
 start_fixture v1.2.0
-lz update rollback --json >"$OUT" 2>&1; echo "exit=$?" >>"$OUT"; sed 's/^/   > /' "$OUT"
-expect "result" "$(field kind <"$OUT")" rolled-back
-expect "selector" "$(selected)" 1.1.0
-expect "previous" "$(previous)" 1.2.0
-expect "the version left stays the floor" "$(high_water)" 1.2.0
-expect "marker" "$(marker)" ""
-launchpad_on 1.1.0 && pass "Launchpad active on 1.1.0" || fail "Launchpad is not on 1.1.0"
+lz update rollback --json >"$OUT" 2>&1; expect "update rollback is a usage error (exit status)" "$?" 2
+update --version v1.1.0 --json
+expect "exact tag below the active version" "$(field code <"$OUT")" release-invalid
+expect "reason" "$(field reason <"$OUT")" below-floor
+expect "selector unchanged" "$(selected)" 1.2.0
+expect "only the active version is on disk" "$(versions)" "1.2.0 "
 took
 
-step "7. the floor: no network path goes below the high-water mark; the equal retry is allowed"
-latest v1.1.5 # newer than the active 1.1.0, below the mark 1.2.0
+step "7. the floor: no network path goes below the high-water mark"
+latest v1.1.5 # below the active 1.2.0
 lz update --check >"$OUT" 2>&1; expect "latest below the floor is not an update (check exit 0)" "$?" 0
 update --json
 expect "update through latest" "$(field kind <"$OUT")" up-to-date
 update --version v1.1.5 --json
 expect "exact tag below the floor" "$(field code <"$OUT")" release-invalid
 expect "reason" "$(field reason <"$OUT")" below-floor
-expect "selector unchanged" "$(selected)" 1.1.0
-update --version v1.2.0 --json
-expect "equal to the mark, not active: allowed" "$(field kind <"$OUT")" updated
-expect "selector" "$(selected)" 1.2.0
-launchpad_on 1.2.0 && pass "Launchpad active on 1.2.0" || fail "Launchpad is not on 1.2.0"
+expect "selector unchanged" "$(selected)" 1.2.0
 lz update status --json | sed 's/^/   > /'
+# Journey 8 waits for the pill's first check, ~30 s after a Launchpad starts.
+systemctl --user restart "$UNIT"
+wait_for 30 launchpad_on 1.2.0 && pass "Launchpad restarted on 1.2.0 for journey 8" || fail "Launchpad is not on 1.2.0"
 took
 
 step "8. the Launchpad pill: the click path through GET /api/update/status and POST /api/update/apply on the service's loopback session"
@@ -315,11 +308,11 @@ case "$(field state <"$HTTP")" in
   downloading | activating) pass "the pill follows the unit: $(field state <"$HTTP")" ;;
   *) fail "the pill during the update: HTTP $STATUS $(cat "$HTTP")" ;;
 esac
-switched_to() { [ "$(selected)" = "$1" ] && [ -z "$(marker)" ] && [ "$(high_water)" = "$1" ] && launchpad_on "$1"; }
+switched_to() { [ "$(selected)" = "$1" ] && [ "$(high_water)" = "$1" ] && launchpad_on "$1"; }
 WAITED=$(date +%s)
-if wait_for 30 switched_to 1.3.0; then pass "within 30 s ($(($(date +%s) - WAITED)) s): selector 1.3.0, marker gone, mark raised, Launchpad on 1.3.0 (pid $OLD_PID -> $(unit_pid))"; else fail "not switched within 30 s: $(systemctl --user is-active "$UNIT")"; fi
+if wait_for 30 switched_to 1.3.0; then pass "within 30 s ($(($(date +%s) - WAITED)) s): selector 1.3.0, mark raised, Launchpad on 1.3.0 (pid $OLD_PID -> $(unit_pid))"; else fail "not switched within 30 s: $(systemctl --user is-active "$UNIT")"; fi
 state
-expect "previous" "$(previous)" 1.2.0
+expect "only the active version is kept" "$(versions)" "1.3.0 "
 NEW_INVOCATION=$(invocation "$UNIT")
 if [ "$NEW_INVOCATION" != "$OLD_INVOCATION" ]; then pass "the Launchpad was restarted by the unit (invocation $(short "$OLD_INVOCATION") -> $(short "$NEW_INVOCATION"))"; else fail "the same Launchpad invocation is still running"; fi
 unit_done() { [ "$(update_unit ActiveState)" = inactive ]; }
@@ -367,7 +360,7 @@ shows code self-check-failed "error read back from that invocation's journal"
 shows reason identity-mismatch
 expect "selector unchanged" "$(selected)" 1.3.0
 expect "mark unchanged" "$(high_water)" 1.3.0
-expect "marker" "$(marker)" ""
+expect "nothing of rollback" "$(legacy)" ""
 expect "what the run placed was removed again (versions/1.4.0)" "$([ -e "$BASE/versions/1.4.0" ] && echo present || echo absent)" absent
 expect "the Launchpad was never restarted (pid)" "$(unit_pid)" "$LP_PID"
 say "   the retry: the same click while the failed unit is still on record"
