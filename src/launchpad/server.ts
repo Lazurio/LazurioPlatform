@@ -8,7 +8,7 @@ import {
   readFolderTools,
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
-import { withFolderOperationLock } from "../folder/lock";
+import { withFolderOperationLock, withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { allowedPresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
@@ -18,6 +18,11 @@ import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import { activatableTools, toolSelection } from "../tools/catalog";
+import {
+  folderPreset,
+  githubLoginRefused,
+  githubRefusal,
+} from "../tools/github-gate";
 import { curatedTool, type InstallFetch, installTool } from "../tools/install";
 import {
   createLoginSessions,
@@ -27,6 +32,7 @@ import {
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { runTool, xdgOf } from "../tools/status";
+import type { GithubAction } from "../tools/team-github";
 import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
@@ -161,9 +167,14 @@ export async function startLaunchpad(
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
+  // A running gh session asks the Team rule again, on this Folder's current
+  // preset, before every step that changes the account or the Machine
+  // (Principal 2026-09-28).
   const logins = createLoginSessions({
     ...toolsEnvironment,
     ...curatedOptions.login,
+    refused: async (tool, action) =>
+      githubLoginRefused(await folderPreset(folder), tool, action),
   });
   const installing = new Set<string>();
   let closing = false;
@@ -279,7 +290,7 @@ export async function startLaunchpad(
         }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
-          const current = await withFolderOperationLock(state, () =>
+          const current = await withFolderReadLock(state, () =>
             readFolderState(state),
           );
           // The preset and the communication axes are changeable; the Machine
@@ -388,9 +399,19 @@ export async function startLaunchpad(
               installing.delete(tool);
             }
           }
+          // gh on a Team Environment (Principal 2026-09-28): no person's
+          // sign-in or SSH key; a sign-out only of a person's account left
+          // there. The preset is read per request: a profile change may
+          // switch it while the Launchpad runs.
+          const teamRefusal = async (action: GithubAction) =>
+            tool === "gh"
+              ? githubRefusal(await folderPreset(folder), tool, action, logins)
+              : undefined;
           if (url.pathname === "/api/tools/logout") {
             // gh first removes this Machine's SSH key from the account.
             server.timeout(request, 180);
+            const refusal = await teamRefusal("logout");
+            if (refusal !== undefined) return response(refusal, 409);
             return response(await logins.logout(tool));
           }
           if (url.pathname === "/api/tools/login/start") {
@@ -406,6 +427,10 @@ export async function startLaunchpad(
                 value.phone !== undefined)
             )
               return response({ error: "invalid-ssh-key" }, 400);
+            const refusal = await teamRefusal(
+              value.sshKey === true ? "ssh-key" : "login",
+            );
+            if (refusal !== undefined) return response(refusal, 409);
             server.timeout(request, 60);
             return response(
               withQr(
@@ -421,6 +446,17 @@ export async function startLaunchpad(
           const handle = value.session;
           if (typeof handle !== "string" || !/^[0-9a-f]{32}$/.test(handle))
             return response({ error: "invalid-session" }, 400);
+          // A gh login cannot go on there either; cancelling one always can.
+          if (url.pathname === "/api/tools/login/poll") {
+            const refusal = await teamRefusal("login");
+            if (refusal !== undefined) {
+              // The session ends as refused; its holder reads that refusal
+              // (with the session's own action), or the generic one.
+              logins.refuse(tool);
+              const ended = logins.poll(tool, handle);
+              return response(ended.kind === "blocked" ? ended : refusal, 409);
+            }
+          }
           return response(
             url.pathname === "/api/tools/login/poll"
               ? withQr(logins.poll(tool, handle))
@@ -482,6 +518,13 @@ export async function startLaunchpad(
             ? { preset: value.preset, profile: value.profile }
             : { profile: value.profile },
         );
+        // A profile change that makes this a Team Environment ends a running
+        // gh sign-in or key linking at once: its holder reads the refusal.
+        if (url.pathname === "/api/update" && result.kind === "updated") {
+          const preset = await folderPreset(folder).catch(() => undefined);
+          if (preset === undefined || githubLoginRefused(preset, "gh", "login"))
+            logins.refuse("gh");
+        }
         return response(result, result.kind === "blocked" ? 409 : 200);
       } catch {
         return response(

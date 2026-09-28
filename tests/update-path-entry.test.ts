@@ -266,6 +266,14 @@ test("the command surface prints the entry and every warning, and --json carries
       `The command is ${entry}.`,
       `Put ${bin} on your PATH. Lazurio never edits shell profiles.`,
       `Another program named lazurio resolves first on PATH: ${join(bun, "lazurio")}. This installation is ${entry}. Nothing was changed about ${join(bun, "lazurio")}; remove it or put ${bin} before its directory on PATH only on the operator's instruction.`,
+      // A deviation from the standard is straightened by an agent; the
+      // command names this installation, not the program PATH finds first.
+      `This installation is not yet the standard one. To have an agent straighten it, give it the prompt that \`${entry} install prompt\` prints (add --locale cs for Czech).`,
+      // The first step on a workstation: no Folder yet.
+      "Next, create your Lazurio Folder and start the Launchpad:",
+      `  ${entry} folder-init --folder ${join(home, "Lazurio")} --access local --purpose human --locale en --detail concise --coordination direct`,
+      `  ${entry} launchpad --folder ${join(home, "Lazurio")}`,
+      "The Folder's language and style are your choice: --locale cs, --detail technical and --coordination coordinator are the alternatives.",
     ].join("\n"),
   });
   const json = JSON.parse(

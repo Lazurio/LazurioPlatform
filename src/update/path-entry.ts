@@ -139,80 +139,167 @@ async function sameFile(a: string, b: string): Promise<boolean> {
   }
 }
 
-/** Convergent: repeated, it finds the entry `present` and writes nothing.
- * Null where there is no home to put it in or the platform has no install
- * base design (only macOS and Linux have one). */
+/** What is at the entry, looked at component by component and never through
+ * a link: the entry is only ever written into the real `~/.local/bin`. With
+ * `create`, a missing `~/.local` or `~/.local/bin` is created (0755); without
+ * it nothing is written and a missing directory means a missing entry. */
+type Observed =
+  | Readonly<{ kind: "missing" | "present" | "replaceable" }>
+  | Readonly<{
+      kind: "conflict";
+      occupant: NonNullable<PathEntry["occupant"]>;
+    }>;
+
+async function observeEntry(
+  home: string,
+  target: string,
+  create: boolean,
+): Promise<Observed> {
+  const directory = entryDirectory(home);
+  for (const component of [join(home, ".local"), directory]) {
+    if (create) {
+      if (!(await ensureDirectory(component)))
+        return {
+          kind: "conflict",
+          occupant: Object.freeze({ kind: "parent", target: component }),
+        };
+      continue;
+    }
+    try {
+      if (!(await lstat(component)).isDirectory())
+        return {
+          kind: "conflict",
+          occupant: Object.freeze({ kind: "parent", target: component }),
+        };
+    } catch (error) {
+      if (!absent(error)) throw error;
+      return { kind: "missing" };
+    }
+  }
+  const path = join(directory, executableName);
+  let found: Awaited<ReturnType<typeof lstat>>;
+  try {
+    found = await lstat(path);
+  } catch (error) {
+    if (!absent(error)) throw error;
+    return { kind: "missing" };
+  }
+  if (!found.isSymbolicLink())
+    return {
+      kind: "conflict",
+      occupant: Object.freeze({ kind: found.isFile() ? "file" : "other" }),
+    };
+  const kind = await classifyLink(path, target);
+  if (kind === "present") return { kind: "present" };
+  if (kind === "replace") return { kind: "replaceable" };
+  return {
+    kind: "conflict",
+    occupant: Object.freeze({ kind: "link", target: await readlink(path) }),
+  };
+}
+
+/** Whether `~/.local/bin` is on this PATH, and which other `lazurio`, if
+ * any, resolves first on it. */
+async function pathFacts(
+  directory: string,
+  target: string,
+  pathVariable: string | undefined,
+  platform: string,
+): Promise<Readonly<{ directoryOnPath: boolean; shadowedBy: string | null }>> {
+  const directoryOnPath = (pathVariable ?? "")
+    .split(":")
+    .some((entry) => isAbsolute(entry) && resolve(entry) === directory);
+  // The same program under another name (the selector itself, an alias of
+  // the directory) is not another program.
+  const first = await resolveOnPath(executableName, pathVariable, platform);
+  const shadowedBy =
+    first !== undefined && !(await sameFile(first, target)) ? first : null;
+  return { directoryOnPath, shadowedBy };
+}
+
+type EntryInput = Readonly<{
+  base: string;
+  home: string | undefined;
+  pathVariable: string | undefined;
+  platform: string;
+}>;
+
+/** Null where there is no home to put the entry in or the platform has no
+ * install base design (only macOS and Linux have one). */
+const entryHome = (input: EntryInput) =>
+  input.home &&
+  isAbsolute(input.home) &&
+  (input.platform === "darwin" || input.platform === "linux")
+    ? input.home
+    : null;
+
+/** The entry as it is, for `lazurio install prompt`: nothing is written.
+ * `missing` and `replaceable` are what `lazurio install` would create or
+ * replace; `unreadable` is an entry that could not be looked at. */
+export type ObservedEntry = Readonly<{
+  path: string;
+  target: string;
+  state: "present" | "missing" | "replaceable" | "conflict" | "unreadable";
+  occupant: PathEntry["occupant"];
+  directoryOnPath: boolean;
+  shadowedBy: string | null;
+}>;
+
+export async function inspectPathEntry(
+  input: EntryInput,
+): Promise<ObservedEntry | null> {
+  const home = entryHome(input);
+  if (home === null) return null;
+  const directory = entryDirectory(home);
+  const target = layout(input.base).selector;
+  let observed: Observed | null;
+  try {
+    observed = await observeEntry(home, target, false);
+  } catch {
+    observed = null;
+  }
+  return Object.freeze({
+    path: join(directory, executableName),
+    target,
+    state: observed?.kind ?? "unreadable",
+    occupant: observed?.kind === "conflict" ? observed.occupant : null,
+    ...(await pathFacts(directory, target, input.pathVariable, input.platform)),
+  });
+}
+
+/** Convergent: repeated, it finds the entry `present` and writes nothing. */
 export async function ensurePathEntry(
-  input: Readonly<{
-    base: string;
-    home: string | undefined;
-    pathVariable: string | undefined;
-    platform: string;
-  }>,
+  input: EntryInput,
 ): Promise<PathEntry | null> {
-  const { home, platform } = input;
-  if (!home || !isAbsolute(home)) return null;
-  if (platform !== "darwin" && platform !== "linux") return null;
+  const home = entryHome(input);
+  if (home === null) return null;
   const directory = entryDirectory(home);
   const path = join(directory, executableName);
   const target = layout(input.base).selector;
   let state: PathEntry["state"];
   let occupant: PathEntry["occupant"] = null;
   try {
-    let found: Awaited<ReturnType<typeof lstat>> | null = null;
-    // Each component of the standard path is looked at itself, never
-    // through a link: the entry is written only into the real ~/.local/bin.
-    let parent: string | null = null;
-    for (const component of [join(home, ".local"), directory])
-      if (parent === null && !(await ensureDirectory(component)))
-        parent = component;
-    if (parent === null)
-      try {
-        found = await lstat(path);
-      } catch (error) {
-        if (!absent(error)) throw error;
-      }
-    if (parent !== null) {
-      state = "conflict";
-      occupant = Object.freeze({ kind: "parent" as const, target: parent });
-    } else if (found === null) {
+    const observed = await observeEntry(home, target, true);
+    if (observed.kind === "missing") {
       await placeLink(path, target);
       state = "created";
-    } else if (found.isSymbolicLink()) {
-      const kind = await classifyLink(path, target);
-      if (kind === "present") state = "present";
-      else if (kind === "replace") {
-        await placeLink(path, target);
-        state = "replaced";
-      } else {
-        state = "conflict";
-        occupant = Object.freeze({
-          kind: "link" as const,
-          target: await readlink(path),
-        });
-      }
-    } else {
+    } else if (observed.kind === "replaceable") {
+      await placeLink(path, target);
+      state = "replaced";
+    } else if (observed.kind === "conflict") {
       state = "conflict";
-      occupant = Object.freeze({
-        kind: found.isFile() ? ("file" as const) : ("other" as const),
-      });
-    }
+      occupant = observed.occupant;
+    } else state = "present";
   } catch {
     state = "failed";
   }
 
-  const directoryOnPath = (input.pathVariable ?? "")
-    .split(":")
-    .some((entry) => isAbsolute(entry) && resolve(entry) === directory);
-  // The same program under another name (the selector itself, an alias of
-  // the directory) is not another program.
-  const first = await resolveOnPath(
-    executableName,
+  const { directoryOnPath, shadowedBy } = await pathFacts(
+    directory,
+    target,
     input.pathVariable,
-    platform,
+    input.platform,
   );
-  const shadowedBy =
-    first !== undefined && !(await sameFile(first, target)) ? first : null;
   const linked = entryLinked({ state });
 
   const next: string[] = [];
