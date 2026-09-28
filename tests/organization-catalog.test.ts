@@ -22,10 +22,15 @@ import {
 
 const posixTest = test.skipIf(!["darwin", "linux"].includes(process.platform));
 
-type Slot = { path: string; slug?: string; teams?: unknown };
+type Slot = { path: string; slug?: string; teams?: unknown } & Record<
+  string,
+  unknown
+>;
 type ModuleFixture = {
   id: string;
   teams?: unknown;
+  // More slot fields, such as the legacy Team alias.
+  slot?: Record<string, unknown>;
   // An app-less module declares no app and no port.
   apps?: boolean;
   // The runtime declaration is missing, so the default app is invalid.
@@ -86,7 +91,11 @@ async function writeOrganization(
     company: options.slug,
     github_org: options.forge ?? options.slug,
     module_slots: options.modules.map((module) => {
-      const slot: Slot = { path: `workspace/${module.id}`, slug: module.id };
+      const slot: Slot = {
+        path: `workspace/${module.id}`,
+        slug: module.id,
+        ...module.slot,
+      };
       if (module.teams !== undefined) slot.teams = module.teams;
       return slot;
     }),
@@ -168,8 +177,9 @@ async function writeOrganization(
 }
 
 // The fixture Folder of the slice: two Organizations (one `transition` with a
-// module in two Teams, one canonical-only `current`), one invalid, one
-// template, a file and a hidden directory that are not candidates.
+// module in two Teams, one canonical-only `current`), one whose manifest
+// still uses the legacy Team alias, one invalid, one template, a file and a
+// hidden directory that are not candidates.
 async function folderFixture(run: (folder: string) => Promise<void>) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "catalog-")));
   const folder = join(parent, "Lazurio");
@@ -200,6 +210,27 @@ async function folderFixture(run: (folder: string) => Promise<void>) {
       slug: "beta",
       state: "current",
       modules: [{ id: "api" }],
+    });
+    // Team membership as the resident reads it: `teams`, else the legacy
+    // `workspaces`, else the singular `workspace`, else the default Team.
+    await writeOrganization(folder, "delta", {
+      slug: "delta",
+      state: "transition",
+      teams: [
+        { slug: "core", display_name: "Core" },
+        { slug: "sales", display_name: "Sales" },
+      ],
+      modules: [
+        { id: "crm", apps: false, slot: { workspaces: ["sales", "core"] } },
+        { id: "wiki", apps: false, slot: { workspace: "core" } },
+        { id: "misc", apps: false },
+        {
+          id: "pos",
+          apps: false,
+          teams: ["core"],
+          slot: { workspace: "sales" },
+        },
+      ],
     });
     const broken = await writeOrganization(folder, "broken", {
       slug: "broken",
@@ -248,6 +279,7 @@ posixTest(
                 module: "web",
                 path: "workspace/web",
                 teams: ["core", "sales"],
+                teamsSource: "teams",
                 apps: [
                   { package: "app/package.json", kind: "runtime-declared" },
                 ],
@@ -260,6 +292,7 @@ posixTest(
                 module: "docs",
                 path: "workspace/docs",
                 teams: ["core"],
+                teamsSource: "teams",
                 apps: [],
                 defaultApp: null,
                 state: "transition",
@@ -270,7 +303,8 @@ posixTest(
                 organization: "alpha",
                 module: "shop",
                 path: "workspace/shop",
-                teams: [],
+                teams: ["workspace"],
+                teamsSource: "default",
                 apps: [
                   { package: "app/package.json", kind: "invalid-runtime" },
                 ],
@@ -296,7 +330,8 @@ posixTest(
                 organization: "beta",
                 module: "api",
                 path: "workspace/api",
-                teams: [],
+                teams: ["workspace"],
+                teamsSource: "default",
                 apps: [
                   { package: "app/package.json", kind: "runtime-declared" },
                 ],
@@ -319,6 +354,37 @@ posixTest(
             modules: [],
           },
           {
+            directory: "delta",
+            organization: "delta",
+            displayName: "Delta Company",
+            state: "transition",
+            issues: [],
+            executable: true,
+            teams: [
+              { slug: "core", displayName: "Core" },
+              { slug: "sales", displayName: "Sales" },
+            ],
+            modules: (
+              [
+                ["crm", ["sales", "core"], "legacy-alias"],
+                ["wiki", ["core"], "legacy-alias"],
+                ["misc", ["workspace"], "default"],
+                ["pos", ["core"], "teams"],
+              ] as const
+            ).map(([module, teams, teamsSource]) => ({
+              organization: "delta",
+              module,
+              path: `workspace/${module}`,
+              teams,
+              teamsSource,
+              apps: [],
+              defaultApp: null,
+              state: "transition",
+              executable: false,
+              reason: "no-app",
+            })),
+          },
+          {
             directory: "starter",
             organization: null,
             displayName: null,
@@ -333,7 +399,16 @@ posixTest(
       });
       expect(
         catalogModules(catalog).map((m) => `${m.organization}/${m.module}`),
-      ).toEqual(["alpha/web", "alpha/docs", "alpha/shop", "beta/api"]);
+      ).toEqual([
+        "alpha/web",
+        "alpha/docs",
+        "alpha/shop",
+        "beta/api",
+        "delta/crm",
+        "delta/wiki",
+        "delta/misc",
+        "delta/pos",
+      ]);
       // By slug (case-insensitive, as GitHub) or by directory name.
       expect(findCatalogOrganization(catalog, "ALPHA")?.directory).toBe(
         "alpha_GEN3",
@@ -444,6 +519,8 @@ posixTest(
         JSON.parse(JSON.stringify(catalog)),
       );
       const beta = current ? "executable" : "organization-not-executable";
+      const legacyNote =
+        "delta: Teams read from the legacy alias workspaces/workspace; the canonical form is module_slots[].teams.";
       expect(
         (await run(["organization", "list", "--folder", folder])).text,
       ).toBe(
@@ -451,17 +528,31 @@ posixTest(
           "alpha    transition  3 modules  executable",
           `beta     current     1 module   ${beta}`,
           "broken   conflict    0 modules  organization-conflict",
+          "delta    transition  4 modules  executable",
           "starter  current     0 modules  template-not-runtime",
+          legacyNote,
         ].join("\n"),
       );
       expect((await run(["module", "list", "--folder", folder])).text).toBe(
         [
           "alpha/web   core,sales  app/package.json  executable",
           "alpha/docs  core        -                 no-app",
-          "alpha/shop  -           app/package.json  default-app-invalid",
-          `beta/api    -           app/package.json  ${beta}`,
+          "alpha/shop  workspace   app/package.json  default-app-invalid",
+          `beta/api    workspace   app/package.json  ${beta}`,
+          "delta/crm   sales,core  -                 no-app",
+          "delta/wiki  core        -                 no-app",
+          "delta/misc  workspace   -                 no-app",
+          "delta/pos   core        -                 no-app",
+          legacyNote,
         ].join("\n"),
       );
+      // The legacy alias is named once per Organization, and only for it.
+      expect(
+        (await run(["module", "list", "alpha", "--folder", folder])).text,
+      ).not.toContain("legacy alias");
+      expect(
+        (await run(["module", "list", "delta", "--folder", folder])).text,
+      ).toEndWith(`delta/pos   core        -  no-app\n${legacyNote}`);
       const alpha = await run([
         "module",
         "list",
@@ -586,14 +677,16 @@ posixTest(
       const organizations = (await run(["organization", "list"])).text;
       expect(organizations).not.toMatch(control);
       const rows = organizations.split("\n");
-      expect(rows).toHaveLength(6);
+      // Seven candidates and the legacy alias note of delta.
+      expect(rows).toHaveLength(8);
       expect(rows.find((row) => row.startsWith("evil"))).toStartWith(
         "evil\\u{1b}[8m  ",
       );
-      expect(rows.at(-1)).toStartWith(
+      const forgedRow = rows.find((row) => row.startsWith("zz"));
+      expect(forgedRow).toStartWith(
         "zz\\u{a}\\u{1b}[2K\\u{d}forged-org  transition  1 module  executable  ",
       );
-      expect(rows.at(-1)).not.toEndWith("executable");
+      expect(forgedRow).not.toEndWith("executable");
 
       const modules = (await run(["module", "list"])).text;
       expect(modules).not.toMatch(control);
@@ -668,6 +761,7 @@ posixTest(
           "alpha_GEN3",
           "beta",
           "broken",
+          "delta",
           "gamma",
           "starter",
         ]);

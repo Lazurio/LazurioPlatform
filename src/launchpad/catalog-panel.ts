@@ -10,6 +10,7 @@ import {
   parseCatalog,
   routeOrganization,
   teamGroups,
+  usesLegacyTeamAlias,
 } from "./catalog-view";
 import type { MessageKey } from "./messages";
 import { modulePath, organizationPath, type PageRoute } from "./routes";
@@ -192,6 +193,10 @@ export function createCatalogPanel(
               organization.teams.map((team) => team.displayName),
             ),
           ]),
+      // Once per Organization, never per module: it helps migrate the manifest.
+      ...(usesLegacyTeamAlias(organization)
+        ? [fact(copy.catalogTeamSource, copy.catalogLegacyTeamAlias)]
+        : []),
       fact(
         copy.catalogIssues,
         organization.issues.length === 0

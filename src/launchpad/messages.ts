@@ -353,6 +353,9 @@ const en = {
   catalogState: "Resolution state",
   catalogIssues: "Issues",
   catalogTeams: "Teams",
+  catalogTeamSource: "Team membership",
+  catalogLegacyTeamAlias:
+    "Read from the legacy alias workspaces/workspace for compatibility; the canonical form is module_slots[].teams.",
   catalogApps: "Apps",
   catalogDefaultApp: "Default app",
   catalogDefaultMark: "default",
@@ -800,6 +803,9 @@ const cs: Record<MessageKey, string> = {
   catalogState: "Stav rozlišení",
   catalogIssues: "Problémy",
   catalogTeams: "Teamy",
+  catalogTeamSource: "Členství v Teamech",
+  catalogLegacyTeamAlias:
+    "Kvůli kompatibilitě načteno z legacy aliasu workspaces/workspace; kanonická podoba je module_slots[].teams.",
   catalogApps: "Aplikace",
   catalogDefaultApp: "Výchozí aplikace",
   catalogDefaultMark: "výchozí",

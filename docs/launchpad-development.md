@@ -146,15 +146,26 @@ recomputed on every read. A candidate that cannot be read keeps its typed reason
 `organization-changed`, `organization-unavailable` for a link or a directory that is
 not the operator's) and never hides the others; two candidates that declare the same
 slug are both `organization-duplicate`, because `<Org>/<Module>` would be ambiguous.
-Per module: Organization slug, module id, path, apps and the default app, Teams
-(`module_slots[].teams`, N:M), the root state and `executable`, or a typed `reason`
+Per module: Organization slug, module id, path, apps and the default app, Teams (N:M)
+with their source `teamsSource`, the root state and `executable`, or a typed `reason`
 (`organization-not-executable`, `declaration-conflict`, `module-unavailable`,
 `explicit-apps-required`, `no-app`, `default-app-invalid`). Executable means the
 declarations admit a start of the default app under the one admission rule of the
 [organization contract](organization-contract.md) (variant B by default: a
 canonical-only `current` Organization runs, proposed and pending the Principal's
 answer to H1); it is not readiness, provider permission or a lease. A malformed
-`teams` value is reported as `teams-invalid` on the module and never blocks it.
+Team membership is reported as `teams-invalid` on the module and never blocks it.
+
+**Teams.** The canonical form is `module_slots[].teams`. The catalog resolves membership
+exactly as the resident's read model does (`organizationSlotTeams` in the legacy root's
+`lazurio/core/organization-slot-scope-lib.mjs`, the order of `declaredSlotTeams` in
+`lazurio/runtime/discovery-lib.mjs`): `teams` when it is a list; otherwise, for
+compatibility with older manifests, the legacy alias, the `workspaces` list and then the
+singular `workspace`; blank entries and `productionspace` are dropped; nothing left means
+the default Team `workspace` (decision 0041, as the resident's Launchpad README says).
+`teamsSource` is `teams`, `legacy-alias` or `default`. An Organization with any
+`legacy-alias` module is named once, never per module: a note under the CLI tables and a
+"Team membership" fact on its page, so its manifest can be migrated to `teams`.
 
 **CLI first.** `lazurio organization list [--folder <F>] [--json]` prints the catalog
 (`--json`: exactly the object below), `lazurio module list [<Org>] [--folder <F>]

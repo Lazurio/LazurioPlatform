@@ -44,18 +44,27 @@ export type CatalogApp = Readonly<{
   kind: "runtime-declared" | "invalid-runtime";
 }>;
 
+/** Where a module's Team membership comes from: the canonical
+ * `module_slots[].teams`, the legacy alias (`workspaces`, then the singular
+ * `workspace`) read for compatibility, or neither (the default Team). */
+export type TeamsSource = "teams" | "legacy-alias" | "default";
+
+/** The Team of a workspace module that declares none (decision 0041). */
+export const defaultTeam = "workspace";
+
 export type CatalogModule = Readonly<{
   organization: string;
   module: string;
   path: string;
-  /** Team slugs from `module_slots[].teams`, N:M, in declaration order. */
+  /** Team slugs, N:M, in declaration order; never empty (see `teamsSource`). */
   teams: readonly string[];
+  teamsSource: TeamsSource;
   apps: readonly CatalogApp[];
   defaultApp: string | null;
   state: OrganizationRootState;
   executable: boolean;
   reason?: OrganizationReason | ModuleReason;
-  /** `teams-invalid` when the declaration's `teams` is not a list of slugs. */
+  /** `teams-invalid` when the declared membership is not a list of slugs. */
   issues?: readonly string[];
 }>;
 
@@ -98,19 +107,53 @@ function declaredTeams(canonical: Data): CatalogTeam[] {
   );
 }
 
-// Team membership of one slot: `module_slots[].teams`, a list of Team slugs.
-// Display only: a malformed value is reported on the module, never breaks it.
-function slotTeams(slot: unknown): { teams: string[]; invalid: boolean } {
-  if (!isRecord(slot) || slot.teams === undefined)
-    return { teams: [], invalid: false };
-  if (
-    !Array.isArray(slot.teams) ||
-    slot.teams.some(
-      (team: unknown) => typeof team !== "string" || !teamSlug.test(team),
-    )
-  )
-    return { teams: [], invalid: true };
-  return { teams: [...new Set(slot.teams as string[])], invalid: false };
+// Team membership of one slot, resolved as the resident's read model does
+// (`organizationSlotTeams`, legacy root `lazurio/core/organization-slot-scope-lib.mjs`):
+// the canonical `teams` array; without it the legacy alias, the `workspaces`
+// array, then the singular `workspace`; blank, non-text and `productionspace`
+// entries are dropped, and nothing left means the default Team. Display only:
+// a value that is not a list of Team slugs is reported on the module
+// (`teams-invalid`), never guessed and never blocks it.
+function slotTeams(slot: unknown): {
+  teams: string[];
+  source: TeamsSource;
+  invalid: boolean;
+} {
+  const value = isRecord(slot) ? slot : {};
+  const canonical = Array.isArray(value.teams);
+  const plural = !canonical && Array.isArray(value.workspaces);
+  const declared: unknown[] = canonical
+    ? (value.teams as unknown[])
+    : plural
+      ? (value.workspaces as unknown[])
+      : value.workspace === undefined
+        ? []
+        : [value.workspace];
+  const teams = [
+    ...new Set(
+      declared.flatMap((team) =>
+        typeof team === "string" &&
+        team.trim() !== "" &&
+        team.trim() !== "productionspace"
+          ? [team.trim()]
+          : [],
+      ),
+    ),
+  ];
+  const invalid =
+    (value.teams !== undefined && !canonical) ||
+    (!canonical &&
+      value.workspaces !== undefined &&
+      !Array.isArray(value.workspaces)) ||
+    declared.some(
+      (team) =>
+        typeof team !== "string" ||
+        !teamSlug.test(team) ||
+        team === "productionspace",
+    );
+  return teams.length === 0
+    ? { teams: [defaultTeam], source: "default", invalid }
+    : { teams, source: canonical ? "teams" : "legacy-alias", invalid };
 }
 
 function failed(
@@ -171,7 +214,7 @@ export async function readCatalogOrganization(
   const state = result.resolution.state;
   const modules = result.entries.flatMap((entry) => {
     if (entry.module === null) return [];
-    const { teams, invalid } = slotTeams(bySlotPath.get(entry.path));
+    const { teams, source, invalid } = slotTeams(bySlotPath.get(entry.path));
     const apps =
       entry.kind === "module-observed"
         ? entry.apps.map((app) =>
@@ -197,6 +240,7 @@ export async function readCatalogOrganization(
         module: entry.module,
         path: entry.path,
         teams: Object.freeze(teams),
+        teamsSource: source,
         apps: Object.freeze(apps),
         defaultApp,
         state,

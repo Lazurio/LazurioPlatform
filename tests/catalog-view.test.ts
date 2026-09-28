@@ -6,6 +6,7 @@ import {
   parseCatalog,
   routeOrganization,
   teamGroups,
+  usesLegacyTeamAlias,
 } from "../src/launchpad/catalog-view";
 import { messages } from "../src/launchpad/messages";
 import type {
@@ -23,6 +24,7 @@ const module = (
   module: name,
   path: `workspace/${name}`,
   teams,
+  teamsSource: "teams",
   apps: [{ package: "app/package.json", kind: "runtime-declared" }],
   defaultApp: "app/package.json",
   state: "transition",
@@ -126,6 +128,24 @@ test("modules are grouped by Team N:M: declared order, undeclared Teams, then th
   expect(teamGroups(broken, copy)).toEqual([]);
 });
 
+test("the legacy Team alias is named once per Organization, from any of its modules", () => {
+  expect(usesLegacyTeamAlias(alpha)).toBe(false);
+  expect(
+    usesLegacyTeamAlias({
+      modules: [
+        module("web", ["core"]),
+        module("crm", ["sales"], { teamsSource: "legacy-alias" }),
+        module("misc", ["workspace"], { teamsSource: "default" }),
+      ],
+    }),
+  ).toBe(true);
+  expect(
+    usesLegacyTeamAlias({
+      modules: [module("misc", ["workspace"], { teamsSource: "default" })],
+    }),
+  ).toBe(false);
+});
+
 test("a route selects an Organization or a module of the catalog, or says it is missing", () => {
   expect(catalogSelection(catalog, { view: "home" })).toEqual({
     kind: "overview",
@@ -167,6 +187,12 @@ test("only an answer in the catalog's exact shape is drawn", () => {
       kind: "catalog",
       organizations: [
         { ...alpha, modules: [{ ...module("x", []), teams: [1] }] },
+      ],
+    },
+    {
+      kind: "catalog",
+      organizations: [
+        { ...alpha, modules: [{ ...module("x", []), teamsSource: 1 }] },
       ],
     },
     {

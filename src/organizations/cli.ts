@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { usesLegacyTeamAlias } from "../launchpad/catalog-view";
 import { type CliContext, operatorFolder } from "../update/cli";
 import {
   type Catalog,
@@ -26,8 +27,11 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
 module list [<Organization>] [--folder <absolute Folder>] [--json]
   The workspace modules of every Organization, or of the one named by its
   slug or directory name: <Organization>/<module>, its Teams, its default app
-  and whether it may run or the typed reason why not. Same Folder and rules
-  as organization list.
+  and whether it may run or the typed reason why not. Teams come from
+  module_slots[].teams; an older manifest's legacy alias (workspaces, then
+  workspace) is read for compatibility and named once per Organization; a
+  module that declares none is in the default Team workspace. Same Folder and
+  rules as organization list.
 Exit status: 0 listed, 2 usage, unknown Organization or no Folder known,
 1 the Folder could not be read.`;
 
@@ -76,29 +80,51 @@ function columns(input: readonly (readonly string[])[]): string[] {
 const status = (entry: { executable: boolean; reason?: string }) =>
   entry.executable ? "executable" : (entry.reason ?? "not-executable");
 
+// One line per Organization whose manifest still uses the legacy Team alias,
+// under the table: said once, never per module.
+function legacyAliasNotes(
+  organizations: readonly CatalogOrganization[],
+): string[] {
+  return organizations
+    .filter(usesLegacyTeamAlias)
+    .map(
+      (entry) =>
+        `${shown(entry.organization ?? entry.directory)}: Teams read from the legacy alias workspaces/workspace; the canonical form is module_slots[].teams.`,
+    );
+}
+
 function organizationLines(catalog: Catalog): string {
   if (catalog.organizations.length === 0)
     return "No Organizations in this Folder's organizations/.";
-  return columns(
-    catalog.organizations.map((entry: CatalogOrganization) => [
-      entry.organization ?? entry.directory,
-      entry.state ?? "-",
-      `${entry.modules.length} ${entry.modules.length === 1 ? "module" : "modules"}`,
-      status(entry),
-    ]),
-  ).join("\n");
+  return [
+    ...columns(
+      catalog.organizations.map((entry: CatalogOrganization) => [
+        entry.organization ?? entry.directory,
+        entry.state ?? "-",
+        `${entry.modules.length} ${entry.modules.length === 1 ? "module" : "modules"}`,
+        status(entry),
+      ]),
+    ),
+    ...legacyAliasNotes(catalog.organizations),
+  ].join("\n");
 }
 
-function moduleLines(modules: readonly CatalogModule[]): string {
+function moduleLines(
+  modules: readonly CatalogModule[],
+  organizations: readonly CatalogOrganization[],
+): string {
   if (modules.length === 0) return "No modules.";
-  return columns(
-    modules.map((entry) => [
-      `${entry.organization}/${entry.module}`,
-      entry.teams.length === 0 ? "-" : entry.teams.join(","),
-      entry.defaultApp ?? "-",
-      status(entry),
-    ]),
-  ).join("\n");
+  return [
+    ...columns(
+      modules.map((entry) => [
+        `${entry.organization}/${entry.module}`,
+        entry.teams.length === 0 ? "-" : entry.teams.join(","),
+        entry.defaultApp ?? "-",
+        status(entry),
+      ]),
+    ),
+    ...legacyAliasNotes(organizations),
+  ].join("\n");
 }
 
 export async function runCatalogCommand(
@@ -195,6 +221,9 @@ export async function runCatalogCommand(
     },
     organization?.reason !== undefined && organization.modules.length === 0
       ? `${shown(organization.organization ?? organization.directory)}: ${organization.reason}`
-      : moduleLines(modules),
+      : moduleLines(
+          modules,
+          organization === undefined ? catalog.organizations : [organization],
+        ),
   );
 }

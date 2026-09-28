@@ -108,6 +108,18 @@ export function teamGroups(
   return groups;
 }
 
+/** Whether any module of the Organization takes its Teams from the legacy
+ * alias (`workspaces` or `workspace`): the page and the CLI say it once per
+ * Organization, never per module, to help migrate its manifest to the
+ * canonical `module_slots[].teams`. */
+export function usesLegacyTeamAlias(
+  organization: Pick<CatalogOrganization, "modules">,
+): boolean {
+  return organization.modules.some(
+    (module) => module.teamsSource === "legacy-alias",
+  );
+}
+
 /** The Organization a route names: its slug, as the catalog wrote it, or the
  * same slug in another case (GitHub slugs are case-insensitive). Only a
  * resolved Organization has a route. */
@@ -170,6 +182,7 @@ function isModule(value: unknown): value is CatalogModule {
     text(entry.module) &&
     text(entry.path) &&
     texts(entry.teams) &&
+    text(entry.teamsSource) &&
     Array.isArray(entry.apps) &&
     entry.apps.every(
       (app: unknown) =>
