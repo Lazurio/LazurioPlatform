@@ -2,7 +2,9 @@ import { spawn } from "node:child_process";
 import { access, constants, realpath, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { type SignInProbe, type ToolEntry, toolCatalog } from "./catalog";
+import { ghStatus } from "./gh-status";
 import { type SshStatus, sshStatus } from "./ssh-key";
+import type { GhIdentity } from "./team-github";
 
 /** A tool process with both streams captured, bounded, or "timeout". */
 export type ToolProcessResult =
@@ -259,6 +261,10 @@ export type ToolSignIn = Readonly<{
   /** gh signed in: whether this Machine's SSH key is on the account
    * (decision F19, addendum 2026-09-28). */
   ssh?: SshStatus;
+  /** gh signed in: whether the active account is a person's stored sign-in,
+   * a GitHub App's identity or a token from a variable (the Team rule of
+   * `team-github.ts`). */
+  identity?: GhIdentity;
 }>;
 
 export type ToolsSignInInput = Readonly<{
@@ -397,24 +403,24 @@ export async function toolsSignIn(
       if (probe === undefined || !status.installed || status.path === undefined)
         return { state: "unknown" };
       try {
-        const result = await input.run(
-          [status.path, ...probe.argv],
-          signInTimeoutMs,
-          env,
-        );
-        const signIn = readSignIn(probe, result);
-        if (
-          status.name !== "gh" ||
-          signIn.state !== "signed-in" ||
-          result === "timeout"
-        )
-          return signIn;
-        const ssh = await sshStatus(
-          input.home,
+        const run = (command: readonly string[], timeoutMs: number) =>
+          input.run(command, timeoutMs, env);
+        if (status.name !== "gh")
+          return readSignIn(
+            probe,
+            await input.run([status.path, ...probe.argv], signInTimeoutMs, env),
+          );
+        // gh: the JSON status first, the text form of its probe for an
+        // older gh (gh-status.ts).
+        const { signIn, scopes } = await ghStatus(
+          run,
           status.path,
-          `${result.stdout}\n${result.stderr}`,
-          (command, timeoutMs) => input.run(command, timeoutMs, env),
-        ).catch((): SshStatus => ({ state: "unknown", reason: "unreadable" }));
+          signInTimeoutMs,
+        );
+        if (signIn.state !== "signed-in") return signIn;
+        const ssh = await sshStatus(input.home, status.path, scopes, run).catch(
+          (): SshStatus => ({ state: "unknown", reason: "unreadable" }),
+        );
         return { ...signIn, ssh };
       } catch {
         return { state: "unknown" };

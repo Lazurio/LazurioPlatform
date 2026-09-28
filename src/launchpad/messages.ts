@@ -1,3 +1,14 @@
+import {
+  teamGithubLogoutText,
+  teamGithubPhrase,
+  teamGithubText,
+  teamGithubWorksAs,
+} from "../tools/team-github";
+
+// A phrase that follows " · " on a status line starts a new part.
+const capitalized = (text: string) =>
+  `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+
 const en = {
   appPrepare: "Prepare dependencies",
   appCleanPrepare: "Reinstall dependencies (remove node_modules)",
@@ -82,8 +93,9 @@ const en = {
     "Tools are command-line programs that agents use to work with outside services. “Used by agents” guides the agents on this Environment to use a tool. Installing, uninstalling, signing in and signing out are separate acts.",
   toolsSwitchLabel: "Used by agents",
   toolsSwitchNamed: "Used by agents: {name}",
-  toolsTeamGithub:
-    "This Team Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Personal GitHub accounts are not signed in here.",
+  // One wording with the CLI and the server's rule (src/tools/team-github.ts).
+  toolsTeamGithub: teamGithubText.en,
+  toolsTeamGithubLogout: teamGithubLogoutText.en,
   toolsShared:
     "This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.",
   toolsRefresh: "Refresh status",
@@ -146,6 +158,7 @@ const en = {
   toolsAgentAction: "Set up with an agent",
   toolsAgentActionNamed: "Set up {name} with an agent",
   toolsInstallAction: "Install and sign in",
+  toolsInstallOnlyAction: "Install",
   toolsSignInAction: "Sign in",
   toolsSignedInAs: "Signed in as {account}",
   toolsSignedInAsOrganization: "Signed in as {account} ({organization})",
@@ -169,6 +182,7 @@ const en = {
   toolsNoteAfterEnable:
     "After you enable this tool you can add a note for agents here.",
   toolsInstallActionNamed: "Install {name} and sign in",
+  toolsInstallOnlyNamed: "Install {name}",
   toolsSignInActionNamed: "Sign in to {name}",
   toolsSignOutAction: "Sign out",
   toolsSignOutNamed: "Sign out of {name}",
@@ -249,6 +263,8 @@ const en = {
   toolsSshLinked: "SSH key linked",
   toolsSshNotLinked: "SSH key not linked",
   toolsSshUnknown: "SSH key not verified",
+  toolsSshTeam: capitalized(teamGithubPhrase.en),
+  toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
   toolsLinkSshNamed: "Link the SSH key of this Machine to the {name} account",
   toolsLoginTitleSsh: "Link SSH key: {name}",
@@ -294,6 +310,8 @@ const en = {
     "Over SSH GitHub greeted another account ({account}): another key of this Machine is offered first.",
   toolsLoginFailureNotSignedIn:
     "gh is not signed in on this Machine. Sign in first; the SSH key is linked as part of it.",
+  toolsLoginFailureEnvironment:
+    "The kind of this Environment could not be read, so the sign-in stopped before changing anything further.",
   toolsSshRemoved:
     "The SSH key of this Machine ({fingerprint}) was removed from your GitHub account; the key files stay on this Machine.",
   toolsSshRemovalNotRegistered:
@@ -532,8 +550,8 @@ const cs: Record<MessageKey, string> = {
     "Nástroje jsou programy pro příkazovou řádku, kterými agenti pracují s vnějšími službami. „Používají agenti“ vede agenty v tomhle Environmentu k tomu, aby nástroj používali. Instalace, odinstalace, přihlášení a odhlášení jsou samostatné kroky.",
   toolsSwitchLabel: "Používají agenti",
   toolsSwitchNamed: "Používají agenti: {name}",
-  toolsTeamGithub:
-    "Tohle týmové Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady nepřihlašují.",
+  toolsTeamGithub: teamGithubText.cs,
+  toolsTeamGithubLogout: teamGithubLogoutText.cs,
   toolsShared:
     "Tohle Environment je sdílené. Účty přihlášené v nástroji platí pro celé Environment a používají je všichni jeho operátoři.",
   toolsRefresh: "Obnovit stav",
@@ -596,6 +614,7 @@ const cs: Record<MessageKey, string> = {
   toolsAgentAction: "Nastavit s agentem",
   toolsAgentActionNamed: "Nastavit {name} s agentem",
   toolsInstallAction: "Nainstalovat a přihlásit",
+  toolsInstallOnlyAction: "Nainstalovat",
   toolsSignInAction: "Přihlásit",
   toolsSignedInAs: "Přihlášeno jako {account}",
   toolsSignedInAsOrganization: "Přihlášeno jako {account} ({organization})",
@@ -619,6 +638,7 @@ const cs: Record<MessageKey, string> = {
   toolsNoteAfterEnable:
     "Až nástroj zapnete, můžete sem agentům napsat poznámku.",
   toolsInstallActionNamed: "Nainstalovat {name} a přihlásit",
+  toolsInstallOnlyNamed: "Nainstalovat {name}",
   toolsSignInActionNamed: "Přihlásit do {name}",
   toolsSignOutAction: "Odhlásit",
   toolsSignOutNamed: "Odhlásit z {name}",
@@ -698,6 +718,8 @@ const cs: Record<MessageKey, string> = {
   toolsSshLinked: "SSH klíč propojený",
   toolsSshNotLinked: "SSH klíč nepropojený",
   toolsSshUnknown: "SSH klíč neověřený",
+  toolsSshTeam: capitalized(teamGithubPhrase.cs),
+  toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
   toolsLinkSshNamed: "Propojit SSH klíč téhle Mašiny s účtem {name}",
   toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
@@ -744,6 +766,8 @@ const cs: Record<MessageKey, string> = {
     "GitHub přes SSH pozdravil jiný účet ({account}): tahle Mašina nabízí nejdřív jiný klíč.",
   toolsLoginFailureNotSignedIn:
     "gh na téhle Mašině není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
+  toolsLoginFailureEnvironment:
+    "Druh tohoto Environmentu se nepodařilo přečíst, proto se přihlášení zastavilo dřív, než by cokoli dalšího změnilo.",
   toolsSshRemoved:
     "SSH klíč téhle Mašiny ({fingerprint}) byl z vašeho účtu GitHubu odebrán; soubory klíče na Mašině zůstávají.",
   toolsSshRemovalNotRegistered:

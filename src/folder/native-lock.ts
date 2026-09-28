@@ -43,11 +43,18 @@ export function darwinFilesystemName(path: string): string {
   return name.slice(0, name.indexOf("\0") === -1 ? 16 : name.indexOf("\0"));
 }
 
+/** Another holder has the Folder operation lock right now (or, for an
+ * unmarked lock, is creating it or left it for recovery). The message is the
+ * one every caller has always seen. */
+export class FolderOperationBusyError extends Error {}
+
 export function lockDirectoryDescriptor(fd: number) {
   library ??= load();
   // LOCK_EX | LOCK_NB. Any failure refuses entry, never guesses from PID/age.
   if (library.symbols.flock(fd, 2 | 4) !== 0)
-    throw new Error("Folder operation busy or requires recovery");
+    throw new FolderOperationBusyError(
+      "Folder operation busy or requires recovery",
+    );
 }
 
 export function closeOnExecFlag() {

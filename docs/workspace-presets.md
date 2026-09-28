@@ -30,7 +30,12 @@ presets are supported: editing a field does not create a new supported preset. T
 the composition, the defaults, the Personalspace policy and the Machine kinds are
 consumed by the Folder Factory; provider identity, surfaces and supervision are
 declared for the consumers that own them (the identity broker, hosted entry, the
-application runner) and are not enforced by the preset itself.
+application runner) and are not enforced by the preset itself. One consumer of the
+provider identity is in the Platform: on the brokered preset (`hosted-organization-team`)
+the curated gh sign-in and SSH key linking are refused and only a person's account
+left signed in may be signed out ([gh on a Team Environment](environment-tools.md#gh-on-a-team-environment),
+F19 addendum 2026-09-28); on the three other presets the curated tools behave the
+same.
 
 ## The presets
 

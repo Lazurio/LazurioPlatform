@@ -14,6 +14,7 @@ import {
   sshLinkFailures,
 } from "../tools/ssh-key";
 import type { ToolSignIn } from "../tools/status";
+import { type GhIdentity, githubActionRefused } from "../tools/team-github";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 
@@ -58,6 +59,13 @@ function parseSshStatus(input: unknown): SshStatus | null {
   };
 }
 
+const identities: readonly GhIdentity[] = [
+  "person",
+  "app",
+  "variable",
+  "unknown",
+];
+
 function parseSignIn(input: unknown): ToolSignIn | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -66,7 +74,9 @@ function parseSignIn(input: unknown): ToolSignIn | null {
       value.state !== "signed-out" &&
       value.state !== "unknown") ||
     !optionalText(value.account) ||
-    !optionalText(value.organization)
+    !optionalText(value.organization) ||
+    (value.identity !== undefined &&
+      !identities.includes(value.identity as GhIdentity))
   )
     return null;
   const ssh = value.ssh === undefined ? undefined : parseSshStatus(value.ssh);
@@ -78,6 +88,9 @@ function parseSignIn(input: unknown): ToolSignIn | null {
       ? {}
       : { organization: value.organization }),
     ...(ssh === undefined ? {} : { ssh }),
+    ...(value.identity === undefined
+      ? {}
+      : { identity: value.identity as GhIdentity }),
   };
 }
 
@@ -246,12 +259,25 @@ export function toolStatusView(
 }
 
 /** The one line about the sign-in: as whom when the tool tells, not signed
- * in, unknown, or not checked when the page did not ask. */
-export function signInLine(tool: ToolOverview, copy: Copy): string {
+ * in, unknown, or not checked when the page did not ask. On a Team
+ * Environment (`brokered`) gh working as the Organization's App identity is
+ * not a sign-in of anybody: "Works as lazurio-for-github[bot]". */
+export function signInLine(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): string {
   const signIn = tool.signIn;
   if (signIn === undefined) return copy.toolsSignInUnchecked;
   if (signIn.state === "signed-out") return copy.toolsSignedOut;
   if (signIn.state === "unknown") return copy.toolsSignInUnknown;
+  if (
+    brokered &&
+    tool.name === "gh" &&
+    signIn.identity === "app" &&
+    signIn.account !== undefined
+  )
+    return fill(copy.toolsWorksAs, { account: signIn.account });
   const who =
     signIn.account === undefined
       ? copy.toolsSignedIn
@@ -274,8 +300,12 @@ export function signInLine(tool: ToolOverview, copy: Copy): string {
 }
 
 export type CuratedActions = Readonly<{
-  /** The flow the main button opens: install first, or sign in only. */
-  primary: Readonly<{ mode: "install" | "login"; label: string }> | null;
+  /** The flow the main button opens: install first, or sign in only; on a
+   * Team Environment gh is installed only (`install-only`). */
+  primary: Readonly<{
+    mode: "install" | "login" | "install-only";
+    label: string;
+  }> | null;
   /** A signed-in `launchpad` tool offers "Sign out". */
   logout: boolean;
   /** A signed-in gh whose SSH key is not known to be linked offers "Link
@@ -286,10 +316,33 @@ export type CuratedActions = Readonly<{
 /** The curated actions of a `launchpad` tool (decision F19): "Install and
  * sign in" when it is missing, "Sign in" when it is installed and not known
  * to be signed in, "Sign out" when it is signed in. An `agent` tool has none;
- * its prepared prompt is the way. */
-export function curatedActions(tool: ToolOverview, copy: Copy): CuratedActions {
+ * its prepared prompt is the way. On a Team Environment (`brokered`: the
+ * preset's brokered Organization identity, which the status answers as
+ * `sharedEnvironment`) gh follows the server's rule (Principal 2026-09-28):
+ * no sign-in and no SSH key, and "Sign out" only while a person's account is
+ * signed in there, never for the Organization's identity. */
+export function curatedActions(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): CuratedActions {
   if (tool.setup !== "launchpad")
     return { primary: null, logout: false, linkSsh: false };
+  if (githubActionRefused({ brokered, tool: tool.name, action: "login" }))
+    return {
+      // A Team Machine normally has gh from the Organization's broker; a
+      // missing one is installed, never signed in.
+      primary: tool.installed
+        ? null
+        : { mode: "install-only", label: copy.toolsInstallOnlyAction },
+      linkSsh: false,
+      logout: !githubActionRefused({
+        brokered,
+        tool: tool.name,
+        action: "logout",
+        signIn: tool.signIn,
+      }),
+    };
   if (!tool.installed)
     return {
       primary: { mode: "install", label: copy.toolsInstallAction },
@@ -499,6 +552,7 @@ const loginFailures = [
   "invalid-phone",
   "spawn-failed",
   "not-signed-in",
+  "environment-unreadable",
 ] as const;
 
 function parseKeyFacts(input: unknown): SshKeyFacts | null {
@@ -602,6 +656,17 @@ export function parseLoginState(input: unknown): LoginView | null {
     case "expired":
     case "cancelled":
       return { kind: value.kind, tool };
+    // The Team rule stopped the session (Principal 2026-09-28).
+    case "blocked":
+      return value.reason === "team-environment" &&
+        (value.action === "login" || value.action === "ssh-key")
+        ? {
+            kind: "blocked",
+            tool,
+            reason: "team-environment",
+            action: value.action,
+          }
+        : null;
     case "failed":
       return loginFailures.includes(
         value.reason as (typeof loginFailures)[number],
@@ -816,6 +881,24 @@ export function sshOutcome(
 
 /** What an install answered: whether the sign-in may follow, and one
  * sentence. */
+/** The notice of "Install" on a Team Environment's gh row: what the
+ * installation did, and that the Environment works in GitHub through Lazurio
+ * for GitHub instead of a sign-in. */
+export function teamInstallOutcome(
+  input: unknown,
+  name: string,
+  copy: Copy,
+): ToolChangeOutcome {
+  const outcome = installOutcome(input, name, copy);
+  return outcome.ok
+    ? {
+        kind: "updated",
+        reload: false,
+        message: `${outcome.message} ${copy.toolsTeamGithub}`,
+      }
+    : { kind: "failed", reload: false, message: outcome.message };
+}
+
 export function installOutcome(
   input: unknown,
   name: string,
@@ -882,14 +965,19 @@ export function loginEndMessage(
       "invalid-phone": "toolsLoginPhoneInvalid",
       "spawn-failed": "toolsLoginFailureSpawn",
       "not-signed-in": "toolsLoginFailureNotSignedIn",
+      "environment-unreadable": "toolsLoginFailureEnvironment",
     };
     return {
       message: copy[reasons[state.reason]],
       agent:
-        state.reason !== "invalid-phone" && state.reason !== "not-signed-in",
+        state.reason !== "invalid-phone" &&
+        state.reason !== "not-signed-in" &&
+        state.reason !== "environment-unreadable",
       retry: true,
     };
   }
+  if (state.kind === "blocked")
+    return { message: copy.toolsTeamGithub, agent: false, retry: false };
   if (state.kind === "expired")
     return { message: copy.toolsLoginExpired, agent: false, retry: true };
   return { message: copy.toolsLoginEnded, agent: false, retry: true };
@@ -992,6 +1080,13 @@ export function logoutOutcome(
       ].join(" "),
     };
   }
+  // A Team Environment signs out only a person's account left there.
+  if (value.kind === "blocked" && value.reason === "team-environment")
+    return {
+      kind: "failed",
+      reload: false,
+      message: `${copy.toolsTeamGithub} ${copy.toolsTeamGithubLogout}`,
+    };
   return {
     kind: "failed",
     reload: false,
