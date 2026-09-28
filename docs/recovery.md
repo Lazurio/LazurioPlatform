@@ -1,10 +1,10 @@
 # Recovery: `lazurio recover` and the sanitized evidence
 
-Status: **first implementation slice of the proposed decision F21** ("Recovery mode
-instead of rollback", shaped in `docs/recovery-mode.md` on the branch
-`claude/DEV-6626-recovery-mode-shaping`; its section J.1, slice 2). F21 is not
-accepted yet and is not recorded in [decisions](decisions.md); this document says
-what exists after this slice and what does not. Nothing here changes how the product
+Status: **first implementation slice of decision
+[F21](decisions.md#f21--recovery-mode-instead-of-rollback)** ("Recovery mode instead
+of rollback", accepted 2026-09-28, shaped in [recovery mode](recovery-mode.md); its
+section J.1, slice 2). This document says what exists after this slice and what does
+not. Nothing here changes how the product
 updates, activates, restarts or supervises: the checks read, and the command files
 nothing.
 
@@ -288,4 +288,4 @@ entry), the pre-switch probe and activation without undo exist
   release gates: slice 5.
 
 `docs/update.md` still says there is "no `recover` command"; that sentence is about
-download recovery and belongs to the contract the proposed decision F21 amends.
+download recovery and belongs to the contract decision F21 amends.
