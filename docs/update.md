@@ -7,9 +7,9 @@ It replaces the earlier TUF-based contract and the pilot installer documents
 (decision [F13](decisions.md#f13--release-trust-is-github-artifact-attestation)).
 
 **Change of 2026-09-28: no program rollback.** The Principal decided that rollback
-is not the safety net ("No back doors for rollback!"); the recovery-mode shaping
-proposes it as decision F21, which is not yet recorded in
-[decisions](decisions.md). This contract describes the implementation: there is no
+is not the safety net ("No back doors for rollback!"); it is decision
+[F21](decisions.md#f21--recovery-mode-instead-of-rollback), accepted the same day
+(root decision 0166). This contract describes the implementation: there is no
 `lazurio update rollback`, no retained previous version and no switch-back. A
 candidate proves itself before the switch, the switch is final, and a Launchpad
 that cannot start normally serves Recovery mode instead of exiting. The update

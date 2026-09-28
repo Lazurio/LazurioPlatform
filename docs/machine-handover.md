@@ -359,10 +359,18 @@ catalog decides that (it refuses a conflicting port, and two ids with the same l
 share one hostname). The Platform never composes a URL from a hostname convention and
 reads no environment for it.
 
-One writer: the Machines apply that writes the entry also owns the switch of
-`lazurio-launchpad.service` from the resident Launchpad to the installer-written unit
-(exactly one listener on the port, observed). Until a Machines release writes it, no
-Folder records an entry and the Launchpad stays local.
+One writer, and writing is not switching. Only the Machines role writes the entry.
+With Machines #248 (Draft, not released) it writes it to every Machine whose pinned
+Platform reads it (Machines' "Entry" gate: the pin is at least the first Platform tag
+that projects the entry), Machines whose `lazurio-launchpad.service` is still the
+resident Launchpad included. The switch of that unit to the installer-written one
+(exactly one listener on the port, observed) is a separate declaration of the
+Machines apply ([Launchpad parity](launchpad-parity.md#c2-the-apply-in-order), M2).
+The Platform records the entry whenever the handover carries it, switched or not,
+because it is declaration, not identity. On a Machine that has not switched, the
+resident keeps the Launchpad port, and the recorded entry serves the CLI's module
+links and `lazurio doctor`. Until a Machines release writes it, no Folder records an
+entry and the Launchpad stays local.
 
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 
@@ -422,7 +430,7 @@ installing and raising. The operator's own `lazurio update` verifies inside the 
 ### What the Machines role must stop expecting (no program rollback, 2026-09-28)
 
 From the first release without rollback (the change of 2026-09-28 in
-[product update](update.md); proposed decision F21 of the recovery-mode shaping):
+[product update](update.md); decision [F21](decisions.md#f21--recovery-mode-instead-of-rollback)):
 
 - **No previous version.** After `updated` only the active version is on disk;
   there is no `<base>/previous` link and `update status --json` has no `previous`

@@ -1,20 +1,30 @@
 # Launchpad parity: the Platform Launchpad replaces the resident Launchpad
 
-Status: **shaping; the Principal decided H1, H4, H6, the drops of section F and one
-distribution (Ubuntu 24.04) for every hosted Machine, reached by a rebuild with state
-transfer, on 2026-09-28, and H3 in direction: P9 is off the switch line, and a
-preview gets a temporary Environment URL as a lease (recorded as the 2026-09-28
-addendum of root decision 0167 in HumanAndMachines/Lazurio#442) whose rules are the
-open design detail (B14). H2, H5 and H7 stay open, and implementation proceeds on
-their recommendations (H). Analysis and design only.** Nothing here is implemented. It
-replaces the two-move plan of
+Status: **shaping, accepted as
+[F22](decisions.md#f22--the-platform-launchpad-reaches-parity-and-replaces-the-resident-in-one-apply)
+on 2026-09-28 (root decision 0167 with its addendum).** The Principal decided H1, H4,
+H6, the drops of section F and one distribution (Ubuntu 24.04) for every hosted
+Machine, reached by a rebuild with state transfer, and H3 in direction: P9 is off the
+switch line, and a preview gets a temporary Environment URL as a lease whose rules are
+the open design detail (B14). H2, H5 and H7 stay open, and implementation proceeds on
+their recommendations (H).
+
+**Implementation state, evening of 2026-09-28** (section E): P1–P8 and P12 are merged
+in this repository; M1 is released as Machines v0.12.93; M2 (Machines #248) and M3
+(Machines #244) are Drafts; the M6 design is merged (Machines #247) and its slices are
+open. The first real `qualify.yml` run, on `v0.1.8-rc.2`, failed J3 on Ubuntu, so no
+candidate qualifies for the switch yet, and the resident Launchpad still serves every
+hosted Machine. The analysis below is kept as written at the citations' revisions.
+
+This document replaces the two-move plan of
 `docs/hosted-launchpad-switch-plan.md` (branch `claude/DEV-6626-distribution-and-migration`)
 and keeps its facts. It depends on the Recovery mode shaping
-([`docs/recovery-mode.md`](recovery-mode.md), branch `claude/DEV-6626-recovery-mode-shaping`,
-proposed decision F21) and on F20 (first installation, pull request #62). The
+([`docs/recovery-mode.md`](recovery-mode.md), decision
+[F21](decisions.md#f21--recovery-mode-instead-of-rollback)) and on F20 (first
+installation, pull request #62). The
 documented first-installation one-liner is the strict form
 `curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh` (Principal,
-2026-09-28). Decisions proposed here are numbered from F22.
+2026-09-28, root decision 0168).
 
 Citations: a bare path is this repository at `0fa47cf`. `R:` is the legacy root
 repository at `c9b57da8`. `M:` is the Machines repository at `7b2bcaa` (v0.12.91).
@@ -771,35 +781,35 @@ operator runs it), Personalspace present.
 Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Rough.
 "Repo": P Platform, M Machines, O owner overlay.
 
-| # | Slice | Repo | Depends on | Size | After it the operator (or agent) can |
-|---|---|---|---|---|---|
-| P1 | F21 slices 2–4: `recover`, Recovery mode, activation without undo, the F.1 unit | P | F21 accepted | L (F21's) | trust that a broken Launchpad shows a repair action instead of a dead page |
-| P2 | Unit PATH line (B2, B13) | P | P1 (same unit text) | S | run tools from `~/.local/bin` in the Launchpad on every Ubuntu Machine |
-| M1 | Optional `entry` (launchpad, t3code, modules) in the handover schema | M | — | S | nothing yet; unblocks P3 |
-| P3 | Re-pin schema; project `entry`; hosted from the handover | P | M1 released | S | open the Platform Launchpad behind a real gateway on a qualification VM |
-| P4 | Organizations and modules from the Folder; `organization list`, `module list`; catalog home; F22 point 1 (`current` executable) | P | H1 | M | see every Organization and module in the Platform Launchpad; agents list them |
-| P5 | `lazurio module` lifecycle CLI first on Linux, toolchain from the standard path, journal logs, Open with external links, installed Launchpad composes the lifecycle; retire `app-request` | P | P3, P4 | M | open, stop and read logs of modules from the page and from T3 by CLI |
-| P6 | Hosted `ensure` (B5) | P | P5 | S | follow a cold direct link to a module |
-| P7 | `lazurio chat link` and the Chat button (B8) | P | P3; T3 launcher on PATH (M) | S | enter T3 Code from the Launchpad without pasting a token |
-| P8 | `lazurio doctor` read-only; `/settings/diagnostics` (B9) | P | P4, P5 | S | get one readback of the Environment's health |
-| P9 | Worktree previews: `--source worktree:<name>` (B3) under a temporary hostname registered as a lease with a 24-hour time to live, ended by unit exit, free port, removed worktree or a merged or closed pull request, capped per Machine, "Stop preview"; the hosted Folder instructions say a preview is reached only through its URL or the operator's own SSH forwarding, never a localhost link (template revision bump) (B14); later slice, off the switch line | P | P5, P6 (catalog path proven); the H3 rules accepted | M | open a pull request's worktree on `https://<module>-<worktree>.<vm>.<org>.lazurio.io` from the web T3 Code, and on a workstation on loopback |
-| M2 | Switch release (C.2): resident removed, gateway snippet and `ensure` Host, entry written, `install --service`, `launchpad.gen3*` removed, F21 static page | M | P1–P8 released; M3 | M | — (qualification only) |
-| M3 | Local Ubuntu VM qualification harness (C.5) | M | — | M | qualify any Machines release before a real Machine |
-| O1 | One Work Machine switched; then the others | O | M2 | S each | use the Platform Launchpad only |
-| — | **Switch line, existing hosted Work Environment: P1–P8, M1–M3, O1** | | | | |
-| P10 | `organization sync` and `organization add` (B7, F9) | P | P4 | L | synchronize and add Organizations from page and CLI |
-| — | **New Work Machines: switch line, their Organizations cloned by the agent in T3 Code from the manual until P10 (H4, decided 2026-09-28)** | | | | |
-| P11 | `ssh-keys` and Settings → Access (B10) | P | P3 | S | add a laptop key in the browser |
-| P12 | Team: server refuses personal gh; Tools shows the broker identity (B12) | P | — | S | — |
-| M4 | Team lane of M2 (shared account, broker unchanged) | M | M2, P12 | S | — |
-| — | **Team Environment line: switch line + P10 + P11 + P12 + M4** | | | | |
-| P13 | Cookie chunks in hosted admission; Personalspace modules (B11) | P | P5 | M | — |
-| M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 **with state transfer** (Principal, 2026-09-28): the Machine keeps its identity, tailnet node and SSH host keys; the owner's home, sign-ins and Buddy are carried; about one hour of outage, announced to the owner beforehand; acceptance: no new sign-in or pairing (T3 Code pairing, the Buddy with its memory, SSH keys and host identity, `gh`), each proven by a readback (see below) | M | the inventory of carried state | M | run the one distribution every hosted Machine runs, with nothing to set up again |
-| M5 | Personal lane of M2 (entry without Organization segment) | M | M2, P13, M6 | S | — |
-| — | **Personal Machine line: switch line + P11 + P13 + M6 (rebuild with state transfer) + M5** | | | | |
-| P14 | Workstation adoption (`folder-init --adopt`), control socket, `launchpad open`, session logs, port "Stop holder" action | P | P5; distribution slice S5 | M | run the Platform Launchpad over all Organizations on a Mac |
-| P15 | macOS `.app` from `lazurio install` | P | P14; OS signing | M | start Lazurio from the Dock |
-| — | **macOS workstation line: P1 (unsupervised parts), P4, P5 (session runner), P8, P9 (loopback previews), P10, P14, P15, and the migration of `docs/distribution-and-migration.md` D** | | | | |
+| # | Slice | Repo | Depends on | Size | After it the operator (or agent) can | State (2026-09-28 evening) |
+|---|---|---|---|---|---|---|
+| P1 | F21 slices 2–4: `recover`, Recovery mode, activation without undo, the F.1 unit | P | F21 accepted | L (F21's) | trust that a broken Launchpad shows a repair action instead of a dead page | merged: #67, #69, #72, #78 |
+| P2 | Unit PATH line (B2, B13) | P | P1 (same unit text) | S | run tools from `~/.local/bin` in the Launchpad on every Ubuntu Machine | merged in #67 |
+| M1 | Optional `entry` (launchpad, t3code, modules) in the handover schema | M | — | S | nothing yet; unblocks P3 | released: Machines v0.12.93 |
+| P3 | Re-pin schema; project `entry`; hosted from the handover | P | M1 released | S | open the Platform Launchpad behind a real gateway on a qualification VM | merged: #71 |
+| P4 | Organizations and modules from the Folder; `organization list`, `module list`; catalog home; F22 point 1 (`current` executable) | P | H1 | M | see every Organization and module in the Platform Launchpad; agents list them | merged: #68 |
+| P5 | `lazurio module` lifecycle CLI first on Linux, toolchain from the standard path, journal logs, Open with external links, installed Launchpad composes the lifecycle; retire `app-request` | P | P3, P4 | M | open, stop and read logs of modules from the page and from T3 by CLI | merged: #73 |
+| P6 | Hosted `ensure` (B5) | P | P5 | S | follow a cold direct link to a module | merged: #79 |
+| P7 | `lazurio chat link` and the Chat button (B8) | P | P3; T3 launcher on PATH (M) | S | enter T3 Code from the Launchpad without pasting a token | merged: #80 |
+| P8 | `lazurio doctor` read-only; `/settings/diagnostics` (B9) | P | P4, P5 | S | get one readback of the Environment's health | merged: #77 |
+| P9 | Worktree previews: `--source worktree:<name>` (B3) under a temporary hostname registered as a lease — the direction the Principal decided (H3, 0167 addendum); the lease rules of B14 (a 24-hour time to live, ended by unit exit, free port, removed worktree or a merged or closed pull request, capped per Machine, "Stop preview") are a **proposal** awaiting the Principal's decision; the hosted Folder instructions say a preview is reached only through its URL or the operator's own SSH forwarding, never a localhost link (template revision bump); later slice, off the switch line | P | P5, P6 (catalog path proven); the B14 rules decided by the Principal | M | open a pull request's worktree on `https://<module>-<worktree>.<vm>.<org>.lazurio.io` from the web T3 Code, and on a workstation on loopback | after the switch |
+| M2 | Switch release (C.2): resident removed, gateway snippet and `ensure` Host, entry written, `install --service`, `launchpad.gen3*` removed, F21 static page | M | P1–P8 released; M3 | M | — (qualification only) | Draft: Machines #248 |
+| M3 | Local Ubuntu VM qualification harness (C.5) | M | — | M | qualify any Machines release before a real Machine | Draft: Machines #244 |
+| O1 | One Work Machine switched; then the others | O | M2 | S each | use the Platform Launchpad only | waits for M2 and a qualified candidate |
+| — | **Switch line, existing hosted Work Environment: P1–P8, M1–M3, O1** | | | | | |
+| P10 | `organization sync` and `organization add` (B7, F9) | P | P4 | L | synchronize and add Organizations from page and CLI | no pull request |
+| — | **New Work Machines: switch line, their Organizations cloned by the agent in T3 Code from the manual until P10 (H4, decided 2026-09-28)** | | | | | |
+| P11 | `ssh-keys` and Settings → Access (B10) | P | P3 | S | add a laptop key in the browser | no pull request |
+| P12 | Team: server refuses personal gh; Tools shows the broker identity (B12) | P | — | S | — | merged: #66 |
+| M4 | Team lane of M2 (shared account, broker unchanged) | M | M2, P12 | S | — | no pull request |
+| — | **Team Environment line: switch line + P10 + P11 + P12 + M4** | | | | | |
+| P13 | Cookie chunks in hosted admission; Personalspace modules (B11) | P | P5 | M | — | no pull request; issue #76 |
+| M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 **with state transfer** (Principal, 2026-09-28): the Machine keeps its identity, tailnet node and SSH host keys; the owner's home, sign-ins and Buddy are carried; about one hour of outage, announced to the owner beforehand; acceptance: no new sign-in or pairing (T3 Code pairing, the Buddy with its memory, SSH keys and host identity, `gh`), each proven by a readback (see below) | M | the inventory of carried state | M | run the one distribution every hosted Machine runs, with nothing to set up again | design merged: Machines #247; slices R2–R8 open |
+| M5 | Personal lane of M2 (entry without Organization segment) | M | M2, P13, M6 | S | — | no pull request |
+| — | **Personal Machine line: switch line + P11 + P13 + M6 (rebuild with state transfer) + M5** | | | | | |
+| P14 | Workstation adoption (`folder-init --adopt`), control socket, `launchpad open`, session logs, port "Stop holder" action | P | P5; distribution slice S5 | M | run the Platform Launchpad over all Organizations on a Mac | no pull request |
+| P15 | macOS `.app` from `lazurio install` | P | P14; OS signing | M | start Lazurio from the Dock | no pull request |
+| — | **macOS workstation line: P1 (unsupervised parts), P4, P5 (session runner), P8, P9 (loopback previews), P10, P14, P15, and the migration of `docs/distribution-and-migration.md` D** | | | | | |
 
 Strictness notes: P9 is off the switch line and is not dropped (H3, Principal
 2026-09-28). SSH port forwarding to a localhost link works only when an agent on the
@@ -959,7 +969,10 @@ Implementation proceeds on the recommendations: the Principal's direction (one a
 no side-by-side period, no rollback) implies H2, and H5 and H7 can still be changed
 before the first release of P4 and P5 without migrating anything.
 
-Proposed decision, for the Principal's acceptance:
+Proposed decision, as shaped. **Recorded as F22 in
+[decisions](decisions.md#f22--the-platform-launchpad-reaches-parity-and-replaces-the-resident-in-one-apply)
+on 2026-09-28**, where it is corrected to what the Principal decided; the block below
+is kept as proposed:
 
 > ## F22 — The Platform Launchpad reaches parity by concept and replaces the resident in one apply
 >
