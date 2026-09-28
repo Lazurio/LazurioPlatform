@@ -404,6 +404,58 @@ const en = {
   catalogReasonNoApp: "The module has no app to run.",
   catalogReasonDefaultApp:
     "The default app's runtime declaration is missing or invalid.",
+  recoveryTitle: "Recovery",
+  recoveryIntro:
+    "Whether Lazurio on this Machine needs a repair, read by the same check as lazurio recover. Reading changes nothing.",
+  recoveryModeTitle: "The Launchpad is in Recovery mode",
+  recoveryModeText:
+    "It could not start normally and serves only this page. T3 Code, your tools, the Folder and the repositories keep working.",
+  recoveryCheckLabel: "Check",
+  recoveryReasonLabel: "Reason",
+  recoveryReasonFolderStateUnreadable:
+    "This version cannot read the Folder or its state: it is not owned by your account, or it holds entries, keys or a schema this version does not know.",
+  recoveryReasonFolderTransactionPending:
+    "A profile or tools change in the Folder was interrupted and is not finished.",
+  recoveryReasonFolderLockUnavailable:
+    "The Folder's operation lock cannot be taken.",
+  recoveryReasonHostedEntryInvalid:
+    "The hosted entry recorded in the Folder is not one this version accepts.",
+  recoveryReasonAssetMissing:
+    "The page this executable carries does not serve completely.",
+  recoveryReasonUnknown: "A reason this page does not know.",
+  recoveryLoading: "Checking…",
+  recoveryAgain: "Check again",
+  recoveryLoadFailed:
+    "The check could not be read here. An agent on this Machine can run lazurio recover.",
+  recoveryHealthy: "Lazurio on this Machine is healthy.",
+  recoveryBroken: "Lazurio on this Machine needs a repair.",
+  recoveryNotInstalled:
+    "Lazurio is not installed on this Machine; there is nothing to check.",
+  recoveryChecksTitle: "Checks",
+  recoveryOutcomeOk: "ok",
+  recoveryOutcomeFailed: "failed",
+  recoveryOutcomeSkipped: "skipped",
+  recoveryEvidenceTitle: "Evidence",
+  recoveryEvidenceText:
+    "Sanitized structured fields only, exactly as the prepared issue carries them.",
+  recoveryJournalShow: "Show journal (stays on this Machine)",
+  recoveryJournalHide: "Hide journal",
+  recoveryJournalText:
+    "The sanitized tail of the Launchpad's journal. It never leaves this Machine automatically.",
+  recoveryPromptTitle: "Repair agent",
+  recoveryPromptText:
+    "Copy the prompt and paste it into a new chat of your agent app on this Machine (T3 Code on a hosted Machine). The agent repairs forward, or records the fault on GitHub.",
+  recoveryPromptCopy: "Copy the prompt",
+  recoveryIssueTitle: "Prepared issue",
+  recoveryIssueText:
+    "For the public repository {repository}. The repair agent files it after a search for a duplicate.",
+  recoveryIssueCopy: "Copy the gh command",
+  recoveryIssueLink: "Open the prefilled issue in the browser",
+  recoveryIssueLinkPaste: "Open the issue form in the browser (paste the body)",
+  recoveryIssueRefused:
+    "No issue body was prepared: after sanitization it still contained {kinds}. Nothing may leave this Machine automatically.",
+  recoveryNothingFiled:
+    "Nothing was filed. This page only prepares the issue; nothing leaves this Machine automatically.",
   settingsTitle: "Settings",
   settingsGeneral: "General",
   settingsBack: "Back",
@@ -860,6 +912,58 @@ const cs: Record<MessageKey, string> = {
   catalogReasonNoApp: "Modul nemá žádnou aplikaci ke spuštění.",
   catalogReasonDefaultApp:
     "Deklarace běhu výchozí aplikace chybí nebo je neplatná.",
+  recoveryTitle: "Obnova",
+  recoveryIntro:
+    "Jestli Lazurio na téhle Mašině potřebuje opravu, zjištěné stejnou kontrolou jako lazurio recover. Čtení nic nemění.",
+  recoveryModeTitle: "Launchpad je v režimu obnovy (Recovery mode)",
+  recoveryModeText:
+    "Nepodařilo se ho normálně spustit, a tak ukazuje jen tuhle stránku. T3 Code, vaše nástroje, Folder i repozitáře fungují dál.",
+  recoveryCheckLabel: "Kontrola",
+  recoveryReasonLabel: "Důvod",
+  recoveryReasonFolderStateUnreadable:
+    "Tahle verze nedokáže přečíst Folder nebo jeho stav: nepatří vašemu účtu, nebo obsahuje položky, klíče či schéma, které tahle verze nezná.",
+  recoveryReasonFolderTransactionPending:
+    "Změna profilu nebo nástrojů ve Folderu byla přerušena a není dokončená.",
+  recoveryReasonFolderLockUnavailable: "Zámek operací Folderu nejde získat.",
+  recoveryReasonHostedEntryInvalid:
+    "Hostovaný vstup zaznamenaný ve Folderu tahle verze nepřijímá.",
+  recoveryReasonAssetMissing:
+    "Stránka, kterou tenhle program nese, se neservíruje celá.",
+  recoveryReasonUnknown: "Důvod, který tahle stránka nezná.",
+  recoveryLoading: "Kontroluji…",
+  recoveryAgain: "Zkontrolovat znovu",
+  recoveryLoadFailed:
+    "Výsledek kontroly tady nejde načíst. Agent na téhle Mašině může spustit lazurio recover.",
+  recoveryHealthy: "Lazurio na téhle Mašině je v pořádku.",
+  recoveryBroken: "Lazurio na téhle Mašině potřebuje opravu.",
+  recoveryNotInstalled:
+    "Lazurio na téhle Mašině není nainstalované; není co kontrolovat.",
+  recoveryChecksTitle: "Kontroly",
+  recoveryOutcomeOk: "v pořádku",
+  recoveryOutcomeFailed: "selhala",
+  recoveryOutcomeSkipped: "přeskočena",
+  recoveryEvidenceTitle: "Důkazy",
+  recoveryEvidenceText:
+    "Jen sanitizovaná strukturovaná pole, přesně jak je nese připravené issue.",
+  recoveryJournalShow: "Zobrazit journal (zůstává na téhle Mašině)",
+  recoveryJournalHide: "Skrýt journal",
+  recoveryJournalText:
+    "Sanitizovaný konec journalu Launchpadu. Nikdy automaticky neopouští tuhle Mašinu.",
+  recoveryPromptTitle: "Opravný agent",
+  recoveryPromptText:
+    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace na téhle Mašině (na hostované Mašině do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
+  recoveryPromptCopy: "Zkopírovat prompt",
+  recoveryIssueTitle: "Připravené issue",
+  recoveryIssueText:
+    "Pro veřejný repozitář {repository}. Opravný agent ho založí, až ověří, že neexistuje duplicita.",
+  recoveryIssueCopy: "Zkopírovat příkaz gh",
+  recoveryIssueLink: "Otevřít předvyplněné issue v prohlížeči",
+  recoveryIssueLinkPaste:
+    "Otevřít formulář issue v prohlížeči (tělo vložte sami)",
+  recoveryIssueRefused:
+    "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí tuhle Mašinu opustit automaticky.",
+  recoveryNothingFiled:
+    "Nic nebylo odesláno. Tahle stránka issue jen připraví; nic automaticky neopouští tuhle Mašinu.",
   settingsTitle: "Nastavení",
   settingsGeneral: "Obecné",
   settingsBack: "Zpět",

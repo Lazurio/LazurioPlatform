@@ -59,7 +59,7 @@ import {
 } from "./organizations/cli";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
-import { recoverHelp, runRecoverCommand } from "./recover/cli";
+import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import {
   type CommandOutput,
@@ -512,6 +512,12 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       values.base === undefined
         ? undefined
         : await installedLaunchpad(values.base, folder);
+    // The Recovery page and the Recovery view of Settings: `lazurio recover
+    // --json` for this Launchpad's Folder and base (docs/recovery.md).
+    const recovery = recoverySource(processContext(), {
+      base: installed?.base,
+      folder,
+    });
     // A start refused on a condition this executable can name does not exit:
     // it serves Recovery mode on the same port (docs/update.md "Recovery
     // mode"), so a supervised unit never loops and the operator sees why.
@@ -524,8 +530,13 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
             ? undefined
             : { organizationDirectory },
           installed,
+          undefined,
+          undefined,
+          undefined,
+          recovery,
         ),
-      (refusal) => startRecoveryMode({ refusal, base: installed?.base }),
+      (refusal) =>
+        startRecoveryMode({ refusal, base: installed?.base, recovery }),
     );
     const { close, url, hosted } = started.value;
     console.log(

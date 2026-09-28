@@ -12,8 +12,8 @@ nothing.
 
 `lazurio recover [--json] [--locale cs|en] [--folder <absolute Folder>]` (and
 `--base`, like the update commands) runs the one use case `collectRecovery`
-(`src/recover/recover.ts`). The Launchpad's recovery page of a later slice renders
-the same result; there is no second implementation.
+(`src/recover/recover.ts`). The Launchpad's Recovery page ([below](#the-recovery-page))
+renders the same result; there is no second implementation.
 
 It reads and never writes: no lock, no restart, no network, no file under the install
 base or the Folder. When something is broken it prints
@@ -56,7 +56,7 @@ Skipped is never "broken". Ids and codes are never renamed or reused.
 | `folder-state` | (R1's cause) | The Folder's `.lazurio/` as this version reads it: the two state documents parsed without the lock, like the self-check | `folder-state-absent`, `-pending` (a transaction), `-unrecognized` (an entry this version does not know, or no operation lock), `-unreadable` | `no-folder` |
 | `self-check-failed` | R5 | The ACTIVE executable's `self-check --json --base --folder`, run once by its immutable path and judged by the updater's own rule (`requireSelfCheck`) | `self-check-failed` (context `reason`, `exitCode`) | `not-installed` |
 | `launchpad-unit` | (R4's evidence) | `systemctl --user show` of `lazurio-launchpad.service`, only when that unit carries the installer's marker and a user manager exists (Linux, `XDG_RUNTIME_DIR`) | `unit-not-loaded`, `unit-failed`, `unit-restarting` (`auto-restart`), `unit-inactive` | `no-user-manager`, `not-supervised`, `user-manager-unreachable`, `unit-state-unknown` |
-| `launchpad-health` | (R4's evidence) | `GET /health` on the socket under the base | `launchpad-not-answering` (supervised only), `launchpad-version-mismatch`, `launchpad-recovery-mode` (the `503 {mode, check}` answer of a later slice) | `not-installed`, `not-supervised` |
+| `launchpad-health` | (R4's evidence) | `GET /health` on the socket under the base | `launchpad-not-answering` (supervised only), `launchpad-version-mismatch`, `launchpad-recovery-mode` (the `503 {mode, check, reason}` answer of a Launchpad in Recovery mode; context `check` `start-refused` and `refusal`, why its start was refused) | `not-installed`, `not-supervised` |
 
 When several fail, the issue is about the first in this order, the one closest to the
 cause; all failed ids are listed. R1 `start-refused`, R3 `activation-unhealthy` and
@@ -81,8 +81,8 @@ Never collected: the Folder's files, preferences contents, the handover, environ
 variables, tool sign-in state, anything under `personalspace/`.
 
 The **fingerprint** `rf-<12 hex>` is SHA-256 over the check, its code, the one detail
-of its context (`reason`, else `path`, else `stage`) and the target, without the
-version, so one fault meets its issue across releases. The title ends in
+of its context (`reason` and `refusal` together when present, else `path`, else `stage`) and the target,
+without the version, so one fault meets its issue across releases. The title ends in
 `[rf-…]`; the search uses `--state all`, so a closed match is found as a regression.
 
 ## What may leave the Machine
@@ -118,7 +118,8 @@ splits the bundle in two:
   | `code` | an update error code | `updateErrorCodes` (`src/update/errors.ts`) |
   | `stage` | a stage the update code emits | `updateErrorStages` (`src/update/errors.ts`) |
   | `resource` | a release resource | `updateErrorResources` (`src/update/errors.ts`) |
-  | `check` | a recovery check id | `recoveryCheckIds` (`src/recover/checks.ts`) |
+  | `check` | a recovery check id, or the check a Launchpad's health socket names in Recovery mode | `recoveryCheckIds` (`src/recover/checks.ts`), `healthSocketChecks` (`src/launchpad/recovery-mode.ts`) |
+  | `refusal` | why a Launchpad start or probe was refused | `startRefusals` (`src/launchpad/start-check.ts`) |
   | `path` | an update state name | `updateStatePaths` (`src/update/layout.ts`) |
   | `activeState`, `subState`, `result` | systemd's value, or `unknown` | `unitActiveStates`, `serviceSubStates`, `serviceResults` (`src/recover/observe.ts`) |
   | `target` | a release target | `updateTargets` (`src/update/identity.ts`) |
@@ -210,15 +211,71 @@ Known limits, stated rather than hidden:
 - The prompt stays on this Machine and names the real Folder path in its commands;
   its evidence is the tier-1 fields of the sanitized bundle.
 
+## The Recovery page
+
+The Launchpad shows the same result in two places, read-only:
+
+- **In Recovery mode** (the start was refused on a named condition,
+  [update](update.md#recovery-mode)) it is the whole page: the bundled page this
+  executable carries, which needs nothing of the Folder, without the sidebar,
+  Settings, the update pill or applications. Every page path serves it (still with
+  status `503`; its scripts and styles answer `200`). When the page does not serve
+  completely (`asset-missing`, or its bundle fails the same check a normal start
+  makes), every page path answers the check and the reason as plain text instead.
+- **In normal mode** it is Settings → Recovery (`/settings/recovery`), in the T3 Code
+  settings pattern of the other sections, so operators can find it. On a healthy
+  installation it shows the checks and says so. It runs only when the section is
+  opened and on "Check again", because the check runs the active executable's
+  self-check.
+
+What the page shows:
+
+1. In Recovery mode, the check `start-refused` and the reason, each by its id and in
+   words (Czech or English; in Recovery mode the browser's language, because the
+   Folder's recorded one may not be readable).
+2. The verdict and every check with its outcome, code or skip reason and context.
+3. When broken: the prompt for a repair agent with **Copy the prompt** (on a hosted
+   Machine it goes into a new chat in T3 Code, on a workstation into the agent app
+   the operator uses; decided 2026-09-28, Q3 of the shaping), the prepared issue
+   (title, body preview, **Copy the gh command**, which copies `issue.shell`, and the
+   prefilled `issues/new` link opening in a new tab) or, when the gate refused the
+   body, only the kinds of what survived, the tier-1 evidence exactly as the issue
+   carries it, and the sentence that nothing was filed.
+4. The journal tail (tier 2) never appears unless the operator presses **Show journal
+   (stays on this Machine)**; it is not in the page until then.
+
+`GET /api/recovery` returns exactly the object `lazurio recover --json --folder
+<the Launchpad's Folder>` prints (with `--base <its base>` when it was started with
+one, otherwise the default install base, as the command uses), built by the same
+function (`recoveryEnvironment`, `src/recover/cli.ts`); one run at a time. There is no
+route that changes anything: nothing is filed, nothing is written, nothing reaches
+the network, and every other API route still answers Recovery mode's typed refusal.
+
+**Admission.** Hosted, the page and `/api/recovery` sit behind the gateway's
+admission, as the normal page does; Recovery mode answers through the gateway only
+when the Folder's recorded entry still reads, otherwise on an ephemeral loopback
+port nothing proxies to. Locally the link `lazurio launchpad` prints carries a
+fragment token, and `/api/recovery` requires it (and this listener's own Host), as
+every read of the normal page does; the plain-text reason and the typed refusals of
+the other routes carry only enumerated ids and need none.
+
+Filing stays the repair agent's act (root decision 0163); the page gives the operator
+the same prompt and body the agent would use, and Q2 (an issue on every entry into
+Recovery mode) is met by the agent's step 7, not by the page.
+
 ## What does not exist yet
 
-- The Launchpad's Recovery mode (R1 instead of exiting, the one-action page, health
-  `503`, admission from the handover) and the Folder manual's "Recovery mode"
-  section: slice 3.
-- Activation without undo, the pre-switch probe, `activation-unhealthy` (R3), the
-  unit without `OnFailure=` and removal of `lazurio update rollback`: slice 4. Until
-  then the product still has program rollback; the repair prompt nevertheless forbids
-  it.
+Recovery mode itself (R1 instead of exiting, health `503`, admission from the recorded
+entry), the pre-switch probe and activation without undo exist
+([update](update.md#recovery-mode)), and so does the Recovery page above. Missing:
+
+- R1 `start-refused` and R3 `activation-unhealthy` as check ids of this command. A
+  Launchpad in Recovery mode is named through `launchpad-health`
+  (`launchpad-recovery-mode`, context `check: start-refused` and the `refusal`
+  that says why), which the fingerprint tells apart per refusal; where no
+  Launchpad answers, the refusal is not in the evidence.
+- Opening T3 Code with the prompt in a new thread: T3 Code has no released way yet
+  (the shaping's slice 7); the page copies the prompt.
 - R4 `launchpad-not-running` as its own check and the hosted gateway's static page.
 - Writing the bundle to `<base>/recovery/<timestamp>.json` when there is no network
   (E.5): this slice writes nothing.

@@ -32,10 +32,11 @@ import {
 import { launchpadHealth } from "../src/update/service-control";
 import { bindings } from "./fixtures/machine-bindings";
 
-// Recovery mode, minimal (docs/update.md "Recovery mode"): a start refused on
-// a condition the executable can name is served, not exited — on the same
-// port, as plain text, with a typed refusal on every API route and 503 on the
-// health socket, which every updater reads as "not healthy".
+// Recovery mode (docs/update.md "Recovery mode"): a start refused on a
+// condition the executable can name is served, not exited — on the same port,
+// as the Recovery page (plain text when the page does not serve), with a typed
+// refusal on every other API route and 503 on the health socket, which every
+// updater reads as "not healthy". The page itself: launchpad-recovery-page.
 
 const freePort = () => {
   const probe = Bun.serve({
@@ -158,7 +159,7 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
-  "Recovery mode answers the page as plain text, every API route with a typed refusal, and the health socket with 503",
+  "Recovery mode serves the Recovery page, every other API route a typed refusal, and the health socket 503",
   async () => {
     const base = await scratch("lp-rec-b-");
     await mkdir(join(base, "update"), { recursive: true });
@@ -169,17 +170,39 @@ test.skipIf(process.platform === "win32")(
     try {
       expect(recovery.hosted).toBe(false);
       const origin = `http://127.0.0.1:${recovery.server.port}`;
-      expect(recovery.url).toBe(`${origin}/`);
-      for (const path of ["/", "/settings/tools", "/anything"]) {
+      // Locally the link carries the credential of the Recovery page's
+      // evidence, as the normal page's link does.
+      expect(recovery.url).toMatch(
+        new RegExp(`^${origin.replaceAll(".", "\\.")}/#[0-9a-f]{64}$`),
+      );
+      // The page paths serve the bundled page, still saying 503; its scripts
+      // and styles answer 200 so the browser runs them.
+      for (const path of ["/", "/settings/tools", "/settings/recovery"]) {
         const page = await fetch(`${origin}${path}`);
-        expect(page.status).toBe(503);
-        expect(page.headers.get("content-type")).toBe(
-          "text/plain; charset=utf-8",
-        );
-        expect(await page.text()).toBe(
-          "Lazurio Launchpad: Recovery mode\ncheck: start-refused\nreason: folder-transaction-pending\n",
-        );
+        expect([path, page.status]).toEqual([path, 503]);
+        expect(page.headers.get("content-type")).toContain("text/html");
+        expect(await page.text()).toContain('id="section-recovery"');
       }
+      expect(
+        await checkBundledPage(async (path) => {
+          const answer = await fetch(`${origin}${path}`);
+          // The document's 503 is its own; the check reads the assets.
+          return path === "/"
+            ? new Response(await answer.text(), {
+                headers: { "content-type": "text/html" },
+              })
+            : answer;
+        }),
+      ).toBe(true);
+      // Anything else is the reason in plain text.
+      const other = await fetch(`${origin}/anything`);
+      expect([other.status, other.headers.get("content-type")]).toEqual([
+        503,
+        "text/plain; charset=utf-8",
+      ]);
+      expect(await other.text()).toBe(
+        "Lazurio Launchpad: Recovery mode\ncheck: start-refused\nreason: folder-transaction-pending\n",
+      );
       for (const [method, path] of [
         ["GET", "/api/update/status"],
         ["POST", "/api/profile"],

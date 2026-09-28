@@ -548,16 +548,19 @@ In Recovery mode the Launchpad keeps the port it would have served on (the hoste
 entry's port behind the same admission, when the Folder's recorded entry still reads
 and is valid, which a pending transaction, a held lock or an unknown key elsewhere in
 the state do not prevent; otherwise an ephemeral loopback port that no gateway proxies
-to) and answers every page path
-with `503` and a plain-text body naming the check and the reason, every
-`/api/…` route with `503 {error: "recovery-mode", check, reason}`, and the health
-socket with `503 {mode: "recovery", check, reason}`. An updater of any release
-reads that as not healthy. `lazurio launchpad` prints
-`{url, scope: "recovery-mode", check, reason}`. It changes nothing; after the
-condition is repaired, a restart of the Launchpad starts it normally. The page
-with the repair action and `lazurio recover` are later slices of the
-recovery-mode shaping. An executable that cannot run at all is restarted by the
-unit every five seconds and picks up a fixed release on the next restart.
+to) and answers every page path with `503` and the Recovery page, which shows the
+reason, the result of `lazurio recover` with the prompt for a repair agent to copy
+and the prepared issue, and files nothing ([recovery](recovery.md#the-recovery-page));
+when the page does not serve completely, with a plain-text body naming the check and
+the reason. `GET /api/recovery` returns what `lazurio recover --json` prints for this
+Folder; every other `/api/…` route answers `503 {error: "recovery-mode", check,
+reason}`, and the health socket `503 {mode: "recovery", check, reason}`. An updater of
+any release reads that as not healthy. `lazurio launchpad` prints
+`{url, scope: "recovery-mode", check, reason}`; locally the URL carries the fragment
+token the evidence needs. It changes nothing; after the condition is repaired, a
+restart of the Launchpad starts it normally. An executable that cannot run at all is
+restarted by the unit every five seconds and picks up a fixed release on the next
+restart.
 
 ### Migration from releases with rollback
 
