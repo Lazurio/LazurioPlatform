@@ -6,14 +6,16 @@ import type {
 import {
   catalogSelection,
   catalogStatus,
+  moduleRoute,
   organizationName,
+  organizationRoute,
   parseCatalog,
   routeOrganization,
   teamGroups,
   usesLegacyTeamAlias,
 } from "./catalog-view";
 import type { MessageKey } from "./messages";
-import { modulePath, organizationPath, type PageRoute } from "./routes";
+import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -67,6 +69,16 @@ export function createCatalogPanel(
     link.dataset.route = "";
     return link;
   };
+  // A link where the candidate has a route of its own, plain text otherwise:
+  // two candidates of one slug never share a link.
+  const maybeLink = (
+    href: string | null,
+    className: string,
+    content?: string,
+  ): HTMLElement =>
+    href === null
+      ? element("span", className, content)
+      : routeLink(href, className, content);
   const dot = (ready: boolean) => {
     const mark = element("span", "dot");
     mark.dataset.state = ready ? "ready" : "blocked";
@@ -133,12 +145,13 @@ export function createCatalogPanel(
 
   // One module as a row of a card: name, Teams, default app, whether it runs.
   function moduleRow(
+    value: Catalog,
     organization: CatalogOrganization,
     module: CatalogModule,
   ): HTMLElement {
     const copy = options.copy();
-    const title = routeLink(
-      modulePath(module.organization, module.module),
+    const title = maybeLink(
+      moduleRoute(value, organization, module),
       "",
       module.module,
     );
@@ -156,16 +169,22 @@ export function createCatalogPanel(
   }
 
   function modulesCard(
+    value: Catalog,
     organization: CatalogOrganization,
     modules: readonly CatalogModule[],
   ) {
     const card = element("div", "card");
-    card.append(...modules.map((module) => moduleRow(organization, module)));
+    card.append(
+      ...modules.map((module) => moduleRow(value, organization, module)),
+    );
     return card;
   }
 
   // The modules of one Organization under a subheader per Team.
-  function organizationModules(organization: CatalogOrganization): Node[] {
+  function organizationModules(
+    value: Catalog,
+    organization: CatalogOrganization,
+  ): Node[] {
     const copy = options.copy();
     if (organization.modules.length === 0)
       return organization.reason === undefined
@@ -175,7 +194,7 @@ export function createCatalogPanel(
       ...(entry.team === null
         ? []
         : [element("h3", "catalog-team", entry.team.displayName)]),
-      modulesCard(organization, entry.modules),
+      modulesCard(value, organization, entry.modules),
     ]);
   }
 
@@ -213,25 +232,50 @@ export function createCatalogPanel(
       return [element("p", "callout", copy.catalogEmpty)];
     return value.organizations.map((organization) => {
       const name = organizationName(organization);
-      const heading =
-        organization.organization === null
-          ? name
-          : routeLink(organizationPath(organization.organization), "", name);
+      const href = organizationRoute(value, organization);
+      const heading = href === null ? name : routeLink(href, "", name);
       const section = group(heading);
       if (!organization.executable || organization.modules.length === 0)
         section.querySelector(".group-head")?.append(statusLine(organization));
-      section.append(...organizationModules(organization));
+      section.append(...organizationModules(value, organization));
       return section;
     });
   }
 
-  function organizationView(organization: CatalogOrganization): Node[] {
+  function organizationView(
+    value: Catalog,
+    organization: CatalogOrganization,
+  ): Node[] {
     const copy = options.copy();
     return [
       statusLine(organization),
       organizationFacts(organization),
-      group(copy.catalogModules, ...organizationModules(organization)),
+      group(copy.catalogModules, ...organizationModules(value, organization)),
     ];
+  }
+
+  // A slug more than one candidate declares: their isolation, never one of
+  // them. Each candidate is named by its directory, linked only where a name
+  // selects exactly it.
+  function ambiguousView(
+    value: Catalog,
+    candidates: readonly CatalogOrganization[],
+  ): Node[] {
+    const copy = options.copy();
+    const card = element("div", "card");
+    card.append(
+      ...candidates.map((organization) =>
+        row(
+          maybeLink(
+            organizationRoute(value, organization),
+            "",
+            organization.directory,
+          ),
+          statusLine(organization),
+        ),
+      ),
+    );
+    return [element("p", "callout", copy.catalogReasonDuplicate), card];
   }
 
   function moduleView(
@@ -273,30 +317,28 @@ export function createCatalogPanel(
 
   // The sidebar: every Organization as a group, its modules as rows with a
   // status dot under a subheader per Team. A module of two Teams is a row
-  // under both. An Organization that cannot be read is a group without a
-  // route, named with its reason.
+  // under both. A candidate links to the route that selects exactly it (its
+  // slug, otherwise its directory name); one that no name selects, such as
+  // one of two candidates of a slug, is a group without a link, named with
+  // its reason.
   function drawTree(value: Catalog, route: PageRoute) {
     const copy = options.copy();
-    const current = (organization: string, module?: string) =>
-      route.view === "module"
-        ? module !== undefined &&
-          route.organization.toLowerCase() === organization.toLowerCase() &&
-          route.module === module
-        : route.view === "organization" &&
-          module === undefined &&
-          route.organization.toLowerCase() === organization.toLowerCase();
+    const selection = catalogSelection(value, route);
     tree.replaceChildren(
       ...value.organizations.map((organization) => {
         const section = element("div", "catalog-group");
         const name = organizationName(organization);
-        const slug = organization.organization;
-        const head =
-          slug === null
-            ? element("span", "menu-item catalog-org", name)
-            : routeLink(organizationPath(slug), "menu-item catalog-org", name);
-        if (slug !== null && current(slug))
+        const head = maybeLink(
+          organizationRoute(value, organization),
+          "menu-item catalog-org",
+          name,
+        );
+        if (
+          selection.kind === "organization" &&
+          selection.organization === organization
+        )
           head.setAttribute("aria-current", "page");
-        if (slug === null || !organization.executable) {
+        if (organization.organization === null || !organization.executable) {
           head.prepend(dot(false));
           head.append(
             element(
@@ -314,8 +356,8 @@ export function createCatalogPanel(
           list.append(
             ...entry.modules.map((module) => {
               const item = element("li");
-              const link = routeLink(
-                modulePath(module.organization, module.module),
+              const link = maybeLink(
+                moduleRoute(value, organization, module),
                 "menu-item catalog-module",
               );
               const view = catalogStatus(module, copy);
@@ -328,7 +370,7 @@ export function createCatalogPanel(
                   `, ${view.state === "ready" ? copy.catalogReady : view.text}`,
                 ),
               );
-              if (current(module.organization, module.module))
+              if (selection.kind === "module" && selection.module === module)
                 link.setAttribute("aria-current", "page");
               item.append(link);
               return item;
@@ -372,8 +414,10 @@ export function createCatalogPanel(
         ...(selection.kind === "overview"
           ? overview(catalog)
           : selection.kind === "organization"
-            ? organizationView(selection.organization)
-            : moduleView(selection.organization, selection.module)),
+            ? organizationView(catalog, selection.organization)
+            : selection.kind === "ambiguous"
+              ? ambiguousView(catalog, selection.candidates)
+              : moduleView(selection.organization, selection.module)),
       );
   }
 

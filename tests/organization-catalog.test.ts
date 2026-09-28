@@ -4,8 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import {
+  catalogSelection,
+  organizationRoute,
+  routeOrganization,
+} from "../src/launchpad/catalog-view";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
+  type CatalogOrganization,
   catalogModules,
   findCatalogOrganization,
   readFolderCatalog,
@@ -458,6 +464,27 @@ posixTest(
           ],
         });
       expect(findCatalogOrganization(catalog, "beta")).toBeUndefined();
+      // The page follows the same rule: the slug shows the isolation, and only
+      // the copy whose directory is not a slug has a link of its own.
+      expect(
+        catalogSelection(catalog, {
+          view: "organization",
+          organization: "BETA",
+        }),
+      ).toMatchObject({
+        kind: "ambiguous",
+        candidates: [byDirectory.beta, byDirectory["beta-copy"]],
+      });
+      const [beta, copy] = ["beta", "beta-copy"].map((directory) => {
+        const entry = byDirectory[directory];
+        if (entry === undefined) throw new Error(`No candidate ${directory}`);
+        return entry;
+      }) as [CatalogOrganization, CatalogOrganization];
+      expect(organizationRoute(catalog, beta)).toBeNull();
+      expect(organizationRoute(catalog, copy)).toBe("/o/beta-copy");
+      expect(routeOrganization(catalog, "beta-copy")).toBe(
+        findCatalogOrganization(catalog, "beta-copy"),
+      );
       expect(byDirectory.alpha_GEN3).toMatchObject({ executable: true });
     });
   },

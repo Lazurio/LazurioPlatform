@@ -2,17 +2,20 @@ import { expect, test } from "bun:test";
 import {
   catalogSelection,
   catalogStatus,
+  moduleRoute,
   organizationName,
+  organizationRoute,
   parseCatalog,
   routeOrganization,
   teamGroups,
   usesLegacyTeamAlias,
 } from "../src/launchpad/catalog-view";
 import { messages } from "../src/launchpad/messages";
-import type {
-  Catalog,
-  CatalogModule,
-  CatalogOrganization,
+import {
+  type Catalog,
+  type CatalogModule,
+  type CatalogOrganization,
+  findCatalogOrganization,
 } from "../src/organizations/catalog";
 
 const module = (
@@ -161,18 +164,60 @@ test("a route selects an Organization or a module of the catalog, or says it is 
     }),
   ).toMatchObject({ kind: "module", module: { module: "docs" } });
   for (const route of [
-    { view: "organization", organization: "broken" },
     { view: "organization", organization: "nobody" },
     { view: "module", organization: "alpha", module: "nothing" },
   ] as const)
     expect(catalogSelection(catalog, route)).toEqual({ kind: "missing" });
-  // Exact slug first; two slugs in different case are otherwise ambiguous.
-  const twin = { ...alpha, directory: "Alpha", organization: "Alpha" };
-  const twins: Catalog = { kind: "catalog", organizations: [alpha, twin] };
-  expect(routeOrganization(twins, "Alpha")?.directory).toBe("Alpha");
-  expect(routeOrganization(twins, "ALPHA")).toBeUndefined();
+  // As the CLI: without a slug, the exact directory name selects it.
+  expect(
+    catalogSelection(catalog, { view: "organization", organization: "broken" }),
+  ).toEqual({ kind: "organization", organization: broken });
+  expect(organizationRoute(catalog, alpha)).toBe("/o/alpha");
+  expect(organizationRoute(catalog, broken)).toBe("/o/broken");
   expect(organizationName(alpha)).toBe("Alpha Company");
   expect(organizationName(broken)).toBe("broken");
+});
+
+test("a slug two candidates declare, in the same case or another, selects neither; the page and the CLI agree", () => {
+  for (const twinSlug of ["alpha", "Alpha"]) {
+    // One candidate's directory is its own slug, the other's is not a slug.
+    const twin = { ...alpha, directory: twinSlug, organization: twinSlug };
+    const twins: Catalog = { kind: "catalog", organizations: [alpha, twin] };
+    for (const name of ["alpha", "Alpha", "ALPHA"]) {
+      expect(routeOrganization(twins, name)).toBeUndefined();
+      expect(findCatalogOrganization(twins, name)).toBeUndefined();
+      for (const route of [
+        { view: "organization", organization: name },
+        { view: "module", organization: name, module: "web" },
+      ] as const)
+        expect(catalogSelection(twins, route)).toEqual({
+          kind: "ambiguous",
+          candidates: [alpha, twin],
+        });
+    }
+    // The sidebar: a candidate links only by a name that selects exactly it.
+    expect(organizationRoute(twins, alpha)).toBe("/o/alpha_GEN3");
+    expect(moduleRoute(twins, alpha, module("web", []))).toBe(
+      "/o/alpha_GEN3/web",
+    );
+    expect(organizationRoute(twins, twin)).toBeNull();
+    expect(moduleRoute(twins, twin, module("web", []))).toBeNull();
+    expect(
+      catalogSelection(twins, {
+        view: "organization",
+        organization: "alpha_GEN3",
+      }),
+    ).toEqual({ kind: "organization", organization: alpha });
+    // Every name the page selects, the CLI selects the same.
+    for (const name of ["alpha", "Alpha", "alpha_GEN3", twinSlug, "nobody"])
+      expect(routeOrganization(twins, name)).toBe(
+        findCatalogOrganization(twins, name),
+      );
+  }
+  for (const name of ["alpha", "ALPHA", "alpha_GEN3", "broken", "nobody"])
+    expect(routeOrganization(catalog, name)).toBe(
+      findCatalogOrganization(catalog, name),
+    );
 });
 
 test("only an answer in the catalog's exact shape is drawn", () => {

@@ -139,7 +139,9 @@ its "Development fixture only" banner are gone.
 
 **Source.** One core, `readFolderCatalog` in `src/organizations/catalog.ts`: every
 directory in `<Folder>/organizations/` (not files, not hidden entries) is one candidate,
-resolved by the canonical reader (`read-applications.ts`, `root-resolution.ts`). No
+resolved by the canonical reader (`read-applications.ts`, `root-resolution.ts`).
+Hidden entries are not candidates, as the resident's glob `organizations/*` never
+matched them; `.cache`, `.git` and editor folders are the normal case. No
 allowlist, no planned slots, no `launchpad.gen3*.json`, no state: the catalog is
 recomputed on every read. A candidate that cannot be read keeps its typed reason
 (`canonical-documents-required`, `organization-conflict`, `template-not-runtime`,
@@ -168,8 +170,11 @@ the default Team `workspace` (decision 0041, as the resident's Launchpad README 
 
 **CLI first.** `lazurio organization list [--folder <F>] [--json]` prints the catalog
 (`--json`: exactly the object below), `lazurio module list [<Org>] [--folder <F>]
-[--json]` its modules, for one Organization named by slug (case-insensitive) or
-directory name. Without `--folder` the Folder is found as `lazurio update` finds it:
+[--json]` its modules, for one Organization named under the one selection rule the
+routes share (`selectCatalogOrganization` in `src/organizations/catalog-selection.ts`):
+its slug, case-insensitively; a slug that two or more candidates declare, in the same
+case or another, selects none of them; only when no slug matches, the exact directory
+name. Without `--folder` the Folder is found as `lazurio update` finds it:
 the supervised unit's `[X-Lazurio] Folder=`, otherwise the hosted Machine's declared
 operator (`standardFolder` in `src/update/cli.ts`, one function for both); a
 workstation without a unit names it. Human output is aligned columns as in
@@ -182,10 +187,14 @@ fragment token locally, the gateway's cookie hosted.
 **Routes.** `/` is every Organization's modules with their default app; `/o/<org>` one
 Organization (directory, resolution state, Teams, issues, then its modules per Team);
 `/o/<org>/<module>` one module (Organization, Teams, apps with the default marked,
-path, resolution state, whether it can run). `<org>` is the slug and each segment is
-URL-encoded; an Organization that could not be read has no route and is shown with
-its reason on `/`. A route the Folder does not have says so with a link to all
-Organizations. The paths live in `src/launchpad/routes.ts` next to the settings
+path, resolution state, whether it can run). `<org>` is selected by the CLI's rule
+above and each segment is URL-encoded. A candidate's own route uses the name that
+selects exactly it: its slug, otherwise its directory name (an Organization that
+could not be read, or one of two candidates of a slug whose directory is not a slug);
+a candidate that no name selects has no link and is shown with its reason on `/`. An
+ambiguous slug never shows one of its candidates: `/o/<slug>` and its module routes
+show the duplicate isolation with every candidate's directory and status. A route the
+Folder does not have says so with a link to all Organizations. The paths live in `src/launchpad/routes.ts` next to the settings
 routes, the server answers them with the same page (Bun route parameters) and nothing
 deeper, and they behave like the settings routes: deep links, back and forward,
 focus on the heading, the breadcrumb "Organization / module", the document title.

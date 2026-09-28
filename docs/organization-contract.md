@@ -72,31 +72,36 @@ interim implementation of the same compatibility-state table, not a second schem
 
 ## Exit from transition-only admission
 
-Accepted direction (2026-09-19, [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)).
-**Decided 2026-09-28 (question H1 of the Launchpad parity shaping, decision F22
-point 1):** the interim gate ends now. No owner of the identity continuity proof is
-named, and a canonical-only Organization would otherwise lose its applications when
-the Platform Launchpad replaces the resident one. The implementation runs variant B
-above and keeps variant A one line away for the record; the text below is F12 as
-accepted and stays as history of the gate. **Canonical-only Organizations are the target normal case.** Upstream
-decision 0145 deprecates the legacy projection and makes `current` the end state of
-every Organization. Admitting only parity-valid `transition` roots, as described above,
-is an **interim gate** tied to upstream finalization readiness. It is not a product
-requirement that an Organization keep a deprecated file: requiring the projection
-forever would institutionalize migration machinery and make every new Organization
+**Decided 2026-09-28 by the Principal (question H1 of the Launchpad parity shaping,
+decision F22 point 1): the transition-only gate is retired and this section is a
+historical record.** Admission runs variant B (see the execution admission bullet
+above): a parity-valid `transition` root and a canonical-only `current` root both
+execute; `legacy`, `projection_drift`, `conflict`, `missing`, a template and an
+unresolvable root refuse. No upstream identity continuity proof is awaited: no owner
+of such a proof was named, and a canonical-only Organization would otherwise lose its
+applications when the Platform Launchpad replaces the resident one. Nothing falls back
+to the deprecated projection, no second schema and no local finalization marker exist.
+Variant A stays one line away in `src/organizations/root-resolution.ts` for the
+record, covered by tests.
+
+*Historical, as [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)
+was accepted on 2026-09-19 and superseded on 2026-09-28; nothing below is a pending
+condition.* Canonical-only Organizations were stated as the target normal case:
+upstream decision 0145 deprecates the legacy projection and makes `current` the end
+state of every Organization. Admitting only parity-valid `transition` roots was then an
+**interim gate** tied to upstream finalization readiness, not a product requirement
+that an Organization keep a deprecated file, since requiring the projection forever
+would have institutionalized migration machinery and made every new Organization
 start in a migration state.
 
-Exit criterion, stated generically: `current` roots become executable once upstream
-accepts a **trusted, live-verifiable identity continuity proof**, that is, evidence the
-consumer can check at the operation boundary that this canonical-only root is the same
+The exit criterion F12 stated was that `current` roots would become executable once
+upstream accepted a trusted, live-verifiable identity continuity proof: evidence the
+consumer could check at the operation boundary that a canonical-only root is the same
 Organization that passed the finalization gate, without consulting the removed
-projection and without trusting a locally stored claim alone. When the pinned Core
-contract carries that signal, Platform admits `current` as the normal executable state,
-keeps `transition` executable while it still exists, and deletes nothing itself.
-
-Until then nothing changes: no fallback to the projection, no second schema, no
-locally invented finalization marker, and no admission from a digest that only proves
-the projection's content.
+projection and without trusting a locally stored claim alone. Meanwhile F12 excluded a
+fallback to the projection, a second schema, a locally invented finalization marker
+and admission from a digest that only proves the projection's content. The 2026-09-28
+decision replaced that criterion rather than meeting it; the exclusions still hold.
 
 ## Relation to the upstream contract
 

@@ -6,8 +6,12 @@ import type {
   ModuleReason,
   OrganizationReason,
 } from "../organizations/catalog";
+import {
+  catalogOrganizationKey,
+  selectCatalogOrganization,
+} from "../organizations/catalog-selection";
 import type { MessageKey } from "./messages";
-import type { PageRoute } from "./routes";
+import { modulePath, organizationPath, type PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -120,23 +124,41 @@ export function usesLegacyTeamAlias(
   );
 }
 
-/** The Organization a route names: its slug, as the catalog wrote it, or the
- * same slug in another case (GitHub slugs are case-insensitive). Only a
- * resolved Organization has a route. */
+/** The Organization a route names, under the CLI's rule
+ * (`selectCatalogOrganization`): its slug case-insensitively, otherwise its
+ * directory name; undefined when missing or when the slug is ambiguous. */
 export function routeOrganization(
   catalog: Catalog,
-  slug: string,
+  name: string,
 ): CatalogOrganization | undefined {
-  const matches = catalog.organizations.filter(
-    (entry) => entry.organization?.toLowerCase() === slug.toLowerCase(),
-  );
-  return (
-    matches.find((entry) => entry.organization === slug) ??
-    (matches.length === 1 ? matches[0] : undefined)
-  );
+  const selection = selectCatalogOrganization(catalog, name);
+  return selection.kind === "found" ? selection.organization : undefined;
 }
 
-/** What a catalog route shows; `missing` when the Folder does not have it. */
+/** The route of one candidate: `/o/<name>` with the name that selects exactly
+ * it (its slug, otherwise its directory name), or null when no name does,
+ * so two candidates of one slug never share a link. */
+export function organizationRoute(
+  catalog: Catalog,
+  organization: CatalogOrganization,
+): string | null {
+  const key = catalogOrganizationKey(catalog, organization);
+  return key === null ? null : organizationPath(key);
+}
+
+/** The route of one module of a candidate, or null as above. */
+export function moduleRoute(
+  catalog: Catalog,
+  organization: CatalogOrganization,
+  module: CatalogModule,
+): string | null {
+  const key = catalogOrganizationKey(catalog, organization);
+  return key === null ? null : modulePath(key, module.module);
+}
+
+/** What a catalog route shows; `ambiguous` when more than one candidate
+ * declares the slug (their isolation, never one of them), `missing` when the
+ * Folder does not have it. */
 export function catalogSelection(
   catalog: Catalog,
   route: PageRoute,
@@ -148,11 +170,16 @@ export function catalogSelection(
       organization: CatalogOrganization;
       module: CatalogModule;
     }>
+  | Readonly<{
+      kind: "ambiguous";
+      candidates: readonly CatalogOrganization[];
+    }>
   | Readonly<{ kind: "missing" }> {
   if (route.view === "home" || route.view === "settings")
     return { kind: "overview" };
-  const organization = routeOrganization(catalog, route.organization);
-  if (organization === undefined) return { kind: "missing" };
+  const selection = selectCatalogOrganization(catalog, route.organization);
+  if (selection.kind !== "found") return selection;
+  const { organization } = selection;
   if (route.view === "organization")
     return { kind: "organization", organization };
   const module = organization.modules.find(

@@ -1,6 +1,7 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { selectCatalogOrganization } from "./catalog-selection";
 import { observeOrganizationApplications } from "./read-applications";
 import type { OrganizationRootState } from "./root-resolution";
 
@@ -323,7 +324,9 @@ export async function readFolderCatalog(folder: string): Promise<Catalog> {
   await inspectOwnedDirectory(root);
   const names = (await readdir(root, { withFileTypes: true }))
     // A directory, or a link that may name one (the reader refuses links and
-    // so isolates it); files and hidden entries are not candidates.
+    // so isolates it); files are not candidates. Hidden entries are not
+    // candidates, as the resident's glob `organizations/*` never matched them;
+    // `.cache`, `.git` and editor folders are the normal case.
     .filter(
       (entry) =>
         !entry.name.startsWith(".") &&
@@ -350,17 +353,14 @@ export function catalogModules(
   );
 }
 
-/** The Organization a person names: its slug (case-insensitive, as GitHub),
+/** The Organization a person names, under the one rule the Launchpad's routes
+ * share (`selectCatalogOrganization`): its slug (case-insensitive, as GitHub),
  * otherwise its directory name exactly; undefined when neither matches or the
  * slug is ambiguous. */
 export function findCatalogOrganization(
   catalog: Catalog,
   name: string,
 ): CatalogOrganization | undefined {
-  const bySlug = catalog.organizations.filter(
-    (entry) => entry.organization?.toLowerCase() === name.toLowerCase(),
-  );
-  if (bySlug.length === 1) return bySlug[0];
-  if (bySlug.length > 1) return undefined;
-  return catalog.organizations.find((entry) => entry.directory === name);
+  const selection = selectCatalogOrganization(catalog, name);
+  return selection.kind === "found" ? selection.organization : undefined;
 }
