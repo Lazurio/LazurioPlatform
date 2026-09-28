@@ -549,6 +549,16 @@ file is the gateway's input, not Folder state.
 **Hosted trust.** Whoever is admitted to the Machine can open a preview, as with any
 application; on a Team Environment every admitted member can. No new admission rule.
 
+**Folder instructions (Principal, 2026-09-28).** The generated `AGENTS.md` and manual
+of a hosted Machine tell agents how previews work there: the operator reaches a
+preview only through its temporary Environment URL, or through SSH forwarding the
+operator set up themselves, never through a localhost link, which cannot work from
+the operator's computer. This is part of P9, as a template change with a revision
+bump (today `base-instructions-9`, `src/folder/render.ts:29`). Until P9 exists, the
+next template change adds one interim sentence to the hosted manual: "on a hosted
+Machine a localhost link works only for a process on the Machine; give the operator
+the application's hostname or a preview URL."
+
 **Tests.** The label rule against the catalog's own normalization fixtures; refusal
 of a taken label; each end case (unit exit, time to live, free port, removed
 worktree, closed pull request); orphan removal at Launchpad start; the cap; a C.5
@@ -754,7 +764,7 @@ Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Roug
 | P6 | Hosted `ensure` (B5) | P | P5 | S | follow a cold direct link to a module |
 | P7 | `lazurio chat link` and the Chat button (B8) | P | P3; T3 launcher on PATH (M) | S | enter T3 Code from the Launchpad without pasting a token |
 | P8 | `lazurio doctor` read-only; `/settings/diagnostics` (B9) | P | P4, P5 | S | get one readback of the Environment's health |
-| P9 | Worktree previews: `--source worktree:<name>` (B3) under a temporary hostname registered as a lease with a 24-hour time to live, ended by unit exit, free port, removed worktree or a merged or closed pull request, capped per Machine, "Stop preview" (B14); later slice, off the switch line | P | P5, P6 (catalog path proven); the H3 rules accepted | M | open a pull request's worktree on `https://<module>-<worktree>.<vm>.<org>.lazurio.io` from the web T3 Code, and on a workstation on loopback |
+| P9 | Worktree previews: `--source worktree:<name>` (B3) under a temporary hostname registered as a lease with a 24-hour time to live, ended by unit exit, free port, removed worktree or a merged or closed pull request, capped per Machine, "Stop preview"; the hosted Folder instructions say a preview is reached only through its URL or the operator's own SSH forwarding, never a localhost link (template revision bump) (B14); later slice, off the switch line | P | P5, P6 (catalog path proven); the H3 rules accepted | M | open a pull request's worktree on `https://<module>-<worktree>.<vm>.<org>.lazurio.io` from the web T3 Code, and on a workstation on loopback |
 | M2 | Switch release (C.2): resident removed, gateway snippet and `ensure` Host, entry written, `install --service`, `launchpad.gen3*` removed, F21 static page | M | P1–P8 released; M3 | M | — (qualification only) |
 | M3 | Local Ubuntu VM qualification harness (C.5) | M | — | M | qualify any Machines release before a real Machine |
 | O1 | One Work Machine switched; then the others | O | M2 | S each | use the Platform Launchpad only |
@@ -766,7 +776,7 @@ Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Roug
 | M4 | Team lane of M2 (shared account, broker unchanged) | M | M2, P12 | S | — |
 | — | **Team Environment line: switch line + P10 + P11 + P12 + M4** | | | | |
 | P13 | Cookie chunks in hosted admission; Personalspace modules (B11) | P | P5 | M | — |
-| M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 **with state transfer** (Principal, 2026-09-28): the Machine keeps its identity, tailnet node and SSH host keys; the owner's home, sign-ins and Buddy are carried; about one hour of outage; nothing is set up again; a readback proves each carried item (see below) | M | the inventory of carried state | M | run the one distribution every hosted Machine runs, with nothing to set up again |
+| M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 **with state transfer** (Principal, 2026-09-28): the Machine keeps its identity, tailnet node and SSH host keys; the owner's home, sign-ins and Buddy are carried; about one hour of outage, announced to the owner beforehand; acceptance: no new sign-in or pairing (T3 Code pairing, the Buddy with its memory, SSH keys and host identity, `gh`), each proven by a readback (see below) | M | the inventory of carried state | M | run the one distribution every hosted Machine runs, with nothing to set up again |
 | M5 | Personal lane of M2 (entry without Organization segment) | M | M2, P13, M6 | S | — |
 | — | **Personal Machine line: switch line + P11 + P13 + M6 (rebuild with state transfer) + M5** | | | | |
 | P14 | Workstation adoption (`folder-init --adopt`), control socket, `launchpad open`, session logs, port "Stop holder" action | P | P5; distribution slice S5 | M | run the Platform Launchpad over all Organizations on a Mac |
@@ -780,7 +790,10 @@ the web T3 Code on the Machine it does not. For that case the Principal accepted
 direction of a temporary Environment URL registered for the worktree like a module's
 hostname (H3); B14 proposes its rules (lease, time to live, end conditions, cap). P9
 builds it after the switch, on the catalog path P6 has proven, and serves a
-workstation too (loopback, where the resident offered a per-tab choice). P11 is off
+workstation too (loopback, where the resident offered a per-tab choice). Because
+agents on a hosted Machine otherwise hand out localhost links that cannot work from
+the operator's computer, the next template change adds the interim sentence of B14 to
+the hosted manual even before P9, and P9 replaces it with the full preview rules. P11 is off
 the line because an agent in T3 can edit `authorized_keys`. P10 is off it
 for existing Machines because their repositories exist and the manual already tells
 agents to fast-forward. P8 is on it because the apply's preflight and readback need a
@@ -803,20 +816,38 @@ the owner's Buddy (the resident agent of a personal VM, with its memory) must no
 to be set up again. It also keeps Machines' own hard constraint for personal VMs:
 nothing may require re-pairing an owner's client devices, and a joined guest keeps
 its Headscale node, tailnet address and SSH host key (`M:docs/personal-vm.md:30-32`).
+The Principal announces the outage window to the owner beforehand.
+
+**Acceptance of M6** (Principal, 2026-09-28): after the rebuild the owner neither
+signs in nor pairs again. Each criterion has its readback, and M6 is done only when
+all four pass on the rebuilt Machine:
+
+1. **T3 Code pairing keeps working:** a device paired before the rebuild opens T3 Code
+   on the same hostname without a new pairing, and the paired-client records read
+   before and after are equal.
+2. **The Buddy is back with its memory:** the Buddy starts, answers a probe, and
+   reports the same memory count and digest as before.
+3. **SSH works with the same keys and host identity:** the owner's key logs in, the
+   host key fingerprints equal the pinned ones of the Machine Record, and a client
+   with the old `known_hosts` connects without a warning.
+4. **The `gh` sign-in is intact:** `gh auth status` names the same account, and
+   `git ls-remote` of the owner's Personalspace repository succeeds.
 
 | Carried | What | Readback after the restore |
 |---|---|---|
 | Machine identity | VM id, MAC, tailnet and pool address, hostname; the operating system disk is replaced inside the same VM, not a new VM | the pool's VM record and the guest's own view equal the values before |
 | Tailnet node | The Tailscale state directory, restored before `tailscaled` first starts, so the node is not re-enrolled | the same node id, node key and address; no new node under the owner's Headscale user |
-| SSH host keys | The host key pairs, restored before `sshd` first starts | fingerprints equal the pinned ones of the Machine Record; a client with the old `known_hosts` connects without a warning |
-| The operator's home | `authorized_keys`, the `gh` sign-in, the Personalspace clone, the Buddy's runtime and memory, T3 Code's base directory, with owner, modes and ownership | digest and mode of `authorized_keys` equal; `gh auth status` names the same account; the Personalspace has the same `HEAD` and a clean status; the Buddy starts, answers and reports the same memory count and digest; T3 Code keeps its existing pairings |
+| SSH host keys | The host key pairs, restored before `sshd` first starts | criterion 3 |
+| T3 Code pairing state | T3 Code's base directory (`--base-dir ~/.t3`, `M:workloads/workspace-vm/tool-services.mjs:21`) and whatever T3 keeps for paired clients (client sessions live 365 days, `:20`) | criterion 1 |
+| The operator's home | `authorized_keys`, the `gh` sign-in, the Personalspace clone, the Buddy's runtime and memory, with owner, modes and ownership | digest and mode of `authorized_keys` equal; the Personalspace has the same `HEAD` and a clean status; criteria 2, 3 and 4 |
 
 The inventory of carried state is part of the slice and is written from the running
 guest before anything is replaced; nothing is guessed. **Unverified today:** what the
 Buddy runtime keeps outside the home (system units, container images and volumes if it
 uses a container runtime, files under system state directories); where the `gh` token
-lives (the home's configuration or a keyring); whether T3 Code keeps anything outside
-its base directory; and how the pool host, whose creation script is not in Machines
+lives (the home's configuration or a keyring); whether T3 Code keeps its paired-client
+records and the key that signs their sessions entirely inside its base directory, or
+anything outside it; and how the pool host, whose creation script is not in Machines
 (`M:docs/personal-vm.md:146-148`), replaces a disk while keeping the VM id and MAC.
 The carried state holds secrets and the owner's Personalspace and Buddy memory, which
 nobody else reads (root decision 0091): it is moved as an encrypted, owner-only
