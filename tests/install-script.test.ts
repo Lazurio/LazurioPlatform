@@ -23,9 +23,12 @@ import {
 } from "../src/update/identity";
 import { renderManifest, sha256Hex } from "../src/update/manifest";
 
-// install.sh with `curl` or `wget` (and optionally `gh`) replaced on PATH: the
-// origin is a directory, nothing touches the network, HOME and TMPDIR are
-// temporary directories, and nothing is ever installed into the real home.
+// install.sh with `curl` (and optionally `gh`) replaced on PATH: the origin is
+// a directory, nothing touches the network, HOME and TMPDIR are temporary
+// directories, and nothing is ever installed into the real home. The shell is
+// `/bin/sh` unless LAZURIO_TEST_SHELL names another (`/bin/dash`, `bash
+// --posix`), so the same tests prove the script is POSIX.
+const shell = (process.env.LAZURIO_TEST_SHELL ?? "/bin/sh").split(" ");
 const target = nativeTarget(process.platform, process.arch);
 const supported = (updateTargets as readonly string[]).includes(target);
 const script = new URL("../install.sh", import.meta.url).pathname;
@@ -133,6 +136,11 @@ async function scene(options: Options = {}) {
   // public release): latest -> 302 to the exact-tag URL of the repository ->
   // 302 into signed asset storage on ANOTHER host, whose URL names no tag.
   // Not followed, a redirect has no body; `first-hop` overrides the first one.
+  // With a `downgrade` file the storage hop is plain `http://` and serves the
+  // `forged` tree; like the real curl, the shim refuses that hop when
+  // `--proto-redir =https` was given (exit 1, curl 8's own words, observed
+  // against a loopback TLS server that redirects to plain HTTP) and follows
+  // it otherwise.
   const storage =
     "https://release-assets.githubusercontent.com/github-production-release-asset/1/0a1b?sig=fixture";
   if ((options.downloader ?? "curl") === "curl")
@@ -140,11 +148,12 @@ async function scene(options: Options = {}) {
       join(tools, "curl"),
       `#!/bin/sh
 echo "$@" >> "${root}/curl.log"
-out=/dev/null; follow=; format=
+out=/dev/null; follow=; format=; redirects=
 while [ $# -gt 1 ]; do
   case "$1" in
     --output) out=$2; shift ;;
     --write-out) format=$2; shift ;;
+    --proto-redir) redirects=$2; shift ;;
     --location) follow=1 ;;
   esac
   shift
@@ -162,6 +171,10 @@ case "$url" in
     else redirect=${storage}; fi ;;
   *) exit 6 ;;
 esac
+if [ -n "$follow" ] && [ -n "$file" ] && [ -f "${root}/downgrade" ]; then
+  if [ "$redirects" = =https ]; then echo 'curl: (1) Protocol "http" disabled (in redirect)' >&2; exit 1; fi
+  effective=http://release-assets.githubusercontent.com/forged; file="${root}/forged/\${file##*/}"
+fi
 if [ -n "$file" ]; then [ -f "$file" ] || exit 22; cp "$file" "$out"; fi
 case "$format" in
   *redirect_url*) printf '%s' "$redirect" ;;
@@ -170,22 +183,11 @@ esac
 `,
       { mode: 0o755 },
     );
-  // `wget -q -O <file> <url>`: always follows, like wget does.
+  // A wget that would download anything: it must never be asked.
   if (options.downloader === "wget")
     await writeFile(
       join(tools, "wget"),
-      `#!/bin/sh
-echo "$@" >> "${root}/wget.log"
-[ "$1" = -q ] && [ "$2" = -O ] || exit 2
-out=$3; url=$4
-case "$url" in
-  ${origin}/releases/latest/download/*) file="${tree}/v1.1.0/\${url##*/}" ;;
-  ${origin}/releases/download/*) file="${tree}/\${url#${origin}/releases/download/}" ;;
-  *) exit 4 ;;
-esac
-[ -f "$file" ] || exit 8
-cp "$file" "$out"
-`,
+      `#!/bin/sh\necho "$@" >> "${root}/wget.log"\nexit 0\n`,
       { mode: 0o755 },
     );
   if (options.gh)
@@ -201,7 +203,7 @@ exit ${options.gh === "accepts" ? 0 : 1}
       { mode: 0o755 },
     );
   const run = async (env: Record<string, string> = {}, ...args: string[]) => {
-    const child = Bun.spawn(["/bin/sh", script, ...args], {
+    const child = Bun.spawn([...shell, script, ...args], {
       env: { HOME: home, PATH: tools, TMPDIR: temporary, ...env },
       stdout: "pipe",
       stderr: "pipe",
@@ -367,6 +369,11 @@ test.skipIf(!supported)(
         "did not redirect to a release of Lazurio/LazurioPlatform",
       ],
       [`${origin}/releases/download/v1.1.0/other.json`, "did not redirect"],
+      // A plaintext hop is not a release of this repository either.
+      [
+        "http://github.com/Lazurio/LazurioPlatform/releases/download/v1.1.0/manifest.json",
+        "did not redirect to a release of Lazurio/LazurioPlatform",
+      ],
       [
         `${origin}/releases/download/nightly/manifest.json`,
         "could not find out which release is the latest one",
@@ -397,40 +404,97 @@ test.skipIf(!supported)(
   },
 );
 
-test.skipIf(!supported || !hasShasum)(
-  "wget and shasum alone are enough: the latest manifest names the tag, everything else is asked by exact tag",
+test.skipIf(!supported || !hasShasum)("shasum alone is enough", async () => {
+  const { run } = await scene({ digest: "shasum" });
+  const result = await run();
+  expect({ code: result.code, stderr: result.stderr }).toEqual({
+    code: 0,
+    stderr: "",
+  });
+  expect(await ran()).toStartWith("install --verify-release ");
+});
+
+test.skipIf(!supported)(
+  "a redirect that leaves HTTPS stops the script before anything runs, and nothing is installed",
   async () => {
-    const { run, temporary } = await scene({
-      downloader: "wget",
-      digest: "shasum",
-    });
+    const { run, home, temporary } = await scene();
+    // A plaintext hop could supply a forged manifest AND a matching
+    // executable: the digest comparison alone would pass them.
+    const forged = new TextEncoder().encode(
+      `#!/bin/sh\necho forged > "${root}/forged-ran"\n`,
+    );
+    await mkdir(join(root, "forged"));
+    await writeFile(join(root, "forged", `lazurio-${target}`), forged);
+    await writeFile(join(root, "forged", "lazurio.sigstore.json"), "{}");
+    await writeFile(
+      join(root, "forged", "manifest.json"),
+      renderManifest({
+        version: "1.1.0",
+        sourceCommit: "b".repeat(40),
+        minimumUpdaterVersion: "1.0.0",
+        repository: "Lazurio/LazurioPlatform",
+        targets: {
+          [target]: { sha256: sha256Hex(forged), size: forged.byteLength },
+        },
+      }),
+    );
+    await writeFile(join(root, "downgrade"), "");
+    // The shim is a faithful witness: asked WITHOUT `--proto-redir =https`
+    // it follows the plaintext hop and hands out the forged manifest.
+    const lax = Bun.spawnSync(
+      [
+        join(root, "tools/curl"),
+        "--location",
+        "--output",
+        join(root, "lax.json"),
+        `${origin}/releases/download/v1.1.0/manifest.json`,
+      ],
+      { env: { PATH: join(root, "tools") } },
+    );
+    expect(lax.exitCode).toBe(0);
+    expect(await readFile(join(root, "lax.json"), "utf8")).toContain(
+      "b".repeat(40),
+    );
+    await rm(join(root, "lax.json"));
+    await rm(join(root, "curl.log"));
+
     const result = await run();
-    expect({ code: result.code, stderr: result.stderr }).toEqual({
-      code: 0,
-      stderr: "",
+    expect(result).toEqual({
+      code: 1,
+      stdout: `Installing Lazurio v1.1.0 for ${target}.\n`,
+      stderr: [
+        'curl: (1) Protocol "http" disabled (in redirect)',
+        "install.sh: could not download manifest.json of v1.1.0 from GitHub; nothing was installed.",
+        "",
+      ].join("\n"),
     });
-    expect(result.stdout).toContain(
-      `Checked: lazurio-${target} matches the SHA-256 in the manifest of v1.1.0.`,
-    );
-    expect(await ran()).toStartWith("install --verify-release ");
-    expect(existsSync(join(root, "curl.log"))).toBe(false);
-    expect(
-      (await lines("wget.log")).map((line) => line.split(" ").at(-1)),
-    ).toEqual([
-      `${origin}/releases/latest/download/manifest.json`,
-      ...["manifest.json", `lazurio-${target}`, "lazurio.sigstore.json"].map(
-        (asset) => `${origin}/releases/download/v1.1.0/${asset}`,
-      ),
-    ]);
+    // Every download insisted on HTTPS for every hop; the first one failed.
+    const requests = await lines("curl.log");
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toContain("--proto =https --proto-redir =https");
+    // Nothing was executed, nothing installed, nothing left behind.
+    expect(await ran()).toBeNull();
+    expect(existsSync(join(root, "forged-ran"))).toBe(false);
+    expect(await readdir(home)).toEqual([]);
     expect(await readdir(temporary)).toEqual([]);
-    // A latest answer that is not a manifest names no tag.
-    await writeFile(join(root, "tree/v1.1.0/manifest.json"), "<html>\n");
-    const refused = await run();
-    expect(refused.code).toBe(1);
-    expect(refused.stderr).toBe(
-      "install.sh: could not find out which release is the latest one; nothing was installed.\n",
-    );
-    expect(await lines("wget.log")).toHaveLength(5);
+  },
+);
+
+test.skipIf(!supported)(
+  "wget alone is refused before any request: it cannot be held to HTTPS on every redirect",
+  async () => {
+    const { run, home } = await scene({
+      downloader: "wget",
+      uname: ["Linux", "x86_64"],
+    });
+    expect(await run()).toEqual({
+      code: 1,
+      stdout: "",
+      stderr:
+        "install.sh: Lazurio needs curl to download itself over HTTPS, and curl is not installed. Install it with your system's package manager (for example: sudo apt install curl on Ubuntu or Debian, sudo dnf install curl on Fedora), then run this again.\n",
+    });
+    expect(existsSync(join(root, "wget.log"))).toBe(false);
+    expect(await readdir(home)).toEqual([]);
   },
 );
 
@@ -467,7 +531,7 @@ test("an unsupported platform, root, and missing tools are refused in one plain 
     ],
     [
       { uname: linux, downloader: "none" },
-      "Lazurio needs curl or wget to download itself, and neither is installed. Install one of them and run this again.",
+      "Lazurio needs curl to download itself over HTTPS, and curl is not installed. Install it with your system's package manager (for example: sudo apt install curl on Ubuntu or Debian, sudo dnf install curl on Fedora), then run this again.",
     ],
     [
       { uname: linux, digest: "none" },

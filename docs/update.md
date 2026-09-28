@@ -191,9 +191,31 @@ Arguments after `sh -s --` go to `lazurio install` (on Linux, `--service systemd
 installs one exact tag, which must be a release that already carries this mechanism
 (an older executable does not know `--verify-release` and refuses the call). Linux
 x64 and arm64 and macOS on Apple silicon are supported; Windows and Intel Macs are
-not yet, and the script says so in one sentence. It needs only `curl` or `wget` and
+not yet, and the script says so in one sentence. It needs only `curl` and
 `sha256sum` or `shasum`, runs as the user who will use Lazurio (root is refused),
-never uses `sudo` and never edits a shell profile.
+never uses `sudo` and never edits a shell profile. The script installs the latest
+release, so it works from the first release built with `--verify-release` on; until
+that release is published an older executable refuses the call and nothing is
+installed.
+
+**curl only, deliberately.** Every download of the script follows GitHub's redirects
+into its asset storage, and every hop must stay HTTPS: `curl --proto '=https'
+--proto-redir '=https'` refuses a downgrade (`curl: (1) Protocol "http" disabled (in
+redirect)`), the download fails and nothing is executed. That matters because the
+script compares the executable with a manifest that arrives the same way: a plaintext
+hop could supply a forged manifest and a matching executable, which the comparison
+would pass, and the executable's own check runs only after it has started. `wget`
+cannot be held to that portably: GNU wget 1.x has no option that restricts the scheme
+of a redirect (`--https-only` applies only to recursive retrieval), wget2 and BusyBox
+wget differ again in options and in how they print response headers, and BusyBox
+wget has no `--max-redirect` at all. Following redirects by hand
+(`--max-redirect=0`, reading `Location`) would have to be right for all three
+families without a way to prove it here, so there is no `wget` fallback: a smaller
+script that is certainly safe beats a wider one that is probably safe. The cost,
+plainly: macOS ships curl, and so do most Linux desktops, but some ship only wget
+(some Ubuntu Desktop releases, for example); there the script names the package to install
+(`sudo apt install curl`, `sudo dnf install curl`) and stops before any request. The
+one command itself is a `curl` command, so such a computer needs curl first anyway.
 
 **Two ways in, kept apart in code and here.**
 
@@ -211,18 +233,15 @@ never uses `sudo` and never edits a shell profile.
   no network, no verification by the executable: the custody that pinned the bytes is
   the authority. This path is unchanged.
 
-**What `install.sh` does, in order.** Resolve the platform; resolve the tag (with
-`curl`, from GitHub's first redirect of `latest`, which must be the exact-tag URL of
-this repository; with `wget`, which cannot stop at the first redirect portably, from
-the version of the latest manifest); download the manifest, the executable and
+**What `install.sh` does, in order.** Resolve the platform; resolve the tag from
+GitHub's first redirect of `latest`, which is not followed and must be the exact-tag
+HTTPS URL of this repository (an `http://` answer is refused before another request);
+download the manifest, the executable and
 `lazurio.sigstore.json` by exact tag into a private temporary directory (`0700`);
 hold the executable against the manifest's SHA-256 **before it is executed**; when a
 signed-in `gh` is present, run `gh attestation verify` on the manifest and the
 executable, also before anything is executed; then run the executable as above. The
-temporary directory is removed whatever happens. With `wget`, redirects are followed
-by wget's own rules (it cannot be told to refuse a downgrade to HTTP portably); the
-first request is HTTPS to `github.com`, and the bytes are held to the manifest and
-the attestation as with `curl`.
+temporary directory is removed whatever happens.
 
 **The trust chain, honestly.**
 
@@ -291,7 +310,8 @@ Refusals, on stderr, exit 1, each saying what happened to the computer:
 | --- | --- |
 | Unsupported platform | `install.sh: Lazurio supports Linux on x64 and arm64, and macOS on Apple silicon (arm64). This computer is <uname -s> <uname -m>. Windows and Intel Macs are not supported yet; nothing was installed.` |
 | Run as root | `install.sh: Lazurio installs for one user and never needs sudo. Run this again as the user who will use Lazurio, without sudo.` |
-| No downloader | `install.sh: Lazurio needs curl or wget to download itself, and neither is installed. Install one of them and run this again.` |
+| No curl (also when only `wget` is present) | `install.sh: Lazurio needs curl to download itself over HTTPS, and curl is not installed. Install it with your system's package manager (for example: sudo apt install curl on Ubuntu or Debian, sudo dnf install curl on Fedora), then run this again.` |
+| A redirect leaves HTTPS | curl's own line (`curl: (1) Protocol "http" disabled (in redirect)`), then `install.sh: could not download <asset> of <tag> from GitHub; nothing was installed.` |
 | No digest tool | `install.sh: Lazurio needs sha256sum or shasum to check the download, and neither is installed. Install one of them and run this again.` |
 | GitHub unreachable | `install.sh: cannot reach https://github.com/Lazurio/LazurioPlatform; nothing was installed.` |
 | `latest` redirects elsewhere | `install.sh: the latest release did not redirect to a release of Lazurio/LazurioPlatform; nothing was installed.` |

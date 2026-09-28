@@ -21,7 +21,9 @@ the executable then verifies the release's Sigstore attestation itself, with the
 code every later update uses, and refuses to install otherwise; with a signed-in GitHub
 CLI the attestation is also checked independently first. The executable's own check
 catches a wrong or damaged release but is not proof of the publisher, so the first
-installation still rests on HTTPS to lazurio.ai and GitHub. Details:
+installation still rests on HTTPS to lazurio.ai and GitHub, which the script holds on
+every redirect; it therefore needs curl (a computer with only wget is told how to
+install curl). Details:
 [First installation](docs/update.md#first-installation).
 
 **Lazurio Platform** is the public, source-available TypeScript product and codebase.

@@ -1557,7 +1557,10 @@ silently overwritten and never kept as a supported variant.
 **What was weak.** `install.sh` verified the release attestation only when `gh` was
 present and otherwise said it had not; a customer's new laptop has no `gh`.
 
-**Decided.** (1) `install.sh` needs only `curl` or `wget` and `sha256sum` or `shasum`,
+**Decided.** (1) `install.sh` needs only `curl` and `sha256sum` or `shasum`, and
+holds every download and every redirect to HTTPS (`--proto '=https' --proto-redir
+'=https'`); there is no `wget` fallback, because wget cannot be held to that portably
+([product update](update.md#first-installation)). It
 downloads the executable, the manifest and the Sigstore bundle of one release into a
 private temporary directory, holds the executable against the manifest's SHA-256
 before anything runs, keeps `gh attestation verify` as an independent second check
@@ -1598,6 +1601,7 @@ installed product.
 | The executable verifies its own release (selected) | Same verifier and path as every update, no extra tool; not authentication of the publisher, stated as such |
 | The website pins the expected manifest digest in the script it serves | Script and release from independent places, so a swapped release is refused before execution; needs a website deploy step per release; left open for the website, not built here |
 | npm as the door | Needs Node and npm on a new laptop and a second distribution channel; rejected by the Principal |
+| `wget` as a fallback when curl is missing | Covers Linux desktops that ship only wget; but GNU wget 1.x cannot restrict the scheme of a redirect, and following redirects by hand would have to be right for GNU wget, wget2 and BusyBox wget alike, while a plaintext hop could supply a forged manifest and a matching executable that run before any attestation check; rejected (review of pull request 62), the script names how to install curl instead |
 
 **Not in this decision:** Windows; the website route itself (another repository);
 OS publisher signing, which stays a gate before public release (F13).

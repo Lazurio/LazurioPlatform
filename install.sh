@@ -6,8 +6,7 @@
 #   LAZURIO_VERSION=v1.2.3-rc.1 sh install.sh     # one exact tag instead of the latest release
 #
 # Installs the Lazurio Platform (the `lazurio` CLI and the Launchpad, one
-# program) for the current user. Needs only curl or wget, and sha256sum or
-# shasum. Never uses sudo and never edits a shell profile. Afterwards Lazurio
+# program) for the current user. Needs only curl, and sha256sum or shasum. Never uses sudo and never edits a shell profile. Afterwards Lazurio
 # updates itself with `lazurio update`.
 #
 # THE TRUST CHAIN, PLAINLY. This script comes over HTTPS from lazurio.ai (or
@@ -47,13 +46,11 @@ main() {
     fail "Lazurio installs for one user and never needs sudo. Run this again as the user who will use Lazurio, without sudo."
   [ -n "${HOME:-}" ] || fail "HOME is not set, so there is no home directory to install into."
 
-  if command -v curl >/dev/null 2>&1; then
-    DOWNLOADER=curl
-  elif command -v wget >/dev/null 2>&1; then
-    DOWNLOADER=wget
-  else
-    fail "Lazurio needs curl or wget to download itself, and neither is installed. Install one of them and run this again."
-  fi
+  # curl only: it can be told to follow redirects over HTTPS and nothing
+  # else. wget cannot be, portably, so it is deliberately not a fallback
+  # (docs/update.md "First installation").
+  command -v curl >/dev/null 2>&1 ||
+    fail "Lazurio needs curl to download itself over HTTPS, and curl is not installed. Install it with your system's package manager (for example: sudo apt install curl on Ubuntu or Debian, sudo dnf install curl on Fedora), then run this again."
   if command -v sha256sum >/dev/null 2>&1; then
     sha256() { sha256sum "$1" | cut -d' ' -f1; }
   elif command -v shasum >/dev/null 2>&1; then
@@ -136,43 +133,29 @@ unsupported() {
   fail "Lazurio supports Linux on x64 and arm64, and macOS on Apple silicon (arm64). This computer is $(uname -s) $(uname -m). Windows and Intel Macs are not supported yet; nothing was installed."
 }
 
-# One HTTPS download that follows GitHub's redirect into its asset storage.
+# One HTTPS download that follows GitHub's redirect into its asset storage;
+# every hop must be HTTPS, a downgrade fails the request.
 fetch() {
-  if [ "$DOWNLOADER" = curl ]; then
-    curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --silent --show-error --location --output "$2" "$1"
-  else
-    wget -q -O "$2" "$1"
-  fi
+  curl --proto '=https' --proto-redir '=https' --tlsv1.2 --fail --silent --show-error --location --output "$2" "$1"
 }
 
-# The tag of the latest release. With curl, `latest` is asked once and NOT
-# followed: the tag is read from GitHub's FIRST redirect, which must be the
-# exact-tag URL of this very repository (followed to the end, the URL is signed
-# asset storage on another host and names no tag). wget cannot stop at the
-# first redirect portably, so there the latest manifest is downloaded and its
-# version names the tag; everything after that is requested by exact tag, and
-# the executable verifies that the manifest is attested for that tag.
+# The tag of the latest release: `latest` is asked once and NOT followed. The
+# tag is read from GitHub's FIRST redirect, which must be the exact-tag HTTPS
+# URL of this very repository (followed to the end, the URL is signed asset
+# storage on another host and names no tag); anything else, an `http://` hop
+# included, is refused before another request is made.
 latest_tag() {
-  if [ "$DOWNLOADER" = curl ]; then
-    FIRST=$(curl --proto '=https' --tlsv1.2 --fail --silent --show-error --head \
-      --output /dev/null --write-out '%{redirect_url}' \
-      "$ORIGIN/releases/latest/download/manifest.json") ||
-      fail "cannot reach $ORIGIN; nothing was installed."
-    case "$FIRST" in
-      "$ORIGIN/releases/download/"*/manifest.json)
-        FIRST=${FIRST#"$ORIGIN/releases/download/"}
-        printf '%s' "${FIRST%/manifest.json}"
-        ;;
-      *) fail "the latest release did not redirect to a release of $REPOSITORY; nothing was installed." ;;
-    esac
-  else
-    fetch "$ORIGIN/releases/latest/download/manifest.json" "$WORK/latest.json" ||
-      fail "cannot reach $ORIGIN; nothing was installed."
-    VERSION=$(sed -n 's/^  "version": "\([^"]*\)",$/\1/p' "$WORK/latest.json")
-    rm -f "$WORK/latest.json"
-    # Empty when it is not a manifest: the tag check that follows refuses it.
-    printf 'v%s' "$VERSION"
-  fi
+  FIRST=$(curl --proto '=https' --tlsv1.2 --fail --silent --show-error --head \
+    --output /dev/null --write-out '%{redirect_url}' \
+    "$ORIGIN/releases/latest/download/manifest.json") ||
+    fail "cannot reach $ORIGIN; nothing was installed."
+  case "$FIRST" in
+    "$ORIGIN/releases/download/"*/manifest.json)
+      FIRST=${FIRST#"$ORIGIN/releases/download/"}
+      printf '%s' "${FIRST%/manifest.json}"
+      ;;
+    *) fail "the latest release did not redirect to a release of $REPOSITORY; nothing was installed." ;;
+  esac
 }
 
 main "$@"
