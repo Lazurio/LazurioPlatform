@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import type { readOrganizationDocuments } from "../src/organizations/read-documents";
 import {
+  type ExecutionAdmissionVariant,
+  executionAdmission,
   isExecutableOrganizationState,
   legacyManifestIssues,
   modulesManifestIssues,
@@ -77,16 +79,25 @@ function documents(input: {
 const resolve = (input: Parameters<typeof documents>[0]) =>
   resolveOrganizationRootDocuments(documents(input));
 
-test("only parity-valid transition is executable; current stays diagnostic", () => {
-  expect(organizationRootStates.filter(isExecutableOrganizationState)).toEqual([
-    "transition",
-  ]);
+test("the admission rule has one home and two variants; the default is B, canonical-only current executes", () => {
+  const admitted = (variant?: ExecutionAdmissionVariant) =>
+    organizationRootStates.filter((state) =>
+      isExecutableOrganizationState(state, variant),
+    );
+  // Variant A (F12 as accepted): only parity-valid transition.
+  expect(admitted("transition-only")).toEqual(["transition"]);
+  // Variant B (proposed F22 point 1, pending H1): transition and current.
+  expect(admitted("transition-and-current")).toEqual(["transition", "current"]);
+  // Without a variant the one configured default applies. Every expectation
+  // below that depends on it asks the rule, so flipping the default is one
+  // line in root-resolution and no test edit.
+  expect(admitted()).toEqual(admitted(executionAdmission));
   expect(
     resolve({ canonical: present(canonical), legacy: present(projection) }),
   ).toEqual({ state: "transition", executable: true, issues: [] });
   expect(resolve({ canonical: present(canonical) })).toEqual({
     state: "current",
-    executable: false,
+    executable: isExecutableOrganizationState("current"),
     issues: [],
   });
   expect(resolve({ legacy: present(projection) })).toEqual({

@@ -149,7 +149,27 @@ details.technical { padding: 0 1rem; }
 details.technical pre { margin: 0.5rem 0 0; }
 pre { max-height: 20rem; overflow: auto; margin: 0; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--muted); color: var(--muted-fg); white-space: pre-wrap; overflow-wrap: anywhere; }
 pre:empty { display: none; }
-.row:has(> #app-status:empty):has(> #app-link[hidden]) { display: none; }
+
+/* The catalog (launchpad-parity B1): Organizations as sidebar groups, modules
+   as rows with a status dot, a subheader per Team (T3 Code's projects and
+   threads). */
+.dot { display: inline-block; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--success); }
+.dot[data-state="blocked"] { background: color-mix(in srgb, var(--muted-fg) 55%, transparent); }
+.catalog-group { display: grid; gap: 2px; margin-top: 0.75rem; }
+.catalog-org { color: var(--fg); font-weight: 600; }
+span.catalog-org { cursor: default; }
+span.catalog-org:hover { background: transparent; }
+.catalog-org, .catalog-module { min-width: 0; }
+.catalog-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-module { padding-left: 1rem; font-weight: 400; }
+.catalog-sub { padding: 0.35rem 0.625rem 0.15rem; color: color-mix(in srgb, var(--muted-fg) 75%, transparent); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+.catalog-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.catalog-status[data-state="ready"] { color: var(--success-fg); }
+.catalog-status code { color: var(--muted-fg); font-size: 11px; }
+.catalog-team { padding: 0 1rem; color: var(--muted-fg); font-size: 12px; font-weight: 500; }
+.group-head h2 a, .row-title a { color: inherit; text-decoration: none; }
+.group-head h2 a:hover, .row-title a:hover { text-decoration: underline; }
+#catalog-status:empty { display: none; }
 
 /* Controls (T3 Code ui/button.tsx, ui/switch.tsx). */
 button, .button { display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; height: 1.75rem; padding: 0 0.5625rem; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font: 500 13px/1 var(--font-sans); white-space: nowrap; cursor: pointer; box-shadow: 0 1px 2px rgb(0 0 0 / 4%); text-decoration: none; }
@@ -246,18 +266,24 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
 <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
 <symbol id="i-panel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol>
+<symbol id="i-catalog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
 </svg>
 <div class="app" id="app">
 <aside class="sidebar" id="sidebar">
-<div class="sidebar-head"><a class="wordmark" href="/" id="wordmark">Lazurio <span>Launchpad</span></a></div>
+<div class="sidebar-head"><a class="wordmark" href="/" id="wordmark" data-route>Lazurio <span>Launchpad</span></a></div>
 <div class="sidebar-body">
+<nav id="catalog-nav" aria-labelledby="catalog-nav-label" data-view="catalog">
+<span class="sr-only" id="catalog-nav-label" data-message="catalogNavigation">Organizations</span>
+<ul class="menu"><li><a class="menu-item" href="/" id="catalog-home" data-route><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span data-message="catalogAll">All Organizations</span></a></li></ul>
+<div id="catalog-tree"></div>
+</nav>
 <nav id="settings-nav" aria-labelledby="settings-nav-label" data-view="settings">
 <span class="sr-only" id="settings-nav-label" data-message="settingsTitle">Settings</span>
 <ul class="menu">
-<li><a class="menu-item" href="/settings/general" data-section="general"><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span data-message="settingsGeneral">General</span></a></li>
-<li><a class="menu-item" href="/settings/machine" data-section="machine"><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span data-message="machineTitle">This Machine</span></a></li>
-<li><a class="menu-item" href="/settings/tools" data-section="tools"><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span data-message="toolsTitle">Tools</span></a></li>
+<li><a class="menu-item" href="/settings/general" data-section="general" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span data-message="settingsGeneral">General</span></a></li>
+<li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span data-message="machineTitle">This Machine</span></a></li>
+<li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span data-message="toolsTitle">Tools</span></a></li>
 </ul>
 </nav>
 </div>
@@ -273,8 +299,8 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 <p id="update-state-invalid" hidden></p>
 </section>
 <ul class="menu">
-<li data-view="home"><a class="menu-item" href="/settings/general" id="settings-open"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span data-message="settingsTitle">Settings</span></a></li>
-<li data-view="settings"><a class="menu-item" href="/" id="settings-back"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span data-message="settingsBack">Back</span></a></li>
+<li data-view="catalog"><a class="menu-item" href="/settings/general" id="settings-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg><span data-message="settingsTitle">Settings</span></a></li>
+<li data-view="settings"><a class="menu-item" href="/" id="settings-back" data-route><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span data-message="settingsBack">Back</span></a></li>
 </ul>
 </div>
 </aside>
@@ -284,40 +310,21 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 <button type="button" class="ghost nav-toggle" id="nav-toggle" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-panel"/></svg><span class="sr-only" data-message="navigationOpen">Open navigation</span></button>
 <nav class="crumbs" id="crumbs" aria-labelledby="crumbs-label">
 <span class="sr-only" id="crumbs-label" data-message="settingsBreadcrumb">Where you are in Settings</span>
-<ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle">Settings</a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1></li></ol>
+<ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1></li></ol>
 </nav>
 <div class="topbar-actions">
+<button type="button" class="ghost" id="catalog-refresh" data-section-action="catalog"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="catalogRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 </div>
 </header>
 
-<main id="view-home" class="container" data-view="home">
-<p id="notice" class="callout" data-message="notice">Development fixture only. No Lazurio installation or migration.</p>
-<section class="group" aria-labelledby="apps-heading">
-<div class="group-head"><h2 id="apps-heading" data-message="appsTitle">Application</h2><p class="group-note" data-message="appsNotice">Explicit development selection. The server must authorize the declared application.</p></div>
-<div class="card">
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="app-discovered" data-message="appDiscovered">Observed application</label><p id="app-discovery-status" class="row-status" role="status"></p></div><div class="row-control"><button type="button" id="app-discover" data-message="appDiscover">Read declared applications</button><select id="app-discovered" disabled><option value=""></option></select></div></div></div>
-<form id="application" class="row">
-<fieldset id="app-choices" class="group">
-<legend class="sr-only" data-message="appSelection">Declared application</legend>
-<div class="row-main"><label class="row-title" for="app-company" data-message="appCompany">Organization</label><div class="row-control"><input id="app-company" name="company" required maxlength="100" autocomplete="off"></div></div>
-<div class="row-main"><label class="row-title" for="app-module" data-message="appModule">Module</label><div class="row-control"><input id="app-module" name="module" required maxlength="100" autocomplete="off"></div></div>
-<div class="row-main"><label class="row-title" for="app-package" data-message="appPackage">Package</label><div class="row-control"><input id="app-package" name="package" required maxlength="500" placeholder="app/package.json" autocomplete="off"></div></div>
-<p class="tool-actions">
-<button type="submit" name="operation" value="prepare" data-message="appPrepare">Prepare dependencies</button>
-<button type="submit" name="operation" value="clean-prepare" data-message="appCleanPrepare">Reinstall dependencies (remove node_modules)</button>
-<button type="submit" name="operation" value="start" class="primary" data-message="appStart">Start</button>
-<button type="submit" name="operation" value="status" data-message="appStatus">Status</button>
-<button type="submit" name="operation" value="open" data-message="appOpen">Get application link</button>
-<button type="submit" name="operation" value="stop" class="destructive" data-message="appStop">Stop</button>
-</p>
-</fieldset>
-</form>
-<div class="row"><p id="app-status" class="row-status" role="status"></p><a id="app-link" hidden target="_blank" rel="noopener noreferrer" data-message="appVisit">Open application on this machine</a></div>
-</div>
-<details class="technical"><summary data-message="technicalDetails">Technical details</summary><pre id="app-discovery-result"></pre><pre id="app-result"></pre></details>
-</section>
+<!-- The Launchpad home: the catalog of this Folder (launchpad-parity B1).
+     `/`, `/o/<org>` and `/o/<org>/<module>`; drawn by catalog-panel.ts. -->
+<main id="view-catalog" class="container" data-view="catalog">
+<p class="intro" data-message="catalogIntro">The Organizations and modules of this Folder, read from its organizations/ directory each time.</p>
+<p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>
+<div id="catalog-body" class="stack"></div>
 </main>
 
 <main id="view-settings" class="container" data-view="settings" hidden>

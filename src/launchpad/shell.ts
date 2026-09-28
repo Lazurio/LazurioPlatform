@@ -1,14 +1,30 @@
 import type { MessageKey } from "./messages";
-import { type PageRoute, pageRoute, routePath, routeTitle } from "./routes";
+import {
+  organizationPath,
+  type PageRoute,
+  pageRoute,
+  routeFrame,
+  routePath,
+  routeTitle,
+} from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-// The frame of the page in the pattern of T3 Code's settings: one sidebar
-// that holds the settings navigation on a settings route, "Settings" or
-// "Back" in its footer, a header with the breadcrumb, and one section shown
-// at a time. The route is the path; the page never reloads to change it, so
-// the credential held in page memory stays (docs/launchpad-development.md).
-export function createShell(options: Readonly<{ copy: () => Copy }>) {
+// The frame of the page in the pattern of T3 Code: one sidebar that holds the
+// Organizations and modules of the catalog on the Launchpad home and the
+// settings navigation on a settings route, "Settings" or "Back" in its footer,
+// a header with the breadcrumb, and one view shown at a time. The route is the
+// path; the page never reloads to change it, so the credential held in page
+// memory stays (docs/launchpad-development.md).
+export function createShell(
+  options: Readonly<{
+    copy: () => Copy;
+    /** The display name of an Organization slug, once the catalog knows it. */
+    displayName?: (organization: string) => string | undefined;
+    /** Called after every move, with the route now shown. */
+    onRoute?: (route: PageRoute) => void;
+  }>,
+) {
   const find = <T extends HTMLElement>(selector: string): T => {
     const element = document.querySelector<T>(selector);
     if (!element) throw new Error("Missing shell UI");
@@ -21,6 +37,9 @@ export function createShell(options: Readonly<{ copy: () => Copy }>) {
   const backdrop = find<HTMLDivElement>("#backdrop");
   const heading = find<HTMLHeadingElement>("#page-heading");
   const crumbs = find<HTMLElement>("#crumbs");
+  const crumbsLabel = find<HTMLElement>("#crumbs-label");
+  const crumbOrganization = find<HTMLLIElement>("#crumb-organization");
+  const crumbOrganizationLink = find<HTMLAnchorElement>("#crumb-org");
   const navLinks = [
     ...document.querySelectorAll<HTMLAnchorElement>("#settings-nav a"),
   ];
@@ -36,26 +55,42 @@ export function createShell(options: Readonly<{ copy: () => Copy }>) {
   let route: PageRoute = pageRoute(location.pathname);
 
   function show() {
+    const frame = routeFrame(route);
     const section = route.view === "settings" ? route.section : null;
-    for (const view of views) view.hidden = view.dataset.view !== route.view;
+    for (const view of views) view.hidden = view.dataset.view !== frame;
     for (const element of sections)
       element.hidden = element.dataset.section !== section;
+    // A page action belongs to a settings section or to the whole catalog.
     for (const action of actions)
-      action.hidden = action.dataset.sectionAction !== section;
+      action.hidden = action.dataset.sectionAction !== (section ?? frame);
     for (const link of navLinks)
       if (link.dataset.section === section)
         link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
-    // The breadcrumb is a navigation landmark only inside Settings.
-    if (route.view === "settings") crumbs.removeAttribute("role");
+    // A module sits under its Organization in the breadcrumb.
+    crumbOrganization.hidden = route.view !== "module";
+    if (route.view === "module")
+      crumbOrganizationLink.href = organizationPath(route.organization);
+    // The breadcrumb is a navigation landmark only where it has a parent.
+    if (route.view === "settings" || route.view === "module")
+      crumbs.removeAttribute("role");
     else crumbs.setAttribute("role", "none");
     relabel();
+    options.onRoute?.(route);
   }
 
   function relabel() {
-    const title = routeTitle(route, options.copy());
+    const copy = options.copy();
+    const title = routeTitle(route, copy, options.displayName);
     heading.textContent = title.heading;
     document.title = title.document;
+    crumbsLabel.textContent =
+      routeFrame(route) === "settings"
+        ? copy.settingsBreadcrumb
+        : copy.catalogBreadcrumb;
+    if (route.view === "module")
+      crumbOrganizationLink.textContent =
+        options.displayName?.(route.organization) ?? route.organization;
   }
 
   /** Moves to a route. `history` says what the address bar does; `focus`
@@ -105,36 +140,37 @@ export function createShell(options: Readonly<{ copy: () => Copy }>) {
   backdrop.addEventListener("click", () => closeSheet(true));
   narrow.addEventListener("change", () => closeSheet(false));
 
-  // Every link of the frame is a real link (it opens in a new tab as
-  // itself); a plain click moves within the page instead.
-  const links = [
-    ...navLinks,
-    ...document.querySelectorAll<HTMLAnchorElement>(
-      "#settings-open, #settings-back, #wordmark, #crumb-settings",
-    ),
-  ];
-  for (const link of links)
-    link.addEventListener("click", (event) => {
-      if (
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      )
-        return;
-      event.preventDefault();
-      const sheet = "navOpen" in app.dataset;
-      closeSheet(false);
-      // Within the settings navigation the focus stays on the chosen item,
-      // as in T3 Code; everything else lands on the heading of the view.
-      const withinNavigation = navLinks.includes(link) && !sheet;
-      go(pageRoute(new URL(link.href).pathname), {
-        history: "push",
-        focus: !withinNavigation,
-      });
-      if (withinNavigation) link.focus();
+  // Every link to a route (`data-route`: the frame's links, the catalog's
+  // rows, drawn later) is a real link that opens in a new tab as itself; a
+  // plain click moves within the page instead.
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    const link =
+      target instanceof Element
+        ? target.closest<HTMLAnchorElement>("a[data-route]")
+        : null;
+    if (
+      link === null ||
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    const sheet = "navOpen" in app.dataset;
+    closeSheet(false);
+    // Within the settings navigation the focus stays on the chosen item,
+    // as in T3 Code; everything else lands on the heading of the view.
+    const withinNavigation = navLinks.includes(link) && !sheet;
+    go(pageRoute(new URL(link.href).pathname), {
+      history: "push",
+      focus: !withinNavigation,
     });
+    if (withinNavigation) link.focus();
+  });
   window.addEventListener("popstate", () =>
     go(pageRoute(location.pathname), { history: "replace", focus: true }),
   );
@@ -169,7 +205,9 @@ export function createShell(options: Readonly<{ copy: () => Copy }>) {
 
   go(route, { history: "replace", focus: false });
   return {
-    /** The copy changed (the profile's language was loaded). */
+    /** The copy or the catalog's names changed. */
     relabel,
+    /** The route now shown. */
+    route: () => route,
   };
 }

@@ -97,10 +97,11 @@ the full OS/purpose/language matrix, Dashboard identity, analytics, marketplace 
 public release remain later gates, not prerequisites of this limited pilot. This does
 not waive public signing requirements or authorize infrastructure operations.
 
-Canonical-only Organizations are the target normal case. Today's admission of only
-parity-valid `transition` roots is an interim gate with a stated
-[exit criterion](docs/organization-contract.md#exit-from-transition-only-admission),
-not a permanent requirement to keep the deprecated projection.
+Canonical-only Organizations are the normal case. Since the Principal's decision of
+2026-09-28 (F22 point 1) both a parity-valid `transition` root and a canonical-only
+`current` root execute; the earlier transition-only gate and its
+[exit criterion](docs/organization-contract.md#exit-from-transition-only-admission)
+are a historical record.
 
 ### Product transition
 
