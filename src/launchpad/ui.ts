@@ -4,6 +4,7 @@ import {
   localApplicationLink,
 } from "./application-view";
 import { type MessageKey, messages } from "./messages";
+import { createShell } from "./shell";
 import { createToolsPanel } from "./tools-panel";
 import type { PillStatus } from "./update-pill";
 import { pillView } from "./update-view";
@@ -41,6 +42,9 @@ const controls = {
   presetSelection,
 };
 let copy = messages("en");
+// The frame: routes, the settings navigation, the breadcrumb and the sheet
+// of a narrow viewport.
+const shell = createShell({ copy: () => copy });
 type MachinePeer = {
   name: string;
   kind: string;
@@ -169,7 +173,6 @@ async function load() {
   copy = messages(current.profile.locale);
   renderUpdate();
   document.documentElement.lang = current.profile.locale === "cs" ? "cs" : "en";
-  document.title = copy.title;
   for (const element of document.querySelectorAll<HTMLElement>(
     "[data-message]",
   )) {
@@ -177,8 +180,15 @@ async function load() {
     if (key && Object.hasOwn(copy, key))
       element.textContent = copy[key as MessageKey];
   }
+  shell.relabel();
+  // One settings row per recorded fact: the name on the left, the value on
+  // the right.
   controls.machine.replaceChildren(
-    ...machineRows(current.machine).flatMap(([key, value]) => {
+    ...machineRows(current.machine).map(([key, value]) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const main = document.createElement("div");
+      main.className = "row-main";
       const term = document.createElement("dt");
       term.textContent = copy[key];
       const detail = document.createElement("dd");
@@ -194,7 +204,9 @@ async function load() {
         );
         detail.replaceChildren(list);
       }
-      return [term, detail];
+      main.append(term, detail);
+      row.append(main);
+      return row;
     }),
   );
   controls.presetSelect.replaceChildren(

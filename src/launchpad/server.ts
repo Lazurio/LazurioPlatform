@@ -32,6 +32,7 @@ import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import index from "./index.html";
+import { pagePaths } from "./routes";
 import type { UpdatePill } from "./update-pill";
 
 export const launchpadCommitDelayMs = 15_000;
@@ -63,6 +64,11 @@ export type HostedOptions = Readonly<{
   fetcher?: AuthFetcher;
   now?: () => number;
 }>;
+
+// The page itself under each of its routes (`/`, `/settings/tools`, …): the
+// same bundled document, which picks the section from the path. No other
+// path serves it, and none of them carries or needs the credential.
+const pageRoutes = Object.fromEntries(pagePaths.map((path) => [path, index]));
 
 const curatedRoutes = new Set([
   "/api/tools/install",
@@ -145,7 +151,7 @@ export async function startLaunchpad(
       : Bun.serve({
           unix: shellSocket,
           development: false,
-          routes: { "/": index },
+          routes: pageRoutes,
           fetch: () => new Response("not-found", { status: 404 }),
         });
   const token = trust === null ? randomBytes(32).toString("hex") : "";
@@ -166,7 +172,7 @@ export async function startLaunchpad(
     port: entry === null ? 0 : entry.listenPort,
     development: false,
     maxRequestBodySize: 16 * 1024,
-    ...(trust === null ? { routes: { "/": index } } : {}),
+    ...(trust === null ? { routes: pageRoutes } : {}),
     async fetch(request, server) {
       const origin = `http://127.0.0.1:${server.port}`;
       const url = new URL(request.url);

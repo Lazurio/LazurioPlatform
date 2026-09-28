@@ -279,7 +279,27 @@ const en = {
   toolsMcpAction: "Set up an MCP server with an agent",
   toolsMcpPromptHint:
     "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
-  title: "Lazurio — Profile",
+  title: "Lazurio Launchpad",
+  homeTitle: "Launchpad",
+  settingsTitle: "Settings",
+  settingsGeneral: "General",
+  settingsBack: "Back",
+  settingsBreadcrumb: "Where you are in Settings",
+  navigationOpen: "Open navigation",
+  technicalDetails: "Technical details",
+  presetHint:
+    "The kind of Machine this Folder is set up for. Only the presets its handover allows are offered.",
+  localeHint:
+    "The language of this page and of the agent instructions in this Folder. It changes once the change is applied.",
+  detailHint:
+    "How agents explain their work: briefly, or with technical explanation and evidence.",
+  coordinationHint:
+    "Whether agents work directly, or delegate within the task and verify the results.",
+  profileHint:
+    "Preview shows what would change in this Folder; nothing is written until you apply it.",
+  toolsDetails: "Details",
+  toolsDetailsNamed: "Details of {name}",
+  toolsPathLabel: "Found at",
   notice: "Development fixture only. No Lazurio installation or migration.",
   legend: "Machine profile",
   machineTitle: "This Machine",
@@ -604,7 +624,27 @@ const cs: Record<MessageKey, string> = {
   toolsMcpAction: "Nastavit MCP server s agentem",
   toolsMcpPromptHint:
     "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
-  title: "Lazurio — Profil",
+  title: "Lazurio Launchpad",
+  homeTitle: "Launchpad",
+  settingsTitle: "Nastavení",
+  settingsGeneral: "Obecné",
+  settingsBack: "Zpět",
+  settingsBreadcrumb: "Kde v nastavení jste",
+  navigationOpen: "Otevřít navigaci",
+  technicalDetails: "Technické podrobnosti",
+  presetHint:
+    "Druh Mašiny, pro který je tenhle Folder nastavený. Nabízejí se jen presety, které dovoluje její handover.",
+  localeHint:
+    "Jazyk této stránky a instrukcí pro agenty v tomhle Folderu. Změní se, až změnu použijete.",
+  detailHint:
+    "Jak agenti vysvětlují svou práci: stručně, nebo s technickým vysvětlením a důkazy.",
+  coordinationHint:
+    "Zda agenti pracují přímo, nebo delegují v rozsahu zadání a výsledek ověří.",
+  profileHint:
+    "Náhled ukáže, co by se v tomhle Folderu změnilo; nic se nezapíše, dokud změnu nepoužijete.",
+  toolsDetails: "Podrobnosti",
+  toolsDetailsNamed: "Podrobnosti o {name}",
+  toolsPathLabel: "Umístění",
   notice:
     "Pouze vývojová testovací složka. Nejde o instalaci Lazuria ani migraci.",
   legend: "Profil mašiny",
