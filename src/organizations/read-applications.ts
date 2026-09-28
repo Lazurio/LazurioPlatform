@@ -10,11 +10,11 @@ import { resolveOrganizationRoot } from "./root-resolution";
 // Resolve a selection against the live inventory, never a caller-supplied path.
 // Local composition must invoke this again at each operation boundary. The
 // result is not provider permission, a lock, or a durable execution capability.
-// Execution admission is bound to the root resolution state: only a `transition`
-// root with exact projection parity resolves. A canonical-only `current` root
-// stays inspection-only until the finalization gate (root-resolution), and every
-// other state, an unresolvable root and a template refuse fail-closed before any
-// descendant inspection, lock, preparation, script start or write.
+// Execution admission is bound to the root resolution state through the one
+// admission rule (`isExecutableOrganizationState` in root-resolution): every
+// state it does not admit, an unresolvable root and a template refuse
+// fail-closed before any descendant inspection, lock, preparation, script start
+// or write.
 export async function resolveOrganizationApplication(
   directory: string,
   input: unknown,
@@ -51,16 +51,35 @@ export async function resolveOrganizationApplication(
 // legacy fallback, persisted catalog or per-module special cases are introduced.
 // Canonical-first: the listing is read from `lazurio.organization.json`; the
 // deprecated `company.gen3.json` is consulted only by the root resolution parity
-// gate. With the default `inspection-only` admission a `projection_drift` root is
-// still listed (canonical read stays available) but marked not executable; with
-// `executable` admission any non-executable state ends before descendants.
+// gate. With the default `inspection-only` admission a root the admission rule
+// does not execute (`projection_drift`, and `current` under the transition-only
+// variant) is still listed (canonical read stays available) but marked not
+// executable; with `executable` admission it ends before descendants.
 export async function readOrganizationApplications(
   directory: string,
   options: { admission: "inspection-only" | "executable" } = {
     admission: "inspection-only",
   },
 ) {
-  const unavailable = () => Object.freeze({ kind: "unavailable" as const });
+  return (await observeOrganizationApplications(directory, options)).result;
+}
+
+// The same observation together with the canonical and inventory documents it
+// was made from, for a consumer that shows more of the same declarations (the
+// Folder catalog: display name, Teams). The documents are exactly the ones the
+// final recheck compared, so nothing is read a second time.
+export async function observeOrganizationApplications(
+  directory: string,
+  options: { admission: "inspection-only" | "executable" } = {
+    admission: "inspection-only",
+  },
+) {
+  const unavailable = () =>
+    Object.freeze({
+      result: Object.freeze({ kind: "unavailable" as const }),
+      documents: null,
+    });
+  const without = <T>(result: T) => Object.freeze({ result, documents: null });
   try {
     const before = await inspectOwnedDirectory(directory);
     const resolved = await resolveOrganizationRoot(directory);
@@ -70,20 +89,26 @@ export async function readOrganizationApplications(
       issues: resolved.issues,
     });
     if (resolved.state === "missing" || resolved.state === "legacy")
-      return Object.freeze({
-        kind: "canonical-documents-required" as const,
-        resolution,
-      });
+      return without(
+        Object.freeze({
+          kind: "canonical-documents-required" as const,
+          resolution,
+        }),
+      );
     if (resolved.state === "conflict")
-      return Object.freeze({
-        kind: "organization-conflict" as const,
-        resolution,
-      });
+      return without(
+        Object.freeze({
+          kind: "organization-conflict" as const,
+          resolution,
+        }),
+      );
     if (options.admission === "executable" && !resolved.executable)
-      return Object.freeze({
-        kind: "organization-not-executable" as const,
-        resolution,
-      });
+      return without(
+        Object.freeze({
+          kind: "organization-not-executable" as const,
+          resolution,
+        }),
+      );
     const { documents } = resolved;
     if (
       documents.canonical.kind !== "present" ||
@@ -97,10 +122,12 @@ export async function readOrganizationApplications(
     // The canonical manifest family excludes template roots from runtime.
     // Keep parsing/preview available, but do not inspect or authorize their apps.
     if (inventory.canonical.kind !== "organization")
-      return Object.freeze({
-        kind: "template-not-runtime" as const,
-        resolution,
-      });
+      return without(
+        Object.freeze({
+          kind: "template-not-runtime" as const,
+          resolution,
+        }),
+      );
     const company = (inventory.canonical.organization as { slug: string }).slug;
     const conflicted = new Set(
       inventory.inventory.issues.flatMap((issue) => issue.indices),
@@ -192,17 +219,23 @@ export async function readOrganizationApplications(
       organizationDocumentHash(documents) !==
         organizationDocumentHash(current.documents)
     )
-      return Object.freeze({ kind: "organization-changed" as const });
+      return without(Object.freeze({ kind: "organization-changed" as const }));
     return Object.freeze({
-      kind: "applications-observed" as const,
-      company,
-      resolution,
-      admission: resolved.executable
-        ? ("executable" as const)
-        : ("inspection-only" as const),
-      entries: Object.freeze(entries),
-      issues: inventory.inventory.issues,
-      warnings: inventory.warnings,
+      result: Object.freeze({
+        kind: "applications-observed" as const,
+        company,
+        resolution,
+        admission: resolved.executable
+          ? ("executable" as const)
+          : ("inspection-only" as const),
+        entries: Object.freeze(entries),
+        issues: inventory.inventory.issues,
+        warnings: inventory.warnings,
+      }),
+      documents: Object.freeze({
+        canonical: inventory.canonical,
+        modules: inventory.modules,
+      }),
     });
   } catch {
     // No raw manifest content, environment, script or filesystem error in output.

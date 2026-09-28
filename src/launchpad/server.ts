@@ -16,6 +16,7 @@ import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
+import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import { activatableTools, toolSelection } from "../tools/catalog";
 import {
@@ -319,6 +320,13 @@ export async function startLaunchpad(
           )
             server.timeout(request, 660);
           return response(await operation(input));
+        }
+        if (url.pathname === "/api/catalog") {
+          // The Launchpad home (launchpad-parity B1): the Organizations and
+          // modules of this Folder, the same catalog as `lazurio organization
+          // list --json`, recomputed on every read. Nothing is written.
+          stateFields(input, []);
+          return response(await readFolderCatalog(folder));
         }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
