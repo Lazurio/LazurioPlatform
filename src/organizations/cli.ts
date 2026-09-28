@@ -61,7 +61,7 @@ export const shown = (text: string) =>
   );
 
 /** Columns aligned to the widest cell, like `lazurio tools list`. */
-function columns(input: readonly (readonly string[])[]): string[] {
+export function columns(input: readonly (readonly string[])[]): string[] {
   const rows = input.map((row) => row.map(shown));
   const widths = rows.reduce<number[]>(
     (width, row) =>

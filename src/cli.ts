@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { doctorHelp, runDoctorCommand } from "./doctor/cli";
 import { FolderAdoptionError } from "./folder/handover-layout";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
@@ -178,6 +179,8 @@ export async function runCli(args: string[]): Promise<number> {
   // Like the update commands: its output is the answer, with no notice.
   if (args[0] === "recover")
     return emit(await runRecoverCommand(args.slice(1)));
+  // Its answer already says whether an update is available.
+  if (args[0] === "doctor") return emit(await runDoctorCommand(args.slice(1)));
   const code = await runOtherCommand(args);
   // Every other command ends with the one-line notice (docs/update.md
   // "Surfaces"): from `last-check.json` only, on stderr, never the network.
@@ -407,6 +410,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(moduleHelp);
     console.log(updateHelp);
     console.log(recoverHelp);
+    console.log(doctorHelp);
     console.log(machineHelp);
     return 0;
   }
