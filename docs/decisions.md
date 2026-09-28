@@ -608,7 +608,9 @@ releases and commit-pinned actions are part of the mechanism, not hygiene; updat
 availability depends on Sigstore's trust root being reachable on a cold cache; a
 private fork is a separately compiled product configuration. First installation is
 authenticated by HTTPS only and says so; OS publisher signing remains a gate before
-public release.
+public release. (Since [F20](#f20--one-command-first-installation-the-downloaded-executable-verifies-its-own-release),
+2026-09-28: the downloaded executable also verifies its own release attestation before
+it installs itself; what that does and does not prove is in F20.)
 
 Evidence before acceptance as implemented: a spike on 2026-09-19 verified a real
 GitHub CLI provenance bundle with `sigstore@5.0.0` inside a `bun build --compile`
@@ -1538,3 +1540,67 @@ and the CLI are expected to run with the account's own home.
 *Agent fallback.* The catalog's `installation` text of gh (the body of `lazurio tools
 prompt gh`, not rendered into the Folder) states this target state for an agent. The
 `usage` text rendered into the Folder instructions is unchanged in this revision.
+
+## F20 — One-command first installation; the downloaded executable verifies its own release
+
+**Principal's decision 2026-09-28, implemented in this revision for Linux and macOS.**
+Recorded from the Principal's words: "with one command I am able to install the
+lazurio platform (CLI and Launchpad) on a customer's new laptop". The first
+installation is one command, an install script served from `https://lazurio.ai/install`
+(`curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh`); it installs the Platform, the CLI and
+the Launchpad as one program, and afterwards Lazurio takes over with `lazurio update`.
+Platforms in order: Linux, then macOS; Windows later. npm is not the primary door. The
+same day: **Lazurio is installed exactly the standard way on every Environment**;
+deviations are reported and straightened by an agent following the manual, never
+silently overwritten and never kept as a supported variant.
+
+**What was weak.** `install.sh` verified the release attestation only when `gh` was
+present and otherwise said it had not; a customer's new laptop has no `gh`.
+
+**Decided.** (1) `install.sh` needs only `curl` and `sha256sum` or `shasum`, and
+holds every download and every redirect to HTTPS (`--proto '=https' --proto-redir
+'=https'`); there is no `wget` fallback, because wget cannot be held to that portably
+([product update](update.md#first-installation)). It
+downloads the executable, the manifest and the Sigstore bundle of one release into a
+private temporary directory, holds the executable against the manifest's SHA-256
+before anything runs, keeps `gh attestation verify` as an independent second check
+when a signed-in `gh` is present, and runs `<executable> install --verify-release
+<directory>`. (2) That executable verifies its own release with the product's verifier
+— `verifyReleaseDocuments`, the function `lazurio update` runs on a fetched release —
+before the first write, and refuses otherwise, leaving nothing behind. (3) The staged
+way in of the Machines role (`install --base` from a digest-pinned file, no network)
+is unchanged and does not use the new check; the two ways in are explicit in code and
+in [product update](update.md#first-installation). (4) `lazurio install prompt`
+prints the prepared prompt an agent follows to straighten a non-standard installation
+(standard layout, deviations found, what the agent may do, what only on the operator's
+instruction, how success is proven); `lazurio install` points to it whenever it finds
+a deviation. (5) `release.yml` attaches `install.sh` of the tag to every release and
+makes it an attested subject, so that `releases/latest/download/install.sh` is what the
+website serves, by redirect (recommended) or as a byte-identical proxy; the contract
+is in [product update](update.md#serving-httpslazurioaiinstall).
+
+**What the executable's own check proves, honestly.** It is not authentication of
+the publisher: a malicious executable can skip it. It protects against a swapped
+download only to the extent that the script and the executable come from different
+places or the script pins what it expects, and behind a redirect both come from the
+same GitHub release. It makes an honest executable refuse a release that is not what
+`release.yml` published at that tag, and it puts the first installation on the same
+verification path as every update. The real chain is HTTPS to `lazurio.ai` for the
+route, HTTPS to GitHub for the script and the release files, the manifest digest
+checked by the script before execution, then the attestation checked by the
+executable, and independently by `gh` where a signed-in one exists. The first
+installation stays trust on first use; every later update is authenticated by the
+installed product.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep "HTTPS only, and say so" without `gh` | Honest, but the customer's laptop never gets the attestation checked by anything; rejected |
+| Require `gh` (install it first) | An independent verifier, but a second tool, a sign-in and a GitHub account before Lazurio; rejected as the door, kept as the optional second check |
+| Verify Sigstore in POSIX shell | No maintained verifier exists in `sh`; our own cryptography; rejected |
+| The executable verifies its own release (selected) | Same verifier and path as every update, no extra tool; not authentication of the publisher, stated as such |
+| The website pins the expected manifest digest in the script it serves | Script and release from independent places, so a swapped release is refused before execution; needs a website deploy step per release; left open for the website, not built here |
+| npm as the door | Needs Node and npm on a new laptop and a second distribution channel; rejected by the Principal |
+| `wget` as a fallback when curl is missing | Covers Linux desktops that ship only wget; but GNU wget 1.x cannot restrict the scheme of a redirect, and following redirects by hand would have to be right for GNU wget, wget2 and BusyBox wget alike, while a plaintext hop could supply a forged manifest and a matching executable that run before any attestation check; rejected (review of pull request 62), the script names how to install curl instead |
+
+**Not in this decision:** Windows; the website route itself (another repository);
+OS publisher signing, which stays a gate before public release (F13).

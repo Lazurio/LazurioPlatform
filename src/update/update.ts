@@ -26,6 +26,7 @@ import { type LastCheck, readLastCheck, writeLastCheck } from "./last-check";
 import { layout, readHighWater, readSelector, versionFloor } from "./layout";
 import {
   bundleFile,
+  type ManifestTarget,
   manifestFile,
   maxBundleBytes,
   maxManifestBytes,
@@ -108,6 +109,40 @@ export type VerifiedRelease = Readonly<{
   available: boolean;
 }>;
 
+/** Verify (docs/update.md "Verify"): the manifest must describe `version`
+ * and name an artifact for `target`, and the attestation must cover the
+ * manifest AND that artifact's digest. The ONE decision whether bytes are a
+ * release: the update runs it on what it fetched, the first installation
+ * from a download (`install --verify-release`) on the files beside it. The
+ * bundle is read only once the manifest is accepted.
+ */
+export async function verifyReleaseDocuments(
+  input: Readonly<{
+    manifestBytes: Uint8Array;
+    bundle: () => Promise<Uint8Array>;
+    version: string | undefined;
+    target: string;
+    verify: AttestationVerifier;
+  }>,
+): Promise<Readonly<{ manifest: ReleaseManifest; artifact: ManifestTarget }>> {
+  const manifest = parseManifest(input.manifestBytes);
+  if (manifest.version !== input.version)
+    throw new UpdateFailure("release-invalid", {
+      resource: "manifest",
+      reason: "tag-mismatch",
+    });
+  const artifact = manifest.targets[input.target];
+  if (!artifact)
+    throw new UpdateFailure("target-unsupported", { target: input.target });
+  await input.verify({
+    bundle: await input.bundle(),
+    version: manifest.version,
+    sourceCommit: manifest.sourceCommit,
+    subjectSha256: [sha256Hex(input.manifestBytes), artifact.sha256],
+  });
+  return Object.freeze({ manifest, artifact });
+}
+
 /** Check (docs/update.md "Check" and "Verify"): learn the tag, read its
  * manifest by exact tag, and verify the attestation over the manifest AND the
  * artifact digest it names — before a single artifact byte is requested.
@@ -141,26 +176,19 @@ async function verifiedRelease(
     "manifest",
     maxManifestBytes,
   );
-  const manifest = parseManifest(manifestBytes);
-  if (manifest.version !== versionOfTag(tag))
-    throw new UpdateFailure("release-invalid", {
-      resource: "manifest",
-      reason: "tag-mismatch",
-    });
-  const artifact = manifest.targets[identity.target];
-  if (!artifact)
-    throw new UpdateFailure("target-unsupported", { target: identity.target });
-  await environment.verify({
-    bundle: await fetchAsset(
-      origin,
-      fetcher,
-      tagUrl(origin, tag, bundleFile),
-      "bundle",
-      maxBundleBytes,
-    ),
-    version: manifest.version,
-    sourceCommit: manifest.sourceCommit,
-    subjectSha256: [sha256Hex(manifestBytes), artifact.sha256],
+  const { manifest } = await verifyReleaseDocuments({
+    manifestBytes,
+    bundle: () =>
+      fetchAsset(
+        origin,
+        fetcher,
+        tagUrl(origin, tag, bundleFile),
+        "bundle",
+        maxBundleBytes,
+      ),
+    version: versionOfTag(tag),
+    target: identity.target,
+    verify: environment.verify,
   });
   // Only a `latest` answer feeds the pill: an exact version is one Machine's
   // choice, not what is current.

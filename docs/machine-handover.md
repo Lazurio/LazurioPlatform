@@ -308,7 +308,10 @@ binary and never from the network. The owner overlay of both hosted lanes
 `lazurio machine folder-init` when the Folder is absent, forwarding `resident_bootstrap.folder.locale`
 (`cs` | `en`) verbatim as `--locale` when the overlay declares it; absent, no flag is
 passed and the preset default applies. The field is accepted only when a Platform
-artifact is pinned. On an existing installation the same command is the
+artifact is pinned. The role does not pass `--verify-release`: that is the downloaded
+way in of a person's computer and needs Sigstore's trust root from the network
+([first installation](update.md#first-installation)); here the pin is the authority,
+exactly as before. On an existing installation the same command is the
 [offline update](update.md#offline-update): a newer pinned binary is staged,
 self-checked and activated by the update contract's own steps
 (`{"kind":"updated","from","to",…}`), the same version is `installed` and changes
