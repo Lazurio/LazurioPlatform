@@ -1,7 +1,7 @@
 # Recovery mode instead of rollback
 
 Status: **shaping for the Principal's decision of 2026-09-28. Analysis and design
-only.** Nothing here is implemented. The proposed decision F20 at the end amends F13,
+only.** Nothing here is implemented. The proposed decision F21 at the end amends F13,
 the F17 addendum and the product update contract once the Principal accepts it.
 
 ## Recommendation
@@ -91,11 +91,11 @@ state as a way of repair. Each row gets one disposition.
 | Migration and recovery: "Product upgrade and profile rollback", rollback support checked before activation, "Before a program rollback below that release…", "Profile rollback is a new checked activation" | `docs/migration-and-recovery.md:220`, `:434-438`, `:448-449`, `:457-458` | Rename and reword; profile "rollback" is a forward change to earlier choices and stays as such |
 | Architecture: boundary 1 owns "rollback", "retained rollback version" | `ARCHITECTURE.md:148`, `:180` | Reword to "activation and Recovery mode", "the active version" |
 | Acceptance: "Activation, rollback and the Launchpad update pill"; F13 acceptance lists "two retained versions"; the Rollback row | `docs/acceptance.md:30`, `:72`, `:141` | Reword; the Rollback row becomes a "Forward repair" row |
-| Decisions F4 ("Program rollback and data recovery are separate", "rollback retention"), F17 (Platform "with its own floor and rollback"; addendum point 3; manual line), F18 and F19 forward-migration boundaries | `docs/decisions.md:235`, `:274`, `:957`, `:1028-1029`, `:1067-1072`, `:1156-1175`, `:1264-1266` | Amended by F20 (I) |
+| Decisions F4 ("Program rollback and data recovery are separate", "rollback retention"), F17 (Platform "with its own floor and rollback"; addendum point 3; manual line), F18 and F19 forward-migration boundaries | `docs/decisions.md:235`, `:274`, `:957`, `:1028-1029`, `:1067-1072`, `:1156-1175`, `:1264-1266` | Amended by F21 (I) |
 | Machine handover: "After `lazurio update rollback` this is the expected readback"; "never run `lazurio update` or `lazurio update rollback`" | `docs/machine-handover.md:198-202`, `:339` | Reword; the second row loses its rollback half |
 | Qualification script: journeys 4 and 6 test the rollback unit and explicit rollback | `scripts/qualify-update-linux.sh:38`, `:177-187`, `:224-226` | Replace by the journeys in G |
 | Tests that assert rollback behaviour | `tests/update-reconcile.test.ts` (rows 1-3 and the rollback unit, e.g. `:160`, `:175`), `tests/update-journey.test.ts`, `tests/update-install.test.ts`, `tests/update-cli.test.ts`, `tests/update-compiled.test.ts`, `tests/update-pill.test.ts`, `tests/folder-manual.test.ts` and its snapshot | Replaced by the Recovery-mode tests of the same slice; deleted tests are listed in the PR |
-| Machines role texts: "kept the version it left as `previous` (`lazurio update rollback`)", "or its owner rolled back", "exactly the high-water version re-activates it after a rollback" | Machines `workloads/workspace-vm/README.md:455-471`, `ansible/roles/workspace_platform/tasks/install.yml:13`, `:101`, `:127-130`, `tasks/main.yml:212-213` | Machines PR after F20 (H) |
+| Machines role texts: "kept the version it left as `previous` (`lazurio update rollback`)", "or its owner rolled back", "exactly the high-water version re-activates it after a rollback" | Machines `workloads/workspace-vm/README.md:455-471`, `ansible/roles/workspace_platform/tasks/install.yml:13`, `:101`, `:127-130`, `tasks/main.yml:212-213` | Machines PR after F21 (H) |
 | Root decision 0161: the Platform "s vlastním floorem a rollbackem, F13" | root `manual/decision-register.md:97` | Root PR (I) |
 
 ## B. The boundary: atomicity is not rollback
@@ -492,11 +492,11 @@ gateway's static page for the Launchpad host (C.2, 2b).
 ## I. Decisions to amend
 
 - **F13** (`docs/decisions.md:573-617`): the durable floor stays; add that there is
-  no retained previous version and no program rollback, pointing to F20. Its
+  no retained previous version and no program rollback, pointing to F21. Its
   acceptance row lists "two retained versions" (`docs/acceptance.md:72`).
 - **F17 addendum 2026-09-28**, point 3 (`docs/decisions.md:1028-1029`): "`lazurio
   update rollback` stays what it is, the way back from a failed update" is withdrawn
-  by F20. Also `:957` ("with its own floor and rollback") and `:1067-1072` (the manual
+  by F21. Also `:957` ("with its own floor and rollback") and `:1067-1072` (the manual
   line about rollback).
 - **F4** (`docs/decisions.md:235`, `:274`): "rollback retention" leaves the
   pre-public-release gates; "Program rollback and data recovery are separate" becomes
@@ -514,7 +514,7 @@ gateway's static page for the Launchpad host (C.2, 2b).
 
 Proposed wording, in the style of `docs/decisions.md`:
 
-> ## F20 — Recovery mode instead of rollback
+> ## F21 — Recovery mode instead of rollback
 >
 > **Principal's decision 2026-09-28, direction; not implemented.** Recorded from the
 > Principal's words: rollback must not be the safety net; when something breaks, the
@@ -565,7 +565,7 @@ Proposed wording, in the style of `docs/decisions.md`:
 
 ### J.1 Slices, each reviewable and releasable
 
-1. **Decision and contract.** F20 and the rewritten texts of A.2. No code.
+1. **Decision and contract.** F21 and the rewritten texts of A.2. No code.
 2. **`lazurio recover` and the sanitizer.** Core use case, R2/R5, bundle, issue body,
    fingerprint, prefilled link, canary tests. Additive; first release that files
    evidence.
