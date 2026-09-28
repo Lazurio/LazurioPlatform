@@ -311,7 +311,7 @@ async function environment(
 }
 
 test.skipIf(!posix)(
-  "the CLI reads the kind of Environment from the hosted operator Folder; none means as before",
+  "the CLI distinguishes a readable Team Folder from an explicitly absent hosted context",
   async () => {
     const team = await environment("hosted-organization-team");
     try {
@@ -321,15 +321,6 @@ test.skipIf(!posix)(
       expect(await hostedEnvironmentPreset(undefined)).toBeUndefined();
       expect(
         await hostedEnvironmentPreset(async () => undefined),
-      ).toBeUndefined();
-      // A Folder that cannot be read: as on a workstation.
-      expect(
-        await hostedEnvironmentPreset(async () => join(team.home, "nothing")),
-      ).toBeUndefined();
-      expect(
-        await hostedEnvironmentPreset(async () => {
-          throw new Error("no handover");
-        }),
       ).toBeUndefined();
     } finally {
       await team.close();
@@ -1358,4 +1349,231 @@ test.skipIf(!keygen)(
       await work.close();
     }
   },
+);
+
+// #83: failed hosted discovery is not evidence of a workstation. Ordinary
+// regression contracts, deliberately red until the CLI refuses before effects.
+for (const fault of [
+  "missing-folder",
+  "missing-preferences",
+  "malformed-preferences",
+  "resolver-error",
+] as const) {
+  for (const action of ["login", "ssh-key"] as const) {
+    test.skipIf(!posix)(
+      "unreadable hosted context: " +
+        fault +
+        " refuses " +
+        action +
+        " before gh runs",
+      async () => {
+        const team = await environment("hosted-organization-team", ["gh"]);
+        const stop = new AbortController();
+        const timeout = setTimeout(() => stop.abort(), 5_000);
+        try {
+          const preferences = join(team.folder, ".lazurio", "preferences.json");
+          if (fault === "missing-preferences") await rm(preferences);
+          if (fault === "malformed-preferences")
+            await writeFile(preferences, "{unfinished");
+          const output = await runToolsCommand(
+            [
+              "login",
+              "gh",
+              ...(action === "ssh-key" ? ["--ssh-key"] : []),
+              "--json",
+            ],
+            team.context({
+              hostedFolder: async () => {
+                if (fault === "resolver-error")
+                  throw new Error("handover unavailable");
+                return fault === "missing-folder"
+                  ? join(team.home, "absent-folder")
+                  : team.folder;
+              },
+              signal: stop.signal,
+              // If the broken implementation starts a login, cancel its fake
+              // device flow on the pending event; never wait for a user.
+              write: (line: string) => {
+                team.lines.push(line);
+                if (JSON.parse(line).kind === "pending") stop.abort();
+              },
+            }),
+          );
+          expect(await team.ghCalls()).toBe("");
+          expect(await present(join(team.home, "gh.state"))).toBe(false);
+          expect(await present(join(team.home, ".ssh"))).toBe(false);
+          expect(output).toMatchObject({
+            code: 1,
+            result: {
+              kind: "failed",
+              tool: "gh",
+              reason: "environment-unreadable",
+            },
+          });
+          expect(JSON.parse(output.text)).toEqual(output.result);
+        } finally {
+          clearTimeout(timeout);
+          stop.abort();
+          await team.close();
+        }
+      },
+      10_000,
+    );
+  }
+}
+
+for (const loss of [
+  "preferences-disappear",
+  "resolver-errors",
+  "resolver-forgets-hosted-folder",
+] as const) {
+  test.skipIf(!keygen)(
+    "unreadable hosted context: " +
+      loss +
+      " during login prevents subsequent SSH effects",
+    async () => {
+      const work = await environment("hosted-organization-personal", ["gh"]);
+      const stop = new AbortController();
+      const timeout = setTimeout(() => stop.abort(), 10_000);
+      let lost = false;
+      let approval: Promise<void> | undefined;
+      try {
+        const output = await runToolsCommand(
+          ["login", "gh", "--json"],
+          work.context({
+            signal: stop.signal,
+            hostedFolder: async () => {
+              if (lost && loss === "resolver-errors")
+                throw new Error("handover unavailable");
+              if (lost && loss === "resolver-forgets-hosted-folder")
+                return undefined;
+              return work.folder;
+            },
+            write: (line: string) => {
+              const state = JSON.parse(line) as LoginState;
+              if (
+                state.kind !== "pending" ||
+                state.challenge === undefined ||
+                approval !== undefined
+              )
+                return;
+              // Device-code delivery is the barrier. Complete the external fake
+              // login only after hosted evidence has been lost, with no sleeps.
+              lost = true;
+              approval = (async () => {
+                if (loss === "preferences-disappear")
+                  await rm(join(work.folder, ".lazurio", "preferences.json"));
+                await writeFile(join(work.home, "approve"), "");
+              })();
+            },
+          }),
+        );
+        await approval;
+        expect(lost).toBe(true);
+        expect(await present(join(work.home, ".ssh", "id_ed25519"))).toBe(
+          false,
+        );
+        expect(await present(join(work.home, "gh.keys"))).toBe(false);
+        expect(await present(join(work.home, ".ssh", "known_hosts"))).toBe(
+          false,
+        );
+        expect(await work.ghCalls()).not.toContain("ssh-key add");
+        expect(output).toMatchObject({
+          code: 1,
+          result: {
+            kind: "failed",
+            tool: "gh",
+            reason: "environment-unreadable",
+          },
+        });
+        // The already-started provider flow may have completed. This guard
+        // must not implicitly log out or delete an existing key.
+      } finally {
+        clearTimeout(timeout);
+        stop.abort();
+        try {
+          await approval;
+        } finally {
+          await work.close();
+        }
+      }
+    },
+    15_000,
+  );
+}
+
+test.skipIf(!keygen)(
+  "unreadable hosted context: loss during key scope refresh preserves the existing key and account",
+  async () => {
+    const work = await environment("hosted-organization-personal", ["gh"]);
+    const stop = new AbortController();
+    const timeout = setTimeout(() => stop.abort(), 10_000);
+    let lost = false;
+    let approval: Promise<void> | undefined;
+    try {
+      await work.signIn("octocat"); // No key-management scope: refresh is pending.
+      const ssh = join(work.home, ".ssh");
+      await mkdir(ssh, { mode: 0o700 });
+      const key = join(ssh, "id_ed25519");
+      const generated = await runTool(
+        [realSshKeygen as string, "-q", "-t", "ed25519", "-N", "", "-f", key],
+        5_000,
+        { HOME: work.home, PATH: work.path },
+      );
+      expect(generated).toMatchObject({ exitCode: 0 });
+      const before = await readFile(key);
+      const publicBefore = await readFile(`${key}.pub`);
+      const output = await runToolsCommand(
+        ["login", "gh", "--ssh-key", "--json"],
+        work.context({
+          signal: stop.signal,
+          hostedFolder: async () => {
+            if (lost) throw new Error("handover unavailable");
+            return work.folder;
+          },
+          write: (line: string) => {
+            const state = JSON.parse(line) as LoginState;
+            if (
+              state.kind !== "pending" ||
+              state.challenge === undefined ||
+              approval !== undefined
+            )
+              return;
+            lost = true;
+            approval = writeFile(join(work.home, "approve"), "");
+          },
+        }),
+      );
+      await approval;
+      expect(lost).toBe(true);
+      // Refusal is not permission to remove an existing personal credential.
+      expect(await readFile(key)).toEqual(before);
+      expect(await readFile(`${key}.pub`)).toEqual(publicBefore);
+      expect(await readFile(join(work.home, "gh.state"), "utf8")).toBe(
+        "octocat\n",
+      );
+      const calls = await work.ghCalls();
+      expect(calls).not.toContain("auth logout");
+      expect(calls).not.toContain("ssh-key add");
+      expect(await present(join(work.home, "gh.keys"))).toBe(false);
+      expect(await present(join(ssh, "known_hosts"))).toBe(false);
+      expect(output).toMatchObject({
+        code: 1,
+        result: {
+          kind: "failed",
+          tool: "gh",
+          reason: "environment-unreadable",
+        },
+      });
+    } finally {
+      clearTimeout(timeout);
+      stop.abort();
+      try {
+        await approval;
+      } finally {
+        await work.close();
+      }
+    }
+  },
+  15_000,
 );
