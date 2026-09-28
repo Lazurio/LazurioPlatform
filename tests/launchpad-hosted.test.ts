@@ -5,12 +5,9 @@ import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import {
-  type AuthFetcher,
-  parseHostedEntry,
-} from "../src/launchpad/hosted-trust";
+import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { startLaunchpad } from "../src/launchpad/server";
-import { bindings } from "./fixtures/machine-bindings";
+import { bindings, organizationWithEntry } from "./fixtures/machine-bindings";
 
 const freePort = () => {
   const probe = Bun.serve({
@@ -35,18 +32,11 @@ test.skipIf(process.platform === "win32")(
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
     const preset = "hosted-organization-personal";
     const profile = presetProfile(preset, executionOs(process.platform));
-    const entry = parseHostedEntry({
-      externalOrigin: "https://launchpad.workspace.example.lazurio.io",
-      authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
-      authCookieName: "__Secure-lazurio-workspace",
-      listenPort: freePort(),
-    });
     // The handover carries the entry; the Folder records it on the binding.
-    await initializeHandoverFolder(folder, {
-      preset,
-      machine: { ...bindings.organization, entry },
-      profile,
-    });
+    const machine = organizationWithEntry(freePort());
+    const entry = machine.entry;
+    if (entry === undefined) throw new Error("The fixture has an entry");
+    await initializeHandoverFolder(folder, { preset, machine, profile });
     const asked: string[] = [];
     const fetcher: AuthFetcher = async (url, init) => {
       expect(url).toBe(entry.authCheckUrl);

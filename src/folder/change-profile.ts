@@ -134,9 +134,9 @@ function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
 // profile, tools and notes carried forward, the binding of the same Machine
 // re-projected). The Machine identity never changes here; the
 // handover-derived rest of the binding (assignment, relationships, document
-// digest) follows the handover. A binding that renders the same bytes is
-// `unchanged` and is not recorded, so a re-apply that only rewrote
-// `installed` never bumps the revision.
+// digest, entry) follows the handover. A binding that renders the same bytes
+// and declares the same entry is `unchanged` and is not recorded, so a
+// re-apply that only rewrote `installed` never bumps the revision.
 export type FolderChange = Readonly<{
   preset: PresetName | undefined;
   profile: FolderProfile;
@@ -234,7 +234,14 @@ export async function planFolderChange(
     inspect,
   );
   if (preview.plan.kind === "blocked") return preview.plan;
-  if (preview.plan.kind === "unchanged") return { kind: "unchanged" } as const;
+  // The entry is the one part of the binding the product acts on, not only
+  // renders: the Launchpad serves and admits from the recorded one. A changed
+  // entry is recorded even when the Folder renders the same bytes.
+  if (
+    preview.plan.kind === "unchanged" &&
+    JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry)
+  )
+    return { kind: "unchanged" } as const;
   if (current.revision === Number.MAX_SAFE_INTEGER)
     return { kind: "blocked", reason: "revision-exhausted" } as const;
   const preferences = parseFolderPreferences(
@@ -263,6 +270,6 @@ export async function planFolderChange(
     preferences,
     manifest: nextManifest,
     desired: preview.desired,
-    files: preview.plan.files,
+    files: preview.plan.kind === "write" ? preview.plan.files : [],
   };
 }

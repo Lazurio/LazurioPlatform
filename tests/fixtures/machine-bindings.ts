@@ -111,6 +111,14 @@ export function binding(document: unknown) {
   );
 }
 const { team: _, ...withoutTeam } = organization.owner;
+// An Organization work VM of one operator (no Team) with its entry on `port`.
+export function organizationWithEntry(listenPort = 20000) {
+  return binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: handoverEntry("workspace.example.lazurio.io", listenPort),
+  });
+}
 export const bindings = Object.freeze({
   personal: binding(personal),
   // v0.12.59 shapes: a Team without assignment, and no Team at all.
@@ -134,4 +142,7 @@ export const bindings = Object.freeze({
     ...personal,
     relationships: personalRelationships,
   }),
+  // Machines 0.12.93 shapes: the entry on both lanes.
+  organizationEntry: organizationWithEntry(),
+  personalEntry: binding({ ...personal, entry: entries.personal }),
 });
