@@ -353,7 +353,7 @@ const en = {
   catalogNavigation: "Organizations",
   catalogBreadcrumb: "Where you are in the Launchpad",
   catalogIntro:
-    "The Organizations and modules of this Folder, read from its organizations/ directory each time. Starting and opening modules comes with the next release.",
+    "The Organizations and modules of this Folder, read from its organizations/ directory each time. A module's page starts, stops and opens its app.",
   catalogRefresh: "Refresh",
   catalogLoading: "Reading Organizations…",
   catalogLoadFailed:
@@ -404,6 +404,41 @@ const en = {
   catalogReasonNoApp: "The module has no app to run.",
   catalogReasonDefaultApp:
     "The default app's runtime declaration is missing or invalid.",
+  moduleApplication: "Application",
+  moduleStart: "Start",
+  moduleStop: "Stop",
+  moduleOpen: "Open",
+  moduleOpenNamed: "Open {name} in a new tab",
+  moduleBusy: "Working…",
+  moduleStatusUnknown: "Status not known yet.",
+  moduleRunning: "Running",
+  moduleStarting: "Starting…",
+  moduleNotReady: "Running, not ready yet",
+  moduleStopping: "Stopping…",
+  moduleStopped: "Stopped",
+  moduleEnded:
+    "Ended by itself. Stop it to confirm its processes are gone, then start it again.",
+  moduleKeepsRunning:
+    "Keeps running when the Launchpad restarts; ends with a reboot.",
+  moduleSessionBound: "Ends when this Launchpad ends.",
+  moduleStarted: "Started. Waiting for it to report healthy…",
+  moduleStartedHealthy: "Started and healthy.",
+  moduleAlreadyRunning: "It was already running.",
+  moduleStoppedDone: "Stopped; its processes ended.",
+  moduleNotRunning: "It was not running.",
+  moduleRefused: "Refused: {reason}.",
+  moduleReasonToolchain:
+    "Bun is missing from ~/.local/bin, where Lazurio runs modules with it. See Settings → Tools.",
+  moduleReasonPortOccupied:
+    "Another process listens on the module's declared port. Stop it first.",
+  moduleReasonFailed:
+    "The lifecycle failed before it could confirm a change. Most often the module is not a declared self-owned Bun package (lazurio.preparation, one Bun lockfile, an exact packageManager).",
+  moduleNoLinkEntry:
+    "No link: this Machine's recorded entry names no hostname for modules yet.",
+  moduleNoLinkApp:
+    "No link: on this Machine the gateway serves only the module's default app.",
+  moduleNoLinkBrowser: "No link: the app declares no browser entrypoint.",
+  moduleNoLink: "No link: {reason}.",
   settingsTitle: "Settings",
   settingsGeneral: "General",
   settingsBack: "Back",
@@ -809,7 +844,7 @@ const cs: Record<MessageKey, string> = {
   catalogNavigation: "Organizace",
   catalogBreadcrumb: "Kde v Launchpadu jste",
   catalogIntro:
-    "Organizace a moduly tohoto Folderu, pokaždé znovu načtené z jeho složky organizations/. Spouštění a otevírání modulů přijde s dalším vydáním.",
+    "Organizace a moduly tohoto Folderu, pokaždé znovu načtené z jeho složky organizations/. Stránka modulu jeho aplikaci spouští, zastavuje a otevírá.",
   catalogRefresh: "Načíst znovu",
   catalogLoading: "Načítám Organizace…",
   catalogLoadFailed:
@@ -860,6 +895,41 @@ const cs: Record<MessageKey, string> = {
   catalogReasonNoApp: "Modul nemá žádnou aplikaci ke spuštění.",
   catalogReasonDefaultApp:
     "Deklarace běhu výchozí aplikace chybí nebo je neplatná.",
+  moduleApplication: "Aplikace",
+  moduleStart: "Spustit",
+  moduleStop: "Zastavit",
+  moduleOpen: "Otevřít",
+  moduleOpenNamed: "Otevřít {name} na nové kartě",
+  moduleBusy: "Pracuji…",
+  moduleStatusUnknown: "Stav zatím není známý.",
+  moduleRunning: "Běží",
+  moduleStarting: "Spouští se…",
+  moduleNotReady: "Běží, zatím není připravená",
+  moduleStopping: "Zastavuje se…",
+  moduleStopped: "Zastavená",
+  moduleEnded:
+    "Skončila sama. Zastavte ji, tím se ověří, že její procesy skončily, a pak ji spusťte znovu.",
+  moduleKeepsRunning:
+    "Běží dál i po restartu Launchpadu; restart Mašiny ji ukončí.",
+  moduleSessionBound: "Skončí, až skončí tenhle Launchpad.",
+  moduleStarted: "Spuštěno. Čekám, až se ohlásí zdravá…",
+  moduleStartedHealthy: "Spuštěno a zdravé.",
+  moduleAlreadyRunning: "Už běžela.",
+  moduleStoppedDone: "Zastaveno; její procesy skončily.",
+  moduleNotRunning: "Neběžela.",
+  moduleRefused: "Odmítnuto: {reason}.",
+  moduleReasonToolchain:
+    "V ~/.local/bin chybí Bun, se kterým Lazurio moduly spouští. Viz Nastavení → Nástroje.",
+  moduleReasonPortOccupied:
+    "Na deklarovaném portu modulu poslouchá jiný proces. Nejdřív ho zastavte.",
+  moduleReasonFailed:
+    "Životní cyklus selhal dřív, než mohl změnu potvrdit. Nejčastěji modul není deklarovaný vlastní Bun balíček (lazurio.preparation, jeden Bun lockfile, přesný packageManager).",
+  moduleNoLinkEntry:
+    "Bez odkazu: zaznamenaný vstup téhle Mašiny zatím neuvádí hostname pro moduly.",
+  moduleNoLinkApp:
+    "Bez odkazu: gateway téhle Mašiny obsluhuje jen výchozí aplikaci modulu.",
+  moduleNoLinkBrowser: "Bez odkazu: aplikace nedeklaruje vstup pro prohlížeč.",
+  moduleNoLink: "Bez odkazu: {reason}.",
   settingsTitle: "Nastavení",
   settingsGeneral: "Obecné",
   settingsBack: "Zpět",
