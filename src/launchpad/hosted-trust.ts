@@ -17,7 +17,8 @@ export type HostedEntry = Readonly<{
   externalOrigin: string;
   /** The gateway's auth endpoint answering 2xx for a valid session cookie. */
   authCheckUrl: string;
-  /** The one session cookie the gateway sets; exactly this name is forwarded. */
+  /** The one session cookie the gateway sets; exactly this name (or its
+   * oauth2-proxy chunks `<name>_0…_n`) is forwarded. */
   authCookieName: string;
   /** The loopback port the gateway proxies to. */
   listenPort: number;
@@ -67,27 +68,63 @@ export type Admission =
   | Readonly<{ ok: true }>
   | Readonly<{ ok: false; reason: Denial }>;
 
-/** Exactly one cookie of the name in a bounded header: its value, or why not. */
+/** The session cookie of the name in a bounded header, whole or in chunks:
+ * its value, or why not.
+ *
+ * oauth2-proxy splits a session larger than one cookie into `<name>_0`,
+ * `<name>_1`, … and reassembles it as `loadCookie` does
+ * (oauth2-proxy `pkg/sessions/cookie/session_store.go`, v7.15.4): the cookie
+ * of the exact name wins when present; otherwise the chunks `_0`, `_1`, … are
+ * read in index order up to the first missing one and their values
+ * concatenated. So the whole cookie, when present, is selected exactly as
+ * before and any chunks beside it are ignored and not forwarded. Otherwise the
+ * session is present when `_0` is; its chunks must be exactly `_0…_n`, each
+ * once and non-empty — a gap or a repeated index, which oauth2-proxy would
+ * silently cut or pick from, is refused. The chunks are returned as sent, for
+ * the auth endpoint's oauth2-proxy to reassemble itself.
+ */
 export function selectCookie(
   header: string | null,
   name: string,
 ):
-  | Readonly<{ value: string }>
+  | Readonly<{ value: string; chunks?: readonly string[] }>
   | Readonly<{ reason: "cookie-missing" | "cookie-invalid" }> {
   if (header === null || header === "") return { reason: "cookie-missing" };
   if (Buffer.byteLength(header, "utf8") > maxCookieHeaderBytes)
     return { reason: "cookie-invalid" };
   const values: string[] = [];
+  const chunks = new Map<number, string>();
+  let repeated = false;
   for (const part of header.split(";")) {
     const separator = part.indexOf("=");
     if (separator < 0) continue;
-    if (part.slice(0, separator).trim() === name)
-      values.push(part.slice(separator + 1).trim());
+    const key = part.slice(0, separator).trim();
+    const value = part.slice(separator + 1).trim();
+    if (key === name) values.push(value);
+    else if (key.startsWith(`${name}_`)) {
+      // Only the names oauth2-proxy reads (`%s_%d`): a canonical index.
+      const suffix = key.slice(name.length + 1);
+      if (!/^(?:0|[1-9][0-9]*)$/.test(suffix)) continue;
+      const index = Number(suffix);
+      if (chunks.has(index)) repeated = true;
+      chunks.set(index, value);
+    }
   }
-  if (values.length === 0) return { reason: "cookie-missing" };
-  if (values.length > 1 || values[0] === "")
-    return { reason: "cookie-invalid" };
-  return { value: values[0] as string };
+  if (values.length > 0) {
+    if (values.length > 1 || values[0] === "")
+      return { reason: "cookie-invalid" };
+    return { value: values[0] as string };
+  }
+  if (!chunks.has(0)) return { reason: "cookie-missing" };
+  const ordered: string[] = [];
+  for (let index = 0; index < chunks.size; index++) {
+    const chunk = chunks.get(index);
+    if (chunk === undefined || chunk === "")
+      return { reason: "cookie-invalid" };
+    ordered.push(chunk);
+  }
+  if (repeated) return { reason: "cookie-invalid" };
+  return { value: ordered.join(""), chunks: ordered };
 }
 
 /** What the admission needs of `fetch`: the configured URL and an init. */
@@ -104,9 +141,10 @@ export type HostedTrustOptions = Readonly<{
 /** The admission of docs/hosted-entry.md: `Host` is the configured origin's
  * host; a state-changing request (any method but GET and HEAD, and every
  * request under `/api/internal/`) is same-origin from the configured origin;
- * exactly the named cookie, forwarded alone, makes the configured auth
- * endpoint answer 2xx within the timeout. Nothing else is evidence — not a
- * forwarded identity header, not another cookie, not the request's own URL.
+ * exactly the named cookie (or its chunks, see `selectCookie`), forwarded
+ * alone, makes the configured auth endpoint answer 2xx within the timeout.
+ * Nothing else is evidence — not a forwarded identity header, not another
+ * cookie, not the request's own URL.
  */
 export function createHostedTrust(
   entry: HostedEntry,
@@ -119,15 +157,31 @@ export function createHostedTrust(
   const host = new URL(entry.externalOrigin).host;
   const admitted = new Map<string, number>();
 
-  async function revalidate(cookie: string): Promise<Admission> {
-    const key = createHash("sha256").update(cookie).digest("hex");
+  async function revalidate(
+    cookie: Readonly<{ value: string; chunks?: readonly string[] }>,
+  ): Promise<Admission> {
+    // Keyed by the reassembled value: the session the auth endpoint decodes.
+    const key = createHash("sha256").update(cookie.value).digest("hex");
     const until = admitted.get(key);
     if (until !== undefined && until > now()) return { ok: true };
     let response: Response;
     try {
       response = await fetcher(entry.authCheckUrl, {
         method: "GET",
-        headers: { cookie: `${entry.authCookieName}=${cookie}` },
+        // The session exactly as selected: the whole cookie, or its chunks
+        // in index order and never re-joined, since the gateway's
+        // oauth2-proxy reassembles them itself.
+        headers: {
+          cookie:
+            cookie.chunks === undefined
+              ? `${entry.authCookieName}=${cookie.value}`
+              : cookie.chunks
+                  .map(
+                    (chunk, index) =>
+                      `${entry.authCookieName}_${index}=${chunk}`,
+                  )
+                  .join("; "),
+        },
         redirect: "manual",
         signal: AbortSignal.timeout(timeoutMs),
       });
@@ -175,7 +229,7 @@ export function createHostedTrust(
         entry.authCookieName,
       );
       if ("reason" in cookie) return { ok: false, reason: cookie.reason };
-      return revalidate(cookie.value);
+      return revalidate(cookie);
     },
   });
 }
