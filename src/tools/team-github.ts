@@ -29,6 +29,13 @@ export const teamGithubPhrase: Text = {
   en: "uses Lazurio for GitHub",
 };
 
+/** In gh's status line when the Organization's App identity works there;
+ * `{account}` is its login (`lazurio-for-github[bot]`). */
+export const teamGithubWorksAs: Text = {
+  cs: "pracuje jako {account}",
+  en: "works as {account}",
+};
+
 /** What kind of GitHub identity the active github.com account of gh is,
  * read from `gh auth status --hostname github.com`:
  * - `person`: a user account whose token gh stores itself (its keyring or
@@ -50,6 +57,23 @@ export type GhIdentity = "person" | "app" | "variable" | "unknown";
 const activeEntry =
   /Logged in to github\.com (?:account|as) [A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(\[bot\])? \(([^()\r\n]*)\)/;
 
+/** The kind of identity of one account entry of gh: its login and where gh
+ * took its token from (`tokenSource` of `gh auth status --json hosts`, or the
+ * parenthesis of the text form). */
+export function ghIdentityOf(login: string, tokenSource: string): GhIdentity {
+  if (login.endsWith("[bot]")) return "app";
+  if (/^[A-Z][A-Z0-9_]*_TOKEN$/.test(tokenSource)) return "variable";
+  if (
+    tokenSource === "keyring" ||
+    tokenSource === "oauth_token" ||
+    /(?:^|[\\/])hosts\.yml$/.test(tokenSource)
+  )
+    return "person";
+  return "unknown";
+}
+
+/** The same from the text form of `gh auth status --hostname github.com`,
+ * for a gh older than the JSON status (gh 2.81.0). */
 export function ghIdentity(output: string): GhIdentity {
   const lines = output.split(/\r?\n/);
   const first = lines.findIndex((line) => activeEntry.test(line));
@@ -61,14 +85,7 @@ export function ghIdentity(output: string): GhIdentity {
     if (/Logged in to |Failed to log in /.test(line)) break;
     if (/Token:\s*ghs_/.test(line)) return "app";
   }
-  if (/^[A-Z][A-Z0-9_]*_TOKEN$/.test(source)) return "variable";
-  if (
-    source === "keyring" ||
-    source === "oauth_token" ||
-    /(?:^|[\\/])hosts\.yml$/.test(source)
-  )
-    return "person";
-  return "unknown";
+  return ghIdentityOf("", source);
 }
 
 /** The curated gh actions the rule speaks about. */

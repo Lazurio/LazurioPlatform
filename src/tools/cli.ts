@@ -4,6 +4,7 @@ import {
   readFolderTools,
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
+import { sharedEnvironment } from "../folder/render";
 import { updateTools } from "../folder/update-profile";
 import { activatableTools, toolCatalog, toolPrompt } from "./catalog";
 import {
@@ -31,7 +32,11 @@ import {
   toolsStatus,
   xdgOf,
 } from "./status";
-import { githubActionRefused, teamGithubPhrase } from "./team-github";
+import {
+  githubActionRefused,
+  teamGithubPhrase,
+  teamGithubWorksAs,
+} from "./team-github";
 import { toolsUpdate } from "./update";
 
 /** `lazurio tools`: the terminal surface of the operator's tools (decision
@@ -63,7 +68,9 @@ tools list --folder <absolute Folder> [--sign-in] [--json]
 tools prompt <tool> [--locale cs|en] [--json]
   The prepared prompt for an agent who installs that tool and guides the
   operator's sign-in: the task, the target state and the rule to enable the
-  tool afterwards. Read-only text, no Folder; it installs nothing.
+  tool afterwards. Read-only text, no Folder; it installs nothing. On a
+  hosted Team Environment (the hosted operator Folder's preset) gh's prompt
+  sets gh up without any sign-in or SSH key.
 tools enable <tool> --folder <absolute Folder> --expected-revision <n> [--json]
 tools disable <tool> --folder <absolute Folder> --expected-revision <n> [--json]
   Records the tool as enabled or not in that Folder and re-renders AGENTS.md
@@ -86,7 +93,8 @@ tools install <tool> [--json]
   archive, verified against the release's published SHA-256 checksums;
   composio: its official installer without agent plugins or shell changes).
   A tool that already works is not touched; a broken copy elsewhere on PATH
-  is not shadowed. On failure it points to the prepared agent prompt.
+  is not shadowed. On failure it points to the prepared agent prompt. On a
+  Team Environment gh is installed only, never signed in afterwards.
 tools login <tool> [--phone <+number>] [--ssh-key] [--json]
   Signs the operator in to that tool in the foreground: gh prints a one-time
   code for https://github.com/login/device, composio a sign-in link, wacli a
@@ -214,7 +222,12 @@ export async function runToolsCommand(
       values["expected-revision"] !== undefined
     )
       throw new ToolsUsageError(usage);
-    const prompt = toolPrompt(name, locale);
+    // On a hosted Team Environment the prompt of gh guides no sign-in; it
+    // knows that from the hosted operator Folder's preset, as login does.
+    const preset = await hostedEnvironmentPreset(context.hostedFolder);
+    const prompt = toolPrompt(name, locale, {
+      team: preset !== undefined && sharedEnvironment(preset),
+    });
     const entry = activatableTools().find((tool) => tool.name === name);
     if (prompt === undefined || entry === undefined) {
       const known = activatableTools().map((tool) => tool.name);
@@ -276,7 +289,7 @@ export async function runToolsCommand(
       login: { ...base, ...context.login },
       write: context.write ?? ((line) => console.log(line)),
       signal: context.signal,
-      ...(command === "login" || command === "logout"
+      ...(command === "install" || command === "login" || command === "logout"
         ? { preset: await hostedEnvironmentPreset(context.hostedFolder) }
         : {}),
     };
@@ -377,11 +390,13 @@ const signInText = (signIn: ToolSignIn, team: boolean): string =>
     ? `${
         signIn.account === undefined
           ? "signed in"
-          : `signed in as ${signIn.account}${
-              signIn.organization === undefined
-                ? ""
-                : ` (${signIn.organization})`
-            }`
+          : team && signIn.identity === "app"
+            ? teamGithubWorksAs.en.replace("{account}", signIn.account)
+            : `signed in as ${signIn.account}${
+                signIn.organization === undefined
+                  ? ""
+                  : ` (${signIn.organization})`
+              }`
       }${sshText(signIn, team)}`
     : signIn.state === "signed-out"
       ? "not signed in"

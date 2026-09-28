@@ -1581,37 +1581,61 @@ allowed one, so the Folder is the owner of the answer. Without such a Folder (a
 workstation, another account, a missing or invalid handover, a Folder not initialized
 or not readable) the commands behave as before and say nothing.
 
-*A person's account or the Organization's identity.* The gh sign-in probe now also
-reports `identity`, read from the active entry of `gh auth status --hostname
-github.com`: `app` when the login ends in `[bot]` (a GitHub login is letters, digits
-and hyphens, so the suffix can only be an App's) or the entry's masked token is an
-installation token `ghs_…`; `variable` when the token comes from an environment
-variable (`GH_TOKEN`, `GITHUB_TOKEN`, …), which is how a wrapper hands gh a brokered
-token and which `gh auth logout` refuses to remove anyway; `person` when the token is
-one gh stores itself (`keyring`, the hosts file, older gh's `oauth_token`); otherwise
-`unknown`. Only `person` is signed out; everything else, a failed or timed-out probe
-included, fails closed. The account label keeps the `[bot]` suffix. Limits, stated
-honestly: the classification was checked against gh's documented output formats and
-fake tools, not against the Organization's real brokered gh, which is not part of this
-repository; a machine user (a GitHub user account used by automation) whose token gh
-stores counts as `person`, which the rule accepts, because only the App identity
-belongs on a Team Environment; a personal account stored behind an active broker token
-is not the active account, is not offered for sign-out and would have to be removed by
-hand (`gh auth logout --user <login>` with the broker variable cleared). The brokered
-`gh` wrapper of the upstream GitHub App adapter refuses every `gh auth` command except
-exactly `gh auth status --json hosts` (which it answers with the App's `…[bot]` login
-and its own token source), so the text probe `gh auth status --hostname github.com`
-exits non-zero there and reads as not signed in: no sign-out is offered and a logout
-is refused, which is safe, but the status line says "Not signed in" on a Machine where
-gh works through the broker. Telling the broker's identity apart positively needs the
-probe to read `gh auth status --json hosts` (`login`, `tokenSource`) where gh supports
-it; that is a follow-up, not part of this rule. A personal token left in `~/.config/gh`
-of such a Machine is out of the wrapper's reach and of this sign-out.
+*A person's account or the Organization's identity.* gh's sign-in probe asks
+`gh auth status --json hosts` first. gh has that flag since **2.81.0** (cli/cli#11544,
+"Add JSON output to `gh auth status`", merged 2025-09-25); it is also exactly the one
+`gh auth` command the Organization's brokered gh answers (the upstream GitHub App
+adapter's wrapper refuses every other `gh auth` command and replies with the App's
+`lazurio-for-github[bot]` login). The probe asks for the one field `hosts` and never
+passes `--show-token`, so gh leaves the token out (`token` is `omitempty` and blanked
+without that flag); only the active github.com entry's `state`, `login`, `tokenSource`
+and `scopes` are read, and with `--json` gh always exits 0, so `state` (`success`,
+`error`, `timeout`) decides. A gh older than 2.81.0 does not print that document
+("unknown flag: --json"); the probe then reads the text form `gh auth status --hostname
+github.com` as before. The same reading serves the Launchpad and `tools list
+--sign-in`, the confirmation of a login, the scope check before linking a key and the
+removal of the key at sign-out (`src/tools/gh-status.ts`). Both forms report
+`identity`: `app` when the login ends in `[bot]` (a GitHub login is letters, digits and
+hyphens, so the suffix can only be an App's) or, in the text form, the entry's masked
+token is an installation token `ghs_…`; `variable` when the token comes from an
+environment variable (`GH_TOKEN`, `GITHUB_TOKEN`, …), which `gh auth logout` refuses to
+remove anyway; `person` when the token is one gh stores itself (`keyring`, the hosts
+file, older gh's `oauth_token`); otherwise `unknown`. Only `person` is signed out;
+everything else, a failed or timed-out probe included, fails closed. The account label
+keeps the `[bot]` suffix, and on a Team Environment the App identity reads "works as
+lazurio-for-github[bot]" / "pracuje jako lazurio-for-github[bot]" instead of "signed in
+as", next to "uses Lazurio for GitHub" / "používá Lazurio for GitHub". A machine user (a
+GitHub user account used by automation) whose token gh stores counts as `person`, which
+the rule accepts, because only the App identity belongs on a Team Environment. The
+wrapper's behaviour was read from its source and reproduced by a fake gh; the real
+wrapper is qualified on a Team Machine.
+
+*Installing and the agent prompt.* Installing gh is not a sign-in and stays allowed.
+`tools install gh` on a Team Environment (the preset read as for `login`) ends with the
+Team sentence instead of "Next: lazurio tools login gh"; the Launchpad's Team gh row
+offers "Install" / "Nainstalovat" only while gh is missing, never "Install and sign
+in", and its notice ends with the same sentence. gh's catalog entry gains a Team target
+state (`activation.team`): a working `gh` on PATH, normally the Organization's brokered
+one, which stays as it is; installed from the official source only when none works; and
+"Do not sign in gh or link a key: the Environment works in GitHub through Lazurio for
+GitHub, set up by the Organization." `lazurio tools prompt gh` reads the hosted
+operator Folder's preset and prints that Team prompt there instead of the sign-in
+steps; the Launchpad of a Team Folder hands the same prompt, so the gh row's "Set up
+with an agent" fallback is shown again. Where the kind is not known, gh's prompt keeps
+the sign-in steps and adds "On a Team Environment (hosted-organization-team) do not
+sign in gh or link a key: the Environment works in GitHub through Lazurio for GitHub,
+set up by the Organization." The generated Folder texts already say that a Team
+Environment uses the brokered Organization identity and holds no personal sign-ins, so
+the template revision is unchanged.
+
+*Known limits, kept.* A personal account stored behind an active broker token is not
+the active account, is not offered for sign-out and has to be removed by hand (`gh auth
+logout --user <login>` with the broker variable cleared); a personal token left in
+`~/.config/gh` of a Machine whose gh is the wrapper is out of the wrapper's reach and
+of this sign-out. Without a readable hosted operator Folder the CLI cannot tell a Team
+Environment and behaves as on a workstation; the Launchpad, which serves its Folder,
+fails closed.
 
 *Not built.* The path through Lazurio for GitHub is not part of the Platform: nothing
 here provisions the App, its token broker or a brokered `gh`. The product refuses the
-personal sign-in and relies on what the Machine delivers. The generated Folder texts
-already say that a Team Environment uses the brokered Organization identity and holds
-no personal sign-ins, so the template revision is unchanged. `lazurio tools prompt gh`
-(the agent's prompt, not a Folder text) still describes a personal sign-in and does
-not know the Environment; it is Folder-less by design.
+personal sign-in and relies on what the Machine delivers.

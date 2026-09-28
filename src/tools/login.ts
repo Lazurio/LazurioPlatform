@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { type ActivatableTool, activatableTools } from "./catalog";
+import { ghStatus } from "./gh-status";
 import { plainText } from "./redact";
 import {
   ghAccount,
@@ -22,7 +23,6 @@ import {
   type ToolRunner,
   type ToolSignIn,
 } from "./status";
-import { ghIdentity } from "./team-github";
 
 /** The curated sign-in of a `setup: "launchpad"` catalog tool (decision F19).
  * One session per tool at a time, in memory, owned by the process that
@@ -345,6 +345,16 @@ export function createLoginSessions(environment: LoginEnvironment) {
   ): Promise<ToolSignIn> {
     const signInProbe = entry.activation.signInProbe;
     if (signInProbe === undefined) return { state: "unknown" };
+    // gh: the JSON status first (gh-status.ts), with the kind of identity.
+    if (entry.name === "gh")
+      return (
+        await ghStatus(
+          (command, timeoutMs) =>
+            environment.run(command, timeoutMs, probeEnv()),
+          path,
+          probeTimeoutMs,
+        )
+      ).signIn;
     try {
       return readSignIn(
         signInProbe,
@@ -969,26 +979,10 @@ export function createLoginSessions(environment: LoginEnvironment) {
      * Only the state, the label and the kind leave; never the output. */
     async ghSignIn(): Promise<ToolSignIn> {
       const entry = loginTool("gh");
-      const signInProbe = entry?.activation.signInProbe;
       const path = entry && (await locate(entry));
-      if (signInProbe === undefined || path === undefined)
+      if (entry === undefined || path === undefined)
         return { state: "unknown" };
-      try {
-        const result = await environment.run(
-          [path, ...signInProbe.argv],
-          probeTimeoutMs,
-          probeEnv(),
-        );
-        const signIn = readSignIn(signInProbe, result);
-        return signIn.state === "signed-in" && result !== "timeout"
-          ? {
-              ...signIn,
-              identity: ghIdentity(`${result.stdout}\n${result.stderr}`),
-            }
-          : signIn;
-      } catch {
-        return { state: "unknown" };
-      }
+      return probe(entry, path);
     },
 
     /** Composio's organizations of the signed-in account, the current one

@@ -146,8 +146,10 @@ service may differ from an operator's interactive shell.
 **Sign-in state** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
 With `signIn: true` (the page sends it on load and on "Refresh status") or
 `tools list --sign-in`, each installed tool's catalog sign-in probe runs as well:
-`gh auth status --hostname github.com`, `composio whoami`, `wacli auth status --json
---read-only`, `gog auth list --check --json --no-input`, `neon me -o json`. These may
+for gh `gh auth status --json hosts` (gh 2.81.0 and later) and, for an older gh that
+does not know `--json` there, `gh auth status --hostname github.com`; `composio
+whoami`, `wacli auth status --json --read-only`, `gog auth list --check --json
+--no-input`, `neon me -o json`. These may
 contact the tool's provider to verify its token, which is why they run only on
 request. They run in parallel, 10 s each, with only `PATH`, `HOME` and `XDG_*` in their
 environment. `signIn` is `{ state: "signed-in" | "signed-out" | "unknown", account?,
@@ -162,14 +164,18 @@ never returned or logged. A signed-in gh also carries `ssh` ([F19 addendum
 `.pub` of this Machine's default key and one call of `gh api "user/keys?per_page=100"`
 (`not-linked` with `no-key` or `not-registered`; `unknown` with `scope-missing` when
 the token cannot read keys, or `unreadable`). The private key is not read and nothing
-connects over SSH on a status call. A signed-in gh carries `identity` as well, read
-from the same output: `person` (a user account whose token gh stores itself, in its
+connects over SSH on a status call. gh's JSON status is asked for exactly one field,
+`hosts`, and never with `--show-token`, so gh leaves the token out; only the active
+github.com entry's `state`, `login`, `tokenSource` and `scopes` are read (with `--json`
+gh always exits 0 and `state` says `success`, `error` or `timeout`). A signed-in gh
+carries `identity` as well, read from the same answer: `person` (a user account whose token gh stores itself, in its
 keyring or its hosts file: what a sign-in leaves and `gh auth logout` removes), `app`
 (a GitHub App's own identity: a `…[bot]` login or an installation token `ghs_…`),
 `variable` (a token from `GH_TOKEN`, `GITHUB_TOKEN` or another `*_TOKEN` variable,
 which `gh auth logout` cannot remove) or `unknown`. The account label keeps a `[bot]`
 suffix. On a Team Environment the gh line says "uses Lazurio for GitHub" instead of the
-state of an SSH key ([below](#gh-on-a-team-environment)).
+state of an SSH key, and the Organization's App identity reads "works as
+lazurio-for-github[bot]" instead of "signed in as" ([below](#gh-on-a-team-environment)).
 
 The Tools section itself is described in
 [launchpad-development.md](launchpad-development.md#tools-section).
@@ -306,13 +312,40 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   Folder does. Where there is no such Folder (a workstation, another account, a
   missing or invalid handover, a Folder not initialized or not readable) the commands
   behave as before and say nothing. `tools list --folder` reads the named Folder.
-- **Not built yet.** The path through Lazurio for GitHub is not part of the Platform:
+- **The Organization's brokered gh.** On a Team Machine gh is normally the
+  Organization's brokered wrapper, which of all `gh auth` commands answers exactly
+  `gh auth status --json hosts`, as `lazurio-for-github[bot]`. The JSON status reads it
+  as signed in with `identity: "app"`: the Launchpad row says "Works as
+  lazurio-for-github[bot] · Uses Lazurio for GitHub" ("Pracuje jako
+  lazurio-for-github[bot] · Používá Lazurio for GitHub"), `tools list --sign-in` says
+  "works as lazurio-for-github[bot], uses Lazurio for GitHub", no sign-out is offered
+  and a logout is refused.
+- **Installing gh there.** `tools install gh` installs as everywhere, but ends with the
+  sentence above instead of "Next: lazurio tools login gh". The Launchpad's Team gh row
+  offers "Install" ("Nainstalovat") only while gh is missing, never "Install and sign
+  in"; its notice says what was installed and the same sentence.
+- **The agent prompt.** `lazurio tools prompt gh` reads the hosted operator Folder's
+  preset like `login` does. On a Team Environment it prints gh's Team target state
+  instead of the sign-in and the SSH key: a working `gh` on PATH (normally the
+  brokered one, which stays as it is), installed from the official source only when
+  none works, and "Do not sign in gh or link a key: the Environment works in GitHub
+  through Lazurio for GitHub, set up by the Organization." Where the kind is not known
+  the prompt keeps the sign-in steps and adds "On a Team Environment
+  (hosted-organization-team) do not sign in gh or link a key: the Environment works in
+  GitHub through Lazurio for GitHub, set up by the Organization." (Czech: "V týmovém
+  Environmentu (hosted-organization-team) gh nepřihlašuj a klíč nepropojuj: Environment
+  pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace."). The
+  Launchpad of a Team Folder hands the Team prompt, so its "Set up with an agent"
+  fallback is shown on the gh row again.
+- **Known limits.** A personal account stored behind an active broker token is not the
+  active account, is not offered for sign-out and is removed by hand; a personal token
+  in `~/.config/gh` of a Machine whose gh is the wrapper is out of this sign-out's
+  reach. Without a readable hosted operator Folder the CLI cannot tell a Team
+  Environment and behaves as on a workstation (the Launchpad, which serves its Folder,
+  fails closed instead).
+- **Not built.** The path through Lazurio for GitHub is not part of the Platform:
   nothing here provisions the App, its broker or a brokered `gh`. The product refuses
-  the personal sign-in and relies on what the Machine delivers. The brokered `gh`
-  wrapper refuses the probe `gh auth status --hostname github.com` (it answers only
-  `gh auth status --json hosts`), so the Tools section shows such a gh as not signed in
-  although it works through the broker; reading the JSON status is a follow-up (F19
-  addendum).
+  the personal sign-in and relies on what the Machine delivers.
 
 ### The standard path (decision 0161, point 6)
 

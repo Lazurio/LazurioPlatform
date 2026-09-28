@@ -1,6 +1,5 @@
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
-import { githubActionRefused } from "../tools/team-github";
 import type { MessageKey } from "./messages";
 import {
   curatedActions,
@@ -27,6 +26,7 @@ import {
   type ToolChange,
   type ToolChangeOutcome,
   takesNote,
+  teamInstallOutcome,
   toolChangeOutcome,
   toolGroups,
   toolStatusView,
@@ -701,6 +701,29 @@ export function createToolsPanel(
       else focusRow(target);
   });
 
+  // "Install" of gh on a Team Environment (Principal 2026-09-28): the
+  // installation alone, no sign-in afterwards.
+  async function installOnly(tool: ToolOverview) {
+    if (busy) return;
+    const copy = options.copy();
+    busy = true;
+    notice = null;
+    render();
+    say(fill(copy.toolsInstalling, { name: tool.name }));
+    let value: unknown = null;
+    try {
+      ({ value } = await options.post("/api/tools/install", {
+        tool: tool.name,
+      }));
+    } catch {}
+    busy = false;
+    const outcome = teamInstallOutcome(value, tool.name, copy);
+    notice = { name: tool.name, outcome, undo: null };
+    say(outcome.message);
+    focus = { name: tool.name, control: "curated" };
+    await refresh({ signIn: true });
+  }
+
   async function logout(tool: ToolOverview) {
     if (busy) return;
     const copy = options.copy();
@@ -806,9 +829,12 @@ export function createToolsPanel(
     // (version · signed in as X · SSH key linked), so a key that is not
     // linked can carry the warning colour.
     const ssh = tool.signIn?.ssh;
+    // On a Team Environment gh working as the Organization's App identity
+    // reads "Works as lazurio-for-github[bot]".
+    const team = overview?.sharedEnvironment === true;
     const who =
       tool.signIn === undefined || ssh === undefined
-        ? signInLine(tool, copy)
+        ? signInLine(tool, copy, team)
         : signInLine(
             {
               ...tool,
@@ -820,9 +846,13 @@ export function createToolsPanel(
                 ...(tool.signIn.organization === undefined
                   ? {}
                   : { organization: tool.signIn.organization }),
+                ...(tool.signIn.identity === undefined
+                  ? {}
+                  : { identity: tool.signIn.identity }),
               },
             },
             copy,
+            team,
           );
     const signIn = element("span", "tool-signin", who);
     signIn.dataset.state = tool.signIn?.state ?? "unchecked";
@@ -878,15 +908,10 @@ export function createToolsPanel(
     // prompt as its action instead.
     // A Team Environment works in GitHub through Lazurio for GitHub, set up
     // by the Organization (Principal 2026-09-28): its gh row offers no
-    // personal sign-in or SSH key, and "Sign out" only while a person's
-    // account is signed in there; a sentence says why.
-    const brokered = overview?.sharedEnvironment === true;
-    const teamGh = githubActionRefused({
-      brokered,
-      tool: tool.name,
-      action: "login",
-    });
-    const curated = curatedActions(tool, copy, brokered);
+    // personal sign-in or SSH key, only "Install" when gh is missing, and
+    // "Sign out" only while a person's account is signed in there; a
+    // sentence says why.
+    const curated = curatedActions(tool, copy, team);
     const primary = curated.primary;
     if (primary !== null)
       controls.append(
@@ -894,11 +919,16 @@ export function createToolsPanel(
           primary.label,
           tool.name,
           "curated",
-          () => openLogin(tool, primary.mode),
+          () =>
+            primary.mode === "install-only"
+              ? void installOnly(tool)
+              : openLogin(tool, primary.mode),
           fill(
             primary.mode === "install"
               ? copy.toolsInstallActionNamed
-              : copy.toolsSignInActionNamed,
+              : primary.mode === "install-only"
+                ? copy.toolsInstallOnlyNamed
+                : copy.toolsSignInActionNamed,
             { name: tool.name },
           ),
         ),
@@ -992,9 +1022,9 @@ export function createToolsPanel(
       usage.append(source);
     }
     body.append(usage, noteEditor(tool, copy));
-    // The agent's fallback of a `launchpad` tool guides a personal sign-in,
-    // which a Team Environment's gh does not take.
-    if (tool.setup === "launchpad" && !teamGh) {
+    // The agent's fallback of a `launchpad` tool; on a Team Environment the
+    // server hands gh's Team prompt, which signs nobody in.
+    if (tool.setup === "launchpad") {
       const fallback = element("section", "");
       const row = element("p", "tool-actions");
       row.append(agent);

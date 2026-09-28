@@ -259,12 +259,25 @@ export function toolStatusView(
 }
 
 /** The one line about the sign-in: as whom when the tool tells, not signed
- * in, unknown, or not checked when the page did not ask. */
-export function signInLine(tool: ToolOverview, copy: Copy): string {
+ * in, unknown, or not checked when the page did not ask. On a Team
+ * Environment (`brokered`) gh working as the Organization's App identity is
+ * not a sign-in of anybody: "Works as lazurio-for-github[bot]". */
+export function signInLine(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): string {
   const signIn = tool.signIn;
   if (signIn === undefined) return copy.toolsSignInUnchecked;
   if (signIn.state === "signed-out") return copy.toolsSignedOut;
   if (signIn.state === "unknown") return copy.toolsSignInUnknown;
+  if (
+    brokered &&
+    tool.name === "gh" &&
+    signIn.identity === "app" &&
+    signIn.account !== undefined
+  )
+    return fill(copy.toolsWorksAs, { account: signIn.account });
   const who =
     signIn.account === undefined
       ? copy.toolsSignedIn
@@ -287,8 +300,12 @@ export function signInLine(tool: ToolOverview, copy: Copy): string {
 }
 
 export type CuratedActions = Readonly<{
-  /** The flow the main button opens: install first, or sign in only. */
-  primary: Readonly<{ mode: "install" | "login"; label: string }> | null;
+  /** The flow the main button opens: install first, or sign in only; on a
+   * Team Environment gh is installed only (`install-only`). */
+  primary: Readonly<{
+    mode: "install" | "login" | "install-only";
+    label: string;
+  }> | null;
   /** A signed-in `launchpad` tool offers "Sign out". */
   logout: boolean;
   /** A signed-in gh whose SSH key is not known to be linked offers "Link
@@ -313,7 +330,11 @@ export function curatedActions(
     return { primary: null, logout: false, linkSsh: false };
   if (githubActionRefused({ brokered, tool: tool.name, action: "login" }))
     return {
-      primary: null,
+      // A Team Machine normally has gh from the Organization's broker; a
+      // missing one is installed, never signed in.
+      primary: tool.installed
+        ? null
+        : { mode: "install-only", label: copy.toolsInstallOnlyAction },
       linkSsh: false,
       logout: !githubActionRefused({
         brokered,
@@ -848,6 +869,24 @@ export function sshOutcome(
 
 /** What an install answered: whether the sign-in may follow, and one
  * sentence. */
+/** The notice of "Install" on a Team Environment's gh row: what the
+ * installation did, and that the Environment works in GitHub through Lazurio
+ * for GitHub instead of a sign-in. */
+export function teamInstallOutcome(
+  input: unknown,
+  name: string,
+  copy: Copy,
+): ToolChangeOutcome {
+  const outcome = installOutcome(input, name, copy);
+  return outcome.ok
+    ? {
+        kind: "updated",
+        reload: false,
+        message: `${outcome.message} ${copy.toolsTeamGithub}`,
+      }
+    : { kind: "failed", reload: false, message: outcome.message };
+}
+
 export function installOutcome(
   input: unknown,
   name: string,

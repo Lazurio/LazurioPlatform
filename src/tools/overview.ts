@@ -151,7 +151,11 @@ export async function toolsOverview(
           : { standardPath: live.standardPath }),
         ...(signIn === undefined ? {} : { signIn }),
         ...(note === undefined ? {} : { note }),
-        prompt: toolPrompt(entry.name, locale) ?? "",
+        // On a Team Environment gh's prompt signs nobody in.
+        prompt:
+          toolPrompt(entry.name, locale, {
+            team: recorded.sharedEnvironment,
+          }) ?? "",
       };
     }),
     mcpPrompt: mcpServerPrompt(locale),

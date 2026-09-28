@@ -9,7 +9,8 @@ import {
 } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import { signInLabel, type ToolProcessResult } from "./status";
+import { ghStatus } from "./gh-status";
+import type { ToolProcessResult } from "./status";
 
 /** The SSH key of this Machine on the signed-in GitHub account (decision
  * F19, addendum 2026-09-28). The curated gh sign-in ends with a Machine that
@@ -296,12 +297,12 @@ async function accountKeys(
   return keys;
 }
 
-/** The SSH part of gh's sign-in probe, from the probe's own output and one
- * API call; the private key is not read and nothing connects over SSH. */
+/** The SSH part of gh's sign-in probe, from the scopes the probe read and
+ * one API call; the private key is not read and nothing connects over SSH. */
 export async function sshStatus(
   home: string | undefined,
   gh: string,
-  probeOutput: string,
+  scopes: readonly string[] | undefined,
   run: SshRunner,
 ): Promise<SshStatus> {
   if (home === undefined) return { state: "unknown", reason: "unreadable" };
@@ -309,7 +310,7 @@ export async function sshStatus(
   if (key === undefined || key.publicKey === undefined)
     return { state: "not-linked", reason: "no-key" };
   const fingerprint = fingerprintOf(key.publicKey);
-  if (!canReadKeys(ghTokenScopes(probeOutput)))
+  if (!canReadKeys(scopes))
     return { state: "unknown", reason: "scope-missing", fingerprint };
   const keys = await accountKeys(run, gh, 10_000);
   if (keys === undefined)
@@ -319,7 +320,8 @@ export async function sshStatus(
     : { state: "not-linked", reason: "not-registered", fingerprint };
 }
 
-/** The signed-in account and its token scopes, read with gh's own status. */
+/** The signed-in account and its token scopes, read with gh's own status
+ * (the JSON form first, `gh-status.ts`). */
 export async function ghAccount(
   run: SshRunner,
   gh: string,
@@ -327,24 +329,10 @@ export async function ghAccount(
   | Readonly<{ account: string; scopes: readonly string[] | undefined }>
   | undefined
 > {
-  let result: ToolProcessResult;
-  try {
-    result = await run(
-      [gh, "auth", "status", "--hostname", "github.com"],
-      stepTimeoutMs,
-    );
-  } catch {
+  const { signIn, scopes } = await ghStatus(run, gh, stepTimeoutMs);
+  if (signIn.state !== "signed-in" || signIn.account === undefined)
     return undefined;
-  }
-  if (result === "timeout" || result.exitCode !== 0) return undefined;
-  const output = `${result.stdout}\n${result.stderr}`;
-  const account = signInLabel(
-    /Logged in to github\.com (?:account|as) ([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/.exec(
-      output,
-    )?.[1],
-  );
-  if (account === undefined) return undefined;
-  return { account, scopes: ghTokenScopes(output) };
+  return { account: signIn.account, scopes };
 }
 
 export const hasKeyScope = canManageKeys;

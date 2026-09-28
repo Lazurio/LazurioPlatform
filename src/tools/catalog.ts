@@ -72,6 +72,9 @@ export type ToolActivation = Readonly<{
   purpose: ToolText;
   usage: ToolText;
   installation: ToolText;
+  /** The target state on a Team Environment (`hosted-organization-team`),
+   * where it replaces `installation` and the prompt guides no sign-in. */
+  team?: ToolText;
   signInProbe?: SignInProbe;
 }>;
 
@@ -132,6 +135,8 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     activation: {
       tier: "required",
       setup: "launchpad",
+      // The text form, for a gh older than 2.81.0: every gh probe asks
+      // `gh auth status --json hosts` first (gh-status.ts).
       signInProbe: {
         argv: ["auth", "status", "--hostname", "github.com"],
         account: {
@@ -141,8 +146,15 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         },
       },
       installation: installation(
-        'Cílový stav: `gh` je první spustitelný soubor toho jména na PATH operátora, ve standardní cestě `~/.local/bin/gh`, z oficiálního zdroje https://github.com/cli/cli#installation. Fungující `gh` jinde na PATH zůstává a jen se nahlásí. Operátor se přihlásí příkazem `gh auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key`: v prohlížeči otevře stránku zařízení a zadá jednorázový kód. Mašina pak má SSH klíč propojený s týmž účtem: použije se stávající výchozí klíč (`~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, v tomto pořadí) beze změny, jinak se příkazem `ssh-keygen` vytvoří nový klíč `ed25519` bez hesla (`~/.ssh` 0700, soukromý klíč 0600); zaregistruje ho `gh ssh-key add <klíč>.pub --title "Lazurio: <Mašina>" --type authentication` (chybí-li tokenu scope, `gh auth refresh --hostname github.com --scopes admin:public_key`); do `~/.ssh/known_hosts` přibudou jen chybějící klíče github.com zveřejněné v `gh api meta` (`ssh_keys`) a záznam github.com, který se od nich liší, se operátorovi nahlásí a nikdy nenahradí. Klíč, který GitHub odmítne jako použitý jiným účtem, se nahlásí; druhý klíč se přes něj nevytváří. Důkaz: `gh --version` odpoví, `gh auth status` skončí kódem 0 a jmenuje zamýšlený účet a `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com` pozdraví tentýž účet.',
-        'Target state: `gh` is the first executable of that name on the operator\'s PATH, in the standard path `~/.local/bin/gh`, from the official source https://github.com/cli/cli#installation. A working `gh` elsewhere on PATH stays and is only reported. The operator signs in with `gh auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key`: they open the device page in their browser and enter the one-time code. The Machine then has an SSH key linked to the same account: the existing default key (`~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, in that order) is used unchanged, otherwise a new `ed25519` key without a passphrase is created with `ssh-keygen` (`~/.ssh` 0700, private key 0600); `gh ssh-key add <key>.pub --title "Lazurio: <Machine>" --type authentication` registers it (when the token lacks the scope, `gh auth refresh --hostname github.com --scopes admin:public_key` first); `~/.ssh/known_hosts` gains only the missing github.com keys published by `gh api meta` (`ssh_keys`), and a github.com entry that differs from them is reported to the operator, never replaced. A key GitHub refuses as in use by another account is reported; no second key is created over it. Proof: `gh --version` answers, `gh auth status` exits 0 and names the intended account, and `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com` greets that account.',
+        'Cílový stav: `gh` je první spustitelný soubor toho jména na PATH operátora, ve standardní cestě `~/.local/bin/gh`, z oficiálního zdroje https://github.com/cli/cli#installation. Fungující `gh` jinde na PATH zůstává a jen se nahlásí. Operátor se přihlásí příkazem `gh auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key`: v prohlížeči otevře stránku zařízení a zadá jednorázový kód. Mašina pak má SSH klíč propojený s týmž účtem: použije se stávající výchozí klíč (`~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, v tomto pořadí) beze změny, jinak se příkazem `ssh-keygen` vytvoří nový klíč `ed25519` bez hesla (`~/.ssh` 0700, soukromý klíč 0600); zaregistruje ho `gh ssh-key add <klíč>.pub --title "Lazurio: <Mašina>" --type authentication` (chybí-li tokenu scope, `gh auth refresh --hostname github.com --scopes admin:public_key`); do `~/.ssh/known_hosts` přibudou jen chybějící klíče github.com zveřejněné v `gh api meta` (`ssh_keys`) a záznam github.com, který se od nich liší, se operátorovi nahlásí a nikdy nenahradí. Klíč, který GitHub odmítne jako použitý jiným účtem, se nahlásí; druhý klíč se přes něj nevytváří. Důkaz: `gh --version` odpoví, `gh auth status` skončí kódem 0 a jmenuje zamýšlený účet a `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com` pozdraví tentýž účet. V týmovém Environmentu (hosted-organization-team) gh nepřihlašuj a klíč nepropojuj: Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace.',
+        'Target state: `gh` is the first executable of that name on the operator\'s PATH, in the standard path `~/.local/bin/gh`, from the official source https://github.com/cli/cli#installation. A working `gh` elsewhere on PATH stays and is only reported. The operator signs in with `gh auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key`: they open the device page in their browser and enter the one-time code. The Machine then has an SSH key linked to the same account: the existing default key (`~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, in that order) is used unchanged, otherwise a new `ed25519` key without a passphrase is created with `ssh-keygen` (`~/.ssh` 0700, private key 0600); `gh ssh-key add <key>.pub --title "Lazurio: <Machine>" --type authentication` registers it (when the token lacks the scope, `gh auth refresh --hostname github.com --scopes admin:public_key` first); `~/.ssh/known_hosts` gains only the missing github.com keys published by `gh api meta` (`ssh_keys`), and a github.com entry that differs from them is reported to the operator, never replaced. A key GitHub refuses as in use by another account is reported; no second key is created over it. Proof: `gh --version` answers, `gh auth status` exits 0 and names the intended account, and `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com` greets that account. On a Team Environment (hosted-organization-team) do not sign in gh or link a key: the Environment works in GitHub through Lazurio for GitHub, set up by the Organization.',
+      ),
+      // A Team Environment works in GitHub through Lazurio for GitHub, set up
+      // by the Organization (Principal 2026-09-28): there the prompt carries
+      // this target state instead of the sign-in and the SSH key.
+      team: installation(
+        "Cílový stav v tomhle týmovém Environmentu (hosted-organization-team): na PATH operátora je funkční `gh`. Obvykle ho dodává Mašina jako brokerovaný `gh` Organizace; funkční `gh` kdekoli na PATH zůstává, jak je, a jen se nahlásí. Jen když žádný nefunguje, nainstaluje se `gh` do standardní cesty `~/.local/bin/gh` z oficiálního zdroje https://github.com/cli/cli#installation. gh nepřihlašuj a klíč nepropojuj: Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Důkaz: `gh --version` odpoví.",
+        "Target state on this Team Environment (hosted-organization-team): a working `gh` is on the operator's PATH. The Machine normally delivers it as the Organization's brokered `gh`; a working `gh` anywhere on PATH stays as it is and is only reported. Only when none works is `gh` installed in the standard path `~/.local/bin/gh` from the official source https://github.com/cli/cli#installation. Do not sign in gh or link a key: the Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Proof: `gh --version` answers.",
       ),
       purpose: {
         cs: "GitHub CLI pro práci s repozitáři, pull requesty, issues a review.",
@@ -435,10 +447,14 @@ export function toolSelection(
 export function toolPrompt(
   name: string,
   locale: "cs" | "en",
+  /** `team`: the Environment is a Team Environment; a tool with a Team
+   * target state (gh) is then set up without any sign-in. */
+  options: Readonly<{ team?: boolean }> = {},
 ): string | undefined {
   const entry = activatableTools().find((tool) => tool.name === name);
   if (!entry) return undefined;
   const { activation, command } = entry;
+  const team = options.team === true ? activation.team : undefined;
   const enable =
     activation.tier === "required"
       ? {
@@ -449,6 +465,24 @@ export function toolPrompt(
           cs: `Po úspěšné instalaci a přihlášení nástroj zapni příkazem \`lazurio tools enable ${name} --folder <Folder> --expected-revision <n>\`, aby ho instrukce Folderu uváděly; revizi zjistíš z \`lazurio tools list --folder <Folder> --json\`.`,
           en: `After a successful installation and sign-in enable the tool with \`lazurio tools enable ${name} --folder <Folder> --expected-revision <n>\` so the Folder instructions name it; read the revision from \`lazurio tools list --folder <Folder> --json\`.`,
         };
+  const stop = {
+    cs: "Když cílového stavu nedosáhneš, přestaň, nahlas přesně, co chybí, a nic neobcházej.",
+    en: "If you cannot reach the target state, stop, report exactly what is missing and work around nothing.",
+  };
+  if (team !== undefined)
+    return [
+      {
+        cs: `Úkol: zajisti, aby na téhle Mašině fungoval nástroj \`${name}\` (příkaz \`${command}\`). ${activation.purpose.cs}`,
+        en: `Task: make sure the tool \`${name}\` (command \`${command}\`) works on this Machine. ${activation.purpose.en}`,
+      }[locale],
+      {
+        cs: "Nejdřív zjisti skutečný stav příkazem `lazurio tools status --json`; co už funguje, neměň. Instaluj jen z oficiálního zdroje a jen v mandátu, který ti Principál dal.",
+        en: "First read the actual state with `lazurio tools status --json`; change nothing that already works. Install only from the official source and only within the mandate the Principal gave you.",
+      }[locale],
+      team[locale],
+      enable[locale],
+      stop[locale],
+    ].join("\n\n");
   return [
     {
       cs: `Úkol: nainstaluj na téhle Mašině nástroj \`${name}\` (příkaz \`${command}\`) a proveď operátora přihlášením. ${activation.purpose.cs}`,
@@ -460,10 +494,7 @@ export function toolPrompt(
     }[locale],
     activation.installation[locale],
     enable[locale],
-    {
-      cs: "Když cílového stavu nedosáhneš, přestaň, nahlas přesně, co chybí, a nic neobcházej.",
-      en: "If you cannot reach the target state, stop, report exactly what is missing and work around nothing.",
-    }[locale],
+    stop[locale],
   ].join("\n\n");
 }
 

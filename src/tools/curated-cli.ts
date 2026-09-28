@@ -16,6 +16,7 @@ import {
 } from "./login";
 import { qrMatrix, qrTerminal } from "./qr";
 import type { SshKeyRemoval, SshLink, SshLinkFailure } from "./ssh-key";
+import { teamGithubText } from "./team-github";
 
 /** The terminal adapter of the curated flows (decision F19): `tools install`,
  * `tools login`, `tools logout` and `tools composio-org`. The same core the
@@ -98,7 +99,7 @@ const stageText: Record<string, string> = {
   verify: "when the installed tool was checked",
 };
 
-export function installText(result: InstallResult): string {
+export function installText(result: InstallResult, team = false): string {
   switch (result.kind) {
     case "installed":
       return [
@@ -111,7 +112,10 @@ export function installText(result: InstallResult): string {
           : [
               "~/.local/bin is not on this PATH: add it in your shell profile so the tool is found.",
             ]),
-        `Next: lazurio tools login ${result.tool}`,
+        // A Team Environment's gh is not signed in (Principal 2026-09-28).
+        team && result.tool === "gh"
+          ? teamGithubText.en
+          : `Next: lazurio tools login ${result.tool}`,
       ].join("\n");
     case "already-installed":
       return `${result.tool} ${result.version ?? ""} already works at ${result.path}; nothing was changed.`.replace(
@@ -146,7 +150,12 @@ export async function runInstall(
         ? 0
         : 1,
     result,
-    text: json ? JSON.stringify(result) : installText(result),
+    text: json
+      ? JSON.stringify(result)
+      : installText(
+          result,
+          context.preset !== undefined && sharedEnvironment(context.preset),
+        ),
   };
 }
 

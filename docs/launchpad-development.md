@@ -153,11 +153,15 @@ status" (with them again), and shows:
   not linked" (in the warning colour) or "· SSH key not verified" (F19 addendum
   2026-09-28), and a signed-in gh whose key is not linked shows "Link SSH key" as the
   row's primary action. On a Team Environment (the preset `hosted-organization-team`,
-  the shared case) the gh row has no "Sign in", "Link SSH key" or agent fallback; a
-  subdued sentence says that this Team Environment works in GitHub through Lazurio for
-  GitHub, set up by the Organization, and that personal GitHub accounts are not signed
-  in here (Principal 2026-09-28). Its sign-in line stays, in the neutral colour, and
-  goes on with "· Uses Lazurio for GitHub" instead of the state of an SSH key. "Sign
+  the shared case) the gh row has no "Sign in" or "Link SSH key", and "Install" instead
+  of "Install and sign in" while gh is missing (its notice ends with the Team
+  sentence); a subdued sentence says that this Team Environment works in GitHub through
+  Lazurio for GitHub, set up by the Organization, and that personal GitHub accounts are
+  not signed in here (Principal 2026-09-28). Its sign-in line stays, in the neutral
+  colour, reads "Works as lazurio-for-github[bot]" when gh works as the Organization's
+  App identity (the brokered gh), and goes on with "· Uses Lazurio for GitHub" instead
+  of the state of an SSH key. The agent fallback in Details hands gh's Team prompt,
+  which signs nobody in. "Sign
   out" appears there only while a person's account is signed in (gh's `signIn.identity`
   is `person`, a left-over of the ended exception), never for the Organization's
   identity; the page decides with the same rule the server enforces

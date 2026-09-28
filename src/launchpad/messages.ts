@@ -2,6 +2,7 @@ import {
   teamGithubLogoutText,
   teamGithubPhrase,
   teamGithubText,
+  teamGithubWorksAs,
 } from "../tools/team-github";
 
 // A phrase that follows " · " on a status line starts a new part.
@@ -170,6 +171,7 @@ const en = {
   toolsAgentAction: "Set up with an agent",
   toolsAgentActionNamed: "Set up {name} with an agent",
   toolsInstallAction: "Install and sign in",
+  toolsInstallOnlyAction: "Install",
   toolsSignInAction: "Sign in",
   toolsSignedInAs: "Signed in as {account}",
   toolsSignedInAsOrganization: "Signed in as {account} ({organization})",
@@ -193,6 +195,7 @@ const en = {
   toolsNoteAfterEnable:
     "After you enable this tool you can add a note for agents here.",
   toolsInstallActionNamed: "Install {name} and sign in",
+  toolsInstallOnlyNamed: "Install {name}",
   toolsSignInActionNamed: "Sign in to {name}",
   toolsSignOutAction: "Sign out",
   toolsSignOutNamed: "Sign out of {name}",
@@ -274,6 +277,7 @@ const en = {
   toolsSshNotLinked: "SSH key not linked",
   toolsSshUnknown: "SSH key not verified",
   toolsSshTeam: capitalized(teamGithubPhrase.en),
+  toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
   toolsLinkSshNamed: "Link the SSH key of this Machine to the {name} account",
   toolsLoginTitleSsh: "Link SSH key: {name}",
@@ -581,6 +585,7 @@ const cs: Record<MessageKey, string> = {
   toolsAgentAction: "Nastavit s agentem",
   toolsAgentActionNamed: "Nastavit {name} s agentem",
   toolsInstallAction: "Nainstalovat a přihlásit",
+  toolsInstallOnlyAction: "Nainstalovat",
   toolsSignInAction: "Přihlásit",
   toolsSignedInAs: "Přihlášeno jako {account}",
   toolsSignedInAsOrganization: "Přihlášeno jako {account} ({organization})",
@@ -604,6 +609,7 @@ const cs: Record<MessageKey, string> = {
   toolsNoteAfterEnable:
     "Až nástroj zapnete, můžete sem agentům napsat poznámku.",
   toolsInstallActionNamed: "Nainstalovat {name} a přihlásit",
+  toolsInstallOnlyNamed: "Nainstalovat {name}",
   toolsSignInActionNamed: "Přihlásit do {name}",
   toolsSignOutAction: "Odhlásit",
   toolsSignOutNamed: "Odhlásit z {name}",
@@ -684,6 +690,7 @@ const cs: Record<MessageKey, string> = {
   toolsSshNotLinked: "SSH klíč nepropojený",
   toolsSshUnknown: "SSH klíč neověřený",
   toolsSshTeam: capitalized(teamGithubPhrase.cs),
+  toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
   toolsLinkSshNamed: "Propojit SSH klíč téhle Mašiny s účtem {name}",
   toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
