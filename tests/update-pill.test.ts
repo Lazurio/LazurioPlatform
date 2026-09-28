@@ -1,5 +1,9 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { initializeFolder } from "../src/folder/initialize-folder";
+import { executionOs } from "../src/folder/platform";
+import { instructionTemplateRevision } from "../src/folder/render";
 import {
   createUpdatePill,
   createUpdatePoller,
@@ -45,6 +49,7 @@ const status = (overrides: Partial<UpdateStatus> = {}): UpdateStatus => ({
   stateInvalid: null,
   lastCheck: null,
   updateAvailable: false,
+  folderRefresh: null,
   ...overrides,
 });
 const quiet: Activation = { inFlight: false, failure: null };
@@ -803,3 +808,55 @@ test("the pill runs the one check use case and applies only what it showed", asy
   });
   expect(activator.starts).toEqual(["1.1.0", "1.1.0"]);
 });
+
+test.skipIf(process.platform === "win32")(
+  "the pill says when this Launchpad's Folder needs a refresh, and does nothing about it",
+  async () => {
+    world = await createWorld();
+    const folder = join(world.root, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const pill = createUpdatePill({
+      environment: world.environment("1.0.0", { folder }),
+      activator: fakeActivator(),
+      now: () => now,
+    });
+    expect((await pill.status()).folderRefresh).toBeNull();
+    // Rendered by an earlier template revision.
+    const manifest = join(folder, ".lazurio/instructions.json");
+    const recorded = await readFile(manifest, "utf8");
+    await writeFile(
+      manifest,
+      JSON.stringify({
+        ...JSON.parse(recorded),
+        templateRevision: "base-instructions-8",
+      }),
+    );
+    expect((await pill.status()).folderRefresh).toMatchObject({
+      recorded: "base-instructions-8",
+      product: instructionTemplateRevision,
+      command: expect.stringMatching(/^lazurio profile-update --folder /),
+    });
+    // Nothing was written by asking.
+    expect(JSON.parse(await readFile(manifest, "utf8")).templateRevision).toBe(
+      "base-instructions-8",
+    );
+    // Before its restart a Launchpad is not the active product: it does not
+    // speak for the revision the new one renders.
+    expect(
+      (
+        await createUpdatePill({
+          environment: world.environment("0.9.0", { folder }),
+          activator: fakeActivator(),
+          now: () => now,
+        }).status()
+      ).folderRefresh,
+    ).toBeNull();
+  },
+);

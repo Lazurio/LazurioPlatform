@@ -26,7 +26,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-8";
+export const instructionTemplateRevision = "base-instructions-9";
 
 // Template revisions are ordered by their number. A Folder rendered by an
 // older revision is re-rendered by the next change of the generated Folder
@@ -38,9 +38,12 @@ function templateRevisionNumber(revision: string): number | null {
   return match === null ? null : Number(match[1]);
 }
 
-export function isOlderTemplateRevision(revision: string): boolean {
+export function isOlderTemplateRevision(
+  revision: string,
+  than: string = instructionTemplateRevision,
+): boolean {
   const recorded = templateRevisionNumber(revision);
-  const current = templateRevisionNumber(instructionTemplateRevision);
+  const current = templateRevisionNumber(than);
   return recorded !== null && current !== null && recorded < current;
 }
 
@@ -297,7 +300,7 @@ function boundarySection(
 }
 
 // Two rules every hosted Machine needs before an agent acts: how to reach
-// another Machine, and who updates this one. `manual/` has the details.
+// another Machine, and who updates this one (its operator, decision F17). `manual/` has the details.
 function hostedLines(pick: (text: Text) => string): string[] {
   return [
     pick({
@@ -305,8 +308,8 @@ function hostedLines(pick: (text: Text) => string): string[] {
       en: "- SSH to another Machine only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare `100.64.0.x` address (`manual/this-machine.md`).",
     }),
     pick({
-      cs: "- Verzi produktu a tenhle Folder aktualizuje provozovatel Machines (Machines operator) přes pinnutý release; nespouštěj tu `lazurio update`. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun…) pin nevlastní: aktualizuj je jen na výslovný pokyn Principála oficiálním instalátorem daného nástroje, jinak jen nahlas jejich verze (`manual/troubleshooting.md`, decision 0161).",
-      en: "- The product version and this Folder are updated by the Machines operator through the pinned release; do not run `lazurio update` here. The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun…) are not owned by the pin: update one only on the Principal's explicit instruction with that tool's official installer, otherwise only report their versions (`manual/troubleshooting.md`, decision 0161).",
+      cs: "- Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá; `lazurio update status` smíš kdykoli. Pin provozovatele Machines je jen minimum a rollout verzi nikdy nesníží. Po aktualizaci obnoví tenhle Folder `lazurio machine folder-refresh`. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun…) aktualizuj jen na výslovný pokyn Principála oficiálním instalátorem daného nástroje, jinak jen nahlas jejich verze (`manual/troubleshooting.md`, decisions 0161 a F17).",
+      en: "- The operator owns the version of Lazurio: run `lazurio update` when they ask for it; `lazurio update status` is free to use. The Machines operator's pin is only a minimum, and a rollout never lowers a version. After an update, `lazurio machine folder-refresh` refreshes this Folder. Update the operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun…) only on the Principal's explicit instruction with that tool's official installer, otherwise only report their versions (`manual/troubleshooting.md`, decisions 0161 and F17).",
     }),
   ];
 }

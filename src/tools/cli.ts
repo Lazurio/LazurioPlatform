@@ -84,7 +84,7 @@ tools install <tool> [--json]
   composio: its official installer without agent plugins or shell changes).
   A tool that already works is not touched; a broken copy elsewhere on PATH
   is not shadowed. On failure it points to the prepared agent prompt.
-tools login <tool> [--phone <+number>] [--json]
+tools login <tool> [--phone <+number>] [--ssh-key] [--json]
   Signs the operator in to that tool in the foreground: gh prints a one-time
   code for https://github.com/login/device, composio a sign-in link, wacli a
   WhatsApp QR code drawn here (or, with --phone, a pairing code). Open it on
@@ -92,9 +92,18 @@ tools login <tool> [--phone <+number>] [--json]
   until signed in, failed or expired; Ctrl-C cancels. With --json one JSON
   object per state change (including the code, since this command holds the
   session). The code or link is never written to a file or log.
+  gh then links this Machine's SSH key to the account: the existing default
+  key (~/.ssh/id_ed25519, id_ecdsa, id_rsa) or a new ed25519 key without a
+  passphrase, registered on the account, GitHub's published host keys in
+  ~/.ssh/known_hosts, and ssh -T git@github.com as the proof. Exit 0 only when
+  the key is linked. --ssh-key (gh only) links the key for a gh that is
+  signed in already, with a one-time code only when the token lacks the
+  admin:public_key scope.
 tools logout <tool> [--json]
   Runs the tool's own sign-out. gh and composio forget the sign-in on this
-  Machine only (revoke it at the provider); wacli unlinks the device.
+  Machine only (revoke it at the provider); wacli unlinks the device. gh first
+  removes this Machine's SSH key from the account when Lazurio registered it
+  (title "Lazurio: <Machine>"); the key files stay.
 tools composio-org [list | switch <id>] [--json]
   The Composio organizations of the signed-in account, the current one
   marked, and switching the current one. Apps connected in Composio belong to
@@ -154,6 +163,7 @@ export async function runToolsCommand(
         text: { type: "string" },
         clear: { type: "boolean" },
         phone: { type: "string" },
+        "ssh-key": { type: "boolean" },
       },
       allowPositionals: true,
     });
@@ -174,6 +184,7 @@ export async function runToolsCommand(
   if (
     (values["sign-in"] !== undefined && positionals[0] !== "list") ||
     (values.phone !== undefined && positionals[0] !== "login") ||
+    (values["ssh-key"] !== undefined && positionals[0] !== "login") ||
     ((values.text !== undefined || values.clear !== undefined) &&
       positionals[0] !== "note")
   )
@@ -265,7 +276,13 @@ export async function runToolsCommand(
       throw new ToolsUsageError(usage);
     if (command === "install") return runInstall(name, json, curatedContext);
     if (command === "logout") return runLogout(name, json, curatedContext);
-    return runLogin(name, values.phone, json, curatedContext);
+    return runLogin(
+      name,
+      values.phone,
+      json,
+      curatedContext,
+      values["ssh-key"] === true,
+    );
   }
   if (positionals[0] === "status" && positionals.length === 1) {
     const result = await toolsStatus(common);
@@ -302,7 +319,7 @@ export async function runToolsCommand(
 }
 
 const usage =
-  "Usage: tools status [--json] | tools update <tool> [--json] | tools list --folder <Folder> [--sign-in] [--json] | tools enable|disable <tool> --folder <Folder> --expected-revision <n> [--json] | tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear) [--json] | tools prompt <tool> [--locale cs|en] [--json] | tools install|logout <tool> [--json] | tools login <tool> [--phone <+number>] [--json] | tools composio-org [list | switch <id>] [--json]";
+  "Usage: tools status [--json] | tools update <tool> [--json] | tools list --folder <Folder> [--sign-in] [--json] | tools enable|disable <tool> --folder <Folder> --expected-revision <n> [--json] | tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear) [--json] | tools prompt <tool> [--locale cs|en] [--json] | tools install|logout <tool> [--json] | tools login <tool> [--phone <+number>] [--ssh-key] [--json] | tools composio-org [list | switch <id>] [--json]";
 
 type ToolsOptions = {
   json?: boolean | undefined;
@@ -312,15 +329,28 @@ type ToolsOptions = {
   text?: string | undefined;
   clear?: boolean | undefined;
   phone?: string | undefined;
+  "ssh-key"?: boolean | undefined;
 };
 
 const signInText = (signIn: ToolSignIn): string =>
   signIn.state === "signed-in"
-    ? signIn.account === undefined
-      ? "signed in"
-      : `signed in as ${signIn.account}${
-          signIn.organization === undefined ? "" : ` (${signIn.organization})`
-        }`
+    ? `${
+        signIn.account === undefined
+          ? "signed in"
+          : `signed in as ${signIn.account}${
+              signIn.organization === undefined
+                ? ""
+                : ` (${signIn.organization})`
+            }`
+      }${
+        signIn.ssh === undefined
+          ? ""
+          : signIn.ssh.state === "linked"
+            ? ", SSH key linked"
+            : signIn.ssh.state === "not-linked"
+              ? ", SSH key not linked: lazurio tools login gh --ssh-key"
+              : ", SSH key not verified"
+      }`
     : signIn.state === "signed-out"
       ? "not signed in"
       : "sign-in unknown";

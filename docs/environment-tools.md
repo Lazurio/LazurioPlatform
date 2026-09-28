@@ -4,8 +4,9 @@ Proposed bounded pilot procedure under accepted decision 0144. Apart from the cu
 installation and login of three catalog tools (decision F19, below), this document
 does not claim an implemented tool installer, authenticated harness or usable
 Environment.
-Machines delivers the online Machine and selected Platform release; local Platform
-operations and the operator prepare what is needed inside it.
+Machines delivers the online Machine and a first installation of the Platform; local
+Platform operations and the operator prepare what is needed inside it, including
+the Platform's own updates (F17 addendum 2026-09-28).
 
 ## Operator tools are the operator's (decision 0161, F17)
 
@@ -16,6 +17,9 @@ tools in the standard path below) and the **operator's tools** (Codex, Claude Co
 `gh`, Node, npm, Bun and whatever else is on the operator's PATH). The baseline is
 pinned through the Machines rollout; the tools are delivered once at Machine creation
 and then belong to the operator, who updates them with the official installers.
+Since the F17 addendum of 2026-09-28 the version of the Platform belongs to the
+operator too: they update it with `lazurio update`, and the pin is only a minimum a
+rollout installs, repairs or raises to, never a version it lowers to.
 Readback reports their versions as facts, not drift. A rollout is only a repair of the
 one installation (the exact scope is in "The standard path" below); the Machines apply
 starts no agent and returns the `lazurio doctor` and `lazurio tools status` readback,
@@ -152,7 +156,13 @@ organization? }`: signed in when the probe exits 0 and its rules hold (composio 
 non-empty email), `unknown` for a tool not installed, a timeout or unreadable output.
 `account` and `organization` (composio's current organization) are the only things
 taken from the output, as plain text of at most 120 characters; the output itself is
-never returned or logged.
+never returned or logged. A signed-in gh also carries `ssh` ([F19 addendum
+2026-09-28](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
+`{ state: "linked" | "not-linked" | "unknown", reason?, fingerprint? }`, from the
+`.pub` of this Machine's default key and one call of `gh api "user/keys?per_page=100"`
+(`not-linked` with `no-key` or `not-registered`; `unknown` with `scope-missing` when
+the token cannot read keys, or `unreadable`). The private key is not read and nothing
+connects over SSH on a status call.
 
 The Tools section itself is described in
 [launchpad-development.md](launchpad-development.md#tools-section).
@@ -178,11 +188,12 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   `checksum`, `extract`, `place`, `installer`, `verify`) and point to the agent prompt;
   an unsupported platform (Windows included) likewise. Exit 0 installed or already
   installed, 1 failed or unsupported, 2 usage or refused.
-- `tools login <tool> [--phone <+number>] [--json]` runs the tool's own sign-in in the
-  foreground and shows its challenge: for gh the one-time code and
+- `tools login <tool> [--phone <+number>] [--ssh-key] [--json]` runs the tool's own
+  sign-in in the foreground and shows its challenge: for gh the one-time code and
   `https://github.com/login/device` (`gh auth login --hostname github.com
-  --git-protocol ssh --web --clipboard=false`; since gh 2.101.0 the code is copied to
-  the clipboard by default, and `--clipboard=false` turns that off for this run only);
+  --git-protocol ssh --web --scopes admin:public_key --clipboard=false`; since gh
+  2.101.0 the code is copied to the clipboard by default, and `--clipboard=false`
+  turns that off for this run only);
   for composio the dashboard link (`composio login --no-wait --no-skill-install`, then
   `composio login --poll --no-skill-install`); for wacli the WhatsApp QR code drawn in
   the terminal on a white background, redrawn when it rotates (`wacli auth --events
@@ -193,10 +204,37 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   After WhatsApp pairing it waits for the first sync of messages. `--json` prints one
   JSON object per state change, the challenge included, because the running command
   holds the session. Exit 0 signed in, 1 not, 2 usage or refused.
+- **gh links the Machine's SSH key** (F19 addendum 2026-09-28): after the sign-in the
+  same command, as a step of its own, uses the existing default key (`~/.ssh/id_ed25519`,
+  `id_ecdsa`, `id_rsa`, in that order; never overwritten or changed, and it must have
+  no passphrase) or creates `~/.ssh/id_ed25519` without a passphrase (`~/.ssh` 0700,
+  key 0600); registers it with `gh ssh-key add <key>.pub --title "Lazurio: <Machine>"
+  --type authentication` (nothing is added when the account has it); adds only the
+  missing github.com keys of `gh api meta` (`ssh_keys`) to `~/.ssh/known_hosts` and
+  stops without a change when an existing github.com entry differs; and proves it with
+  `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com`, whose
+  greeting must name the signed-in login. The result is `signed-in` with `ssh: {
+  state: "linked", key: { path, fingerprint, created }, registration, knownHosts }`,
+  or `ssh: { state: "not-linked", reason, key?, provedAs?, fallback: "agent" }` with
+  one of `scope-missing`, `keygen-missing`, `keygen-failed`, `key-passphrase`,
+  `key-incomplete`, `key-unreadable`, `key-in-use` (GitHub refuses a key used by
+  another account or as a deploy key; no second key is made), `register-failed`,
+  `host-keys-unavailable`, `host-key-mismatch`, `known-hosts-failed`, `ssh-missing`,
+  `proof-failed`, `proof-other-account`. gh exits 0 only when the key is linked.
+  `--ssh-key` (gh only) does these steps for a gh that is signed in already, after
+  `gh auth refresh --hostname github.com --scopes admin:public_key --clipboard=false`
+  (a device code) when the token lacks the scope; a gh that is not signed in fails as
+  `not-signed-in`.
 - `tools logout <tool> [--json]` runs the tool's own sign-out (`gh auth logout
   --hostname github.com`, `composio logout`, `wacli auth logout`) and checks it with
   the probe. gh and composio forget the sign-in on this Machine only: revoke it at the
   provider as well if it must end there. wacli unlinks the device from the account.
+  gh first removes this Machine's SSH key from the account (`gh ssh-key delete <id>
+  --yes`) when the token has `admin:public_key` and the key's title starts with
+  `Lazurio: `, so that sign-out ends the Machine's access; a key the operator
+  registered by hand stays, the key files stay, and `sshKey` says which (`removed`,
+  `not-registered`, `no-key`, `kept-not-lazurio`, `not-removed` with the reason and
+  where to remove it by hand).
 - `tools composio-org [list | switch <id>] [--json]` lists the Composio organizations
   of the signed-in account with the current one marked (`composio orgs list`) and
   switches it (`composio orgs switch --org-id`). The apps connected in Composio belong
@@ -210,7 +248,10 @@ with the admission, exact-field JSON and `Cache-Control: no-store` of every rout
 `start` answers with the session handle and the first challenge; `poll` and `cancel`
 take that handle, so a challenge goes only to the browser that started the login. A
 pending WhatsApp login carries `qrSvg`, the QR code drawn by the server. A tool the
-catalog does not know, or an `agent` tool, is `409 blocked`.
+catalog does not know, or an `agent` tool, is `409 blocked`. `start` takes `sshKey:
+true` for gh only ("Link SSH key"; anything else with it is `400`), and a pending gh
+login says `step: "ssh-key"` while the key is being linked. No answer carries private
+key content or a public key's blob; only the key's path and SHA-256 fingerprint.
 
 A challenge is never written to a log, a file, the Folder or an error. The tools keep
 their own pending state in their own stores (composio's pending login in
@@ -224,7 +265,8 @@ One installation per tool, in one place, on every Machine: an operator tool is t
 first executable of its name in `~/.local/bin` on the operator's PATH. A tool's
 official installer may keep its own home (Codex `~/.codex/…`, Bun `~/.bun`); only a
 link or wrapper in `~/.local/bin` puts it on PATH. Lazurio lives in
-`~/.local/share/lazurio/` with `~/.local/bin/lazurio`; system tools (git, curl,
+`~/.local/share/lazurio/` with `~/.local/bin/lazurio`, the link `lazurio install`
+creates and reports ([product update](update.md#release-and-trust)); system tools (git, curl,
 python, ssh) belong to the OS package manager; T3 Code and its runtime belong to the
 service unit and run on the Node its version recommends. There is no second
 "recovery" copy of any tool: a rollout repairs the one installation in place, in two
@@ -292,7 +334,10 @@ not implemented. On a team hosted workspace the operator account is shared, so t
 sign-in column above changes:
 
 - **No personal sign-ins.** Nobody runs a personal `gh auth login`, stores a personal
-  token or SSH key, or copies a session onto the shared account. Diagnosis that finds a
+  token or SSH key, or copies a session onto the shared account. (Open: the Team
+  preset can already enable tools and sign in to them for the whole Environment, F18
+  addendum; the curated gh sign-in then also links an SSH key for the whole
+  Environment. How that meets this direction is not decided.) Diagnosis that finds a
   personal provider credential there reports it as a defect to be removed through its
   owner; it is never used.
 - **Provider identity is brokered.** Git and GitHub operations use the platform App

@@ -7,7 +7,7 @@ import { type MessageKey, messages } from "./messages";
 import { createShell } from "./shell";
 import { createToolsPanel } from "./tools-panel";
 import type { PillStatus } from "./update-pill";
-import { pillView } from "./update-view";
+import { fill, pillView } from "./update-view";
 
 const token = location.hash.slice(1);
 history.replaceState(null, "", location.pathname);
@@ -452,6 +452,9 @@ const updateError =
 const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
   "#update-state-invalid",
 );
+const updateFolderRefresh = document.querySelector<HTMLParagraphElement>(
+  "#update-folder-refresh",
+);
 if (
   !updateSection ||
   !updateText ||
@@ -459,7 +462,8 @@ if (
   !updateAction ||
   !updateChecked ||
   !updateError ||
-  !updateStateInvalid
+  !updateStateInvalid ||
+  !updateFolderRefresh
 )
   throw new Error("Missing update UI");
 let updateStatus: PillStatus | null = null;
@@ -490,6 +494,26 @@ function renderUpdate() {
   if (updateStateInvalid) {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
+  }
+  // Read-only: the command is shown, never run from here. It stands in its
+  // own selectable monospace line of the sentence.
+  if (updateFolderRefresh) {
+    const refresh = updateStatus.folderRefresh;
+    updateFolderRefresh.hidden = view.folderRefresh === null;
+    if (refresh === null) updateFolderRefresh.replaceChildren();
+    else {
+      const [before, after = ""] = fill(copy.updateFolderRefresh, {
+        recorded: refresh.recorded,
+        product: refresh.product,
+      }).split("{command}");
+      const command = document.createElement("code");
+      command.textContent = refresh.command;
+      updateFolderRefresh.replaceChildren(
+        (before ?? "").trimEnd(),
+        command,
+        after,
+      );
+    }
   }
 }
 async function refreshUpdate() {

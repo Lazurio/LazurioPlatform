@@ -80,6 +80,8 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .menu-item:hover { background: var(--sidebar-hover); color: var(--fg); }
 .menu-item[aria-current="page"] { background: var(--sidebar-selected); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / 5%); }
 .menu-item[aria-current="page"] .icon { opacity: 1; }
+.sidebar-notice { color: var(--muted-fg); overflow-wrap: anywhere; }
+.sidebar-notice code { display: block; margin-top: 0.35rem; padding: 0.25rem 0.4rem; border-radius: 0.25rem; background: var(--muted); border: 1px solid var(--border); color: var(--fg); font-size: 11px; user-select: all; white-space: pre-wrap; }
 .sidebar-notice, .update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
 .update #update-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; color: var(--fg); }
 .update #update-pill button { margin-left: auto; }
@@ -178,7 +180,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tools-list { margin: 0; padding: 0; list-style: none; }
 .tool-state[data-state="attention"], .tool-attention { color: var(--warning-fg); }
 .tool-signin[data-state="signed-in"] { color: var(--success-fg); }
-.tool-signin[data-state="signed-out"] { color: var(--warning-fg); }
+.tool-signin[data-state="signed-out"], .tool-ssh[data-state="not-linked"] { color: var(--warning-fg); }
 .tools-muted { color: var(--muted-fg); font-size: 12px; }
 .row-details { margin-top: 0.5rem; }
 .row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
@@ -258,9 +260,9 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 </nav>
 </div>
 <div class="sidebar-foot">
-<!-- Reserved: the "Folder refresh needed" indication (a separate slice) goes
-     here, above the update pill, as a .sidebar-notice. -->
-<div id="folder-refresh" class="sidebar-notice" hidden></div>
+<!-- "Folder refresh needed" (F17 addendum): read-only, the command is shown
+     and never run from here. -->
+<p id="update-folder-refresh" class="sidebar-notice" role="note" hidden></p>
 <section id="update" class="update" hidden aria-labelledby="update-heading">
 <h2 id="update-heading" class="sr-only" data-message="updateTitle">Product update</h2>
 <p id="update-pill" role="status"><span id="update-text"></span> <a id="update-notes" hidden target="_blank" rel="noopener noreferrer" data-message="updateNotes">Release notes</a> <button type="button" id="update-action" class="primary" hidden></button></p>

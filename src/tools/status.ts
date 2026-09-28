@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { access, constants, realpath, stat } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { type SignInProbe, type ToolEntry, toolCatalog } from "./catalog";
+import { type SshStatus, sshStatus } from "./ssh-key";
 
 /** A tool process with both streams captured, bounded, or "timeout". */
 export type ToolProcessResult =
@@ -255,6 +256,9 @@ export type ToolSignIn = Readonly<{
   state: "signed-in" | "signed-out" | "unknown";
   account?: string;
   organization?: string;
+  /** gh signed in: whether this Machine's SSH key is on the account
+   * (decision F19, addendum 2026-09-28). */
+  ssh?: SshStatus;
 }>;
 
 export type ToolsSignInInput = Readonly<{
@@ -372,7 +376,10 @@ export function readSignIn(
  * probes in parallel, each bounded by 10 s, with only PATH, HOME and the XDG
  * base directories in its environment. A probe may contact the tool's
  * provider, so callers run this only on an explicit request. The raw output
- * of a probe is never returned or logged. */
+ * of a probe is never returned or logged. A signed-in gh also says whether
+ * this Machine's SSH key is on the account: the key's `.pub` file and one
+ * call of the account's key list, never the private key and no SSH
+ * connection (that proof belongs to the sign-in and "Link SSH key"). */
 export async function toolsSignIn(
   tools: readonly Readonly<{
     probe: SignInProbe | undefined;
@@ -390,10 +397,25 @@ export async function toolsSignIn(
       if (probe === undefined || !status.installed || status.path === undefined)
         return { state: "unknown" };
       try {
-        return readSignIn(
-          probe,
-          await input.run([status.path, ...probe.argv], signInTimeoutMs, env),
+        const result = await input.run(
+          [status.path, ...probe.argv],
+          signInTimeoutMs,
+          env,
         );
+        const signIn = readSignIn(probe, result);
+        if (
+          status.name !== "gh" ||
+          signIn.state !== "signed-in" ||
+          result === "timeout"
+        )
+          return signIn;
+        const ssh = await sshStatus(
+          input.home,
+          status.path,
+          `${result.stdout}\n${result.stderr}`,
+          (command, timeoutMs) => input.run(command, timeoutMs, env),
+        ).catch((): SshStatus => ({ state: "unknown", reason: "unreadable" }));
+        return { ...signIn, ssh };
       } catch {
         return { state: "unknown" };
       }

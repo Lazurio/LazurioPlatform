@@ -41,6 +41,7 @@ async function scene(version = "1.0.0") {
   root = await realpath(await mkdtemp(join(tmpdir(), "upd-install-")));
   const downloaded = join(root, "Downloads", "lazurio");
   await mkdir(join(root, "Downloads"));
+  await mkdir(join(root, "home"));
   await writeFile(downloaded, executable(version), { mode: 0o755 });
   const commands: string[][] = [];
   // systemctl is recorded and answered; everything else (the staged
@@ -71,8 +72,20 @@ test("install stages the running executable as the first version; repeated, it c
     expect(await performInstall(input)).toEqual({
       kind: "installed",
       active: "1.0.0",
-      path: join(base, "bin"),
+      // The standard entry is the directory to put on PATH.
+      path: join(root, "home/.local/bin"),
       serviceInstalled: false,
+      entry: {
+        path: join(root, "home/.local/bin/lazurio"),
+        target: join(base, "bin/lazurio"),
+        state: "created",
+        occupant: null,
+        directoryOnPath: false,
+        shadowedBy: null,
+        next: [
+          `Put ${join(root, "home/.local/bin")} on your PATH. Lazurio never edits shell profiles.`,
+        ],
+      },
     });
   } finally {
     process.umask(before);
@@ -277,8 +290,9 @@ test("install from a newer executable over an existing installation is the offli
     from: "1.0.0",
     to: "1.1.0",
     restartRequired: true,
-    path: join(base, "bin"),
+    path: join(root, "home/.local/bin"),
     serviceInstalled: false,
+    entry: expect.objectContaining({ state: "present" }),
   });
   expect(await readSelector(base)).toBe("1.1.0");
   expect(await readPrevious(base)).toBe("1.0.0");

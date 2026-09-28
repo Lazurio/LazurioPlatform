@@ -324,9 +324,18 @@ export async function startLaunchpad(
           const withPhone =
             url.pathname === "/api/tools/login/start" &&
             ownDataValue(input, "phone") !== undefined;
+          // "Link SSH key" of a signed-in gh (decision F19, addendum
+          // 2026-09-28) starts a login session of its own kind.
+          const withSshKey =
+            url.pathname === "/api/tools/login/start" &&
+            ownDataValue(input, "sshKey") !== undefined;
           const fields: Record<string, readonly string[]> = {
             "/api/tools/install": ["tool"],
-            "/api/tools/login/start": withPhone ? ["tool", "phone"] : ["tool"],
+            "/api/tools/login/start": [
+              "tool",
+              ...(withPhone ? ["phone"] : []),
+              ...(withSshKey ? ["sshKey"] : []),
+            ],
             "/api/tools/login/poll": ["tool", "session"],
             "/api/tools/login/cancel": ["tool", "session"],
             "/api/tools/logout": ["tool"],
@@ -380,7 +389,8 @@ export async function startLaunchpad(
             }
           }
           if (url.pathname === "/api/tools/logout") {
-            server.timeout(request, 90);
+            // gh first removes this Machine's SSH key from the account.
+            server.timeout(request, 180);
             return response(await logins.logout(tool));
           }
           if (url.pathname === "/api/tools/login/start") {
@@ -389,13 +399,22 @@ export async function startLaunchpad(
               (typeof value.phone !== "string" || tool !== "wacli")
             )
               return response({ error: "invalid-phone" }, 400);
+            if (
+              value.sshKey !== undefined &&
+              (value.sshKey !== true ||
+                tool !== "gh" ||
+                value.phone !== undefined)
+            )
+              return response({ error: "invalid-ssh-key" }, 400);
             server.timeout(request, 60);
             return response(
               withQr(
-                await logins.start(
-                  tool,
-                  typeof value.phone === "string" ? { phone: value.phone } : {},
-                ),
+                await logins.start(tool, {
+                  ...(typeof value.phone === "string"
+                    ? { phone: value.phone }
+                    : {}),
+                  ...(value.sshKey === true ? { sshKey: true } : {}),
+                }),
               ),
             );
           }

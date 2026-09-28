@@ -88,6 +88,8 @@ const en = {
     "Update state needs a person: {path}. Nothing is changed automatically.",
   updateStarted: "Update started…",
   updateRefused: "The update was not started; the state shown was refreshed.",
+  updateFolderRefresh:
+    "Folder refresh needed: this Folder was rendered by {recorded}, Lazurio renders {product}. Run: {command}",
   toolsTitle: "Tools",
   toolsIntro:
     "Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.",
@@ -253,6 +255,64 @@ const en = {
   toolsLoginUnreadable:
     "The answer of the Launchpad could not be read. Close this window and try again.",
   toolsLoginTryAgain: "Try again",
+  toolsSshLinked: "SSH key linked",
+  toolsSshNotLinked: "SSH key not linked",
+  toolsSshUnknown: "SSH key not verified",
+  toolsLinkSshAction: "Link SSH key",
+  toolsLinkSshNamed: "Link the SSH key of this Machine to the {name} account",
+  toolsLoginTitleSsh: "Link SSH key: {name}",
+  toolsStepLinking: "Linking the SSH key",
+  toolsStepLinked: "SSH key linked",
+  toolsLoginLinking:
+    "Signed in to GitHub. Lazurio now links the SSH key of this Machine to your account and checks that git over SSH works. This takes a few seconds.",
+  toolsLoginRefreshText:
+    "Your gh sign-in may not manage the SSH keys of your account yet. To allow it, open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
+  toolsSshLinkedDone:
+    "The SSH key of this Machine is linked: git clone git@github.com:… works as {account}.",
+  toolsSshKeyCreated:
+    "A new key without a passphrase was created, so agents can use it: {path} ({fingerprint}).",
+  toolsSshKeyReused:
+    "The existing key {path} ({fingerprint}) is used unchanged.",
+  toolsSshNotLinkedDone:
+    "You are signed in to gh as {account}, but the SSH key of this Machine is not linked, so git over SSH does not work yet.",
+  toolsSshFailureNotSignedIn: "gh is not signed in on this Machine.",
+  toolsSshFailureScopeMissing:
+    "The gh sign-in may not manage the SSH keys of your account.",
+  toolsSshFailureKeygenMissing: "ssh-keygen is not installed on this Machine.",
+  toolsSshFailureKeygenFailed: "A new key could not be created in ~/.ssh.",
+  toolsSshFailureKeyPassphrase:
+    "The existing key {path} is protected by a passphrase, which agents cannot enter. It was left as it is.",
+  toolsSshFailureKeyIncomplete:
+    "The existing key {path} has no matching .pub file. It was left as it is.",
+  toolsSshFailureKeyUnreadable:
+    "The existing key {path} could not be read. It was left as it is.",
+  toolsSshFailureKeyInUse:
+    "GitHub refuses the key {path} because it is already in use there: on another GitHub account or as a deploy key of a repository. No second key was created.",
+  toolsSshFailureRegisterFailed:
+    "The key could not be registered on your GitHub account.",
+  toolsSshFailureHostKeysUnavailable:
+    "GitHub's published host keys could not be read.",
+  toolsSshFailureHostKeyMismatch:
+    "~/.ssh/known_hosts holds a github.com host key that differs from the keys GitHub publishes. Nothing was changed.",
+  toolsSshFailureKnownHostsFailed:
+    "~/.ssh/known_hosts could not be read or written.",
+  toolsSshFailureSshMissing: "ssh is not installed on this Machine.",
+  toolsSshFailureProofFailed:
+    "The test connection to GitHub over SSH did not answer with GitHub's greeting.",
+  toolsSshFailureProofOtherAccount:
+    "Over SSH GitHub greeted another account ({account}): another key of this Machine is offered first.",
+  toolsLoginFailureNotSignedIn:
+    "gh is not signed in on this Machine. Sign in first; the SSH key is linked as part of it.",
+  toolsSshRemoved:
+    "The SSH key of this Machine ({fingerprint}) was removed from your GitHub account; the key files stay on this Machine.",
+  toolsSshRemovalNotRegistered:
+    "The SSH key of this Machine was not registered on your GitHub account.",
+  toolsSshRemovalNoKey:
+    "This Machine has no SSH key in ~/.ssh; nothing was removed from GitHub.",
+  toolsSshRemovalKept:
+    "The SSH key of this Machine ({fingerprint}) stays registered on your GitHub account because Lazurio did not register it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Machine must lose access.",
+  toolsSshRemovalFailed:
+    "The SSH key of this Machine may still be registered on your GitHub account: gh could not remove it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Machine must lose access.",
   toolsComposioOrgLabel: "Composio organization of this Environment",
   toolsComposioOrgCurrent: "{name} (current)",
   toolsComposioOrgHint:
@@ -434,6 +494,8 @@ const cs: Record<MessageKey, string> = {
     "Stav aktualizace vyžaduje zásah člověka: {path}. Automaticky se nic nemění.",
   updateStarted: "Aktualizace spuštěna…",
   updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
+  updateFolderRefresh:
+    "Folder je potřeba obnovit: vykreslila ho revize šablon {recorded}, Lazurio teď vykresluje {product}. Spusť: {command}",
   toolsTitle: "Nástroje",
   toolsIntro:
     "Nástroje jsou programy pro příkazovou řádku, kterými agenti v tomhle Environmentu pracují s vnějšími službami. Zapnutím se nástroj zapíše do instrukcí pro agenty v tomhle Folderu; nic se tím neinstaluje a nevzniká žádný přístup. Agenti používají nejdřív zapnuté nástroje a teprve potom MCP servery.",
@@ -598,6 +660,65 @@ const cs: Record<MessageKey, string> = {
   toolsLoginUnreadable:
     "Odpověď Launchpadu se nepodařilo přečíst. Zavřete okno a zkuste to znovu.",
   toolsLoginTryAgain: "Zkusit znovu",
+  toolsSshLinked: "SSH klíč propojený",
+  toolsSshNotLinked: "SSH klíč nepropojený",
+  toolsSshUnknown: "SSH klíč neověřený",
+  toolsLinkSshAction: "Propojit SSH klíč",
+  toolsLinkSshNamed: "Propojit SSH klíč téhle Mašiny s účtem {name}",
+  toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
+  toolsStepLinking: "Propojení SSH klíče",
+  toolsStepLinked: "SSH klíč propojený",
+  toolsLoginLinking:
+    "Přihlášeno do GitHubu. Lazurio teď propojí SSH klíč téhle Mašiny s vaším účtem a ověří, že git přes SSH funguje. Trvá to pár sekund.",
+  toolsLoginRefreshText:
+    "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Abyste to povolili, otevřete na libovolném zařízení (tomhle počítači, jiném nebo telefonu) stránku zařízení GitHubu a zadejte tento kód:",
+  toolsSshLinkedDone:
+    "SSH klíč téhle Mašiny je propojený: git clone git@github.com:… funguje jako {account}.",
+  toolsSshKeyCreated:
+    "Vytvořil se nový klíč bez hesla, aby ho agenti mohli používat: {path} ({fingerprint}).",
+  toolsSshKeyReused:
+    "Používá se stávající klíč {path} ({fingerprint}) beze změny.",
+  toolsSshNotLinkedDone:
+    "V gh jste přihlášeni jako {account}, ale SSH klíč téhle Mašiny propojený není, takže git přes SSH zatím nefunguje.",
+  toolsSshFailureNotSignedIn: "gh na téhle Mašině není přihlášený.",
+  toolsSshFailureScopeMissing:
+    "Přihlášení gh nesmí spravovat SSH klíče vašeho účtu.",
+  toolsSshFailureKeygenMissing:
+    "Na téhle Mašině není nainstalovaný ssh-keygen.",
+  toolsSshFailureKeygenFailed: "Nový klíč se v ~/.ssh nepodařilo vytvořit.",
+  toolsSshFailureKeyPassphrase:
+    "Stávající klíč {path} je chráněný heslem, které agenti zadat nemůžou. Zůstal, jak byl.",
+  toolsSshFailureKeyIncomplete:
+    "Ke stávajícímu klíči {path} chybí odpovídající soubor .pub. Zůstal, jak byl.",
+  toolsSshFailureKeyUnreadable:
+    "Stávající klíč {path} se nepodařilo přečíst. Zůstal, jak byl.",
+  toolsSshFailureKeyInUse:
+    "GitHub klíč {path} odmítá, protože ho tam už používá jiný účet GitHubu nebo repozitář jako deploy key. Druhý klíč se nevytvořil.",
+  toolsSshFailureRegisterFailed:
+    "Klíč se nepodařilo zaregistrovat u vašeho účtu GitHubu.",
+  toolsSshFailureHostKeysUnavailable:
+    "Zveřejněné klíče serverů GitHubu se nepodařilo načíst.",
+  toolsSshFailureHostKeyMismatch:
+    "~/.ssh/known_hosts obsahuje klíč serveru github.com, který se liší od klíčů zveřejněných GitHubem. Nic se nezměnilo.",
+  toolsSshFailureKnownHostsFailed:
+    "~/.ssh/known_hosts se nepodařilo přečíst ani zapsat.",
+  toolsSshFailureSshMissing: "Na téhle Mašině není nainstalované ssh.",
+  toolsSshFailureProofFailed:
+    "Zkušební spojení s GitHubem přes SSH neodpovědělo pozdravem GitHubu.",
+  toolsSshFailureProofOtherAccount:
+    "GitHub přes SSH pozdravil jiný účet ({account}): tahle Mašina nabízí nejdřív jiný klíč.",
+  toolsLoginFailureNotSignedIn:
+    "gh na téhle Mašině není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
+  toolsSshRemoved:
+    "SSH klíč téhle Mašiny ({fingerprint}) byl z vašeho účtu GitHubu odebrán; soubory klíče na Mašině zůstávají.",
+  toolsSshRemovalNotRegistered:
+    "SSH klíč téhle Mašiny u vašeho účtu GitHubu registrovaný nebyl.",
+  toolsSshRemovalNoKey:
+    "Tahle Mašina nemá v ~/.ssh žádný SSH klíč; z GitHubu se nic neodebralo.",
+  toolsSshRemovalKept:
+    "SSH klíč téhle Mašiny ({fingerprint}) zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tahle Mašina přístup ztratit.",
+  toolsSshRemovalFailed:
+    "SSH klíč téhle Mašiny může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tahle Mašina přístup ztratit.",
   toolsComposioOrgLabel: "Organizace Composia pro tohle Environment",
   toolsComposioOrgCurrent: "{name} (aktuální)",
   toolsComposioOrgHint:

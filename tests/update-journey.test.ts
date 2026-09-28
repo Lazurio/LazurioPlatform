@@ -69,6 +69,7 @@ test("forward update: check, verify, download, self-check, switch; the switch is
     from: "1.0.0",
     to: "1.1.0",
     restartRequired: true,
+    folderRefresh: null,
   });
   // `latest` was asked only for the tag; everything else came by exact tag.
   expect(
@@ -103,6 +104,7 @@ test("forward update: check, verify, download, self-check, switch; the switch is
     kind: "up-to-date",
     running: "1.1.0",
     latest: "1.1.0",
+    folderRefresh: null,
   });
   await world.release("1.2.0");
   expect((await performUpdate(world.environment("1.1.0"))).kind).toBe(
@@ -513,6 +515,7 @@ test("supervised: restart, health at the new version, then commit", async () => 
     from: "1.0.0",
     to: "1.1.0",
     restartRequired: false,
+    folderRefresh: null,
   });
   expect(service).toMatchObject({ restarts: 1, running: "1.1.0" });
   expect(await disk(world.base)).toMatchObject({
@@ -607,6 +610,7 @@ test("status is computed from the paths: versions, the mark and the age of the l
     stateInvalid: null,
     lastCheck: null,
     updateAvailable: false,
+    folderRefresh: null,
   });
   await world.release("1.1.0");
   await checkForUpdate(

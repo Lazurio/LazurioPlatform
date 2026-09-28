@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { readStateJson } from "../folder/read-state";
+import { instructionTemplateRevision } from "../folder/render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
@@ -28,6 +29,9 @@ export type SelfCheckReport = Readonly<{
   identity: ProductIdentity;
   /** A qualification build; never true for a release. */
   fixture: boolean;
+  /** The template revision this executable renders into a Folder. Absent
+   * from executables older than the F17 addendum 2026-09-28. */
+  templateRevision: string;
   /** What this executable reads in the install base it was shown. */
   base: Readonly<{
     active: string | null;
@@ -77,6 +81,7 @@ export async function selfCheckReport(
     schemaVersion: 1,
     identity,
     fixture: embeddedFixture() !== undefined,
+    templateRevision: instructionTemplateRevision,
     base,
     folder,
   });
@@ -150,6 +155,7 @@ export const defaultSelfCheckTimeoutMs = 30_000;
 
 /** Run `executable self-check --json` and require that it is the version the
  * verified manifest describes and that it could read what it was shown.
+ * Returns the template revision it renders, or null when it does not say.
  */
 export async function requireSelfCheck(input: {
   executable: string;
@@ -159,7 +165,7 @@ export async function requireSelfCheck(input: {
   folder?: string | undefined;
   timeoutMs?: number | undefined;
   run?: ProcessRunner | undefined;
-}): Promise<void> {
+}): Promise<string | null> {
   const failed = (reason: string, exitCode?: number) =>
     new UpdateFailure("self-check-failed", {
       reason,
@@ -202,4 +208,7 @@ export async function requireSelfCheck(input: {
     throw failed("fixture");
   if (!report.base) throw failed("base");
   if (input.folder !== undefined && !report.folder) throw failed("folder");
+  return typeof report.templateRevision === "string"
+    ? report.templateRevision
+    : null;
 }
