@@ -31,11 +31,22 @@ Discovery does not install application authorization adapters: a discovery-only 
 still refuses app control. Live provider/operation binding remains a separate missing
 integration, not an implied permission from this local view.
 
+**Since 2026-09-28 (slice P4 of the Launchpad parity)** the Launchpad home is the
+catalog of the Folder ([launchpad development](launchpad-development.md#launchpad-home-the-catalog)),
+read from every directory in `<Folder>/organizations/` by `lazurio organization list`,
+`lazurio module list` and `POST /api/catalog`; the panel's discovery and selection form
+is gone from the page. `POST /api/apps/discover`, the application operations
+`/api/apps/*` and `app-request` described here are unchanged and stay until the
+module lifecycle `lazurio module …` (P5) retires them; `scripts/smoke-application-ui.ts`
+now drives them over the API. Which Organization states may run applications is the
+one admission rule of the [organization contract](organization-contract.md).
+
 The existing Launchpad server can compose one application lifecycle with trusted
-authorization/toolchain adapters. Its authenticated application API serves both the
-browser controls and the compiled development CLI's `app-request` stdin transport.
-The latter accepts an explicit existing private session URL, operation and declared
-selection, not a second locator, process owner or persisted credential. The standard
+authorization/toolchain adapters. Its authenticated application API serves the
+compiled development CLI's `app-request` stdin transport; until 2026-09-28 it also
+served the page's controls, which slice P4 removed. `app-request` accepts an
+explicit existing private session URL, operation and declared selection, not a
+second locator, process owner or persisted credential. The standard
 `launchpad --folder` command still configures only profiles; production Organization
 bindings and the complete preparation/install journey remain incomplete.
 
@@ -47,7 +58,10 @@ the CLI/server path. These deadlines do not cancel an operation, prove rollback,
 or solve queue admission, reconnect/status tracking and uncooperative adapter
 timeouts; those remain integration work, not reasons to automatically retry a write.
 
-The browser exposes explicit preparation/start/status/link/stop in Czech and English. A link is restricted
+Until 2026-09-28 the page's form exposed explicit preparation/start/status/link/stop
+in Czech and English; since slice P4 the page shows no application control and these
+operations are reachable only through the application API until the module lifecycle
+(P5) brings start, open and stop to the catalog. A link is restricted
 to the selected execution Machine's observed loopback web listener, never production
 metadata. Remote-profile context does not expose that address as a local browser link;
 a qualified remote access route remains required. Process start, health observation,
@@ -56,8 +70,9 @@ opening a page and functional acceptance are distinct results.
 Run `bun run scripts/smoke-application-ui.ts cs` and the same command with `en` using
 an explicitly supplied external Playwright installation and its Chromium (for example,
 via the test environment's `NODE_PATH`). This optional local harness compiles the CLI,
-creates synthetic Folder/module data and an isolated browser, opens the synthetic app,
-then stops its owner and removes only its temporary fixture. It is not a release gate
+creates synthetic Folder/module data, drives the Launchpad's application API (since
+2026-09-28; before that the page's form), opens the synthetic app in an isolated
+browser, then stops its owner and removes only its temporary fixture. It is not a release gate
 or evidence of either real candidate's installation/DB readiness. The main `bun run
 check` includes transport, lifecycle and presentation unit/integration tests; it does
 not implicitly download a browser or run this separate browser harness.

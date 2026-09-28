@@ -37,7 +37,7 @@ import { updateNotice } from "./last-check";
 import { layout } from "./layout";
 import { entryLinked, type PathEntry } from "./path-entry";
 import { type ProcessRunner, selfCheckReport } from "./self-check";
-import { detectServiceControl } from "./service-control";
+import { detectServiceControl, type ServiceControl } from "./service-control";
 import {
   checkForUpdate,
   performAutomaticRollback,
@@ -218,6 +218,39 @@ export async function updateEnvironment(
     run: context.run,
     ...context.environment,
   });
+}
+
+/** The operator's standard Folder when a command is not given one: the Folder
+ * the supervised unit records in its `[X-Lazurio] Folder=` line, otherwise on
+ * a hosted Machine the declared operator's (decision F17 addendum). The one
+ * lookup of `lazurio update` and of every command that reads the Folder
+ * without `--folder`; undefined on a workstation without a supervised unit. */
+export async function standardFolder(
+  context: CliContext,
+  service: ServiceControl | null,
+): Promise<string | undefined> {
+  if (service?.folder !== undefined) return service.folder;
+  return context.hostedFolder ? await context.hostedFolder() : undefined;
+}
+
+/** The same lookup where no update core is built: the service of this
+ * installation's default base, then `standardFolder`. */
+export async function operatorFolder(
+  context: CliContext,
+): Promise<string | undefined> {
+  let base: string;
+  try {
+    base = installBase(context, undefined);
+  } catch {
+    return standardFolder(context, null);
+  }
+  const service = await detectServiceControl({
+    base,
+    platform: context.platform,
+    env: context.env,
+    run: context.run,
+  });
+  return standardFolder(context, service);
 }
 
 type Result =
@@ -587,10 +620,10 @@ export async function runUpdateCommand(
     // Only the two commands that report it look for one.
     const reports = action === undefined || action === "status";
     let environment = await updateEnvironment(context, base, values.folder);
-    if (reports && environment.folder === undefined && context.hostedFolder)
+    if (reports && environment.folder === undefined)
       environment = Object.freeze({
         ...environment,
-        folder: await context.hostedFolder(),
+        folder: await standardFolder(context, environment.service),
       });
     const refresh = (value: FolderRefresh | null) =>
       value === null ? [] : [folderRefreshText(value)];
