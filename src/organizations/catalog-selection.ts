@@ -4,6 +4,16 @@ import type { Catalog, CatalogOrganization } from "./catalog";
 // CLI (`module list <Org>`) and the Launchpad page (`/o/<org>`). Pure and
 // type-only, so the browser bundle can import it without the reader.
 
+/** The catalog's groups in the order they are shown: the Organizations, then
+ * the Personalspace group when there is one (launchpad-parity B11). */
+export function catalogGroups(
+  catalog: Catalog,
+): readonly CatalogOrganization[] {
+  return catalog.personalspace === undefined
+    ? catalog.organizations
+    : [...catalog.organizations, catalog.personalspace];
+}
+
 export type CatalogOrganizationSelection =
   | Readonly<{ kind: "found"; organization: CatalogOrganization }>
   /** Two or more candidates declare the slug (GitHub slugs are
@@ -17,13 +27,15 @@ export type CatalogOrganizationSelection =
 /** The Organization a name selects: its slug, compared case-insensitively as
  * GitHub does; a slug that more than one candidate declares, in the same case
  * or another, selects none of them. Only when no slug matches, the directory
- * name under `organizations/`, exactly. */
+ * name under `organizations/`, exactly. The Personalspace group takes part
+ * under its name `personalspace`, so an Organization whose slug is
+ * `personalspace` is ambiguous with it. */
 export function selectCatalogOrganization(
   catalog: Catalog,
   name: string,
 ): CatalogOrganizationSelection {
   const key = name.toLowerCase();
-  const bySlug = catalog.organizations.filter(
+  const bySlug = catalogGroups(catalog).filter(
     (entry) => entry.organization?.toLowerCase() === key,
   );
   if (bySlug.length === 1)

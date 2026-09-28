@@ -398,6 +398,10 @@ const en = {
     "The directory cannot be read: it must be a real directory owned by you and not writable by others.",
   catalogReasonDuplicate:
     "Another directory in this Folder declares the same Organization.",
+  catalogReasonPersonalspaceAmbiguous:
+    "personalspace/ holds more than one directory; only the Principal's own may be there, and none is read until it is the only one.",
+  catalogReasonPersonalspaceUnavailable:
+    "The Personalspace cannot be read: its directories must be real directories owned by you and not writable by others.",
   catalogReasonDeclaration:
     "The module's declaration in modules.manifest.json conflicts with another.",
   catalogReasonModuleUnavailable:
@@ -943,6 +947,10 @@ const cs: Record<MessageKey, string> = {
     "Složku nelze přečíst: musí to být skutečná složka, kterou vlastníte a do které ostatní nemohou zapisovat.",
   catalogReasonDuplicate:
     "Jiná složka v tomhle Folderu deklaruje stejnou Organizaci.",
+  catalogReasonPersonalspaceAmbiguous:
+    "V personalspace/ je víc než jedna složka; smí tam být jen ta Principálova a žádná se nečte, dokud nezůstane jediná.",
+  catalogReasonPersonalspaceUnavailable:
+    "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte a do kterých ostatní nemohou zapisovat.",
   catalogReasonDeclaration:
     "Deklarace modulu v modules.manifest.json je v konfliktu s jinou.",
   catalogReasonModuleUnavailable:

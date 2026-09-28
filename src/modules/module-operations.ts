@@ -14,7 +14,15 @@ import {
   type CatalogOrganization,
   readFolderCatalog,
 } from "../organizations/catalog";
-import { selectCatalogOrganization } from "../organizations/catalog-selection";
+import {
+  catalogGroups,
+  selectCatalogOrganization,
+} from "../organizations/catalog-selection";
+import {
+  locatePersonalspace,
+  observePersonalspaceModule,
+  resolvePersonalspaceApplication,
+} from "../organizations/personalspace";
 import { createApplicationCoordination } from "./application-coordination";
 import {
   type ApplicationRunner,
@@ -39,7 +47,9 @@ import {
 // The module lifecycle of a Folder (launchpad-parity B3, root decision 0167):
 // `lazurio module start|stop|status|logs <Org>/<module>` and the Launchpad's
 // `/api/modules/<org>/<module>/…` answer from this one core, and so does the
-// gateway's `ensure` on a hosted Machine (B5), by module id. A module is named
+// gateway's `ensure` on a hosted Machine (B5), by module id. A module of the
+// Personalspace (B11) is `personalspace/<module>`, and its lifecycle is keyed
+// by its owner directory as an Organization's is by its root. A module is named
 // through the catalog's selection rule and runs its declared app through the
 // existing lifecycle, runners and adapters. There is no state of its own: what
 // runs is what the OS service manager (Linux) or the Launchpad's session
@@ -239,11 +249,17 @@ export type EnsureOptions = Readonly<{
 }>;
 
 type Target = Readonly<{
+  /** The name shown: the Organization slug, or `personalspace`. */
   organization: string;
+  /** The declared company the lifecycle selects by: the Organization slug,
+   * or what the Personalspace module declares. Never shown by this core. */
+  company: string;
   module: string;
   app: string;
   isDefaultApp: boolean;
+  /** The Organization root, or the Personalspace's owner directory. */
   organizationDirectory: string;
+  personalspace: boolean;
 }>;
 
 type Lifecycle = ReturnType<typeof createApplicationLifecycle>;
@@ -325,15 +341,22 @@ export function createModuleOperations(input: {
           selection.candidates.map((entry) => entry.directory),
         ),
       });
-    return targetOf(operation, selection.organization, moduleName, options);
+    return targetOf(
+      operation,
+      selection.organization,
+      selection.organization === catalog.personalspace,
+      moduleName,
+      options,
+    );
   }
 
   // The gateway names a module only by its exact lazurio.module.v1 id and
   // serves it at one hostname per Machine (launchpad-parity B4, B5): the id
-  // must name a module of exactly one Organization of the catalog. Every
-  // Organization that lists the id counts, runnable or not, because the
-  // gateway routes the hostname to one of their declared ports; which one is
-  // its choice, so none is guessed here (`module-ambiguous`).
+  // must name a module of exactly one Organization of the catalog, the
+  // Personalspace group counting as one (B11). Every group that lists the id
+  // counts, runnable or not, because the gateway routes the hostname to one
+  // of their declared ports; which one is its choice, so none is guessed here
+  // (`module-ambiguous`).
   async function resolveId(id: string): Promise<Target | ModuleBlocked> {
     if (!isModuleId(id)) return blocked("ensure", "module-unknown");
     let catalog: Catalog;
@@ -342,7 +365,7 @@ export function createModuleOperations(input: {
     } catch {
       return blocked("ensure", "folder-unreadable");
     }
-    const owners = catalog.organizations.filter((organization) =>
+    const owners = catalogGroups(catalog).filter((organization) =>
       organization.modules.some((entry) => entry.module === id),
     );
     const only = owners[0];
@@ -354,12 +377,13 @@ export function createModuleOperations(input: {
         candidates: Object.freeze(owners.map((entry) => entry.directory)),
       });
     // The module's default app only: ensure takes no `--app`.
-    return targetOf("ensure", only, id, {});
+    return targetOf("ensure", only, only === catalog.personalspace, id, {});
   }
 
   async function targetOf(
     operation: ModuleOperation,
     organization: CatalogOrganization,
+    personalspace: boolean,
     moduleName: string,
     options: ModuleOptions,
   ): Promise<Target | ModuleBlocked> {
@@ -399,6 +423,37 @@ export function createModuleOperations(input: {
       return blocked(operation, "app-not-runnable", { ...where, app });
     if (organization.organization === null)
       return blocked(operation, "organization-unavailable", where);
+    const common = {
+      organization: organization.organization,
+      module: module.module,
+      app,
+      isDefaultApp: app === module.defaultApp,
+    };
+    if (personalspace) {
+      // The owner directory again, by the same rule as the catalog, and the
+      // company its module declares: selected by, never shown.
+      const unavailable = () =>
+        blocked(operation, "personalspace-unavailable", where);
+      const located = await locatePersonalspace(folder);
+      if (located.kind !== "owner") return unavailable();
+      try {
+        const directory = await canonicalOwnedDirectory(located.directory);
+        const { observed } = await observePersonalspaceModule(
+          directory,
+          module.module,
+        );
+        if (observed.kind !== "module-observed")
+          return blocked(operation, observed.kind, where);
+        return Object.freeze({
+          ...common,
+          company: observed.company,
+          organizationDirectory: directory,
+          personalspace: true,
+        });
+      } catch {
+        return unavailable();
+      }
+    }
     let organizationDirectory: string;
     try {
       // ONE canonical spelling before any unit name or lock is derived.
@@ -409,15 +464,15 @@ export function createModuleOperations(input: {
       return blocked(operation, "organization-unavailable", where);
     }
     return Object.freeze({
-      organization: organization.organization,
-      module: module.module,
-      app,
-      isDefaultApp: app === module.defaultApp,
+      ...common,
+      company: organization.organization,
       organizationDirectory,
+      personalspace: false,
     });
   }
 
-  function lifecycleFor(kind: RunnerKind, organizationDirectory: string) {
+  function lifecycleFor(kind: RunnerKind, target: Target) {
+    const { organizationDirectory } = target;
     const runner = host.createRunner(kind, organizationDirectory);
     const environment: Record<string, string> = {
       HOME: host.home as string,
@@ -432,6 +487,9 @@ export function createModuleOperations(input: {
         platformExecutable: host.platformExecutable,
         environment,
         runner,
+        ...(target.personalspace
+          ? { resolveApplication: resolvePersonalspaceApplication }
+          : {}),
         ...(kind === "systemd-user"
           ? {
               coordination: createApplicationCoordination({
@@ -470,7 +528,7 @@ export function createModuleOperations(input: {
           // A shutdown that already drained the held lifecycles never gets
           // a new one behind its back.
           if (closing) return blocked(operation, "closing");
-          lifecycle = lifecycleFor(kind, target.organizationDirectory);
+          lifecycle = lifecycleFor(kind, target);
           held.set(target.organizationDirectory, lifecycle);
         }
         return await action(lifecycle);
@@ -480,7 +538,7 @@ export function createModuleOperations(input: {
     }
     let lifecycle: Lifecycle;
     try {
-      lifecycle = lifecycleFor(kind, target.organizationDirectory);
+      lifecycle = lifecycleFor(kind, target);
     } catch {
       return failed();
     }
@@ -527,7 +585,7 @@ export function createModuleOperations(input: {
       target,
       runner: kind,
       selection: Object.freeze({
-        company: target.organization,
+        company: target.company,
         module: target.module,
         package: target.app,
       }),
@@ -809,7 +867,7 @@ export function createModuleOperations(input: {
       if ("kind" in prepared) return prepared;
       const { target } = prepared;
       const unit = applicationUnitName(target.organizationDirectory, {
-        company: target.organization,
+        company: target.company,
         module: target.module,
         package: target.app,
       });
