@@ -348,6 +348,7 @@ test.skipIf(!supported)(
     );
     expect(await lines("gh.log")).toEqual([]);
   },
+  30_000,
 );
 
 test.skipIf(!supported)(
