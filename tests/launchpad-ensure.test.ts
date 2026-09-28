@@ -396,6 +396,84 @@ posixTest(
 );
 
 posixTest(
+  "ensure with a chunked session (a personal VM's large session): the gateway's chunks admit it and reach the auth endpoint unchanged; a gap is refused",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "chunked-")));
+    const { folder, entry } = await hostedFolder(parent);
+    const port = await runnable(folder, "gamma", "notes");
+    const home = join(parent, "home");
+    await mkdir(home);
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(parent, "runtime"),
+    });
+    await mkdir(manager.runtimeDirectory);
+    const host = linuxHost(manager, home, port, binary);
+    // The gateway forwards the whole cookie and `_0…_3`, dropping every
+    // absent one (M:workloads/workspace-vm/ingress.ts:73-92); here the
+    // session is split in two. The auth endpoint's oauth2-proxy reassembles
+    // the chunks itself, so only the chunks, never a re-joined cookie, pass.
+    const session = `${cookieName}_0=va; ${cookieName}_1=lid`;
+    const forwarded: (string | null)[] = [];
+    const chunkedFetcher: AuthFetcher = async (_url, init) => {
+      const cookie = new Headers(init.headers).get("cookie");
+      forwarded.push(cookie);
+      return cookie === session
+        ? new Response("ok")
+        : new Response("no", { status: 401 });
+    };
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      { fetcher: chunkedFetcher, ensureWaitMs: 10_000 },
+      undefined,
+      {},
+      undefined,
+      host,
+    );
+    const ensure = gateway(entry);
+    try {
+      const denied = async (cookie: string, reason: string) =>
+        expect(await ensure("notes", { cookie })).toEqual({
+          code: 401,
+          text: JSON.stringify({ error: "denied", reason }),
+          body: { error: "denied", reason },
+        });
+      await denied(`${cookieName}_0=va; ${cookieName}_2=lid`, "cookie-invalid");
+      await denied(`${cookieName}_1=lid`, "cookie-missing");
+      expect(forwarded).toEqual([]);
+      expect(manager.commands("systemd-run")).toEqual([]);
+      // The navigation is admitted and starts the default app: 204.
+      expect(await ensure("notes", { cookie: session })).toEqual({
+        code: 204,
+        text: "",
+        body: null,
+      });
+      expect(forwarded).toEqual([session]);
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+      // The browser's own Launchpad route admits the same session.
+      expect(
+        (
+          await fetch(`http://127.0.0.1:${entry.listenPort}/`, {
+            headers: { host: launchpadHost, cookie: session },
+          })
+        ).status,
+      ).toBe(200);
+      await runModuleCommand(
+        ["module", "stop", "gamma/notes", "--folder", folder, "--json"],
+        cliContext(home),
+        host,
+      );
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+posixTest(
   "ensure timing and refusals: a start still running answers 503 and goes on, concurrent navigations start once, a refused start is 409 with the start's reason",
   async () => {
     const parent = await realpath(await mkdtemp(join(root, "timing-")));
