@@ -236,7 +236,7 @@
           "additionalProperties": false,
           "required": ["origin_template"],
           "properties": {
-            "origin_template": { "description": "Origin of a module: {module} is the whole first label and occurs exactly once; https, no port, path, query or trailing slash. The reader substitutes a module id that already is a DNS label.", "type": "string", "maxLength": 270, "pattern": "^https://\\{module\\}(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" }
+            "origin_template": { "description": "Origin of a module: {module} is the whole first label and occurs exactly once; https, no port, path, query or trailing slash. The reader substitutes the gateway label of a module id (gateway-catalog.py label: dashes collapsed and stripped, at most 63 characters, reserved names served nowhere), never the id itself.", "type": "string", "maxLength": 270, "pattern": "^https://\\{module\\}(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" }
           }
         }
       }
