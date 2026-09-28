@@ -4,7 +4,8 @@ Status: **accepted direction of the Principal (2026-09-19); the adapter for the 
 VM path is implemented (`src/launchpad/hosted-trust.ts`, the entry recorded on the
 Machine binding from the handover), verified by unit tests against a fake auth endpoint
 and by a [native run behind a stand-in gateway](evidence/hosted-entry-linux-arm64-2026-09-26.md);
-the handover field exists in Machines 0.12.93 (not yet written by any Machines role)
+the handover field exists in Machines 0.12.93 (not yet written by any released
+Machines role; Machines #248, a Draft, writes it)
 and the vendored schema is re-pinned to it
 ([machine handover](machine-handover.md#the-hosted-entry-decision-f16)); the canary
 switch of decision F16 is pending.** Without a recorded entry the Launchpad serves a
@@ -124,9 +125,16 @@ lazurio.module.v1 id only, dash runs collapsed and stripped, at most 63 characte
 reserved names refused), so a link names the hostname the gateway actually serves. No origin is derived from another (not T3 Code's or a
 module's from the Launchpad's), from a request or from a hostname convention.
 
-There is one writer and no transition path: no environment of the resident unit is read and no CLI
-records an entry; the Machines apply that writes the field also switches the unit.  Selecting the adapter by request sniffing (`Host`, forwarded headers) is
-rejected: headers are not evidence.
+There is one writer and no transition path: no environment of the resident unit is
+read and no CLI records an entry. Writing the entry is not switching the unit: the
+Machines role writes `entry` to every Machine whose pinned Platform reads it
+(Machines' "Entry" gate, Machines #248), also where the resident Launchpad still holds
+the port, and the switch of the unit is a separate declaration of the Machines apply
+([M2](launchpad-parity.md#c2-the-apply-in-order)). The Platform records the entry
+whenever the handover carries it (declaration, not identity;
+[machine handover](machine-handover.md#the-hosted-entry-decision-f16)). Selecting the
+adapter by request sniffing (`Host`, forwarded headers) is rejected: headers are not
+evidence.
 
 ### Admission, as in production today
 
@@ -215,10 +223,11 @@ route. T3 Code's own admission behind the gateway is unchanged (not in scope bel
 
 Unit tests for every row above against a fake auth endpoint. Native run on a clean
 Machine with a Caddy + oauth2-proxy pair configured like the Machines gateway. Then the
-canary: Spectoda `matej`, the resident unit's `ExecStart` switched to the Platform
-executable through the selector, `launchpad.matej.spectoda.lazurio.io` opened through
-the real gateway, one update through the pill, `update status` → `supervised: true`
-on the installer-written unit. The laptop path is qualified afterwards on one work
+canary: one work VM of the pilot Organization switched by the Machines switch apply
+([M2](launchpad-parity.md#c2-the-apply-in-order), which replaces the resident unit
+with the installer-written one), `launchpad.<vm>.<org>.lazurio.io` opened through the
+real gateway, one update through the pill, `update status` → `supervised: true` on the
+installer-written unit. The laptop path is qualified afterwards on one work
 laptop with a Conglomerate Host route (F16 order).
 
 ### Not in scope
