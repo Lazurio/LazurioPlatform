@@ -263,6 +263,95 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test.skipIf(process.platform === "win32")(
+  "a hosted Folder whose state is refused still answers Recovery mode on the gateway's port, behind its admission",
+  async () => {
+    const parent = await scratch("lp-rec-hp-");
+    const folder = join(parent, "Lazurio");
+    const state = join(folder, ".lazurio");
+    await mkdir(folder, { mode: 0o700 });
+    await mkdir(join(folder, "organizations"), { mode: 0o755 });
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    const preset = "hosted-organization-personal";
+    const entry = parseHostedEntry({
+      externalOrigin: "https://launchpad.workspace.example.lazurio.io",
+      authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
+      authCookieName: "__Secure-lazurio-workspace",
+      listenPort: freePort(),
+    });
+    const once = { attempts: 1, delayMs: 0 };
+    try {
+      await initializeHandoverFolder(folder, {
+        preset,
+        machine: { ...bindings.organization, entry },
+        profile: presetProfile(preset, executionOs(process.platform)),
+      });
+      const preferences = join(state, "preferences.json");
+      const original = await readFile(preferences, "utf8");
+      const lock = join(state, ".operation-lock");
+      const scenes: Record<string, () => Promise<() => Promise<unknown>>> = {
+        // An interrupted profile or tools change.
+        "folder-transaction-pending": async () => {
+          await mkdir(join(state, "transaction"));
+          return () => rm(join(state, "transaction"), { recursive: true });
+        },
+        // A key this version does not know; the entry itself still reads.
+        "folder-state-unreadable": async () => {
+          await writeFile(
+            preferences,
+            JSON.stringify({ ...JSON.parse(original), fromTheFuture: true }),
+          );
+          return () => writeFile(preferences, original);
+        },
+        // A lock this version does not recognize cannot be taken.
+        "folder-lock-unavailable": async () => {
+          await rm(lock, { recursive: true });
+          await mkdir(lock, { mode: 0o700 });
+          return async () => undefined;
+        },
+      };
+      for (const [reason, arrange] of Object.entries(scenes)) {
+        const undo = await arrange();
+        const started = await startOrRecover(
+          () => startLaunchpad(folder),
+          (refusal) => startRecoveryMode({ refusal }),
+          once,
+        );
+        if (started.mode !== "recovery") {
+          if ("close" in started.value) await started.value.close();
+          throw new Error(`${reason}: started normally`);
+        }
+        const recovery = started.value;
+        try {
+          expect([
+            recovery.reason,
+            recovery.hosted,
+            recovery.url,
+            recovery.server.port,
+          ]).toEqual([
+            reason,
+            true,
+            `${entry.externalOrigin}/`,
+            entry.listenPort,
+          ]);
+          const denied = await fetch(`http://127.0.0.1:${entry.listenPort}/`, {
+            headers: { host: "launchpad.workspace.example.lazurio.io" },
+          });
+          expect([denied.status, await denied.json()]).toEqual([
+            401,
+            { error: "denied", reason: "cookie-missing" },
+          ]);
+        } finally {
+          await recovery.close();
+        }
+        await undo();
+      }
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
 test("a start waits out a Folder that is busy for a moment, then serves Recovery mode; anything unnamed still fails", async () => {
   const retry = { attempts: 3, delayMs: 1 };
   let attempts = 0;

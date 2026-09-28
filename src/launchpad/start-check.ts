@@ -40,24 +40,37 @@ export class LaunchpadStartRefused extends Error {
   }
 }
 
-/** Why the state could not be read, from what is on disk alone. Nothing here
- * throws: whatever cannot be told apart is `folder-state-unreadable`. */
-async function unreadableReason(state: string): Promise<StartRefusal> {
+/** Why the state could not be read, from what is on disk alone, and the
+ * recorded hosted entry when it still reads and is valid: a pending
+ * transaction, a held lock or a key this version does not know leave the
+ * entry readable, and Recovery mode then answers on the gateway's port behind
+ * the same admission. Nothing here throws: whatever cannot be told apart is
+ * `folder-state-unreadable`. */
+async function unreadable(state: string): Promise<LaunchpadStartRefused> {
+  let pending = false;
   try {
-    if ((await readdir(state)).includes("transaction"))
-      return "folder-transaction-pending";
+    pending = (await readdir(state)).includes("transaction");
+  } catch {}
+  let recorded: unknown;
+  try {
     const raw = (await readStateJson(state, "preferences.json")) as {
       machine?: { entry?: unknown } | null;
     } | null;
-    const entry = raw?.machine?.entry;
-    if (entry !== undefined && entry !== null)
-      try {
-        parseHostedEntry(entry);
-      } catch {
-        return "hosted-entry-invalid";
-      }
-  } catch {}
-  return "folder-state-unreadable";
+    recorded = raw?.machine?.entry ?? null;
+  } catch {
+    recorded = null;
+  }
+  let entry: HostedEntry | null = null;
+  if (recorded !== null)
+    try {
+      entry = parseHostedEntry(recorded);
+    } catch {
+      if (!pending) return new LaunchpadStartRefused("hosted-entry-invalid");
+    }
+  return new LaunchpadStartRefused(
+    pending ? "folder-transaction-pending" : "folder-state-unreadable",
+    entry,
+  );
 }
 
 /** The Folder part of the Launchpad start sequence: the owned Folder, its
@@ -91,9 +104,10 @@ export async function readStartState(
       entry: current.preferences.machine?.entry ?? null,
     });
   } catch {
+    const refused = await unreadable(state);
     if (options.locked && !readFailed)
-      throw new LaunchpadStartRefused("folder-lock-unavailable");
-    throw new LaunchpadStartRefused(await unreadableReason(state));
+      throw new LaunchpadStartRefused("folder-lock-unavailable", refused.entry);
+    throw refused;
   }
 }
 

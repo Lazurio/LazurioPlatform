@@ -332,8 +332,10 @@ executable carries does not serve completely). A Folder that is busy for a momen
 (lock held, transaction in flight) is retried for a few seconds first.
 
 In Recovery mode the Launchpad keeps the port it would have served on (the hosted
-entry's port behind the same admission, when the entry was read; otherwise an
-ephemeral loopback port that no gateway proxies to) and answers every page path
+entry's port behind the same admission, when the Folder's recorded entry still reads
+and is valid, which a pending transaction, a held lock or an unknown key elsewhere in
+the state do not prevent; otherwise an ephemeral loopback port that no gateway proxies
+to) and answers every page path
 with `503` and a plain-text body naming the check and the reason, every
 `/api/…` route with `503 {error: "recovery-mode", check, reason}`, and the health
 socket with `503 {mode: "recovery", check, reason}`. An updater of any release
