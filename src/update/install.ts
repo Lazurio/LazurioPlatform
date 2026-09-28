@@ -11,6 +11,12 @@ import {
   swapSelector,
   versionFloor,
 } from "./layout";
+import {
+  ensurePathEntry,
+  entryDirectory,
+  entryLinked,
+  type PathEntry,
+} from "./path-entry";
 import { type ProcessRunner, runProcess } from "./self-check";
 import {
   detectServiceControl,
@@ -39,6 +45,8 @@ import { compareVersions } from "./version";
  * update (docs/update.md "Offline update"): the same staging, self-check,
  * activation and floor as `lazurio update`, with the bytes coming from the
  * staged file instead of the network. It never goes below the floor.
+ * Either way it ends by creating the standard entry `~/.local/bin/lazurio`
+ * when it is missing or Lazurio's own (`path-entry.ts`).
  */
 
 /** One argument of an `ExecStart=` line. systemd splits on whitespace, expands
@@ -139,9 +147,13 @@ export type InstallResult =
       kind: "installed";
       /** The active version: this executable's, unless one was active. */
       active: string;
-      /** Directory to put on PATH. Shell profiles are never edited. */
+      /** Directory to put on PATH: `~/.local/bin` when the entry links the
+       * selector, otherwise the install base's `bin`. Shell profiles are never
+       * edited. */
       path: string;
       serviceInstalled: boolean;
+      /** `~/.local/bin/lazurio`; null without a home or on another OS. */
+      entry: PathEntry | null;
     }>
   /** The offline update: a newer executable over an existing installation. */
   | Readonly<{
@@ -152,6 +164,7 @@ export type InstallResult =
       restartRequired: boolean;
       path: string;
       serviceInstalled: boolean;
+      entry: PathEntry | null;
     }>
   | ErrorResult;
 
@@ -337,17 +350,31 @@ async function install(input: InstallInput): Promise<InstallResult> {
     )
       throw new UpdateFailure("activation-failed", { stage: "service" });
   }
+  // Last, and never a reason to fail: the product is installed whatever
+  // happens to its PATH entry, and the result says what it found.
+  const entry = await ensurePathEntry({
+    base,
+    home: input.env.HOME,
+    pathVariable: input.env.PATH,
+    platform: input.platform,
+  });
+  const path =
+    entryLinked(entry) && input.env.HOME
+      ? entryDirectory(input.env.HOME)
+      : layout(base).bin;
   if (outcome.updated)
     return Object.freeze({
       kind: "updated" as const,
       ...outcome.updated,
-      path: layout(base).bin,
+      path,
       serviceInstalled: service !== undefined,
+      entry,
     });
   return Object.freeze({
     kind: "installed" as const,
     active,
-    path: layout(base).bin,
+    path,
     serviceInstalled: service !== undefined,
+    entry,
   });
 }

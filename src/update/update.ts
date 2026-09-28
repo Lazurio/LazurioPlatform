@@ -1,6 +1,11 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  type FolderRefresh,
+  folderRefreshNeeded,
+} from "../folder/refresh-needed";
+import { instructionTemplateRevision } from "../folder/render";
+import {
   type ActivationStep,
   activate,
   automaticRollback,
@@ -70,6 +75,10 @@ export type UpdateEnvironment = Readonly<{
   verify: AttestationVerifier;
   /** Null: this installation is not supervised. */
   service: ServiceControl | null;
+  /** The Folder whose template revision results report against the
+   * product's ("Folder refresh needed"). Reporting only: never written,
+   * never a reason to refuse. */
+  folder?: string | undefined;
   run?: ProcessRunner | undefined;
   now?: (() => Date) | undefined;
   download?: Partial<DownloadPolicy> | undefined;
@@ -220,15 +229,40 @@ export const checkForUpdate = (
   });
 
 export type UpdateResult =
-  | Readonly<{ kind: "up-to-date"; running: string; latest: string }>
+  | Readonly<{
+      kind: "up-to-date";
+      running: string;
+      latest: string;
+      folderRefresh: FolderRefresh | null;
+    }>
   | Readonly<{
       kind: "updated";
       from: string;
       to: string;
       /** Unsupervised: a running Launchpad finishes the update by restarting. */
       restartRequired: boolean;
+      /** The Folder renders an older template revision than `to`. */
+      folderRefresh: FolderRefresh | null;
     }>
   | ErrorResult;
+
+/** The Folder's refresh against a product's template revision; nothing when
+ * no Folder is known or the product does not say which revision it renders. */
+const folderRefresh = (
+  environment: Pick<UpdateEnvironment, "folder">,
+  productRevision: string | null,
+) =>
+  environment.folder === undefined || productRevision === null
+    ? Promise.resolve(null)
+    : folderRefreshNeeded(environment.folder, productRevision);
+
+/** What this executable renders counts only when it is the active one. */
+const runningRevision = async (
+  environment: Pick<UpdateEnvironment, "base" | "identity">,
+) =>
+  (await readSelector(environment.base)) === environment.identity.version
+    ? instructionTemplateRevision
+    : null;
 
 /** `lazurio update [--version <tag>]`, under the lock from the first read of
  * the base to the committed activation.
@@ -252,6 +286,10 @@ export const performUpdate = (
           kind: "up-to-date" as const,
           running: identity.version,
           latest: manifest.version,
+          folderRefresh: await folderRefresh(
+            environment,
+            await runningRevision(environment),
+          ),
         });
       const artifact = manifest.targets[identity.target];
       if (!artifact) throw new UpdateFailure("internal");
@@ -259,6 +297,7 @@ export const performUpdate = (
       // whatever is in it belongs to an attempt that is over.
       const { scratch } = layout(base);
       await rm(scratch, { recursive: true, force: true });
+      let productRevision: string | null;
       try {
         let placed = false;
         if (!(await stagedMatches(base, manifest.version, artifact.sha256))) {
@@ -282,7 +321,7 @@ export const performUpdate = (
           });
           placed = true;
         }
-        await selfCheckStaged({
+        productRevision = await selfCheckStaged({
           base,
           expected: {
             version: manifest.version,
@@ -308,6 +347,8 @@ export const performUpdate = (
         from,
         to: manifest.version,
         restartRequired: environment.service === null,
+        // After the commit: a report, never a reason to undo it.
+        folderRefresh: await folderRefresh(environment, productRevision),
       });
     });
   });
@@ -402,13 +443,19 @@ export type UpdateStatus = Readonly<{
    * withheld release becomes visible. */
   lastCheck: LastCheck | null;
   updateAvailable: boolean;
+  /** The Folder renders an older template revision than the active product
+   * (known only when the one answering is the active one). */
+  folderRefresh: FolderRefresh | null;
 }>;
 
 /** `lazurio update status`: computed from the paths when asked; no network,
  * no lock, no write. This is what an outside observer reads.
  */
 export async function readStatus(
-  environment: Pick<UpdateEnvironment, "base" | "identity" | "service">,
+  environment: Pick<
+    UpdateEnvironment,
+    "base" | "identity" | "service" | "folder"
+  >,
 ): Promise<UpdateStatus> {
   const { base, identity } = environment;
   let stateInvalid: string | null = null;
@@ -447,5 +494,9 @@ export async function readStatus(
       floor !== null &&
       compareVersions(lastCheck.latest, floor) >= 0 &&
       compareVersions(lastCheck.latest, active) > 0,
+    folderRefresh: await folderRefresh(
+      environment,
+      active === identity.version ? instructionTemplateRevision : null,
+    ),
   });
 }

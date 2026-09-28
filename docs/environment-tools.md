@@ -4,8 +4,9 @@ Proposed bounded pilot procedure under accepted decision 0144. Apart from the cu
 installation and login of three catalog tools (decision F19, below), this document
 does not claim an implemented tool installer, authenticated harness or usable
 Environment.
-Machines delivers the online Machine and selected Platform release; local Platform
-operations and the operator prepare what is needed inside it.
+Machines delivers the online Machine and a first installation of the Platform; local
+Platform operations and the operator prepare what is needed inside it, including
+the Platform's own updates (F17 addendum 2026-09-28).
 
 ## Operator tools are the operator's (decision 0161, F17)
 
@@ -16,6 +17,9 @@ tools in the standard path below) and the **operator's tools** (Codex, Claude Co
 `gh`, Node, npm, Bun and whatever else is on the operator's PATH). The baseline is
 pinned through the Machines rollout; the tools are delivered once at Machine creation
 and then belong to the operator, who updates them with the official installers.
+Since the F17 addendum of 2026-09-28 the version of the Platform belongs to the
+operator too: they update it with `lazurio update`, and the pin is only a minimum a
+rollout installs, repairs or raises to, never a version it lowers to.
 Readback reports their versions as facts, not drift. A rollout is only a repair of the
 one installation (the exact scope is in "The standard path" below); the Machines apply
 starts no agent and returns the `lazurio doctor` and `lazurio tools status` readback,
@@ -261,7 +265,8 @@ One installation per tool, in one place, on every Machine: an operator tool is t
 first executable of its name in `~/.local/bin` on the operator's PATH. A tool's
 official installer may keep its own home (Codex `~/.codex/…`, Bun `~/.bun`); only a
 link or wrapper in `~/.local/bin` puts it on PATH. Lazurio lives in
-`~/.local/share/lazurio/` with `~/.local/bin/lazurio`; system tools (git, curl,
+`~/.local/share/lazurio/` with `~/.local/bin/lazurio`, the link `lazurio install`
+creates and reports ([product update](update.md#release-and-trust)); system tools (git, curl,
 python, ssh) belong to the OS package manager; T3 Code and its runtime belong to the
 service unit and run on the Node its version recommends. There is no second
 "recovery" copy of any tool: a rollout repairs the one installation in place, in two

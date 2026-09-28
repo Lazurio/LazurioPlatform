@@ -190,7 +190,8 @@ The Launchpad shows the refreshed binding on its next read; an open panel holdin
 old revision gets `stale-revision` on apply, as after any concurrent change. The
 refresh re-renders what the handover changes, and everything when the active product
 renders a newer template revision than the Folder records: after Machines installs a
-release with new templates, its next `folder-refresh` is `refreshed` with the new
+release with new templates, or the operator runs `lazurio update` (which then reports
+"Folder refresh needed"), the next `folder-refresh` is `refreshed` with the new
 `AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
 and its path, nothing written). A Folder rendered by a newer revision than the active
 product stays `template-upgrade-required` and is never downgraded
@@ -313,12 +314,36 @@ nothing, and a pin lower than the active version or the high-water mark is refus
 (`release-invalid`, `below-floor`) — which the role records as a finding, never
 retries with force. Also a **finding, not a failure**: `blocked folder-binding-changed`
 on a Folder adopted before the identity-based comparison. The role never runs
-`lazurio update`. After writing the handover on a Machine whose Folder exists (and
-after `updated`), the role runs `lazurio machine folder-refresh` (added after v0.1.2;
-the role needs a pinned release that has it) so the Folder follows the current
-handover: exit 0 `refreshed` or `unchanged` is success, exit 2 `blocked` is a finding
-to report with its `reason` and `path`, not a failure to retry, and exit 1 is an
-operation failure.
+`lazurio update`: that is the operator's command (below). After writing the handover
+on a Machine whose Folder exists (and after `updated`), the role runs
+`lazurio machine folder-refresh` (added after v0.1.2; the role needs a pinned release
+that has it) so the Folder follows the current handover: exit 0 `refreshed` or
+`unchanged` is success, exit 2 `blocked` is a finding to report with its `reason` and
+`path`, not a failure to retry, and exit 1 is an operation failure.
+
+### What the Machines role does with the Lazurio version (F17 addendum 2026-09-28)
+
+The operator owns the version of Lazurio on their Machine and updates it with
+`lazurio update`; the pin in the owner overlay is a **minimum**
+([F17 addendum 2026-09-28](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
+This is the contract for the Machines role; this repository does not change Machines.
+Every step below uses only what the product already answers.
+
+| Situation the role reads | What the role does |
+| --- | --- |
+| No installation (`<base>/bin/lazurio` absent and no `update/high-water`) | Install the pinned release: `<staged>/lazurio install --base <base> --json`, result `installed` |
+| Broken installation: the selector `<base>/bin/lazurio` is missing or not a link of its shape, while `update/high-water` survives | Repair with the pinned release when it is at or above the mark (`install` self-checks it and switches); a pin **below** the mark is refused `below-floor` and is a finding: that Machine is repaired only by a release at or above the mark (question Q5 of the distribution shaping) |
+| Selector present but dangling, or its executable damaged (`<base>/bin/lazurio --version --json` fails) | Not repaired by `install` of the same version today: it answers `installed` and changes nothing; a lower pin is refused, and only a higher one moves it, as in the next row. A finding for a person; an open gap of the product, not something the role works around |
+| Working installation below the pin (`update status --json`: `active` lower than the pinned version) | Raise it: the same `install --base` is the offline update, result `updated` |
+| Working installation at or above the pin | Nothing. `install --base` with a lower pin answers `release-invalid` / `below-floor`, which the role records as the fact `ahead`, never a failure, retry or force |
+| Any case | Never lower a version; never run `lazurio update` or `lazurio update rollback` |
+| After `installed` or `updated` | Run `lazurio machine folder-refresh` as today (above) |
+| PATH entry | Verify, do not create: `install --json` returns `entry`. `state` `created`, `present` or `replaced` is correct; `conflict` or `failed` is a finding with `entry.next` in the readback, and the role never replaces the occupant. A Machine without the entry is repaired by the next `install`, not by a link the role writes itself. The operator's login shell has `~/.local/bin` on PATH (`workspace_tools` already provides it for npm); `entry.shadowedBy` not `null` is a finding |
+| Readback | `lazurio update status --json`: `active`, `highWater`, `lastCheck` and `folderRefresh` are facts to report; an active version above the pin is not drift |
+
+The role keeps its custody-staged, digest-pinned bytes and its attestation check for
+installing and raising. The operator's own `lazurio update` verifies inside the product
+(F13). The meaning of the overlay fields changes, not their shape.
 
 ## Bounded diagnosis and repair
 
@@ -338,9 +363,9 @@ edited output, damaged journal, partial write without a receipt or abandoned loc
 requires operator diagnosis. No automatic cleanup or universal recovery is
 promised. Recreating a disposable VM requires separate infrastructure approval.
 
-Product update follows the [product update contract](update.md); until it is
-implemented nothing installs a product release on a Machine: retain the previous
-working product. Folder handover does not change that rule.
+Product update follows the [product update contract](update.md): the operator runs
+`lazurio update`; the Machines role installs, repairs and raises to its pin (above).
+Folder handover does not change that rule.
 The local filesystem boundary assumes no hostile concurrent same-user/root
 directory replacement; ownership checks are not a sandbox.
 

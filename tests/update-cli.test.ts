@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import { instructionTemplateRevision } from "../src/folder/render";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
   type CliContext,
@@ -207,6 +208,7 @@ test("install and self-check through the command surface", async () => {
     schemaVersion: 1,
     identity: { version: "1.0.0", commit: commitOf("1.0.0"), target },
     fixture: false,
+    templateRevision: instructionTemplateRevision,
     base: { active: "1.0.0", previous: "1.0.0", highWater: null },
     folder: null,
   });

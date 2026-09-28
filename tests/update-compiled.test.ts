@@ -121,12 +121,17 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect(base.startsWith(home)).toBe(true);
       expect(
         JSON.parse((await run(first, "install", "--json")).stdout),
-      ).toEqual({
+      ).toMatchObject({
         kind: "installed",
         active: "1.0.0",
-        path: join(base, "bin"),
+        path: join(home, ".local", "bin"),
         serviceInstalled: false,
+        entry: { state: "created", target: join(base, "bin", "lazurio") },
       });
+      // The standard entry runs the active version.
+      expect(
+        (await run(join(home, ".local", "bin", "lazurio"), "--version")).stdout,
+      ).toContain("lazurio 1.0.0 ");
       const lazurio = join(base, "bin", "lazurio");
       expect(await run(lazurio, "update", "--check")).toMatchObject({
         code: 10,
@@ -138,6 +143,8 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
         from: "1.0.0",
         to: "1.1.0",
         restartRequired: true,
+        // No Folder is known to this installation.
+        folderRefresh: null,
       });
       // The selector now runs the new bytes, whose self-check the old ran.
       expect((await run(lazurio, "--version")).stdout).toContain(

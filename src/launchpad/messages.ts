@@ -88,6 +88,8 @@ const en = {
     "Update state needs a person: {path}. Nothing is changed automatically.",
   updateStarted: "Update started…",
   updateRefused: "The update was not started; the state shown was refreshed.",
+  updateFolderRefresh:
+    "Folder refresh needed: this Folder was rendered by {recorded}, Lazurio renders {product}. Run: {command}",
   toolsTitle: "Tools",
   toolsIntro:
     "Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.",
@@ -472,6 +474,8 @@ const cs: Record<MessageKey, string> = {
     "Stav aktualizace vyžaduje zásah člověka: {path}. Automaticky se nic nemění.",
   updateStarted: "Aktualizace spuštěna…",
   updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
+  updateFolderRefresh:
+    "Folder je potřeba obnovit: vykreslila ho revize šablon {recorded}, Lazurio teď vykresluje {product}. Spusť: {command}",
   toolsTitle: "Nástroje",
   toolsIntro:
     "Nástroje jsou programy pro příkazovou řádku, kterými agenti v tomhle Environmentu pracují s vnějšími službami. Zapnutím se nástroj zapíše do instrukcí pro agenty v tomhle Folderu; nic se tím neinstaluje a nevzniká žádný přístup. Agenti používají nejdřív zapnuté nástroje a teprve potom MCP servery.",
