@@ -32,6 +32,19 @@ test("a hosted entry is exactly four typed values; anything else is refused", ()
     { ...entry, listenPort: 0 },
     { ...entry, listenPort: 70000 },
     { ...entry, listenPort: "20000" },
+    // The rules of the handover schema: no port, query or uppercase in an
+    // origin or the auth endpoint, a path on the endpoint, the gateway's
+    // cookie alphabet and an unprivileged loopback port.
+    { ...entry, externalOrigin: "https://launchpad.example.lazurio.io:8443" },
+    { ...entry, externalOrigin: "https://Launchpad.example.lazurio.io" },
+    { ...entry, externalOrigin: "https://localhost" },
+    { ...entry, authCheckUrl: "https://example.lazurio.io" },
+    { ...entry, authCheckUrl: "https://example.lazurio.io/oauth2/auth?x=1" },
+    { ...entry, authCheckUrl: "https://example.lazurio.io:8443/oauth2/auth" },
+    { ...entry, authCookieName: "lazurio.workspace" },
+    { ...entry, authCookieName: "a".repeat(129) },
+    { ...entry, listenPort: 1023 },
+    { ...entry, listenPort: 20000.5 },
   ])
     expect(() => parseHostedEntry(bad)).toThrow();
 });

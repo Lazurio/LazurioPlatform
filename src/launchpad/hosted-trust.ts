@@ -1,4 +1,10 @@
 import { createHash } from "node:crypto";
+import {
+  isAuthCheckUrl,
+  isEntryCookieName,
+  isEntryPort,
+  isHttpsOrigin,
+} from "./hosted-entry";
 
 /** Hosted entry of a Machine (docs/hosted-entry.md, decision F16): the values
  * the Launchpad needs to serve behind the Organization's gateway, recorded in
@@ -17,31 +23,10 @@ export type HostedEntry = Readonly<{
   listenPort: number;
 }>;
 
-const cookieNamePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,256}$/;
 const maxCookieHeaderBytes = 16 * 1024;
 
-function httpsOrigin(value: unknown, what: string): string {
-  if (typeof value !== "string")
-    throw new Error(`Invalid hosted entry ${what}`);
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error(`Invalid hosted entry ${what}`);
-  }
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash ||
-    url.pathname !== "/" ||
-    value !== url.origin
-  )
-    throw new Error(`Invalid hosted entry ${what}`);
-  return url.origin;
-}
-
+/** The Launchpad part of the handover's `entry.launchpad`, by the rules of
+ * the vendored schema (Machines 0.12.93) and kept exactly as written. */
 export function parseHostedEntry(input: unknown): HostedEntry {
   if (typeof input !== "object" || input === null || Array.isArray(input))
     throw new Error("Invalid hosted entry");
@@ -54,32 +39,17 @@ export function parseHostedEntry(input: unknown): HostedEntry {
   ];
   for (const key of Object.keys(value))
     if (!known.includes(key)) throw new Error("Invalid hosted entry");
-  const externalOrigin = httpsOrigin(value.externalOrigin, "origin");
-  if (typeof value.authCheckUrl !== "string")
+  if (!isHttpsOrigin(value.externalOrigin))
+    throw new Error("Invalid hosted entry origin");
+  if (!isAuthCheckUrl(value.authCheckUrl))
     throw new Error("Invalid hosted entry auth endpoint");
-  let auth: URL;
-  try {
-    auth = new URL(value.authCheckUrl);
-  } catch {
-    throw new Error("Invalid hosted entry auth endpoint");
-  }
-  if (auth.protocol !== "https:" || auth.username || auth.password || auth.hash)
-    throw new Error("Invalid hosted entry auth endpoint");
-  if (
-    typeof value.authCookieName !== "string" ||
-    !cookieNamePattern.test(value.authCookieName)
-  )
+  if (!isEntryCookieName(value.authCookieName))
     throw new Error("Invalid hosted entry cookie name");
-  if (
-    typeof value.listenPort !== "number" ||
-    !Number.isInteger(value.listenPort) ||
-    value.listenPort < 1 ||
-    value.listenPort > 65535
-  )
+  if (!isEntryPort(value.listenPort))
     throw new Error("Invalid hosted entry port");
   return Object.freeze({
-    externalOrigin,
-    authCheckUrl: auth.href,
+    externalOrigin: value.externalOrigin,
+    authCheckUrl: value.authCheckUrl,
     authCookieName: value.authCookieName,
     listenPort: value.listenPort,
   });

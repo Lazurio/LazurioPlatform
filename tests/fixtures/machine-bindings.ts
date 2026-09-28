@@ -81,6 +81,26 @@ export const personalRelationships = Object.freeze({
   ],
 } as const);
 
+// Machines 0.12.93: the entry as its renderer writes it from the gateway's
+// route catalog, for the Machine hostname `host` (an Organization work VM:
+// `<vm>.<org>.lazurio.io`; a personal VM: `<login>.lazurio.io`).
+export function handoverEntry(host: string, listenPort = 20000) {
+  return {
+    launchpad: {
+      external_origin: `https://launchpad.${host}`,
+      auth_check_url: `https://${host}/oauth2/auth`,
+      auth_cookie_name: "__Secure-lazurio-workspace",
+      listen_port: listenPort,
+    },
+    t3code: { external_origin: `https://t3code.${host}` },
+    modules: { origin_template: `https://{module}.${host}` },
+  };
+}
+export const entries = Object.freeze({
+  organization: handoverEntry("workspace.example.lazurio.io"),
+  personal: handoverEntry("example.lazurio.io"),
+});
+
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
 export function binding(document: unknown) {
@@ -91,6 +111,14 @@ export function binding(document: unknown) {
   );
 }
 const { team: _, ...withoutTeam } = organization.owner;
+// An Organization work VM of one operator (no Team) with its entry on `port`.
+export function organizationWithEntry(listenPort = 20000) {
+  return binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: handoverEntry("workspace.example.lazurio.io", listenPort),
+  });
+}
 export const bindings = Object.freeze({
   personal: binding(personal),
   // v0.12.59 shapes: a Team without assignment, and no Team at all.
@@ -114,4 +142,7 @@ export const bindings = Object.freeze({
     ...personal,
     relationships: personalRelationships,
   }),
+  // Machines 0.12.93 shapes: the entry on both lanes.
+  organizationEntry: organizationWithEntry(),
+  personalEntry: binding({ ...personal, entry: entries.personal }),
 });

@@ -1182,11 +1182,12 @@ function thisMachine(source: InstructionSource): string {
         "## Identity, from the recorded handover",
       ),
       ...identitySection(preset, machine, locale).map(same),
+      // A personal VM has no Organization: its gateway is its own.
       ...(entry
         ? [
             t(
-              `- Vstup: Launchpad téhle Mašiny je dosažitelný na \`${entry.externalOrigin}\` přes bránu Organizace (decision F16); přihlášení řeší brána a Launchpad poslouchá za ní jen na loopback portu ${entry.listenPort}.`,
-              `- Entry: this Machine's Launchpad is reached at \`${entry.externalOrigin}\` through the Organization's gateway (decision F16); admission is the gateway's, and the Launchpad listens only on loopback port ${entry.listenPort} behind it.`,
+              `- Vstup: Launchpad téhle Mašiny je dosažitelný na \`${entry.externalOrigin}\` přes bránu ${machine?.kind === "personal-vm" ? "téhle Mašiny" : "Organizace"} (decision F16); přihlášení řeší brána a Launchpad poslouchá za ní jen na loopback portu ${entry.listenPort}.`,
+              `- Entry: this Machine's Launchpad is reached at \`${entry.externalOrigin}\` through ${machine?.kind === "personal-vm" ? "this Machine's" : "the Organization's"} gateway (decision F16); admission is the gateway's, and the Launchpad listens only on loopback port ${entry.listenPort} behind it.`,
             ),
           ]
         : []),
