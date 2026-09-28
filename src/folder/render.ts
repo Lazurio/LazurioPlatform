@@ -26,7 +26,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-10";
+export const instructionTemplateRevision = "base-instructions-11";
 
 // Template revisions are ordered by their number. A Folder rendered by an
 // older revision is re-rendered by the next change of the generated Folder
