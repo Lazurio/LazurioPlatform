@@ -23,6 +23,10 @@ import {
  * does.
  */
 export const recoveryCheck = "start-refused";
+/** Every check id a Launchpad's health socket answers in Recovery mode
+ * (`503 {mode: "recovery", check, reason}`): the evidence of `lazurio
+ * recover` admits exactly these beside its own check ids. */
+export const healthSocketChecks = [recoveryCheck] as const;
 
 export type RecoveryAnswer = Readonly<{
   error: "recovery-mode";

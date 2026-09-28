@@ -56,7 +56,7 @@ Skipped is never "broken". Ids and codes are never renamed or reused.
 | `folder-state` | (R1's cause) | The Folder's `.lazurio/` as this version reads it: the two state documents parsed without the lock, like the self-check | `folder-state-absent`, `-pending` (a transaction), `-unrecognized` (an entry this version does not know, or no operation lock), `-unreadable` | `no-folder` |
 | `self-check-failed` | R5 | The ACTIVE executable's `self-check --json --base --folder`, run once by its immutable path and judged by the updater's own rule (`requireSelfCheck`) | `self-check-failed` (context `reason`, `exitCode`) | `not-installed` |
 | `launchpad-unit` | (R4's evidence) | `systemctl --user show` of `lazurio-launchpad.service`, only when that unit carries the installer's marker and a user manager exists (Linux, `XDG_RUNTIME_DIR`) | `unit-not-loaded`, `unit-failed`, `unit-restarting` (`auto-restart`), `unit-inactive` | `no-user-manager`, `not-supervised`, `user-manager-unreachable`, `unit-state-unknown` |
-| `launchpad-health` | (R4's evidence) | `GET /health` on the socket under the base | `launchpad-not-answering` (supervised only), `launchpad-version-mismatch`, `launchpad-recovery-mode` (the `503 {mode, check}` answer of a later slice) | `not-installed`, `not-supervised` |
+| `launchpad-health` | (R4's evidence) | `GET /health` on the socket under the base | `launchpad-not-answering` (supervised only), `launchpad-version-mismatch`, `launchpad-recovery-mode` (the `503 {mode, check, reason}` answer of a Launchpad in Recovery mode; context `check` `start-refused` and `refusal`, why its start was refused) | `not-installed`, `not-supervised` |
 
 When several fail, the issue is about the first in this order, the one closest to the
 cause; all failed ids are listed. R1 `start-refused`, R3 `activation-unhealthy` and
@@ -81,8 +81,8 @@ Never collected: the Folder's files, preferences contents, the handover, environ
 variables, tool sign-in state, anything under `personalspace/`.
 
 The **fingerprint** `rf-<12 hex>` is SHA-256 over the check, its code, the one detail
-of its context (`reason`, else `path`, else `stage`) and the target, without the
-version, so one fault meets its issue across releases. The title ends in
+of its context (`reason`, else `refusal`, else `path`, else `stage`) and the target,
+without the version, so one fault meets its issue across releases. The title ends in
 `[rf-…]`; the search uses `--state all`, so a closed match is found as a regression.
 
 ## What may leave the Machine
@@ -118,7 +118,8 @@ splits the bundle in two:
   | `code` | an update error code | `updateErrorCodes` (`src/update/errors.ts`) |
   | `stage` | a stage the update code emits | `updateErrorStages` (`src/update/errors.ts`) |
   | `resource` | a release resource | `updateErrorResources` (`src/update/errors.ts`) |
-  | `check` | a recovery check id | `recoveryCheckIds` (`src/recover/checks.ts`) |
+  | `check` | a recovery check id, or the check a Launchpad's health socket names in Recovery mode | `recoveryCheckIds` (`src/recover/checks.ts`), `healthSocketChecks` (`src/launchpad/recovery-mode.ts`) |
+  | `refusal` | why a Launchpad start or probe was refused | `startRefusals` (`src/launchpad/start-check.ts`) |
   | `path` | an update state name | `updateStatePaths` (`src/update/layout.ts`) |
   | `activeState`, `subState`, `result` | systemd's value, or `unknown` | `unitActiveStates`, `serviceSubStates`, `serviceResults` (`src/recover/observe.ts`) |
   | `target` | a release target | `updateTargets` (`src/update/identity.ts`) |
@@ -268,9 +269,11 @@ Recovery mode itself (R1 instead of exiting, health `503`, admission from the re
 entry), the pre-switch probe and activation without undo exist
 ([update](update.md#recovery-mode)), and so does the Recovery page above. Missing:
 
-- R1 `start-refused` and R3 `activation-unhealthy` as check ids of this command: the
-  evidence names Recovery mode only through `launchpad-health`
-  (`launchpad-recovery-mode`), without the refusal's reason.
+- R1 `start-refused` and R3 `activation-unhealthy` as check ids of this command. A
+  Launchpad in Recovery mode is named through `launchpad-health`
+  (`launchpad-recovery-mode`, context `check: start-refused` and the `refusal`
+  that says why), which the fingerprint tells apart per refusal; where no
+  Launchpad answers, the refusal is not in the evidence.
 - Opening T3 Code with the prompt in a new thread: T3 Code has no released way yet
   (the shaping's slice 7); the page copies the prompt.
 - R4 `launchpad-not-running` as its own check and the hosted gateway's static page.

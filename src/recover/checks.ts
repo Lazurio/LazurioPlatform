@@ -127,9 +127,11 @@ export function primaryFailure(
 }
 
 /** The one value of a failed check's context that tells two faults of the
- * same check apart, for the fingerprint. */
+ * same check apart, for the fingerprint: a Launchpad in Recovery mode is
+ * told apart by why its start was refused. */
 export function checkDetail(check: FailedCheck): string {
   const { context } = check;
-  const detail = context.reason ?? context.path ?? context.stage;
+  const detail =
+    context.reason ?? context.refusal ?? context.path ?? context.stage;
   return detail === undefined ? "" : String(detail);
 }

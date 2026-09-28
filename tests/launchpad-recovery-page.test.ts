@@ -163,7 +163,18 @@ test.skipIf(process.platform === "win32")(
         served.checks.find(
           (check: { id: string }) => check.id === "launchpad-health",
         ),
-      ).toMatchObject({ outcome: "failed", code: "launchpad-recovery-mode" });
+      ).toMatchObject({
+        outcome: "failed",
+        code: "launchpad-recovery-mode",
+        context: {
+          check: "start-refused",
+          refusal: "folder-transaction-pending",
+        },
+      });
+      // …and so the prepared issue says why the start was refused.
+      expect(served.issue.body).toContain(
+        '"refusal":"folder-transaction-pending"',
+      );
       // Read-only: no POST, and every other route still names the reason.
       const post = await fetch(`${origin}/api/recovery`, {
         method: "POST",

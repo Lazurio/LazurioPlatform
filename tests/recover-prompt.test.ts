@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { healthSocketChecks } from "../src/launchpad/recovery-mode";
 import { failed, ok, recoveryCheckIds, skipped } from "../src/recover/checks";
 import {
   fingerprint,
@@ -382,12 +383,13 @@ test("every id literal the product writes into a context is in its list", async 
     reason: [...updateErrorReasons, ...healthReasons],
     stage: updateErrorStages,
     resource: updateErrorResources,
-    check: recoveryCheckIds,
+    check: [...recoveryCheckIds, ...healthSocketChecks],
   };
   const files = [
     ...[...new Bun.Glob("src/update/*.ts").scanSync(".")],
     ...[...new Bun.Glob("src/recover/*.ts").scanSync(".")],
     "src/launchpad/update-pill.ts",
+    "src/launchpad/recovery-mode.ts",
   ];
   const outside: string[] = [];
   let found = 0;
