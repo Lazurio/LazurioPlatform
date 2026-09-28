@@ -82,7 +82,7 @@ the frame.
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
 | This Machine (read-only handover) | Settings → This Machine, one row per recorded fact |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
-| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route; the Folder refresh line is a subdued notice right above the pill, its command in selectable monospace |
+| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Principal 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
 | Application (development lifecycle) | Launchpad home `/`, not a setting |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
@@ -135,8 +135,10 @@ the profile is loaded (with `signIn: true`, so the sign-in probes run), after ev
 change (without them; the last known sign-ins stay on the cards) and on "Refresh
 status" (with them again), and shows:
 
-- one introductory sentence: what tools are, that enabling writes them into the agent
-  instructions, and that agents use enabled tools first and MCP servers second;
+- a short introduction: what tools are, that "Used by agents" guides the agents on this
+  Environment to use a tool, and that installing, uninstalling, signing in and signing
+  out are separate acts (the Principal's wording, 2026-09-28; said once per page, not
+  on every row);
 - on a shared Environment (the Team preset) the warning that signed-in accounts are
   shared by all operators; it is repeated in the confirmation of an enable;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
@@ -144,13 +146,20 @@ status" (with them again), and shows:
   purpose and one status line (installed version or "not installed", then the
   sign-in), a failed version check below it, and on the right the one action
   ("Install and sign in", "Sign in", "Link SSH key" before "Sign out", "Sign out" or,
-  for a tool an agent sets up, "Set up with an agent") and the enable switch ("Always
-  on" for a required tool). The sign-in reads: "Signed in as <account>" (with the
+  for a tool an agent sets up, "Set up with an agent") and the switch with its visible
+  label "Used by agents" / "Používají agenti" ("Always on" for a required tool). The sign-in reads: "Signed in as <account>" (with the
   organization for composio), "Signed in", "Not signed in", "Sign-in unknown" or
   "Sign-in not checked"; for gh the line goes on with "· SSH key linked", "· SSH key
   not linked" (in the warning colour) or "· SSH key not verified" (F19 addendum
   2026-09-28), and a signed-in gh whose key is not linked shows "Link SSH key" as the
-  row's primary action.
+  row's primary action. On a Team Environment (the preset `hosted-organization-team`,
+  the shared case) the gh row has no "Sign in", "Link SSH key" or "Sign out" and no
+  agent fallback; a subdued sentence says that this Team Environment works in GitHub
+  through Lazurio for GitHub, set up by the Organization, and that personal GitHub
+  accounts are not signed in here (Principal 2026-09-28). Its sign-in line stays, in
+  the neutral colour. This is presentation only: the server still accepts a gh login
+  on a Team Environment (the server rule is a separate slice). composio and wacli keep
+  their actions there, with the shared sign-ins warning;
   Only on a hosted Machine (`hosted`) does a PATH entry outside `~/.local/bin` add a
   note and the amber attention state; on a local workstation any tool on PATH is fine;
 - behind "Details" the path where the tool was found, "What agents are told" (the
@@ -164,7 +173,8 @@ status" (with them again), and shows:
   MCP servers are never recorded in the Folder, so this card enables nothing.
 
 **Enable, disable and notes** take one click (the switch is a `role="switch"` button
-named "Enable <tool>" with `aria-checked`). The button sends the full next
+named "Used by agents: <tool>" with `aria-checked`, so its name holds the visible
+label and the tool). The button sends the full next
 selection (and, for a note, the full next set of notes) with the shown revision to
 `/api/tools/update`; the page no longer uses `/api/tools/preview`, which stays for
 other clients. After a recorded change the card confirms politely what happened, that

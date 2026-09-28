@@ -821,6 +821,21 @@ for the Folder refresh indication above it); the development Application panel s
 on the Launchpad home. Plain CSS, no framework and no new dependency; Czech and
 English. Patterns, sources and deliberate differences:
 [launchpad development](launchpad-development.md#settings-structure-routes-and-the-t3-code-pattern).
+The same day the Principal settled the follow-ups: a history entry per section;
+the update pill only while an update is available, as in T3 Code, with the Folder
+refresh line independent of it; "Set up with an agent" visible on the row of a tool
+an agent sets up; the tool switch labelled "Used by agents" / "Používají agenti",
+its meaning said once in the Tools intro ("guides agents to use this tool;
+installing, uninstalling, signing in and signing out are separate acts"); and the
+Environment kinds named "Personal" / "Osobní", "Work" / "Pracovní", "Work, Team" /
+"Pracovní týmové" where the page already names a kind (the workspace presets).
+**Team Environments and GitHub (Principal 2026-09-28).** A Team Environment
+(`hosted-organization-team`) is never signed in to gh with a person's account and
+never links a person's SSH key; it will work in GitHub through the GitHub App
+"Lazurio for GitHub" installed under the Organization, so that GitHub shows which
+Environment made a commit, pull request or issue. That integration is not built.
+The Launchpad already shows no gh sign-in, SSH key or sign-out action there and says
+why; the server rule that refuses such a login is a separate slice.
 
 ## F16 — One network per Organization: every Machine is reached the same way, and the Conglomerate graph is the truth agents move along
 

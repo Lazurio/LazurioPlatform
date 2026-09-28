@@ -839,12 +839,18 @@ export function createToolsPanel(
             ? copy.toolsSshNotLinked
             : copy.toolsSshUnknown,
       );
-      key.dataset.state = ssh.state;
+      key.dataset.state =
+        overview?.sharedEnvironment === true ? "team" : ssh.state;
       status.append(dot, key);
     }
     text.append(status);
     for (const note of view.notes)
       text.append(element("p", "row-status tool-attention", note));
+    if (tool.name === "gh" && overview?.sharedEnvironment === true) {
+      // Not a warning here: a Team Environment is not signed in personally.
+      signIn.dataset.state = "team";
+      text.append(element("p", "tool-team", copy.toolsTeamGithub));
+    }
 
     const agent = button(
       copy.toolsAgentAction,
@@ -866,7 +872,13 @@ export function createToolsPanel(
     // The curated flow of a `launchpad` tool (decision F19): install and
     // sign in, sign in, or sign out. A tool an agent sets up has the agent's
     // prompt as its action instead.
-    const curated = curatedActions(tool, copy);
+    // A Team Environment works in GitHub through Lazurio for GitHub, set up
+    // by the Organization (Principal 2026-09-28): its gh row offers no
+    // personal sign-in, SSH key or sign-out; a sentence says why.
+    const teamGh = tool.name === "gh" && overview?.sharedEnvironment === true;
+    const curated = teamGh
+      ? { primary: null, linkSsh: false, logout: false }
+      : curatedActions(tool, copy);
     const primary = curated.primary;
     if (primary !== null)
       controls.append(
@@ -911,18 +923,26 @@ export function createToolsPanel(
     if (tool.tier === "required")
       controls.append(element("span", "always-on", copy.toolsAlwaysOn));
     else {
+      // "Used by agents": the switch guides agents to the tool; installing
+      // and signing in are separate acts (the section's intro says so once).
+      // Its accessible name holds the visible label and names the tool.
       const enable = !tool.enabled;
       const toggler = button(
         "",
         tool.name,
         "toggle",
         () => void toggle(tool, enable),
-        fill(copy.toolsEnableNamed, { name: tool.name }),
+        fill(copy.toolsSwitchNamed, { name: tool.name }),
       );
       toggler.className = "switch";
       toggler.setAttribute("role", "switch");
       toggler.setAttribute("aria-checked", String(tool.enabled));
-      controls.append(toggler);
+      const label = element("span", "switch-label", copy.toolsSwitchLabel);
+      label.setAttribute("aria-hidden", "true");
+      label.addEventListener("click", () => toggler.click());
+      const field = element("span", "switch-field");
+      field.append(label, toggler);
+      controls.append(field);
     }
     main.append(text, controls);
     item.append(main);
@@ -964,7 +984,9 @@ export function createToolsPanel(
       usage.append(source);
     }
     body.append(usage, noteEditor(tool, copy));
-    if (tool.setup === "launchpad") {
+    // The agent's fallback of a `launchpad` tool guides a personal sign-in,
+    // which a Team Environment's gh does not take.
+    if (tool.setup === "launchpad" && !teamGh) {
       const fallback = element("section", "");
       const row = element("p", "tool-actions");
       row.append(agent);

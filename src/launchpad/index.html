@@ -196,7 +196,9 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tool-message { display: grid; gap: 0.5rem; margin-top: 0.625rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--muted); font-size: 13px; }
 .tool-message[data-kind="blocked"], .tool-message[data-kind="failed"] { border-color: color-mix(in srgb, var(--destructive) 35%, transparent); background: color-mix(in srgb, var(--destructive) 6%, transparent); }
 .tool-message[data-kind="updated"] { border-color: color-mix(in srgb, var(--success) 35%, transparent); background: color-mix(in srgb, var(--success) 7%, transparent); }
-.always-on { color: var(--muted-fg); font-size: 12px; }
+.always-on, .switch-label { color: var(--muted-fg); font-size: 12px; white-space: nowrap; }
+.switch-field { display: inline-flex; align-items: center; gap: 0.5rem; }
+.tool-team { color: var(--muted-fg); font-size: 12px; max-width: 36rem; }
 
 /* Dialogs (T3 Code ui/alert-dialog.tsx). */
 dialog { width: min(40rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); padding: 1.5rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--card); color: var(--fg); box-shadow: 0 24px 64px -24px rgb(0 0 0 / 65%); }
@@ -342,7 +344,7 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 
 <section id="tools" data-section="tools" aria-labelledby="page-heading" hidden>
 <div class="section-head">
-<p class="intro" data-message="toolsIntro">Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.</p>
+<p class="intro" data-message="toolsIntro">Tools are command-line programs that agents use to work with outside services. “Used by agents” guides the agents on this Environment to use a tool. Installing, uninstalling, signing in and signing out are separate acts.</p>
 <p id="tools-shared" class="tools-warning" role="note" hidden data-message="toolsShared">This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.</p>
 <p class="toolbar"><span id="tools-checked"></span></p>
 <p id="tools-announce" class="sr-only" role="status" aria-live="polite"></p>

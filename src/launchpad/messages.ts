@@ -92,7 +92,11 @@ const en = {
     "Folder refresh needed: this Folder was rendered by {recorded}, Lazurio renders {product}. Run: {command}",
   toolsTitle: "Tools",
   toolsIntro:
-    "Tools are command-line programs that agents on this Environment use to work with outside services. Enabling a tool writes it into the agent instructions of this Folder; it installs nothing and grants no access. Agents use the enabled tools first and MCP servers second.",
+    "Tools are command-line programs that agents use to work with outside services. “Used by agents” guides the agents on this Environment to use a tool. Installing, uninstalling, signing in and signing out are separate acts.",
+  toolsSwitchLabel: "Used by agents",
+  toolsSwitchNamed: "Used by agents: {name}",
+  toolsTeamGithub:
+    "This Team Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Personal GitHub accounts are not signed in here.",
   toolsShared:
     "This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.",
   toolsRefresh: "Refresh status",
@@ -383,9 +387,9 @@ const en = {
   presetDerived: "derived from the handover",
   presetExplicit: "explicit choice",
   presetLocal: "Local workstation",
-  presetHostedPersonal: "Hosted personal Machine",
-  presetHostedOrganizationPersonal: "Organization work Machine (one operator)",
-  presetHostedOrganizationTeam: "Organization team Machine (shared)",
+  presetHostedPersonal: "Personal",
+  presetHostedOrganizationPersonal: "Work",
+  presetHostedOrganizationTeam: "Work, Team",
   locale: "Language",
   detail: "Detail",
   concise: "Concise",
@@ -498,7 +502,11 @@ const cs: Record<MessageKey, string> = {
     "Folder je potřeba obnovit: vykreslila ho revize šablon {recorded}, Lazurio teď vykresluje {product}. Spusť: {command}",
   toolsTitle: "Nástroje",
   toolsIntro:
-    "Nástroje jsou programy pro příkazovou řádku, kterými agenti v tomhle Environmentu pracují s vnějšími službami. Zapnutím se nástroj zapíše do instrukcí pro agenty v tomhle Folderu; nic se tím neinstaluje a nevzniká žádný přístup. Agenti používají nejdřív zapnuté nástroje a teprve potom MCP servery.",
+    "Nástroje jsou programy pro příkazovou řádku, kterými agenti pracují s vnějšími službami. „Používají agenti“ vede agenty v tomhle Environmentu k tomu, aby nástroj používali. Instalace, odinstalace, přihlášení a odhlášení jsou samostatné kroky.",
+  toolsSwitchLabel: "Používají agenti",
+  toolsSwitchNamed: "Používají agenti: {name}",
+  toolsTeamGithub:
+    "Tohle týmové Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady nepřihlašují.",
   toolsShared:
     "Tohle Environment je sdílené. Účty přihlášené v nástroji platí pro celé Environment a používají je všichni jeho operátoři.",
   toolsRefresh: "Obnovit stav",
@@ -791,10 +799,9 @@ const cs: Record<MessageKey, string> = {
   presetDerived: "odvozeno z handoveru",
   presetExplicit: "výslovná volba",
   presetLocal: "Lokální pracovní stanice",
-  presetHostedPersonal: "Hostovaná osobní Mašina",
-  presetHostedOrganizationPersonal:
-    "Pracovní Mašina Organizace (jeden operátor)",
-  presetHostedOrganizationTeam: "Týmová Mašina Organizace (sdílená)",
+  presetHostedPersonal: "Osobní",
+  presetHostedOrganizationPersonal: "Pracovní",
+  presetHostedOrganizationTeam: "Pracovní týmové",
   locale: "Jazyk",
   detail: "Podrobnost",
   concise: "Stručně",
