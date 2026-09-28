@@ -1,8 +1,9 @@
 # Recovery mode instead of rollback
 
-Status: **shaping for the Principal's decision of 2026-09-28. Analysis and design
-only.** Nothing here is implemented. The proposed decision F21 at the end amends F13,
-the F17 addendum and the product update contract once the Principal accepts it.
+Status: **shaping; the Principal decided Q1, Q2, Q3, Q5, Q6 and the last switch-back
+of H on 2026-09-28. Q4 and Q7 stay open. Analysis and design only.** Nothing here is
+implemented. The proposed decision F21 at the end amends F13, the F17 addendum and the
+product update contract once the Principal accepts it.
 
 ## Recommendation
 
@@ -19,16 +20,26 @@ the F17 addendum and the product update contract once the Principal accepts it.
 4. **One core, two surfaces, one static fallback.** `lazurio recover` and the
    recovery page call the same use case. When the executable cannot run at all, the
    hosted gateway serves a static page that sends the operator to T3 Code.
-5. **Every entry into Recovery mode ends on GitHub** as a sanitized issue in the
-   public product repository (root decision 0163), repaired or not. Each such issue
-   closes only with a regression test.
-6. **Gates force quality.** Journeys on disposable runners against the real release
-   candidate, a canary soak, and a release job that refuses a final tag without them.
+5. **Every entry into Recovery mode ends on GitHub** as a sanitized issue (root
+   decision 0163), repaired or not (Q2, decided 2026-09-28). Each such issue closes
+   only with a regression test. Whether the Machine files it directly into the public
+   product repository or into a private intake from which the maintainers write the
+   public issue is Q4, still open; the recommendation is the private intake (E.3).
+6. **Gates force quality.** Journeys on disposable Ubuntu and macOS runners against
+   the real release candidate, a canary stage of 8 hours on every hosted Machine of
+   the pilot Organization (Q5, decided 2026-09-28), and a release job that refuses a
+   final tag without them.
+7. **Machines follows the same rule** (Q6, decided 2026-09-28): an apply completes or
+   does not start, and never returns to an earlier release as a way of repair.
+   Defects are repaired by a new release that passes staged rings (G.4, G.5; a
+   proposal for a separate Machines decision).
 
 The price: a release that passes every gate and still fails on one Machine leaves
-that Machine's Launchpad in Recovery mode until a fixed release. T3 Code, the
-operator's tools, the Folder and the repositories keep working; none of them depends
-on the Launchpad process. The Principal chose this ("No back doors for rollback!").
+that Machine's Launchpad in Recovery mode until a fixed release. Staged releases keep
+the number of such Machines narrow: a defect that passes the gates meets the pilot
+Organization first (G.3, G.5). T3 Code, the operator's tools, the Folder and the
+repositories keep working; none of them depends on the Launchpad process. The
+Principal chose this ("No back doors for rollback!").
 
 ## Context
 
@@ -61,7 +72,7 @@ state as a way of repair. Each row gets one disposition.
 | 2 | `lazurio update rollback --auto`: undo a switched, uncommitted activation | `src/update/update.ts:418-427`, `src/update/activation.ts:172-193` | Yes, automatic | **Remove** |
 | 3 | `lazurio-rollback.service`, static, runs `previous/lazurio update rollback --auto` | `src/update/install.ts:111-130`, unit name `src/update/service-control.ts:14` | Yes | **Remove**; migration deletes the file (H) |
 | 4 | `OnFailure=lazurio-rollback.service`, `StartLimitIntervalSec=60`, `StartLimitBurst=5`, `Restart=on-failure` in the Launchpad unit | `src/update/install.ts:86-99` | The trigger of 3 | **Replace** by the unit in F |
-| 5 | Switch-back when the restarted Launchpad does not report the new version within 30 s | `src/update/activation.ts:132-143`, `undo` at `:88-103`, deadline `src/update/service-control.ts:243` | Yes: the new version ran and was observable | **Replace** by the pre-switch probe (F) and Recovery mode after the switch |
+| 5 | Switch-back when the restarted Launchpad does not report the new version within 30 s | `src/update/activation.ts:132-143`, `undo` at `:88-103`, deadline `src/update/service-control.ts:243` | Yes: the new version ran and was observable | **Replace** by the pre-switch probe (F) and Recovery mode after the switch (Q1, decided 2026-09-28) |
 | 6 | `reconcilePending`: a mutating command asks the service once and undoes anything unhealthy | `src/update/activation.ts:154-170` | Yes, in its undo branch | **Remove** with the marker; a migration reader handles markers left by v0.1.x (H) |
 | 7 | `reconcileAsLaunchpad` and the 15 s commit delay "so a version that dies sooner must reach `OnFailure=lazurio-rollback.service` uncommitted" | `src/update/activation.ts:195-216`, `src/launchpad/server.ts:38`, `:494-507` | Exists only to serve 2 and 3 | **Remove** |
 | 8 | `update/pending.json` and its reconcile table | `src/update/layout.ts:182-257` | Exists only for undo | **Remove** (migration reader keeps one release) |
@@ -77,7 +88,7 @@ state as a way of repair. Each row gets one disposition.
 | 18 | Folder transactions: prepare, apply in a fixed rename order, finalize; resume completes a recognized attempt; retire abandons only a pre-activation attempt and retains every file | `src/folder/apply-preparation.ts:28-116`, `src/folder/update-profile.ts:17-25`, `src/folder/retire-preparation.ts:27-29` | No. `before.json` is a comparison snapshot, never a restore source; no code writes it back (`src/folder/apply-preparation.ts:139-202`) | **Keep**: forward completion, the model this document extends to the product |
 | 19 | A Folder rendered by a newer template revision is refused (`template-upgrade-required`), never re-rendered older | `docs/machine-handover.md:196-198` | No: refuses a downgrade | **Keep** |
 | 20 | Curated tool install: a placed binary that does not answer `--version` is removed when this attempt created or replaced it; an entry it did not change stays | `src/tools/install.ts:549-558` | No: nothing earlier is restored | **Keep**; slice 7 moves the probe before the rename for release archives (B, case 5) |
-| 21 | The resident T3/runtime release tree of Machines restores "the selected previous tree after failed template activation" | Machines `workloads/workspace-vm/native-release.py:146-192` | Yes, but Machines', not the Platform's | **Out of scope**; question Q6 |
+| 21 | The resident T3/runtime release tree of Machines restores "the selected previous tree after failed template activation" | Machines `workloads/workspace-vm/native-release.py:146-192` | Yes, but Machines', not the Platform's | **Remove** in Machines, by a separate Machines decision (Q6, decided 2026-09-28; G.4) |
 
 ### A.2 Texts that promise or rely on rollback
 
@@ -117,7 +128,8 @@ Tested against five cases from A:
 2. **Restarted Launchpad unhealthy within 30 s (row 5).** The selector named the new
    version, the unit ran it, and for up to 30 s it could write (a Folder lock,
    preferences through the page). Switching back is rollback. Not allowed; replaced
-   by the probe before the switch and Recovery mode after it.
+   by the probe before the switch and Recovery mode after it (Q1, decided
+   2026-09-28).
 3. **Folder transaction interrupted after two of five renames (row 18).** Resume
    completes it forward; retire applies only before activation and deletes nothing.
    Nothing earlier is restored. Allowed, and the pattern the product adopts.
@@ -197,7 +209,9 @@ the next Open after repair. "Start a repair agent":
   fork carries it, the button opens the new thread directly (slice 7).
 - **Workstation.** The same copy action into the agent app the operator uses. Codex
   and Claude Code accept an initial prompt (`codex "<prompt>"`, `claude "<prompt>"`),
-  but the product does not ask a person to open a terminal (root `AGENTS.md`). Q3.
+  but the product does not ask a person to open a terminal (root `AGENTS.md`).
+  Copying the prompt is enough for now (Q3, decided 2026-09-28); revisit when T3 Code
+  can start a thread from outside.
 
 ## D. The repair agent's assignment
 
@@ -242,7 +256,16 @@ stop rule. It exists in `cs` and `en`; the English text:
 The manual lets an agent run `lazurio update` only when the operator asks
 (`src/folder/manual.ts:714-715`); pressing "Start a repair agent" is that request,
 bounded to moving forward. An issue follows even a successful local repair because a
-state the product could not handle, whoever caused it, is a missing test (Q2).
+state the product could not handle, whoever caused it, is a missing test (Q2, decided
+2026-09-28: "otherwise the repair never becomes a test").
+
+Step 7 is written for variant (a) of Q4, which is still open (E.3). Under the
+recommended variant (c) it reads instead: search the **public** issues of
+`Lazurio/LazurioPlatform` for `<fingerprint>` (a known fault then shows its public
+issue and regression test); submit `lazurio recover --issue-body` to the product's
+private intake in every case, a known fault as one more occurrence; show the operator
+the exact body that left the Machine and the intake's receipt. Reading the body
+before it leaves and the fail-closed rule stay as written.
 
 ## E. The evidence bundle for GitHub
 
@@ -294,15 +317,66 @@ A test plants canaries (tokens of each shape, a user name, a hostname, Organizat
 names, a tailnet address, an e-mail) in every source and asserts none reaches the
 body; it is also part of J6.
 
-### E.3 Who approves, what the operator sees
+### E.3 Who approves, where the issue goes first (Q4, open)
 
 Root decision 0163 lets the agent file an issue after a duplicate check and
 sanitization without asking (`manual/decision-register.md:99`,
-`manual/github-issues.md:55-60`). The operator is not asked; the operator sees: the
-page shows the exact sanitized bundle, and the agent shows the issue body in the chat
-in the turn it files it. Closing and prioritizing stay with the Principal. The owning
-repository is the public `Lazurio/LazurioPlatform` (Issues enabled); the root routing
-table (`manual/github-issues.md:16`) needs a row for it.
+`manual/github-issues.md:55-60`). In every variant the operator sees what leaves: the
+page shows the exact sanitized bundle, and the agent shows the body in the chat in
+the turn it sends it. Closing and prioritizing stay with the Principal. The product's
+public repository is `Lazurio/LazurioPlatform` (Issues enabled); the root routing
+table (`manual/github-issues.md:16`) needs a row for it, and under (c) also for the
+intake.
+
+The Principal did not decide whether the operator confirms before an issue leaves the
+Machine; he suggested "some internal agent pass that goes through it before it is
+published" and asked for a recommendation. Three variants:
+
+- **(a) Direct public issue.** After the deterministic gate of E.2 and the agent's
+  reading, the agent files into `Lazurio/LazurioPlatform`. (The earlier
+  recommendation.)
+- **(b) Direct public issue, confirmed.** As (a), and the operator confirms the body
+  in the chat or on the page before it is sent.
+- **(c) Private intake.** The Machine never files into the public repository. It
+  submits the body to a private intake of the product's maintainers: a private intake
+  repository behind a small intake endpoint (or a channel like GitHub's private
+  vulnerability reporting). A maintainer-side agent pass reads each intake issue,
+  runs the deterministic gate once more and reads it for private content, reproduces
+  or classifies the fault, and only then writes the public issue in its own words with
+  the sanitized facts, the fingerprint and the link to the regression test. The
+  operator sees the exact body that left the Machine.
+
+| | (a) Direct public | (b) Direct public, confirmed | (c) Private intake |
+|---|---|---|---|
+| What can leak, to whom | Whatever the gate and the agent's reading miss reaches everyone, at once and for good: a public issue is indexed and mirrored, its edit history stays visible, and only a repository admin can delete it | The same as (a), less what the operator recognizes. Operators rarely recognize a leaked path, hostname or Organization name, because it looks normal to them | Whatever the Machine's gate misses reaches the maintainers only. The public text is written by a maintainer-side agent from facts after a second deterministic pass and a reading, not pasted. The residue maintainers see must be covered by the product's statement to operators, and the intake needs a retention rule |
+| Cost to the operator | None | One read and one confirmation per entry into Recovery mode; with no operator present, nothing is filed, which weakens Q2 and 0163's "without asking" | None. The public issue appears only after the maintainer pass (hours or days); until then the operator has the intake receipt |
+| What must exist | The public repository (exists). Personal or Work Environment: the operator's `gh` sign-in can open an issue in any public repository. Team Environment: the Organization's bot is a GitHub App whose installation token reaches only the repositories of its own installation, so it cannot file into another organization's repository; the prefilled link of E.5 stays its path (**unverified** against the broker) | As (a), plus a confirmation step on the page and in the prompt | A private intake repository in the maintainers' organization; an intake endpoint that validates `lazurio.recovery.v1`, bounds size and rate, re-runs the gate, and files with a GitHub App installation token restricted to that one repository with Issues write, which never leaves the endpoint; the maintainer-side agent pass with its own instructions; the root routing row. The Machine needs no GitHub right at all, so Personal, Work and Team Environments and a Machine without a sign-in use the same path |
+| Duplicates | The agent searches the public issues for `rf-<fingerprint>` (E.4) | The same | The Machine searches the public issues for the fingerprint and still submits (every entry is recorded, Q2); the endpoint or the maintainer pass groups intake issues by fingerprint, one intake issue per fault with occurrences as comments; a public issue exists once per fault |
+
+Why (c) is not a direct write from the Machine: GitHub lets a person open an issue in
+a private repository only with at least read access, and read access shows every
+other operator's intake issue, so granting it to operators would leak between them.
+A Team bot's installation token reaches only its own installation; installing the
+same App on the maintainers' organization and handing such a token to a Machine would
+again show the whole intake to every admitted member. The token must therefore stay
+in a service, and the service is the intake endpoint. Whether the "Lazurio for
+GitHub" broker, which already runs as a service with a GitHub App, can host it is
+**unverified**. GitHub's private vulnerability reporting accepts a private report
+from any signed-in user on a public repository and shows it only to the reporter and
+the maintainers; it could serve Personal and Work Environments before an endpoint
+exists, but it is meant for vulnerabilities, fills the security advisory list, and
+whether an App installation token may submit one is **unverified**.
+
+**Recommended: (c), with the deterministic gate of E.2 kept on the Machine as the
+first layer** (the residual check still refuses a body that is not provably clean).
+Two independent gates and a reader stand between a Machine and the public, and a
+miss of the first reaches a bounded group instead of everyone. Its honest costs: an
+endpoint, a private repository and a scheduled agent pass to build and operate,
+contrary to the wish for a thin product; a latency before the public issue exists;
+maintainers who see the residue the first gate missed; and the volume of Q2, since
+locally repaired entries are recorded as well. Until the endpoint exists nothing is
+filed publicly from a Machine: the body stays in `<base>/recovery/` and the operator
+hands it on. **This stays the Principal's open question.**
 
 ### E.4 Duplicates
 
@@ -310,14 +384,17 @@ The fingerprint is 12 hex characters of SHA-256 over `check`, `code`,
 `context.stage`/`context.reason` and `target`, without the version, so one fault meets
 its issue across releases. The title ends in `[rf-<fingerprint>]`; the agent searches
 `--state all`. An open match gets a comment; a closed match is a regression and gets a
-new issue linking it.
+new issue linking it. Under (c) of E.3 this search and its comment move to the intake
+endpoint or the maintainer pass; the Machine only reads the public issues.
 
 ### E.5 No GitHub sign-in, no network
 
 - **No sign-in** (always so on a Team Environment, `docs/decisions.md:832-836`):
   `recover` prints a prefilled link
   `https://github.com/Lazurio/LazurioPlatform/issues/new?title=…&body=…` for the
-  operator's own browser, and the body as text.
+  operator's own browser, and the body as text. Under (c) of E.3 a prefilled link to
+  a private repository answers 404 to anyone without access, so the path is the
+  intake endpoint, which needs no sign-in.
 - **No network:** no agent runs either. The page shows the bundle to copy and
   `recover` writes it to `<base>/recovery/<timestamp>.json` (owner-only) for the next
   agent. Nothing retries in the background.
@@ -405,9 +482,18 @@ canary.
 **Journeys against the real release candidate.** `qualify.yml` runs when a
 prerelease `vX.Y.Z-rc.N` is published, on GitHub-hosted runners (a fresh VM with
 `sudo` each run): `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-14`, through the real
-Release and Sigstore path, not the fixture origin:
+Release and Sigstore path, not the fixture origin.
 
-| Journey | Linux | macOS |
+**Linux means Ubuntu in the first phase** (Principal, 2026-09-28). The journeys run
+on Ubuntu runners and on Ubuntu VMs of the release the fleet runs: Machines asserts
+Ubuntu 24.04 (noble) for Organization work VMs (Machines
+`workloads/workspace-vm/ansible/roles/workspace_network/tasks/install.yml:2-6`).
+Release notes and the manual call every other distribution "unverified"; the Linux
+executables are not refused there, only not qualified. Hosted personal VMs run
+Debian 13 (Machines `docs/personal-vm.md:119-120`), so under this rule they are
+unverified until the Principal decides otherwise.
+
+| Journey | Ubuntu | macOS |
 | --- | --- | --- |
 | J1 First installation by `install.sh` with `LAZURIO_VERSION=<rc>` (`install.sh:5`), then `--version`, `self-check`, a Folder init | yes, with `--service systemd-user` and linger | yes |
 | J2 Update from the previous final release to the RC by `lazurio update --version <rc>`, including the pre-switch probe | yes, supervised | yes, unsupervised |
@@ -424,11 +510,7 @@ a successful `qualify.yml` run of an RC whose commit equals the final tag's, or
 differs only under `docs/evidence/`. Otherwise the draft is deleted and nothing is
 published, like the ordering gate.
 
-**Canary soak.** The RC runs by exact tag on one canary Environment for at least 24
-hours of real work, including a Folder refresh and a Launchpad restart. The evidence
-PR adds `docs/evidence/release-vX.Y.Z.md` with the canary's `lazurio recover --json`
-(`healthy`), `NRestarts` and a sanitized journal summary; the `release` reviewer
-approves only with it.
+**Canary stage.** 8 hours on every hosted Machine of the pilot Organization (G.3).
 
 **Every recovery issue ends with a regression test.** The issue template sets the
 label `recovery` and asks for the fingerprint. The PR that closes it adds
@@ -437,8 +519,137 @@ fixture there, so the drill grows with each field failure. The release job lists
 `recovery` issues in the draft release notes.
 
 **A fast lane is a requirement.** Without rollback a broken Machine waits for a fix.
-The RC→final path (J1–J6 plus review) should fit in one working hour; the soak of a
-fix release may be shortened only explicitly, in its evidence PR.
+The RC→final path (J1–J6 plus review) should fit in one working hour; the canary stage
+of a fix release may be shortened only explicitly, in its evidence PR.
+
+### G.3 Canary stage: 8 hours on every Machine of the pilot Organization
+
+Decided by the Principal on 2026-09-28 (Q5), replacing the earlier proposal of 24
+hours on one Environment.
+
+**What "every Machine of the pilot Organization" means for the release job.** After
+`qualify.yml` passed, the candidate is rolled by its exact tag to all hosted Machines
+of the pilot Organization on which Machines installs the Platform, whatever their
+Environment kind, through the Organization's owner overlay pin (Plan, Permit and
+apply per Machine, the existing path). A Machine that cannot take the
+candidate blocks the stage; excluding one is an explicit, named line in the evidence
+PR that the `release` reviewer accepts or refuses. The 8 hours start when the last of
+these Machines runs the candidate, proven by its `lazurio update status --json`
+(`active` equals the candidate) and a healthy Launchpad. The pilot Organization is
+the Principal's choice and is named only in private owner records, never here.
+
+**What is observed during the 8 hours**, on every Machine:
+
+- the checks R1–R5: no Machine enters Recovery mode, and `lazurio recover --json`
+  answers `healthy` at the start and at the end;
+- the Launchpad's health: `/health` answers the candidate's version in normal mode,
+  and `NRestarts` of the unit does not grow except by deliberate restarts;
+- no Recovery issue filed, in the public repository or the intake of E.3, whose body
+  names the candidate;
+- module starts: modules the operators use start and open through the Launchpad or
+  `lazurio module open`. Until the Platform Launchpad serves hosted Machines
+  ([Launchpad parity](launchpad-parity.md)), the resident Launchpad still starts
+  modules there, and the stage observes the Platform's CLI (`update status`,
+  `self-check`, `recover`) and the resident's module starts;
+- real work, including a Folder refresh and a Launchpad restart on at least one
+  Machine.
+
+**What ends the stage early.** Any Machine entering Recovery mode on the candidate; a
+Recovery issue naming it; the unit restarting on its own; a module that started
+before the candidate and does not start under it; an operator of the pilot
+Organization reporting a regression. The candidate is then not promoted. Its
+Machines stay on it (no rollback) and receive the fix as a new candidate, which
+re-enters at the first ring (G.5) and starts a new 8 hours.
+
+**Who promotes, by which evidence.** The final tag is cut at the candidate's commit
+(the release job already requires the same commit, G.2). The evidence PR adds
+`docs/evidence/release-vX.Y.Z.md` with, per Machine and sanitized: the candidate's
+`update status`, `lazurio recover --json` at start and end, `NRestarts` at start and
+end, the start of the stage (the last Machine) and its end, the issue search result,
+and the module starts observed. The `release` environment's reviewer, a Kolega whose
+GitHub rights allow approving it, approves the final release only with that PR
+merged.
+
+**How it fits staged releases.** The pilot Organization is the first ring after the
+qualification ring (G.5). A final release is a release that has passed it; it then
+moves to the remaining Organizations in steps.
+
+### G.4 Machines without rollback
+
+Decided by the Principal on 2026-09-28 (Q6): "no rollback" binds Machines too. An
+apply completes or does not start; it never returns to an earlier release as a way of
+repair. Applied to Machines, this is a proposal for a **separate Machines decision**;
+nothing below exists in Machines today unless cited as such.
+
+**What stays, because it is not rollback** (B's rule: nothing is restored after the
+new state became observable):
+
+- **The gateway configuration** is validated before it replaces the running one
+  (`caddy validate` as `ExecStartPre`, Machines `workloads/workspace-vm/gateway.mjs:72`)
+  and the running ingress rejects an invalid reload atomically; the catalog then
+  restores its last good snippet set on disk (Machines
+  `workloads/workspace-vm/README.md:665-679`). The rejected set never served, so
+  putting the files back to what runs is atomicity.
+- **The recovery of an interrupted apply**, which resumes the failed, Permit-backed
+  apply under the same lock and finishes it forward (Machines
+  `docs/interrupted-apply-recovery.md:1-8`).
+- **The provider's rescue access** (Rescue or serial console) as the emergency way in
+  when no authorized session remains (Machines `README.md:463-466`,
+  `docs/ssh-bootstrap-and-recovery.md:95`).
+
+**What goes:**
+
+- **Restoring a previous resident tree** after a failed Doctor gate (Machines
+  `workloads/workspace-vm/ansible/roles/workspace_resident/tasks/upgrade.yml:1-6`) and
+  the restore of previous resident units (`workloads/workspace-vm/resident-activation.py:136-160`).
+  It disappears with the switch to the Platform Launchpad anyway
+  ([Launchpad parity](launchpad-parity.md), C.2).
+- **Restoring a previous T3 Code release tree** (Machines
+  `workloads/workspace-vm/native-release.py:146`, `:171-192`, called from
+  `workloads/workspace-vm/resident-bootstrap.py:139-142`) and the retention of
+  earlier trees "for rollback" (`workloads/workspace-vm/ansible/roles/workspace_t3/tasks/main.yml:54`,
+  `:96-97`). In its place: verify the new tree before `current` names it, then
+  forward repair.
+
+**Recovery mode for Machines.** A failed apply returns complete evidence to the agent
+that drives the rollout: the step that failed, the apply findings, the readback,
+bounded and sanitized journal lines, and the pinned releases. That agent repairs
+forward by a new Plan when the cause is the owner's input, or files an issue in
+Machines when it is a Machines defect; the fix is a new release (G.5). An agent
+inside the Machine repairs only the Lazurio layer (the Platform and the Folder,
+through the Recovery mode of this document); it never edits files Machines owns
+(units, gateway, network), which the next apply would overwrite.
+
+**Pipelines instead of a way back.** The Principal (2026-09-28, translated): "We must
+provide pipelines that, on a failure of Machines, identify and repair the problem by
+a new release. Releases will be staged. So when something breaks, it will be on a
+narrow number of users." The pipeline is the path above: failed apply → evidence →
+rollout agent → Plan or issue → fix release → the rings of G.5.
+
+### G.5 Staged releases (proposal)
+
+A proposal for the Platform's release job and for a separate Machines decision; no
+ring exists today.
+
+| Ring | Who | Enters when |
+|---|---|---|
+| 0 | The qualification ring: `qualify.yml` on runners, and a disposable local Ubuntu VM applied by the Machines playbook ([Launchpad parity](launchpad-parity.md), C.5) | A release candidate of either repository is published |
+| 1 | Every hosted Machine of the pilot Organization | Ring 0 passed; the 8 hours of G.3 |
+| 2 … n | The remaining Organizations in steps, for example one further Organization, then the rest | The previous ring's evidence is merged |
+
+**What promotes a release from one ring to the next:** every apply in the ring
+`completed` with a green readback; no Machine of the ring in Recovery mode on that
+release; no Recovery or Machines failure issue naming it; the ring's time elapsed
+(8 hours for ring 1; the later rings' times are the Machines decision's). The
+evidence is a file in the repository's evidence ledger, and the next ring's owner
+overlay change cites it. Organizations' owners keep the Permit for their Machines;
+a ring marks a release eligible, it does not push it.
+
+**A defect found in a ring** stops that release's promotion. The Machines that run it
+stay on it, with the evidence, and are not rolled back; the defect is repaired by a
+new release that re-enters at ring 0 and passes every ring again up to the failing
+one. The fast lane of G.2 applies: a fix release may shorten a ring's time only
+explicitly, in its evidence.
 
 ## H. Migration of existing installations
 
@@ -452,7 +663,8 @@ installations (not hosted Machines, see Context) also have
 old updater.** It still writes `previous`, a marker, and still switches back if vN is
 unhealthy. That is the last rollback that can happen, it cannot be prevented without
 blocking the update, and it only happens if vN fails. vN's health socket answering
-`503` in Recovery mode (C.1) makes the old updater's decision correct.
+`503` in Recovery mode (C.1) makes the old updater's decision correct. **Accepted by
+the Principal on 2026-09-28.**
 
 **vN converges the leftovers**, in a migration kept apart from current-direction code
 (`src/update/migrations/remove-rollback/` with a README, its entry points and the
@@ -486,8 +698,9 @@ after `updated`, "its owner rolled back" as a reason for `ahead`, and "exactly t
 high-water version re-activates it after a rollback". After vN the active version
 equals the floor unless the selector is damaged, so `ahead` means only "the operator
 updated beyond the pin". New for Machines: `activation-unhealthy` from `install` is a
-Recovery-mode finding with the bundle in the readback, never a retry; and the
-gateway's static page for the Launchpad host (C.2, 2b).
+Recovery-mode finding with the bundle in the readback, never a retry; the gateway's
+static page for the Launchpad host (C.2, 2b); and its own rule without rollback
+(G.4).
 
 ## I. Decisions to amend
 
@@ -511,6 +724,8 @@ gateway's static page for the Launchpad host (C.2, 2b).
 - **Generated manual:** `src/folder/manual.ts:726-727`, `:768-769`, `:779-780`, replaced
   by a "Recovery mode" section in `manual/troubleshooting.md` for every preset at
   `base-instructions-10` (today `base-instructions-9`, `src/folder/render.ts:29`).
+- **Machines** (separate decision, not this repository's): no rollback in applies,
+  forward repair through a new release, and staged rings (G.4, G.5; Q6).
 
 Proposed wording, in the style of `docs/decisions.md`:
 
@@ -535,20 +750,30 @@ Proposed wording, in the style of `docs/decisions.md`:
 > can name, it keeps running and serves one page with one action: start a repair
 > agent with a prepared assignment and the sanitized evidence. `lazurio recover` is the
 > same use case on the CLI. The agent repairs forward within the assignment's mandate
-> or files the evidence as an issue in `Lazurio/LazurioPlatform` (root decision 0163);
-> every entry into Recovery mode is recorded there, and each such issue closes with a
-> regression test. The Launchpad unit restarts always and never ends `failed`. When
-> the executable cannot run at all, the hosted gateway serves a static page that sends
-> the operator to T3 Code and the Folder's manual.
+> or files the evidence as an issue for `Lazurio/LazurioPlatform` (root decision 0163),
+> through the path the Principal chooses in Q4; every entry into Recovery mode is
+> recorded, also after a local repair ("otherwise the repair never becomes a test"),
+> and each such issue closes with a regression test. The Launchpad unit restarts
+> always and never ends `failed`. When the executable cannot run at all, the hosted
+> gateway serves a static page that sends the operator to T3 Code and the Folder's
+> manual. On a workstation the operator copies the prompt into the agent application.
 >
 > **Quality instead.** A final release requires the journeys of
 > [recovery mode](recovery-mode.md#g-what-forces-quality-instead) on disposable
-> runners against the real release candidate, and a canary soak with its evidence;
-> the release job refuses a final tag without the former.
+> Ubuntu and macOS runners against the real release candidate, and a canary stage of
+> 8 hours on every hosted Machine of the pilot Organization with its evidence; the
+> release job refuses a final tag without the former. Linux means Ubuntu in the first
+> phase; other distributions are unverified.
+>
+> **Machines too.** An apply completes or does not start and never returns to an
+> earlier release as a way of repair; defects are repaired by a new release through
+> staged rings. Its application in Machines is a separate Machines decision.
 >
 > **Accepted consequence.** A release that passes every gate and still fails on one
 > Machine leaves that Machine's Launchpad in Recovery mode until a fixed release.
-> T3 Code, the operator's tools, the Folder and the repositories are unaffected.
+> T3 Code, the operator's tools, the Folder and the repositories are unaffected. The
+> update to the first release without rollback is still performed by the old updater
+> and may switch back once; that last switch-back is accepted.
 >
 > | Alternative | Trade-off / disposition |
 > | --- | --- |
@@ -576,10 +801,12 @@ Proposed wording, in the style of `docs/decisions.md`:
    `activation-unhealthy`, the F.1 unit, removal of A.1 rows 1–12, the migration of H,
    rewritten qualification and tests. Needs 2 and 3 released first, so a failure after
    the switch lands somewhere.
-5. **Quality gates.** `qualify.yml` J1–J6, the release-job lookup, templates,
-   `tests/recovery/`. Parallel to 2–4; active before the final tag of 4.
+5. **Quality gates.** `qualify.yml` J1–J6 on Ubuntu and macOS, the release-job
+   lookup, templates, `tests/recovery/`, the canary stage's evidence file (G.3).
+   Parallel to 2–4; active before the final tag of 4.
 6. **Machines.** Role texts of H, `activation-unhealthy` as a finding, the gateway's
-   static page. After 4.
+   static page. After 4. The rule without rollback (G.4) and the rings (G.5) follow
+   the separate Machines decision.
 7. **Follow-ups.** T3 thread start (fork); same-version repair of a damaged active
    executable (today a no-op, `docs/machine-handover.md:336`), which is forward
    repair; probe-before-rename for release archives (B, case 5); deleting the
@@ -587,19 +814,25 @@ Proposed wording, in the style of `docs/decisions.md`:
 
 ### J.2 Questions for the Principal
 
-- **Q1 — Is the switch-back after an unhealthy restart rollback?** Yes (B, case 2);
-  remove it. The alternative, keeping it as "atomic activation", is smaller but the
-  new version has already run.
+- **Q1 — Is the switch-back after an unhealthy restart rollback?** **Decided
+  2026-09-28:** yes (B, case 2); it is removed. The alternative, keeping it as "atomic
+  activation", was smaller but the new version has already run.
 - **Q2 — An issue for every entry into Recovery mode, even after a local repair?**
-  Yes: a state the product could not handle is a missing test.
-- **Q3 — Workstation: is "copy the prompt into your agent app" enough?** Yes for now;
-  revisit when T3 Code can start a thread from outside.
-- **Q4 — Operator confirmation before an issue leaves the Machine?** No, per 0163; the
-  operator sees the exact body, and a body not provably clean is never sent.
-- **Q5 — Canary soak?** 24 hours on one hosted Environment of the Principal's choice.
+  **Decided 2026-09-28:** yes, "otherwise the repair never becomes a test".
+- **Q3 — Workstation: is "copy the prompt into your agent app" enough?** **Decided
+  2026-09-28:** yes for now; revisit when T3 Code can start a thread from outside.
+- **Q4 — Operator confirmation before an issue leaves the Machine?** **Open.** The
+  Principal suggested an internal agent pass before publication and asked for a
+  recommendation. Recommended: variant (c) of E.3, a private intake with a
+  maintainer-side agent pass that writes the public issue, the deterministic gate
+  kept on the Machine as the first layer, and no operator confirmation.
+- **Q5 — Canary soak?** **Decided 2026-09-28:** 8 hours on every hosted Machine of the
+  pilot Organization (G.3), not 24 hours on one Environment.
 - **Q6 — Does "no rollback" bind Machines too?** Its resident and T3 release trees
   restore a previous tree after a failed activation (Machines
-  `native-release.py:146-192`). Yes, by a separate Machines decision once F15 lands.
+  `native-release.py:146-192`). **Decided 2026-09-28:** yes. What stays, what goes,
+  Recovery mode for Machines and the staged rings are in G.4 and G.5, as a proposal
+  for a separate Machines decision.
 - **Q7 — `previous` in `update status`: drop or keep `null` for one release?** Drop;
   the only known reader, Machines, does not read it.
 
@@ -613,3 +846,9 @@ Proposed wording, in the style of `docs/decisions.md`:
 - Whether `v0.1.1`–`v0.1.7` were qualified without an evidence document.
 - T3 Code's thread-start interface: upstream pull requests are open, and the
   `Lazurio/t3code` fork was not inspected.
+- For Q4 (c): whether the "Lazurio for GitHub" broker can host the intake endpoint,
+  whether an App installation token may submit a private vulnerability report, and
+  the exact GitHub behaviour of the Team bot's token outside its installation; all
+  read from GitHub's documented model, none tried.
+- Whether hosted personal VMs, which run Debian 13 today, stay "unverified" under
+  "Linux means Ubuntu" or join the qualified set; the Principal's call.
