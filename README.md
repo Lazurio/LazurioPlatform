@@ -1,5 +1,29 @@
 # Lazurio Platform
 
+**Install Lazurio with one command** (Linux x64 and arm64, macOS on Apple silicon):
+
+```sh
+curl -fsSL https://lazurio.ai/install | sh
+```
+
+`lazurio.ai/install` serves this once the website route is deployed. Until then, and
+until a release carries `install.sh` as an asset, use the script of this repository:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Lazurio/LazurioPlatform/main/install.sh | sh
+```
+
+It installs the `lazurio` CLI and the Launchpad (one program) for your user, without
+`sudo` and without touching your shell profile, and ends with the next command to run;
+afterwards `lazurio update` keeps it current. How the download is checked: the script
+compares the executable with the SHA-256 in the release manifest before running it;
+the executable then verifies the release's Sigstore attestation itself, with the same
+code every later update uses, and refuses to install otherwise; with a signed-in GitHub
+CLI the attestation is also checked independently first. The executable's own check
+catches a wrong or damaged release but is not proof of the publisher, so the first
+installation still rests on HTTPS to lazurio.ai and GitHub. Details:
+[First installation](docs/update.md#first-installation).
+
 **Lazurio Platform** is the public, source-available TypeScript product and codebase.
 Its reviewed source produces versioned Lazurio releases; people install those releases
 and do not clone the source repository for daily work.
@@ -20,8 +44,9 @@ Environment. Their private integration belongs to `HumanAndMachineEmpire`, not t
 public codebase.
 
 **Status: release candidates.** `install.sh` downloads a release from GitHub Releases
-over HTTPS and verifies its attestation when the GitHub CLI is available (otherwise it
-says so); the installed `lazurio` verifies the attestation of every later update itself,
+over HTTPS, and the downloaded `lazurio` verifies that release's attestation before it
+installs itself (a signed-in GitHub CLI checks it independently as well); the installed
+`lazurio` verifies the attestation of every later update itself,
 updates through one activation path, initializes or adopts a Lazurio Folder from the
 Machine handover with a workspace preset, re-renders its generated files when Machines
 rewrites that handover (`lazurio machine folder-refresh`), and runs the Launchpad. Hosted Machines still run the legacy resident beside
