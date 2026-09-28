@@ -184,7 +184,6 @@ test.skipIf(process.platform === "win32")(
       [
         "running 1.0.0",
         "active 1.0.0",
-        "previous none",
         "latest known never checked",
         line(instructionTemplateRevision),
       ].join("\n"),
@@ -236,7 +235,6 @@ test.skipIf(process.platform === "win32")(
       await readFile(join(folder, ".lazurio/instructions.json"), "utf8"),
     ).toBe(manifest);
     // --folder belongs to the two commands that report it, and is absolute.
-    expect((await run(["rollback", "--folder", folder])).code).toBe(2);
     expect((await run(["--check", "--folder", folder])).code).toBe(2);
     expect((await run(["status", "--folder", "relative"])).code).toBe(2);
   },

@@ -5,20 +5,11 @@ import {
   folderRefreshNeeded,
 } from "../folder/refresh-needed";
 import { instructionTemplateRevision } from "../folder/render";
-import {
-  type ActivationStep,
-  activate,
-  automaticRollback,
-  type Reconciled,
-  reconcilePending,
-  rollbackTarget,
-  withUpdateLock,
-} from "./activation";
+import { type ActivationStep, activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
 import { type DownloadPolicy, downloadArtifact } from "./download";
 import {
   type ErrorContext,
-  storageFailure,
   type UpdateError,
   type UpdateErrorCode,
   UpdateFailure,
@@ -32,15 +23,7 @@ import {
   versionOfTag,
 } from "./identity";
 import { type LastCheck, readLastCheck, writeLastCheck } from "./last-check";
-import {
-  layout,
-  raiseHighWater,
-  readHighWater,
-  readPrevious,
-  readSelector,
-  readUpdateState,
-  versionFloor,
-} from "./layout";
+import { layout, readHighWater, readSelector, versionFloor } from "./layout";
 import {
   bundleFile,
   type ManifestTarget,
@@ -51,8 +34,12 @@ import {
   type ReleaseManifest,
   sha256Hex,
 } from "./manifest";
+import {
+  legacyRollbackState,
+  removeRollbackLeftovers,
+} from "./migrations/remove-rollback";
 import type { ProcessRunner } from "./self-check";
-import type { ServiceControl } from "./service-control";
+import type { ServiceControl, ServiceUnits } from "./service-control";
 import { placeVersion, selfCheckStaged, stagedMatches } from "./stage";
 import {
   type Fetcher,
@@ -76,6 +63,9 @@ export type UpdateEnvironment = Readonly<{
   verify: AttestationVerifier;
   /** Null: this installation is not supervised. */
   service: ServiceControl | null;
+  /** The installer's user units, for the migration that removes what the
+   * former rollback left (`migrations/remove-rollback`). */
+  units?: ServiceUnits | null | undefined;
   /** The Folder whose template revision results report against the
    * product's ("Folder refresh needed"). Reporting only: never written,
    * never a reason to refuse. */
@@ -208,7 +198,8 @@ async function verifiedRelease(
       latest: manifest.version,
       notesUrl: manifest.notesUrl,
     });
-  // Equal to the high-water mark but not active is the retry after a rollback.
+  // Equal to the high-water mark but not active: an installation that an
+  // older release rolled back sits below its mark and may return to it.
   const available =
     !belowFloor(manifest.version) &&
     (active === null || compareVersions(manifest.version, active) > 0);
@@ -293,7 +284,9 @@ const runningRevision = async (
     : null;
 
 /** `lazurio update [--version <tag>]`, under the lock from the first read of
- * the base to the committed activation.
+ * the base to the activation. The candidate proves itself — self-check and,
+ * supervised, its Launchpad probe — before the switch; a failure removes it
+ * and changes nothing. After the switch nothing is undone.
  */
 export const performUpdate = (
   environment: UpdateEnvironment,
@@ -303,12 +296,27 @@ export const performUpdate = (
     const { base, identity, origin, fetcher } = environment;
     await requireInstalled(base);
     return withUpdateLock(base, environment.lockTimeoutMs ?? 0, async () => {
-      await reconcilePending(environment);
+      const migrated = await removeRollbackLeftovers({
+        base,
+        service: environment.service,
+        units: environment.units ?? null,
+      });
       const from = await requireInstalled(base);
       const { tag, manifest, available } = await verifiedRelease(
         environment,
         exactVersion,
       );
+      // An activation an older updater switched and never finished, whose
+      // Launchpad is not healthy: it stays, and nothing newer repairs it here.
+      if (
+        !available &&
+        migrated.marker === "unhealthy" &&
+        environment.service !== null
+      )
+        throw new UpdateFailure("activation-unhealthy", {
+          to: migrated.to ?? from,
+          stage: "legacy-marker",
+        });
       if (!available)
         return Object.freeze({
           kind: "up-to-date" as const,
@@ -375,84 +383,11 @@ export const performUpdate = (
         from,
         to: manifest.version,
         restartRequired: environment.service === null,
-        // After the commit: a report, never a reason to undo it.
+        // After the switch: a report, never a reason to undo it.
         folderRefresh: await folderRefresh(environment, productRevision),
       });
     });
   });
-
-export type RollbackResult =
-  | Readonly<{ kind: "rolled-back"; from: string; to: string }>
-  /** `--auto` only: what it did about the marker, which may be nothing. */
-  | Readonly<{ kind: "reconciled"; outcome: Reconciled }>
-  | ErrorResult;
-
-type LocalEnvironment = Pick<
-  UpdateEnvironment,
-  | "base"
-  | "identity"
-  | "service"
-  | "run"
-  | "healthDeadlineMs"
-  | "lockTimeoutMs"
-  | "afterStep"
->;
-
-/** `lazurio update rollback`: to `previous`, after that executable's own
- * self-check, by the same activation. It never lowers the high-water mark, so
- * the network can only offer what was already accepted, or newer.
- */
-export const performRollback = (
-  environment: LocalEnvironment,
-): Promise<RollbackResult> =>
-  settle(async () => {
-    const { base } = environment;
-    await requireInstalled(base);
-    return withUpdateLock(base, environment.lockTimeoutMs ?? 0, async () => {
-      await reconcilePending(environment);
-      const from = await requireInstalled(base);
-      const to = await rollbackTarget(base);
-      await selfCheckStaged({
-        base,
-        // Only the version is known of an installed executable, and the
-        // target is this Machine's; its commit was verified when it was staged.
-        expected: { version: to, target: environment.identity.target },
-        folder: environment.service?.folder,
-        removeOnFailure: false,
-        run: environment.run,
-      }).catch((error) => {
-        throw error instanceof UpdateFailure &&
-          error.failure.code === "self-check-failed"
-          ? new UpdateFailure("rollback-unavailable", {
-              reason: "self-check",
-            })
-          : error;
-      });
-      // Before the switch: what is being left stays the floor of the network.
-      await raiseHighWater(base, from).catch((error) => {
-        throw storageFailure(error, "high-water");
-      });
-      await activate({
-        base,
-        to,
-        service: environment.service,
-        healthDeadlineMs: environment.healthDeadlineMs,
-        afterStep: environment.afterStep,
-      });
-      return Object.freeze({ kind: "rolled-back" as const, from, to });
-    });
-  });
-
-/** `lazurio update rollback --auto` (see `automaticRollback`). */
-export const performAutomaticRollback = (
-  environment: Pick<UpdateEnvironment, "base" | "service">,
-): Promise<RollbackResult> =>
-  settle(async () =>
-    Object.freeze({
-      kind: "reconciled" as const,
-      outcome: await automaticRollback(environment),
-    }),
-  );
 
 export type UpdateStatus = Readonly<{
   kind: "status";
@@ -460,11 +395,12 @@ export type UpdateStatus = Readonly<{
   running: string;
   /** Version the selector names; null when nothing is installed. */
   active: string | null;
-  previous: string | null;
   highWater: string | null;
   supervised: boolean;
-  /** An activation that was switched and is not committed. */
-  pending: Readonly<{ from: string; to: string }> | null;
+  /** Something of the former rollback (a retained previous version, an
+   * activation marker, the rollback unit) is left; the next `lazurio update`
+   * or `lazurio install` removes it. */
+  legacyRollbackState: boolean;
   /** Path of update state no crash can produce; mutating commands refuse. */
   stateInvalid: string | null;
   /** Newest release a check verified and WHEN: an ageing time is how a
@@ -482,7 +418,7 @@ export type UpdateStatus = Readonly<{
 export async function readStatus(
   environment: Pick<
     UpdateEnvironment,
-    "base" | "identity" | "service" | "folder"
+    "base" | "identity" | "service" | "folder" | "units"
   >,
 ): Promise<UpdateStatus> {
   const { base, identity } = environment;
@@ -501,7 +437,9 @@ export async function readStatus(
     }
   };
   const highWater = await guarded(() => readHighWater(base));
-  const marker = (await guarded(() => readUpdateState(base)))?.marker;
+  const legacy = await guarded(() =>
+    legacyRollbackState(base, environment.units ?? null),
+  );
   const floor = await guarded(() => versionFloor(base));
   const lastCheck = await readLastCheck(base);
   const active = await readSelector(base);
@@ -509,10 +447,9 @@ export async function readStatus(
     kind: "status" as const,
     running: identity.version,
     active,
-    previous: await readPrevious(base),
     highWater,
     supervised: environment.service !== null,
-    pending: marker?.kind === "switched" ? marker.pending : null,
+    legacyRollbackState: legacy ?? true,
     stateInvalid,
     lastCheck,
     updateAvailable:

@@ -723,8 +723,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
         "- After an update the Folder's generated files (`AGENTS.md`, `manual/`) can be older than the product. `lazurio update` and `lazurio update status` then say \"Folder refresh needed\". `lazurio machine folder-refresh` refreshes them; run it as part of the same update. An edited generated file blocks the refresh with `drift` and the file's path; nothing is overwritten.",
       ),
       t(
-        "- `lazurio update rollback` se po nepovedené aktualizaci vrátí na předchozí verzi; floor nikdy nesnižuje.",
-        "- `lazurio update rollback` returns to the previous version after a failed update; it never lowers the version floor.",
+        "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze se před přepnutím sama ověří; když neprojde, odstraní se a nic se nezmění. Oprava jde jen dopředu, novějším releasem; nikdy nekopíruj starší binárku a verzi nesnižuj.",
+        "- There is no way back: Lazurio never returns to an earlier version. A new version proves itself before the switch; when it fails, it is removed and nothing changes. Repair only goes forward, with a newer release; never copy an older executable and never lower the version.",
       ),
       t(
         "- `lazurio install` je cesta rolloutu: instaluje nebo opravuje Lazurio z připraveného souboru. Na aktualizaci používej `lazurio update`.",
@@ -765,8 +765,12 @@ function productUpdate(hosted: boolean): readonly Text[] {
       '- After an update the Folder\'s generated files can be older than the product. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` and the Launchpad pill then say "Folder refresh needed" with the exact command: apply the unchanged profile again (preview and apply in the Launchpad profile panel, or the reported `lazurio profile-update`). An edited generated file blocks the refresh with `drift`; nothing is overwritten.',
     ),
     t(
-      "- `lazurio update rollback` se po vlastním self-checku té binárky vrátí na předchozí verzi; floor nikdy nesnižuje.",
-      "- `lazurio update rollback` switches back to the previous version after that binary's own self-check; it never lowers the version floor.",
+      "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze před přepnutím projde self-checkem a nanečisto spustí svůj Launchpad na soukromém socketu, bez zápisu; když neprojde, odstraní se a nic se nezmění. Přepnutím je aktualizace hotová. Když se Launchpad potom nerozběhne zdravě, `lazurio update` skončí `activation-unhealthy`: nová verze zůstává aktivní a Launchpad ukazuje Recovery mode s důvodem, nebo neběží.",
+      "- There is no way back: Lazurio never returns to an earlier version. Before the switch a new version passes its self-check and starts its Launchpad read-only on a private socket; when it fails, it is removed and nothing changes. The switch completes the update. When the Launchpad then does not come up healthy, `lazurio update` ends with `activation-unhealthy`: the new version stays active and the Launchpad shows Recovery mode with its reason, or does not run.",
+    ),
+    t(
+      "- Oprava jde jen dopředu: novější release (`lazurio update`), dokončení přerušené změny Folderu (`lazurio profile-resume`), restart Launchpadu (na Linuxu se službou jednotka `lazurio-launchpad.service`). Nikdy nekopíruj starší binárku, needituj ručně `bin/lazurio` ani `update/high-water` a verzi nesnižuj.",
+      "- Repair only goes forward: a newer release (`lazurio update`), finishing an interrupted Folder change (`lazurio profile-resume`), a restart of the Launchpad (on Linux with the service, the unit `lazurio-launchpad.service`). Never copy an older executable, never edit `bin/lazurio` or `update/high-water` by hand, and never lower the version.",
     ),
     t(
       "- **Pill** v Launchpadu ukazuje `idle`, `checking`, `available`, `downloading`, `activating` a selhání, která se vrátí do `available` s chybou a možností zkusit znovu. Jedno kliknutí spustí totéž `lazurio update`.",
@@ -776,8 +780,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
     ...toolLayout,
     blank,
     t(
-      "Každé selhání nechá nainstalovaný produkt funkční a stejné kliknutí znovu možné. Kódy: `network-unavailable`, `trust-unavailable` (Sigstore trust root není na studené cache dostupný), `release-invalid`, `attestation-invalid`, `target-unsupported`, `reinstall-required` (tahle verze je na aktualizaci sebe sama příliš stará), `busy`, `storage-unavailable`, `disk-full`, `not-installed`, `self-check-failed`, `activation-failed` (nová verze se nerozběhla zdravě; byla vrácena), `rollback-unavailable`, `internal`. Člověka potřebují dva případy: `state-invalid` (stav aktualizace poškozený zvenčí produktu; pojmenuje cestu a nikdy se neodhaduje) a nová verze, která po výpadku napájení během aktivace zůstane běžet, ale nezdravá; tu vrátí další `lazurio update` nebo `lazurio update rollback`.",
-      "Every failure leaves the installed product working and the same click possible again. Codes: `network-unavailable`, `trust-unavailable` (Sigstore trust root not reachable on a cold cache), `release-invalid`, `attestation-invalid`, `target-unsupported`, `reinstall-required` (this version is too old to update itself), `busy`, `storage-unavailable`, `disk-full`, `not-installed`, `self-check-failed`, `activation-failed` (the new version did not become healthy; it was undone), `rollback-unavailable`, `internal`. Two cases need a person: `state-invalid` (update state damaged from outside the product; it names the path and is never guessed away) and a new version that stays alive but unhealthy after a power loss during activation, which the next `lazurio update` or `lazurio update rollback` undoes.",
+      "Každé selhání před přepnutím nechá nainstalovaný produkt, jak byl, a stejné kliknutí znovu možné. Kódy: `network-unavailable`, `trust-unavailable` (Sigstore trust root není na studené cache dostupný), `release-invalid`, `attestation-invalid`, `target-unsupported`, `reinstall-required` (tahle verze je na aktualizaci sebe sama příliš stará), `busy`, `storage-unavailable`, `disk-full`, `not-installed`, `self-check-failed` (nová verze neprošla self-checkem nebo nanečisto spuštěným Launchpadem; byla odstraněna), `activation-failed` (správce služeb odmítl spustit jednotku Launchpadu), `internal`. Po přepnutí: `activation-unhealthy` (nová verze je aktivní, ale její Launchpad se nehlásí zdravý; nic se nevrátilo, Launchpad ukazuje Recovery mode, nebo neběží; oprava jde jen dopředu). Člověka potřebuje `state-invalid` (stav aktualizace poškozený zvenčí produktu; pojmenuje cestu a nikdy se neodhaduje).",
+      "Every failure before the switch leaves the installed product as it was and the same click possible again. Codes: `network-unavailable`, `trust-unavailable` (Sigstore trust root not reachable on a cold cache), `release-invalid`, `attestation-invalid`, `target-unsupported`, `reinstall-required` (this version is too old to update itself), `busy`, `storage-unavailable`, `disk-full`, `not-installed`, `self-check-failed` (the new version failed its self-check or its read-only Launchpad start; it was removed), `activation-failed` (the service manager refused to start the Launchpad unit), `internal`. After the switch: `activation-unhealthy` (the new version is active but its Launchpad does not report healthy; nothing was undone, the Launchpad shows Recovery mode or does not run; repair goes forward only). `state-invalid` needs a person (update state damaged from outside the product; it names the path and is never guessed away).",
     ),
   ];
 }
@@ -800,6 +804,19 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Mašiny, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
       "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Machine identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
     ),
+    ...(hosted
+      ? [
+          blank,
+          t(
+            "## Odkazy na aplikace z téhle Mašiny",
+            "## Application links from this Machine",
+          ),
+          t(
+            "Tahle Mašina je hostovaná: `localhost` a `127.0.0.1` existují jen uvnitř ní a Operátor je ve svém prohlížeči neotevře. Nikdy mu neposílej localhost link. Odkaz na aplikaci je její hostované jméno přes gateway téhle Mašiny (`<app>.<mašina>.<org>.lazurio.io`, na osobní VM `<app>.<login>.lazurio.io`, decision 0146), jak ho uvádí Launchpad; dokud aplikace hostované jméno nemá, napiš to v handoffu místo odkazu.",
+            "This Machine is hosted: `localhost` and `127.0.0.1` exist only inside it and the operator cannot open them in their browser. Never send the operator a localhost link. The link to an application is its hosted name through this Machine's gateway (`<app>.<machine>.<org>.lazurio.io`, on a personal VM `<app>.<login>.lazurio.io`, decision 0146), as the Launchpad states it; until an application has a hosted name, say so in the handoff instead of a link.",
+          ),
+        ]
+      : []),
     blank,
     ...productUpdate(hosted),
     ...(preset === "hosted-personal" ? [] : [blank, ...organizationContent]),
@@ -1182,11 +1199,12 @@ function thisMachine(source: InstructionSource): string {
         "## Identity, from the recorded handover",
       ),
       ...identitySection(preset, machine, locale).map(same),
+      // A personal VM has no Organization: its gateway is its own.
       ...(entry
         ? [
             t(
-              `- Vstup: Launchpad téhle Mašiny je dosažitelný na \`${entry.externalOrigin}\` přes bránu Organizace (decision F16); přihlášení řeší brána a Launchpad poslouchá za ní jen na loopback portu ${entry.listenPort}.`,
-              `- Entry: this Machine's Launchpad is reached at \`${entry.externalOrigin}\` through the Organization's gateway (decision F16); admission is the gateway's, and the Launchpad listens only on loopback port ${entry.listenPort} behind it.`,
+              `- Vstup: Launchpad téhle Mašiny je dosažitelný na \`${entry.externalOrigin}\` přes bránu ${machine?.kind === "personal-vm" ? "téhle Mašiny" : "Organizace"} (decision F16); přihlášení řeší brána a Launchpad poslouchá za ní jen na loopback portu ${entry.listenPort}.`,
+              `- Entry: this Machine's Launchpad is reached at \`${entry.externalOrigin}\` through ${machine?.kind === "personal-vm" ? "this Machine's" : "the Organization's"} gateway (decision F16); admission is the gateway's, and the Launchpad listens only on loopback port ${entry.listenPort} behind it.`,
             ),
           ]
         : []),

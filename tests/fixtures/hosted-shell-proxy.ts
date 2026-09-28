@@ -8,9 +8,8 @@ import { join } from "node:path";
 import { initializeHandoverFolder } from "../../src/folder/initialize-folder";
 import { executionOs } from "../../src/folder/platform";
 import { presetProfile } from "../../src/folder/presets";
-import { parseHostedEntry } from "../../src/launchpad/hosted-trust";
 import { startLaunchpad } from "../../src/launchpad/server";
-import { bindings } from "./machine-bindings";
+import { organizationWithEntry } from "./machine-bindings";
 
 const listenPort = Number(process.argv[2]);
 const parent = await realpath(
@@ -21,15 +20,9 @@ await mkdir(folder, { mode: 0o700 });
 await mkdir(join(folder, "organizations"), { mode: 0o755 });
 await mkdir(join(folder, "personalspace"), { mode: 0o700 });
 const preset = "hosted-organization-personal";
-const entry = parseHostedEntry({
-  externalOrigin: "https://launchpad.workspace.example.lazurio.io",
-  authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
-  authCookieName: "__Secure-lazurio-workspace",
-  listenPort,
-});
 await initializeHandoverFolder(folder, {
   preset,
-  machine: { ...bindings.organization, entry },
+  machine: organizationWithEntry(listenPort),
   profile: presetProfile(preset, executionOs(process.platform)),
 });
 // Counts what the hostile proxy would have seen: the process's own fetches to

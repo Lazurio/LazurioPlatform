@@ -17,14 +17,10 @@ import {
   type RecoverContext,
   runRecoverCommand,
 } from "../src/recover/cli";
-import { performInstall } from "../src/update/install";
+import { performInstall, renderLaunchpadUnit } from "../src/update/install";
 import { layout, versionExecutable } from "../src/update/layout";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
-import {
-  launchpadUnit,
-  unitMarker,
-  updateUnit,
-} from "../src/update/service-control";
+import { launchpadUnit, updateUnit } from "../src/update/service-control";
 import { commitOf, executable, target } from "./fixtures/update-world";
 
 // `lazurio recover`: every check against a temporary install base, HOME and
@@ -191,9 +187,11 @@ const outcomes = (json: { checks: readonly RecoveryCheck[] }) =>
 async function writeUnit(world: World, folder = world.folder) {
   const directory = join(world.home, ".config", "systemd", "user");
   await mkdir(directory, { recursive: true });
+  // The installer's own unit of this base: the marker and this base's exact
+  // ExecStart (docs/update.md "State on disk"); anything else is foreign.
   await writeFile(
     join(directory, launchpadUnit),
-    `${unitMarker}\n[Unit]\nDescription=Lazurio Launchpad\n\n[X-Lazurio]\nFolder=${folder}\n`,
+    renderLaunchpadUnit(world.base, folder),
   );
 }
 

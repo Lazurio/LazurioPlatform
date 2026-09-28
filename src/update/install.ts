@@ -1,14 +1,14 @@
 import { copyFile, lstat, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { activate, reconcilePending, withUpdateLock } from "./activation";
+import { activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
 import {
   layout,
+  readHighWater,
   readSelector,
-  readUpdateState,
   swapSelector,
   versionFloor,
 } from "./layout";
@@ -18,6 +18,7 @@ import {
   maxBundleBytes,
   maxManifestBytes,
 } from "./manifest";
+import { removeRollbackLeftovers } from "./migrations/remove-rollback";
 import {
   ensurePathEntry,
   entryDirectory,
@@ -27,9 +28,12 @@ import {
 import { type ProcessRunner, runProcess } from "./self-check";
 import {
   detectServiceControl,
+  launchpadExecStart,
   launchpadUnit,
-  rollbackUnit,
+  serviceUnits,
   systemctl,
+  systemdQuote,
+  unitBelongsToBase,
   unitMarker,
   userUnitDirectory,
 } from "./service-control";
@@ -64,32 +68,30 @@ import { compareVersions } from "./version";
  * when it is missing or Lazurio's own (`path-entry.ts`).
  */
 
-/** One argument of an `ExecStart=` line. systemd splits on whitespace, expands
- * `%` specifiers and `$` variables and understands C-style escapes inside
- * double quotes; a path must survive all of that unchanged.
- */
-export function systemdQuote(argument: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-  if (argument === "" || /[\u0000-\u001f\u007f]/.test(argument))
-    throw new UpdateFailure("storage-unavailable", { stage: "unit-argument" });
-  if (/^[A-Za-z0-9_@/.:=+-]+$/.test(argument)) return argument;
-  return `"${argument
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replaceAll("%", "%%")
-    .replaceAll("$", "$$$$")}"`;
-}
+export { launchpadExecStart, systemdQuote, unitMarker };
 
-export { unitMarker };
-
-const execStart = (command: readonly string[]) =>
-  `ExecStart=${command.map(systemdQuote).join(" ")}`;
+/** The PATH of the Launchpad and of everything it starts: the operator's
+ * standard tool path first (decision F17 addendum 2026-09-28, docs/
+ * environment-tools.md "The standard path"), then the system directories.
+ * `%h` is the home directory of the user running the service manager
+ * (systemd.unit(5), "Specifiers"). */
+export const unitPath = "%h/.local/bin:/usr/local/bin:/usr/bin:/bin";
 
 /** `ExecStart` is the SELECTOR, so a restart runs whatever version is active.
- * A version that cannot stay up hits the start limit, the unit fails, and
- * `OnFailure=` starts the rollback unit (docs/update.md "Interrupted
- * activation"). `[X-Lazurio]` is ignored by systemd: it is where the updater
- * reads the Folder from, so the Folder lives in this unit and nowhere else.
+ * The Launchpad must always run (docs/update.md "Recovery mode"), so the unit
+ * restarts it after EVERY exit, clean or not (`Restart=always`,
+ * systemd.service(5), "Restart="), five seconds apart, and never ends in the
+ * `failed` state. That needs the start rate limit switched off: systemd.unit(5)
+ * says of `StartLimitIntervalSec=`/`StartLimitBurst=` that they "apply to all
+ * kinds of starts (including manual), not just those triggered by the
+ * Restart= logic", that a unit which reaches the limit is "not attempted to be
+ * restarted anymore", and that the interval may be set "to 0 to disable any
+ * kind of rate limiting". Any finite limit could be reached by manual or
+ * updater restarts in a row; 0, pinned in `[Unit]`, also overrides a
+ * manager-wide `DefaultStartLimitIntervalSec=`. There is no `OnFailure=`:
+ * nothing ever runs an earlier version. `[X-Lazurio]` is ignored by systemd:
+ * it is where the updater reads the Folder from, so the Folder lives in this
+ * unit and nowhere else.
  */
 export function renderLaunchpadUnit(base: string, folder: string): string {
   // Read back verbatim, so it must be one line; quoting is ExecStart's.
@@ -98,48 +100,19 @@ export function renderLaunchpadUnit(base: string, folder: string): string {
     unitMarker,
     "[Unit]",
     "Description=Lazurio Launchpad",
-    "StartLimitIntervalSec=60",
-    "StartLimitBurst=5",
-    `OnFailure=${rollbackUnit}`,
+    "StartLimitIntervalSec=0",
     "",
     "[Service]",
-    execStart([
-      layout(base).selector,
-      "launchpad",
-      "--base",
-      base,
-      "--folder",
-      folder,
-    ]),
-    "Restart=on-failure",
-    "RestartSec=2",
+    `Environment=PATH=${unitPath}`,
+    launchpadExecStart(base, folder),
+    "Restart=always",
+    "RestartSec=5",
     "",
     "[Install]",
     "WantedBy=default.target",
     "",
     "[X-Lazurio]",
     `Folder=${folder}`,
-    "",
-  ].join("\n");
-}
-
-/** Static: runs the PREVIOUS version, which is the one known to work. */
-export function renderRollbackUnit(base: string): string {
-  return [
-    unitMarker,
-    "[Unit]",
-    "Description=Lazurio rollback of an interrupted activation",
-    "",
-    "[Service]",
-    "Type=oneshot",
-    execStart([
-      join(layout(base).previous, "lazurio"),
-      "update",
-      "rollback",
-      "--auto",
-      "--base",
-      base,
-    ]),
     "",
   ].join("\n");
 }
@@ -194,17 +167,33 @@ export type InstallResult =
 
 const canonical = (path: string) => isAbsolute(path) && resolve(path) === path;
 
-async function writeUnit(directory: string, name: string, text: string) {
-  const file = join(directory, name);
-  const existing = await readFile(file, "utf8").catch(() => undefined);
-  if (existing === text) return;
-  // A unit of this name that we did not write is someone else's decision.
-  if (existing !== undefined && !existing.startsWith(unitMarker))
+/** The Launchpad unit already in `directory`, refused unless it is this
+ * base's own (`unitBelongsToBase`): an unmarked unit is someone else's
+ * decision, a marked unit of another base is that installation's. Its text,
+ * or undefined when there is none. */
+async function ownUnitOrNone(
+  directory: string,
+  base: string,
+): Promise<string | undefined> {
+  const existing = await readFile(join(directory, launchpadUnit), "utf8").catch(
+    () => undefined,
+  );
+  if (existing !== undefined && !unitBelongsToBase(existing, base))
     throw new UpdateFailure("storage-unavailable", {
       stage: "unit",
       reason: "foreign-unit",
     });
-  await writeDurableFile(directory, name, Buffer.from(text));
+  return existing;
+}
+
+async function writeLaunchpadUnit(
+  directory: string,
+  base: string,
+  text: string,
+) {
+  // Asked again at the write: the unit may have changed since the refusal.
+  if ((await ownUnitOrNone(directory, base)) === text) return;
+  await writeDurableFile(directory, launchpadUnit, Buffer.from(text));
 }
 
 export async function performInstall(
@@ -295,12 +284,11 @@ async function install(input: InstallInput): Promise<InstallResult> {
     throw new UpdateFailure("target-unsupported", { service: "systemd-user" });
   if (service && !canonical(service.folder))
     throw new UpdateFailure("storage-unavailable", { stage: "folder" });
-  const units = service
-    ? ([
-        [launchpadUnit, renderLaunchpadUnit(base, service.folder)],
-        [rollbackUnit, renderRollbackUnit(base)],
-      ] as const)
-    : [];
+  const unit = service ? renderLaunchpadUnit(base, service.folder) : undefined;
+  // A Launchpad unit that is not this base's is refused before the selector
+  // or anything else changes.
+  if (service && unitDirectory !== undefined)
+    await ownUnitOrNone(unitDirectory, base);
   // The downloaded way in proves its release before the first write.
   const verified = input.release
     ? await verifyOwnRelease(input, input.release)
@@ -332,17 +320,32 @@ async function install(input: InstallInput): Promise<InstallResult> {
   const outcome = await withUpdateLock(base, 0, async () => {
     const paths = layout(base);
     try {
+      // The supervisor is the installer-written unit of THIS base if there is
+      // one; a foreign unit, or one of another base, is not ours.
+      const control = await detectServiceControl({
+        base,
+        platform: input.platform,
+        env: input.env,
+        run: input.run,
+      });
+      // Like every mutating update command, first converge what an
+      // installation from before the first release without rollback left
+      // (the migration validates the whole update state before it touches
+      // anything; a marker without a selector stays untouched as
+      // `state-invalid`).
+      await removeRollbackLeftovers({
+        base,
+        service: control,
+        units: serviceUnits(input),
+      });
       const selected = await readSelector(base);
       if (selected === null) {
         // First installation — or a tree whose selector is missing or
-        // damaged while its durable state survived. The whole update state is
-        // read and validated first, as every reconciler does: a marker without
-        // a selector is a state no crash produces and stays untouched
-        // (`state-invalid`). The surviving high-water mark is the floor: a
-        // lower executable never becomes active through this branch. A
-        // missing mark means the floor is this version, and only a committed
-        // activation ever writes one.
-        const { highWater: floor } = await readUpdateState(base);
+        // damaged while its durable state survived. The surviving high-water
+        // mark is the floor: a lower executable never becomes active through
+        // this branch. A missing mark means the floor is this version, and
+        // only an activation ever writes one.
+        const floor = await readHighWater(base);
         if (floor !== null && compareVersions(identity.version, floor) < 0)
           throw new UpdateFailure("release-invalid", {
             resource: "version",
@@ -368,19 +371,8 @@ async function install(input: InstallInput): Promise<InstallResult> {
         await swapSelector(base, identity.version);
         return { active: identity.version, updated: null };
       }
-      // An installation exists. Like every mutating update command it begins
-      // by reconciling a leftover marker — before deciding anything, including
-      // whether there is anything to do. The supervisor is the installer-
-      // written unit if there is one; a foreign unit is nobody's.
-      const control = await detectServiceControl({
-        base,
-        platform: input.platform,
-        env: input.env,
-        run: input.run,
-      });
-      await reconcilePending({ base, service: control });
-      const from = await readSelector(base);
-      if (from === null) throw new UpdateFailure("not-installed");
+      // An installation exists.
+      const from = selected;
       // The same version again changes nothing.
       if (from === identity.version) return { active: from, updated: null };
       // Another version: the offline update, by the contract's own steps.
@@ -427,13 +419,12 @@ async function install(input: InstallInput): Promise<InstallResult> {
   });
   const active = outcome.active;
 
-  if (service && unitDirectory !== undefined) {
+  if (unit !== undefined && unitDirectory !== undefined) {
     const command = { run: input.run ?? runProcess, env: input.env };
     try {
       // The user's own directories are created, never re-moded.
       await mkdir(unitDirectory, { recursive: true });
-      for (const [name, text] of units)
-        await writeUnit(unitDirectory, name, text);
+      await writeLaunchpadUnit(unitDirectory, base, unit);
     } catch (error) {
       throw storageFailure(error, "unit");
     }

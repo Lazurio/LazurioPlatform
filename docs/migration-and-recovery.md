@@ -217,7 +217,7 @@ process termination and preservation of unexpected lock contents. This is cooper
 local exclusion, not a security boundary against same-user attackers or ancestor
 replacement, and not evidence for Windows/network filesystems or durable transactions.
 
-## Product upgrade and profile rollback
+## Product upgrade and profile changes
 
 ### Development fresh Folder initialization
 
@@ -431,12 +431,11 @@ files remain unchanged. Actual persistence, journal recovery and installed CLI/U
 integration are not supplied by this read-only adapter.
 
 The release declares supported preferences and generated-manifest versions. Backward
-read compatibility is checked before stage; write compatibility and rollback support
-are checked before activation. Keep the original preference snapshot and exact prior
-product/profile artifacts. A forward migration that makes old software unable to
-read new state is an explicit no-automatic-rollback boundary. Restore the coherent
-old product and preference generation only if subsequent work can be preserved;
-otherwise stop for forward repair rather than start an old binary on incompatible data.
+read compatibility is checked before stage; write compatibility is checked before
+activation. Keep the original preference snapshot and the exact prior profile
+artifacts. There is no program rollback ([product update](update.md), change of
+2026-09-28): a forward migration that makes old software unable to read new state
+is repaired forward, never by starting an old binary on incompatible data.
 
 Preferences schema 2 has two optional keys added after its first release: `tools`, the
 enabled catalog tools, and `toolNotes`, the operator's notes for agents on required or
@@ -445,9 +444,9 @@ The declared versions are unchanged, because the release reads every document wr
 before it, and a Folder that enables nothing and notes nothing keeps byte-identical
 preferences. Each key is such a forward boundary only while it is present: binaries
 older than that release refuse a Folder with a non-empty `tools` list or a `toolNotes`
-object (unknown field, fail closed, nothing rewritten). Before a program rollback
-below that release, remove the notes and disable the enabled tools with the newer
-binary; otherwise repair forward by returning to it.
+object (unknown field, fail closed, nothing rewritten). An installation that a
+release before 2026-09-28 rolled back below that release is repaired forward by
+returning to it.
 
 A profile update renders deterministic output without host secrets. It changes only
 paths named in its ownership manifest, each matched to the expected old digest.
@@ -522,8 +521,9 @@ Unknown files and edited instructions are preserved rather than blindly overwrit
 An unresolved dependency or unattributed work blocks the affected destructive step.
 
 Recovery means protecting data and resuming or repairing forward. Returning the whole
-Folder to a legacy Git checkout is not an acceptance requirement. This does not relax
-product-version rollback or the separate legacy shared-workshop convergence contract.
+Folder to a legacy Git checkout is not an acceptance requirement. There is no
+product-version rollback either ([product update](update.md), change of 2026-09-28);
+the separate legacy shared-workshop convergence contract is unaffected.
 
 ### Organization declaration adoption is a separate prerequisite
 

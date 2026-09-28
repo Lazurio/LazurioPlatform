@@ -146,7 +146,7 @@ All seven live in one Platform package; a boundary is not a package, process or 
 
 | # | Boundary | Owner | Platform's role | Platform never |
 | --- | --- | --- | --- | --- |
-| 1 | Installed product | Distribution: authenticated artifacts, trust, activation, rollback | Is the owner | Touches repositories, preferences, tools or data during update |
+| 1 | Installed product | Distribution: authenticated artifacts, trust, activation and Recovery mode (no program rollback) | Is the owner | Touches repositories, preferences, tools or data during update |
 | 2 | Environment configuration | The local core: accepted settings, preset reference, overrides and their revisions | Is the owner | Accepts a second writer or silent remote precedence |
 | 3 | Generated Folder content | Folder Factory: enumerated outputs and their provenance | Is the owner | Writes outside the enumerated owned paths |
 | 4 | Organization content | Organizations: manifests, repositories, application declarations. GitHub is the access authority | Coordinates explicit materialization and synchronization | Creates a second allowlist, schema or ACL; treats occupied paths as disposable |
@@ -178,7 +178,7 @@ installed executable, not a separate implementation of installation/profile logi
 | # | Fact / capability | Canonical owner | Consumer and lifecycle |
 | --- | --- | --- | --- |
 | 1 | Source, profile templates, skills, default rules | Reviewed Lazurio Platform source | Build produces immutable release artifacts; no runtime edits to source |
-| 1 | Installed executable and assets | Product installer/updater | Versioned OS-standard user installation location, manifest and retained rollback version |
+| 1 | Installed executable and assets | Product installer/updater | Versioned OS-standard user installation location, manifest and the active version |
 | 2 | Chosen collaboration profile, locale, detail preference | Machine-local versioned settings selected on that Machine | Profile use case validates then generates instructions; upgrade preserves preference |
 | 2 | Workspace preset reference and explicit local overrides | The same Machine-local settings owner | Immutable reference plus revisioned overrides; never grants, rosters, tokens, mandates or analytics consent (accepted direction) |
 | 3 | Lazurio Folder generation and expected digests | Lazurio Folder Factory and its installed generation manifest | CLI or Launchpad invokes the shared core locally and replaces only listed owned paths |

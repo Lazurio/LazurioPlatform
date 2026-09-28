@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:os";
 import { isTemplateRevision } from "../folder/render";
+import { startRefusals } from "../launchpad/start-check";
 import {
   type ErrorContext,
   type UpdateErrorCode,
@@ -131,6 +132,8 @@ export const contextRules: Readonly<
   stage: oneOf(updateErrorStages),
   resource: oneOf(updateErrorResources),
   check: oneOf(recoveryCheckIds),
+  // the enumerated condition of a refused Launchpad probe (start-check.ts)
+  refusal: oneOf(startRefusals),
   exitCode: integer,
   httpStatus: integer,
   nRestarts: integer,

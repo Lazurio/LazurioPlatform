@@ -1,15 +1,19 @@
-import type {
-  MachineAssignment,
-  MachineBinding,
-  MachinePeer,
-  MachineRelationships,
+import {
+  type MachineAssignment,
+  type MachineBinding,
+  type MachineEntry,
+  type MachinePeer,
+  type MachineRelationships,
+  parseMachineEntry,
 } from "../folder/machine-binding";
-import type {
-  MachinePeer as HandoverPeer,
-  MachineRelationships as HandoverRelationships,
-  MachineContext,
-  OrganizationAssignment,
-  PersonalMachineContext,
+import {
+  type MachineEntry as HandoverEntry,
+  type MachinePeer as HandoverPeer,
+  type MachineRelationships as HandoverRelationships,
+  type MachineContext,
+  MachineContextError,
+  type OrganizationAssignment,
+  type PersonalMachineContext,
 } from "./context";
 
 // The whole document is one branch; machine.kind names it.
@@ -54,11 +58,31 @@ function relationships(input: HandoverRelationships): MachineRelationships {
   });
 }
 
+// One member to one (docs/machine-handover.md#the-hosted-entry-decision-f16).
+// The binding's own parser checks every value by the wire rules again, so a
+// projection that would not read back refuses the handover instead of being
+// recorded.
+function entry(input: HandoverEntry): MachineEntry {
+  try {
+    return parseMachineEntry({
+      externalOrigin: input.launchpad.external_origin,
+      authCheckUrl: input.launchpad.auth_check_url,
+      authCookieName: input.launchpad.auth_cookie_name,
+      listenPort: input.launchpad.listen_port,
+      t3codeOrigin: input.t3code.external_origin,
+      moduleOriginTemplate: input.modules.origin_template,
+    });
+  } catch {
+    throw new MachineContextError("machine-context-invalid");
+  }
+}
+
 // The projection of a validated handover that the Folder records and renders.
 // Paths, release inventory and custody repositories stay in the handover file;
 // the binding keeps what identifies the Machine, whose it is, how it is
-// assigned and which peers it has. Optional handover fields that are absent
-// stay absent here, so a binding recorded from an older handover is unchanged.
+// assigned, which peers it has and how it is entered. Optional handover fields
+// that are absent stay absent here, so a binding recorded from an older
+// handover is unchanged.
 export function machineBinding(
   context: MachineContext,
   contextDigest: string,
@@ -69,10 +93,12 @@ export function machineBinding(
       : Object.freeze({
           headscaleHostname: context.network.headscale_hostname,
         });
-  const related =
-    context.relationships === undefined
+  const related = {
+    ...(context.relationships === undefined
       ? {}
-      : { relationships: relationships(context.relationships) };
+      : { relationships: relationships(context.relationships) }),
+    ...(context.entry === undefined ? {} : { entry: entry(context.entry) }),
+  };
   if (isPersonal(context))
     return Object.freeze({
       contextDigest,

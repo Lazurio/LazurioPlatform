@@ -17,13 +17,16 @@ import { refreshFolder } from "../folder/update-profile";
 import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
+  type MachineContext,
   MachineContextError,
   readMachineContext,
 } from "./context";
 import { readLinuxOperator } from "./operator";
 
 export const machineHelp = `machine inspect
-Read the root-issued /etc/lazurio/lazurio.machine.json on Linux only.
+Read the root-issued /etc/lazurio/lazurio.machine.json on Linux only and print
+it as written, including its optional entry (how the gateway reaches this
+Machine's Launchpad, T3 Code and modules).
 Output contains private Machine/Organization context; do not publish it.
 The declaration grants no permissions, provider identity or access.
 machine folder-init [--preset <name>] [--locale <cs|en>]
@@ -150,16 +153,11 @@ export async function runMachineCommand(args: string[]) {
   } = parseMachineArguments(args);
   try {
     const observed = await readMachineContext();
-    if (command === "inspect")
-      return {
-        code: 0,
-        result: {
-          kind: "machine-context-observed",
-          ...observed,
-          authority: "none",
-        },
-      };
+    // Projected before anything is printed or recorded: inspect refuses what
+    // folder-init and folder-refresh would refuse.
     const machine = machineBinding(observed.context, observed.digest);
+    if (command === "inspect")
+      return { code: 0, result: machineInspection(observed) };
     const folder = bindMachineOperator(
       observed.context,
       await readLinuxOperator(),
@@ -189,6 +187,18 @@ export async function runMachineCommand(args: string[]) {
       };
     throw error;
   }
+}
+
+// What `machine inspect` prints: the validated handover exactly as written,
+// its optional `entry` included, and its digest. Context, never authority.
+export function machineInspection(
+  observed: Readonly<{ context: MachineContext; digest: string }>,
+) {
+  return {
+    kind: "machine-context-observed" as const,
+    ...observed,
+    authority: "none" as const,
+  };
 }
 
 export type FolderInitChoices = Readonly<{
