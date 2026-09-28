@@ -141,6 +141,19 @@ cookie, no `Host` is evidence. Admission says "this browser may enter this Machi
 the person is comes from the Lazurio Account; what they may touch in a repository comes
 from GitHub (F11).
 
+**A chunked session is the same cookie.** oauth2-proxy splits a session larger than one
+cookie into `<name>_0`, `<name>_1`, … (personal VMs carry such sessions) and reassembles
+it as its `loadCookie` does (`pkg/sessions/cookie/session_store.go`): the cookie of the
+exact name wins when present, otherwise the chunks in index order, concatenated. The
+admission reads it the same way: the whole cookie, when present, exactly as above (any
+chunks beside it are ignored and not forwarded); otherwise the session is present when
+`_0` is, and its chunks must be exactly `_0…_n`, each once and non-empty — a gap or a
+repeated index is refused (`cookie-invalid`) rather than cut short. The auth request then
+carries those chunks unchanged, in index order and never re-joined, because the gateway's
+oauth2-proxy reassembles them itself; the positive cache is keyed by the reassembled
+value. The Machines gateway forwards the whole cookie and `_0…_3` (`ingress.ts:35-38,
+73-92`). No other name, no fragment token, no relaxed `Host` or same-origin rule.
+
 ### The internal route: the gateway's `ensure`
 
 `GET /api/internal/hosted/modules/<id>/ensure` is the one route the gateway itself
@@ -205,7 +218,7 @@ route. T3 Code's own admission behind the gateway is unchanged (not in scope bel
 | Auth endpoint unreachable or slow | Deny after the timeout; no cached negative; page says the gateway is unavailable |
 | Redirect from the auth endpoint to another origin | Deny; malformed answer |
 | Forged `X-Forwarded-User`, `X-Auth-Request-*`, `Authorization` | Ignored; admission decides |
-| Cookie header over 16 KiB or the named cookie repeated | Deny |
+| Cookie header over 16 KiB, the named cookie repeated, or its chunks with a gap or a repeated index | Deny |
 | Unknown hostname at the listener | Refused, no default application |
 | Session expires during a WebSocket | Socket closed with a clean re-login navigation, no token in a URL |
 | Laptop offline or off the tailnet | The gateway answers an error; the Dashboard shows the Machine as unreachable |
