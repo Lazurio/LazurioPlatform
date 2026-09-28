@@ -140,8 +140,12 @@ of `lazurio tools prompt <tool>`. `mcpPrompt` is the prepared prompt for the thi
 route, an MCP server set up by an agent. Without `signIn: true` the probe runs each
 found tool's version command and nothing else, and uses no network. The raw output of
 a tool is not returned, and the request accepts no Folder, PATH or tool name. The
-facts are those of the PATH and home of the Launchpad process, which on an installed
-service may differ from an operator's interactive shell.
+facts are those of the PATH and home of the Launchpad process. The installed
+service unit sets that PATH to `~/.local/bin:/usr/local/bin:/usr/bin:/bin`
+(`Environment=PATH=%h/.local/bin:…`, [product update](update.md#state-on-disk)), so
+it sees the standard path first, as an operator's login shell with `~/.local/bin`
+on PATH does; a tool only on another directory of the interactive PATH is not
+seen there.
 
 **Sign-in state** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
 With `signIn: true` (the page sends it on load and on "Refresh status") or
@@ -266,7 +270,8 @@ first executable of its name in `~/.local/bin` on the operator's PATH. A tool's
 official installer may keep its own home (Codex `~/.codex/…`, Bun `~/.bun`); only a
 link or wrapper in `~/.local/bin` puts it on PATH. Lazurio lives in
 `~/.local/share/lazurio/` with `~/.local/bin/lazurio`, the link `lazurio install`
-creates and reports ([product update](update.md#release-and-trust)); system tools (git, curl,
+creates and reports ([product update](update.md#release-and-trust)), and the
+Launchpad unit puts `~/.local/bin` first on its own PATH; system tools (git, curl,
 python, ssh) belong to the OS package manager; T3 Code and its runtime belong to the
 service unit and run on the Node its version recommends. There is no second
 "recovery" copy of any tool: a rollout repairs the one installation in place, in two

@@ -1,6 +1,6 @@
 # Build and qualification lifecycle
 
-How an installed Lazurio checks for, verifies, activates and rolls back a product
+How an installed Lazurio checks for, verifies and activates a product
 version is the [product update contract](update.md) with decision
 [F13](decisions.md#f13--release-trust-is-github-artifact-attestation). This document
 binds what that contract does not repeat: the build and qualification lifecycle, the
@@ -30,9 +30,9 @@ environment. Releases are immutable; a final version is a new tag built from the
 qualified source, never a renamed candidate.
 
 Artifact identity is immutable (`version + target + digest + source provenance`) and
-is embedded in the executable and stated by the attested `manifest.json`. An explicit
-rollback selects the retained previous version and is distinguishable from normal
-progression; no network path goes below the version floor.
+is embedded in the executable and stated by the attested `manifest.json`. There is
+no program rollback and no retained previous version (change of 2026-09-28 in the
+[product update contract](update.md)); no path goes below the version floor.
 
 Update behavior detects availability and explains compatibility; activation remains
 explicit. Detection is not a download/execute mandate. Offline, a failed
@@ -40,9 +40,9 @@ verification, an unsupported target or unknown state preserves the current
 installation and reports a precise reason.
 
 Product update, profile activation and Source→Managed migration are distinct
-operations. Rollback is permitted only with the compatibility and preservation
-evidence in [migration and recovery](migration-and-recovery.md). Program rollback
-cannot reverse data/schema changes.
+operations. None of them returns to an earlier product version: a candidate proves
+itself before the switch, and after it data and state are repaired forward, never by
+starting an older binary on them ([migration and recovery](migration-and-recovery.md)).
 
 Native distribution signatures stay separate from build provenance:
 [Apple Developer ID and notarization](https://developer.apple.com/developer-id/)
@@ -140,8 +140,9 @@ apply must finish first. Design agreement here is not an instruction to act on a
 
 
 Native qualification of the update mechanism itself — install with the systemd user
-service, A → B, a failed B with automatic switch-back, a crash-looping B after a
-simulated power loss, explicit rollback, a real reboot and the Launchpad pill's
+service, A → B, a B refused at start that ends `activation-unhealthy` while the
+unit restarts without ever reaching `failed`, a candidate refused by its Launchpad
+probe before the switch, a real reboot, no way back and the Launchpad pill's
 click path — is `scripts/qualify-update-linux.ts`; it uses a loopback fixture
 origin and a fixture Sigstore trust root that a release build never contains.
 
