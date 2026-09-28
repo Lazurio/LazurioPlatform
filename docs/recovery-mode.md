@@ -559,9 +559,13 @@ label `recovery` and asks for the fingerprint. The PR that closes it adds
 fixture there, so the drill grows with each field failure. The release job lists open
 `recovery` issues in the draft release notes.
 
-**A fast lane is a requirement.** Without rollback a broken Machine waits for a fix.
-The RC→final path (J1–J6 plus review) should fit in one working hour; the canary stage
-of a fix release may be shortened only explicitly, in its evidence PR.
+**A fast lane is a requirement, the canary is not its variable.** Without rollback
+a broken Machine waits for a fix. The RC→final path (J1–J6 plus review) should fit in
+one working hour; the canary stage of a fix release is the same 8 hours on the same
+Machines (root decision 0166 point 6 gives no exception). A shorter canary for a
+named release exists only as the Principal's recorded decision in the register,
+never as a line in an evidence PR. The time a fix needs is therefore the fix lane's
+own plus 8 hours, and the Recovery mode of D is what covers the Machine meanwhile.
 
 ### G.3 Canary stage: 8 hours on every Machine of the pilot Organization
 
@@ -695,8 +699,9 @@ a ring marks a release eligible, it does not push it.
 **A defect found in a ring** stops that release's promotion. The Machines that run it
 stay on it, with the evidence, and are not rolled back; the defect is repaired by a
 new release that re-enters at ring 0 and passes every ring again up to the failing
-one. The fast lane of G.2 applies: a fix release may shorten a ring's time only
-explicitly, in its evidence.
+one. The fast lane of G.2 applies to the path, not to the ring times: a fix release
+passes ring 1 for the same 8 hours, and a shorter time for a named release exists
+only as the Principal's recorded decision, never as a line in the evidence.
 
 ## H. Migration of existing installations
 
