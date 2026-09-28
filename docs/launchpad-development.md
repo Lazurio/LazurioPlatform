@@ -133,7 +133,7 @@ T3 Code's immediate apply. Icons are Lucide (ISC), inlined as SVG symbols.
 ## Launchpad home: the catalog
 
 Slice P4 of the Launchpad parity (shaping `docs/launchpad-parity.md` B1 on its review
-branch; proposed decision F22, not yet the Principal's). The home shows the
+branch; decision F22, whose points the Principal decided on 2026-09-28). The home shows the
 Organizations and modules of the Folder the Launchpad serves; the developer form and
 its "Development fixture only" banner are gone.
 
