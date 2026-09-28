@@ -418,7 +418,7 @@ test("the supervised unit through systemctl --user, and its health socket", asyn
       true,
     ],
     [
-      { kind: "recovery", check: "start-refused" },
+      { kind: "recovery", check: "start-refused", refusal: null },
       "failed launchpad-recovery-mode",
       true,
     ],
@@ -462,7 +462,33 @@ test("the health socket is asked over its Unix socket", async () => {
           { mode: "recovery", check: "start-refused" },
           { status: 503 },
         ),
-      { kind: "recovery", check: "start-refused" },
+      { kind: "recovery", check: "start-refused", refusal: null },
+    ],
+    [
+      // The answer of a Launchpad in Recovery mode (health-socket.ts).
+      () =>
+        Response.json(
+          {
+            mode: "recovery",
+            check: "start-refused",
+            reason: "folder-transaction-pending",
+          },
+          { status: 503 },
+        ),
+      {
+        kind: "recovery",
+        check: "start-refused",
+        refusal: "folder-transaction-pending",
+      },
+    ],
+    [
+      // A reason that is not even an id is not read.
+      () =>
+        Response.json(
+          { mode: "recovery", check: "start-refused", reason: "Not An Id!" },
+          { status: 503 },
+        ),
+      { kind: "recovery", check: "start-refused", refusal: null },
     ],
     [() => Response.json({ version: "not a version" }), { kind: "unexpected" }],
     [() => new Response("<html>", { status: 200 }), { kind: "unexpected" }],
@@ -478,6 +504,47 @@ test("the health socket is asked over its Unix socket", async () => {
       await rm(layout(world.base).healthSocket, { force: true });
     }
   }
+});
+
+test("a Launchpad in Recovery mode: the issue says why its start was refused", async () => {
+  const world = await createWorld();
+  const recovering = (check: string, refusal: string) =>
+    recover(world, ["--folder", world.folder, "--json"], {
+      health: async () => ({ kind: "recovery", check, refusal }),
+    });
+  const pending = await recovering(
+    "start-refused",
+    "folder-transaction-pending",
+  );
+  expect(pending.code).toBe(exitBroken);
+  expect(pending.json.evidence).toMatchObject({
+    check: "launchpad-health",
+    code: "launchpad-recovery-mode",
+    context: { check: "start-refused", refusal: "folder-transaction-pending" },
+  });
+  expect(pending.json.issue.kind).toBe("prepared");
+  const body: string = pending.json.issue.body;
+  expect(body).toContain('"check":"start-refused"');
+  expect(body).toContain('"refusal":"folder-transaction-pending"');
+  // Two refusals are two faults: two fingerprints, two issues.
+  const unreadable = await recovering(
+    "start-refused",
+    "folder-state-unreadable",
+  );
+  expect(unreadable.json.evidence.context.refusal).toBe(
+    "folder-state-unreadable",
+  );
+  expect(unreadable.json.evidence.fingerprint).not.toBe(
+    pending.json.evidence.fingerprint,
+  );
+  // A refusal or check the product does not define leaves nowhere.
+  const unknown = await recovering("from-the-future", "not-a-refusal");
+  expect(unknown.json.evidence.context).toEqual({});
+  expect(unknown.stdout).not.toContain("not-a-refusal");
+  expect(unknown.stdout).not.toContain("from-the-future");
+  const known = await recovering("start-refused", "not-a-refusal");
+  expect(known.json.evidence.context).toEqual({ check: "start-refused" });
+  expect(known.json.issue.body).not.toContain("not-a-refusal");
 });
 
 // Every private value planted in every source; none may reach the body.

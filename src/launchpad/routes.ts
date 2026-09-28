@@ -6,7 +6,12 @@ import type { MessageKey } from "./messages";
 // never travels in the path (decision F15 addendum 2026-09-28).
 
 /** The sections of Settings, in the order of the settings navigation. */
-export const settingsSections = ["general", "machine", "tools"] as const;
+export const settingsSections = [
+  "general",
+  "machine",
+  "tools",
+  "recovery",
+] as const;
 export type SettingsSection = (typeof settingsSections)[number];
 
 /** The section `/settings` itself opens. */
@@ -105,6 +110,7 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   general: "settingsGeneral",
   machine: "machineTitle",
   tools: "toolsTitle",
+  recovery: "recoveryTitle",
 };
 
 /** What the page says it is: the heading of the view (the current crumb) and

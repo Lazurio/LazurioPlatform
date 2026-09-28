@@ -1,5 +1,7 @@
 import { createCatalogPanel } from "./catalog-panel";
 import { type MessageKey, messages } from "./messages";
+import { createRecoveryPanel } from "./recovery-panel";
+import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
 import { createShell } from "./shell";
 import { createToolsPanel } from "./tools-panel";
 import type { PillStatus } from "./update-pill";
@@ -37,7 +39,8 @@ const controls = {
   presetSelect,
   presetSelection,
 };
-let copy = messages("en");
+let locale: "cs" | "en" = "en";
+let copy = messages(locale);
 // The Launchpad home: the catalog of this Folder's Organizations and modules
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
@@ -47,12 +50,33 @@ const catalog = createCatalogPanel({
   route: () => shell.route(),
   loaded: () => shell.relabel(),
 });
+// Settings → Recovery, and in Recovery mode the whole page
+// (docs/recovery.md "The Recovery page"): read on first view, never written.
+const recovery = createRecoveryPanel({
+  get: async () => {
+    const response = await fetch("/api/recovery", {
+      headers: credential(),
+      cache: "no-store",
+    });
+    denied(response);
+    return { value: await response.json(), ok: response.ok };
+  },
+  copy: () => copy,
+});
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
 // the sheet of a narrow viewport.
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
-  onRoute: (route) => catalog.render(route),
+  onRoute: (route) => {
+    catalog.render(route);
+    if (
+      route.view === "settings" &&
+      route.section === "recovery" &&
+      !recovery.loaded
+    )
+      void recovery.refresh();
+  },
 });
 type MachinePeer = {
   name: string;
@@ -160,6 +184,36 @@ const credential = (): Record<string, string> =>
 function denied(response: Response) {
   if (!token && response.status === 401) location.assign(location.href);
 }
+// Every refused API route names Recovery mode (docs/update.md "Recovery
+// mode"): the page then becomes the Recovery page and stays it until reload.
+let recoveryMode: RecoveryMode | null = null;
+let updateTimer: ReturnType<typeof setInterval> | undefined;
+function enterRecovery(mode: RecoveryMode) {
+  if (recoveryMode !== null) return;
+  recoveryMode = mode;
+  clearInterval(updateTimer);
+  // Nothing of the Folder can be read, its language neither: the browser's.
+  if (!loaded) {
+    locale = navigator.language.startsWith("cs") ? "cs" : "en";
+    copy = messages(locale);
+  }
+  document.documentElement.dataset.mode = "recovery";
+  relabel();
+  shell.pin({ view: "settings", section: "recovery" });
+  recovery.enter(mode);
+}
+function relabel() {
+  document.documentElement.lang = locale;
+  for (const element of document.querySelectorAll<HTMLElement>(
+    "[data-message]",
+  )) {
+    const key = element.dataset.message;
+    if (key && Object.hasOwn(copy, key))
+      element.textContent = copy[key as MessageKey];
+  }
+  shell.relabel();
+  recovery.render();
+}
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
     method: "POST",
@@ -169,6 +223,8 @@ async function post(path: string, body: unknown) {
   });
   denied(response);
   const value = await response.json();
+  const mode = recoveryModeAnswer(response.status, value);
+  if (mode !== null) enterRecovery(mode);
   return { value, ok: response.ok };
 }
 async function get(path: string) {
@@ -186,19 +242,14 @@ async function request(path: string, body: unknown) {
   if (!ok) throw new Error(copy.refused);
   return value;
 }
+let loaded = false;
 async function load() {
   current = await request("/api/profile", {});
-  copy = messages(current.profile.locale);
+  loaded = true;
+  locale = current.profile.locale === "cs" ? "cs" : "en";
+  copy = messages(locale);
   renderUpdate();
-  document.documentElement.lang = current.profile.locale === "cs" ? "cs" : "en";
-  for (const element of document.querySelectorAll<HTMLElement>(
-    "[data-message]",
-  )) {
-    const key = element.dataset.message;
-    if (key && Object.hasOwn(copy, key))
-      element.textContent = copy[key as MessageKey];
-  }
-  shell.relabel();
+  relabel();
   catalog.render();
   // One settings row per recorded fact: the name on the left, the value on
   // the right.
@@ -420,7 +471,14 @@ async function refreshUpdate() {
       cache: "no-store",
     });
     denied(response);
-    if (!response.ok) return;
+    if (!response.ok) {
+      const mode = recoveryModeAnswer(
+        response.status,
+        await response.json().catch(() => null),
+      );
+      if (mode !== null) enterRecovery(mode);
+      return;
+    }
     updateStatus = (await response.json()) as PillStatus;
     renderUpdate();
   } catch {
@@ -445,5 +503,5 @@ updateAction.addEventListener("click", async () => {
     renderUpdate();
   }
 });
+updateTimer = setInterval(() => void refreshUpdate(), 10_000);
 void refreshUpdate();
-setInterval(() => void refreshUpdate(), 10_000);

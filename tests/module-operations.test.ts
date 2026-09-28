@@ -235,6 +235,7 @@ posixTest(
         {},
         undefined,
         {},
+        undefined,
         host,
       );
       try {
@@ -376,6 +377,7 @@ posixTest(
           {},
           undefined,
           {},
+          undefined,
           host,
         );
       // Nothing runs yet.
@@ -631,6 +633,7 @@ posixTest(
         {},
         undefined,
         {},
+        undefined,
         host,
       );
       let closed = false;

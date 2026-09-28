@@ -53,6 +53,8 @@ export function createShell(
   const narrow = window.matchMedia("(max-width: 767px)");
 
   let route: PageRoute = pageRoute(location.pathname);
+  // Recovery mode pins the page to one route: nothing else can be served.
+  let pinned = false;
 
   function show() {
     const frame = routeFrame(route);
@@ -100,6 +102,7 @@ export function createShell(
     next: PageRoute,
     how: Readonly<{ history: "push" | "replace"; focus: boolean }>,
   ) {
+    if (pinned) next = route;
     const path = routePath(next);
     const moved = routePath(route) !== path;
     if (moved)
@@ -209,5 +212,10 @@ export function createShell(
     relabel,
     /** The route now shown. */
     route: () => route,
+    /** Shows `next` and stays there: Recovery mode (docs/recovery.md). */
+    pin(next: PageRoute) {
+      go(next, { history: "replace", focus: false });
+      pinned = true;
+    },
   };
 }

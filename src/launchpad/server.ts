@@ -1,7 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
   inspectToolsChange,
@@ -23,6 +21,7 @@ import {
 } from "../modules/module-operations";
 import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationApplications } from "../organizations/read-applications";
+import type { RecoveryResult } from "../recover/recover";
 import { activatableTools, toolSelection } from "../tools/catalog";
 import {
   folderPreset,
@@ -41,8 +40,7 @@ import { runTool, xdgOf } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
-import index from "./index.html";
-import { pagePaths } from "./routes";
+import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import {
   checkBundledPage,
   LaunchpadStartRefused,
@@ -65,11 +63,6 @@ export type HostedOptions = Readonly<{
 // (P7, B8) is its own route.
 const moduleRoute = /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|stop|status)$/;
 
-// The page itself under each of its routes (`/`, `/settings/tools`, …): the
-// same bundled document, which picks the section from the path. No other
-// path serves it, and none of them carries or needs the credential.
-const pageRoutes = Object.fromEntries(pagePaths.map((path) => [path, index]));
-
 const curatedRoutes = new Set([
   "/api/tools/install",
   "/api/tools/login/start",
@@ -85,37 +78,6 @@ const curatedRoutes = new Set([
 function withQr(state: LoginState): LoginState & { qrSvg?: string } {
   if (state.kind !== "pending" || state.challenge?.kind !== "qr") return state;
   return { ...state, qrSvg: qrSvg(qrMatrix(state.challenge.payload)) };
-}
-
-// The page of this executable on a private unix socket, asked by `operation`
-// and closed again: how a start and a candidate's probe learn that the bundle
-// serves, without a port and without writing anything but the socket in a
-// private temporary directory.
-async function privatePage<T>(
-  operation: (get: (path: string) => Promise<Response>) => Promise<T>,
-  version?: string,
-): Promise<T> {
-  const directory = await mkdtemp(join(tmpdir(), "lazurio-page-"));
-  const socket = join(directory, "page.sock");
-  const server = Bun.serve({
-    unix: socket,
-    development: false,
-    routes: pageRoutes,
-    fetch: (request) =>
-      version !== undefined &&
-      new URL(request.url).pathname === "/health" &&
-      request.method === "GET"
-        ? Response.json({ version })
-        : new Response("not-found", { status: 404 }),
-  });
-  try {
-    return await operation((path) =>
-      fetch(`http://launchpad.invalid${path}`, { unix: socket }),
-    );
-  } finally {
-    await server.stop(true);
-    await rm(directory, { recursive: true, force: true });
-  }
 }
 
 /** The candidate's probe (`self-check --launchpad`, docs/update.md
@@ -171,6 +133,10 @@ export async function startLaunchpad(
     arch?: string;
     login?: Partial<LoginEnvironment>;
   }> = {},
+  // The recovery use case of this installation (`lazurio recover`), for the
+  // read-only Recovery view of Settings. Trusted composition, never HTTP
+  // input.
+  recovery?: (() => Promise<RecoveryResult>) | undefined,
   // Where the module lifecycle runs: this process's account, its standard
   // Bun and the runner of this platform. Trusted composition, never HTTP
   // input; tests supply a fake service manager.
@@ -193,22 +159,8 @@ export async function startLaunchpad(
   const trust = entry === null ? null : createHostedTrust(entry, hostedOptions);
   // The bundled page is served by an inner listener and proxied only after
   // admission, so nothing of the Launchpad answers an unadmitted browser — not
-  // even its shell. The inner listener is a private unix socket: no ambient
-  // HTTP proxy of the process environment (HTTP_PROXY, ALL_PROXY) can stand in
-  // for it, and nothing else on the Machine can reach it by port.
-  const shellSocket =
-    trust === null
-      ? null
-      : join(await mkdtemp(join(tmpdir(), "lazurio-shell-")), "shell.sock");
-  const shell =
-    shellSocket === null
-      ? null
-      : Bun.serve({
-          unix: shellSocket,
-          development: false,
-          routes: pageRoutes,
-          fetch: () => new Response("not-found", { status: 404 }),
-        });
+  // even its shell.
+  const shell = trust === null ? null : await serveShell();
   const token = trust === null ? randomBytes(32).toString("hex") : "";
   const applications = applicationAdapters
     ? createApplicationLifecycle(applicationAdapters)
@@ -251,19 +203,16 @@ export async function startLaunchpad(
       };
       const response = (body: unknown, status = 200) =>
         Response.json(body, { status, headers });
-      if (trust !== null && shellSocket !== null) {
+      if (trust !== null && shell !== null) {
         // Hosted: the gateway's admission, revalidated here; the request's
         // own URL is loopback and is not evidence of anything.
         const admission = await trust.admit(request);
         if (!admission.ok)
           return response({ error: "denied", reason: admission.reason }, 401);
         if (request.method === "GET" && !url.pathname.startsWith("/api/")) {
-          const page = await fetch(
-            `http://shell.invalid${url.pathname}${url.search}`,
-            {
-              unix: shellSocket,
-              headers: { accept: request.headers.get("accept") ?? "*/*" },
-            },
+          const page = await shell.get(
+            `${url.pathname}${url.search}`,
+            request.headers.get("accept"),
           );
           return new Response(page.body, {
             status: page.status,
@@ -274,19 +223,18 @@ export async function startLaunchpad(
             },
           });
         }
-      } else {
-        // Local: a browser sends no Origin header with a same-origin GET. The
-        // bearer token is the credential; the one GET route is read-only.
-        const sameOrigin =
-          request.headers.get("origin") === origin ||
-          (request.method === "GET" && !request.headers.has("origin"));
-        if (
-          url.origin !== origin ||
-          request.headers.get("host") !== new URL(origin).host ||
-          !sameOrigin ||
-          request.headers.get("authorization") !== `Bearer ${token}`
-        )
-          return response({ error: "denied" }, 403);
+      } else if (!admitLocal(request, origin, token))
+        return response({ error: "denied" }, 403);
+      if (request.method === "GET" && url.pathname === "/api/recovery") {
+        // The Recovery view of Settings: the same read-only use case and
+        // result as `lazurio recover --json` (docs/recovery.md).
+        if (closing) return response({ error: "closing" }, 503);
+        if (!recovery) return response({ error: "recovery-unavailable" }, 503);
+        try {
+          return response(await recovery());
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
       }
       if (request.method === "GET" && url.pathname === "/api/update/status") {
         if (closing) return response({ error: "closing" }, 503);
@@ -669,9 +617,7 @@ export async function startLaunchpad(
           const loginClose = logins.close();
           pill?.stop();
           await server.stop(true);
-          await shell?.stop(true);
-          if (shellSocket !== null)
-            await rm(dirname(shellSocket), { recursive: true, force: true });
+          await shell?.stop();
           await health?.stop(true);
           await loginClose;
           const result = applicationClose

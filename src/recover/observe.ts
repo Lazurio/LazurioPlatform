@@ -435,8 +435,9 @@ export async function unitJournal(
 
 export type HealthAnswer =
   | Readonly<{ kind: "version"; version: string }>
-  /** Recovery mode (docs/recovery-mode.md C.1): `503 {mode, check}`. */
-  | Readonly<{ kind: "recovery"; check: string }>
+  /** Recovery mode (docs/update.md "Recovery mode"): `503 {mode, check,
+   * reason}`; `reason` is why the start was refused, when it was sent. */
+  | Readonly<{ kind: "recovery"; check: string; refusal: string | null }>
   | Readonly<{ kind: "unexpected" }>
   | Readonly<{ kind: "none" }>;
 
@@ -460,16 +461,18 @@ export async function askHealth(
       version?: unknown;
       mode?: unknown;
       check?: unknown;
+      reason?: unknown;
     };
+    const id = (value: unknown): value is string =>
+      typeof value === "string" && /^[a-z][a-z-]{0,63}$/.test(value);
     if (response.ok && isProductVersion(body.version))
       return Object.freeze({ kind: "version", version: body.version });
-    if (
-      response.status === 503 &&
-      body.mode === "recovery" &&
-      typeof body.check === "string" &&
-      /^[a-z][a-z-]{0,63}$/.test(body.check)
-    )
-      return Object.freeze({ kind: "recovery", check: body.check });
+    if (response.status === 503 && body.mode === "recovery" && id(body.check))
+      return Object.freeze({
+        kind: "recovery",
+        check: body.check,
+        refusal: id(body.reason) ? body.reason : null,
+      });
   } catch {}
   return Object.freeze({ kind: "unexpected" });
 }
@@ -498,8 +501,11 @@ export function judgeHealth(
             active,
           });
     case "recovery":
+      // Why the start was refused: the tier-1 allowlist keeps both only as
+      // the product's own ids (healthSocketChecks, startRefusals).
       return failed("launchpad-health", "launchpad-recovery-mode", {
         check: answer.check,
+        ...(answer.refusal === null ? {} : { refusal: answer.refusal }),
       });
     case "unexpected":
       return failed("launchpad-health", "launchpad-not-answering", {
