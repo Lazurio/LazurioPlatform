@@ -16,9 +16,14 @@ import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
 import type { InstallFetch } from "../src/tools/install";
 import { runTool } from "../src/tools/status";
-import { fakeCodes, fakeLoginTools } from "./fixtures/fake-login-tools";
+import {
+  fakeCodes,
+  fakeLoginTools,
+  realSshKeygen,
+} from "./fixtures/fake-login-tools";
 
 const posix = process.platform !== "win32";
+const keygen = posix && realSshKeygen !== null;
 
 type Json = Record<string, unknown>;
 
@@ -52,7 +57,7 @@ async function session(
     {
       ...(fetcher ? { fetch: fetcher } : {}),
       arch: "x64",
-      login: { firstChallengeMs: 5_000, probeIntervalMs: 50 },
+      login: { firstChallengeMs: 5_000, probeIntervalMs: 50, machine: "vm-01" },
     },
   );
   const url = new URL(app.url);
@@ -200,6 +205,16 @@ test.skipIf(!posix)(
           })
         ).status,
       ).toBe(400);
+      // "Link SSH key" is gh's only, and only as `true`.
+      for (const body of [
+        { tool: "gh", sshKey: false },
+        { tool: "gh", sshKey: "yes" },
+        { tool: "wacli", sshKey: true },
+        { tool: "wacli", sshKey: true, phone: "+420123456789" },
+      ])
+        expect((await opened.json("/api/tools/login/start", body)).status).toBe(
+          400,
+        );
       expect(
         (await opened.json("/api/tools/composio/organization", { id: "a b" }))
           .status,
@@ -210,8 +225,8 @@ test.skipIf(!posix)(
   },
 );
 
-test.skipIf(!posix)(
-  "gh: start returns the device code uncached to its holder only; poll reports signed in once",
+test.skipIf(!keygen)(
+  "gh: start returns the device code uncached to its holder only; poll reports signed in with the SSH key once",
   async () => {
     const opened = await session(["gh"]);
     try {
@@ -250,25 +265,71 @@ test.skipIf(!posix)(
           ).body,
         (value) => value.kind !== "pending",
       );
-      expect(done).toEqual({
+      const key = join(opened.home, ".ssh", "id_ed25519");
+      expect(done).toMatchObject({
         kind: "signed-in",
         tool: "gh",
         account: "octocat",
+        ssh: {
+          state: "linked",
+          key: { path: key, created: true },
+          registration: "added",
+          knownHosts: "added",
+        },
       });
-      // The card reads the new sign-in with the existing probe.
+      const fingerprint = ((done.ssh as Json).key as Json).fingerprint;
+      // The card reads the new sign-in with the probe: SSH linked too.
       const status = (await opened.json("/api/tools/status", { signIn: true }))
         .body;
       expect((status.tools as Json[])[0]?.signIn).toEqual({
         state: "signed-in",
         account: "octocat",
+        ssh: { state: "linked", fingerprint },
       });
-      expect(
-        (await opened.json("/api/tools/logout", { tool: "gh" })).body,
-      ).toEqual({
+      // "Link SSH key" of a signed-in gh: no code, the same key.
+      const link = await opened.json("/api/tools/login/start", {
+        tool: "gh",
+        sshKey: true,
+      });
+      expect(link.status).toBe(200);
+      const linked = await until(
+        async () =>
+          (
+            await opened.json("/api/tools/login/poll", {
+              tool: "gh",
+              session: link.body.session ?? "0".repeat(32),
+            })
+          ).body,
+        (value) => value.kind !== "pending",
+      );
+      expect(linked).toMatchObject({
+        kind: "signed-in",
+        ssh: {
+          state: "linked",
+          key: { created: false },
+          registration: "already-registered",
+        },
+      });
+      const logout = (await opened.json("/api/tools/logout", { tool: "gh" }))
+        .body;
+      expect(logout).toEqual({
         kind: "logged-out",
         tool: "gh",
         revocation: "local-only",
+        sshKey: { state: "removed", fingerprint },
       });
+      // No response carried the private key or the public key's blob.
+      const privateKey = await readFile(key, "utf8");
+      const blob = (await readFile(`${key}.pub`, "utf8")).split(
+        " ",
+      )[1] as string;
+      for (const answer of [started.body, done, status, linked, logout]) {
+        const text = JSON.stringify(answer);
+        expect(text).not.toContain(blob);
+        for (const line of privateKey.split("\n"))
+          if (line.length > 20 && !line.startsWith("-----"))
+            expect(text).not.toContain(line);
+      }
       for (const file of [
         ...(await files(opened.home)),
         ...(await files(opened.folder)),

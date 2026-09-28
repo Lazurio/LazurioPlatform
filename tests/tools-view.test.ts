@@ -6,6 +6,7 @@ import {
   installOutcome,
   loginEndMessage,
   loginLink,
+  loginStepOrder,
   loginSteps,
   logoutOutcome,
   nextNotes,
@@ -18,6 +19,7 @@ import {
   signedInMessage,
   signInLine,
   sourceLink,
+  sshOutcome,
   takesNote,
   toolChangeOutcome,
   toolGroups,
@@ -388,6 +390,7 @@ test("the sign-in line and the curated action follow what the probe said", () =>
     expect(curatedActions(tool(), copy)).toEqual({
       primary: { mode: "install", label: copy.toolsInstallAction },
       logout: false,
+      linkSsh: false,
     });
     for (const signIn of [
       undefined,
@@ -402,13 +405,32 @@ test("the sign-in line and the curated action follow what the probe said", () =>
       ).toEqual({
         primary: { mode: "login", label: copy.toolsSignInAction },
         logout: false,
+        linkSsh: false,
       });
     expect(
       curatedActions(
         { ...installed, signIn: { state: "signed-in", account: "octo" } },
         copy,
       ),
-    ).toEqual({ primary: null, logout: true });
+    ).toEqual({ primary: null, logout: true, linkSsh: false });
+    // gh signed in: "· SSH key linked" or "· not linked" with "Link SSH key".
+    const gh = tool({ name: "gh", command: "gh", installed: true });
+    const withSsh = (state: "linked" | "not-linked" | "unknown") => ({
+      ...gh,
+      signIn: { state: "signed-in", account: "octo", ssh: { state } } as const,
+    });
+    expect(signInLine(withSsh("linked"), copy)).toBe(
+      `${copy.toolsSignedInAs.replace("{account}", "octo")} · ${copy.toolsSshLinked}`,
+    );
+    expect(signInLine(withSsh("not-linked"), copy)).toBe(
+      `${copy.toolsSignedInAs.replace("{account}", "octo")} · ${copy.toolsSshNotLinked}`,
+    );
+    expect(signInLine(withSsh("unknown"), copy)).toBe(
+      `${copy.toolsSignedInAs.replace("{account}", "octo")} · ${copy.toolsSshUnknown}`,
+    );
+    expect(curatedActions(withSsh("linked"), copy).linkSsh).toBe(false);
+    expect(curatedActions(withSsh("not-linked"), copy).linkSsh).toBe(true);
+    expect(curatedActions(withSsh("unknown"), copy).linkSsh).toBe(true);
     for (const agent of [
       tool({ setup: "agent" }),
       tool({ setup: "agent", installed: true, signIn: { state: "signed-in" } }),
@@ -416,6 +438,7 @@ test("the sign-in line and the curated action follow what the probe said", () =>
       expect(curatedActions(agent, copy)).toEqual({
         primary: null,
         logout: false,
+        linkSsh: false,
       });
   }
 });
@@ -506,44 +529,188 @@ test("the QR image is taken only in the exact form the server draws", () => {
     expect(qrImageSource(bad)).toBeNull();
 });
 
-test("the steps say installing, waiting for you, signed in, and where it stopped", () => {
+test("the steps say installing, waiting for you, linking the SSH key, signed in, and where it stopped", () => {
   const copy = messages("en");
   const states = (
-    install: boolean,
+    mode: "install" | "login" | "ssh",
     phase: Parameters<typeof loginSteps>[1],
-    at: "installing" | "waiting" = "waiting",
+    at: "installing" | "waiting" | "linking" = "waiting",
+    tool = "composio",
+    refresh = false,
   ) =>
-    loginSteps(install, phase, at, copy).map(
+    loginSteps(loginStepOrder({ mode, tool, refresh }), phase, at, copy).map(
       (step) => `${step.label}:${step.state}`,
     );
-  expect(states(true, "confirm")).toEqual([
+  expect(states("install", "confirm")).toEqual([
     "Installing:todo",
     "Waiting for you:todo",
     "Signed in:todo",
   ]);
-  expect(states(true, "installing")).toEqual([
+  expect(states("install", "installing")).toEqual([
     "Installing:current",
     "Waiting for you:todo",
     "Signed in:todo",
   ]);
-  expect(states(true, "waiting")).toEqual([
+  expect(states("install", "waiting")).toEqual([
     "Installing:done",
     "Waiting for you:current",
     "Signed in:todo",
   ]);
-  expect(states(false, "signed-in")).toEqual([
+  expect(states("login", "signed-in")).toEqual([
     "Waiting for you:done",
     "Signed in:done",
   ]);
-  expect(states(true, "failed", "installing")).toEqual([
+  expect(states("install", "failed", "installing")).toEqual([
     "Installing:failed",
     "Waiting for you:todo",
     "Signed in:todo",
   ]);
-  expect(states(false, "failed")).toEqual([
+  expect(states("login", "failed")).toEqual([
     "Waiting for you:failed",
     "Signed in:todo",
   ]);
+  // gh links the SSH key as a step of its own.
+  expect(states("login", "linking", "linking", "gh")).toEqual([
+    "Waiting for you:done",
+    "Linking the SSH key:current",
+    "Signed in:todo",
+  ]);
+  expect(states("install", "failed", "linking", "gh")).toEqual([
+    "Installing:done",
+    "Waiting for you:done",
+    "Linking the SSH key:failed",
+    "Signed in:todo",
+  ]);
+  expect(states("ssh", "linking", "linking", "gh")).toEqual([
+    "Linking the SSH key:current",
+    "SSH key linked:todo",
+  ]);
+  expect(states("ssh", "waiting", "waiting", "gh", true)).toEqual([
+    "Waiting for you:current",
+    "Linking the SSH key:todo",
+    "SSH key linked:todo",
+  ]);
+  expect(states("ssh", "signed-in", "linking", "gh", true)).toEqual([
+    "Waiting for you:done",
+    "Linking the SSH key:done",
+    "SSH key linked:done",
+  ]);
+});
+
+test("the SSH outcome of a gh sign-in is read only in its exact form and becomes plain sentences", () => {
+  const fingerprint = "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU";
+  const key = { path: "/home/o/.ssh/id_ed25519", fingerprint, created: true };
+  const linked = parseLoginState({
+    kind: "signed-in",
+    tool: "gh",
+    account: "octocat",
+    ssh: { state: "linked", key, registration: "added", knownHosts: "added" },
+  });
+  expect(linked).toMatchObject({ ssh: { state: "linked", key } });
+  const notLinked = parseLoginState({
+    kind: "signed-in",
+    tool: "gh",
+    account: "octocat",
+    ssh: {
+      state: "not-linked",
+      reason: "proof-other-account",
+      key: { ...key, created: false },
+      provedAs: "someone-else",
+      fallback: "agent",
+    },
+  });
+  expect(notLinked).toMatchObject({
+    ssh: { state: "not-linked", provedAs: "someone-else" },
+  });
+  for (const ssh of [
+    { state: "linked", key, registration: "added" },
+    {
+      state: "linked",
+      key: { ...key, fingerprint: "MD5:aa" },
+      registration: "added",
+      knownHosts: "added",
+    },
+    { state: "not-linked", reason: "secret", fallback: "agent" },
+    { state: "not-linked", reason: "proof-failed" },
+    { state: "maybe" },
+  ])
+    expect(
+      parseLoginState({ kind: "signed-in", tool: "gh", account: "o", ssh }),
+    ).toBeNull();
+  expect(
+    parseLoginState({
+      kind: "pending",
+      tool: "gh",
+      session: handle,
+      expiresAt: "x",
+      step: "ssh-key",
+    }),
+  ).toMatchObject({ step: "ssh-key" });
+  expect(
+    parseLoginState({
+      kind: "pending",
+      tool: "gh",
+      session: handle,
+      expiresAt: "x",
+      step: "other",
+    }),
+  ).toBeNull();
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    expect(sshOutcome(linked as NonNullable<typeof linked>, copy)).toEqual({
+      linked: true,
+      message: copy.toolsSshLinkedDone.replace("{account}", "octocat"),
+      detail: copy.toolsSshKeyCreated
+        .replace("{path}", key.path)
+        .replace("{fingerprint}", fingerprint),
+    });
+    expect(
+      sshOutcome(notLinked as NonNullable<typeof notLinked>, copy),
+    ).toEqual({
+      linked: false,
+      message: copy.toolsSshNotLinkedDone.replace("{account}", "octocat"),
+      detail: copy.toolsSshFailureProofOtherAccount.replace(
+        "{account}",
+        "someone-else",
+      ),
+    });
+    expect(
+      sshOutcome({ kind: "signed-in", tool: "composio" }, copy),
+    ).toBeNull();
+    expect(
+      loginEndMessage(
+        { kind: "failed", tool: "gh", reason: "not-signed-in" },
+        copy,
+      ),
+    ).toEqual({
+      message: copy.toolsLoginFailureNotSignedIn,
+      agent: false,
+      retry: true,
+    });
+    // Sign-out says what happened to the key on the account.
+    const out = (sshKey: unknown) =>
+      logoutOutcome(
+        { kind: "logged-out", revocation: "local-only", sshKey },
+        "gh",
+        copy,
+      ).message;
+    const local = copy.toolsSignedOutLocal.replace("{name}", "gh");
+    expect(out({ state: "removed", fingerprint })).toBe(
+      `${local} ${copy.toolsSshRemoved.replace("{fingerprint}", fingerprint)}`,
+    );
+    expect(out({ state: "kept-not-lazurio", fingerprint })).toBe(
+      `${local} ${copy.toolsSshRemovalKept.replace("{fingerprint}", fingerprint)}`,
+    );
+    expect(out({ state: "not-removed", reason: "scope-missing" })).toBe(
+      `${local} ${copy.toolsSshRemovalFailed}`,
+    );
+    expect(out({ state: "no-key" })).toBe(
+      `${local} ${copy.toolsSshRemovalNoKey}`,
+    );
+    expect(out({ state: "<b>" })).toBe(
+      `${local} ${copy.toolsSshRemovalFailed}`,
+    );
+  }
 });
 
 test("install, login end, organizations and logout answers become one sentence each", () => {
@@ -769,4 +936,50 @@ test("every tools message exists in both languages and differs where it is a sen
       en[key].match(/\{\w+\}/g)?.sort() ?? [],
     );
   }
+});
+
+test("the sign-in of gh may carry its SSH state, only in its exact form", () => {
+  const gh = (ssh: unknown) =>
+    parseToolsOverview({
+      ...overview([
+        tool({
+          name: "gh",
+          command: "gh",
+          tier: "required",
+          enabled: true,
+          installed: true,
+        }),
+      ]),
+      tools: [
+        {
+          ...tool({
+            name: "gh",
+            command: "gh",
+            tier: "required",
+            enabled: true,
+            installed: true,
+          }),
+          signIn: { state: "signed-in", account: "octo", ssh },
+        },
+      ],
+    });
+  expect(
+    gh({
+      state: "linked",
+      fingerprint: "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
+    })?.tools[0]?.signIn?.ssh,
+  ).toEqual({
+    state: "linked",
+    fingerprint: "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU",
+  });
+  expect(
+    gh({ state: "not-linked", reason: "no-key" })?.tools[0]?.signIn?.ssh,
+  ).toEqual({ state: "not-linked", reason: "no-key" });
+  for (const bad of [
+    "linked",
+    { state: "linked", fingerprint: "ssh-ed25519 AAAA" },
+    { state: "not-linked", reason: "other" },
+    { state: "maybe" },
+  ])
+    expect(gh(bad)).toBeNull();
 });

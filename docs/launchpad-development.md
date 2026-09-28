@@ -69,7 +69,9 @@ status" (with them again), and shows:
   card carries the tool's name, its one-line purpose, the enabled state, the setup
   mode, the installed version and path or "not installed", a failed version check,
   and one line about the sign-in: "Signed in as <account>" (with the organization for
-  composio), "Signed in", "Not signed in", "Sign-in unknown" or "Sign-in not checked".
+  composio), "Signed in", "Not signed in", "Sign-in unknown" or "Sign-in not checked";
+  for gh the line goes on with "· SSH key linked", "· SSH key not linked" or "· SSH
+  key not verified" (F19 addendum 2026-09-28).
   Only on a hosted Machine (`hosted`) does a PATH entry outside `~/.local/bin` add a
   note and the amber attention state; on a local workstation any tool on PATH is fine;
 - behind "What agents are told" the catalog usage text (read-only), the official
@@ -129,6 +131,24 @@ and returns focus to the card. What it shows:
   the QR code instead"). After pairing, the note that the first sync runs in the
   background.
 
+**gh and its SSH key** (F19 addendum 2026-09-28). The gh dialog has a third step,
+"Linking the SSH key", between "Waiting for you" and "Signed in": after the code is
+entered, the status line says that Lazurio links the SSH key of this Machine and checks
+git over SSH. A linked key ends the dialog with "The SSH key of this Machine is linked:
+git clone git@github.com:… works as <account>" and whether the key was created now
+(without a passphrase, so agents can use it) or an existing one is used unchanged, with
+its path and fingerprint. A key that is not linked marks the step "did not finish" and
+says, in one sentence each, that gh is signed in but git over SSH does not work yet and
+why (a passphrase on the existing key, the key in use by another account, a differing
+github.com host key, a failing proof, …), with "Finish with an agent" and "Try again",
+which links the key only. A signed-in gh whose key is not linked or not verified shows
+"Link SSH key" on its card: the same dialog with the steps "Linking the SSH key" and
+"SSH key linked", and "Waiting for you" first with a device code only when the gh
+sign-in may not manage SSH keys yet (the code widens the sign-in, the text says so).
+"Sign out" of gh also says what happened to the key on the account: removed, kept
+because Lazurio did not register it, or possibly still registered with where to remove
+it.
+
 The page accepts a login answer only in its exact form: a link only as https on the
 expected host, a code only in its expected shape, the QR only as the exact SVG the
 server draws (turned into a `data:` image, never inserted as markup). A failure shows
@@ -136,7 +156,8 @@ its reason, "Finish with an agent" (which opens the prepared prompt) where an ag
 the next step, and "Try again". After a sign-in the card's sign-in line is refreshed
 with the probes. "Sign out" runs `/api/tools/logout` and confirms on the card whether
 the tool forgot the sign-in on this Machine only (gh, composio) or unlinked the device
-(wacli).
+(wacli). An SSH outcome is taken only in its exact form (known reasons, a `SHA256:`
+fingerprint, no key content).
 
 Pure view logic lives in `src/launchpad/tools-view.ts` and is tested without a
 DOM (`tests/tools-view.test.ts`); `src/launchpad/tools-panel.ts` holds the DOM and

@@ -1387,3 +1387,122 @@ shows its reason and "Finish with an agent", which opens the prepared prompt.
 tools, automatic updates of curated tools, the hand-over of the prompt into a T3 Code
 chat, and usage analytics. The real vendor flows are qualified on a test VM, not by this
 revision's tests, which use fake tools and a fake source only.
+
+**Addendum 2026-09-28 (Principal): the gh sign-in links the Machine's SSH key.**
+Recorded from the Principal's words: the sign-in to gh through the Launchpad must link
+the SSH key as well, which is why it exists; the SSH key matters most, and gh over
+https is of no use here. Also decided, with no change needed: a broken tool outside the
+standard path is always left to an agent following the manual, and on a shared
+Environment a new sign-in replacing a running one is fine.
+
+*Target state.* `lazurio tools login gh` and the Launchpad's "Sign in" end with a
+Machine that can `git clone git@github.com:…` as the signed-in account. The device flow
+is `gh auth login --hostname github.com --git-protocol ssh --web --scopes
+admin:public_key --clipboard=false`: one code for the operator, and the token may list,
+add and delete the account's SSH keys. gh itself offers to upload a key only when it
+can prompt (`opts.Interactive && gitProtocol == "ssh"` in
+`pkg/cmd/auth/shared/login_flow.go`, where it also adds `admin:public_key`); without a
+terminal it prints the code and the page and uploads nothing, so Lazurio does steps 2
+to 5 after gh confirmed the sign-in, in the same session, as a step of its own
+(`pending` with `step: "ssh-key"`):
+
+1. *The key pair.* This Machine's key is the first default name whose private key
+   exists, in the order `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa` (ed25519 first
+   because it is what Lazurio creates; `_sk` keys need a touch, DSA is not accepted by
+   GitHub). It is used as it is and never overwritten or changed: `ssh-keygen -y -P ""
+   -f <key>` must derive exactly the public key of its `.pub` file, which proves the
+   pair belongs together and has no passphrase. Without a default key Lazurio creates
+   `ssh-keygen -q -t ed25519 -N "" -C lazurio@<Machine> -f ~/.ssh/id_ed25519`
+   (`~/.ssh` created 0700, the private key 0600). A key with a passphrase, without its
+   `.pub` or unreadable is reported (`key-passphrase`, `key-incomplete`,
+   `key-unreadable`) and left alone; Lazurio never adds a second default key beside an
+   existing one, because OpenSSH offers the defaults in its own order (rsa, ecdsa,
+   ed25519 in `readconf.c`) and which account answers would then depend on it.
+2. *Registration.* `gh ssh-key add ~/.ssh/<key>.pub --title "Lazurio: <Machine>"
+   --type authentication`. gh lists the account's keys first and adds nothing when
+   the key is there ("Public key already exists on your account", exit 0:
+   `already-registered`). GitHub refuses a key that is in use elsewhere, on another
+   account or as a repository's deploy key ("key is already in use", HTTP 422): the
+   result is `key-in-use`, and no second key is generated. The Machine's name is the
+   system host name reduced to letters, digits, `.`, `-` and `_` (no secret; on a
+   workstation it may carry the owner's name, and it goes only to the owner's own
+   account).
+3. *Host keys.* GitHub's published host keys come over HTTPS from `gh api meta --jq
+   .ssh_keys` (the `ssh_keys` of `https://api.github.com/meta`). `ssh-keygen -F
+   github.com -f ~/.ssh/known_hosts` finds existing entries, hashed ones included. Only
+   missing keys are appended as plain `github.com <key>` lines; an entry whose key is
+   not published, or one with a marker (`@revoked`, `@cert-authority`), stops the link
+   as `host-key-mismatch` and nothing is changed. A changed host key is never replaced
+   or accepted; GitHub's own guidance for its 2023 RSA key rotation is the agent's
+   manual for that case.
+4. *Proof.* `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15
+   git@github.com` must print "Hi <login>! You've successfully authenticated…" (it
+   exits 1 by design) for the signed-in login. Another login is `proof-other-account`
+   with `provedAs`; anything else `proof-failed`. The proof runs with the minimal
+   environment of every login process (no `SSH_AUTH_SOCK`), so it shows what the
+   default key and `~/.ssh/config` give an agent without an ssh agent.
+
+Only then does the result say linked: `signed-in` carries `ssh: { state: "linked",
+key: { path, fingerprint, created }, registration, knownHosts }`; otherwise `ssh: {
+state: "not-linked", reason, key?, provedAs?, fallback: "agent" }` — signed in to gh,
+SSH not linked, the reason and the agent as the next step, never a plain "signed in".
+`lazurio tools login gh` exits 0 only when linked. Every step runs as a process of the
+session in its own process group, bounded by 30 s; a cancel, an expiry (5 minutes from
+the start of linking) or a shutdown kills it.
+
+*Link SSH key.* For a gh that is signed in already, `lazurio tools login gh --ssh-key`
+and `POST /api/tools/login/start {tool: "gh", sshKey: true}` run the same steps. When
+the token lacks `admin:public_key` (a gh signed in by hand without the SSH prompt),
+they first run `gh auth refresh --hostname github.com --scopes admin:public_key
+--clipboard=false` through the same kind of device-code session; without a terminal
+gh requires `--hostname`, keeps the scopes the token had, prints the code and the page
+exactly as the login does and fails when the browser signs in another account
+(`pkg/cmd/auth/refresh/refresh.go`). A gh that is not signed in ends as
+`not-signed-in`.
+
+*Status.* The gh sign-in probe (run only when the sign-in is asked for, as before)
+adds `ssh`: `linked` when the `.pub` of this Machine's key is among the account's keys
+(`gh api "user/keys?per_page=100"`, with the token scopes read from the probe's own
+`gh auth status` output), `not-linked` with `no-key` or `not-registered`, `unknown`
+with `scope-missing` or `unreadable`, and the public fingerprint. The private key is
+not read and nothing connects over SSH on a status call: the host keys and the proof
+are checked by the sign-in and "Link SSH key". The card shows "Signed in as X · SSH key
+linked", "… · SSH key not linked" or "… · SSH key not verified", and the last two offer
+"Link SSH key".
+
+*Sign-out.* Before `gh auth logout`, the key of this Machine is removed from the
+account (`gh ssh-key delete <id> --yes`) when the token has `admin:public_key` and the
+registered key's title starts with `Lazurio: `. The rule needs no state file: a key is
+Lazurio's when its public key is this Machine's and Lazurio's title marker is on it. A
+key the operator registered by hand before Lazurio (any other title) stays
+(`kept-not-lazurio`), because it may serve other Machines of the operator that share
+it, and the result says how to remove it (GitHub Settings, SSH and GPG keys). Without
+the scope or when gh fails, the result is `not-removed` with the reason and the same
+advice. The local key files always stay. The result is `sshKey: { state: "removed" |
+"not-registered" | "no-key" | "kept-not-lazurio" | "not-removed", reason?, fingerprint?
+}` on `logged-out`.
+
+*Nothing secret leaves.* No route, log or output carries private key content or even
+the public key's blob: only the key's path and its SHA-256 fingerprint. One-time codes
+go only to the holder of the session, as before.
+
+*Trade-offs.* (a) The created key has no passphrase, so agents can use it unattended;
+anyone who can read the operator's home can use it, which is the same boundary as gh's
+own token on the Machine, and sign-out removes it from the account. An operator who
+wants a passphrase keeps their own key, and Lazurio then reports `key-passphrase`
+instead of using it. (b) The token carries `admin:public_key` beyond gh's minimum
+(`repo`, `read:org`, `gist`): it can add and delete the account's SSH keys, which is
+what lets sign-out end the Machine's access. (c) `known_hosts` trusts the keys GitHub
+publishes over HTTPS through gh, not a first SSH connection.
+
+*Not verified against the real service in this revision.* The flows run against fake
+`gh` and `ssh` (the real `ssh-keygen` runs on a temporary home): the exact text of the
+greeting and of gh's messages ("already exists", "key is already in use") comes from
+gh's source and GitHub's documentation; a real device flow with `--scopes`, a real
+`auth refresh` without a terminal and real SSH authentication are qualified on a test
+VM. `ssh` resolves `~` from the account's passwd entry, not from `HOME`; the Launchpad
+and the CLI are expected to run with the account's own home.
+
+*Agent fallback.* The catalog's `installation` text of gh (the body of `lazurio tools
+prompt gh`, not rendered into the Folder) states this target state for an agent. The
+`usage` text rendered into the Folder instructions is unchanged in this revision.
