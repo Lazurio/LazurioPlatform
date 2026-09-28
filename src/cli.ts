@@ -42,6 +42,11 @@ import {
   localApplicationAdapters,
   serviceApplicationAdapters,
 } from "./modules/local-application-adapters";
+import {
+  ModuleUsageError,
+  moduleHelp,
+  runModuleCommand,
+} from "./modules/module-cli";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import {
   createServiceManagerProcess,
@@ -221,6 +226,20 @@ async function runOtherCommand(args: string[]): Promise<number> {
       process.removeListener("SIGINT", onInterrupt);
     }
   }
+  if (
+    args[0] === "module" &&
+    ["start", "stop", "status", "logs"].includes(args[1] ?? "")
+  ) {
+    try {
+      const { code, text } = await runModuleCommand(args, processContext());
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof ModuleUsageError)) throw error;
+      console.error(`${error.message}\n${moduleHelp}`);
+      return 2;
+    }
+  }
   if (args[0] === "organization" || args[0] === "module") {
     try {
       const { code, text } = await runCatalogCommand(args, processContext());
@@ -385,6 +404,7 @@ No files, locks, provider requests or applications are created. Output may conta
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     console.log(catalogHelp);
+    console.log(moduleHelp);
     console.log(updateHelp);
     console.log(recoverHelp);
     console.log(machineHelp);

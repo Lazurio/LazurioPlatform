@@ -1,8 +1,10 @@
+import type { ModuleAnswer, ModuleBlocked } from "../modules/module-operations";
 import type {
   Catalog,
   CatalogModule,
   CatalogOrganization,
 } from "../organizations/catalog";
+import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import {
   catalogSelection,
   catalogStatus,
@@ -15,6 +17,12 @@ import {
   usesLegacyTeamAlias,
 } from "./catalog-view";
 import type { MessageKey } from "./messages";
+import {
+  moduleResultMessage,
+  moduleSettling,
+  moduleStatusView,
+  parseModuleResult,
+} from "./module-view";
 import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -24,15 +32,18 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // rows with a status dot (T3's threads), a subheader per Team; the main view
 // shows every module (`/`), one Organization (`/o/<org>`) or one module
 // (`/o/<org>/<module>`). Every value from the server is drawn with
-// textContent. A row has no action in this slice: start, open, stop and logs
-// come with the module lifecycle (P5), and their place is left empty, not
-// filled with a disabled button.
+// textContent. The module page carries the module lifecycle (slice P5): the
+// status of its app with a dot, the one primary action (Start or Stop) and
+// Open while the app reports a link, over `/api/modules/<org>/<module>/…`,
+// the same core as `lazurio module`. Rows elsewhere carry no action.
 export function createCatalogPanel(
   options: Readonly<{
     post: (
       path: string,
       body: unknown,
     ) => Promise<{ value: unknown; ok: boolean }>;
+    /** A read-only GET with the page's credential. */
+    get: (path: string) => Promise<{ value: unknown; ok: boolean }>;
     copy: () => Copy;
     /** The route now shown. */
     route: () => PageRoute;
@@ -52,6 +63,18 @@ export function createCatalogPanel(
   const refreshButton = find<HTMLButtonElement>("#catalog-refresh");
   let catalog: Catalog | null = null;
   let state: "loading" | "loaded" | "failed" = "loading";
+  // The lifecycle of the module the page shows: its last status, the
+  // sentence after the last action, and whether a request is under way.
+  // Nothing of it is kept beyond the page; the service manager is the truth.
+  let lifecycle: {
+    key: string;
+    status: ModuleAnswer | ModuleBlocked | null;
+    message: string | null;
+    busy: boolean;
+    // After Start or Stop the keyboard focus returns to the primary action
+    // once it can take it again (it is disabled while the request runs).
+    focus: boolean;
+  } | null = null;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -101,7 +124,6 @@ export function createCatalogPanel(
     const heading = element("div", "row-title");
     heading.append(title);
     copy.append(heading, ...rest);
-    // The place of the module's primary action (P5) stays empty.
     main.append(copy);
     item.append(main);
     return item;
@@ -312,7 +334,157 @@ export function createCatalogPanel(
         ? []
         : [fact(copy.catalogIssues, module.issues)]),
     );
-    return [statusLine(module), facts];
+    return [
+      statusLine(module),
+      ...(module.executable ? [lifecycleCard(organization, module)] : []),
+      facts,
+    ];
+  }
+
+  // The request path of one module: the name that selects exactly its
+  // Organization, as its route uses, and the module id, each URL-encoded.
+  function modulePathOf(
+    organization: CatalogOrganization,
+    module: CatalogModule,
+    verb: "start" | "stop" | "status",
+  ): string | null {
+    const key =
+      catalog === null ? null : catalogOrganizationKey(catalog, organization);
+    return key === null
+      ? null
+      : `/api/modules/${encodeURIComponent(key)}/${encodeURIComponent(module.module)}/${verb}`;
+  }
+  const lifecycleKey = (
+    organization: CatalogOrganization,
+    module: CatalogModule,
+  ) => modulePathOf(organization, module, "status") ?? "";
+
+  // Reads the status of the module now shown; `settle` keeps reading while
+  // a just-started app is not yet healthy (about half a minute at most).
+  async function readStatus(
+    organization: CatalogOrganization,
+    module: CatalogModule,
+    settle = false,
+  ) {
+    const path = modulePathOf(organization, module, "status");
+    if (path === null || lifecycle === null) return;
+    const key = lifecycle.key;
+    for (let attempt = 0; attempt < (settle ? 30 : 1); attempt++) {
+      if (attempt > 0) await new Promise((done) => setTimeout(done, 1000));
+      if (lifecycle?.key !== key) return;
+      let status: ModuleAnswer | ModuleBlocked | null = null;
+      try {
+        status = parseModuleResult((await options.get(path)).value);
+      } catch {
+        status = null;
+      }
+      if (lifecycle?.key !== key) return;
+      lifecycle.status = status;
+      render();
+      if (!moduleSettling(status)) return;
+    }
+  }
+
+  async function act(
+    organization: CatalogOrganization,
+    module: CatalogModule,
+    verb: "start" | "stop",
+  ) {
+    const path = modulePathOf(organization, module, verb);
+    if (path === null || lifecycle === null || lifecycle.busy) return;
+    const key = lifecycle.key;
+    lifecycle.busy = true;
+    lifecycle.focus = true;
+    lifecycle.message = options.copy().moduleBusy;
+    render();
+    let result: ModuleAnswer | ModuleBlocked | null = null;
+    try {
+      result = parseModuleResult((await options.post(path, {})).value);
+    } catch {
+      result = null;
+    }
+    if (lifecycle?.key !== key) return;
+    lifecycle.busy = false;
+    lifecycle.message = moduleResultMessage(result, options.copy());
+    if (result?.kind === "module") lifecycle.status = result;
+    render();
+    await readStatus(organization, module, verb === "start");
+  }
+
+  // The module's app: its status with a dot, who keeps it running, why a
+  // healthy app has no link, the result of the last action, and on the right
+  // the one primary action and Open.
+  function lifecycleCard(
+    organization: CatalogOrganization,
+    module: CatalogModule,
+  ): HTMLElement {
+    const copy = options.copy();
+    const key = lifecycleKey(organization, module);
+    if (lifecycle?.key !== key) {
+      lifecycle = {
+        key,
+        status: null,
+        message: null,
+        busy: false,
+        focus: false,
+      };
+      void readStatus(organization, module);
+    }
+    const current = lifecycle;
+    const view = moduleStatusView(current.status, copy);
+    const card = element("div", "card module-lifecycle");
+    const item = element("div", "row");
+    const main = element("div", "row-main");
+    const text = element("div", "row-copy");
+    const title = element("div", "row-title", copy.moduleApplication);
+    const line = element("p", "row-status catalog-status module-status");
+    line.dataset.state = view.dot;
+    const mark = element("span", "dot");
+    mark.dataset.state = view.dot;
+    mark.setAttribute("aria-hidden", "true");
+    line.append(mark, view.text);
+    if (view.code !== null) line.append(" ", element("code", "", view.code));
+    text.append(title, line);
+    if (view.ownership !== null)
+      text.append(element("p", "row-desc", view.ownership));
+    if (view.noLink !== null)
+      text.append(element("p", "row-desc", view.noLink));
+    const message = element("p", "row-status", current.message ?? "");
+    message.setAttribute("role", "status");
+    message.setAttribute("aria-live", "polite");
+    text.append(message);
+    const control = element("div", "row-control");
+    if (view.link !== null) {
+      const open = element("a", "button", copy.moduleOpen);
+      open.href = view.link;
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      open.setAttribute(
+        "aria-label",
+        copy.moduleOpenNamed.replace("{name}", module.module),
+      );
+      control.append(open);
+    }
+    if (view.action !== null) {
+      const action = view.action;
+      const button = element(
+        "button",
+        action === "start" ? "primary" : "",
+        action === "start" ? copy.moduleStart : copy.moduleStop,
+      );
+      button.type = "button";
+      button.dataset.moduleAction = action;
+      button.disabled = current.busy;
+      button.addEventListener(
+        "click",
+        () => void act(organization, module, action),
+      );
+      control.append(button);
+    }
+    main.append(text, control);
+    item.append(main);
+    card.append(item);
+    return card;
   }
 
   // The sidebar: every Organization as a group, its modules as rows with a
@@ -409,7 +581,13 @@ export function createCatalogPanel(
         routeLink("/", "", copy.catalogAll),
       );
       body.replaceChildren(missing);
-    } else
+    } else {
+      // The primary action is drawn again after every answer: keep the
+      // keyboard focus on it.
+      const focused =
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement.dataset.moduleAction !== undefined;
+      if (selection.kind !== "module") lifecycle = null;
       body.replaceChildren(
         ...(selection.kind === "overview"
           ? overview(catalog)
@@ -419,6 +597,14 @@ export function createCatalogPanel(
               ? ambiguousView(catalog, selection.candidates)
               : moduleView(selection.organization, selection.module)),
       );
+      const action = body.querySelector<HTMLButtonElement>(
+        "[data-module-action]",
+      );
+      if ((focused || lifecycle?.focus) && action && !action.disabled) {
+        action.focus();
+        if (lifecycle) lifecycle.focus = false;
+      }
+    }
   }
 
   /** Reads the catalog again (on load, Refresh and a language change). */

@@ -36,9 +36,11 @@ catalog of the Folder ([launchpad development](launchpad-development.md#launchpa
 read from every directory in `<Folder>/organizations/` by `lazurio organization list`,
 `lazurio module list` and `POST /api/catalog`; the panel's discovery and selection form
 is gone from the page. `POST /api/apps/discover`, the application operations
-`/api/apps/*` and `app-request` described here are unchanged and stay until the
-module lifecycle `lazurio module …` (P5) retires them; `scripts/smoke-application-ui.ts`
-now drives them over the API. Which Organization states may run applications is the
+`/api/apps/*` and `app-request` described here are unchanged; the module lifecycle
+`lazurio module start|stop|status|logs` (slice P5,
+[launchpad development](launchpad-development.md#module-lifecycle)) runs the catalog's
+modules over the same lifecycle core beside them, and their retirement is still open;
+`scripts/smoke-application-ui.ts` drives them over the API. Which Organization states may run applications is the
 one admission rule of the [organization contract](organization-contract.md).
 
 The existing Launchpad server can compose one application lifecycle with trusted
@@ -60,8 +62,8 @@ timeouts; those remain integration work, not reasons to automatically retry a wr
 
 Until 2026-09-28 the page's form exposed explicit preparation/start/status/link/stop
 in Czech and English; since slice P4 the page shows no application control and these
-operations are reachable only through the application API until the module lifecycle
-(P5) brings start, open and stop to the catalog. A link is restricted
+operations are reachable only through the application API; since slice P5 the
+catalog's module page starts, stops and opens a module's app through `/api/modules/…`. A link is restricted
 to the selected execution Machine's observed loopback web listener, never production
 metadata. Remote-profile context does not expose that address as a local browser link;
 a qualified remote access route remains required. Process start, health observation,
@@ -472,16 +474,19 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
 - **Bounded definition from the validated launch only.** The working directory must be
   inside the owned canonical Organization directory and pass the existing
   owned-directory inspection; the command is an argv array with an absolute executable;
-  nothing is interpolated into a shell, and only `/usr/bin/systemctl` and
-  `/usr/bin/systemd-run` are ever executed, with a sanitized environment
+  nothing is interpolated into a shell, and only `/usr/bin/systemctl`,
+  `/usr/bin/systemd-run`, the read-only `/usr/bin/busctl` and `/usr/bin/journalctl`
+  are ever executed, with a sanitized environment
   (`PATH`, `LC_ALL`, `XDG_RUNTIME_DIR`), bounded time and bounded output, behind one
   injected process adapter (`service-manager-process.ts`). Text with control characters
   is refused.
 - **Properties:** `Type=exec` (a start that cannot execute fails synchronously),
   `KillMode=control-group`, `Restart=no` (a crashed application is reported, never
   resurrected silently), `UMask=0077` (the guard's creation mask), `TimeoutStopSec=5s`,
-  standard streams `null` (the session owner discards them too), and nothing that
-  widens privileges or changes resource limits.
+  standard input `null` and standard output and error to the journal (since slice P5
+  of the Launchpad parity, B6: the OS owns retention and rotation, `lazurio module logs`
+  reads the unit's tail with `journalctl --user --unit=<unit> --output=cat`; until then
+  both were `null`), and nothing that widens privileges or changes resource limits.
 - **Environment is an allowlist.** Exactly the launch environment the guard passes today
   (`HOME`, `PATH`, optional `TMPDIR`, `LAZURIO_RUNTIME_LISTENER_*`). A real user manager
   hands its **own** environment to every service — on the qualification VM that included
@@ -518,7 +523,10 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
   - *Fixed policy*, compared value by value with what the manager reports:
     `Transient=yes`, the transient `FragmentPath`, empty `DropInPaths`
     (`systemctl set-property` writes one), `Type=exec`, `KillMode=control-group`,
-    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput/Output/Error=null`,
+    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput=null`,
+    `StandardOutput/Error=journal` (a unit an older release started with `null` output
+    is therefore foreign, `service-unrecognized`, until it is stopped once with
+    `systemctl --user stop <unit>`),
     a working directory inside the Organization directory.
   - *Variable part* — executable, exact argument vector, the no-expansion flag,
     environment, `UnsetEnvironment` and the working directory. `systemctl show` cannot
@@ -669,17 +677,17 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
   with the account's last login session. That is a Machine setting Lazurio does not
   change; a hosted workspace preset must decide it.
 - **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
-- **Start and preparation without a Launchpad.** `app-request` status and stop work
-  from the CLI alone for service-owned applications (below); start, open and
-  preparation still need a configured Launchpad, because they need its toolchain and
-  launch composition.
+- **Preparation without a Launchpad.** Since slice P5 `lazurio module start|stop|status|logs`
+  work from the CLI alone for service-owned applications, with the operator's Bun from
+  `~/.local/bin/bun`; `app-request` status and stop still work as below. Preparation
+  (`prepare`, `clean-prepare`) and a one-step `open` are not yet CLI verbs.
 - **Survival across a product activation** is not yet exercised (there is no activation
   of a running Launchpad yet); a graceful and a killed Launchpad are.
 - **Operator recovery of an interrupted preparation** stays explicit and unqualified:
   the retained record of a preparation whose owner died is never reclaimed
   automatically. It blocks preparing and starting that tree only; status and Stop are
   never blocked by it.
-- Application output is still discarded (no journal capture decision), source selection
+- Source selection
   beyond the authorized module directory (named worktrees) is not part of the unit.
   Two live owners are serialized by the coordination lock; that is unit-tested, not
   yet natively qualified under load.

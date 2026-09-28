@@ -727,6 +727,10 @@ function productUpdate(hosted: boolean): readonly Text[] {
         "- There is no way back: Lazurio never returns to an earlier version. A new version proves itself before the switch; when it fails, it is removed and nothing changes. Repair only goes forward, with a newer release; never copy an older executable and never lower the version.",
       ),
       t(
+        "- Když Launchpad běží v Recovery mode, jeho stránka obnovy ukáže důvod, prompt pro opravného agenta ke zkopírování do nového chatu v T3 Code a připravené issue; nic z toho neopouští tuhle Mašinu automaticky.",
+        "- When the Launchpad is in Recovery mode, its Recovery page shows the reason, the prompt for a repair agent to copy into a new chat in T3 Code and the prepared issue; nothing of it leaves this Machine automatically.",
+      ),
+      t(
         "- `lazurio install` je cesta rolloutu: instaluje nebo opravuje Lazurio z připraveného souboru. Na aktualizaci používej `lazurio update`.",
         "- `lazurio install` is the rollout's path: it installs or repairs Lazurio from a staged file. For an update use `lazurio update`.",
       ),
@@ -773,6 +777,10 @@ function productUpdate(hosted: boolean): readonly Text[] {
       "- Repair only goes forward: a newer release (`lazurio update`), finishing an interrupted Folder change (`lazurio profile-resume`), a restart of the Launchpad (on Linux with the service, the unit `lazurio-launchpad.service`). Never copy an older executable, never edit `bin/lazurio` or `update/high-water` by hand, and never lower the version.",
     ),
     t(
+      "- Stránka obnovy Launchpadu (v Recovery mode celá stránka, jinak Nastavení → Obnova) nabízí prompt pro opravného agenta ke zkopírování do agentní aplikace a připravené issue; nic z toho neopouští tuhle Mašinu automaticky.",
+      "- The Launchpad's Recovery page (the whole page in Recovery mode, Settings → Recovery otherwise) offers the prompt for a repair agent to copy into your agent app and the prepared issue; nothing of it leaves this Machine automatically.",
+    ),
+    t(
       "- **Pill** v Launchpadu ukazuje `idle`, `checking`, `available`, `downloading`, `activating` a selhání, která se vrátí do `available` s chybou a možností zkusit znovu. Jedno kliknutí spustí totéž `lazurio update`.",
       "- The Launchpad **pill** shows `idle`, `checking`, `available`, `downloading`, `activating`, and failures that return to `available` with the error and a retry. One click runs the same `lazurio update`.",
     ),
@@ -796,6 +804,45 @@ const organizationContent: readonly Text[] = [
   ),
 ];
 
+// Module applications through `lazurio module` (root decision 0167, command
+// names kept from the resident; launchpad-parity B3). No state: what runs is
+// what the OS service manager or the Launchpad session reports.
+function moduleApplications(hosted: boolean): readonly Text[] {
+  return [
+    t("## Aplikace modulů", "## Module applications"),
+    t(
+      "Aplikaci workspace modulu spouštíš příkazem `lazurio module`; stránka modulu v Launchpadu dělá totéž nad stejným jádrem (decision 0167). Nic se nezapisuje do Folderu: co běží, hlásí správce služeb OS.",
+      "A workspace module's application is run with `lazurio module`; the module's page in the Launchpad does the same over the same core (decision 0167). Nothing is recorded in the Folder: what runs is what the OS service manager reports.",
+    ),
+    blank,
+    t(
+      "- `lazurio module list [<Org>] [--json]` vypíše moduly a jestli smějí běžet, nebo typovaný důvod proč ne.",
+      "- `lazurio module list [<Org>] [--json]` lists the modules and whether each may run, or the typed reason why not.",
+    ),
+    t(
+      "- `lazurio module start <Org>/<modul> [--app <package>] [--json]` spustí výchozí aplikaci modulu (nebo deklarovanou aplikaci z `--app`) podle jeho vlastní deklarace; `stop` ji zastaví, `status` hlásí stav, zdraví a v `runtime.url` odkaz, dokud je zdravá. Organizaci jmenuj jejím slugem nebo názvem složky; slug, který deklarují dvě složky, se odmítne (`organization-ambiguous`).",
+      "- `lazurio module start <Org>/<module> [--app <package>] [--json]` starts the module's default app (or the declared app `--app` names) from its own declaration; `stop` stops it, `status` reports its state, health and, while healthy, the link in `runtime.url`. Name the Organization by its slug or its directory name; a slug two directories declare is refused (`organization-ambiguous`).",
+    ),
+    t(
+      "- `lazurio module logs <Org>/<modul> [--lines N]` vypíše nejnovější řádky výstupu aplikace z journalu, i po jejím zastavení.",
+      "- `lazurio module logs <Org>/<module> [--lines N]` prints the newest lines of the application's output from the journal, also after it stopped.",
+    ),
+    t(
+      "- Toolchain je Bun operátora v `~/.local/bin/bun`; když chybí, `start` skončí `toolchain-missing` (viz `lazurio tools status`). `start` neinstaluje závislosti: `prerequisites-not-ready` znamená, že neprošla deklarovaná kontrola modulu; nainstaluj závislosti v modulu (`bun install --frozen-lockfile`) a spusť znovu.",
+      "- The toolchain is the operator's Bun at `~/.local/bin/bun`; when it is missing, `start` ends with `toolchain-missing` (see `lazurio tools status`). `start` does not install dependencies: `prerequisites-not-ready` means the module's declared check failed; install its dependencies in the module (`bun install --frozen-lockfile`) and start again.",
+    ),
+    hosted
+      ? t(
+          "- Na téhle Mašině je aplikace přechodná systemd user služba: běží dál i po restartu Launchpadu, restart Mašiny ji ukončí a její výstup jde do journalu. Odkaz pro Operátora je jen `runtime.url` (viz níže).",
+          "- On this Machine an application is a transient systemd user service: it keeps running when the Launchpad restarts, ends with a reboot, and its output goes to the journal. The link for the operator is only `runtime.url` (see below).",
+        )
+      : t(
+          "- Na Linuxu s uživatelským správcem služeb je aplikace přechodná systemd user služba (přežije restart Launchpadu, výstup jde do journalu). Na macOS je aplikace potomkem relace Launchpadu: spouštěj, zastavuj a otevírej ji v Launchpadu; CLI odpoví `launchpad-required` a výstup se neuchovává.",
+          "- On Linux with a user service manager an application is a transient systemd user service (it survives a Launchpad restart, its output goes to the journal). On macOS an application is a child of the Launchpad session: start, stop and open it in the Launchpad; the CLI answers `launchpad-required` and its output is not kept.",
+        ),
+  ];
+}
+
 function troubleshooting(preset: PresetName): readonly Text[] {
   const hosted = preset !== "local";
   return [
@@ -812,14 +859,16 @@ function troubleshooting(preset: PresetName): readonly Text[] {
             "## Application links from this Machine",
           ),
           t(
-            "Tahle Mašina je hostovaná: `localhost` a `127.0.0.1` existují jen uvnitř ní a Operátor je ve svém prohlížeči neotevře. Nikdy mu neposílej localhost link. Odkaz na aplikaci je její hostované jméno přes gateway téhle Mašiny (`<app>.<mašina>.<org>.lazurio.io`, na osobní VM `<app>.<login>.lazurio.io`, decision 0146), jak ho uvádí Launchpad; dokud aplikace hostované jméno nemá, napiš to v handoffu místo odkazu.",
-            "This Machine is hosted: `localhost` and `127.0.0.1` exist only inside it and the operator cannot open them in their browser. Never send the operator a localhost link. The link to an application is its hosted name through this Machine's gateway (`<app>.<machine>.<org>.lazurio.io`, on a personal VM `<app>.<login>.lazurio.io`, decision 0146), as the Launchpad states it; until an application has a hosted name, say so in the handoff instead of a link.",
+            "Tahle Mašina je hostovaná: `localhost` a `127.0.0.1` existují jen uvnitř ní a Operátor je ve svém prohlížeči neotevře. Localhost link funguje jen pro proces na téhle Mašině; nikdy ho Operátorovi neposílej. Odkaz na aplikaci je její hostované jméno přes gateway téhle Mašiny (decision 0146) přesně tak, jak ho vrací `lazurio module status <Org>/<modul> --json` v `runtime.url` nebo jak ho ukazuje Launchpad: skládá se jen ze zaznamenaného vstupu téhle Mašiny, nikdy z odhadnuté konvence jmen. Když je `runtime` `null`, aplikace tu hostované jméno nemá; napiš to v handoffu místo odkazu.",
+            "This Machine is hosted: `localhost` and `127.0.0.1` exist only inside it and the operator cannot open them in their browser. A localhost link works only for a process on this Machine; never send it to the operator. The link to an application is its hosted name through this Machine's gateway (decision 0146), exactly as `lazurio module status <Org>/<module> --json` reports it in `runtime.url` or as the Launchpad shows it: it is composed only from this Machine's recorded entry, never guessed from a naming convention. When `runtime` is `null`, the application has no hosted name here; say so in the handoff instead of a link.",
           ),
         ]
       : []),
     blank,
     ...productUpdate(hosted),
-    ...(preset === "hosted-personal" ? [] : [blank, ...organizationContent]),
+    ...(preset === "hosted-personal"
+      ? []
+      : [blank, ...organizationContent, blank, ...moduleApplications(hosted)]),
     blank,
     t("## Identita Mašiny", "## The Machine identity"),
     t(

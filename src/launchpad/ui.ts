@@ -45,6 +45,7 @@ let copy = messages(locale);
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
   post: (path, body) => post(path, body),
+  get: (path) => get(path),
   copy: () => copy,
   route: () => shell.route(),
   loaded: () => shell.relabel(),
@@ -224,6 +225,15 @@ async function post(path: string, body: unknown) {
   const value = await response.json();
   const mode = recoveryModeAnswer(response.status, value);
   if (mode !== null) enterRecovery(mode);
+  return { value, ok: response.ok };
+}
+async function get(path: string) {
+  const response = await fetch(path, {
+    headers: credential(),
+    cache: "no-store",
+  });
+  denied(response);
+  const value = await response.json();
   return { value, ok: response.ok };
 }
 async function request(path: string, body: unknown) {

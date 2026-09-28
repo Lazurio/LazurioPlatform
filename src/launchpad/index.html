@@ -154,7 +154,11 @@ pre:empty { display: none; }
    as rows with a status dot, a subheader per Team (T3 Code's projects and
    threads). */
 .dot { display: inline-block; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--success); }
-.dot[data-state="blocked"] { background: color-mix(in srgb, var(--muted-fg) 55%, transparent); }
+.dot[data-state="blocked"], .dot[data-state="stopped"], .dot[data-state="unknown"] { background: color-mix(in srgb, var(--muted-fg) 55%, transparent); }
+/* The module lifecycle (slice P5): a starting app amber, an ended one red. */
+.dot[data-state="starting"] { background: var(--warning-fg); }
+.dot[data-state="failed"] { background: var(--destructive); }
+.module-status[data-state="running"] { color: var(--success-fg); }
 .catalog-group { display: grid; gap: 2px; margin-top: 0.75rem; }
 .catalog-org { color: var(--fg); font-weight: 600; }
 span.catalog-org { cursor: default; }
