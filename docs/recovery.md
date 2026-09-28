@@ -81,7 +81,7 @@ Never collected: the Folder's files, preferences contents, the handover, environ
 variables, tool sign-in state, anything under `personalspace/`.
 
 The **fingerprint** `rf-<12 hex>` is SHA-256 over the check, its code, the one detail
-of its context (`reason`, else `refusal`, else `path`, else `stage`) and the target,
+of its context (`reason` and `refusal` together when present, else `path`, else `stage`) and the target,
 without the version, so one fault meets its issue across releases. The title ends in
 `[rf-…]`; the search uses `--state all`, so a closed match is found as a regression.
 

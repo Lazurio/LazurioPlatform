@@ -131,7 +131,13 @@ export function primaryFailure(
  * told apart by why its start was refused. */
 export function checkDetail(check: FailedCheck): string {
   const { context } = check;
-  const detail =
-    context.reason ?? context.refusal ?? context.path ?? context.stage;
-  return detail === undefined ? "" : String(detail);
+  // A refused Launchpad probe or start carries both a reason and the
+  // refusal; two refusals are two faults, so both name the fingerprint.
+  const detail = [context.reason, context.refusal]
+    .filter((value) => value !== undefined)
+    .map(String)
+    .join("/");
+  if (detail !== "") return detail;
+  const other = context.path ?? context.stage;
+  return other === undefined ? "" : String(other);
 }

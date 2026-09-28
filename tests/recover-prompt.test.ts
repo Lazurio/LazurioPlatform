@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { healthSocketChecks } from "../src/launchpad/recovery-mode";
+import { healthSocketChecks } from "../src/launchpad/start-check";
 import { failed, ok, recoveryCheckIds, skipped } from "../src/recover/checks";
 import {
   fingerprint,

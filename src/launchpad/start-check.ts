@@ -26,6 +26,12 @@ export const startRefusals = [
 ] as const;
 export type StartRefusal = (typeof startRefusals)[number];
 
+/** The check id the health socket answers in Recovery mode (recovery-mode.ts),
+ * and every check id a health answer may carry: a contract for the evidence
+ * of `lazurio recover`, never renamed. */
+export const recoveryCheck = "start-refused";
+export const healthSocketChecks = [recoveryCheck] as const;
+
 export const isStartRefusal = (value: unknown): value is StartRefusal =>
   (startRefusals as readonly unknown[]).includes(value);
 

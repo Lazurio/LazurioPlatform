@@ -7,8 +7,12 @@ import type { HostedOptions } from "./server";
 import {
   checkBundledPage,
   LaunchpadStartRefused,
+  recoveryCheck,
   type StartRefusal,
 } from "./start-check";
+
+// The CLI prints the check with the Recovery-mode answer.
+export { recoveryCheck };
 
 /** Recovery mode (docs/update.md "Recovery mode", docs/recovery.md "The
  * Recovery page"): when the Launchpad cannot start normally for a reason it
@@ -22,11 +26,6 @@ import {
  * changes anything; `collectRecovery` reads the Folder as `lazurio recover`
  * does.
  */
-export const recoveryCheck = "start-refused";
-/** Every check id a Launchpad's health socket answers in Recovery mode
- * (`503 {mode: "recovery", check, reason}`): the evidence of `lazurio
- * recover` admits exactly these beside its own check ids. */
-export const healthSocketChecks = [recoveryCheck] as const;
 
 export type RecoveryAnswer = Readonly<{
   error: "recovery-mode";

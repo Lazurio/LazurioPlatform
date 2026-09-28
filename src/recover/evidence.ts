@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:os";
 import { isTemplateRevision } from "../folder/render";
-import { healthSocketChecks } from "../launchpad/recovery-mode";
-import { startRefusals } from "../launchpad/start-check";
+import { healthSocketChecks, startRefusals } from "../launchpad/start-check";
 import {
   type ErrorContext,
   type UpdateErrorCode,
