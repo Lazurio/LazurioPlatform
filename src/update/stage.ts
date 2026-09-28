@@ -81,9 +81,9 @@ export async function selfCheckStaged(input: {
   removeOnFailure: boolean;
   timeoutMs?: number | undefined;
   run?: ProcessRunner | undefined;
-}): Promise<void> {
+}): Promise<string | null> {
   try {
-    await requireSelfCheck({
+    return await requireSelfCheck({
       executable: versionExecutable(input.base, input.expected.version),
       expected: input.expected,
       base: input.base,

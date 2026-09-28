@@ -1,6 +1,11 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import {
+  type FolderRefresh,
+  folderRefreshText,
+} from "../folder/refresh-needed";
+import { hostedOperatorFolder } from "../machine/operator";
+import {
   createAttestationVerifier,
   fixtureTrustedRoot,
   sigstoreTrustedRoot,
@@ -21,9 +26,10 @@ import {
   productOrigin,
   versionOfTag,
 } from "./identity";
-import { performInstall } from "./install";
+import { type InstallResult, performInstall } from "./install";
 import { updateNotice } from "./last-check";
 import { layout } from "./layout";
+import { entryLinked } from "./path-entry";
 import { type ProcessRunner, selfCheckReport } from "./self-check";
 import { detectServiceControl } from "./service-control";
 import {
@@ -46,21 +52,29 @@ install [--service systemd-user --folder <absolute Folder>] [--json]
   This executable installs ITSELF as the first version under the per-user
   install base and points bin/lazurio at it. It does not authenticate itself:
   first installation is trusted through HTTPS (see install.sh). Repeating it
-  completes what is missing and never changes the active version. Shell
-  profiles are not edited. With --service (Linux) it writes, enables and starts
+  completes what is missing and never changes the active version. It links
+  ~/.local/bin/lazurio to bin/lazurio; an entry there that is not Lazurio's is
+  reported and left unchanged. Shell profiles are not edited: the result says
+  whether ~/.local/bin is on PATH and whether another lazurio resolves first.
+  With --service (Linux) it writes, enables and starts
   the systemd user unit lazurio-launchpad.service for that Folder, and the
   static lazurio-rollback.service its OnFailure= starts.
-update [--version <vX.Y.Z[-rc.N]>] [--json]
+update [--version <vX.Y.Z[-rc.N]>] [--folder <absolute Folder>] [--json]
   Checks the latest release (or exactly the named tag), verifies its Sigstore
   attestation, downloads, runs the new executable's self-check and activates
   it. Supervised: restarts the Launchpad and requires it to report the new
   version within 30 seconds, otherwise the previous version is selected again.
   Never moves below the highest version this installation ever accepted.
+  It never writes the Folder. When the Folder renders an older template
+  revision than the product, the result says "Folder refresh needed" with the
+  exact command (folderRefresh in --json). The Folder is --folder, the
+  supervised unit's, or on a hosted Machine the declared operator's.
 update --check [--version <tag>] [--json]
   Verifies and reports; downloads and activates nothing.
   Exit 0 up to date, 10 update available.
-update status [--json]
-  Running, active, previous and latest known version; never touches the network.
+update status [--folder <absolute Folder>] [--json]
+  Running, active, previous and latest known version, and a needed Folder
+  refresh as above; never touches the network.
 update rollback [--auto] [--json]
   Activates the previous version after its own self-check, by the same restart
   and health rule. --auto is what lazurio-rollback.service runs: it acts only
@@ -87,6 +101,8 @@ export type CliContext = Readonly<{
   run?: ProcessRunner | undefined;
   /** Tests only: the compiled default is the product origin and Sigstore. */
   environment?: Partial<UpdateEnvironment> | undefined;
+  /** The declared operator's Folder on a hosted Machine; absent, none. */
+  hostedFolder?: (() => Promise<string | undefined>) | undefined;
 }>;
 
 export const processContext = (): CliContext =>
@@ -95,6 +111,7 @@ export const processContext = (): CliContext =>
     platform: process.platform,
     env: process.env,
     executable: process.execPath,
+    hostedFolder: hostedOperatorFolder,
   });
 
 const usage = (message: string): CommandOutput =>
@@ -127,8 +144,17 @@ export function installBase(
 export async function updateEnvironment(
   context: CliContext,
   base: string,
+  /** The Folder a needed refresh is reported against; the supervised unit's
+   * when not named. */
+  folder?: string,
 ): Promise<UpdateEnvironment> {
   const fixture = embeddedFixture();
+  const service = await detectServiceControl({
+    base,
+    platform: context.platform,
+    env: context.env,
+    run: context.run,
+  });
   return Object.freeze({
     base,
     identity: context.identity,
@@ -142,12 +168,8 @@ export async function updateEnvironment(
         ? fixtureTrustedRoot(fixture.trustedRoot)
         : sigstoreTrustedRoot(layout(base).sigstore),
     ),
-    service: await detectServiceControl({
-      base,
-      platform: context.platform,
-      env: context.env,
-      run: context.run,
-    }),
+    service,
+    folder: folder ?? service?.folder,
     run: context.run,
     ...context.environment,
   });
@@ -224,6 +246,28 @@ export async function selfCheckCommand(
   }
 }
 
+/** What a person reads after `lazurio install`: the outcome, then the
+ * command's PATH entry and whatever the operator or an agent should do. */
+function installText(result: InstallResult): string {
+  if (result.kind === "error") return "";
+  const { entry } = result;
+  return [
+    result.kind === "installed"
+      ? `Lazurio ${result.active} is installed.`
+      : `Updated from ${result.from} to ${result.to}.${
+          result.restartRequired
+            ? " A running Launchpad finishes the update when it restarts."
+            : ""
+        }`,
+    ...(entry !== null && entryLinked(entry)
+      ? [`The command is ${entry.path}.`]
+      : entry === null
+        ? [`Put ${result.path} on your PATH.`]
+        : []),
+    ...(entry?.next ?? []),
+  ].join("\n");
+}
+
 export async function runInstallCommand(
   args: readonly string[],
   context: CliContext = processContext(),
@@ -256,13 +300,7 @@ export async function runInstallCommand(
         values.folder === undefined ? undefined : { folder: values.folder },
       run: context.run,
     });
-    return render(
-      result,
-      values.json === true,
-      result.kind === "installed"
-        ? `Lazurio ${result.active} is installed. Put ${result.path} on your PATH.`
-        : "",
-    );
+    return render(result, values.json === true, installText(result));
   } catch (error) {
     if (error instanceof UsageError) return usage(error.message);
     return usage("install [--service systemd-user --folder <Folder>] [--json]");
@@ -274,7 +312,7 @@ export async function runUpdateCommand(
   context: CliContext = processContext(),
 ): Promise<CommandOutput> {
   const synopsis =
-    "update [--check] [--version <tag>] [--json] | update status [--json] | update rollback [--auto] [--json]";
+    "update [--check] [--version <tag>] [--folder <Folder>] [--json] | update status [--folder <Folder>] [--json] | update rollback [--auto] [--json]";
   try {
     const { values, positionals } = parseArgs({
       args: [...args],
@@ -285,6 +323,7 @@ export async function runUpdateCommand(
         version: { type: "string" },
         auto: { type: "boolean" },
         base: { type: "string" },
+        folder: { type: "string" },
         json: { type: "boolean" },
       },
     });
@@ -295,7 +334,12 @@ export async function runUpdateCommand(
       !(action === undefined || action === "status" || action === "rollback") ||
       (action !== undefined &&
         (values.check || values.version !== undefined)) ||
-      (action !== "rollback" && values.auto)
+      (action !== "rollback" && values.auto) ||
+      (values.folder !== undefined &&
+        (action === "rollback" ||
+          values.check ||
+          !isAbsolute(values.folder) ||
+          resolve(values.folder) !== values.folder))
     )
       throw new UsageError(synopsis);
     // A tag is normalized to a version; the bare version names the same tag.
@@ -306,10 +350,19 @@ export async function runUpdateCommand(
           (isProductVersion(values.version) ? values.version : undefined));
     if (values.version !== undefined && exact === undefined)
       throw new UsageError("--version <vX.Y.Z[-rc.N]>");
-    const environment = await updateEnvironment(
-      context,
-      installBase(context, values.base),
-    );
+    const base = installBase(context, values.base);
+    // The Folder a needed refresh is reported against: the named one, the
+    // supervised unit's, or on a hosted Machine the declared operator's.
+    // Only the two commands that report it look for one.
+    const reports = action === undefined || action === "status";
+    let environment = await updateEnvironment(context, base, values.folder);
+    if (reports && environment.folder === undefined && context.hostedFolder)
+      environment = Object.freeze({
+        ...environment,
+        folder: await context.hostedFolder(),
+      });
+    const refresh = (value: FolderRefresh | null) =>
+      value === null ? [] : [folderRefreshText(value)];
     if (action === "status") {
       const status = await readStatus(environment);
       return render(
@@ -331,6 +384,7 @@ export async function runUpdateCommand(
               ...(status.stateInvalid
                 ? [`state-invalid: ${status.stateInvalid}`]
                 : []),
+              ...refresh(status.folderRefresh),
             ].join("\n")
           : "",
       );
@@ -366,13 +420,19 @@ export async function runUpdateCommand(
       result,
       json,
       result.kind === "updated"
-        ? `Updated from ${result.from} to ${result.to}.${
-            result.restartRequired
-              ? " A running Launchpad finishes the update when it restarts."
-              : ""
-          }`
+        ? [
+            `Updated from ${result.from} to ${result.to}.${
+              result.restartRequired
+                ? " A running Launchpad finishes the update when it restarts."
+                : ""
+            }`,
+            ...refresh(result.folderRefresh),
+          ].join("\n")
         : result.kind === "up-to-date"
-          ? `Lazurio ${result.running} is up to date.`
+          ? [
+              `Lazurio ${result.running} is up to date.`,
+              ...refresh(result.folderRefresh),
+            ].join("\n")
           : "",
     );
   } catch (error) {

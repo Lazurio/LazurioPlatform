@@ -19,6 +19,7 @@ const status = (overrides: Partial<PillStatus> = {}): PillStatus => ({
   action: null,
   error: null,
   stateInvalid: null,
+  folderRefresh: null,
   ...overrides,
 });
 
@@ -67,6 +68,7 @@ test("one line, one link and one button per state, in both languages", () => {
       stale: false,
       error: null,
       stateInvalid: null,
+      folderRefresh: null,
     });
     expect(
       view({
@@ -134,4 +136,24 @@ test("one line, one link and one button per state, in both languages", () => {
     ] as const)
       expect(copy[key].length).toBeGreaterThan(0);
   }
+});
+
+test("a needed Folder refresh is one line with the exact command, in both languages", () => {
+  const folderRefresh = {
+    folder: "/home/example/Lazurio",
+    recorded: "base-instructions-8",
+    product: "base-instructions-9",
+    command: "lazurio machine folder-refresh",
+  };
+  expect(
+    pillView(status({ folderRefresh }), messages("en"), now).folderRefresh,
+  ).toBe(
+    "Folder refresh needed: this Folder was rendered by base-instructions-8, Lazurio renders base-instructions-9. Run: lazurio machine folder-refresh",
+  );
+  expect(
+    pillView(status({ folderRefresh }), messages("cs"), now).folderRefresh,
+  ).toBe(
+    "Folder je potřeba obnovit: vykreslila ho revize šablon base-instructions-8, Lazurio teď vykresluje base-instructions-9. Spusť: lazurio machine folder-refresh",
+  );
+  expect(pillView(status(), messages("en"), now).folderRefresh).toBeNull();
 });

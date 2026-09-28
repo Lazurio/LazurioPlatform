@@ -241,7 +241,7 @@ test("the Owner line names the Team only under hosted-organization-team", () => 
 // product and the Folder, the operator owns the tools, an agent updates a
 // tool only on explicit instruction — and the old "no self-update of any
 // tool" wording is gone from both.
-test("the hosted update rule in AGENTS.md agrees with the manual under decision 0161", () => {
+test("the hosted update rule in AGENTS.md agrees with the manual under decisions 0161 and F17", () => {
   for (const journey of journeys) {
     if (journey.machine === null) continue;
     for (const locale of ["cs", "en"] as const) {
@@ -257,7 +257,7 @@ test("the hosted update rule in AGENTS.md agrees with the manual under decision 
         profile,
       })["manual/troubleshooting.md"] as string;
       for (const text of [instructions, manual]) {
-        expect(text).toContain("decision 0161");
+        expect(text).toMatch(/decisions? 0161/);
         expect(text).not.toMatch(/žádný self-update|any self-update/);
         expect(text).toMatch(
           locale === "cs"
@@ -265,10 +265,12 @@ test("the hosted update rule in AGENTS.md agrees with the manual under decision 
             : /Principal's explicit instruction/,
         );
       }
+      // Decision F17 addendum 2026-09-28: the operator owns the version of
+      // Lazurio too; the pin is a minimum.
       expect(instructions).toMatch(
         locale === "cs"
-          ? /Nástroje operátora \(Codex, Claude Code, `gh`, Node, npm, Bun…\) pin nevlastní/
-          : /The operator's tools \(Codex, Claude Code, `gh`, Node, npm, Bun…\) are not owned by the pin/,
+          ? /Verzi Lazuria vlastní operátor: .*Pin provozovatele Machines je jen minimum.*Nástroje operátora \(Codex, Claude Code, `gh`, Node, npm, Bun…\) aktualizuj jen na výslovný pokyn Principála/
+          : /The operator owns the version of Lazurio: .*The Machines operator's pin is only a minimum.*Update the operator's tools \(Codex, Claude Code, `gh`, Node, npm, Bun…\) only on the Principal's explicit instruction/,
       );
     }
   }
