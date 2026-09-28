@@ -1,4 +1,8 @@
-import { UpdateFailure } from "./errors";
+import {
+  type UpdateErrorReason,
+  type UpdateErrorResource,
+  UpdateFailure,
+} from "./errors";
 import { type ReleaseOrigin, versionOfTag } from "./identity";
 
 /** Requests to the release origin (docs/update.md "Check"). `latest` is asked
@@ -22,7 +26,11 @@ export const tagUrl = (origin: ReleaseOrigin, tag: string, file: string) =>
 export const requestTimeoutMs = 30_000;
 const maxRedirects = 5;
 
-const unavailable = (resource: string, reason: string, httpStatus?: number) =>
+const unavailable = (
+  resource: UpdateErrorResource,
+  reason: UpdateErrorReason,
+  httpStatus?: number,
+) =>
   new UpdateFailure("network-unavailable", {
     resource,
     reason,
@@ -32,7 +40,7 @@ const unavailable = (resource: string, reason: string, httpStatus?: number) =>
 async function request(
   fetcher: Fetcher,
   url: string,
-  resource: string,
+  resource: UpdateErrorResource,
   signal: AbortSignal,
 ): Promise<Response> {
   try {
@@ -46,7 +54,7 @@ function redirectTarget(
   origin: ReleaseOrigin,
   from: string,
   response: Response,
-  resource: string,
+  resource: UpdateErrorResource,
 ): string {
   const location = response.headers.get("location");
   if (!location || !URL.canParse(location, from))
@@ -115,7 +123,7 @@ export async function openAsset(
   origin: ReleaseOrigin,
   fetcher: Fetcher,
   url: string,
-  resource: string,
+  resource: UpdateErrorResource,
   signal: AbortSignal,
 ): Promise<Response> {
   let current = url;
@@ -143,7 +151,7 @@ export async function fetchAsset(
   origin: ReleaseOrigin,
   fetcher: Fetcher,
   url: string,
-  resource: string,
+  resource: UpdateErrorResource,
   maxBytes: number,
 ): Promise<Uint8Array> {
   const signal = AbortSignal.timeout(requestTimeoutMs);

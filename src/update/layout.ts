@@ -138,7 +138,12 @@ export async function pruneVersions(base: string): Promise<void> {
 const absent = (error: unknown) =>
   (error as NodeJS.ErrnoException | undefined)?.code === "ENOENT";
 
-const stateInvalid = (path: string) =>
+/** The update state a `state-invalid` failure can name, relative to the base. */
+export const updateStatePaths = [
+  "update/high-water",
+  "update/pending.json",
+] as const;
+const stateInvalid = (path: (typeof updateStatePaths)[number]) =>
   new UpdateFailure("state-invalid", { path });
 
 /** `update/high-water`: the highest version whose activation was ever

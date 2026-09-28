@@ -3,18 +3,23 @@
 // it carried a credential, a login key or a pairing code. The check is
 // deliberately broad: a withheld harmless line costs nothing, a leaked token
 // costs a revocation.
-const tokenLike: readonly RegExp[] = [
+/** Shapes of a credential, a login key or a pairing code by what they look
+ * like. The recovery sanitizer (src/recover/sanitize.ts) withholds the same
+ * lines and judges long runs itself, because a public issue must keep the
+ * commits and digests the product prints. */
+export const credentialShapes: readonly RegExp[] = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
   /\bgh[pousr]_[A-Za-z0-9]{20,}/,
   /\bgithub_pat_[A-Za-z0-9_]{20,}/,
   /\b(?:uak|ak|sk|pk|ck)_[A-Za-z0-9_-]{8,}/,
   /\b(?:bearer|token|secret|password|passwd|api[_-]?key|authorization|cookie|clikey|session)\b/i,
   /[?&][A-Za-z_]*(?:key|token|code|secret|session)[A-Za-z_]*=/i,
-  // Long runs of key material: base64, base64url or hex.
-  /[A-Za-z0-9+/_=-]{32,}/,
   // A one-time code shape (ABCD-1234).
   /\b[A-Z0-9]{4}-[A-Z0-9]{4}\b/,
 ];
+/** Long runs of key material: base64, base64url or hex. */
+export const longRun = /[A-Za-z0-9+/_=-]{32,}/;
+const tokenLike: readonly RegExp[] = [...credentialShapes, longRun];
 
 const tailLines = 12;
 const tailCharacters = 1200;
