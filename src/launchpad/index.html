@@ -75,6 +75,7 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .sidebar-body { flex: 1; min-height: 0; overflow-y: auto; padding: 0.25rem 0.5rem; }
 .sidebar-foot { display: grid; gap: 0.5rem; padding: 0.5rem; }
 .menu { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.chat-menu { margin-bottom: 0.5rem; }
 .menu-item { display: flex; align-items: center; gap: 0.5rem; height: 2rem; padding: 0 0.625rem; border-radius: var(--radius-control); color: color-mix(in srgb, var(--muted-fg) 80%, transparent); font-weight: 500; text-decoration: none; }
 .menu-item .icon { opacity: 0.6; }
 .menu-item:hover { background: var(--sidebar-hover); color: var(--fg); }
@@ -286,12 +287,18 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 <symbol id="i-panel" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></symbol>
 <symbol id="i-catalog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
 <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></symbol>
 <symbol id="i-recovery" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/></symbol>
 </svg>
 <div class="app" id="app">
 <aside class="sidebar" id="sidebar">
 <div class="sidebar-head"><a class="wordmark" href="/" id="wordmark" data-route>Lazurio <span>Launchpad</span></a></div>
 <div class="sidebar-body">
+<!-- Chat (launchpad-parity B8): T3 Code of this Machine, in T3 Code's "New
+     thread" place. Only with a recorded entry; its link is the entry's T3 Code
+     origin, and a click asks the server for a pairing link first. The link is
+     hidden with its list, so the sheet never focuses it on a workstation. -->
+<ul class="menu chat-menu" id="chat-menu" hidden><li><a class="menu-item" id="chat" rel="noreferrer" hidden><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span data-message="chat">Chat</span></a></li></ul>
 <nav id="catalog-nav" aria-labelledby="catalog-nav-label" data-view="catalog">
 <span class="sr-only" id="catalog-nav-label" data-message="catalogNavigation">Organizations</span>
 <ul class="menu"><li><a class="menu-item" href="/" id="catalog-home" data-route><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span data-message="catalogAll">All Organizations</span></a></li></ul>

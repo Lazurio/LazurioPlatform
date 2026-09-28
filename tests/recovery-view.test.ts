@@ -203,6 +203,32 @@ test("broken: the evidence without the journal, the prompt and the issue to copy
   expect(shown.journal).toBe(journal);
   expect(shown.journalToggle).toBe("Hide journal");
   expect(shown.evidence).toBe(view.evidence);
+  // A workstation (no recorded entry): no T3 Code link.
+  expect(view.chat).toBeNull();
+});
+
+test("hosted: the prompt comes with the recorded T3 Code origin as a plain link; never without a prompt", () => {
+  const t3codeOrigin = "https://t3code.workspace.example.lazurio.io";
+  const hosted = recoveryView(broken, messages("en"), {
+    journal: false,
+    t3codeOrigin,
+  });
+  expect(hosted.chat).toEqual({ href: t3codeOrigin, label: "Open T3 Code" });
+  // The link is the recorded origin as given: nothing appended or composed.
+  expect(
+    recoveryView(broken, messages("cs"), { journal: false, t3codeOrigin }).chat,
+  ).toEqual({ href: t3codeOrigin, label: "Otevřít T3 Code" });
+  // Nothing to hand over, no link.
+  expect(
+    recoveryView({ ...broken, prompt: null }, messages("en"), {
+      journal: false,
+      t3codeOrigin,
+    }).chat,
+  ).toBeNull();
+  expect(
+    recoveryView(broken, messages("en"), { journal: false, t3codeOrigin: null })
+      .chat,
+  ).toBeNull();
 });
 
 test("a refused issue names the kinds only, and offers no gh command", () => {
@@ -259,6 +285,7 @@ test("healthy: the checks, and nothing to copy or file", () => {
     journalToggle: null,
     journal: null,
     prompt: null,
+    chat: null,
     issue: null,
     nothingFiled: null,
     actions: [],

@@ -1,10 +1,12 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderOperationLock } from "../folder/lock";
-import { parseMachineEntry } from "../folder/machine-binding";
+import {
+  type MachineEntry,
+  parseMachineEntry,
+} from "../folder/machine-binding";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState, readStateJson } from "../folder/read-state";
-import type { HostedEntry } from "./hosted-trust";
 
 /** The conditions under which the Launchpad cannot start normally and can say
  * why (docs/update.md "Recovery mode", check `start-refused`). The ids are a
@@ -41,7 +43,7 @@ export const isStartRefusal = (value: unknown): value is StartRefusal =>
 export class LaunchpadStartRefused extends Error {
   constructor(
     readonly reason: StartRefusal,
-    readonly entry: HostedEntry | null = null,
+    readonly entry: MachineEntry | null = null,
   ) {
     super(`Launchpad start refused: ${reason}`);
   }
@@ -67,7 +69,7 @@ async function unreadable(state: string): Promise<LaunchpadStartRefused> {
   } catch {
     recorded = null;
   }
-  let entry: HostedEntry | null = null;
+  let entry: MachineEntry | null = null;
   if (recorded !== null)
     try {
       // The recorded entry is the handover's projection (six members, the

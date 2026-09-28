@@ -363,6 +363,8 @@ const en = {
   catalogNotFound:
     "This Organization or module is not in this Folder. It may have been renamed or removed; see all Organizations.",
   catalogAll: "All Organizations",
+  chat: "Chat",
+  chatTitle: "Open T3 Code on this Machine",
   catalogModules: "Modules",
   catalogNoModules: "This Organization declares no workspace modules.",
   catalogOtherModules: "Other modules",
@@ -481,6 +483,7 @@ const en = {
   recoveryPromptText:
     "Copy the prompt and paste it into a new chat of your agent app on this Machine (T3 Code on a hosted Machine). The agent repairs forward, or records the fault on GitHub.",
   recoveryPromptCopy: "Copy the prompt",
+  recoveryPromptOpenT3: "Open T3 Code",
   recoveryIssueTitle: "Prepared issue",
   recoveryIssueText:
     "For the public repository {repository}. The repair agent files it after a search for a duplicate.",
@@ -906,6 +909,8 @@ const cs: Record<MessageKey, string> = {
   catalogNotFound:
     "Tahle Organizace nebo modul v tomhle Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
   catalogAll: "Všechny Organizace",
+  chat: "Chat",
+  chatTitle: "Otevřít T3 Code na této Mašině",
   catalogModules: "Moduly",
   catalogNoModules: "Tahle Organizace nedeklaruje žádné moduly workspace.",
   catalogOtherModules: "Ostatní moduly",
@@ -1023,6 +1028,7 @@ const cs: Record<MessageKey, string> = {
   recoveryPromptText:
     "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace na téhle Mašině (na hostované Mašině do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
   recoveryPromptCopy: "Zkopírovat prompt",
+  recoveryPromptOpenT3: "Otevřít T3 Code",
   recoveryIssueTitle: "Připravené issue",
   recoveryIssueText:
     "Pro veřejný repozitář {repository}. Opravný agent ho založí, až ověří, že neexistuje duplicita.",

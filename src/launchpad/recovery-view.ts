@@ -107,6 +107,10 @@ export type RecoveryView = Readonly<{
   /** The journal tail, only when the operator asked to see it. */
   journal: string | null;
   prompt: string | null;
+  /** The link next to the prompt that opens T3 Code, where the repair agent
+   * starts (docs/recovery-mode.md C.3): the recorded entry's T3 Code origin,
+   * only with a prompt and a recorded entry; null otherwise. */
+  chat: Readonly<{ href: string; label: string }> | null;
   issue:
     | Readonly<{
         kind: "prepared";
@@ -151,7 +155,9 @@ function checkDetail(check: RecoveryCheck): string {
 export function recoveryView(
   result: RecoveryResult,
   copy: Copy,
-  options: Readonly<{ journal: boolean }> = { journal: false },
+  options: Readonly<{ journal: boolean; t3codeOrigin?: string | null }> = {
+    journal: false,
+  },
 ): RecoveryView {
   const summary =
     result.verdict === "healthy"
@@ -194,6 +200,13 @@ export function recoveryView(
           : copy.recoveryJournalShow,
     journal: options.journal ? journalText : null,
     prompt: result.prompt,
+    chat:
+      result.prompt === null || !options.t3codeOrigin
+        ? null
+        : Object.freeze({
+            href: options.t3codeOrigin,
+            label: copy.recoveryPromptOpenT3,
+          }),
     issue:
       issue === null
         ? null
