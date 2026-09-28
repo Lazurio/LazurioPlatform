@@ -27,6 +27,16 @@ export const RESERVED_LABELS: ReadonlySet<string> = new Set([
 ]);
 const MODULE_ID = /^[a-z0-9][a-z0-9-]*$/;
 
+/** A lazurio.module.v1 id by the gateway's rule: the only key the gateway
+ * names a module by (its `ensure`, launchpad-parity B5). */
+export function isModuleId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length <= MODULE_ID_MAX &&
+    MODULE_ID.test(value)
+  );
+}
+
 /** `https://<hostname>`: no port, path, query or trailing slash. */
 export function isHttpsOrigin(value: unknown): value is string {
   return typeof value === "string" && value.length <= 261 && origin.test(value);
@@ -82,12 +92,7 @@ export class ModuleOriginError extends Error {
  * reserves for itself is refused. Never the id itself: the gateway serves
  * `my--notes` at `my-notes.<vm>.<domain>`. */
 export function moduleLabel(id: unknown): string {
-  if (
-    typeof id !== "string" ||
-    id.length > MODULE_ID_MAX ||
-    !MODULE_ID.test(id)
-  )
-    throw new ModuleOriginError("module-label-invalid");
+  if (!isModuleId(id)) throw new ModuleOriginError("module-label-invalid");
   const label = id
     .replace(/-{2,}/g, "-")
     .replace(/^-+|-+$/g, "")
