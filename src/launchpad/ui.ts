@@ -7,7 +7,7 @@ import { type MessageKey, messages } from "./messages";
 import { createShell } from "./shell";
 import { createToolsPanel } from "./tools-panel";
 import type { PillStatus } from "./update-pill";
-import { fill, pillView } from "./update-view";
+import { fill, pillView, pillVisible } from "./update-view";
 
 const token = location.hash.slice(1);
 history.replaceState(null, "", location.pathname);
@@ -471,7 +471,9 @@ let updateNote: string | null = null;
 function renderUpdate() {
   if (!updateStatus || !updateSection) return;
   const view = pillView(updateStatus, copy, Date.now());
-  updateSection.hidden = false;
+  // Only while an update is available (pillVisible); the Folder refresh
+  // line below is independent of the pill.
+  updateSection.hidden = !pillVisible(updateStatus);
   if (updateText) updateText.textContent = view.text;
   if (updateNotes) {
     updateNotes.hidden = view.notesUrl === null;
