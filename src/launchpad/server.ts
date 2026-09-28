@@ -16,6 +16,8 @@ import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import {
   createModuleOperations,
+  type ModuleAnswer,
+  type ModuleBlocked,
   type ModuleHost,
   processModuleHost,
 } from "../modules/module-operations";
@@ -54,14 +56,49 @@ import type { UpdatePill } from "./update-pill";
 export type HostedOptions = Readonly<{
   fetcher?: AuthFetcher;
   now?: () => number;
+  /** How long the gateway's `ensure` waits for a started app to report
+   * healthy (default `ensureWaitMsDefault`). */
+  ensureWaitMs?: number;
 }>;
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
-// Not here yet: the gateway's `GET /api/internal/hosted/modules/<id>/ensure`
-// (P6, B5) answers from the same `modules` core, and the T3 Code chat link
-// (P7, B8) is its own route.
+// Not here yet: the T3 Code chat link (P7, B8) is its own route.
 const moduleRoute = /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|stop|status)$/;
+
+// The gateway's `ensure` (launchpad-parity B5), the path the Machines gateway
+// rewrites a module hostname's readiness subrequest to
+// (`M:workloads/workspace-vm/ingress.ts:129`) and the resident served
+// (`R:launchpad/src/server.mjs:1377`); `<id>` is the exact lazurio.module.v1
+// id of the gateway catalog (`M:workloads/workspace-vm/gateway-catalog.py:235`).
+const ensureRoute = /^\/api\/internal\/hosted\/modules\/([^/]+)\/ensure$/;
+
+/** Whether a gateway `ensure` may start a stopped app: a signed-in top-level
+ * navigation (Fetch Metadata `navigate`, or none) is an Open; a background
+ * fetch or a WebSocket reconnect only reports. The resident's rule
+ * (`R:launchpad/src/hosted-readiness-lib.mjs:4-8`); the gateway keeps the
+ * browser's Fetch Metadata on the subrequest
+ * (`M:workloads/workspace-vm/ingress.ts:118-123`). A lifecycle hint after
+ * admission, never an access decision. */
+export function ensureMayStart(headers: Headers): boolean {
+  if (headers.has("sec-websocket-key")) return false;
+  const mode = headers.get("sec-fetch-mode");
+  return mode === null || mode === "navigate";
+}
+
+/** The status of an `ensure` answer, the only part of it the gateway reads
+ * (`M:workloads/workspace-vm/ingress.ts:139-157`): 204 continues to the app,
+ * 503 shows "starting" and reloads, 404 shows "not available here", anything
+ * else (409 here) shows "could not be prepared". */
+export function ensureStatus(result: ModuleAnswer | ModuleBlocked): number {
+  if (result.kind === "module") return result.healthy ? 204 : 503;
+  if (["closing", "coordination-busy"].includes(result.reason)) return 503;
+  if (result.reason === "module-ambiguous") return 409;
+  // The id names no single runnable default app of this Folder.
+  if (result.operation === "ensure") return 404;
+  // The lifecycle refused the status read or the start.
+  return 409;
+}
 
 const curatedRoutes = new Set([
   "/api/tools/install",
@@ -243,6 +280,36 @@ export async function startLaunchpad(
           return response(await pill.status());
         } catch {
           return response({ error: "operation-failed" }, 500);
+        }
+      }
+      const ensureRequest = ensureRoute.exec(url.pathname);
+      if (ensureRequest !== null) {
+        // Only behind a gateway: a workstation has no module hostnames.
+        if (trust === null) return response({ error: "not-found" }, 404);
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        let id: string;
+        try {
+          id = decodeURIComponent(ensureRequest[1] as string);
+        } catch {
+          id = "";
+        }
+        // The wait for health is bounded below the request's idle deadline.
+        server.timeout(request, 30);
+        try {
+          const result = await modules.ensure(id, {
+            mayStart: ensureMayStart(request.headers),
+            ...(hostedOptions.ensureWaitMs === undefined
+              ? {}
+              : { waitMs: hostedOptions.ensureWaitMs }),
+          });
+          const status = ensureStatus(result);
+          return status === 204
+            ? new Response(null, { status, headers })
+            : response(result, status);
+        } catch {
+          return response({ error: "operation-failed" }, 503);
         }
       }
       const moduleRequest = moduleRoute.exec(url.pathname);
