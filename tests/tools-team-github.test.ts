@@ -16,6 +16,11 @@ import {
   initializeFolder,
   initializeHandoverFolder,
 } from "../src/folder/initialize-folder";
+import {
+  FolderOperationBusyError,
+  withFolderOperationLock,
+  withFolderReadLock,
+} from "../src/folder/lock";
 import { executionOs } from "../src/folder/platform";
 import { type PresetName, presetProfile } from "../src/folder/presets";
 import { messages } from "../src/launchpad/messages";
@@ -31,7 +36,10 @@ import { toolPrompt } from "../src/tools/catalog";
 import { runToolsCommand } from "../src/tools/cli";
 import { sharedSignInsText } from "../src/tools/curated-cli";
 import { ghJsonStatusArgs, readGhJsonStatus } from "../src/tools/gh-status";
-import { hostedEnvironmentPreset } from "../src/tools/github-gate";
+import {
+  folderPreset,
+  hostedEnvironmentPreset,
+} from "../src/tools/github-gate";
 import type { InstallFetch } from "../src/tools/install";
 import { createLoginSessions, type LoginState } from "../src/tools/login";
 import type { ToolOverview } from "../src/tools/overview";
@@ -1194,6 +1202,139 @@ test.skipIf(!posix)(
         (await call("/api/tools/login/start", { tool: "gh" })).body,
       ).toMatchObject({ kind: "blocked", reason: "team-environment" });
     } finally {
+      await app.close();
+      await work.close();
+    }
+  },
+);
+
+// The Folder operation lock is exclusive and non-blocking. The Team rule reads
+// the preset beside the Launchpad's other readers in one process (a status
+// request, a poll, a running session's re-check); such reads wait for each
+// other instead of refusing one as busy (the cross-test failure of PR 66:
+// under load, a poll and the session's re-check met on the lock).
+test.skipIf(!posix)(
+  "reads of the Folder's preset beside each other wait for the lock instead of failing as busy",
+  async () => {
+    const work = await environment("hosted-organization-personal", ["gh"]);
+    try {
+      const presets = await Promise.all(
+        Array.from({ length: 24 }, () => folderPreset(work.folder)),
+      );
+      expect(new Set(presets)).toEqual(
+        new Set(["hosted-organization-personal"]),
+      );
+      // A holder that keeps the lock a moment: the read waits for it.
+      const state = join(work.folder, ".lazurio");
+      let release: () => void = () => undefined;
+      const held = withFolderOperationLock(
+        state,
+        () => new Promise<void>((resolve) => (release = resolve)),
+      );
+      await Bun.sleep(20);
+      const waiting = folderPreset(work.folder);
+      await Bun.sleep(150);
+      release();
+      await held;
+      expect(await waiting).toBe("hosted-organization-personal");
+      // Bounded: a holder that stays is still refused, as before.
+      let releaseLong: () => void = () => undefined;
+      const long = withFolderOperationLock(
+        state,
+        () => new Promise<void>((resolve) => (releaseLong = resolve)),
+      );
+      await Bun.sleep(20);
+      await expect(
+        withFolderReadLock(state, async () => "read", 100),
+      ).rejects.toBeInstanceOf(FolderOperationBusyError);
+      // A mutation is refused at once, as it always was.
+      await expect(
+        withFolderOperationLock(state, async () => "write"),
+      ).rejects.toThrow("Folder operation busy or requires recovery");
+      releaseLong();
+      await long;
+    } finally {
+      await work.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "a gh login in the Launchpad completes while other readers hold the Folder lock around its re-checks and polls",
+  async () => {
+    const work = await environment("hosted-organization-personal", ["gh"]);
+    const app = await startLaunchpad(
+      work.folder,
+      undefined,
+      undefined,
+      undefined,
+      {},
+      {
+        path: work.path,
+        home: work.home,
+        xdg: {},
+        platform: process.platform,
+        run: runTool,
+      },
+      {
+        login: {
+          firstChallengeMs: 5_000,
+          probeIntervalMs: 50,
+          machine: "vm-01",
+        },
+      },
+    );
+    const url = new URL(app.url);
+    const call = async (route: string, body: unknown) => {
+      const response = await fetch(new URL(route, url), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: url.origin,
+          Authorization: `Bearer ${url.hash.slice(1)}`,
+        },
+        body: JSON.stringify(body),
+      });
+      return {
+        status: response.status,
+        body: (await response.json()) as Record<string, unknown>,
+      };
+    };
+    const state = join(work.folder, ".lazurio");
+    // Another reader keeps taking the lock for 40 ms at a time, as the page's
+    // status requests and other polls do.
+    let reading = true;
+    const reader = (async () => {
+      while (reading) {
+        await withFolderReadLock(state, () => Bun.sleep(40)).catch(
+          () => undefined,
+        );
+        await Bun.sleep(15);
+      }
+    })();
+    try {
+      const started = await call("/api/tools/login/start", { tool: "gh" });
+      expect(started.body).toMatchObject({ kind: "pending" });
+      const session = started.body.session as string;
+      await writeFile(join(work.home, "approve"), "");
+      const deadline = Date.now() + 15_000;
+      let polled: Awaited<ReturnType<typeof call>>;
+      for (;;) {
+        polled = await call("/api/tools/login/poll", { tool: "gh", session });
+        // Never an operation failure from a busy lock.
+        expect(polled.status).toBe(200);
+        if (polled.body.kind !== "pending") break;
+        if (Date.now() > deadline) throw new Error("did not settle");
+        await Bun.sleep(20);
+      }
+      expect(polled.body).toMatchObject({
+        kind: "signed-in",
+        account: "octocat",
+        ssh: { state: "linked" },
+      });
+    } finally {
+      reading = false;
+      await reader;
       await app.close();
       await work.close();
     }

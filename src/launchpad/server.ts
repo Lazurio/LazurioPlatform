@@ -8,7 +8,7 @@ import {
   readFolderTools,
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
-import { withFolderOperationLock } from "../folder/lock";
+import { withFolderOperationLock, withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { allowedPresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
@@ -290,7 +290,7 @@ export async function startLaunchpad(
         }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
-          const current = await withFolderOperationLock(state, () =>
+          const current = await withFolderReadLock(state, () =>
             readFolderState(state),
           );
           // The preset and the communication axes are changeable; the Machine

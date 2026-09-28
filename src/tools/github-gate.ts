@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { withFolderOperationLock } from "../folder/lock";
+import { withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { type PresetName, workspacePreset } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
@@ -16,7 +16,7 @@ import {
 export async function folderPreset(folder: string): Promise<PresetName> {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
-  return withFolderOperationLock(stateDirectory, async () => {
+  return withFolderReadLock(stateDirectory, async () => {
     const { preferences } = await readFolderState(stateDirectory);
     return preferences.preset.name;
   });

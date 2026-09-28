@@ -1623,7 +1623,13 @@ the preset is now Team the session ends as `{ kind: "blocked", reason:
 step happens; the CLI exits 2 with the Team sentence. The Launchpad reads its Folder's
 preset for that; the CLI reads the hosted operator Folder's preset again. A preset that
 cannot be read ends a Launchpad session as `failed` / `environment-unreadable` (fail
-closed). The Launchpad also ends a running gh session at once, as refused, when a
+closed). These preset reads, the status read and `/api/profile` run beside each other
+in one Launchpad process, and the Folder operation lock is exclusive and
+non-blocking: a read now waits for another holder for up to 3 s
+(`withFolderReadLock`, retrying only on `FolderOperationBusyError`) instead of
+failing as busy, which had failed a poll with `operation-failed` or a session with
+`environment-unreadable` whenever two reads met; mutations keep the immediate refusal.
+The Launchpad also ends a running gh session at once, as refused, when a
 profile update (`/api/update`) makes its Folder a Team Environment, and a `poll` of gh
 on a Team Environment ends the session and answers the refusal. Limit: gh stores a
 sign-in itself when the code is approved in the browser; a preset switched by another
