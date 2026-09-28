@@ -137,7 +137,7 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         account: {
           kind: "regex",
           pattern:
-            "Logged in to github\\.com (?:account|as) ([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))",
+            "Logged in to github\\.com (?:account|as) ([A-Za-z0-9](?:[A-Za-z0-9-]{0,38})(?:\\[bot\\])?)",
         },
       },
       installation: installation(

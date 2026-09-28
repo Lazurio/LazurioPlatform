@@ -1,4 +1,7 @@
+import type { PresetName } from "../folder/presets";
+import { sharedEnvironment } from "../folder/render";
 import { activatableTools } from "./catalog";
+import { githubRefusal, githubRefusalText } from "./github-gate";
 import {
   curatedTool,
   type InstallEnvironment,
@@ -28,7 +31,14 @@ export type CuratedContext = Readonly<{
   write: (line: string) => void;
   /** Ctrl-C: cancels a running login. */
   signal?: AbortSignal | undefined;
+  /** The kind of Environment when it is known (the hosted operator Folder's
+   * preset); undefined on a workstation, where nothing changes. */
+  preset?: PresetName | undefined;
 }>;
+
+/** On an Environment shared by several operators (the Team preset). */
+export const sharedSignInsText =
+  "Warning: this Environment is shared. Accounts signed in to the tool apply to the whole Environment and are shared by all its operators.";
 
 export type CuratedOutput = Readonly<{
   code: number;
@@ -317,6 +327,29 @@ export async function runLogin(
     };
   }
   const sessions = createLoginSessions(context.login);
+  // gh on a Team Environment (Principal 2026-09-28): neither a person's
+  // sign-in nor their SSH key; the Organization's Lazurio for GitHub is the
+  // way. Refused before anything runs.
+  const refusal = await githubRefusal(
+    context.preset,
+    name,
+    sshKey ? "ssh-key" : "login",
+    sessions,
+  );
+  if (refusal !== undefined) {
+    await sessions.close();
+    return {
+      code: 2,
+      result: refusal,
+      text: json ? JSON.stringify(refusal) : githubRefusalText(refusal, "en"),
+    };
+  }
+  if (
+    !json &&
+    context.preset !== undefined &&
+    sharedEnvironment(context.preset)
+  )
+    context.write(sharedSignInsText);
   const emit = (state: LoginState) => {
     if (json) context.write(JSON.stringify(state));
     else for (const line of loginLines(state)) context.write(line);
@@ -379,6 +412,20 @@ export async function runLogout(
   const sessions = createLoginSessions(context.login);
   let result: LogoutResult;
   try {
+    // A Team Environment signs out a person's account left there, never
+    // the Organization's identity (Principal 2026-09-28).
+    const refusal = await githubRefusal(
+      context.preset,
+      name,
+      "logout",
+      sessions,
+    );
+    if (refusal !== undefined)
+      return {
+        code: 2,
+        result: refusal,
+        text: json ? JSON.stringify(refusal) : githubRefusalText(refusal, "en"),
+      };
     result = await sessions.logout(name);
   } finally {
     await sessions.close();

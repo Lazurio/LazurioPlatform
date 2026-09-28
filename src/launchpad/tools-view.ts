@@ -14,6 +14,7 @@ import {
   sshLinkFailures,
 } from "../tools/ssh-key";
 import type { ToolSignIn } from "../tools/status";
+import { type GhIdentity, githubActionRefused } from "../tools/team-github";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 
@@ -58,6 +59,13 @@ function parseSshStatus(input: unknown): SshStatus | null {
   };
 }
 
+const identities: readonly GhIdentity[] = [
+  "person",
+  "app",
+  "variable",
+  "unknown",
+];
+
 function parseSignIn(input: unknown): ToolSignIn | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -66,7 +74,9 @@ function parseSignIn(input: unknown): ToolSignIn | null {
       value.state !== "signed-out" &&
       value.state !== "unknown") ||
     !optionalText(value.account) ||
-    !optionalText(value.organization)
+    !optionalText(value.organization) ||
+    (value.identity !== undefined &&
+      !identities.includes(value.identity as GhIdentity))
   )
     return null;
   const ssh = value.ssh === undefined ? undefined : parseSshStatus(value.ssh);
@@ -78,6 +88,9 @@ function parseSignIn(input: unknown): ToolSignIn | null {
       ? {}
       : { organization: value.organization }),
     ...(ssh === undefined ? {} : { ssh }),
+    ...(value.identity === undefined
+      ? {}
+      : { identity: value.identity as GhIdentity }),
   };
 }
 
@@ -286,10 +299,29 @@ export type CuratedActions = Readonly<{
 /** The curated actions of a `launchpad` tool (decision F19): "Install and
  * sign in" when it is missing, "Sign in" when it is installed and not known
  * to be signed in, "Sign out" when it is signed in. An `agent` tool has none;
- * its prepared prompt is the way. */
-export function curatedActions(tool: ToolOverview, copy: Copy): CuratedActions {
+ * its prepared prompt is the way. On a Team Environment (`brokered`: the
+ * preset's brokered Organization identity, which the status answers as
+ * `sharedEnvironment`) gh follows the server's rule (Principal 2026-09-28):
+ * no sign-in and no SSH key, and "Sign out" only while a person's account is
+ * signed in there, never for the Organization's identity. */
+export function curatedActions(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): CuratedActions {
   if (tool.setup !== "launchpad")
     return { primary: null, logout: false, linkSsh: false };
+  if (githubActionRefused({ brokered, tool: tool.name, action: "login" }))
+    return {
+      primary: null,
+      linkSsh: false,
+      logout: !githubActionRefused({
+        brokered,
+        tool: tool.name,
+        action: "logout",
+        signIn: tool.signIn,
+      }),
+    };
   if (!tool.installed)
     return {
       primary: { mode: "install", label: copy.toolsInstallAction },
@@ -992,6 +1024,13 @@ export function logoutOutcome(
       ].join(" "),
     };
   }
+  // A Team Environment signs out only a person's account left there.
+  if (value.kind === "blocked" && value.reason === "team-environment")
+    return {
+      kind: "failed",
+      reload: false,
+      message: `${copy.toolsTeamGithub} ${copy.toolsTeamGithubLogout}`,
+    };
   return {
     kind: "failed",
     reload: false,

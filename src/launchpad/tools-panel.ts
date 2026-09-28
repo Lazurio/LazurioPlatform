@@ -1,5 +1,6 @@
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
+import { githubActionRefused } from "../tools/team-github";
 import type { MessageKey } from "./messages";
 import {
   curatedActions,
@@ -829,14 +830,18 @@ export function createToolsPanel(
     if (ssh !== undefined) {
       const dot = element("span", "", " · ");
       dot.setAttribute("aria-hidden", "true");
+      // A Team Environment works in GitHub through Lazurio for GitHub: its
+      // gh line says so instead of inviting a person to link a key.
       const key = element(
         "span",
         "tool-ssh",
-        ssh.state === "linked"
-          ? copy.toolsSshLinked
-          : ssh.state === "not-linked"
-            ? copy.toolsSshNotLinked
-            : copy.toolsSshUnknown,
+        overview?.sharedEnvironment === true
+          ? copy.toolsSshTeam
+          : ssh.state === "linked"
+            ? copy.toolsSshLinked
+            : ssh.state === "not-linked"
+              ? copy.toolsSshNotLinked
+              : copy.toolsSshUnknown,
       );
       key.dataset.state =
         overview?.sharedEnvironment === true ? "team" : ssh.state;
@@ -873,11 +878,15 @@ export function createToolsPanel(
     // prompt as its action instead.
     // A Team Environment works in GitHub through Lazurio for GitHub, set up
     // by the Organization (Principal 2026-09-28): its gh row offers no
-    // personal sign-in, SSH key or sign-out; a sentence says why.
-    const teamGh = tool.name === "gh" && overview?.sharedEnvironment === true;
-    const curated = teamGh
-      ? { primary: null, linkSsh: false, logout: false }
-      : curatedActions(tool, copy);
+    // personal sign-in or SSH key, and "Sign out" only while a person's
+    // account is signed in there; a sentence says why.
+    const brokered = overview?.sharedEnvironment === true;
+    const teamGh = githubActionRefused({
+      brokered,
+      tool: tool.name,
+      action: "login",
+    });
+    const curated = curatedActions(tool, copy, brokered);
     const primary = curated.primary;
     if (primary !== null)
       controls.append(

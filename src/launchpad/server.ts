@@ -18,6 +18,7 @@ import { updateProfile, updateTools } from "../folder/update-profile";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import { activatableTools, toolSelection } from "../tools/catalog";
+import { folderPreset, githubRefusal } from "../tools/github-gate";
 import { curatedTool, type InstallFetch, installTool } from "../tools/install";
 import {
   createLoginSessions,
@@ -27,6 +28,7 @@ import {
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { runTool, xdgOf } from "../tools/status";
+import type { GithubAction } from "../tools/team-github";
 import { reconcileAsLaunchpad } from "../update/activation";
 import { layout } from "../update/layout";
 import { launchpadHealth } from "../update/service-control";
@@ -388,9 +390,19 @@ export async function startLaunchpad(
               installing.delete(tool);
             }
           }
+          // gh on a Team Environment (Principal 2026-09-28): no person's
+          // sign-in or SSH key; a sign-out only of a person's account left
+          // there. The preset is read per request: a profile change may
+          // switch it while the Launchpad runs.
+          const teamRefusal = async (action: GithubAction) =>
+            tool === "gh"
+              ? githubRefusal(await folderPreset(folder), tool, action, logins)
+              : undefined;
           if (url.pathname === "/api/tools/logout") {
             // gh first removes this Machine's SSH key from the account.
             server.timeout(request, 180);
+            const refusal = await teamRefusal("logout");
+            if (refusal !== undefined) return response(refusal, 409);
             return response(await logins.logout(tool));
           }
           if (url.pathname === "/api/tools/login/start") {
@@ -406,6 +418,10 @@ export async function startLaunchpad(
                 value.phone !== undefined)
             )
               return response({ error: "invalid-ssh-key" }, 400);
+            const refusal = await teamRefusal(
+              value.sshKey === true ? "ssh-key" : "login",
+            );
+            if (refusal !== undefined) return response(refusal, 409);
             server.timeout(request, 60);
             return response(
               withQr(
@@ -421,6 +437,14 @@ export async function startLaunchpad(
           const handle = value.session;
           if (typeof handle !== "string" || !/^[0-9a-f]{32}$/.test(handle))
             return response({ error: "invalid-session" }, 400);
+          // A gh login cannot go on there either; cancelling one always can.
+          if (url.pathname === "/api/tools/login/poll") {
+            const refusal = await teamRefusal("login");
+            if (refusal !== undefined) {
+              logins.cancel(tool, handle);
+              return response(refusal, 409);
+            }
+          }
           return response(
             url.pathname === "/api/tools/login/poll"
               ? withQr(logins.poll(tool, handle))

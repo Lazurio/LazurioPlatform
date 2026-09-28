@@ -64,6 +64,7 @@ type Tool = {
     account?: string;
     organization?: string;
     ssh?: { state: string; reason?: string };
+    identity?: string;
   };
   note?: string;
   prompt: string;
@@ -621,6 +622,8 @@ test.skipIf(process.platform === "win32")(
             state: "signed-in",
             account: "octo-cat",
             ssh: { state: "not-linked", reason: "no-key" },
+            // A token gh keeps in its keyring: a person's sign-in.
+            identity: "person",
           },
         ],
         [

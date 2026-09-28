@@ -12,7 +12,9 @@ import {
   runInstall,
   runLogin,
   runLogout,
+  sharedSignInsText,
 } from "./curated-cli";
+import { hostedEnvironmentPreset } from "./github-gate";
 import type { InstallEnvironment } from "./install";
 import type { LoginEnvironment } from "./login";
 import {
@@ -29,6 +31,7 @@ import {
   toolsStatus,
   xdgOf,
 } from "./status";
+import { githubActionRefused, teamGithubPhrase } from "./team-github";
 import { toolsUpdate } from "./update";
 
 /** `lazurio tools`: the terminal surface of the operator's tools (decision
@@ -99,11 +102,18 @@ tools login <tool> [--phone <+number>] [--ssh-key] [--json]
   the key is linked. --ssh-key (gh only) links the key for a gh that is
   signed in already, with a one-time code only when the token lacks the
   admin:public_key scope.
+  On a Team Environment (preset hosted-organization-team, read from the
+  hosted operator's Folder) gh is not signed in and --ssh-key links nothing:
+  the Environment works in GitHub through Lazurio for GitHub, set up by the
+  Organization (blocked, reason team-environment, exit 2). composio and wacli
+  sign in for the whole shared Environment.
 tools logout <tool> [--json]
   Runs the tool's own sign-out. gh and composio forget the sign-in on this
   Machine only (revoke it at the provider); wacli unlinks the device. gh first
   removes this Machine's SSH key from the account when Lazurio registered it
-  (title "Lazurio: <Machine>"); the key files stay.
+  (title "Lazurio: <Machine>"); the key files stay. On a Team Environment gh
+  signs out only a person's account left signed in there, never a GitHub App
+  (bot) identity or a token from a variable (blocked, team-environment).
 tools composio-org [list | switch <id>] [--json]
   The Composio organizations of the signed-in account, the current one
   marked, and switching the current one. Apps connected in Composio belong to
@@ -145,6 +155,10 @@ export async function runToolsCommand(
     /** Test seams of the curated flows. */
     install?: Partial<InstallEnvironment>;
     login?: Partial<LoginEnvironment>;
+    /** The declared operator's Folder on a hosted Machine (the handover);
+     * absent, none. `login` and `logout` read its preset: gh on a Team
+     * Environment (Principal 2026-09-28). */
+    hostedFolder?: (() => Promise<string | undefined>) | undefined;
   }> = { env: process.env, platform: process.platform },
 ): Promise<ToolsCommandOutput> {
   let values: ToolsOptions & { locale?: string | undefined };
@@ -254,6 +268,7 @@ export async function runToolsCommand(
       platform: context.platform,
       run: runTool,
     };
+    const [command, name] = positionals;
     const curatedContext: CuratedContext = {
       env: context.env,
       platform: context.platform,
@@ -261,8 +276,10 @@ export async function runToolsCommand(
       login: { ...base, ...context.login },
       write: context.write ?? ((line) => console.log(line)),
       signal: context.signal,
+      ...(command === "login" || command === "logout"
+        ? { preset: await hostedEnvironmentPreset(context.hostedFolder) }
+        : {}),
     };
-    const [command, name] = positionals;
     if (command === "composio-org") {
       const output = await runComposioOrganization(
         positionals.slice(1),
@@ -332,7 +349,30 @@ type ToolsOptions = {
   "ssh-key"?: boolean | undefined;
 };
 
-const signInText = (signIn: ToolSignIn): string =>
+// On a Team Environment gh's line names the way the Environment works in
+// GitHub instead of inviting a person to link their SSH key, and points to
+// the sign-out of a person's account left there (Principal 2026-09-28).
+const sshText = (signIn: ToolSignIn, team: boolean): string =>
+  signIn.ssh === undefined
+    ? ""
+    : team
+      ? `, ${teamGithubPhrase.en}${
+          githubActionRefused({
+            brokered: true,
+            tool: "gh",
+            action: "logout",
+            signIn,
+          })
+            ? ""
+            : "; a personal account is signed in here: lazurio tools logout gh"
+        }`
+      : signIn.ssh.state === "linked"
+        ? ", SSH key linked"
+        : signIn.ssh.state === "not-linked"
+          ? ", SSH key not linked: lazurio tools login gh --ssh-key"
+          : ", SSH key not verified";
+
+const signInText = (signIn: ToolSignIn, team: boolean): string =>
   signIn.state === "signed-in"
     ? `${
         signIn.account === undefined
@@ -342,15 +382,7 @@ const signInText = (signIn: ToolSignIn): string =>
                 ? ""
                 : ` (${signIn.organization})`
             }`
-      }${
-        signIn.ssh === undefined
-          ? ""
-          : signIn.ssh.state === "linked"
-            ? ", SSH key linked"
-            : signIn.ssh.state === "not-linked"
-              ? ", SSH key not linked: lazurio tools login gh --ssh-key"
-              : ", SSH key not verified"
-      }`
+      }${sshText(signIn, team)}`
     : signIn.state === "signed-out"
       ? "not signed in"
       : "sign-in unknown";
@@ -432,7 +464,11 @@ async function runFolderToolsCommand(
                   tool.standardPath === false ? "  (outside ~/.local/bin)" : ""
                 }`
               : `missing ${tool.source}`
-          }${tool.signIn === undefined ? "" : `  (${signInText(tool.signIn)})`}`,
+          }${
+            tool.signIn === undefined
+              ? ""
+              : `  (${signInText(tool.signIn, recorded.sharedEnvironment)})`
+          }`,
           ...(tool.note === undefined
             ? []
             : [
@@ -508,9 +544,7 @@ async function runFolderToolsCommand(
       },
       result.kind === "updated"
         ? `${name} ${enabling ? "enabled" : "disabled"}; Folder revision ${result.revision}${
-            shared
-              ? "\nWarning: this Environment is shared. Accounts signed in to the tool apply to the whole Environment and are shared by all its operators."
-              : ""
+            shared ? `\n${sharedSignInsText}` : ""
           }`
         : result.kind === "unchanged"
           ? `${name} is already ${enabling ? "enabled" : "disabled"}`

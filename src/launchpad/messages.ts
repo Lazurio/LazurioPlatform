@@ -1,3 +1,13 @@
+import {
+  teamGithubLogoutText,
+  teamGithubPhrase,
+  teamGithubText,
+} from "../tools/team-github";
+
+// A phrase that follows " · " on a status line starts a new part.
+const capitalized = (text: string) =>
+  `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+
 const en = {
   appDiscover: "Read declared applications",
   appDiscovered: "Observed application",
@@ -95,8 +105,9 @@ const en = {
     "Tools are command-line programs that agents use to work with outside services. “Used by agents” guides the agents on this Environment to use a tool. Installing, uninstalling, signing in and signing out are separate acts.",
   toolsSwitchLabel: "Used by agents",
   toolsSwitchNamed: "Used by agents: {name}",
-  toolsTeamGithub:
-    "This Team Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Personal GitHub accounts are not signed in here.",
+  // One wording with the CLI and the server's rule (src/tools/team-github.ts).
+  toolsTeamGithub: teamGithubText.en,
+  toolsTeamGithubLogout: teamGithubLogoutText.en,
   toolsShared:
     "This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.",
   toolsRefresh: "Refresh status",
@@ -262,6 +273,7 @@ const en = {
   toolsSshLinked: "SSH key linked",
   toolsSshNotLinked: "SSH key not linked",
   toolsSshUnknown: "SSH key not verified",
+  toolsSshTeam: capitalized(teamGithubPhrase.en),
   toolsLinkSshAction: "Link SSH key",
   toolsLinkSshNamed: "Link the SSH key of this Machine to the {name} account",
   toolsLoginTitleSsh: "Link SSH key: {name}",
@@ -505,8 +517,8 @@ const cs: Record<MessageKey, string> = {
     "Nástroje jsou programy pro příkazovou řádku, kterými agenti pracují s vnějšími službami. „Používají agenti“ vede agenty v tomhle Environmentu k tomu, aby nástroj používali. Instalace, odinstalace, přihlášení a odhlášení jsou samostatné kroky.",
   toolsSwitchLabel: "Používají agenti",
   toolsSwitchNamed: "Používají agenti: {name}",
-  toolsTeamGithub:
-    "Tohle týmové Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady nepřihlašují.",
+  toolsTeamGithub: teamGithubText.cs,
+  toolsTeamGithubLogout: teamGithubLogoutText.cs,
   toolsShared:
     "Tohle Environment je sdílené. Účty přihlášené v nástroji platí pro celé Environment a používají je všichni jeho operátoři.",
   toolsRefresh: "Obnovit stav",
@@ -671,6 +683,7 @@ const cs: Record<MessageKey, string> = {
   toolsSshLinked: "SSH klíč propojený",
   toolsSshNotLinked: "SSH klíč nepropojený",
   toolsSshUnknown: "SSH klíč neověřený",
+  toolsSshTeam: capitalized(teamGithubPhrase.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
   toolsLinkSshNamed: "Propojit SSH klíč téhle Mašiny s účtem {name}",
   toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
