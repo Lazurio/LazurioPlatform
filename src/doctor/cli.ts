@@ -6,7 +6,8 @@ import {
   type RecoverContext,
   recoveryEnvironment,
 } from "../recover/cli";
-import { runTool, type ToolRunner, xdgOf } from "../tools/status";
+import { toolsEnvironmentOf } from "../tools/overview";
+import type { ToolRunner } from "../tools/status";
 import { type CommandOutput, installBase, processContext } from "../update/cli";
 import {
   exitFailure,
@@ -191,13 +192,7 @@ export async function runDoctorCommand(
   try {
     const result = await collectDoctor({
       ...recoveryEnvironment(context, { base, folder: values.folder }),
-      tools: {
-        path: context.env.PATH,
-        home: context.env.HOME,
-        xdg: xdgOf(context.env),
-        platform: context.platform,
-        run: context.toolRun ?? runTool,
-      },
+      tools: toolsEnvironmentOf(context.env, context.platform, context.toolRun),
       signIn: values["sign-in"] === true,
     });
     return Object.freeze({
