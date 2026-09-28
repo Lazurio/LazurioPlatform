@@ -8,7 +8,7 @@ import {
   type VerificationPolicy,
   Verifier,
 } from "@sigstore/verify";
-import { UpdateFailure } from "./errors";
+import { type UpdateErrorReason, UpdateFailure } from "./errors";
 import { type ReleaseOrigin, tagOf } from "./identity";
 import { maxBundleBytes } from "./manifest";
 
@@ -121,7 +121,7 @@ export type AttestationVerifier = (
   request: AttestationRequest,
 ) => Promise<void>;
 
-const invalid = (reason: string) =>
+const invalid = (reason: UpdateErrorReason) =>
   new UpdateFailure("attestation-invalid", { reason });
 
 export function createAttestationVerifier(
