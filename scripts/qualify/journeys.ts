@@ -23,6 +23,7 @@ import {
 } from "../../src/update/manifest";
 import { compareVersions } from "../../src/update/version";
 import type { FailureDetail } from "./evidence";
+import { launchpadOnce } from "./launchpad-once";
 import { logLines, redact } from "./redact";
 
 /** The journeys J1–J5 of the release qualification (docs/release-cycle.md
@@ -414,32 +415,6 @@ async function healthy() {
   same("recover verdict", [result.exit, result.verdict], [0, "healthy"]);
 }
 
-/** An unsupervised Launchpad started once: its first line, the page's HTTP
- * status, and its exit on SIGTERM. The session token is never printed. */
-async function launchpadOnce(executable: string) {
-  const child = Bun.spawn([executable, "launchpad", "--folder", folder], {
-    env: productEnv,
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "inherit",
-  });
-  const reader = child.stdout.getReader();
-  let text = "";
-  const deadline = Date.now() + 60_000;
-  while (!text.includes("\n") && Date.now() < deadline) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    text += new TextDecoder().decode(value);
-  }
-  const { url, ...started } = JSON.parse(text.split("\n")[0] ?? "");
-  const page = await fetch(new URL("/", url), {
-    signal: AbortSignal.timeout(10_000),
-  });
-  await page.text();
-  child.kill("SIGTERM");
-  return { started, status: page.status, exit: await child.exited };
-}
-
 /** What the job log needs to explain a failure on a disposable runner: the
  * unit, its journal, the install base and the installed product's status. */
 async function diagnostics() {
@@ -564,7 +539,11 @@ async function firstInstall(candidate: Candidate) {
     same("unit enabled", await systemctl("is-enabled", unit), "enabled");
     await launchpadUp("Launchpad on the candidate", candidate.version);
   } else {
-    const launchpad = await launchpadOnce(entry);
+    const launchpad = await launchpadOnce({
+      executable: entry,
+      folder,
+      env: productEnv,
+    });
     same(
       "Launchpad started",
       launchpad.started.scope,
@@ -740,7 +719,11 @@ async function recoveryMode(candidate: Candidate) {
       restarts,
     );
   } else {
-    const launchpad = await launchpadOnce(selector);
+    const launchpad = await launchpadOnce({
+      executable: selector,
+      folder,
+      env: productEnv,
+    });
     same("Launchpad started", launchpad.started, {
       scope: "recovery-mode",
       check: "start-refused",

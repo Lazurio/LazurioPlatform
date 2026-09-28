@@ -225,7 +225,10 @@ update status --json` of the installed product. The job log is public, so everyt
 a journey prints passes one redaction first (`scripts/qualify/redact.ts`): a URL
 fragment (the Launchpad's session token) becomes `#<redacted>`, and the value of any
 field named like a token, credential, secret, authorization or cookie — in JSON, a
-query or a header — becomes `<redacted>`; only then is the output truncated. The `evidence` job joins the
+query or a header — becomes `<redacted>`; only then is the output truncated. No
+child process writes to the log directly: the unsupervised Launchpad's stderr is
+captured and printed redacted, also when it exits early, and the evidence wrapper
+streams a journey's stdout and stderr line by line through the same redaction. The `evidence` job joins the
 lines into the artifact `qualification-<tag>` (kept 90 days, also when a journey
 failed) and fails unless every journey is `ok` exactly once on every target, for
 exactly the bytes and the commit of the candidate's published manifest.

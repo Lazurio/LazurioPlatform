@@ -48,3 +48,22 @@ export function logLines(text: string, lines = 30): string[] {
     .filter((line) => line !== "")
     .map((line) => line.slice(0, 300));
 }
+
+/** Stream a child's output into the log line by line, each line redacted
+ * before it is written; a last line without a newline is flushed at the end.
+ * For long-running commands whose output must appear as it happens. */
+export async function streamRedacted(
+  stream: ReadableStream<Uint8Array>,
+  write: (line: string) => void,
+): Promise<void> {
+  const decoder = new TextDecoder();
+  let pending = "";
+  for await (const chunk of stream) {
+    pending += decoder.decode(chunk, { stream: true });
+    const lines = pending.split("\n");
+    pending = lines.pop() ?? "";
+    for (const line of lines) write(redact(line));
+  }
+  pending += decoder.decode();
+  if (pending !== "") write(redact(pending));
+}

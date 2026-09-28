@@ -8,6 +8,7 @@ import {
   type ReleaseManifest,
   sha256Hex,
 } from "../../src/update/manifest";
+import { streamRedacted } from "./redact";
 
 /** The qualification evidence of a release candidate (docs/release-cycle.md
  * "Qualification and the canary"). Every journey of `qualify.yml` on every
@@ -196,9 +197,15 @@ async function runJourney(args: string[]): Promise<number> {
   const child = Bun.spawn(command, {
     env: { ...process.env, LAZURIO_QUALIFY_DETAIL: detailFile },
     stdin: "ignore",
-    stdout: "inherit",
-    stderr: "inherit",
+    stdout: "pipe",
+    stderr: "pipe",
   });
+  // The job log is public: the journey's output reaches it only redacted,
+  // line by line as it happens (a J6 suite prints nothing else).
+  await Promise.all([
+    streamRedacted(child.stdout, (line) => console.log(line)),
+    streamRedacted(child.stderr, (line) => console.error(line)),
+  ]);
   const code = await child.exited;
   const written = (await readFile(detailFile, "utf8").catch(() => "")).trim();
   await rm(detailFile, { force: true });
