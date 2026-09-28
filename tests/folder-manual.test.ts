@@ -190,16 +190,52 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
             : "The operator owns the version of Lazurio on this Environment.",
         ),
       ).toBe(hosted);
+      // Only the workstation, which may run the supervised unit, names the
+      // result after the switch; both say there is no way back.
+      expect(troubleshooting.includes("`activation-unhealthy`")).toBe(!hosted);
       expect(
         troubleshooting.includes(
-          "`lazurio update rollback` switches back to the previous version",
+          locale === "cs"
+            ? "Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi."
+            : "There is no way back: Lazurio never returns to an earlier version.",
         ),
-      ).toBe(!hosted && locale === "en");
+      ).toBe(true);
       expect(
         troubleshooting.includes(
           locale === "cs" ? "## Obsah Organizací" : "## Organization content",
         ),
       ).toBe(journey.preset !== "hosted-personal");
+    }
+});
+
+// There is no program rollback (proposed decision F21, recovery-mode
+// shaping): no generated text may offer a command, unit or retained version
+// that returns to an earlier version, in any preset or locale.
+test("no generated output mentions a rollback command or a way back to an earlier version", () => {
+  const rollback = [
+    /update rollback/i,
+    /rollback/i,
+    /lazurio-rollback/i,
+    /--auto\b/,
+    /previous version/i,
+    /předchozí verzi/i,
+    /\bvrátí? (na|se na)/i,
+  ];
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const path of outputPaths)
+        for (const pattern of rollback)
+          expect([
+            journey.preset,
+            path,
+            locale,
+            outputs[path].match(pattern)?.[0] ?? null,
+          ]).toEqual([journey.preset, path, locale, null]);
     }
 });
 
@@ -243,7 +279,6 @@ test("no generated output forbids lazurio update or gives the product version to
           : "`lazurio profile-update`",
       );
       expect(troubleshooting).toContain("Folder refresh needed");
-      expect(troubleshooting).toContain("`lazurio update rollback`");
       if (hosted) {
         expect(outputs["AGENTS.md"]).toContain(
           locale === "cs"
