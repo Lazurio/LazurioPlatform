@@ -207,11 +207,13 @@ release with new templates, or the operator runs `lazurio update` (which then re
 `AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
 and its path, nothing written). A Folder rendered by a newer revision than the active
 product stays `template-upgrade-required` and is never downgraded
-([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). After
-`lazurio update rollback` this is the expected readback: the newer Folder keeps its
-files intact, and only `folder-refresh` and profile changes answer
-`template-upgrade-required` until a product at least that new is active again.
-Machines records it as a finding, not a failure.
+([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). There is no
+program rollback any more ([product update](update.md), change of 2026-09-28), so an
+active product older than the Folder's revision arises only on an installation that a
+release before that change rolled back; the newer Folder keeps its files intact, and
+only `folder-refresh` and profile changes answer `template-upgrade-required` until a
+product at least that new is active again. Machines records it as a finding, not a
+failure.
 
 A wrong invocation (unknown option, duplicate or invalid choice, unknown preset)
 prints the `machine` help on stderr and exits 2 before any filesystem access.
@@ -406,7 +408,8 @@ Every step below uses only what the product already answers.
 | Selector present but dangling, or its executable damaged (`<base>/bin/lazurio --version --json` fails) | Not repaired by `install` of the same version today: it answers `installed` and changes nothing; a lower pin is refused, and only a higher one moves it, as in the next row. A finding for a person; an open gap of the product, not something the role works around |
 | Working installation below the pin (`update status --json`: `active` lower than the pinned version) | Raise it: the same `install --base` is the offline update, result `updated` |
 | Working installation at or above the pin | Nothing. `install --base` with a lower pin answers `release-invalid` / `below-floor`, which the role records as the fact `ahead`, never a failure, retry or force |
-| Any case | Never lower a version; never run `lazurio update` or `lazurio update rollback` |
+| Any case | Never lower a version; never run `lazurio update` (the operator's command) |
+| `install` over a supervised installation answers `activation-unhealthy` | A Recovery-mode finding for the readback, never a retry: the new version stays active, nothing was undone, and the repair is forward (a fixed release, or the condition the Launchpad's Recovery mode names) |
 | After `installed` or `updated` | Run `lazurio machine folder-refresh` as today (above) |
 | PATH entry | Verify, do not create: `install --json` returns `entry`. `state` `created`, `present` or `replaced` is correct; `conflict` or `failed` is a finding with `entry.next` in the readback, and the role never replaces the occupant. A Machine without the entry is repaired by the next `install`, not by a link the role writes itself. The operator's login shell has `~/.local/bin` on PATH (`workspace_tools` already provides it for npm); `entry.shadowedBy` not `null` is a finding |
 | Readback | `lazurio update status --json`: `active`, `highWater`, `lastCheck` and `folderRefresh` are facts to report; an active version above the pin is not drift |
@@ -414,6 +417,30 @@ Every step below uses only what the product already answers.
 The role keeps its custody-staged, digest-pinned bytes and its attestation check for
 installing and raising. The operator's own `lazurio update` verifies inside the product
 (F13). The meaning of the overlay fields changes, not their shape.
+
+### What the Machines role must stop expecting (no program rollback, 2026-09-28)
+
+From the first release without rollback (the change of 2026-09-28 in
+[product update](update.md); proposed decision F21 of the recovery-mode shaping):
+
+- **No previous version.** After `updated` only the active version is on disk;
+  there is no `<base>/previous` link and `update status --json` has no `previous`
+  field (it has `legacyRollbackState` until the first `install` or `update` of a
+  release without rollback removed what an older release left).
+- **No rollback unit.** `lazurio install --service systemd-user` writes only
+  `lazurio-launchpad.service` (`Restart=always`, `RestartSec=5`, no start rate
+  limit, no `OnFailure=`, `PATH` with `~/.local/bin` first) and removes a
+  `lazurio-rollback.service` it wrote earlier. The role does not pass `--service`
+  today, so its Machines have neither unit.
+- **Never run `lazurio update rollback`.** The command no longer exists (usage
+  error, exit 2), and no executable of an earlier version may be copied or
+  selected by hand. "Its owner rolled back" is no longer a reason for `ahead`:
+  after such a release the active version equals the floor unless the selector is
+  damaged, so `ahead` means only that the operator updated beyond the pin.
+- **The update TO the first release without rollback is still performed by the
+  old updater** (the installed `v0.1.x`): it records `previous` and may switch back
+  if the new release's Launchpad is unhealthy. The first `install` or `update` the
+  new release runs removes that state.
 
 ## Bounded diagnosis and repair
 

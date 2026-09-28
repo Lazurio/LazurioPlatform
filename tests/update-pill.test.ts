@@ -19,7 +19,6 @@ import {
   systemdActivator,
   updateCommand,
 } from "../src/update/launchpad-activation";
-import { layout, setPrevious } from "../src/update/layout";
 import type { ProcessResult, ProcessRunner } from "../src/update/self-check";
 import type { CheckResult, UpdateStatus } from "../src/update/update";
 import {
@@ -42,10 +41,9 @@ const status = (overrides: Partial<UpdateStatus> = {}): UpdateStatus => ({
   kind: "status",
   running: "1.0.0",
   active: "1.0.0",
-  previous: null,
   highWater: null,
   supervised: true,
-  pending: null,
+  legacyRollbackState: false,
   stateInvalid: null,
   lastCheck: null,
   updateAvailable: false,
@@ -148,11 +146,10 @@ test("every pill state and the single action for it", () => {
       },
     ],
     [
-      "the equal-high-water retry after a rollback is available",
+      "below its mark (rolled back by an older release): forward to the mark is available",
       {
         status: status({
           highWater: "1.1.0",
-          previous: "1.1.0",
           lastCheck: check("1.1.0"),
         }),
       },
@@ -179,12 +176,11 @@ test("every pill state and the single action for it", () => {
       },
     ],
     [
-      "activating: in flight, marker switched",
+      "activating: in flight, switched",
       {
         status: status({
           lastCheck: check("1.1.0"),
           active: "1.1.0",
-          pending: { from: "1.0.0", to: "1.1.0" },
         }),
         activation: { inFlight: true, failure: null },
       },
@@ -197,17 +193,17 @@ test("every pill state and the single action for it", () => {
       },
     ],
     [
-      "activating: the new Launchpad is up and will commit",
+      "the new Launchpad is up: the switch was the commit, nothing is pending",
       {
         status: status({
           running: "1.1.0",
           active: "1.1.0",
+          highWater: "1.1.0",
           lastCheck: check("1.1.0"),
-          pending: { from: "1.0.0", to: "1.1.0" },
         }),
       },
       {
-        state: "activating",
+        state: "idle",
         action: null,
         error: null,
         restartRequired: false,
@@ -215,38 +211,37 @@ test("every pill state and the single action for it", () => {
       },
     ],
     [
-      "interrupted after the switch: the same click reconciles and retries",
+      "supervised, the updater ended after the switch and before the restart: a restart finishes it, nothing goes back",
       {
         status: status({
           active: "1.1.0",
           lastCheck: check("1.1.0"),
-          pending: { from: "1.0.0", to: "1.1.0" },
         }),
       },
       {
-        state: "available",
-        action: "retry",
-        error: "activation-failed",
-        restartRequired: false,
+        state: "activating",
+        action: "restart",
+        error: null,
+        restartRequired: true,
         stale: false,
       },
     ],
     [
-      "failed activation returns to available with the error and a retry",
+      "a candidate refused before the switch returns to available with the error and a retry",
       {
         status: status({ lastCheck: check("1.1.0") }),
         activation: {
           inFlight: false,
-          failure: updateError("activation-failed", {
-            from: "1.0.0",
-            to: "1.1.0",
+          failure: updateError("self-check-failed", {
+            reason: "launchpad-refused",
+            refusal: "folder-state-unreadable",
           }),
         },
       },
       {
         state: "available",
         action: "retry",
-        error: "activation-failed",
+        error: "self-check-failed",
         restartRequired: false,
         stale: false,
       },
@@ -286,7 +281,6 @@ test("every pill state and the single action for it", () => {
         status: status({
           supervised: false,
           active: "1.1.0",
-          previous: "1.0.0",
           highWater: "1.1.0",
           lastCheck: check("1.1.0"),
         }),
@@ -780,12 +774,12 @@ test("the pill runs the one check use case and applies only what it showed", asy
   expect(activator.starts).toEqual(["1.1.0"]);
   activator.activation = {
     inFlight: false,
-    failure: updateError("activation-failed", { from: "1.0.0", to: "1.1.0" }),
+    failure: updateError("self-check-failed", { reason: "exit" }),
   };
   expect(await pill.status()).toMatchObject({
     state: "available",
     action: "retry",
-    error: { code: "activation-failed" },
+    error: { code: "self-check-failed" },
   });
   // The retry is the same click.
   expect(await pill.apply("1.1.0")).toEqual({
@@ -794,8 +788,8 @@ test("the pill runs the one check use case and applies only what it showed", asy
   });
   // State a person must look at: shown with its path, and no click starts anything.
   activator.activation = { inFlight: false, failure: null };
-  await setPrevious(world.base, "0.9.0");
-  await writeFile(layout(world.base).pending, "garbage");
+  // A marker a v0.1.x updater left and no crash can produce.
+  await writeFile(join(world.base, "update", "pending.json"), "garbage");
   expect(await pill.status()).toMatchObject({
     state: "idle",
     action: null,

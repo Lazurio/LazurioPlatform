@@ -283,7 +283,7 @@ test("the largest tier-1 body stays within its bound, untrimmed", () => {
       nRestarts: 999_999_999,
       execMainStatus: 999_999_999,
       lastUpdateFailure: {
-        code: "rollback-unavailable",
+        code: "activation-unhealthy",
         context: { resource: word, reason: word, stage: word, detail: word },
       },
     },

@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  copyFile,
   mkdir,
   mkdtemp,
   readdir,
@@ -15,24 +16,27 @@ import { join } from "node:path";
 import {
   performInstall,
   renderLaunchpadUnit,
-  renderRollbackUnit,
   systemdQuote,
 } from "../src/update/install";
 import {
   readHighWater,
-  readPrevious,
   readSelector,
-  writePending,
+  swapSelector,
 } from "../src/update/layout";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
 import {
   detectServiceControl,
   launchpadUnit,
-  rollbackUnit,
   unitFolder,
+  unitMarker,
 } from "../src/update/service-control";
-import { performRollback } from "../src/update/update";
-import { commitOf, executable, target } from "./fixtures/update-world";
+import {
+  commitOf,
+  executable,
+  readLegacyRollbackState,
+  target,
+  writeLegacyRollbackState,
+} from "./fixtures/update-world";
 
 let root: string;
 afterEach(async () => rm(root, { recursive: true, force: true }));
@@ -126,7 +130,7 @@ test("install stages the running executable as the first version; repeated, it c
   expect(await readSelector(base)).toBe("2.0.0");
 });
 
-test("install --service writes the Launchpad unit and the static rollback unit, then enables the service", async () => {
+test("install --service writes the one Launchpad unit that always restarts and never ends failed, then enables it", async () => {
   const { input, commands } = await scene();
   const folder = join(root, "My Lazurio $HOME 100%");
   expect(await performInstall({ ...input, service: { folder } })).toMatchObject(
@@ -139,15 +143,16 @@ test("install --service writes the Launchpad unit and the static rollback unit, 
     "# Written by `lazurio install`; rewritten by it, so edit a drop-in instead.",
     "[Unit]",
     "Description=Lazurio Launchpad",
-    "StartLimitIntervalSec=60",
-    "StartLimitBurst=5",
-    "OnFailure=lazurio-rollback.service",
+    // No start rate limit: the unit never ends `failed`.
+    "StartLimitIntervalSec=0",
     "",
     "[Service]",
+    // The operator's standard tool path first (F17 addendum).
+    "Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin",
     // The SELECTOR: a restart runs whatever version is active.
     `ExecStart=${input.base}/bin/lazurio launchpad --base ${input.base} --folder "${root}/My Lazurio $$HOME 100%%"`,
-    "Restart=on-failure",
-    "RestartSec=2",
+    "Restart=always",
+    "RestartSec=5",
     "",
     "[Install]",
     "WantedBy=default.target",
@@ -156,13 +161,9 @@ test("install --service writes the Launchpad unit and the static rollback unit, 
     `Folder=${folder}`,
     "",
   ]);
-  expect(await readFile(join(units, rollbackUnit), "utf8")).toBe(
-    renderRollbackUnit(input.base),
-  );
-  expect(renderRollbackUnit(input.base).split("\n")).toContain(
-    // The PREVIOUS version undoes; it is the one known to work.
-    `ExecStart=${input.base}/previous/lazurio update rollback --auto --base ${input.base}`,
-  );
+  // One unit and nothing that runs an earlier version.
+  expect(await readdir(units)).toEqual([launchpadUnit]);
+  expect(launchpad).not.toMatch(/OnFailure|rollback|previous|StartLimitBurst/);
   expect(commands).toEqual([
     ["systemctl", "--user", "daemon-reload"],
     ["systemctl", "--user", "enable", "--now", launchpadUnit],
@@ -222,6 +223,106 @@ test("install --service writes the Launchpad unit and the static rollback unit, 
       run: input.run,
     }),
   ).toBeNull();
+});
+
+test("the Launchpad unit belongs to the base whose exact ExecStart it carries: another base neither detects it as its supervisor nor rewrites it", async () => {
+  const { input, commands } = await scene();
+  const a = input.base;
+  const b = join(root, "data", "other");
+  const folderA = join(root, "Lazurio A");
+  const folderB = join(root, "Lazurio B");
+  const units = join(root, "config/systemd/user");
+  const detect = (base: string) =>
+    detectServiceControl({
+      base,
+      platform: "linux",
+      env: input.env,
+      run: input.run,
+    });
+  expect(
+    await performInstall({ ...input, service: { folder: folderA } }),
+  ).toMatchObject({ kind: "installed", serviceInstalled: true });
+  const unitA = await readFile(join(units, launchpadUnit), "utf8");
+  expect((await detect(a))?.folder).toBe(folderA);
+
+  // A's marked unit is not B's supervisor: B is unsupervised.
+  expect(await detect(b)).toBeNull();
+  commands.length = 0;
+  // Installing B with its service is refused before B's selector exists …
+  expect(
+    await performInstall({ ...input, base: b, service: { folder: folderB } }),
+  ).toMatchObject({
+    kind: "error",
+    code: "storage-unavailable",
+    context: { stage: "unit", reason: "foreign-unit" },
+  });
+  expect(await readSelector(b)).toBeNull();
+  // … B without a service installs, and touches nothing of A's …
+  expect(await performInstall({ ...input, base: b })).toMatchObject({
+    kind: "installed",
+    active: "1.0.0",
+  });
+  // … the offline update of B with its service is refused before B's selector
+  // changes …
+  await writeFile(input.executable, executable("2.0.0"));
+  const newer = {
+    ...input,
+    base: b,
+    identity: {
+      ...input.identity,
+      version: "2.0.0",
+      commit: commitOf("2.0.0"),
+    },
+  };
+  expect(
+    await performInstall({ ...newer, service: { folder: folderB } }),
+  ).toMatchObject({
+    code: "storage-unavailable",
+    context: { reason: "foreign-unit" },
+  });
+  expect(await readSelector(b)).toBe("1.0.0");
+  // … and without it B is updated unsupervised: A's Launchpad is neither
+  // probed nor restarted.
+  expect(await performInstall(newer)).toMatchObject({
+    kind: "updated",
+    from: "1.0.0",
+    to: "2.0.0",
+    restartRequired: true,
+  });
+  expect(commands).toEqual([]);
+  expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(unitA);
+  expect((await detect(a))?.folder).toBe(folderA);
+
+  // B's own marked unit is still B's: detected, and rewritten for another
+  // Folder — and then it is not A's.
+  await rm(join(units, launchpadUnit));
+  expect(
+    await performInstall({ ...newer, service: { folder: folderA } }),
+  ).toMatchObject({ kind: "installed", serviceInstalled: true });
+  expect((await detect(b))?.folder).toBe(folderA);
+  expect(
+    await performInstall({ ...newer, service: { folder: folderB } }),
+  ).toMatchObject({ kind: "installed", serviceInstalled: true });
+  expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(
+    renderLaunchpadUnit(b, folderB),
+  );
+  expect((await detect(b))?.folder).toBe(folderB);
+  expect(await detect(a)).toBeNull();
+
+  // An unmarked unit (a Machines resident runtime) is neither base's.
+  const resident = `[Service]\nExecStart=${a}/bin/lazurio launchpad --base ${a} --folder ${folderA}\n\n[X-Lazurio]\nFolder=${folderA}\n`;
+  await writeFile(join(units, launchpadUnit), resident);
+  expect(await detect(a)).toBeNull();
+  expect(await detect(b)).toBeNull();
+  for (const [base, folder] of [
+    [a, folderA],
+    [b, folderB],
+  ] as const)
+    expect(
+      await performInstall({ ...newer, base, service: { folder } }),
+    ).toMatchObject({ context: { reason: "foreign-unit" } });
+  expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(resident);
+  expect(await readSelector(a)).toBe("1.0.0");
 });
 
 test("a service is refused where there is no systemd user manager, and when it refuses", async () => {
@@ -284,7 +385,7 @@ test("install from a newer executable over an existing installation is the offli
     kind: "installed",
     active: "1.0.0",
   });
-  // Newer: staged, self-checked, switched, previous recorded, mark raised.
+  // Newer: staged, self-checked, switched, mark raised; only it is kept.
   expect(await performInstall(await staged("1.1.0"))).toEqual({
     kind: "updated",
     from: "1.0.0",
@@ -295,12 +396,8 @@ test("install from a newer executable over an existing installation is the offli
     entry: expect.objectContaining({ state: "present" }),
   });
   expect(await readSelector(base)).toBe("1.1.0");
-  expect(await readPrevious(base)).toBe("1.0.0");
   expect(await readHighWater(base)).toBe("1.1.0");
-  expect((await readdir(join(base, "versions"))).sort()).toEqual([
-    "1.0.0",
-    "1.1.0",
-  ]);
+  expect((await readdir(join(base, "versions"))).sort()).toEqual(["1.1.0"]);
   // Equal: unchanged.
   expect(await performInstall(await staged("1.1.0"))).toMatchObject({
     kind: "installed",
@@ -319,13 +416,12 @@ test("install from a newer executable over an existing installation is the offli
     await performInstall(await staged("1.2.0", { healthy: false })),
   ).toMatchObject({ kind: "error", code: "self-check-failed" });
   expect(await readSelector(base)).toBe("1.1.0");
-  expect((await readdir(join(base, "versions"))).sort()).toEqual([
-    "1.0.0",
-    "1.1.0",
-  ]);
-  // After a rollback the high-water mark is the floor: 1.1.0 again is the
-  // retry, 1.0.5 stays refused even though it is above the active version.
-  await performRollback({ base, identity: input.identity, service: null });
+  expect((await readdir(join(base, "versions"))).sort()).toEqual(["1.1.0"]);
+  // An installation an older release rolled back sits below its mark: the
+  // mark is the floor, so 1.1.0 again is allowed and 1.0.5 stays refused
+  // even though it is above the active version.
+  await performInstall(input);
+  await swapSelector(base, "1.0.0");
   expect(await readSelector(base)).toBe("1.0.0");
   expect(await performInstall(await staged("1.0.5"))).toMatchObject({
     kind: "error",
@@ -340,7 +436,7 @@ test("install from a newer executable over an existing installation is the offli
   expect(await readSelector(base)).toBe("1.1.0");
 });
 
-test("the offline update on a supervised installation restarts the installer's unit and undoes when the Launchpad never reports the new version", async () => {
+test("the offline update on a supervised installation restarts the installer's unit; a Launchpad that never reports the new version is activation-unhealthy and nothing is undone", async () => {
   const { input, commands } = await scene("1.0.0");
   const { base } = input;
   const folder = join(root, "Lazurio");
@@ -351,9 +447,8 @@ test("the offline update on a supervised installation restarts the installer's u
   const file = join(root, "Downloads", "lazurio-1.1.0");
   await writeFile(file, executable("1.1.0"), { mode: 0o755 });
   commands.length = 0;
-  // No Launchpad answers on the health socket, so the activation is undone
-  // exactly as `lazurio update` would undo it: switched back, restarted,
-  // no high-water mark, and the tree stays usable.
+  // No Launchpad answers on the health socket: the switch stays, the mark
+  // follows it, and the result says so.
   expect(
     await performInstall({
       ...input,
@@ -362,11 +457,14 @@ test("the offline update on a supervised installation restarts the installer's u
       service: { folder },
       healthDeadlineMs: 200,
     }),
-  ).toMatchObject({ kind: "error", code: "activation-failed" });
-  expect(await readSelector(base)).toBe("1.0.0");
-  expect(await readHighWater(base)).toBeNull();
+  ).toMatchObject({
+    kind: "error",
+    code: "activation-unhealthy",
+    context: { from: "1.0.0", to: "1.1.0" },
+  });
+  expect(await readSelector(base)).toBe("1.1.0");
+  expect(await readHighWater(base)).toBe("1.1.0");
   expect(commands.filter((c) => c[2] === "restart").map((c) => c[3])).toEqual([
-    launchpadUnit,
     launchpadUnit,
   ]);
 });
@@ -423,17 +521,17 @@ test("a retained high-water mark is the floor even when the selector is missing:
   ).toMatchObject({ kind: "error", code: "self-check-failed" });
   expect(await readSelector(base)).toBeNull();
   expect(await readHighWater(base)).toBe("1.1.0");
-  expect((await readdir(join(base, "versions"))).sort()).toEqual([
-    "1.0.0",
-    "1.1.0",
-  ]);
+  expect((await readdir(join(base, "versions"))).sort()).toEqual(["1.1.0"]);
   expect(await performInstall(await staged("1.1.0"))).toMatchObject({
     kind: "installed",
     active: "1.1.0",
   });
-  // A marker with no selector is a state no crash produces: nothing is
-  // staged or switched, the marker and the mark stay for a person to look at.
-  await writePending(base, { from: "1.1.0", to: "1.2.0" });
+  // A marker a v0.1.x updater left, with no selector, is a state no crash
+  // produces: nothing is staged or switched, the marker and the mark stay
+  // for a person to look at.
+  await writeLegacyRollbackState(base, {
+    pending: '{"from":"1.1.0","to":"1.2.0"}\n',
+  });
   await rm(join(base, "bin", "lazurio"));
   expect(await performInstall(await staged("1.3.0"))).toMatchObject({
     kind: "error",
@@ -445,13 +543,10 @@ test("a retained high-water mark is the floor even when the selector is missing:
   expect(await readFile(join(base, "update", "pending.json"), "utf8")).toBe(
     '{"from":"1.1.0","to":"1.2.0"}\n',
   );
-  expect((await readdir(join(base, "versions"))).sort()).toEqual([
-    "1.0.0",
-    "1.1.0",
-  ]);
+  expect((await readdir(join(base, "versions"))).sort()).toEqual(["1.1.0"]);
 });
 
-test("the same-version rerun over a switched pending activation reconciles the marker first, like every mutating update command", async () => {
+test("install over an installation with the rollback unit and a previous version converges it forward: marker finished, rollback unit deleted, Launchpad unit rewritten, previous removed", async () => {
   const { input, commands } = await scene("1.0.0");
   const { base } = input;
   const folder = join(root, "Lazurio");
@@ -463,32 +558,67 @@ test("the same-version rerun over a switched pending activation reconciles the m
     ...input,
     executable: file,
     identity: { version: "1.1.0", commit: commitOf("1.1.0"), target },
-    service: { folder },
-    healthDeadlineMs: 200,
   };
-  // A supervised activation that crashed after the switch: marker present,
-  // selector on `to`, previous on `from`, version 1.1.0 staged.
-  await performInstall({ ...staged, identity: input.identity });
-  const { setPrevious, swapSelector } = await import("../src/update/layout");
-  await setPrevious(base, "1.0.0");
+  // 1.1.0 staged next to 1.0.0; then, by hand, what a v0.1.x supervised
+  // activation that crashed after its switch left: selector on `to`,
+  // `previous` on `from`, the marker, and the v0.1.x units.
+  expect(
+    await performInstall({ ...staged, healthDeadlineMs: 200 }),
+  ).toMatchObject({ code: "activation-unhealthy" });
+  await mkdir(join(base, "versions", "1.0.0"));
+  await copyFile(input.executable, join(base, "versions", "1.0.0", "lazurio"));
   await swapSelector(base, "1.1.0");
-  await writePending(base, { from: "1.0.0", to: "1.1.0" });
-  commands.length = 0;
-  // No Launchpad answers, so the reconcile undoes (switch back, restart,
-  // marker gone) and the rerun then proceeds as the offline update, which
-  // this Machine cannot commit either: activation-failed, usable on 1.0.0.
-  expect(await performInstall(staged)).toMatchObject({
-    kind: "error",
-    code: "activation-failed",
+  await writeLegacyRollbackState(base, {
+    previous: "1.0.0",
+    pending: '{"from":"1.0.0","to":"1.1.0"}\n',
   });
-  expect(await readSelector(base)).toBe("1.0.0");
-  expect(await readHighWater(base)).toBeNull();
-  await expect(
-    readFile(join(base, "update", "pending.json"), "utf8"),
-  ).rejects.toThrow();
-  expect(commands.filter((c) => c[2] === "restart").map((c) => c[3])).toEqual([
-    launchpadUnit,
-    launchpadUnit,
-    launchpadUnit,
-  ]);
+  const units = join(root, "config/systemd/user");
+  await writeFile(
+    join(units, launchpadUnit),
+    [
+      unitMarker,
+      "[Unit]",
+      "Description=Lazurio Launchpad",
+      "StartLimitIntervalSec=60",
+      "StartLimitBurst=5",
+      "OnFailure=lazurio-rollback.service",
+      "",
+      "[Service]",
+      `ExecStart=${base}/bin/lazurio launchpad --base ${base} --folder ${folder}`,
+      "Restart=on-failure",
+      "RestartSec=2",
+      "",
+      "[Install]",
+      "WantedBy=default.target",
+      "",
+      "[X-Lazurio]",
+      `Folder=${folder}`,
+      "",
+    ].join("\n"),
+  );
+  await writeFile(
+    join(units, "lazurio-rollback.service"),
+    `${unitMarker}\n[Service]\nType=oneshot\nExecStart=${base}/previous/lazurio update rollback --auto --base ${base}\n`,
+  );
+  commands.length = 0;
+  // The same version again, without --service: nothing to install, but the
+  // leftovers are converged. No Launchpad answers, and still nothing goes
+  // back to 1.0.0.
+  expect(await performInstall(staged)).toMatchObject({
+    kind: "installed",
+    active: "1.1.0",
+  });
+  expect(await readSelector(base)).toBe("1.1.0");
+  expect(await readHighWater(base)).toBe("1.1.0");
+  expect(await readLegacyRollbackState(base)).toEqual({
+    previous: null,
+    pending: null,
+  });
+  expect((await readdir(join(base, "versions"))).sort()).toEqual(["1.1.0"]);
+  expect(await readdir(units)).toEqual([launchpadUnit]);
+  expect(await readFile(join(units, launchpadUnit), "utf8")).toBe(
+    renderLaunchpadUnit(base, folder),
+  );
+  // Reread, never restarted.
+  expect(commands).toEqual([["systemctl", "--user", "daemon-reload"]]);
 });

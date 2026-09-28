@@ -1,5 +1,6 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { chmod, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readdir, readFile, readlink, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 import { releaseClaims } from "../scripts/update-fixture";
@@ -9,15 +10,10 @@ import {
 } from "../src/update/attestation";
 import { productOrigin } from "../src/update/identity";
 import { readLastCheck } from "../src/update/last-check";
-import {
-  layout,
-  readHighWater,
-  readPrevious,
-  readSelector,
-} from "../src/update/layout";
+import { layout, readHighWater, readSelector } from "../src/update/layout";
+import { type ProcessRunner, runProcess } from "../src/update/self-check";
 import {
   checkForUpdate,
-  performRollback,
   performUpdate,
   readStatus,
 } from "../src/update/update";
@@ -40,7 +36,6 @@ afterAll(closeSharedSigstore);
 
 const disk = async (base: string) => ({
   active: await readSelector(base),
-  previous: await readPrevious(base),
   highWater: await readHighWater(base),
   versions: (await readdir(layout(base).versions)).sort(),
   update: (await readdir(layout(base).update)).sort(),
@@ -84,10 +79,10 @@ test("forward update: check, verify, download, self-check, switch; the switch is
   ]);
   expect(await disk(world.base)).toEqual({
     active: "1.1.0",
-    previous: "1.0.0",
     highWater: "1.1.0",
-    versions: ["1.0.0", "1.1.0"],
-    // No marker on an unsupervised installation, and no scratch left.
+    // Only the active version is kept: there is no way back to keep one for.
+    versions: ["1.1.0"],
+    // No marker and no scratch left.
     update: ["high-water", "last-check.json", "lock"],
   });
   const staged = await stat(join(world.base, "versions/1.1.0/lazurio"));
@@ -98,8 +93,8 @@ test("forward update: check, verify, download, self-check, switch; the switch is
     notesUrl: "https://github.com/Lazurio/LazurioPlatform/releases/tag/v1.1.0",
   });
 
-  // The new version, asked again, is up to date; a third version prunes the
-  // oldest: the active and the previous one are kept.
+  // The new version, asked again, is up to date; a third version prunes
+  // everything but itself.
   expect(await performUpdate(world.environment("1.1.0"))).toEqual({
     kind: "up-to-date",
     running: "1.1.0",
@@ -110,24 +105,17 @@ test("forward update: check, verify, download, self-check, switch; the switch is
   expect((await performUpdate(world.environment("1.1.0"))).kind).toBe(
     "updated",
   );
-  expect((await disk(world.base)).versions).toEqual(["1.1.0", "1.2.0"]);
+  expect((await disk(world.base)).versions).toEqual(["1.2.0"]);
 });
 
-test("the floor: after a rollback no network path goes below the high-water mark; the equal retry is allowed", async () => {
+test("the floor: no network path goes below the high-water mark; an installation an older release rolled back may return to its mark", async () => {
   world = await createWorld();
   await world.release("1.1.0");
   await world.release("1.2.0");
-  expect((await performUpdate(world.environment("1.0.0"))).kind).toBe(
-    "updated",
-  );
-  expect(await performRollback(world.environment("1.2.0"))).toEqual({
-    kind: "rolled-back",
-    from: "1.2.0",
-    to: "1.0.0",
-  });
+  // What a rollback under v0.1.x left: the selector below the mark.
+  await writeFile(layout(world.base).highWater, "1.2.0\n");
   expect(await disk(world.base)).toMatchObject({
     active: "1.0.0",
-    previous: "1.2.0",
     highWater: "1.2.0",
   });
   // `latest` now answers with an older release, as a hostile network could.
@@ -146,12 +134,11 @@ test("the floor: after a rollback no network path goes below the high-water mark
     [],
   );
   expect((await disk(world.base)).active).toBe("1.0.0");
-  // Equal to the mark and not active: the retry after the rollback.
+  // Equal to the mark and not active: forward to the mark again.
   expect(await performUpdate(environment, "1.2.0")).toMatchObject({
     kind: "updated",
     to: "1.2.0",
   });
-  // The staged bytes were re-established, not downloaded a second time.
   expect(
     artifactRequests().filter((path) => path.startsWith("/storage/v1.2.0")),
   ).toHaveLength(1);
@@ -186,7 +173,6 @@ const unchanged = async (result: unknown, code: string) => {
   expect(result).toMatchObject({ kind: "error", code });
   expect(await disk(world.base)).toMatchObject({
     active: "1.0.0",
-    previous: null,
     highWater: null,
     versions: ["1.0.0"],
   });
@@ -445,9 +431,6 @@ test("concurrent runs: one owns the base, the other is busy and harmless", async
     kind: "error",
     code: "busy",
   });
-  expect(await performRollback(world.environment("1.0.0"))).toMatchObject({
-    code: "busy",
-  });
   // A check takes no lock and is never in the way.
   expect((await checkForUpdate(world.environment("1.0.0"))).kind).toBe(
     "available",
@@ -506,27 +489,102 @@ test("a version that fails its own self-check is never switched to", async () =>
   await unchanged(failed, "self-check-failed");
 });
 
-test("supervised: restart, health at the new version, then commit", async () => {
+/** Every entry under the base with its bytes or link target: what "changed
+ * nothing" means, byte for byte. The check's own cache is not the base. */
+async function tree(directory: string, prefix = ""): Promise<string[]> {
+  const entries: string[] = [];
+  for (const entry of (await readdir(directory, { withFileTypes: true })).sort(
+    (a, b) => a.name.localeCompare(b.name),
+  )) {
+    const path = join(directory, entry.name);
+    const name = `${prefix}${entry.name}`;
+    if (name === "update/last-check.json") continue;
+    if (entry.isSymbolicLink())
+      entries.push(`${name} -> ${await readlink(path)}`);
+    else if (entry.isDirectory())
+      entries.push(...(await tree(path, `${name}/`)));
+    else
+      entries.push(
+        `${name} ${(await stat(path)).mode.toString(8)} ${createHash("sha256")
+          .update(await readFile(path))
+          .digest("hex")}`,
+      );
+  }
+  return entries;
+}
+
+/** A process runner that records every command and really runs it. */
+function recordingRunner() {
+  const commands: string[][] = [];
+  const run: ProcessRunner = (command, timeoutMs, env) => {
+    commands.push([...command]);
+    return runProcess(command, timeoutMs, env);
+  };
+  return { commands, run };
+}
+
+test("supervised: self-check and Launchpad probe, switch, restart, health at the new version", async () => {
   world = await createWorld();
   await world.release("1.1.0");
   const service = fakeService(world.base, { folder: "/nonexistent/Folder" });
-  expect(await performUpdate(world.environment("1.0.0", { service }))).toEqual({
+  const { commands, run } = recordingRunner();
+  expect(
+    await performUpdate(world.environment("1.0.0", { service, run })),
+  ).toEqual({
     kind: "updated",
     from: "1.0.0",
     to: "1.1.0",
     restartRequired: false,
     folderRefresh: null,
   });
+  // The candidate ran its Launchpad probe against the unit's Folder BEFORE
+  // the switch: the point of no return is the switch, never after it.
+  expect(commands).toEqual([
+    [
+      join(world.base, "versions/1.1.0/lazurio"),
+      "self-check",
+      "--json",
+      "--base",
+      world.base,
+      "--folder",
+      "/nonexistent/Folder",
+      "--launchpad",
+    ],
+  ]);
   expect(service).toMatchObject({ restarts: 1, running: "1.1.0" });
   expect(await disk(world.base)).toMatchObject({
     active: "1.1.0",
-    previous: "1.0.0",
     highWater: "1.1.0",
+    versions: ["1.1.0"],
     update: ["high-water", "last-check.json", "lock"],
   });
 });
 
-test("supervised: a version that never reports healthy is undone and never raises the mark", async () => {
+test("a candidate whose Launchpad fails to start is removed, and the active version is unchanged byte for byte", async () => {
+  world = await createWorld();
+  await world.release("1.1.0", { launchpadRefused: "folder-state-unreadable" });
+  const service = fakeService(world.base, { folder: "/nonexistent/Folder" });
+  service.running = "1.0.0";
+  const before = await tree(world.base);
+  expect(await performUpdate(world.environment("1.0.0", { service }))).toEqual({
+    kind: "error",
+    code: "self-check-failed",
+    context: {
+      reason: "launchpad-refused",
+      refusal: "folder-state-unreadable",
+    },
+  });
+  // Nothing was switched, restarted or left behind: the base is exactly as
+  // it was, and the running Launchpad was never touched.
+  expect(await tree(world.base)).toEqual(before);
+  expect(service).toMatchObject({ restarts: 0, running: "1.0.0" });
+  // Unsupervised there is no Launchpad to probe: nothing names a Folder.
+  expect((await performUpdate(world.environment("1.0.0"))).kind).toBe(
+    "updated",
+  );
+});
+
+test("supervised: a version whose Launchpad never reports healthy stays active — activation-unhealthy, nothing undone, repaired forward", async () => {
   world = await createWorld();
   await world.release("1.1.0");
   const service = fakeService(world.base, { unhealthy: ["1.1.0"] });
@@ -534,67 +592,38 @@ test("supervised: a version that never reports healthy is undone and never raise
     service,
     healthDeadlineMs: 300,
   });
-  expect(await performUpdate(environment)).toMatchObject({
+  expect(await performUpdate(environment)).toEqual({
     kind: "error",
-    code: "activation-failed",
+    code: "activation-unhealthy",
     context: { from: "1.0.0", to: "1.1.0" },
   });
-  // Switched back and restarted: the old version runs again.
-  expect(service).toMatchObject({ restarts: 2, running: "1.0.0" });
+  // One restart, of the new version; no switch back.
+  expect(service).toMatchObject({ restarts: 1, running: "1.1.0" });
   expect(await disk(world.base)).toMatchObject({
-    active: "1.0.0",
-    highWater: null,
-    // The verified bytes stay staged for the retry; nothing else remains.
-    versions: ["1.0.0", "1.1.0"],
-    update: ["last-check.json", "lock"],
-  });
-  // The pill returns to `available`; the retry is the same action.
-  expect(await readStatus(environment)).toMatchObject({
-    active: "1.0.0",
-    updateAvailable: true,
-    pending: null,
-  });
-  await world.release("1.1.1");
-  expect((await performUpdate(environment)).kind).toBe("updated");
-});
-
-test("rollback: previous after its own self-check; the version left stays the floor", async () => {
-  world = await createWorld();
-  expect(await performRollback(world.environment("1.0.0"))).toMatchObject({
-    code: "rollback-unavailable",
-    context: { reason: "none" },
-  });
-  await world.release("1.1.0");
-  const service = fakeService(world.base);
-  await performUpdate(world.environment("1.0.0", { service }));
-  // A previous version that can no longer read the state is not an answer.
-  const previous = join(world.base, "versions/1.0.0/lazurio");
-  const bytes = await readFile(previous);
-  await chmod(previous, 0o700);
-  await writeFile(previous, executable("1.0.0", { healthy: false }));
-  expect(
-    await performRollback(world.environment("1.1.0", { service })),
-  ).toMatchObject({
-    code: "rollback-unavailable",
-    context: { reason: "self-check" },
-  });
-  expect((await disk(world.base)).active).toBe("1.1.0");
-  await writeFile(previous, bytes);
-
-  expect(
-    await performRollback(world.environment("1.1.0", { service })),
-  ).toEqual({ kind: "rolled-back", from: "1.1.0", to: "1.0.0" });
-  expect(service.running).toBe("1.0.0");
-  expect(await disk(world.base)).toMatchObject({
-    active: "1.0.0",
-    previous: "1.1.0",
+    active: "1.1.0",
     highWater: "1.1.0",
+    versions: ["1.1.0"],
     update: ["high-water", "last-check.json", "lock"],
   });
-  // Rolling "back" again is rolling forward to what was left.
+  expect(await readStatus(environment)).toMatchObject({
+    active: "1.1.0",
+    updateAvailable: false,
+    legacyRollbackState: false,
+  });
+  // Nothing goes below the active version, not even by name …
+  await world.release("1.0.0", { latest: false });
   expect(
-    await performRollback(world.environment("1.0.0", { service })),
-  ).toMatchObject({ kind: "rolled-back", to: "1.1.0" });
+    await performUpdate(world.environment("1.1.0", { service }), "1.0.0"),
+  ).toMatchObject({
+    code: "release-invalid",
+    context: { reason: "below-floor" },
+  });
+  // … and a fixed release is the repair.
+  await world.release("1.1.1");
+  expect(
+    await performUpdate(world.environment("1.1.0", { service })),
+  ).toMatchObject({ kind: "updated", from: "1.1.0", to: "1.1.1" });
+  expect(service.running).toBe("1.1.1");
 });
 
 test("status is computed from the paths: versions, the mark and the age of the last verified check", async () => {
@@ -603,10 +632,9 @@ test("status is computed from the paths: versions, the mark and the age of the l
     kind: "status",
     running: "1.0.0",
     active: "1.0.0",
-    previous: null,
     highWater: null,
     supervised: false,
-    pending: null,
+    legacyRollbackState: false,
     stateInvalid: null,
     lastCheck: null,
     updateAvailable: false,
@@ -637,7 +665,6 @@ test("nothing installed: every update command says so and creates no installatio
   for (const result of [
     await checkForUpdate(environment),
     await performUpdate(environment),
-    await performRollback(environment),
   ])
     expect(result).toMatchObject({ kind: "error", code: "not-installed" });
   expect(await readdir(world.root)).not.toContain("absent-base");

@@ -39,8 +39,8 @@ export type PillStatus = Readonly<{
    * changes no state. */
   stale: boolean;
   supervised: boolean;
-  /** Unsupervised only: the switch is done and this Launchpad's restart
-   * finishes the update. */
+  /** The switch is done and nobody is finishing it: this Launchpad's
+   * restart finishes the update. */
   restartRequired: boolean;
   action: PillAction | null;
   error: UpdateError | null;
@@ -64,7 +64,7 @@ export type PillInput = Readonly<{
 /** Pure: the state and the single action for it, from the inputs alone. */
 export function derivePillStatus(input: PillInput): PillStatus {
   const { status, activation } = input;
-  const { running, active, lastCheck, supervised, pending } = status;
+  const { running, active, lastCheck, supervised } = status;
   const floor =
     active !== null && status.highWater !== null
       ? compareVersions(active, status.highWater) >= 0
@@ -76,35 +76,24 @@ export function derivePillStatus(input: PillInput): PillStatus {
     lastCheck !== null &&
     compareVersions(lastCheck.latest, running) > 0 &&
     (floor === null || compareVersions(lastCheck.latest, floor) >= 0);
-  // The selector or the marker names a version this Launchpad is not.
-  const switched = pending !== null || (active !== null && active !== running);
-  // Supervised, switched, nobody finishing it: the updater died between the
-  // switch and the restart. The same click reconciles and starts over.
-  const interrupted =
-    supervised &&
-    pending !== null &&
-    pending.to !== running &&
-    !activation.inFlight;
+  // The selector names a version this Launchpad is not: the switch is done.
+  const switched = active !== null && active !== running;
   const state: PillState = activation.inFlight
     ? switched
       ? "activating"
       : "downloading"
-    : interrupted
-      ? "available"
-      : switched
-        ? "activating"
-        : input.checking
-          ? "checking"
-          : available
-            ? "available"
-            : "idle";
-  const error =
-    activation.failure ??
-    (interrupted
-      ? updateError("activation-failed", { reason: "interrupted" })
-      : null) ??
-    input.checkError;
-  const restartRequired = state === "activating" && !supervised;
+    : switched
+      ? "activating"
+      : input.checking
+        ? "checking"
+        : available
+          ? "available"
+          : "idle";
+  const error = activation.failure ?? input.checkError;
+  // Switched and nobody finishing it — unsupervised always, supervised when
+  // the updater ended before the restart: the switch is final, and a restart
+  // of this Launchpad is what finishes it. Nothing goes back.
+  const restartRequired = state === "activating" && !activation.inFlight;
   const action: PillAction | null =
     state === "available" && lastCheck !== null
       ? error === null

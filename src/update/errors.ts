@@ -17,9 +17,15 @@ export const updateErrorCodes = [
   "storage-unavailable",
   "disk-full",
   "not-installed",
+  /** The candidate failed its self-check or its Launchpad probe; it was
+   * removed and nothing was switched. */
   "self-check-failed",
+  /** The service manager refused to enable or start the Launchpad unit. */
   "activation-failed",
-  "rollback-unavailable",
+  /** After the switch, the restarted Launchpad did not report the new version
+   * within the deadline. Nothing is undone: the new version stays active and
+   * its Launchpad is in Recovery mode or not running; repair goes forward. */
+  "activation-unhealthy",
   /** Update state that no crash can produce. Never cleared, rewritten or
    * guessed: mutating commands refuse, naming the path, until a person acts. */
   "state-invalid",
@@ -76,6 +82,9 @@ export const updateErrorReasons = [
   "self-check",
   // the Launchpad's update pill (src/launchpad/update-pill.ts)
   "interrupted",
+  // the candidate's Launchpad probe (self-check.ts, docs/update.md "Activation")
+  "launchpad-refused",
+  "launchpad",
 ] as const;
 export type UpdateErrorReason = (typeof updateErrorReasons)[number];
 
@@ -101,6 +110,10 @@ export const updateErrorStages = [
   "trust-cache",
   "unit",
   "unit-argument",
+  // an activation an older updater switched and never finished (update.ts)
+  "legacy-marker",
+  // the remove-rollback migration (migrations/remove-rollback)
+  "migration",
 ] as const;
 export type UpdateErrorStage = (typeof updateErrorStages)[number];
 

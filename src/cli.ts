@@ -18,6 +18,11 @@ import {
   readApplicationRequest,
   requestApplication,
 } from "./launchpad/application-client";
+import {
+  recoveryCheck,
+  startOrRecover,
+  startRecoveryMode,
+} from "./launchpad/recovery-mode";
 import { startLaunchpad } from "./launchpad/server";
 import { createUpdatePill } from "./launchpad/update-pill";
 import {
@@ -77,9 +82,8 @@ function emit(output: CommandOutput): number {
   return output.code;
 }
 
-// The installed Launchpad of this base answers the updater's health question,
-// commits an activation whose updater is gone, and serves the update pill on
-// the same update core and service the CLI uses.
+// The installed Launchpad of this base answers the updater's health question
+// and serves the update pill on the same update core and service the CLI uses.
 async function installedLaunchpad(explicitBase: string, folder: string) {
   const context = processContext();
   const base = installBase(context, explicitBase);
@@ -501,24 +505,46 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       });
       applicationRunner = kind;
     }
-    const { close, url, hosted } = await startLaunchpad(
-      values.folder,
-      applicationAdapters,
-      organizationDirectory === undefined
-        ? undefined
-        : { organizationDirectory },
-      // `--base` is what the installed service unit passes: this instance is
-      // the Launchpad of that installation.
+    const folder = values.folder;
+    // `--base` is what the installed service unit passes: this instance is
+    // the Launchpad of that installation.
+    const installed =
       values.base === undefined
         ? undefined
-        : await installedLaunchpad(values.base, values.folder),
+        : await installedLaunchpad(values.base, folder);
+    // A start refused on a condition this executable can name does not exit:
+    // it serves Recovery mode on the same port (docs/update.md "Recovery
+    // mode"), so a supervised unit never loops and the operator sees why.
+    const started = await startOrRecover(
+      () =>
+        startLaunchpad(
+          folder,
+          applicationAdapters,
+          organizationDirectory === undefined
+            ? undefined
+            : { organizationDirectory },
+          installed,
+        ),
+      (refusal) => startRecoveryMode({ refusal, base: installed?.base }),
     );
+    const { close, url, hosted } = started.value;
     console.log(
-      JSON.stringify({
-        url,
-        scope: hosted ? "hosted-entry" : "local-development-profile-panel",
-        ...(applicationRunner === undefined ? {} : { applicationRunner }),
-      }),
+      JSON.stringify(
+        started.mode === "recovery"
+          ? {
+              url,
+              scope: "recovery-mode",
+              check: recoveryCheck,
+              reason: started.value.reason,
+            }
+          : {
+              url,
+              scope: hosted
+                ? "hosted-entry"
+                : "local-development-profile-panel",
+              ...(applicationRunner === undefined ? {} : { applicationRunner }),
+            },
+      ),
     );
     for (const signal of ["SIGINT", "SIGTERM"] as const)
       process.once(signal, async () => {

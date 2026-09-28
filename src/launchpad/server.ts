@@ -8,7 +8,7 @@ import {
   readFolderTools,
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
-import { withFolderOperationLock, withFolderReadLock } from "../folder/lock";
+import { withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { allowedPresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
@@ -34,35 +34,16 @@ import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { runTool, xdgOf } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
-import { reconcileAsLaunchpad } from "../update/activation";
-import { layout } from "../update/layout";
-import { launchpadHealth } from "../update/service-control";
+import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import index from "./index.html";
 import { pagePaths } from "./routes";
+import {
+  checkBundledPage,
+  LaunchpadStartRefused,
+  readStartState,
+} from "./start-check";
 import type { UpdatePill } from "./update-pill";
-
-export const launchpadCommitDelayMs = 15_000;
-
-// The installed service's health question (docs/update.md "Activation"): which
-// version is running. A Unix socket under the install base, so only this user
-// can ask and the updater needs no port or session token to find it. It states
-// the version and nothing else.
-async function serveHealth(base: string, version: string) {
-  const path = layout(base).healthSocket;
-  // A socket file outlives a killed Launchpad; one that still answers is a live
-  // Launchpad of this base, and there is only ever one.
-  if ((await launchpadHealth(base)) !== null)
-    throw new Error("Another Launchpad serves this install base");
-  await rm(path, { force: true });
-  return Bun.serve({
-    unix: path,
-    fetch: (request) =>
-      new URL(request.url).pathname === "/health" && request.method === "GET"
-        ? Response.json({ version })
-        : new Response(null, { status: 404 }),
-  });
-}
 
 // One local owner. Optional application adapters are trusted composition, never
 // HTTP input; the browser cannot supply a filesystem root or executable.
@@ -94,17 +75,68 @@ function withQr(state: LoginState): LoginState & { qrSvg?: string } {
   return { ...state, qrSvg: qrSvg(qrMatrix(state.challenge.payload)) };
 }
 
+// The page of this executable on a private unix socket, asked by `operation`
+// and closed again: how a start and a candidate's probe learn that the bundle
+// serves, without a port and without writing anything but the socket in a
+// private temporary directory.
+async function privatePage<T>(
+  operation: (get: (path: string) => Promise<Response>) => Promise<T>,
+  version?: string,
+): Promise<T> {
+  const directory = await mkdtemp(join(tmpdir(), "lazurio-page-"));
+  const socket = join(directory, "page.sock");
+  const server = Bun.serve({
+    unix: socket,
+    development: false,
+    routes: pageRoutes,
+    fetch: (request) =>
+      version !== undefined &&
+      new URL(request.url).pathname === "/health" &&
+      request.method === "GET"
+        ? Response.json({ version })
+        : new Response("not-found", { status: 404 }),
+  });
+  try {
+    return await operation((path) =>
+      fetch(`http://launchpad.invalid${path}`, { unix: socket }),
+    );
+  } finally {
+    await server.stop(true);
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+/** The candidate's probe (`self-check --launchpad`, docs/update.md
+ * "Activation"): the Launchpad start sequence against the real Folder,
+ * read-only — no Folder lock, no real port, no health socket under the base —
+ * then the page and its health answered once on a private socket. Throws
+ * `LaunchpadStartRefused` for a condition the start would name.
+ */
+export async function probeLaunchpad(
+  folder: string,
+  version: string,
+): Promise<void> {
+  const { entry } = await readStartState(folder, { locked: false });
+  const served = await privatePage(async (get) => {
+    const health = (await (await get("/health")).json()) as {
+      version?: unknown;
+    };
+    if (health.version !== version)
+      throw new Error("The probe did not answer its own health");
+    return checkBundledPage(get);
+  }, version);
+  if (!served) throw new LaunchpadStartRefused("asset-missing", entry);
+}
+
 export async function startLaunchpad(
   folder: string,
   applicationAdapters?: Parameters<typeof createApplicationLifecycle>[0],
   discovery?: Readonly<{ organizationDirectory: string }>,
   // The installed Launchpad service of this base (`launchpad --base`): it
-  // answers the updater's health question and commits an activation whose
-  // updater is gone.
+  // answers the updater's health question.
   installed?: Readonly<{
     base: string;
     version: string;
-    commitDelayMs?: number;
     /** The update pill of this installation (docs/update.md "Surfaces"):
      * `GET /api/update/status` and `POST /api/update/apply`. */
     pill?: UpdatePill | undefined;
@@ -132,16 +164,16 @@ export async function startLaunchpad(
   const organizationDirectory = discovery?.organizationDirectory;
   if (organizationDirectory !== undefined)
     await inspectOwnedDirectory(organizationDirectory);
-  await inspectOwnedDirectory(folder);
   const state = join(folder, ".lazurio");
-  const initial = await withFolderOperationLock(state, () =>
-    readFolderState(state),
-  );
   // The recorded hosted entry (decision F16) is the only source of hosted
   // mode: the Launchpad serves on the loopback port the gateway proxies to,
   // admission is the gateway's (docs/hosted-entry.md), and there is no
-  // fragment token — the browser's session cookie is the credential.
-  const entry = initial.preferences.machine?.entry ?? null;
+  // fragment token — the browser's session cookie is the credential. A
+  // condition this start can name refuses it with `LaunchpadStartRefused`,
+  // before anything listens, so the caller can serve Recovery mode instead.
+  const { entry } = await readStartState(folder, { locked: true });
+  if (!(await privatePage(checkBundledPage)))
+    throw new LaunchpadStartRefused("asset-missing", entry);
   const trust = entry === null ? null : createHostedTrust(entry, hostedOptions);
   // The bundled page is served by an inner listener and proxied only after
   // admission, so nothing of the Launchpad answers an unadmitted browser — not
@@ -542,21 +574,12 @@ export async function startLaunchpad(
       }
     },
   });
-  // The listener above exists: only now is the version reported, and a live
-  // updater commits on that. An activation whose updater is gone is committed
-  // by this instance itself — but only once it has stayed up longer than the
-  // unit's start limit could still undo it (5 starts in 60 s: a version that
-  // dies sooner must reach `OnFailure=lazurio-rollback.service` uncommitted).
-  // A failure to reconcile never costs the Launchpad its start.
+  // The listener above exists: only now is the version reported, and the
+  // updater's health poll reads it. There is nothing to commit or undo here:
+  // the switch of `bin/lazurio` was the commit (docs/update.md "Activation").
   const health = installed
-    ? await serveHealth(installed.base, installed.version)
+    ? await serveHealthSocket(installed.base, { version: installed.version })
     : null;
-  const reconcile = installed
-    ? setTimeout(
-        () => void reconcileAsLaunchpad(installed).catch(() => undefined),
-        installed.commitDelayMs ?? launchpadCommitDelayMs,
-      )
-    : undefined;
   pill?.start();
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
@@ -576,7 +599,6 @@ export async function startLaunchpad(
           // Existing requests and shutdown must share the same lifecycle queue.
           const applicationClose = applications?.close();
           const loginClose = logins.close();
-          clearTimeout(reconcile);
           pill?.stop();
           await server.stop(true);
           await shell?.stop(true);
