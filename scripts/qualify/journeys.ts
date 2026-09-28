@@ -23,6 +23,7 @@ import {
 } from "../../src/update/manifest";
 import { compareVersions } from "../../src/update/version";
 import type { FailureDetail } from "./evidence";
+import { logLines, redact } from "./redact";
 
 /** The journeys J1–J5 of the release qualification (docs/release-cycle.md
  * "Qualification and the canary") against the REAL release candidate: the
@@ -106,7 +107,7 @@ async function exec(
     lines?: number;
   } = {},
 ): Promise<Result> {
-  if (!options.quiet) console.log(`$ ${command.join(" ")}`);
+  if (!options.quiet) console.log(redact(`$ ${command.join(" ")}`));
   const child = Bun.spawn([...command], {
     env: options.env ?? productEnv,
     stdin: "ignore",
@@ -120,11 +121,9 @@ async function exec(
   ]);
   const code = await child.exited;
   if (!options.quiet)
-    for (const line of `${stdout}\n${stderr}`
-      .trim()
-      .split("\n")
-      .slice(-(options.lines ?? 30)))
-      if (line) console.log(`  > ${line.slice(0, 300)}`);
+    // Redacted before it is printed: the job log is public.
+    for (const line of logLines(`${stdout}\n${stderr}`, options.lines))
+      console.log(`  > ${line}`);
   return { code, stdout, stderr };
 }
 
@@ -157,7 +156,7 @@ function same(label: string, actual: unknown, expected: unknown) {
       "assertion",
       `${label}: got ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`,
     );
-  console.log(`  PASS ${label}: ${JSON.stringify(actual)}`);
+  console.log(redact(`  PASS ${label}: ${JSON.stringify(actual)}`));
 }
 
 async function waitFor(
@@ -469,7 +468,9 @@ async function diagnostics() {
       await exec(command, { env, lines: 120 });
     for (const name of [unit, "lazurio-rollback.service"]) {
       const text = await readFile(unitFile(name), "utf8").catch(() => null);
-      console.log(`---- ${unitFile(name)} ----\n${text ?? "(absent)"}`);
+      console.log(`---- ${unitFile(name)} ----`);
+      for (const line of logLines(text ?? "(absent)", 120))
+        console.log(`  | ${line}`);
     }
   }
   await exec(["ls", "-la", base, layout(base).update, layout(base).versions], {
@@ -916,7 +917,7 @@ if (import.meta.main) {
     }
     console.log(`${name}: ok`);
   } catch (error) {
-    console.error(`${name}: FAILED — ${(error as Error).message}`);
+    console.error(redact(`${name}: FAILED — ${(error as Error).message}`));
     process.exitCode = 1;
     const detail: FailureDetail =
       name === "verify"

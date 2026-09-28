@@ -221,7 +221,11 @@ Every journey writes one line of `lazurio.qualification.v1`
 journey named none). On a failure the job log also carries the diagnostics: the
 unit's status, its last 80 journal lines, `ActiveState`, `SubState`, `Result`,
 `NRestarts` and `ExecMainStatus`, the unit files, the install base and `lazurio
-update status --json` of the installed product. The `evidence` job joins the
+update status --json` of the installed product. The job log is public, so everything
+a journey prints passes one redaction first (`scripts/qualify/redact.ts`): a URL
+fragment (the Launchpad's session token) becomes `#<redacted>`, and the value of any
+field named like a token, credential, secret, authorization or cookie — in JSON, a
+query or a header — becomes `<redacted>`; only then is the output truncated. The `evidence` job joins the
 lines into the artifact `qualification-<tag>` (kept 90 days, also when a journey
 failed) and fails unless every journey is `ok` exactly once on every target, for
 exactly the bytes and the commit of the candidate's published manifest.
