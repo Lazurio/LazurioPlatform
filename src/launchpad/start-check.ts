@@ -1,9 +1,10 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderOperationLock } from "../folder/lock";
+import { parseMachineEntry } from "../folder/machine-binding";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState, readStateJson } from "../folder/read-state";
-import { type HostedEntry, parseHostedEntry } from "./hosted-trust";
+import type { HostedEntry } from "./hosted-trust";
 
 /** The conditions under which the Launchpad cannot start normally and can say
  * why (docs/update.md "Recovery mode", check `start-refused`). The ids are a
@@ -63,7 +64,9 @@ async function unreadable(state: string): Promise<LaunchpadStartRefused> {
   let entry: HostedEntry | null = null;
   if (recorded !== null)
     try {
-      entry = parseHostedEntry(recorded);
+      // The recorded entry is the handover's projection (six members, the
+      // four hosted admission values among them).
+      entry = parseMachineEntry(recorded);
     } catch {
       if (!pending) return new LaunchpadStartRefused("hosted-entry-invalid");
     }

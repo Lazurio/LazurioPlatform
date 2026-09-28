@@ -13,6 +13,7 @@ import {
   initializeFolder,
   initializeHandoverFolder,
 } from "../src/folder/initialize-folder";
+import { parseMachineEntry } from "../src/folder/machine-binding";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import {
@@ -130,11 +131,14 @@ test.skipIf(process.platform === "win32")(
         preset,
         machine: {
           ...bindings.organization,
-          entry: parseHostedEntry({
+          entry: parseMachineEntry({
             externalOrigin: "https://launchpad.workspace.example.lazurio.io",
             authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
             authCookieName: "__Secure-lazurio-workspace",
             listenPort: freePort(),
+            t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
+            moduleOriginTemplate:
+              "https://{module}.workspace.example.lazurio.io",
           }),
         },
         profile: presetProfile(preset, executionOs(process.platform)),
@@ -273,11 +277,13 @@ test.skipIf(process.platform === "win32")(
     await mkdir(join(folder, "organizations"), { mode: 0o755 });
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
     const preset = "hosted-organization-personal";
-    const entry = parseHostedEntry({
+    const entry = parseMachineEntry({
       externalOrigin: "https://launchpad.workspace.example.lazurio.io",
       authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
       authCookieName: "__Secure-lazurio-workspace",
       listenPort: freePort(),
+      t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
+      moduleOriginTemplate: "https://{module}.workspace.example.lazurio.io",
     });
     const once = { attempts: 1, delayMs: 0 };
     try {
