@@ -19,6 +19,7 @@ import {
   readApplicationRequest,
   requestApplication,
 } from "./launchpad/application-client";
+import { chatHelp, runChatCommand } from "./launchpad/chat-cli";
 import {
   recoveryCheck,
   startOrRecover,
@@ -192,6 +193,9 @@ export async function runCli(args: string[]): Promise<number> {
 }
 
 async function runOtherCommand(args: string[]): Promise<number> {
+  // The link alone on stdout; the notice follows on stderr.
+  if (args[0] === "chat")
+    return emit(await runChatCommand(args.slice(1), processContext()));
   if (args[0] === "machine") {
     try {
       const { code, result } = await runMachineCommand(args.slice(1));
@@ -411,6 +415,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(updateHelp);
     console.log(recoverHelp);
     console.log(doctorHelp);
+    console.log(chatHelp);
     console.log(machineHelp);
     return 0;
   }

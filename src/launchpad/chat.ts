@@ -112,3 +112,60 @@ export async function issueChatLink(
     url: t3PairUrl(entry.t3codeOrigin, credential),
   });
 }
+
+/** Why `lazurio chat link` answers without a pairing: asked for the plain
+ * link, the launcher missing or the call refused (the pairing route's own
+ * reasons), or no recorded entry. A contract for automation: never renamed
+ * or reused. */
+export const chatLinkReasons = [
+  "plain-requested",
+  "t3-launcher-missing",
+  "t3-pairing-failed",
+  "not-hosted",
+] as const;
+export type ChatLinkReason = (typeof chatLinkReasons)[number];
+
+/** The answer of `lazurio chat link` (B8's CLI, C.5 item 10): the pairing
+ * link `POST /api/chat/pair` answers, from the same `issueChatLink`; without
+ * one the plain T3 Code origin the page then follows, with the reason; no
+ * link at all without a recorded entry. */
+export type ChatLinkAnswer =
+  | Readonly<{ kind: "chat-link"; url: string; pairing: true }>
+  | Readonly<{
+      kind: "chat-link";
+      url: string;
+      pairing: false;
+      reason: Exclude<ChatLinkReason, "not-hosted">;
+    }>
+  | Readonly<{
+      kind: "chat-link";
+      url: null;
+      pairing: false;
+      reason: "not-hosted";
+    }>;
+
+export async function chatLinkAnswer(
+  entry: MachineEntry | null,
+  environment: ToolsEnvironment,
+  options: Readonly<{ plain: boolean }>,
+): Promise<ChatLinkAnswer> {
+  const recorded = publicEntry(entry);
+  if (entry === null || recorded === null)
+    return Object.freeze({
+      kind: "chat-link",
+      url: null,
+      pairing: false,
+      reason: "not-hosted",
+    });
+  const plain = (reason: Exclude<ChatLinkReason, "not-hosted">) =>
+    Object.freeze({
+      kind: "chat-link" as const,
+      url: recorded.t3codeOrigin,
+      pairing: false as const,
+      reason,
+    });
+  if (options.plain) return plain("plain-requested");
+  const link = await issueChatLink(entry, environment);
+  if (link.kind === "blocked") return plain(link.reason);
+  return Object.freeze({ kind: "chat-link", url: link.url, pairing: true });
+}

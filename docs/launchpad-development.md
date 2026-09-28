@@ -561,6 +561,24 @@ hosted, the fragment token locally):
 | `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate} \| null}`: the recorded entry's public parts, read-only; the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
 | `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON or a credential of another shape); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
 
+**CLI.** `lazurio chat link [--folder <absolute Folder>] [--plain] [--json]`
+(`src/launchpad/chat-cli.ts`) is the same entry for an agent in a terminal: it reads the
+Folder's recorded entry as the Launchpad start does (`readStartState`, without the lock,
+so it writes nothing), found as for `lazurio doctor` (`--folder`, the supervised unit's,
+or on a hosted Machine the declared operator's), and answers from the same
+`issueChatLink` with the same tools environment (`toolsEnvironmentOf`, this process's
+`PATH` and `HOME`), through `chatLinkAnswer` in `src/launchpad/chat.ts`. With a pairing
+the link `<t3codeOrigin>/pair#token=…` alone is on stdout, for the operator's browser;
+without one, on `t3-launcher-missing`, `t3-pairing-failed` or with `--plain`
+(`plain-requested`), stdout carries the plain `t3codeOrigin`, where T3 Code asks the
+browser to pair, and stderr one sentence naming the reason, in the Folder's language.
+Without a recorded entry (`not-hosted`) there is no link: exit 10 and the sentence on
+stderr. `--json` prints `{kind: "chat-link", url, pairing, reason?}` (`url: null` when
+not hosted). Stderr never carries the token. Exit status: 0 a link (paired or plain), 10
+not hosted, 2 usage, 1 the Folder could not be read (its enumerated start refusal, never
+a path). The generated manual tells agents on a hosted Machine to hand this link to the
+operator, never a localhost one (base-instructions-13).
+
 **Page.** `src/launchpad/chat-view.ts` (pure, tested) accepts the entry only in the
 recorded shapes and a pairing link only on the recorded T3 Code origin, path `/pair`, no
 query, a `token` fragment. The Chat link's `href` is `t3codeOrigin` itself, so a modified
@@ -581,8 +599,8 @@ environment; without it Chat stays visible and opens the plain origin instead of
 (the resident's button was either configured or hidden; here the entry decides whether
 there is a T3 Code, the launcher only whether the browser is paired on the way). A
 refused pairing answers 409 with a reason instead of 502 with the resident's
-`t3_pairing_*` codes, as every blocked Platform answer. `lazurio chat link` (B8's CLI and
-C.5 item 10) is not in this slice.
+`t3_pairing_*` codes, as every blocked Platform answer. `lazurio chat link` came in a
+follow-up of the slice (above).
 
 **Verification 2026-09-28.** `tests/launchpad-chat.test.ts`: a hosted Folder from the
 handover fixture behind a fake auth endpoint (`/api/entry` 401 without the cookie, the
@@ -601,6 +619,15 @@ for the hosted case: absent on the workstation; `href` the recorded origin on th
 Settings and the Recovery page; a click landing on the pair URL, and on the plain origin
 when the pairing is refused. A real gateway, a real T3 Code and the launcher of
 DEV-6624 were **not** exercised; that is C.5 items 10 and 14.
+`tests/chat-link-cli.test.ts` (the CLI): a hosted Folder from the handover fixture with a
+fake launcher on a private PATH (the pairing link on the recorded origin, the resident's
+exact arguments, human and `--json` answering the same link, nothing written in the
+home), the launcher missing (the plain origin with `t3-launcher-missing`, nothing run), a
+failing call whose stderr holds the credential (`t3-pairing-failed`, the credential in
+neither stream), `--plain` (nothing run), a workstation Folder and no Folder (exit 10,
+`not-hosted`), usage and an unreadable Folder, and the real command line in a child
+process with `HOME`, `PATH` and XDG in temporary directories (the link alone on stdout,
+no token on stderr).
 
 ## Tools section
 
