@@ -71,8 +71,11 @@ Lazurio signing keys, no metadata service and no second origin.
 
 **Publishing.** A protected tag `vX.Y.Z` starts `.github/workflows/release.yml`.
 It builds `lazurio-<target>` for every supported target, writes `manifest.json`,
-creates one Sigstore bundle with `actions/attest` whose subjects are the manifest
-and every binary, attaches everything to a draft release and publishes it once.
+creates one Sigstore bundle with `actions/attest` whose subjects are the manifest,
+every binary and `install.sh` of the tag, attaches everything to a draft release and
+publishes it once. `install.sh` is not in the manifest, whose targets are executables;
+a client requires its digests to be among the subjects, so an added subject changes
+nothing for it.
 Releases are immutable (GitHub immutable releases). Publishing is serialized: the
 publishing job runs in one repository-wide concurrency group that queues and
 never cancels, in the protected environment `release` with a required reviewer.
@@ -155,12 +158,9 @@ the operator or an agent should do. `path`, the directory to put on PATH, is
 `~/.local/bin` when the link exists and `<base>/bin` otherwise. The installation
 never fails because of its entry, and shell profiles are never edited.
 
-**First installation** is trusted through HTTPS, and says so. `install.sh`
-downloads the latest binary from the origin and checks it against the manifest.
-When `gh` is present it runs `gh attestation verify` before executing anything.
-An attestation check performed by the downloaded binary itself is not
-authentication and is not presented as one. OS publisher signing stays a gate
-before public release ([decisions](decisions.md)).
+**First installation** is the one step the installed product cannot authenticate
+for itself; what it proves is spelled out in [First installation](#first-installation).
+OS publisher signing stays a gate before public release ([decisions](decisions.md)).
 
 **Knowingly not covered.** An attacker who controls both the network and a valid
 TLS certificate for `github.com` can hold a client on its current version; they
@@ -172,6 +172,214 @@ Actions OIDC, which asserts the workflow identity, and Sigstore's certificate
 authority, transparency log and trust root, which the verifier relies on, are
 cryptographic dependencies outside Lazurio's control. A private fork is a different product configuration with its
 own compiled-in origin and IDs, not a runtime setting.
+
+## First installation
+
+Decision [F20](decisions.md#f20--one-command-first-installation-the-downloaded-executable-verifies-its-own-release).
+On a new computer Lazurio is installed by one command, and from then on it updates
+itself with `lazurio update`:
+
+```sh
+curl -fsSL https://lazurio.ai/install | sh
+```
+
+Until the website route is deployed, and until a release carries `install.sh` as an
+asset, the script is served from this repository:
+`https://raw.githubusercontent.com/Lazurio/LazurioPlatform/main/install.sh`.
+Arguments after `sh -s --` go to `lazurio install` (on Linux, `--service systemd-user
+--folder <absolute Folder>` installs the supervised Launchpad); `LAZURIO_VERSION=vX.Y.Z`
+installs one exact tag, which must be a release that already carries this mechanism
+(an older executable does not know `--verify-release` and refuses the call). Linux
+x64 and arm64 and macOS on Apple silicon are supported; Windows and Intel Macs are
+not yet, and the script says so in one sentence. It needs only `curl` and
+`sha256sum` or `shasum`, runs as the user who will use Lazurio (root is refused),
+never uses `sudo` and never edits a shell profile. The script installs the latest
+release, so it works from the first release built with `--verify-release` on; until
+that release is published an older executable refuses the call and nothing is
+installed.
+
+**curl only, deliberately.** Every download of the script follows GitHub's redirects
+into its asset storage, and every hop must stay HTTPS: `curl --proto '=https'
+--proto-redir '=https'` refuses a downgrade (`curl: (1) Protocol "http" disabled (in
+redirect)`), the download fails and nothing is executed. That matters because the
+script compares the executable with a manifest that arrives the same way: a plaintext
+hop could supply a forged manifest and a matching executable, which the comparison
+would pass, and the executable's own check runs only after it has started. `wget`
+cannot be held to that portably: GNU wget 1.x has no option that restricts the scheme
+of a redirect (`--https-only` applies only to recursive retrieval), wget2 and BusyBox
+wget differ again in options and in how they print response headers, and BusyBox
+wget has no `--max-redirect` at all. Following redirects by hand
+(`--max-redirect=0`, reading `Location`) would have to be right for all three
+families without a way to prove it here, so there is no `wget` fallback: a smaller
+script that is certainly safe beats a wider one that is probably safe. The cost,
+plainly: macOS ships curl, and so do most Linux desktops, but some ship only wget
+(some Ubuntu Desktop releases, for example); there the script names the package to install
+(`sudo apt install curl`, `sudo dnf install curl`) and stops before any request. The
+one command itself is a `curl` command, so such a computer needs curl first anyway.
+
+**Two ways in, kept apart in code and here.**
+
+- **Downloaded** (a person's computer): `install.sh` runs
+  `<executable> install --verify-release <directory>`. Before anything is written, the
+  executable holds itself against the release it says it is, through
+  `verifyReleaseDocuments`, the same function `lazurio update` runs on a release it
+  fetched: the manifest must carry the executable's own version and source commit,
+  its target entry must have the size and SHA-256 of the running file, and the bundle
+  must be the release workflow's attestation at that tag with the manifest and that
+  digest among its subjects. Any refusal happens before the first write and leaves
+  nothing behind; the staged copy is then held against the digest that was verified.
+- **Staged** (the Machines role, [offline update](#offline-update)): `<staged>/lazurio
+  install --base <base>` from a custody-staged, digest-pinned file. No release files,
+  no network, no verification by the executable: the custody that pinned the bytes is
+  the authority. This path is unchanged.
+
+**What `install.sh` does, in order.** Resolve the platform; resolve the tag from
+GitHub's first redirect of `latest`, which is not followed and must be the exact-tag
+HTTPS URL of this repository (an `http://` answer is refused before another request);
+download the manifest, the executable and
+`lazurio.sigstore.json` by exact tag into a private temporary directory (`0700`);
+hold the executable against the manifest's SHA-256 **before it is executed**; when a
+signed-in `gh` is present, run `gh attestation verify` on the manifest and the
+executable, also before anything is executed; then run the executable as above. The
+temporary directory is removed whatever happens.
+
+**The trust chain, honestly.**
+
+| Step | Protects against | Does not protect against |
+| --- | --- | --- |
+| HTTPS to `lazurio.ai` for the route | a network attacker without a valid `lazurio.ai` certificate | whoever controls `lazurio.ai` or its hosting: they choose the script |
+| HTTPS to `github.com` for the script (behind the redirect) and the release files | a network attacker without a valid GitHub certificate | GitHub itself; whoever can publish a release (the repository governance of [F13](decisions.md#f13--release-trust-is-github-artifact-attestation)) |
+| SHA-256 of the executable against the manifest, checked by the script before execution | a corrupted or truncated download, the executable of another target or release | a manifest and executable swapped together: they come from the same place |
+| The attestation, checked by the downloaded executable | a release not built by `release.yml` at its tag (an asset uploaded by hand, a manifest, bundle and executable that do not belong together, a stale or wrong mirror), as long as the executable is genuine | a malicious executable: it can skip the check and print "Verified" |
+| `gh attestation verify`, when a signed-in `gh` is present | everything the attestation proves, by a verifier that did not arrive with the download | nothing beyond what the attestation itself proves |
+
+A check performed by the downloaded executable protects against a swapped download
+only to the extent that the script and the executable come from different places or
+the script pins what it expects. Behind a redirect both come from the same GitHub
+release, and the script pins nothing that release does not already say, so the first
+installation stays trust on first use through HTTPS, with the attestation checked
+independently wherever a verifier exists that did not come in the download. What the
+executable's own check adds is that an honest executable never installs itself out of
+a release that is not what the release workflow published, and that the first
+installation takes the same verification path as every update. After it, every
+update is authenticated by the installed product before a byte of the new version
+runs.
+
+**Trust root: offline and online.** Checking a bundle is offline: certificate chain to
+Sigstore's Fulcio root, signed certificate timestamp, transparency-log inclusion,
+DSSE signature and the identity policy are all verified from the bundle against
+Sigstore's trusted root. That trusted root itself comes online, from Sigstore's TUF
+repository (`tuf-repo-cdn.sigstore.dev`), bootstrapped from the TUF root compiled into
+the executable (`@sigstore/tuf`). A first installation has no cache, so it needs that
+network: without it the result is `trust-unavailable` and nothing is installed. The
+cache it uses is fresh, inside the private download directory, and removed with it;
+no cache found lying around is ever taken as the starting root. `lazurio update`
+keeps its own cache under the install base (`sigstore/`). The staged way in needs
+none of this.
+
+**What a person reads.** Success, on a new Linux laptop:
+
+```text
+Installing Lazurio v1.4.0 for linux-x64.
+Checked: lazurio-linux-x64 matches the SHA-256 in the manifest of v1.4.0.
+The GitHub CLI (gh) is not installed, so there is no independent second check; lazurio verifies the release attestation itself next.
+Verified: this executable is lazurio 1.4.0 for linux-x64, built and attested by the release workflow of Lazurio/LazurioPlatform at v1.4.0.
+Lazurio 1.4.0 is installed.
+The command is /home/ana/.local/bin/lazurio.
+/home/ana/.local/bin is on your PATH.
+Next, create your Lazurio Folder and start the Launchpad:
+  lazurio folder-init --folder /home/ana/Lazurio --access local --purpose human --locale en --detail concise --coordination direct
+  lazurio launchpad --folder /home/ana/Lazurio
+The Folder's language and style are your choice: --locale cs, --detail technical and --coordination coordinator are the alternatives.
+```
+
+With a signed-in `gh` the third line is `Checked by the GitHub CLI: attested by the
+release workflow of Lazurio/LazurioPlatform at v1.4.0.`; with a `gh` that is not
+signed in it says so and continues. The first step depends on `~/Lazurio`: absent,
+`folder-init` and the Launchpad as above; an initialized Folder, only the Launchpad;
+anything else there is left alone and `folder-init` is offered for a path that does
+not exist yet. With `--service` the service runs the Launchpad and no first step is
+printed. When `~/.local/bin` is not on PATH, or another `lazurio` comes first, the
+commands name this installation by its full path, the result says `Put
+~/.local/bin on your PATH` or names the other program, and the pointer to the agent
+prompt below follows.
+
+Refusals, on stderr, exit 1, each saying what happened to the computer:
+
+| Situation | Message |
+| --- | --- |
+| Unsupported platform | `install.sh: Lazurio supports Linux on x64 and arm64, and macOS on Apple silicon (arm64). This computer is <uname -s> <uname -m>. Windows and Intel Macs are not supported yet; nothing was installed.` |
+| Run as root | `install.sh: Lazurio installs for one user and never needs sudo. Run this again as the user who will use Lazurio, without sudo.` |
+| No curl (also when only `wget` is present) | `install.sh: Lazurio needs curl to download itself over HTTPS, and curl is not installed. Install it with your system's package manager (for example: sudo apt install curl on Ubuntu or Debian, sudo dnf install curl on Fedora), then run this again.` |
+| A redirect leaves HTTPS | curl's own line (`curl: (1) Protocol "http" disabled (in redirect)`), then `install.sh: could not download <asset> of <tag> from GitHub; nothing was installed.` |
+| No digest tool | `install.sh: Lazurio needs sha256sum or shasum to check the download, and neither is installed. Install one of them and run this again.` |
+| GitHub unreachable | `install.sh: cannot reach https://github.com/Lazurio/LazurioPlatform; nothing was installed.` |
+| `latest` redirects elsewhere | `install.sh: the latest release did not redirect to a release of Lazurio/LazurioPlatform; nothing was installed.` |
+| No usable tag | `install.sh: could not find out which release is the latest one; nothing was installed.` |
+| A file missing | `install.sh: could not download <asset> of <tag> from GitHub; nothing was installed.` |
+| Manifest of another version | `install.sh: the manifest of <tag> names another version; nothing was installed.` |
+| No executable for the platform | `install.sh: release <tag> has no executable for <target>; nothing was installed.` |
+| Digest mismatch | `install.sh: the downloaded lazurio-<target> does not match the SHA-256 in the manifest of <tag>, so it was not run; nothing was installed.` |
+| `gh` refuses | `install.sh: gh attestation verify refused <asset> of <tag>, so nothing was run; nothing was installed.` |
+| The executable refuses | its own lines, then `install.sh: lazurio did not install itself; the reason is above.` |
+
+The executable's own refusals of the downloaded way in keep the stable code first,
+then say it in words:
+
+- `Installation failed: attestation-invalid` — `The release attestation does not
+  vouch for this executable: it is not what the release workflow of
+  Lazurio/LazurioPlatform built for this version. Nothing was installed.`
+- `Installation failed: trust-unavailable` — `Sigstore's trust root could not be
+  reached, so the release attestation could not be checked. Nothing was installed.
+  Try again when this computer can reach tuf-repo-cdn.sigstore.dev.`
+- `Installation failed: release-invalid` — `The release files do not describe this
+  executable (<manifest|bundle|artifact>: <reason>). Nothing was installed.`
+
+**One standard installation.** Lazurio is installed exactly the standard way on every
+Environment: the install base, its selector `<base>/bin/lazurio`, the link
+`~/.local/bin/lazurio` to it, and `~/.local/bin` on PATH with no other `lazurio` before
+it. A deviation is reported, never silently overwritten and never kept as a supported
+variant. `lazurio install` reports what it found (*The command on PATH* above) and,
+when the installation deviates, prints the command that produces the prepared agent
+prompt: `lazurio install prompt [--locale cs|en] [--json]`. It reads the installation
+without writing and names the standard layout on this platform, what was found
+instead (`not-installed`, `entry-missing`, `entry-stale`, `entry-foreign`,
+`entry-parent`, `entry-unreadable`, `directory-not-on-path`, `shadowed`), what the
+agent may do by itself (read the state, run `lazurio install`, which is convergent,
+install with the official installer), what only on the operator's explicit
+instruction (move aside something that is not Lazurio's at the entry, edit a shell
+profile, remove the legacy root CLI link or another shadowing `lazurio`), and how
+success is proven (`command -v lazurio` names the entry, `lazurio --version`,
+`lazurio update status`, and `install prompt --json` reporting `"standard": true`).
+Deviations are relative to the PATH of the process that asks, so an agent asks from a
+new login shell of the operator.
+
+### Serving `https://lazurio.ai/install`
+
+The website lives in another repository; this is its contract.
+
+- **Redirect, recommended.** `GET` and `HEAD` of `https://lazurio.ai/install` answer
+  `302 Found` (or `307`) with `Location:
+  https://github.com/Lazurio/LazurioPlatform/releases/latest/download/install.sh`
+  and `Cache-Control: no-store` on the redirect itself. `curl -fsSL` follows it; the
+  website holds no copy that can drift, and every new release is served the moment it
+  is published.
+- **Proxy, only if a redirect is impossible.** The response body is byte-identical to
+  the `install.sh` asset of the current latest release: no templating, minification,
+  line-ending change, injected analytics or query variants; `Content-Type:
+  text/x-shellscript; charset=utf-8` (or `text/plain; charset=utf-8`); no
+  `Content-Encoding` unless the client asked for one; `Cache-Control: public,
+  max-age=300` at most, so a new release takes over within minutes. Checkable at any
+  time: the SHA-256 of `curl -fsSL https://lazurio.ai/install` equals that of the
+  release asset, and `gh attestation verify install.sh --bundle lazurio.sigstore.json
+  --repo Lazurio/LazurioPlatform` accepts it, because `install.sh` is an attested
+  subject.
+- **HTTPS only.** Plain `http://lazurio.ai/install` redirects to the HTTPS route and
+  serves nothing else.
+- **Order.** `releases/latest/download/install.sh` exists only from the first release
+  built by a workflow that attaches it; the route goes live after that release. The
+  change of `release.yml` that attaches and attests `install.sh` is its own pull
+  request and is not merged yet; until it is, no release carries the asset.
 
 ## State on disk
 
@@ -225,7 +433,9 @@ newer, which proves itself by its `self-check` and becomes active with the mark
 unchanged; the whole update state is read and validated first, so a marker without a
 selector is `state-invalid` and nothing is staged or switched. Trust is the custody that
 staged the binary (its attestation is verified there with `gh attestation verify`);
-the running product verifies nothing about a file it was asked to run.
+the running product verifies nothing about a file it was asked to run. This is the
+staged way in of [First installation](#first-installation): `--verify-release` is the
+downloaded way in and is neither needed nor used here.
 
 ## Activation
 
@@ -316,9 +526,9 @@ state to restore it.
   independent of the pill.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
   [--json]`, `--folder <Folder>` on `update` and `update status`, `update
-  rollback`, `lazurio install [--service systemd-user]` (from a
-  newer executable over an existing installation: the offline update),
-  `lazurio --version`. `lazurio launchpad --folder <Folder>` serves behind the
+  rollback`, `lazurio install [--verify-release <directory>] [--service
+  systemd-user]` (from a newer executable over an existing installation: the offline
+  update), `lazurio install prompt`, `lazurio --version`. `lazurio launchpad --folder <Folder>` serves behind the
   Organization's gateway when the Folder records a hosted entry
   ([hosted entry](hosted-entry.md)); the pill and `POST /api/update/apply` pass the
   gateway's admission like every other request there. Other commands print a one-line notice from
@@ -363,8 +573,9 @@ out. Login never becomes local authority and analytics can never block an update
 
 ## Deliberately narrow
 
-`linux-x64` and `darwin-arm64` are supported; `linux-arm64` is built for the
-qualification VM. Installation is per-user. Supervision exists only as a systemd
+`linux-x64`, `linux-arm64` and `darwin-arm64` are supported (`linux-arm64` was first
+built for the qualification VM; the one-command installation offers it as well,
+F20). Installation is per-user. Supervision exists only as a systemd
 user service. There is no Windows, no automatic activation, no channel, no
 resumable download, no delta update, no OS-scheduled check and no watchdog.
 
