@@ -166,10 +166,15 @@ export function assignmentLine(
           cs: "- Přiřazení: sdílená Teamem.",
           en: "- Assignment: shared by the Team.",
         }
-      : {
-          cs: `- Přiřazení: přiřazená Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-          en: `- Assignment: assigned to operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-        };
+      : assignment.kind === "automation"
+        ? {
+            cs: `- Přiřazení: automatizované Environment persony Organizace; odpovědný operátor \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+            en: `- Assignment: an automated Environment of an Organization persona; responsible operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+          }
+        : {
+            cs: `- Přiřazení: přiřazená Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+            en: `- Assignment: assigned to operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+          };
   return [text[locale]];
 }
 
@@ -229,6 +234,10 @@ function machineSection(
     "hosted-organization-team": {
       cs: "- Principál: Kolega, který se právě připojil. OS účet je sdílený členy Teamu a není osoba; změny se připisují Teamu přes brokerovanou identitu Organizace.",
       en: "- Principal: whichever Team member is connected now. The OS account is shared by the Team and is not a person; changes are attributed to the Team through the brokered Organization identity.",
+    },
+    "hosted-organization-steward": {
+      cs: "- Principál: odpovědný operátor tohohle Automatizovaného Environmentu, Owner nebo Admin Organizace. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se připojuje jen operátor, pro servisní zákroky.",
+      en: "- Principal: the responsible operator of this Automated Environment, an Owner or Admin of the Organization. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the operator connects over SSH, for service interventions.",
     },
     local: { cs: "", en: "" },
   }[preset];
@@ -296,10 +305,46 @@ function boundarySection(
           cs: "- Identita: Principálova vlastní přihlášení; GitHub je jediná autorita přístupů.",
           en: "- Identity: the Principal's own sign-ins; GitHub is the only access authority.",
         })
-      : pick({
-          cs: "- Identita: brokerovaná identita Organizace s krátkodobými tokeny; žádná osobní přihlášení, session ani credentials sem nikdy nepatří.",
-          en: "- Identity: the brokered Organization identity with short-lived tokens; no personal sign-ins, sessions or credentials ever belong here.",
-        }),
+      : providerIdentity === "persona-account"
+        ? pick(personaIdentity)
+        : pick({
+            cs: "- Identita: brokerovaná identita Organizace s krátkodobými tokeny; žádná osobní přihlášení, session ani credentials sem nikdy nepatří.",
+            en: "- Identity: the brokered Organization identity with short-lived tokens; no personal sign-ins, sessions or credentials ever belong here.",
+          }),
+  ];
+}
+
+// The identity line of the Automated Environment (decision 0169), the same in
+// AGENTS.md and the manual.
+export const personaIdentity: Text = {
+  cs: "- Identita: vlastní strojový GitHub uživatelský účet persony, který v `gh` přihlašuje odpovědný operátor a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet operátora ani nikoho jiného sem nepřihlašuj; GitHub je jediná autorita přístupů.",
+  en: "- Identity: the persona's own machine GitHub user account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
+};
+
+// The bot team of the Automated Environment (decision 0169) in its short form;
+// `manual/this-machine.md` lists the configuration. Nothing on other presets.
+function botTeamSection(
+  preset: PresetName,
+  machine: MachineBinding | null,
+  pick: (text: Text) => string,
+): string[] {
+  if (workspacePreset(preset).botTeam === null || machine === null) return [];
+  const organization =
+    machine.owner.kind === "organization" ? machine.owner.organization : "";
+  return [
+    pick({ cs: "## Tým botů persony", en: "## Persona bot team" }),
+    pick({
+      cs: "- Lazurio MausBot provozuje tým botů persony jako službu a webovou aplikaci téhle Mašiny vedle T3 Code. Noví boti začínají v tomhle Folderu a řídí se stejnou kaskádou AGENTS.md, plány Mission Controlu a worktrees jako agenti v T3 Code (decision 0169).",
+      en: "- Lazurio MausBot runs the persona's bot team as a service and web application of this Machine next to T3 Code. New bots start in this Folder and follow the same AGENTS.md cascade, Mission Control plans and worktrees as agents in T3 Code (decision 0169).",
+    }),
+    pick({
+      cs: `- Podle výchozího nastavení presetu sleduje napojení na GitHub pull requesty Organizace \`${organization}\` bez modelu a leaderovi týmu předá jen skutečnou práci: review nového headu pull requestu v Ready, nebo publikaci. Repozitáře infra a productionspace Organizace vynechává; hranicí jsou tak jako tak práva účtu persony. Konfiguraci uvádí \`manual/this-machine.md\`.`,
+      en: `- By the preset's defaults, its GitHub intake watches pull requests of Organization \`${organization}\` without a model and hands the team leader only real work: a review on a new head of a ready pull request, or a publication. It leaves out the Organization's infra and productionspace repositories; the persona account's rights are the limit either way. \`manual/this-machine.md\` lists the configuration.`,
+    }),
+    pick({
+      cs: "- Persona publikuje jen pull request, který jí byl přiřazen s výslovným pokynem `/lazurio publish` od člověka s právem zápisu, a to po schválení člověkem a se zelenými kontrolami; vlastní pull requesty persony schvaluje člověk (Owner, Admin nebo Steward). Kolegové s personou spolupracují přes GitHub.",
+      en: "- The persona publishes only a pull request assigned to it with an explicit `/lazurio publish` instruction from a person with write access, after human approval and with green checks; a person (an Owner, Admin or Steward) approves the persona's own pull requests. Colleagues work with the persona through GitHub.",
+    }),
   ];
 }
 
@@ -444,6 +489,7 @@ export function renderInstructions(input: unknown): string {
     `<!-- ${instructionTemplateRevision}; ${JSON.stringify({ preset, profile })} -->`,
     ...machineSection(preset, machine, profile.locale),
     ...boundarySection(preset, pick),
+    ...botTeamSection(preset, machine, pick),
     pick({ cs: "## Jak se tu pracuje", en: "## How work is done here" }),
     pick({
       cs: "- Komunikuj česky, pokud uživatel nepožádá jinak.",

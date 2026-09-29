@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { bindingValues } from "../src/recover/private-values";
 import {
   createSanitizer,
   journalLimits,
@@ -8,6 +9,7 @@ import {
   withheldLine,
 } from "../src/recover/sanitize";
 import { safeTail } from "../src/tools/redact";
+import { bindings } from "./fixtures/machine-bindings";
 
 // The sanitizer of the recovery evidence: what may leave the Machine in a
 // public issue. Generated private values of every kind are planted in many
@@ -301,4 +303,16 @@ test("control characters are not plain text for the gate", () => {
     kind: "refused",
     found: ["control-character"],
   });
+});
+
+// The responsible operator of an Automated Environment (decision 0169) is
+// private like an assigned operator: both are withheld from recovery evidence.
+test("the assigned or responsible operator of a work VM is a private value", () => {
+  for (const binding of [bindings.assignedOperator, bindings.automated])
+    expect(bindingValues(binding)).toEqual(
+      expect.arrayContaining([
+        { kind: "github-login", value: "example" },
+        { kind: "github-id", value: "12345" },
+      ]),
+    );
 });

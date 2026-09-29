@@ -16,6 +16,7 @@ import { join } from "node:path";
 import { runCli } from "../src/cli";
 import { applyPreparation } from "../src/folder/apply-preparation";
 import { FolderAdoptionError } from "../src/folder/handover-layout";
+import { parseMachineBinding } from "../src/folder/machine-binding";
 import { outputPaths } from "../src/folder/outputs";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
@@ -28,7 +29,7 @@ import {
   initializeMachineFolder,
   refreshMachineFolder,
 } from "../src/machine/cli";
-import { binding } from "./fixtures/machine-bindings";
+import { automationAssignment, binding } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
@@ -499,6 +500,65 @@ test.skipIf(process.platform === "win32")(
         result: { kind: "blocked", reason: "preset-derivation-changed" },
       });
       expect(await snapshot(folder)).toEqual(settled);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Decision 0169: a work VM of one operator that the Organization turns into the
+// Automated Environment of its persona. The recorded, derived preset is not
+// carried forward silently; the Principal chooses the Steward preset (allowed
+// on every workspace VM) and the refresh then renders the new handover.
+test.skipIf(process.platform === "win32")(
+  "a work VM re-assigned to automation needs the Steward preset chosen, then refreshes",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await rm(join(folder, "personalspace"), { recursive: true });
+      const operator = binding({
+        ...organization,
+        owner: {
+          ...organization.owner,
+          assignment: {
+            kind: "operator",
+            github_login: "example",
+            github_id: 1,
+          },
+        },
+      });
+      await initializeMachineFolder(folder, operator, noChoices);
+      const automated = parseMachineBinding({
+        ...operator,
+        owner: { ...operator.owner, assignment: automationAssignment },
+      }) as NonNullable<ReturnType<typeof parseMachineBinding>>;
+      const settled = await snapshot(folder);
+      expect(await refreshMachineFolder(folder, automated)).toEqual({
+        code: 2,
+        result: { kind: "blocked", reason: "preset-derivation-changed" },
+      });
+      expect(await snapshot(folder)).toEqual(settled);
+      const recorded = await preferences(folder);
+      expect(
+        await updateProfile(folder, recorded.revision, {
+          preset: "hosted-organization-steward",
+          profile: recorded.profile,
+        }),
+      ).toMatchObject({ kind: "updated", revision: 2 });
+      expect(await refreshMachineFolder(folder, automated)).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 3 },
+      });
+      const current = await preferences(folder);
+      expect(current.preset).toEqual({
+        name: "hosted-organization-steward",
+        version: 1,
+        selection: "explicit",
+      });
+      expect(current.machine.owner.assignment).toEqual(automationAssignment);
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        "responsible operator `example` (GitHub id 12345)",
+      );
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

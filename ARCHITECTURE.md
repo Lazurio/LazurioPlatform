@@ -414,12 +414,14 @@ hosted workspace** is an Organization-owned Machine with one OS account to which
 several Principals connect: it holds no personal credentials and no Personalspace, its
 provider identity is the brokered platform App identity, its changes go through pull
 requests, and attribution and revocation run through that brokered identity. A
-personal environment is never shared ad hoc. The kinds are selected by the three
+personal environment is never shared ad hoc. The kinds are selected by the four
 hosted [workspace presets](docs/workspace-presets.md): `hosted-personal` (the one
 personal VM of a Principal), `hosted-organization-personal` (an Organization-owned
-work VM assigned to one operator) and `hosted-organization-team` (an
-Organization-owned team VM shared by a Team). `hosted-personal` follows
-`machine.kind`; between the two Organization presets the handover's
+work VM assigned to one operator), `hosted-organization-team` (an
+Organization-owned team VM shared by a Team) and `hosted-organization-steward` (the
+Automated Environment of an Organization persona with one responsible operator,
+upstream decision 0169; proposed). `hosted-personal` follows
+`machine.kind`; between the Organization presets the handover's
 `owner.assignment` (Machines v0.12.61, copied from the reviewed owner overlay,
 never inferred) is the only selector, and a handover that carries none is chosen
 explicitly. The earlier names `hosted-private` and `hosted-team` were never

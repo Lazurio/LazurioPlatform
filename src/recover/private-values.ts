@@ -160,7 +160,7 @@ export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
       : [
           ...value("organization", owner.organization),
           ...value("team", owner.team),
-          ...(owner.assignment?.kind === "operator"
+          ...(owner.assignment !== undefined && owner.assignment.kind !== "team"
             ? [
                 ...value("github-login", owner.assignment.githubLogin),
                 ...value("github-id", owner.assignment.githubId),

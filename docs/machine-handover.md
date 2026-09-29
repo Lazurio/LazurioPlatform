@@ -43,8 +43,12 @@ through [`folder-refresh`](#refresh-after-a-handover-rewrite):
 - **`owner.assignment`** — Organization branch only; the personal branch refuses it.
   `{kind: "operator", github_login, github_id}` or `{kind: "team"}`, authored per guest
   in the owner Deployment Repo and copied by Machines, never inferred from names,
-  Team names or Team size. It is **the** selector between the two Organization
-  presets ([workspace presets](workspace-presets.md#derived-from-the-handover-confirmed-or-explicitly-overridden)).
+  Team names or Team size. It is **the** selector between the Organization
+  presets. A third kind, `{kind: "automation", github_login, github_id}` (the
+  responsible operator of an Automated Environment, decision 0169), is accepted in a
+  stored binding and derives `hosted-organization-steward`; the vendored schema does
+  not carry it until Machines adds it and Platform re-pins, so a handover declaring it
+  is refused today ([workspace presets](workspace-presets.md#derived-from-the-handover-confirmed-or-explicitly-overridden)).
 - **`relationships`** — `{zone, peers[]}`: this Machine's tailnet peers from its own
   point of view, derived by Machines only from the home Conglomerate Host grants that
   name its Headscale node; omitted when the Deployment Repo declares no home
@@ -94,8 +98,9 @@ narrow Linux/remote/human pilot entrypoint.
 The handover has no selected-preset field and needs none. The
 [workspace preset](workspace-presets.md) is derived from its typed fields only:
 `personal-vm` → `hosted-personal`; `workspace-vm` with `owner.assignment.kind`
-`"operator"` → `hosted-organization-personal`, `"team"` → `hosted-organization-team`.
-`owner.assignment` is the only selector between the two Organization presets; when it
+`"operator"` → `hosted-organization-personal`, `"team"` → `hosted-organization-team`,
+`"automation"` (once the schema carries it) → `hosted-organization-steward`.
+`owner.assignment` is the only selector between the Organization presets; when it
 is present nothing else is read. A `workspace-vm` handover **without** it proves only
 one side: without `owner.team` it is one operator's (`hosted-organization-personal`,
 as before v0.12.61); with `owner.team` it is ambiguous, because an Organization may
@@ -146,7 +151,7 @@ on a re-run, which changes nothing; or exit status 2 with
 `preset-not-allowed`, `preset-ambiguous` or a Machine context code. `preset-ambiguous`
 is the Team-bearing handover without `owner.assignment` and without `--preset` on a
 not yet adopted Folder:
-`{"kind":"blocked","reason":"preset-ambiguous","allowed":["hosted-organization-personal","hosted-organization-team"],"next":…}`;
+`{"kind":"blocked","reason":"preset-ambiguous","allowed":["hosted-organization-personal","hosted-organization-team","hosted-organization-steward"],"next":…}`;
 a re-run on an adopted Folder is never ambiguous. Optional `--preset <name>` picks another preset the handover
 allows (recorded as an explicit choice); optional `--locale`, `--detail` and
 `--coordination` override the preset's defaults and stay changeable in the Launchpad.

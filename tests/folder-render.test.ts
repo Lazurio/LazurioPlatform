@@ -17,6 +17,11 @@ export const journeys = [
     os: "linux",
   },
   { preset: "hosted-organization-team", machine: bindings.team, os: "linux" },
+  {
+    preset: "hosted-organization-steward",
+    machine: bindings.automated,
+    os: "linux",
+  },
 ] as const;
 
 test("all launch journeys render both languages without undefined fragments", () => {
@@ -274,4 +279,45 @@ test("the hosted update rule in AGENTS.md agrees with the manual under decisions
       );
     }
   }
+});
+
+// Decision 0169: the Automated Environment names its GitHub identity (the
+// persona's own machine account, signed in by the responsible operator), the
+// bot team in Lazurio MausBot and the publication rule; no other preset says
+// any of it, and the others render exactly as before (their snapshots above
+// are unchanged and the template revision is the same).
+test("the Steward preset renders the persona, its bot team and the publication rule; no other preset does", () => {
+  const steward = (locale: "cs" | "en") =>
+    renderInstructions({
+      preset: "hosted-organization-steward",
+      machine: bindings.automated,
+      profile: presetProfile("hosted-organization-steward", "linux", {
+        locale,
+      }),
+    });
+  const en = steward("en");
+  for (const line of [
+    "- Assignment: an automated Environment of an Organization persona; responsible operator `example` (GitHub id 12345).",
+    "- Identity: the persona's own machine GitHub user account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
+    "## Persona bot team",
+    "`/lazurio publish`",
+    "Organization `example`",
+  ])
+    expect(en).toContain(line);
+  const cs = steward("cs");
+  expect(cs).toContain("## Tým botů persony");
+  expect(cs).toContain("`/lazurio publish`");
+  for (const journey of journeys.filter(
+    (entry) => entry.preset !== "hosted-organization-steward",
+  ))
+    for (const locale of ["cs", "en"] as const) {
+      const output = renderInstructions({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const marker of ["MausBot", "/lazurio publish"])
+        expect(output).not.toContain(marker);
+      expect(output).not.toMatch(/\bperson(a|y|ou)\b/);
+    }
 });

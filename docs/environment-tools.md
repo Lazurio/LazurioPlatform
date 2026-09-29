@@ -301,6 +301,17 @@ Environment (the Team preset) a composio or wacli login belongs to the whole
 Environment, and the Launchpad and `tools login` say so before it starts; gh is not
 signed in there at all (next section).
 
+#### gh on an Automated Environment
+
+On the Steward preset (`hosted-organization-steward`, the Automated Environment of
+upstream decision 0169) the curated gh sign-in and SSH key linking are offered, as on
+a Work Environment. The account signed in is the persona's own machine GitHub user
+account, not the operator's: the responsible operator runs `lazurio tools login gh`
+or the Launchpad's sign-in, chooses the persona's account in the device flow and
+keeps its two-factor authentication and recovery codes outside the Machine. The
+rendered Folder states this rule; the gate does not compare accounts
+([workspace presets](workspace-presets.md#the-steward-preset-automated-environment)).
+
 #### gh on a Team Environment
 
 Principal's decision 2026-09-28 ([F19 addendum](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):

@@ -535,6 +535,34 @@ Folder keeps preserving the Principal's own top-level files.
 | Explicit `machine folder-refresh` over the same planner and transaction (selected) | One more input to the one change use case, bound like `folder-init`, non-interactive, no parallel writer |
 | Automatic re-render by the Launchpad or updater on start | A write without an explicit caller (F14 defers automatic writes); on hosted Machines Machines installs without `--service`, so no Platform unit runs at boot yet; could later be a thin caller of the same use case; rejected for now |
 
+**Amendment 2026-09-30 (upstream decision 0169, proposed).** A fifth preset,
+`hosted-organization-steward`, for the fourth kind of Environment, **Automated**: the
+work VM of an Organization persona whose bot team runs in Lazurio MausBot, with one
+responsible operator (an Owner or Admin). Personalspace never, Organization
+repositories mounted, provider identity `persona-account` (the persona's own machine
+GitHub user account, signed in by the operator, who holds its 2FA and recovery),
+surfaces `launchpad`, `hosted-entry` and `openmausbot`, the OS service manager. A new
+preset field `botTeam` declares the defaults Lazurio MausBot starts the team with
+(`OMB_DEFAULT_BOT_CWD` = the Lazurio Folder, the Steward team file of the installed
+release, the GitHub intake for the team leader in the Organization scope without the
+Organization's infra and productionspace repositories); the service that runs Lazurio
+MausBot applies them, Platform renders them and applies none. The curated gh sign-in
+stays offered, for the persona's account. The kind is derived from a new
+`owner.assignment` value `{kind: "automation", github_login, github_id}` naming the
+responsible operator; a stored binding accepts it ahead of the Machines schema, the
+vendored schema is not changed locally, and until the re-pin the preset is an explicit
+choice, allowed on every `workspace-vm`. Existing handovers derive, record and render
+exactly as before; their allow-list gains the third Organization preset. Details:
+[workspace presets](workspace-presets.md#the-steward-preset-automated-environment).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Derive the Automated kind from the Machine or Team name, or from a persona account signed in to `gh` | A guess from names or from live state that changes; forbidden by 0169 and F10; rejected |
+| A separate handover field for the persona identity next to `owner.assignment` | Two fields to keep consistent for one fact; 0165 already derives the kind from `owner.assignment.kind`; rejected in favour of a third kind of the same value |
+| `owner.assignment` `{kind: "automation", github_login, github_id}` of the responsible operator (selected) | Same shape as `operator`, one selector, fail closed on unknown kinds; needs a Machines schema change and a re-pin |
+| Allow the Steward preset only on an `automation` handover | Nothing to choose until Machines ships, and a work VM re-assigned from a Team to `automation` could not reach the preset through the change path (the old binding would refuse it); rejected for the kind-wide allow-list that F10 already uses |
+| Configure Lazurio MausBot from Platform (write its environment or unit) | A second supervisor and a writer outside the Folder; Machines runs the service today; rejected: the preset declares, the service applies |
+
 A user-facing "Machine profile" choice has two effects with two owners: infrastructure
 custody and topology belong to the hosting engine, Environment configuration to
 Platform. A managed Dashboard may present one choice and dispatch typed,
