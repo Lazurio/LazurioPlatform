@@ -116,6 +116,11 @@ export type CatalogModule = Readonly<{
   /** With a refused declaration: the file, relative to the module (or to the
    * Organization root for an Organization document). Never absolute. */
   file?: string;
+  /** Set when `reason` is the default app's preparation (decision F25): the
+   * module's declarations admit it, so its running app is still read,
+   * logged and stopped; only a start (and `ensure` that would start) is
+   * refused. */
+  preparationRefused?: true;
   /** `teams-invalid` when the declared membership is not a list of slugs. */
   issues?: readonly string[];
 }>;
@@ -223,12 +228,16 @@ function slotTeams(slot: unknown): {
 // running anything (decision F25): the preparation in effect, its owner's
 // package, Bun and lockfile, its own local dependencies and declared
 // scripts. The install inputs' contents are the start's to refuse (decision
-// F23 point 6). Never throws.
+// F23 point 6). A refusal is marked `preparationRefused`: the module's
+// declarations admit it, so its running app is still read and stopped.
+// Never throws.
 async function preparationReason(
   moduleDirectory: string,
   app: string,
   organizationDirectory: string,
-): Promise<Readonly<{ reason?: ModuleReason; file?: string }>> {
+): Promise<
+  Readonly<{ reason?: ModuleReason; file?: string; preparationRefused?: true }>
+> {
   try {
     await inspectPreparationShape(moduleDirectory, app, organizationDirectory);
     return {};
@@ -237,12 +246,11 @@ async function preparationReason(
     // start names them (a dependency may lie in the Organization's root
     // repository, decision F25).
     const bases = [moduleDirectory, organizationDirectory];
-    return (
-      preparationRefusal(error, bases) ??
-      checkoutRefusal(error, bases) ?? {
-        reason: "module-unavailable",
-      }
-    );
+    return {
+      ...(preparationRefusal(error, bases) ??
+        checkoutRefusal(error, bases) ?? { reason: "module-unavailable" }),
+      preparationRefused: true,
+    };
   }
 }
 
@@ -256,7 +264,9 @@ async function moduleReason(
   apps: readonly CatalogApp[],
   moduleDirectory: string,
   organizationDirectory: string,
-): Promise<Readonly<{ reason?: ModuleReason; file?: string }>> {
+): Promise<
+  Readonly<{ reason?: ModuleReason; file?: string; preparationRefused?: true }>
+> {
   if (observed.kind !== "module-observed")
     return observed.file === undefined
       ? { reason: observed.kind }
@@ -381,6 +391,7 @@ export async function readCatalogOrganization(
           : {};
         const reason = executable ? own.reason : "organization-not-executable";
         const file = executable ? own.file : undefined;
+        const preparation = executable && own.preparationRefused === true;
         return [
           Object.freeze({
             organization: result.company,
@@ -394,6 +405,7 @@ export async function readCatalogOrganization(
             executable: reason === undefined,
             ...(reason === undefined ? {} : { reason }),
             ...(file === undefined ? {} : { file }),
+            ...(preparation ? { preparationRefused: true } : {}),
             ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
           } satisfies CatalogModule),
         ];
@@ -508,7 +520,7 @@ async function readCatalogPersonalspace(
           : [];
       const defaultApp =
         observed.kind === "module-observed" ? observed.defaultApp : null;
-      const { reason, file } = await moduleReason(
+      const { reason, file, preparationRefused } = await moduleReason(
         observed,
         defaultApp,
         apps,
@@ -527,6 +539,7 @@ async function readCatalogPersonalspace(
         executable: reason === undefined,
         ...(reason === undefined ? {} : { reason }),
         ...(file === undefined ? {} : { file }),
+        ...(preparationRefused ? { preparationRefused } : {}),
       });
     }),
   );

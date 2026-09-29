@@ -2198,16 +2198,31 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
 4. **The catalog tells the truth.** `executable` means that a start of the default app
    can proceed as far as is known without running anything: after the declarations and
    the Organization's admission, the preparation in effect is inspected read-only
-   (`inspectPreparationShape`: the owner's package, its `packageManager`, its one
-   lockfile, its own local dependencies being there inside their boundary (point 1a) and
-   reached through real directories, a declared owner's
-   membership and scripts, and no workspace install). What fails there is
-   `executable: false` with the start's reason and the package it concerns, in `module
-   list`, `organization list`'s JSON, the Launchpad's module view and `lazurio doctor`.
+   (`inspectPreparationShape`): the owner's path and package, its `packageManager`, its
+   one lockfile under the checkout's file rule (a regular file of the operator, at most
+   16 MiB, not empty), the checkout's `.npmrc` and `bunfig.toml` down to the owner under
+   the same rule, its own local dependencies being there inside their boundary (point
+   1a) and reached through real directories (a symlink there, dangling or not, is
+   `directory-not-regular`; a file dependency is under the file rule), the default's
+   separate application directories (point 6), and a declared owner's membership and
+   scripts with no workspace install. What fails there is `executable: false` with the
+   start's reason and file, and `preparationRefused: true`, in `module list`,
+   `organization list`'s JSON, the Launchpad's module view and `lazurio doctor`.
    **Amends F23 point 6** only in this: the preparation's shape is now reported by the
-   list; the contents of the install inputs (lockfile bytes, local dependency files,
-   patches, workspace members, configuration) are still the start's to refuse, and so
-   are a Bun version mismatch and a failing install, which only running can show.
+   list. Deliberately left to the start, as F23 point 6 says, because the list would
+   have to read or inventory them: the files inside local dependencies and their
+   transitive dependencies, patch files, workspace members, the account's own
+   configuration (`~/.npmrc`, `~/.bunfig.toml`, the XDG directory), an explicit owner's
+   package that does not parse (`module-unavailable` in the list), the inventory limits;
+   and what only running shows: a Bun version mismatch and a failing install.
+4a. **Reading and stopping never depend on the preparation.** A module refused only by
+   its default app's preparation keeps its lifecycle: `module status`, `module logs` and
+   `module stop` operate its running app (the Launchpad's module page keeps the card
+   and its Stop), and the stop of a session app does not resolve the preparation. Only
+   what would start it depends on the preparation: `module start` refuses with the
+   reason, and `ensure` reports a running app as it is and refuses with the reason only
+   where it would start a stopped or ended one. A running app whose lockfile disappears
+   is therefore still read and stopped (review 5359095003).
 5. **Typed reasons.** A preparation that cannot run for a known reason answers one of a
    closed set, with the module-relative package or lockfile as `file`, never an
    absolute path or the error message: `preparation-lockfile-missing` (no lockfile, or
@@ -2216,14 +2231,27 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    `file:` dependency outside the Organization directory, or for a declared preparation
    outside its owner), `preparation-dependency-missing` (a `file:` dependency that is not
    there), `preparation-owner-invalid`,
-   `preparation-script-missing`, `preparation-workspace-unqualified`, and from the start
+   `preparation-script-missing`, `preparation-workspace-unqualified`,
+   `preparation-applications-overlap` (point 6), and from the start
    only `preparation-toolchain-mismatch` and `preparation-install-failed` (with the
    lockfile). The CLI and the Launchpad explain each in words (English and Czech on the
    page). `operation-failed` stays for a throw without a known cause.
 
+6. **Application packages of one module do not overlap under the default.** The
+   default install writes the application directory's `node_modules`, beneath any other
+   application package nested there, whose app may be running from it. The default
+   preparation therefore refuses an application whose directory contains, or lies
+   inside, the directory of another application package the same module declares
+   (`preparation-applications-overlap`, naming the module-relative package, in the list
+   and at the start of either). Sibling packages (`app/v1`, `app/v2`, `app/v3`) never
+   overlap, and a local package inside the application's directory
+   (`app/v3/packages/<name>`) is a dependency, not an application. Such a module
+   declares its preparation (review 5359095003).
+
 **What the explicit declaration is still for**: a workspace owner (still refused for
 installation until its inputs are qualified), a prepare script (data or DB setup the
-module owns), or a check the start runs instead of installing.
+module owns), a check the start runs instead of installing, or application packages
+nested in one another.
 
 **Not covered.** The default does not qualify workspaces, local dependencies outside
 the Organization's checkout (point 1a), an application without dependencies (Bun deletes an empty lockfile, so it

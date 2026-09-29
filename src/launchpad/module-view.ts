@@ -96,6 +96,7 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-lockfile-ambiguous": "preparationReasonLockfileAmbiguous",
   "preparation-package-manager-unsupported": "preparationReasonPackageManager",
   "preparation-workspace-unqualified": "preparationReasonWorkspace",
+  "preparation-applications-overlap": "preparationReasonApplicationsOverlap",
   "preparation-dependency-outside-owner": "preparationReasonDependencyOutside",
   "preparation-dependency-missing": "preparationReasonDependencyMissing",
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",

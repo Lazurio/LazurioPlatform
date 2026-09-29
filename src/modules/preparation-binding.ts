@@ -1,11 +1,14 @@
-import { dirname, join } from "node:path";
+import { dirname, join, posix } from "node:path";
+import { readCheckoutJson } from "../providers/owned-json";
 import { modulePreparationArgs } from "./frozen-install-process";
 import {
+  inspectCheckoutConfiguration,
   inspectInstallAuthority,
   inspectOwnerDirectories,
   readInstallOwner,
   verifyInstallAuthority,
 } from "./install-authority";
+import { parseModuleManifest } from "./manifest";
 import { PreparationRefused } from "./preparation-refusal";
 import { readModuleApplication } from "./read-application";
 import { isDeclaredWorkspaceMember } from "./workspace-membership";
@@ -56,6 +59,38 @@ function dependencyBoundary(
   return preparation.kind === "default" && organizationDirectory !== undefined
     ? organizationDirectory
     : owner;
+}
+
+// The default preparation installs into the application's own directory,
+// beneath any other application package there: refused when the module
+// declares an application package whose directory contains this one's or
+// lies inside it (decision F25). Siblings (`app/v1`, `app/v2`) never
+// overlap; a local package inside the application's directory is a
+// dependency, not an application.
+async function requireSeparateApplications(
+  moduleDirectory: string,
+  applicationPackage: string,
+) {
+  const { apps } = parseModuleManifest(
+    await readCheckoutJson(join(moduleDirectory, "lazurio.module.json")),
+  );
+  const directory = posix.dirname(applicationPackage);
+  const contains = (outer: string, inner: string) =>
+    outer === "." || inner.startsWith(`${outer}/`);
+  for (const other of apps ?? []) {
+    if (other === applicationPackage) continue;
+    const otherDirectory = posix.dirname(other);
+    if (
+      otherDirectory === directory ||
+      contains(directory, otherDirectory) ||
+      contains(otherDirectory, directory)
+    )
+      throw new PreparationRefused(
+        "preparation-applications-overlap",
+        join(moduleDirectory, applicationPackage),
+        "Application packages overlap",
+      );
+  }
 }
 
 async function declaredPlan(
@@ -130,8 +165,11 @@ export async function inspectPreparationShape(
 ) {
   const plan = await declaredPlan(moduleDirectory, applicationPackage);
   const preparation = preparationOf(plan, applicationPackage);
+  if (preparation.kind === "default")
+    await requireSeparateApplications(moduleDirectory, applicationPackage);
   const owner = dirname(join(moduleDirectory, preparation.owner_package));
   await inspectOwnerDirectories(moduleDirectory, owner);
+  await inspectCheckoutConfiguration(moduleDirectory, owner);
   const installOwner = await readInstallOwner(
     owner,
     dependencyBoundary(preparation, owner, organizationDirectory),
@@ -152,6 +190,8 @@ export async function inspectPreparationBinding(
 ) {
   const plan = await declaredPlan(moduleDirectory, applicationPackage);
   const preparation = preparationOf(plan, applicationPackage);
+  if (preparation.kind === "default")
+    await requireSeparateApplications(moduleDirectory, applicationPackage);
   const owner = dirname(join(moduleDirectory, preparation.owner_package));
   const authority = await inspectInstallAuthority(
     moduleDirectory,

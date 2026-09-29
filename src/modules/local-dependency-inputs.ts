@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 import { lstat, readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { readCheckoutFileBytes } from "../providers/owned-json";
+import { CheckoutRefused } from "../providers/checkout-custody";
+import {
+  checkoutFileRefusal,
+  readCheckoutFileBytes,
+} from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import { PreparationRefused } from "./preparation-refusal";
 
@@ -136,6 +140,10 @@ async function reach(
   const stat = await lstat(path).catch((error: unknown) => {
     throw missing(error);
   });
+  // A symlink in place of the dependency is refused as it is, dangling or
+  // not: its target is never followed (decision F23).
+  if (stat.isSymbolicLink())
+    throw new CheckoutRefused("directory-not-regular", path);
   return { path, stat };
 }
 
@@ -157,8 +165,13 @@ export async function inspectDirectLocalDependencies(
       file,
       boundary !== owner,
     );
-    if (stat.isDirectory() || stat.isSymbolicLink())
-      await inspectCheckoutDirectory(path);
+    if (stat.isDirectory()) await inspectCheckoutDirectory(path);
+    else {
+      // A file dependency (a tarball) under the file rule the start reads
+      // it with (decision F23).
+      const refused = checkoutFileRefusal(stat, process.getuid?.() ?? -1);
+      if (refused !== null) throw new CheckoutRefused(refused, path);
+    }
   }
 }
 

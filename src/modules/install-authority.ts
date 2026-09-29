@@ -3,7 +3,12 @@ import { lstat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { snapshotOrganizationDocument } from "../organizations/document-hash";
-import { readCheckoutFileBytes } from "../providers/owned-json";
+import { CheckoutRefused } from "../providers/checkout-custody";
+import {
+  checkoutFileRefusal,
+  lockfileBytesMax,
+  readCheckoutFileBytes,
+} from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import {
   inspectDirectLocalDependencies,
@@ -32,18 +37,66 @@ const digest = (bytes: Buffer) =>
 
 // The selected checkout and every directory down to the owner, under the
 // checkout rule (decision F23); the owner never lies outside the checkout.
+// The package manager configuration of the checkout the install reads: in
+// the checkout and every directory down to the owner.
+function checkoutConfigurationPaths(checkout: string, offset: string) {
+  const paths: string[] = [];
+  let directory = checkout;
+  for (const segment of ["", ...(offset ? offset.split(sep) : [])]) {
+    if (segment) directory = join(directory, segment);
+    for (const name of [".npmrc", "bunfig.toml"])
+      paths.push(join(directory, name));
+  }
+  return paths;
+}
+
+/** The checkout's package manager configuration under the file rule the
+ * install's read applies (decision F23), without reading it: what a
+ * read-only check of the preparation (the catalog) can know. */
+export async function inspectCheckoutConfiguration(
+  checkout: string,
+  owner: string,
+) {
+  const uid = process.getuid?.();
+  if (uid === undefined) throw new Error("Declaration owner unavailable");
+  for (const path of checkoutConfigurationPaths(
+    checkout,
+    relative(checkout, owner),
+  )) {
+    const stat = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    const refused = stat === null ? null : checkoutFileRefusal(stat, uid);
+    if (refused !== null) throw new CheckoutRefused(refused, path);
+  }
+}
+
+// A directory of the owner's path that is not there makes the owner invalid
+// (decision F25), named by the owner's package.json.
 export async function inspectOwnerDirectories(checkout: string, owner: string) {
   const checkoutStat = await inspectCheckoutDirectory(checkout);
   const offset = relative(checkout, owner);
   if (isAbsolute(offset) || offset === ".." || offset.startsWith(`..${sep}`))
     throw new Error("Install owner outside selected checkout");
+  const inspect = (directory: string) =>
+    inspectCheckoutDirectory(directory).catch((error: unknown) => {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT" || code === "ENOTDIR")
+        throw new PreparationRefused(
+          "preparation-owner-invalid",
+          join(owner, "package.json"),
+          "Owner package required",
+        );
+      throw error;
+    });
   let parent = checkout;
   if (offset)
     for (const segment of offset.split(sep)) {
       parent = join(parent, segment);
-      await inspectCheckoutDirectory(parent);
+      await inspect(parent);
     }
-  const ownerStat = await inspectCheckoutDirectory(owner);
+  const ownerStat = await inspect(owner);
   return { checkoutStat, ownerStat, offset };
 }
 
@@ -103,7 +156,20 @@ export async function readInstallOwner(
       "One explicit Bun lockfile required",
     );
   const lockfile = locks[0];
-  if (lockfile === undefined || (await lstat(join(owner, lockfile))).size === 0)
+  if (lockfile === undefined)
+    throw refused(
+      "preparation-lockfile-missing",
+      "One explicit Bun lockfile required",
+    );
+  // The lockfile is a file of the operator's checkout (decision F23): the
+  // same rule, reason and file as the start's read of it, without reading.
+  const lockPath = join(owner, lockfile);
+  const lockStat = await lstat(lockPath);
+  const uid = process.getuid?.();
+  if (uid === undefined) throw new Error("Declaration owner unavailable");
+  const lockRefused = checkoutFileRefusal(lockStat, uid, lockfileBytesMax);
+  if (lockRefused !== null) throw new CheckoutRefused(lockRefused, lockPath);
+  if (lockStat.size === 0)
     throw refused(
       "preparation-lockfile-missing",
       "One explicit Bun lockfile required",
@@ -174,15 +240,10 @@ export async function inspectInstallAuthority(
       }
     }
   }
-  let configDirectory = checkout;
-  for (const segment of ["", ...(offset ? offset.split(sep) : [])]) {
-    if (segment) configDirectory = join(configDirectory, segment);
-    for (const name of [".npmrc", "bunfig.toml"]) {
-      const path = join(configDirectory, name);
-      configuration[relative(checkout, path)] = (await present(path))
-        ? digest(await readCheckoutFileBytes(path))
-        : null;
-    }
+  for (const path of checkoutConfigurationPaths(checkout, offset)) {
+    configuration[relative(checkout, path)] = (await present(path))
+      ? digest(await readCheckoutFileBytes(path))
+      : null;
   }
   const { packageBytes, manifest, packageManager, lockfile } =
     await readInstallOwner(owner, dependencyBoundary);

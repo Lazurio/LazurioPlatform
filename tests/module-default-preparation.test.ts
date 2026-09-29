@@ -252,18 +252,24 @@ posixTest(
       const units = world.manager.commands("systemd-run").length;
       expect(units).toBe(2);
 
-      // drafts: refused before any effect, with the list's reason and file.
+      // drafts: its start refused before any effect, with the list's reason
+      // and file.
       const refused = {
         reason: "preparation-lockfile-missing",
         ...where("drafts"),
         file: "app/package.json",
       };
-      for (const verb of ["start", "status"] as const)
-        expect(await world.run(verb, "drafts")).toEqual({
-          kind: "blocked",
-          operation: verb,
-          ...refused,
-        });
+      expect(await world.run("start", "drafts")).toEqual({
+        kind: "blocked",
+        operation: "start",
+        ...refused,
+      });
+      // Reading the state never depends on the preparation.
+      expect(await world.run("status", "drafts")).toMatchObject({
+        kind: "module",
+        operation: "status",
+        state: "stopped",
+      });
       expect(await world.ensure("drafts")).toEqual({
         kind: "blocked",
         operation: "ensure",
@@ -878,9 +884,11 @@ posixTest(
 );
 
 posixTest(
-  "the catalog applies the start's rules read-only: a symlinked lockfile, a dangling symlink as a local dependency and a missing declared owner are not executable, with the start's reason and file",
+  "the catalog applies the start's rules read-only: a symlinked lockfile or package manager configuration, a dangling symlink as a local dependency and a missing declared owner are not executable, with the start's reason and file",
   async () => {
-    const more = ["linklock", "dangling", "ownerless"].map((id) => ({ id }));
+    const more = ["linklock", "dangling", "ownerless", "npmrc"].map((id) => ({
+      id,
+    }));
     await world("read-only-rules", more, async (world) => {
       await variant(world, "linklock", () => {});
       const lock = join(world.app("linklock"), "bun.lock");
@@ -901,9 +909,17 @@ posixTest(
           check_script: "check",
         };
       });
+      // The checkout's package manager configuration the install reads.
+      await variant(world, "npmrc", () => {});
+      await writeFile(join(world.home, "elsewhere.npmrc"), "");
+      await symlink(
+        join(world.home, "elsewhere.npmrc"),
+        join(world.app("npmrc"), ".npmrc"),
+      );
       const rows = await world.list();
       const expected: Record<string, [string, string]> = {
         linklock: ["declaration-not-regular", "app/bun.lock"],
+        npmrc: ["declaration-not-regular", "app/.npmrc"],
         dangling: ["directory-not-regular", "app/dependency-link"],
         ownerless: ["preparation-owner-invalid", "missing/package.json"],
       };

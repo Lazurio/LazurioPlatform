@@ -345,7 +345,11 @@ export function createCatalogPanel(
     );
     return [
       statusLine(module),
-      ...(module.executable ? [lifecycleCard(organization, module)] : []),
+      // A module refused only by its preparation (decision F25) keeps its
+      // card: its running app is read and stopped; Start answers the reason.
+      ...(module.executable || module.preparationRefused
+        ? [lifecycleCard(organization, module)]
+        : []),
       facts,
     ];
   }
