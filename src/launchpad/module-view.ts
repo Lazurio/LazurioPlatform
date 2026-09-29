@@ -90,6 +90,15 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "declaration-too-large": "catalogReasonDeclarationTooLarge",
   "directory-not-regular": "catalogReasonDirectoryNotRegular",
   "directory-owner": "catalogReasonDirectoryOwner",
+  "preparation-owner-invalid": "preparationReasonOwnerInvalid",
+  "preparation-script-missing": "preparationReasonScriptMissing",
+  "preparation-lockfile-missing": "preparationReasonLockfileMissing",
+  "preparation-lockfile-ambiguous": "preparationReasonLockfileAmbiguous",
+  "preparation-package-manager-unsupported": "preparationReasonPackageManager",
+  "preparation-workspace-unqualified": "preparationReasonWorkspace",
+  "preparation-dependency-outside-owner": "preparationReasonDependencyOutside",
+  "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
+  "preparation-install-failed": "preparationReasonInstallFailed",
 };
 
 /** A refusal or a missing link in words; an unknown code is named by its

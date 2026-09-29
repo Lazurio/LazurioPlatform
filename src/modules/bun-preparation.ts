@@ -2,7 +2,7 @@ import {
   type CheckoutReason,
   checkoutRefusal,
 } from "../providers/checkout-custody";
-import { inspectBunToolchain } from "./bun-toolchain";
+import { inspectBunToolchain, requireBunToolchain } from "./bun-toolchain";
 import { cleanDerivedDependencies } from "./clean-dependencies";
 import {
   modulePreparationArgs,
@@ -13,15 +13,17 @@ import {
   inspectInstallAuthority,
   verifyInstallAuthority,
 } from "./install-authority";
+import type { PreparationReason } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 
 type Authority = Awaited<ReturnType<typeof inspectInstallAuthority>>;
 type Install = Awaited<ReturnType<typeof runFrozenInstallProcess>>;
 type PreparationResult = Readonly<{
   kind: "prepared" | "preparation-failed";
-  /** A refusal of the checkout rule (decision F23) and its module-relative
-   * file or directory. */
-  reason?: CheckoutReason;
+  /** A refusal of the checkout rule (decision F23), or of the default
+   * preparation's install (decision F25), and its module-relative file or
+   * directory. */
+  reason?: CheckoutReason | PreparationReason;
   file?: string;
 }>;
 
@@ -90,12 +92,13 @@ export async function preflightBunPreparation(input: {
     throw new Error("Explicit clean-install mode required");
   const cleanInstall = input.cleanInstall === true;
   const verifyPrepared = input.verifyPrepared;
-  const toolchain = await inspectBunToolchain({
-    ...launch,
-    packageManager: authority.packageManager,
-  });
-  if (toolchain.kind !== "toolchain-observed")
-    throw new Error("Required Bun toolchain unavailable");
+  requireBunToolchain(
+    await inspectBunToolchain({
+      ...launch,
+      packageManager: authority.packageManager,
+    }),
+    authority.owner,
+  );
   if (!(await verifyInstallAuthority(authority)))
     throw new Error("Preparation authority changed");
   const abort = new AbortController();

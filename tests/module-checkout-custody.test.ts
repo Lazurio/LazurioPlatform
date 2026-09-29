@@ -22,7 +22,12 @@ import { runCatalogCommand } from "../src/organizations/cli";
 import type { CliContext } from "../src/update/cli";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
-import { compilePlatform, linuxHost, runnable } from "./fixtures/module-host";
+import {
+  compilePlatform,
+  linuxHost,
+  runnable,
+  undeclaredModule,
+} from "./fixtures/module-host";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -398,7 +403,8 @@ type Clone = Readonly<{
   ensure: (module: string) => Promise<Record<string, unknown>>;
 }>;
 
-// Organization gamma with two runnable modules, committed in a source
+// Organization gamma with two runnable modules, notes with a declared
+// preparation and board without one, committed in a source
 // repository and cloned into the Folder by Git under umask 002: every
 // directory 0775, every file 0664. Module notes then gets what an earlier
 // `bun install` leaves: a group-writable node_modules holding its local
@@ -414,8 +420,13 @@ async function cloned(name: string, body: (clone: Clone) => Promise<void>) {
       modules: [{ id: "notes" }, { id: "board" }],
     });
     const ports: Record<string, number> = {};
-    for (const id of ["notes", "board"])
-      ports[id] = await runnable(source, "gamma", id);
+    ports.notes = await runnable(source, "gamma", "notes");
+    // board declares no preparation, as a real application package: its
+    // start is the default frozen install (decision F25), in the clone.
+    ports.board = await undeclaredModule(
+      join(source, "organizations", "gamma", "workspace", "board"),
+      parent,
+    );
     const repository = join(source, "organizations", "gamma");
     await git(repository, "init", "-q");
     await git(repository, "add", "-A");

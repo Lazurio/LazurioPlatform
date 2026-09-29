@@ -7,6 +7,7 @@ import {
 } from "../folder/render";
 import { enabledTools } from "../folder/state";
 import { machineBinding } from "../machine/binding";
+import { preparationReasons } from "../modules/preparation-refusal";
 import {
   type Catalog,
   type ModuleReason,
@@ -149,6 +150,7 @@ const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
   "no-app",
   "default-app-invalid",
   ...checkoutReasons,
+  ...preparationReasons,
 ];
 export const doctorReasons: readonly string[] = Object.freeze([
   ...new Set<string>([

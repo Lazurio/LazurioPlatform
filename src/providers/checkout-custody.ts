@@ -49,8 +49,22 @@ export function checkoutRefusal(
   home?: string,
 ): Readonly<{ reason: CheckoutReason; file: string }> | null {
   if (!(error instanceof CheckoutRefused)) return null;
+  return Object.freeze({
+    reason: error.reason,
+    file: refusedFileName(error.path, bases, home),
+  });
+}
+
+/** A refused path as output names it: relative to the first of `bases` that
+ * holds it (`.` for a base itself), else below `home` as `~/…`, else its last
+ * name. Never absolute. */
+export function refusedFileName(
+  path: string,
+  bases: string | readonly string[],
+  home?: string,
+): string {
   const below = (directory: string) => {
-    const name = relative(directory, error.path);
+    const name = relative(directory, path);
     if (name === "") return ".";
     return isAbsolute(name) || name === ".." || name.startsWith(`..${sep}`)
       ? null
@@ -58,13 +72,10 @@ export function checkoutRefusal(
   };
   for (const base of typeof bases === "string" ? [bases] : bases) {
     const name = below(base);
-    if (name !== null)
-      return Object.freeze({ reason: error.reason, file: name });
+    if (name !== null) return name;
   }
   const inHome = home === undefined ? null : below(home);
-  const file =
-    inHome !== null && inHome !== "."
-      ? `~/${inHome}`
-      : (error.path.split(sep).filter(Boolean).at(-1) ?? ".");
-  return Object.freeze({ reason: error.reason, file });
+  return inHome !== null && inHome !== "."
+    ? `~/${inHome}`
+    : (path.split(sep).filter(Boolean).at(-1) ?? ".");
 }

@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path";
 import type { ApplicationRunner } from "./application-runner";
 import { object, text } from "./manifest";
+import { PreparationRefused } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
 
@@ -23,9 +24,13 @@ type PreparationFactory = (
   plan: Plan,
   cwd: string,
 ) => Promise<{
-  run: (
-    signal: AbortSignal,
-  ) => Promise<{ kind: "prepared" | "preparation-failed" }>;
+  run: (signal: AbortSignal) => Promise<{
+    kind: "prepared" | "preparation-failed";
+    // Why a preparation failed, when it is known, and the module-relative
+    // file it concerns (decisions F23, F25).
+    reason?: string;
+    file?: string;
+  }>;
   close: () => Promise<{ kind: "closed" | "incomplete" }>;
 }>;
 
@@ -369,10 +374,20 @@ export function createApplicationLifecycle(adapters: {
                     kind: "preparation-cleanup-required" as const,
                   });
                 preparations.delete(check);
+                // A failure with a known reason keeps it (the default
+                // preparation's install, decision F25); a declared check
+                // that failed is `prerequisites-not-ready`.
                 if (result.kind !== "prepared")
-                  return Object.freeze({
-                    kind: "prerequisites-not-ready" as const,
-                  });
+                  return Object.freeze(
+                    result.reason === undefined
+                      ? { kind: "prerequisites-not-ready" as const }
+                      : {
+                          kind: result.reason,
+                          ...(result.file === undefined
+                            ? {}
+                            : { file: result.file }),
+                        },
+                  );
               } finally {
                 if (preparations.has(check)) {
                   try {
@@ -394,7 +409,10 @@ export function createApplicationLifecycle(adapters: {
               JSON.stringify(plan)
             )
               return Object.freeze({ kind: "declaration-changed" as const });
-          } catch {
+          } catch (error) {
+            // A preparation refused for a known reason is named by its
+            // caller (decision F25); nothing was started.
+            if (error instanceof PreparationRefused) throw error;
             return Object.freeze({ kind: "invalid-or-unavailable" as const });
           }
           if (closing) return Object.freeze({ kind: "closing" as const });

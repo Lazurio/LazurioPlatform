@@ -32,6 +32,7 @@ import {
 } from "./application-runner";
 import { createApplicationLifecycle } from "./lifecycle";
 import { localApplicationAdapters } from "./local-application-adapters";
+import { preparationRefusal } from "./preparation-refusal";
 import {
   createServiceManagerProcess,
   userManagerState,
@@ -160,7 +161,9 @@ export function processModuleHost(
  * kept verbatim. A file of the module's checkout that the checkout rule
  * refuses (decision F23) is `declaration-not-regular`, `declaration-owner`
  * or `declaration-too-large` with its module-relative `file`, whether the
- * catalog or the start read it. */
+ * catalog or the start read it. A preparation that cannot run for a known
+ * reason (decision F25) is one of `preparationReasons` with the package or
+ * lockfile it concerns. */
 export type ModuleBlocked = Readonly<{
   kind: "blocked";
   operation: ModuleOperation;
@@ -176,7 +179,8 @@ export type ModuleBlocked = Readonly<{
   expected?: string;
   /** `declaration-*`: the refused file, relative to the module, to the
    * Organization root for an Organization document, or `~/…` for the
-   * account's own package manager configuration. Never absolute. */
+   * account's own package manager configuration; `preparation-*`: the
+   * package or lockfile, relative to the module. Never absolute. */
   file?: string;
 }>;
 
@@ -322,8 +326,9 @@ export function createModuleOperations(input: {
   ): ModuleBlocked =>
     Object.freeze({ kind: "blocked" as const, operation, reason, ...extra });
 
-  // The refusal of a throw inside an operation: a refused file of the
-  // module's checkout by its rule and module-relative name, anything else
+  // The refusal of a throw inside an operation: a preparation refused for a
+  // known reason (decision F25) or a refused file of the module's checkout
+  // (decision F23), by its reason and module-relative file; anything else
   // `operation-failed`. Never the error's message or an absolute path.
   const moduleFailure = (
     operation: ModuleOperation,
@@ -335,11 +340,13 @@ export function createModuleOperations(input: {
       module: target.module,
       app: target.app,
     };
-    const refused = checkoutRefusal(
-      error,
-      [target.moduleDirectory, target.organizationDirectory],
-      host.home,
-    );
+    const refused =
+      preparationRefusal(error, target.moduleDirectory) ??
+      checkoutRefusal(
+        error,
+        [target.moduleDirectory, target.organizationDirectory],
+        host.home,
+      );
     return refused === null
       ? blocked(operation, "operation-failed", where)
       : blocked(operation, refused.reason, { ...where, file: refused.file });
@@ -566,10 +573,9 @@ export function createModuleOperations(input: {
     action: (lifecycle: Lifecycle) => Promise<T>,
   ): Promise<T | ModuleBlocked> {
     // A throw inside the lifecycle changed nothing it could not confirm. A
-    // file of the module's checkout that the checkout rule refused is named
-    // by its rule and file (decision F23); any other throw is typically a
-    // module that is not a declared self-owned Bun package (no preparation
-    // declaration, lockfile or exact packageManager).
+    // preparation refused for a known reason (decision F25) and a file of the
+    // module's checkout that the checkout rule refused (decision F23) are
+    // named by their reason and file; any other throw is `operation-failed`.
     const failed = (error: unknown) => moduleFailure(operation, target, error);
     if (owner === "launchpad") {
       try {
@@ -760,6 +766,10 @@ export function createModuleOperations(input: {
           organization: target.organization,
           module: target.module,
           app: target.app,
+          // The file a failed preparation concerns (decision F25).
+          ...("file" in started && typeof started.file === "string"
+            ? { file: started.file }
+            : {}),
         });
       return observe("start", started.kind, kind, target, selection, lifecycle);
     });
@@ -768,7 +778,8 @@ export function createModuleOperations(input: {
   // Seams of later slices, deliberately not built here:
   // - B3 `prepare` and `open` (prepare when needed, start, wait for health,
   //   the link) compose `lifecycle.prepare` and the same `observe`; until
-  //   then `ensure` starts but does not prepare.
+  //   then `ensure` starts, which for a module without a declared
+  //   preparation includes its default frozen install (decision F25).
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
   return Object.freeze({

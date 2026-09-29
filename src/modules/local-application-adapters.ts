@@ -3,7 +3,7 @@ import { retainedOperationLockPresent } from "../folder/retained-lock";
 import { resolveOrganizationApplication } from "../organizations/read-applications";
 import type { createApplicationCoordination } from "./application-coordination";
 import type { ApplicationRunner } from "./application-runner";
-import { inspectBunToolchain } from "./bun-toolchain";
+import { inspectBunToolchain, requireBunToolchain } from "./bun-toolchain";
 import {
   preflightDeclaredBunCheck,
   preflightDeclaredBunPreparation,
@@ -83,9 +83,10 @@ export function localApplicationAdapters(input: {
         platformExecutable,
         env: selected.env,
         timeoutMs: 600_000,
-        // The declared check supplies the module-owned postcondition. This
-        // additional check only verifies that the observed install inputs stayed
-        // unchanged; actual start/health remain separate lifecycle operations.
+        // The declared check supplies the module-owned postcondition (the
+        // default preparation has none, decision F25). This additional check
+        // only verifies that the observed install inputs stayed unchanged;
+        // actual start/health remain separate lifecycle operations.
         verifyPrepared: async (
           authority: Parameters<typeof verifyInstallAuthority>[0],
           signal: AbortSignal,
@@ -120,14 +121,15 @@ export function localApplicationAdapters(input: {
         binding.authority.owner !== cwd
       )
         throw new Error("Application preparation changed");
-      const tool = await inspectBunToolchain({
-        executable: selected.executable,
+      requireBunToolchain(
+        await inspectBunToolchain({
+          executable: selected.executable,
+          cwd,
+          env: selected.env,
+          packageManager: binding.authority.packageManager,
+        }),
         cwd,
-        env: selected.env,
-        packageManager: binding.authority.packageManager,
-      });
-      if (tool.kind !== "toolchain-observed")
-        throw new Error("Required toolchain unavailable");
+      );
       const environment: Record<string, string> = { ...selected.env };
       for (const listener of plan.listeners) {
         const prefix = `LAZURIO_RUNTIME_LISTENER_${listener.id.replaceAll("-", "_").toUpperCase()}`;

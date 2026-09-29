@@ -420,6 +420,24 @@ const en = {
     "{file} is not a real directory (a symlink, for example); Lazurio reads the checkout only through its own directories.",
   catalogReasonDirectoryOwner:
     "The directory {file} belongs to another account on this Machine, so it is not your own checkout. Make it yours again (for example with chown) or check it out again.",
+  preparationReasonOwnerInvalid:
+    "{file} cannot prepare this app: it is missing, is not a package, or the app is not a declared member of its workspace.",
+  preparationReasonScriptMissing:
+    "The preparation declared in the app names a script that {file} does not have.",
+  preparationReasonLockfileMissing:
+    "{file} has no Bun lockfile (bun.lock) beside it, so its dependencies cannot be installed exactly. Commit the lockfile with the app.",
+  preparationReasonLockfileAmbiguous:
+    "{file} has both bun.lock and bun.lockb beside it; keep only the one Bun installs from.",
+  preparationReasonPackageManager:
+    "The packageManager of {file} is not an exact Bun version (bun@x.y.z); Lazurio installs and runs modules with Bun.",
+  preparationReasonWorkspace:
+    "{file} is a workspace; installing a workspace is not supported yet.",
+  preparationReasonDependencyOutside:
+    "{file} depends on a local package outside its own directory (file:../…); the app's own directory must hold its local dependencies.",
+  preparationReasonToolchainMismatch:
+    "{file} pins a Bun version (packageManager) that the Bun in ~/.local/bin is not.",
+  preparationReasonInstallFailed:
+    "Installing the dependencies from {file} failed (bun install --frozen-lockfile): the lockfile may not match the package, or a dependency could not be fetched.",
   moduleApplication: "Application",
   moduleStart: "Start",
   moduleStop: "Stop",
@@ -448,7 +466,7 @@ const en = {
   moduleReasonPortOccupied:
     "Another process listens on the module's declared port. Stop it first.",
   moduleReasonFailed:
-    "The lifecycle failed before it could confirm a change. Most often the module is not a declared self-owned Bun package (lazurio.preparation, one Bun lockfile, an exact packageManager).",
+    "The lifecycle failed before it could confirm a change, for a reason it cannot name. See lazurio module status and lazurio doctor.",
   moduleNoLinkEntry:
     "No link: this Machine's recorded entry names no hostname for modules yet.",
   moduleNoLinkApp:
@@ -980,6 +998,24 @@ const cs: Record<MessageKey, string> = {
     "{file} není skutečná složka (například je to symlink); Lazurio čte checkout jen přes jeho vlastní složky.",
   catalogReasonDirectoryOwner:
     "Složka {file} patří jinému účtu na téhle Mašině, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
+  preparationReasonOwnerInvalid:
+    "{file} nemůže tuhle aplikaci připravit: chybí, není to balíček, nebo aplikace není deklarovaným členem jeho workspace.",
+  preparationReasonScriptMissing:
+    "Příprava deklarovaná v aplikaci jmenuje skript, který {file} nemá.",
+  preparationReasonLockfileMissing:
+    "Vedle {file} není Bun lockfile (bun.lock), takže jeho závislosti nejde nainstalovat přesně. Commitněte lockfile spolu s aplikací.",
+  preparationReasonLockfileAmbiguous:
+    "Vedle {file} je bun.lock i bun.lockb; nechte jen ten, ze kterého Bun instaluje.",
+  preparationReasonPackageManager:
+    "packageManager v {file} není přesná verze Bunu (bun@x.y.z); Lazurio moduly instaluje a spouští Bunem.",
+  preparationReasonWorkspace:
+    "{file} je workspace; instalace workspace zatím není podporovaná.",
+  preparationReasonDependencyOutside:
+    "{file} závisí na lokálním balíčku mimo vlastní složku (file:../…); lokální závislosti aplikace musí být v její vlastní složce.",
+  preparationReasonToolchainMismatch:
+    "{file} vyžaduje verzi Bunu (packageManager), kterou Bun v ~/.local/bin nemá.",
+  preparationReasonInstallFailed:
+    "Instalace závislostí z {file} selhala (bun install --frozen-lockfile): lockfile možná neodpovídá balíčku, nebo nešlo stáhnout některou závislost.",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
   moduleStop: "Zastavit",
@@ -1008,7 +1044,7 @@ const cs: Record<MessageKey, string> = {
   moduleReasonPortOccupied:
     "Na deklarovaném portu modulu poslouchá jiný proces. Nejdřív ho zastavte.",
   moduleReasonFailed:
-    "Životní cyklus selhal dřív, než mohl změnu potvrdit. Nejčastěji modul není deklarovaný vlastní Bun balíček (lazurio.preparation, jeden Bun lockfile, přesný packageManager).",
+    "Životní cyklus selhal dřív, než mohl změnu potvrdit, z důvodu, který neumí pojmenovat. Viz lazurio module status a lazurio doctor.",
   moduleNoLinkEntry:
     "Bez odkazu: zaznamenaný vstup téhle Mašiny zatím neuvádí hostname pro moduly.",
   moduleNoLinkApp:

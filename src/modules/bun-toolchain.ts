@@ -1,21 +1,27 @@
 import { execFile } from "node:child_process";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
+import { PreparationRefused } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 
 const execute = promisify(execFile);
 
 // Explicit trusted executable selection, not PATH discovery or publisher proof.
 // A program can lie about its version; its provenance remains the tool owner’s duty.
+// `packageManager` is the exact Bun the package pins, or null when it pins
+// none: then the selected Bun is observed, whichever version it reports
+// (decision F25).
 export async function inspectBunToolchain(input: {
   executable: string;
   cwd: string;
   env: Record<string, string>;
-  packageManager: string;
+  packageManager: string | null;
 }) {
   if (
-    !/^bun@\d+\.\d+\.\d+$/.test(input.packageManager) ||
-    /[\r\n]/.test(input.packageManager)
+    input.packageManager !== null &&
+    (!/^bun@\d+\.\d+\.\d+$/.test(input.packageManager) ||
+      /[\r\n]/.test(input.packageManager))
   )
     throw new Error("Exact Bun version required");
   const launch = parseProcessLaunch({
@@ -46,19 +52,38 @@ export async function inspectBunToolchain(input: {
       /[\r\n]/.test(version)
     )
       return Object.freeze({ kind: "toolchain-unavailable" as const });
-    if (`bun@${version}` !== input.packageManager)
+    const actual = `bun@${version}`;
+    if (input.packageManager !== null && actual !== input.packageManager)
       return Object.freeze({
         kind: "toolchain-mismatch" as const,
         expected: input.packageManager,
-        actual: `bun@${version}`,
+        actual,
       });
     return Object.freeze({
       kind: "toolchain-observed" as const,
       executable: launch.executable,
-      packageManager: input.packageManager,
+      packageManager: actual,
     });
   } catch {
     // Do not expose environment or executable stderr as a user-facing diagnosis.
     return Object.freeze({ kind: "toolchain-unavailable" as const });
   }
+}
+
+/** The observed toolchain, or the refusal of the start: a pinned Bun the
+ * selected one is not is `preparation-toolchain-mismatch`, named by the
+ * owner's package.json (decision F25); an unavailable one stays untyped. */
+export function requireBunToolchain(
+  observed: Awaited<ReturnType<typeof inspectBunToolchain>>,
+  owner: string,
+) {
+  if (observed.kind === "toolchain-mismatch")
+    throw new PreparationRefused(
+      "preparation-toolchain-mismatch",
+      join(owner, "package.json"),
+      "Required Bun toolchain unavailable",
+    );
+  if (observed.kind !== "toolchain-observed")
+    throw new Error("Required Bun toolchain unavailable");
+  return observed;
 }
