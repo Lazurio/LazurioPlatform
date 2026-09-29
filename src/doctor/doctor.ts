@@ -14,7 +14,7 @@ import {
   readFolderCatalog,
 } from "../organizations/catalog";
 import { organizationRootStates } from "../organizations/root-resolution";
-import { checkoutFileReasons } from "../providers/owned-json";
+import { checkoutReasons } from "../providers/checkout-custody";
 import {
   type RecoveryCheck,
   type RecoveryCheckId,
@@ -148,7 +148,7 @@ const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
   "explicit-apps-required",
   "no-app",
   "default-app-invalid",
-  ...checkoutFileReasons,
+  ...checkoutReasons,
 ];
 export const doctorReasons: readonly string[] = Object.freeze([
   ...new Set<string>([
@@ -219,13 +219,15 @@ export const doctorContextRules: Readonly<
   answer: oneOf(["normal", "recovery", "none", "unexpected"]),
   organizations: count,
   modules: count,
-  // A refused file of the operator's checkout (decision F23): relative to its
-  // module or Organization, or `~/…`; never absolute, never `..`.
+  // A refused file or directory of the operator's checkout (decision F23):
+  // relative to its module or Organization (`.` for the directory itself), or
+  // `~/…`; never absolute, never `..`.
   file: (value: unknown) =>
-    typeof value === "string" &&
-    value.length <= 512 &&
-    /^(~\/)?[A-Za-z0-9._@+-]+(\/[A-Za-z0-9._@+-]+)*$/.test(value) &&
-    !value.split("/").some((segment) => segment === ".." || segment === "."),
+    value === "." ||
+    (typeof value === "string" &&
+      value.length <= 512 &&
+      /^(~\/)?[A-Za-z0-9._@+-]+(\/[A-Za-z0-9._@+-]+)*$/.test(value) &&
+      !value.split("/").some((segment) => segment === ".." || segment === ".")),
 });
 
 const doctorContext = (context: ErrorContext): ErrorContext =>

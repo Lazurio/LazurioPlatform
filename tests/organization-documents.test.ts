@@ -92,10 +92,23 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
           modules: { kind: "present" },
         });
       }
+      // The Organization root is the operator's checkout: its write bits
+      // are not a reason (decision F23); a symlinked root is refused.
       await chmod(root, 0o777);
-      expect(await readOrganizationDocuments(root)).toEqual({
-        kind: "unavailable",
+      expect(await readOrganizationDocuments(root)).toMatchObject({
+        kind: "documents-observed",
+        modules: { kind: "present" },
       });
+      await chmod(root, 0o700);
+      const linked = `${root}-link`;
+      await symlink(root, linked);
+      try {
+        expect(await readOrganizationDocuments(linked)).toEqual({
+          kind: "unavailable",
+        });
+      } finally {
+        await rm(linked);
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }

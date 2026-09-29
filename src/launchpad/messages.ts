@@ -395,13 +395,13 @@ const en = {
   catalogReasonChanged:
     "The Organization changed while it was being read. Refresh.",
   catalogReasonUnavailable:
-    "The directory cannot be read: it must be a real directory owned by you and not writable by others.",
+    "The directory cannot be read: it must be a real directory owned by you.",
   catalogReasonDuplicate:
     "Another directory in this Folder declares the same Organization.",
   catalogReasonPersonalspaceAmbiguous:
     "personalspace/ holds more than one directory; only the Principal's own may be there, and none is read until it is the only one.",
   catalogReasonPersonalspaceUnavailable:
-    "The Personalspace cannot be read: its directories must be real directories owned by you and not writable by others.",
+    "The Personalspace cannot be read: its directories must be real directories owned by you.",
   catalogReasonDeclaration:
     "The module's declaration in modules.manifest.json conflicts with another.",
   catalogReasonModuleUnavailable:
@@ -415,7 +415,11 @@ const en = {
   catalogReasonDeclarationOwner:
     "{file} belongs to another account on this Machine, so it is not a file of your own checkout. Make it yours again (for example with chown) or check it out again.",
   catalogReasonDeclarationTooLarge:
-    "{file} is larger than the 1 MiB a declaration may be.",
+    "{file} is larger than a file of the checkout may be (1 MiB; 16 MiB for a lockfile).",
+  catalogReasonDirectoryNotRegular:
+    "{file} is not a real directory (a symlink, for example); Lazurio reads the checkout only through its own directories.",
+  catalogReasonDirectoryOwner:
+    "The directory {file} belongs to another account on this Machine, so it is not your own checkout. Make it yours again (for example with chown) or check it out again.",
   moduleApplication: "Application",
   moduleStart: "Start",
   moduleStop: "Stop",
@@ -950,13 +954,13 @@ const cs: Record<MessageKey, string> = {
   catalogReasonTemplate: "Šablona Organizace; šablony se nikdy nespouštějí.",
   catalogReasonChanged: "Organizace se během čtení změnila. Načtěte znovu.",
   catalogReasonUnavailable:
-    "Složku nelze přečíst: musí to být skutečná složka, kterou vlastníte a do které ostatní nemohou zapisovat.",
+    "Složku nelze přečíst: musí to být skutečná složka, kterou vlastníte.",
   catalogReasonDuplicate:
     "Jiná složka v tomhle Folderu deklaruje stejnou Organizaci.",
   catalogReasonPersonalspaceAmbiguous:
     "V personalspace/ je víc než jedna složka; smí tam být jen ta Principálova a žádná se nečte, dokud nezůstane jediná.",
   catalogReasonPersonalspaceUnavailable:
-    "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte a do kterých ostatní nemohou zapisovat.",
+    "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte.",
   catalogReasonDeclaration:
     "Deklarace modulu v modules.manifest.json je v konfliktu s jinou.",
   catalogReasonModuleUnavailable:
@@ -971,7 +975,11 @@ const cs: Record<MessageKey, string> = {
   catalogReasonDeclarationOwner:
     "{file} patří jinému účtu na téhle Mašině, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
   catalogReasonDeclarationTooLarge:
-    "{file} je větší než 1 MiB, které deklarace smí mít.",
+    "{file} je větší, než smí soubor checkoutu být (1 MiB; 16 MiB pro lockfile).",
+  catalogReasonDirectoryNotRegular:
+    "{file} není skutečná složka (například je to symlink); Lazurio čte checkout jen přes jeho vlastní složky.",
+  catalogReasonDirectoryOwner:
+    "Složka {file} patří jinému účtu na téhle Mašině, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
   moduleStop: "Zastavit",

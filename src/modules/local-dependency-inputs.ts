@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { readCheckoutFileBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 
@@ -80,7 +80,7 @@ export async function inspectLocalDependencyInputs(
     let parent = owner;
     for (const segment of root.split("/").slice(0, -1)) {
       parent = join(parent, segment);
-      const identity = await inspectOwnedDirectory(parent);
+      const identity = await inspectCheckoutDirectory(parent);
       result[`directory:${parent}`] = `${identity.dev}:${identity.ino}`;
     }
     const pending = [root];
@@ -91,7 +91,7 @@ export async function inspectLocalDependencyInputs(
       const path = join(owner, relative);
       const stat = await lstat(path);
       if (stat.isDirectory()) {
-        const identity = await inspectOwnedDirectory(path);
+        const identity = await inspectCheckoutDirectory(path);
         result[`directory:${path}`] = `${identity.dev}:${identity.ino}`;
         const entries = await readdir(path);
         for (const entry of entries.sort().reverse()) {

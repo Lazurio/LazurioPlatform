@@ -88,6 +88,8 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "declaration-not-regular": "catalogReasonDeclarationNotRegular",
   "declaration-owner": "catalogReasonDeclarationOwner",
   "declaration-too-large": "catalogReasonDeclarationTooLarge",
+  "directory-not-regular": "catalogReasonDirectoryNotRegular",
+  "directory-owner": "catalogReasonDirectoryOwner",
 };
 
 /** A refusal or a missing link in words; an unknown code is named by its

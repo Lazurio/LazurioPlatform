@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { snapshotOrganizationDocument } from "../organizations/document-hash";
 import { readCheckoutFileBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
@@ -43,7 +43,7 @@ export async function inspectInstallAuthority(
           args: [],
           env: environment,
         }).env;
-  const checkoutStat = await inspectOwnedDirectory(checkout);
+  const checkoutStat = await inspectCheckoutDirectory(checkout);
   const offset = relative(checkout, owner);
   if (isAbsolute(offset) || offset === ".." || offset.startsWith(`..${sep}`))
     throw new Error("Install owner outside selected checkout");
@@ -51,9 +51,9 @@ export async function inspectInstallAuthority(
   if (offset)
     for (const segment of offset.split(sep)) {
       parent = join(parent, segment);
-      await inspectOwnedDirectory(parent);
+      await inspectCheckoutDirectory(parent);
     }
-  const ownerStat = await inspectOwnedDirectory(owner);
+  const ownerStat = await inspectCheckoutDirectory(owner);
   const configuration: Record<string, string | null> = {};
   if (env) {
     if (!env.HOME || !isAbsolute(env.HOME))
@@ -71,7 +71,7 @@ export async function inspectInstallAuthority(
     ])) {
       if (!isAbsolute(directory))
         throw new Error("Explicit configuration directory required");
-      const identity = await inspectOwnedDirectory(directory);
+      const identity = await inspectCheckoutDirectory(directory);
       configuration[`directory:${directory}`] =
         `${identity.dev}:${identity.ino}`;
       for (const name of [".npmrc", ".bunfig.toml"]) {
@@ -136,8 +136,8 @@ export async function inspectInstallAuthority(
     configuration: Object.freeze(configuration),
     environment: env,
   });
-  const afterCheckout = await inspectOwnedDirectory(checkout);
-  const afterOwner = await inspectOwnedDirectory(owner);
+  const afterCheckout = await inspectCheckoutDirectory(checkout);
+  const afterOwner = await inspectCheckoutDirectory(owner);
   if (
     `${afterCheckout.dev}:${afterCheckout.ino}` !== snapshot.checkoutIdentity ||
     `${afterOwner.dev}:${afterOwner.ino}` !== snapshot.ownerIdentity

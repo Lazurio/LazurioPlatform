@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { readCheckoutFileBytes } from "../providers/owned-json";
 
 // Explicit owner-relative patch inputs, not a parser or executor of patch content.
@@ -36,12 +36,12 @@ export async function inspectPatchInputs(owner: string, value: unknown) {
       throw new Error("Owner-relative patch path required");
     paths.add(path);
   }
-  await inspectOwnedDirectory(owner);
+  await inspectCheckoutDirectory(owner);
   for (const path of [...paths].sort()) {
     let directory = owner;
     for (const segment of path.split("/").slice(0, -1)) {
       directory = join(directory, segment);
-      const identity = await inspectOwnedDirectory(directory);
+      const identity = await inspectCheckoutDirectory(directory);
       result[`directory:${directory}`] = `${identity.dev}:${identity.ino}`;
     }
     const bytes = await readCheckoutFileBytes(join(owner, path));

@@ -212,10 +212,13 @@ posixTest(
       const byDirectory = Object.fromEntries(
         catalog.organizations.map((entry) => [entry.directory, entry]),
       );
+      // A linked candidate is not a real directory of the checkout, named
+      // by the checkout rule (decision F23), the candidate itself as `.`.
       expect(byDirectory.z).toMatchObject({
         organization: null,
         executable: false,
-        reason: "organization-unavailable",
+        reason: "directory-not-regular",
+        file: ".",
         modules: [],
       });
       for (const directory of ["beta", "beta-copy"])

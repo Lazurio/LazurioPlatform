@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { GLOBSTAR, Minimatch } from "minimatch";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { readCheckoutFileBytes } from "../providers/owned-json";
 import { compileWorkspacePatterns } from "./workspace-membership";
 
@@ -48,7 +48,7 @@ export async function inspectWorkspaceInputs(
       ),
     );
   };
-  await inspectOwnedDirectory(owner);
+  await inspectCheckoutDirectory(owner);
   const members = new Set<string>();
   let entriesObserved = 0;
   const pending = [""];
@@ -57,7 +57,7 @@ export async function inspectWorkspaceInputs(
     if (relative.split("/").length > 64)
       throw new Error("Workspace inventory depth limit exceeded");
     const directory = join(owner, relative);
-    await inspectOwnedDirectory(directory);
+    await inspectCheckoutDirectory(directory);
     const entries = await readdir(directory, { withFileTypes: true });
     entriesObserved += entries.length;
     if (entriesObserved > 20_000)
@@ -84,7 +84,7 @@ export async function inspectWorkspaceInputs(
     let directory = owner;
     for (const segment of dirname(member).split("/")) {
       directory = join(directory, segment);
-      const identity = await inspectOwnedDirectory(directory);
+      const identity = await inspectCheckoutDirectory(directory);
       result[`directory:${directory}`] = `${identity.dev}:${identity.ino}`;
     }
     const bytes = await readCheckoutFileBytes(join(owner, member));

@@ -1,11 +1,11 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import {
-  type CheckoutFileReason,
-  CheckoutFileRefused,
-  readCheckoutJson,
-} from "../providers/owned-json";
+  type CheckoutReason,
+  CheckoutRefused,
+} from "../providers/checkout-custody";
+import { readCheckoutJson } from "../providers/owned-json";
 
 /** The file of each Organization document, relative to its root. */
 export const organizationDocumentFiles = Object.freeze({
@@ -16,7 +16,7 @@ export const organizationDocumentFiles = Object.freeze({
 type Document =
   | { kind: "missing" }
   // `refused`: the checkout rule refused the file (decision F23), by name.
-  | { kind: "invalid"; refused?: CheckoutFileReason }
+  | { kind: "invalid"; refused?: CheckoutReason }
   | { kind: "present"; value: Readonly<Record<string, unknown>> };
 
 function freezeJson(value: unknown): void {
@@ -49,7 +49,7 @@ async function readDocument(path: string): Promise<Readonly<Document>> {
     });
   } catch (error) {
     return Object.freeze(
-      error instanceof CheckoutFileRefused
+      error instanceof CheckoutRefused
         ? { kind: "invalid", refused: error.reason }
         : { kind: "invalid" },
     );
@@ -64,7 +64,7 @@ export async function readOrganizationDocuments(directory: string) {
   if (!["darwin", "linux"].includes(process.platform))
     return Object.freeze({ kind: "unavailable" as const });
   try {
-    const before = await inspectOwnedDirectory(directory);
+    const before = await inspectCheckoutDirectory(directory);
     const canonical = await readDocument(
       join(directory, organizationDocumentFiles.canonical),
     );
@@ -74,7 +74,7 @@ export async function readOrganizationDocuments(directory: string) {
     const modules = await readDocument(
       join(directory, organizationDocumentFiles.modules),
     );
-    const after = await inspectOwnedDirectory(directory);
+    const after = await inspectCheckoutDirectory(directory);
     if (before.dev !== after.dev || before.ino !== after.ino)
       return Object.freeze({ kind: "unavailable" as const });
     return Object.freeze({

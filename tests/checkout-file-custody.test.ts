@@ -13,9 +13,16 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  CheckoutFileRefused,
-  checkoutFileRefusal,
+  checkoutDirectoryRefusal,
+  inspectCheckoutDirectory,
+  inspectOwnedDirectory,
+} from "../src/folder/owned-directory";
+import {
+  CheckoutRefused,
   checkoutRefusal,
+} from "../src/providers/checkout-custody";
+import {
+  checkoutFileRefusal,
   readCheckoutFileBytes,
   readCustodiedDeclarationBytes,
 } from "../src/providers/owned-json";
@@ -50,7 +57,7 @@ async function refusal(read: Promise<unknown>) {
   try {
     await read;
   } catch (error) {
-    return error instanceof CheckoutFileRefused ? error.reason : "other";
+    return error instanceof CheckoutRefused ? error.reason : "other";
   }
   return null;
 }
@@ -116,10 +123,12 @@ posixTest(
   "another account's file is refused: read as another expected owner",
   async () => {
     const { path } = await file();
-    expect(await refusal(readCheckoutFileBytes(path, uid + 1))).toBe(
-      "declaration-owner",
+    expect(
+      await refusal(readCheckoutFileBytes(path, { expectedUid: uid + 1 })),
+    ).toBe("declaration-owner");
+    expect(await readCheckoutFileBytes(path, { expectedUid: uid })).toEqual(
+      bytes,
     );
-    expect(await readCheckoutFileBytes(path, uid)).toEqual(bytes);
   },
 );
 
@@ -130,7 +139,7 @@ test.skipIf(!supported || uid !== 0)(
   async () => {
     const { path } = await file();
     await chown(path, 1, 1);
-    expect(await refusal(readCheckoutFileBytes(path, 0))).toBe(
+    expect(await refusal(readCheckoutFileBytes(path, { expectedUid: 0 }))).toBe(
       "declaration-owner",
     );
   },
@@ -161,7 +170,7 @@ test("the rule over a stat: type first, then owner, then size; mode and links ne
 });
 
 test("a refusal is named relative to its base or home, never by an absolute path", () => {
-  const refused = new CheckoutFileRefused(
+  const refused = new CheckoutRefused(
     "declaration-owner",
     "/srv/folder/organizations/alpha/workspace/web/app/package.json",
   );
@@ -171,14 +180,14 @@ test("a refusal is named relative to its base or home, never by an absolute path
   ).toEqual({ reason: "declaration-owner", file: "app/package.json" });
   expect(
     checkoutRefusal(
-      new CheckoutFileRefused("declaration-owner", "/home/operator/.npmrc"),
+      new CheckoutRefused("declaration-owner", "/home/operator/.npmrc"),
       "/srv/folder/organizations/alpha/workspace/web",
       "/home/operator",
     ),
   ).toEqual({ reason: "declaration-owner", file: "~/.npmrc" });
   expect(
     checkoutRefusal(
-      new CheckoutFileRefused("declaration-too-large", "/etc/elsewhere/x.json"),
+      new CheckoutRefused("declaration-too-large", "/etc/elsewhere/x.json"),
       "/srv/folder",
       "/home/operator",
     ),
@@ -205,5 +214,85 @@ posixTest(
     await expect(
       readCustodiedDeclarationBytes(accepted.path, uid + 1),
     ).rejects.toThrow("Unsafe declaration file");
+  },
+);
+
+posixTest(
+  "lockfiles have their own bound: 1 MiB + 1 byte is read, 16 MiB + 1 byte is refused as declaration-too-large",
+  async () => {
+    const { directory } = await file();
+    for (const name of ["bun.lock", "bun.lockb", "package-lock.json"]) {
+      const lock = join(directory, name);
+      await writeFile(lock, Buffer.alloc(1024 * 1024 + 1, 32), { mode: 0o664 });
+      expect((await readCheckoutFileBytes(lock)).length).toBe(1024 * 1024 + 1);
+      await writeFile(lock, Buffer.alloc(16 * 1024 * 1024 + 1, 32));
+      expect(await refusal(readCheckoutFileBytes(lock))).toBe(
+        "declaration-too-large",
+      );
+    }
+    // A declaration of the same size keeps the 1 MiB bound.
+    const declaration = join(directory, "package.json");
+    await writeFile(declaration, Buffer.alloc(1024 * 1024 + 1, 32));
+    expect(await refusal(readCheckoutFileBytes(declaration))).toBe(
+      "declaration-too-large",
+    );
+  },
+);
+
+posixTest(
+  "checkout directories: write bits are not a reason (0775, 0777); a symlinked directory is refused; the strict rule is unchanged",
+  async () => {
+    const { directory } = await file();
+    for (const mode of [0o700, 0o755, 0o775, 0o777]) {
+      await chmod(directory, mode);
+      expect((await inspectCheckoutDirectory(directory)).isDirectory()).toBe(
+        true,
+      );
+    }
+    // The strict rule of what the product, root or the system writes.
+    await expect(inspectOwnedDirectory(directory)).rejects.toThrow(
+      "Caller-owned non-shared directory required",
+    );
+    await chmod(directory, 0o700);
+    expect((await inspectOwnedDirectory(directory)).isDirectory()).toBe(true);
+    const linked = join(root, `linked-${count++}`);
+    await symlink(directory, linked);
+    expect(await refusal(inspectCheckoutDirectory(linked))).toBe(
+      "directory-not-regular",
+    );
+    // A path through a symlink is not canonical either.
+    await mkdir(join(directory, "inner"), { mode: 0o775 });
+    expect(await refusal(inspectCheckoutDirectory(join(linked, "inner")))).toBe(
+      "directory-not-regular",
+    );
+    expect(
+      await refusal(inspectCheckoutDirectory(join(directory, "package.json"))),
+    ).toBe("directory-not-regular");
+  },
+);
+
+test("the directory rule over a stat: another owner is directory-owner, write bits never", () => {
+  const stat = (directory: boolean, uid: number) => ({
+    isDirectory: () => directory,
+    uid,
+    mode: 0o040777,
+  });
+  expect(checkoutDirectoryRefusal(stat(true, 1000), 1000)).toBeNull();
+  expect(checkoutDirectoryRefusal(stat(true, 1001), 1000)).toBe(
+    "directory-owner",
+  );
+  expect(checkoutDirectoryRefusal(stat(false, 1000), 1000)).toBe(
+    "directory-not-regular",
+  );
+});
+
+test.skipIf(!supported || uid !== 0)(
+  "another account's directory is refused (root: a real second owner)",
+  async () => {
+    const { directory } = await file();
+    await chown(directory, 1, 1);
+    expect(await refusal(inspectCheckoutDirectory(directory))).toBe(
+      "directory-owner",
+    );
   },
 );

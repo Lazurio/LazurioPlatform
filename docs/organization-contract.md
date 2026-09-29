@@ -64,12 +64,15 @@ interim implementation of the same compatibility-state table, not a second schem
   admission rule does not execute (`projection_drift`, and `current` under variant
   A) is still listed from the canonical file but is not executable. Conflict
   returns `organization-conflict` with issue codes only.
-- The documents are files of the operator's own checkout (decision F23): each is read
-  when it is a regular file of at most 1 MiB owned by the operator; permission bits
-  and link count are not reasons. A refused document keeps the `conflict` state and
-  its `*_document_unreadable` issue, and the catalog names the Organization's reason
-  by the rule (`declaration-not-regular`, `declaration-owner`,
-  `declaration-too-large`) with the document's file.
+- The Organization root and its documents are the operator's own checkout (decision
+  F23): the root is accepted when it is a real directory owned by the operator, each
+  document when it is a regular file of at most 1 MiB owned by the operator;
+  permission bits and link count are not reasons (a clone under umask `002` has
+  `0775` directories and `0664` files). A refused document keeps the `conflict` state
+  and its `*_document_unreadable` issue, and the catalog names the Organization's
+  reason by the rule (`declaration-not-regular`, `declaration-owner`,
+  `declaration-too-large`) with the document's file; a refused root is
+  `directory-not-regular` or `directory-owner` with `.`.
 - The Folder catalog (`lazurio organization list`, `lazurio module list`, the
   Launchpad home) applies this reader to every directory in
   `<Folder>/organizations/`; a candidate that cannot be read, a template and two

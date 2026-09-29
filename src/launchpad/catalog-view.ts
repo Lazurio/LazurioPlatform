@@ -40,6 +40,8 @@ const reasonKeys: Readonly<
   "declaration-not-regular": "catalogReasonDeclarationNotRegular",
   "declaration-owner": "catalogReasonDeclarationOwner",
   "declaration-too-large": "catalogReasonDeclarationTooLarge",
+  "directory-not-regular": "catalogReasonDirectoryNotRegular",
+  "directory-owner": "catalogReasonDirectoryOwner",
 };
 
 /** A reason's sentence with the refused file in it (decision F23), when the

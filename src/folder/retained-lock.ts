@@ -3,7 +3,7 @@
 // locks refuse this unmarked directory; this adapter refuses any occupied path.
 import { lstat, mkdir, rmdir } from "node:fs/promises";
 import { join } from "node:path";
-import { inspectOwnedDirectory } from "./owned-directory";
+import { inspectCheckoutDirectory } from "./owned-directory";
 
 // One lock per explicitly bound local state owner. Callers must use that same
 // directory, check pending recovery under the lock, and recheck before mutation.
@@ -11,7 +11,7 @@ import { inspectOwnedDirectory } from "./owned-directory";
 export async function acquireRetainedOperationLock(stateDirectory: string) {
   if (process.platform === "win32")
     throw new Error("Unqualified lock platform");
-  const parent = await inspectOwnedDirectory(stateDirectory);
+  const parent = await inspectCheckoutDirectory(stateDirectory);
   const path = join(stateDirectory, ".operation-lock");
   try {
     await mkdir(path, { mode: 0o700 });
@@ -22,7 +22,7 @@ export async function acquireRetainedOperationLock(stateDirectory: string) {
   }
   const created = await lstat(path);
   const assertHeld = async () => {
-    const currentParent = await inspectOwnedDirectory(stateDirectory);
+    const currentParent = await inspectCheckoutDirectory(stateDirectory);
     const current = await lstat(path);
     if (
       currentParent.dev !== parent.dev ||

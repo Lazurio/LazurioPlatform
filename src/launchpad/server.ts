@@ -7,7 +7,7 @@ import {
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
 import { withFolderReadLock } from "../folder/lock";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { allowedPresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { enabledTools, stateFields } from "../folder/state";
@@ -182,7 +182,7 @@ export async function startLaunchpad(
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
   if (organizationDirectory !== undefined)
-    await inspectOwnedDirectory(organizationDirectory);
+    await inspectCheckoutDirectory(organizationDirectory);
   const state = join(folder, ".lazurio");
   // The recorded hosted entry (decision F16) is the only source of hosted
   // mode: the Launchpad serves on the loopback port the gateway proxies to,

@@ -1,3 +1,7 @@
+import {
+  type CheckoutReason,
+  checkoutRefusal,
+} from "../providers/checkout-custody";
 import { inspectBunToolchain } from "./bun-toolchain";
 import { cleanDerivedDependencies } from "./clean-dependencies";
 import {
@@ -13,7 +17,13 @@ import { parseProcessLaunch } from "./process-launch";
 
 type Authority = Awaited<ReturnType<typeof inspectInstallAuthority>>;
 type Install = Awaited<ReturnType<typeof runFrozenInstallProcess>>;
-type PreparationResult = Readonly<{ kind: "prepared" | "preparation-failed" }>;
+type PreparationResult = Readonly<{
+  kind: "prepared" | "preparation-failed";
+  /** A refusal of the checkout rule (decision F23) and its module-relative
+   * file or directory. */
+  reason?: CheckoutReason;
+  file?: string;
+}>;
 
 // First Bun effect composition for the existing lifecycle's preparation hook.
 // The caller resolves the dependency owner under the shared operation lock and
@@ -173,8 +183,17 @@ export async function preflightBunPreparation(input: {
           )
             return failed();
           return Object.freeze({ kind: "prepared" as const });
-        } catch {
-          return failed();
+        } catch (error) {
+          // A refused file or directory of the checkout, such as another
+          // account's entry in the dependency tree, keeps its rule and
+          // module-relative name (decision F23).
+          const refused = checkoutRefusal(error, authority.checkout);
+          return refused === null
+            ? failed()
+            : Object.freeze({
+                kind: "preparation-failed" as const,
+                ...refused,
+              });
         }
       })();
       return pending;

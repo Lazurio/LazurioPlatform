@@ -162,8 +162,8 @@ own qualification before the workspace execution refusal can be removed.
 The authority also captures the bytes of owner-level `patchedDependencies` files
 (the [Bun patch mechanism](https://bun.sh/docs/pm/cli/patch)). Paths must remain
 relative to the explicit dependency owner, outside Git and derived dependency
-trees. Every parent directory passes the directory custody check and every patch file
-the checkout rule of decision F23 (a regular file of at most 1 MiB owned by the
+trees. Every parent directory and every patch file passes the checkout rule of
+decision F23 (a real directory, or a regular file of at most 1 MiB, owned by the
 operator; permission bits and link count are not reasons); a missing, symlinked or
 changed input cannot verify as unchanged. This
 does not apply patches, validate patch syntax, qualify workspace-level patch
@@ -896,11 +896,12 @@ they are not app start/status/stop or installed-product evidence.
 is allowed; legacy `companyascode.app` requires explicit adoption, not an implicit
 fallback. Undeclared applications return the selector's blocked result.
 
-This POSIX development adapter requires a canonical, caller-owned, non-shared-write
-module directory and checks every intermediate app directory. Files follow the
-checkout rule of decision F23: owned by the operator, regular and at most 1 MiB, with
-permission bits and link count not a reason; a refusal carries its rule
-(`declaration-not-regular`, `declaration-owner`, `declaration-too-large`). Reads use
+This POSIX development adapter requires a canonical module directory and checks every
+intermediate app directory. Directories and files follow the checkout rule of
+decision F23: owned by the operator, a real directory or a regular file of at most
+1 MiB (16 MiB for a lockfile), with permission bits and link count not a reason; a
+refusal carries its rule (`declaration-not-regular`, `declaration-owner`,
+`declaration-too-large`, `directory-not-regular`, `directory-owner`). Reads use
 no-follow/nonblocking opens, identity checks and strict UTF-8 JSON. It never scans
 Organizations, executes scripts, fetches URLs or writes files. Tests use invented
 temporary modules, including links, malformed/oversized data and legacy conflicts.
@@ -1061,9 +1062,10 @@ responding. Both run with empty environments; Ubuntu had neither Bun nor Node in
 - Platform CLI: `26e8a44c20c88785fb83bef67a25e512486e5a5ad7346cef1440a5a20b1f7f88`.
 - Standalone runner: `bcf0214fcf8901fb543c78c1d24149a2791e6181d3e9170943e4965fa27e92d8`.
 
-The first Linux attempt correctly refused a group-writable fixture directory inherited
-from the guest umask. The runner and source test now request mode 0700 explicitly;
-product custody checks were not relaxed. The corrected runner passed, then the VM
+The first Linux attempt refused a group-writable fixture directory inherited from the
+guest umask. The runner and source test now request mode 0700 explicitly; product
+custody checks were not relaxed then. Decision F23 (2026-09-29) later accepted the
+write bits of the operator's own checkout. The corrected runner passed, then the VM
 was stopped. This reused test VM is not a clean installer test. Linux evidence here
 does not cover pipe EOF, guard death, escaped descendants, Windows, Organization
 authorization or the still-missing user-facing app lifecycle commands and UI.
@@ -1092,8 +1094,9 @@ CLI/Launchpad acceptance. No Organization or Personalspace was mounted or used.
 ### Local Git checkout observation
 
 `src/providers/git-checkout.ts` is a read-only POSIX development adapter using an
-explicit caller-qualified Git executable. It requires a canonical caller-owned,
-non-shared-writable checkout root and Git/common directories, observes their
+explicit caller-qualified Git executable. It requires a canonical checkout root and
+Git/common directories owned by the operator (decision F23: their write bits are not a
+reason), observes their
 identities again, and reads one locally configured origin without includes. Nested
 paths are not accepted as checkout roots. Only exact GitHub HTTPS or SSH coordinates
 are returned; credentials, alternate transports and ambiguous origins are refused.
@@ -1129,8 +1132,9 @@ reader already used by application declarations. No recursive directory discover
 Organization data modification or implicit creation occurs.
 
 Mac-host fixtures exercise all three states, malformed UTF-8, size bounds, symlinks,
-directories and a shared-writable root (refused), hard links and group- or
-world-writable documents (read, decision F23), with original contents retained.
+directories and a symlinked root (refused), hard links, group- or world-writable
+documents and a world-writable root (read, decision F23), with original contents
+retained.
 These are acquisition tests, not semantic Organization acceptance. Reads assume a
 stable cooperative directory and are not one atomic multi-document transaction.
 Windows is refused; native Linux qualification remains outstanding.

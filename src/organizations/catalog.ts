@@ -1,7 +1,13 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
-import type { CheckoutFileReason } from "../providers/owned-json";
+import {
+  inspectCheckoutDirectory,
+  inspectOwnedDirectory,
+} from "../folder/owned-directory";
+import {
+  type CheckoutReason,
+  checkoutRefusal,
+} from "../providers/checkout-custody";
 import { catalogGroups, selectCatalogOrganization } from "./catalog-selection";
 import {
   folderHasPersonalspace,
@@ -34,7 +40,8 @@ export type OrganizationReason =
   | "template-not-runtime"
   /** The documents changed during the observation; read again. */
   | "organization-changed"
-  /** Not a caller-owned, non-shared, stable directory, or unreadable. */
+  /** Not a real, caller-owned, stable directory (decision F23: write bits
+   * are not a reason), or unreadable. */
   | "organization-unavailable"
   /** Another candidate declares the same Organization slug (GitHub slugs are
    * case-insensitive): `<Org>/<Module>` would be ambiguous. */
@@ -42,7 +49,7 @@ export type OrganizationReason =
   /** One of its documents is not a file of the operator's checkout: not a
    * regular file, another account's or too large (decision F23); `file`
    * names it. */
-  | CheckoutFileReason;
+  | CheckoutReason;
 
 /** Why the Personalspace group's modules cannot be listed (launchpad-parity
  * B11). */
@@ -51,7 +58,7 @@ export type PersonalspaceReason =
    * Principal's is not guessed, and none of them is read (decision 0091). */
   | "personalspace-ambiguous"
   /** `personalspace/` or its owner directory is not a caller-owned,
-   * non-shared, stable directory, or unreadable. */
+   * stable directory (decision F23), or unreadable. */
   | "personalspace-unavailable";
 
 /** Why one module cannot run, when its Organization can. */
@@ -63,14 +70,14 @@ export type ModuleReason =
   | "default-app-invalid"
   /** `lazurio.module.json` or the default app's `package.json` is not a file
    * of the operator's checkout (decision F23); `file` names it. */
-  | CheckoutFileReason;
+  | CheckoutReason;
 
 export type CatalogApp = Readonly<{
   package: string;
   kind: "runtime-declared" | "invalid-runtime";
   /** Why an `invalid-runtime` app's declaration was refused, and which
    * module-relative file (decision F23). */
-  reason?: CheckoutFileReason;
+  reason?: CheckoutReason;
   file?: string;
 }>;
 
@@ -277,6 +284,13 @@ export async function readCatalogOrganization(
       return failed(name, "organization-unavailable");
     if (result.kind === "organization-changed")
       return failed(name, "organization-changed");
+    if (result.kind === "checkout-refused")
+      return failed(
+        name,
+        result.refused.reason,
+        undefined,
+        result.refused.file,
+      );
     if (result.kind === "organization-conflict" && "refused" in result)
       return failed(
         name,
@@ -419,7 +433,16 @@ async function readCatalogPersonalspace(
     ids.map(async (id): Promise<CatalogModule> => {
       const observed = await observePersonalspaceModule(located.directory, id)
         .then((read) => read.observed)
-        .catch(() => ({ kind: "module-unavailable" as const }));
+        .catch((error: unknown) => {
+          // A refused directory of the module (decision F23), by its rule.
+          const refused = checkoutRefusal(error, [
+            join(located.directory, "workspace", id),
+            located.directory,
+          ]);
+          return refused === null
+            ? { kind: "module-unavailable" as const }
+            : { kind: refused.reason, file: refused.file };
+        });
       const apps =
         observed.kind === "module-observed"
           ? observed.apps.map(catalogApp)
@@ -468,7 +491,9 @@ export async function readFolderCatalog(folder: string): Promise<Catalog> {
       organizations: Object.freeze([]),
       ...withPersonalspace,
     });
-  await inspectOwnedDirectory(root);
+  // `organizations/` holds the operator's checkouts and is the operator's own
+  // (decision F23); the Folder above keeps the strict rule.
+  await inspectCheckoutDirectory(root);
   const names = (await readdir(root, { withFileTypes: true }))
     // A directory, or a link that may name one (the reader refuses links and
     // so isolates it); files are not candidates. Hidden entries are not

@@ -1,12 +1,12 @@
 import { join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { object, parseModuleManifest, text } from "../modules/manifest";
 import { readModuleApplication } from "../modules/read-application";
 import {
-  type CheckoutFileReason,
+  type CheckoutReason,
   checkoutRefusal,
-  readCheckoutJson,
-} from "../providers/owned-json";
+} from "../providers/checkout-custody";
+import { readCheckoutJson } from "../providers/owned-json";
 import { inspectCanonicalInventory } from "./canonical-inventory";
 import { organizationDocumentHash } from "./document-hash";
 import { organizationDocumentFiles } from "./read-documents";
@@ -86,7 +86,7 @@ export async function observeOrganizationApplications(
     });
   const without = <T>(result: T) => Object.freeze({ result, documents: null });
   try {
-    const before = await inspectOwnedDirectory(directory);
+    const before = await inspectCheckoutDirectory(directory);
     const resolved = await resolveOrganizationRoot(directory);
     if (resolved.kind !== "root-resolved") return unavailable();
     const resolution = Object.freeze({
@@ -169,7 +169,7 @@ export async function observeOrganizationApplications(
         let path = directory;
         for (const segment of slot.path.split("/")) {
           path = join(path, segment);
-          await inspectOwnedDirectory(path);
+          await inspectCheckoutDirectory(path);
         }
         const observed = await observeModuleDirectory(
           path,
@@ -191,13 +191,28 @@ export async function observeOrganizationApplications(
                 })
               : Object.freeze({ ...identity, kind: observed.kind }),
         );
-      } catch {
+      } catch (error) {
+        // A directory of the slot the checkout rule refuses (decision F23),
+        // named relative to the module, or to the root above it.
+        const refused = checkoutRefusal(error, [
+          join(directory, slot.path),
+          directory,
+        ]);
         entries.push(
-          Object.freeze({ ...identity, kind: "module-unavailable" as const }),
+          refused === null
+            ? Object.freeze({
+                ...identity,
+                kind: "module-unavailable" as const,
+              })
+            : Object.freeze({
+                ...identity,
+                kind: refused.reason,
+                file: refused.file,
+              }),
         );
       }
     }
-    const after = await inspectOwnedDirectory(directory);
+    const after = await inspectCheckoutDirectory(directory);
     const current = await resolveOrganizationRoot(directory);
     if (
       before.dev !== after.dev ||
@@ -225,9 +240,13 @@ export async function observeOrganizationApplications(
         modules: inventory.modules,
       }),
     });
-  } catch {
-    // No raw manifest content, environment, script or filesystem error in output.
-    return unavailable();
+  } catch (error) {
+    // No raw manifest content, environment, script or filesystem error in
+    // output; a refusal of the checkout rule is named (decision F23).
+    const refused = checkoutRefusal(error, directory);
+    return refused === null
+      ? unavailable()
+      : without(Object.freeze({ kind: "checkout-refused" as const, refused }));
   }
 }
 
@@ -246,7 +265,7 @@ export async function observeModuleDirectory(
   path: string,
   accept: (module: Readonly<{ id: string; company: string }>) => boolean,
 ) {
-  const moduleBefore = await inspectOwnedDirectory(path);
+  const moduleBefore = await inspectCheckoutDirectory(path);
   let manifest: unknown;
   try {
     manifest = await readCheckoutJson(join(path, "lazurio.module.json"));
@@ -262,7 +281,7 @@ export async function observeModuleDirectory(
   const apps: Readonly<{
     package: string;
     kind: "runtime-declared" | "invalid-runtime";
-    reason?: CheckoutFileReason;
+    reason?: CheckoutReason;
     file?: string;
   }>[] = [];
   for (const pkg of module.apps) {
@@ -288,7 +307,7 @@ export async function observeModuleDirectory(
       );
     }
   }
-  const after = await inspectOwnedDirectory(path);
+  const after = await inspectCheckoutDirectory(path);
   if (
     moduleBefore.dev !== after.dev ||
     moduleBefore.ino !== after.ino ||

@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
-import { canonicalOwnedDirectory } from "../folder/owned-directory";
+import { canonicalCheckoutDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
 import {
   isModuleId,
@@ -23,7 +23,7 @@ import {
   observePersonalspaceModule,
   resolvePersonalspaceApplication,
 } from "../organizations/personalspace";
-import { checkoutRefusal } from "../providers/owned-json";
+import { checkoutRefusal } from "../providers/checkout-custody";
 import { createApplicationCoordination } from "./application-coordination";
 import {
   type ApplicationRunner,
@@ -335,7 +335,11 @@ export function createModuleOperations(input: {
       module: target.module,
       app: target.app,
     };
-    const refused = checkoutRefusal(error, target.moduleDirectory, host.home);
+    const refused = checkoutRefusal(
+      error,
+      [target.moduleDirectory, target.organizationDirectory],
+      host.home,
+    );
     return refused === null
       ? blocked(operation, "operation-failed", where)
       : blocked(operation, refused.reason, { ...where, file: refused.file });
@@ -481,7 +485,7 @@ export function createModuleOperations(input: {
       const located = await locatePersonalspace(folder);
       if (located.kind !== "owner") return unavailable();
       try {
-        const directory = await canonicalOwnedDirectory(located.directory);
+        const directory = await canonicalCheckoutDirectory(located.directory);
         const { path, observed } = await observePersonalspaceModule(
           directory,
           module.module,
@@ -505,7 +509,7 @@ export function createModuleOperations(input: {
     let organizationDirectory: string;
     try {
       // ONE canonical spelling before any unit name or lock is derived.
-      organizationDirectory = await canonicalOwnedDirectory(
+      organizationDirectory = await canonicalCheckoutDirectory(
         join(folder, "organizations", organization.directory),
       );
     } catch {

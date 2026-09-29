@@ -1,6 +1,7 @@
 import { constants, type Stats } from "node:fs";
 import { lstat, open } from "node:fs/promises";
-import { isAbsolute, relative, sep } from "node:path";
+import { basename } from "node:path";
+import { type CheckoutReason, CheckoutRefused } from "./checkout-custody";
 import { parseUniqueJson } from "./unique-json";
 
 const declarationBytesMax = 1024 * 1024;
@@ -24,71 +25,32 @@ export async function readCustodiedDeclarationBytes(
   );
 }
 
-/** Why a file of the operator's own checkout is refused (decision F23). The
- * checkout is the operator's: their Git and package manager write it under
- * their account, and GitHub decides who may change the Organization, so its
- * permission bits and link count are never a reason. What is refused is what
- * is not the operator's checkout file: not a regular file (a symlink, a
- * directory, a device), another account's file, or more than a declaration may
- * be. */
-export const checkoutFileReasons = [
-  "declaration-not-regular",
-  "declaration-owner",
-  "declaration-too-large",
-] as const;
-export type CheckoutFileReason = (typeof checkoutFileReasons)[number];
+/** The bound of a file of the operator's checkout (decision F23): 1 MiB for a
+ * declaration or a small input, 16 MiB for a lockfile, which grows with every
+ * dependency. */
+export const checkoutFileBytesMax = declarationBytesMax;
+export const lockfileBytesMax = 16 * 1024 * 1024;
+/** Lockfiles by name, wherever the install reads them. */
+export const lockfileNames: ReadonlySet<string> = new Set([
+  "bun.lock",
+  "bun.lockb",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+]);
 
-/** The rule itself, over one `lstat` of the file. */
+/** The file rule over one `lstat`: type first, then owner, then size;
+ * permission bits and link count never. */
 export function checkoutFileRefusal(
   stat: Pick<Stats, "isFile" | "uid" | "size">,
   expectedUid: number,
-): CheckoutFileReason | null {
+  bytesMax: number = checkoutFileBytesMax,
+): CheckoutReason | null {
   if (!stat.isFile()) return "declaration-not-regular";
   if (stat.uid !== expectedUid) return "declaration-owner";
-  if (stat.size > declarationBytesMax) return "declaration-too-large";
+  if (stat.size > bytesMax) return "declaration-too-large";
   return null;
-}
-
-/** A file of the operator's checkout that the rule refuses. `path` is for the
- * caller to name the file relative to what it reads (`checkoutRefusal`); it
- * is never shown as is and is not part of the message. */
-export class CheckoutFileRefused extends Error {
-  readonly reason: CheckoutFileReason;
-  readonly path: string;
-  constructor(reason: CheckoutFileReason, path: string) {
-    super(`Checkout file refused: ${reason}`);
-    this.name = "CheckoutFileRefused";
-    this.reason = reason;
-    this.path = path;
-  }
-}
-
-/** A refusal as a reason and a file name for output: relative to `base` (the
- * module or Organization directory), else below `home` as `~/…`, else the
- * file's own name. Never an absolute path; null for any other error. */
-export function checkoutRefusal(
-  error: unknown,
-  base: string,
-  home?: string,
-): Readonly<{ reason: CheckoutFileReason; file: string }> | null {
-  if (!(error instanceof CheckoutFileRefused)) return null;
-  const below = (directory: string) => {
-    const name = relative(directory, error.path);
-    return name === "" ||
-      isAbsolute(name) ||
-      name === ".." ||
-      name.startsWith(`..${sep}`)
-      ? null
-      : name.split(sep).join("/");
-  };
-  const inBase = below(base);
-  const inHome = home === undefined ? null : below(home);
-  const file =
-    inBase ??
-    (inHome === null ? null : `~/${inHome}`) ??
-    error.path.split(sep).at(-1) ??
-    "";
-  return Object.freeze({ reason: error.reason, file });
 }
 
 // Caller must first establish a stable canonical owned parent directory.
@@ -97,15 +59,21 @@ export function checkoutRefusal(
 // checkout rule above; not an atomic multi-document snapshot.
 export async function readCheckoutFileBytes(
   path: string,
-  expectedUid: number | undefined = process.getuid?.(),
+  options: Readonly<{ expectedUid?: number; bytesMax?: number }> = {},
 ): Promise<Buffer> {
+  const expectedUid = options.expectedUid ?? process.getuid?.();
   if (expectedUid === undefined)
     throw new Error("Declaration owner unavailable");
   if (!Number.isSafeInteger(expectedUid) || expectedUid < 0)
     throw new Error("Invalid declaration owner");
+  const bytesMax =
+    options.bytesMax ??
+    (lockfileNames.has(basename(path))
+      ? lockfileBytesMax
+      : checkoutFileBytesMax);
   return readStableFile(path, (stat) => {
-    const reason = checkoutFileRefusal(stat, expectedUid);
-    return reason === null ? null : new CheckoutFileRefused(reason, path);
+    const reason = checkoutFileRefusal(stat, expectedUid, bytesMax);
+    return reason === null ? null : new CheckoutRefused(reason, path);
   });
 }
 
