@@ -101,7 +101,8 @@ handover's `owner.assignment` exactly when it is present (`assigned to operator
 ## The Steward preset: Automated Environment
 
 Decision 0169 (Lazurio root register) adds a fourth kind of Environment next to the
-three of 0165: **Automated** (Automatizovaný). Automated work of an Organization is
+three of 0165: **Automated** (Automatizovaný); the Platform decision is
+[F27](decisions.md#f27--the-steward-preset-for-the-automated-environment). Automated work of an Organization is
 done by a bot team of its persona (Henry) in Lazurio MausBot, Lazurio's fork of
 OpenMausBot. `hosted-organization-steward` is that Environment's preset:
 
