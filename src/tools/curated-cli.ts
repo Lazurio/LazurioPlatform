@@ -207,7 +207,7 @@ const failureText: Record<string, string> = {
     "the phone number is not an international number (+ country code and number)",
   "spawn-failed": "the tool could not be started",
   "not-signed-in":
-    "gh is not signed in on this Machine; sign in first: lazurio tools login gh",
+    "gh has no sign-in in this Environment; sign in first: lazurio tools login gh",
   "environment-unreadable":
     "the kind of this Environment could not be read, so the sign-in stopped before changing anything further",
 };
@@ -216,7 +216,7 @@ const sshFailureText: Record<SshLinkFailure, string> = {
   "not-signed-in": "gh is not signed in",
   "scope-missing":
     "the gh sign-in may not manage the SSH keys of your account (scope admin:public_key)",
-  "keygen-missing": "ssh-keygen is not installed on this Machine",
+  "keygen-missing": "ssh-keygen is not installed in this Environment",
   "keygen-failed": "a new key could not be created in ~/.ssh",
   "key-passphrase":
     "the existing key {path} is protected by a passphrase, which agents cannot enter; it was left as it is",
@@ -231,10 +231,10 @@ const sshFailureText: Record<SshLinkFailure, string> = {
   "host-key-mismatch":
     "~/.ssh/known_hosts holds a github.com host key that differs from the keys GitHub publishes; nothing was changed",
   "known-hosts-failed": "~/.ssh/known_hosts could not be read or written",
-  "ssh-missing": "ssh is not installed on this Machine",
+  "ssh-missing": "ssh is not installed in this Environment",
   "proof-failed": "ssh -T git@github.com did not answer with GitHub's greeting",
   "proof-other-account":
-    "GitHub greeted another account over SSH ({provedAs}): another key of this Machine is offered first",
+    "GitHub greeted another account over SSH ({provedAs}): another key of this Environment is offered first",
 };
 
 /** One sentence for why the SSH key is not linked. */
@@ -279,7 +279,7 @@ function loginLines(state: LoginState): string[] {
     case "pending": {
       if (state.step === "ssh-key")
         return [
-          "Signed in to GitHub. Linking the SSH key of this Machine: key pair, registration on your account, GitHub's host keys, proof over SSH…",
+          "Signed in to GitHub. Linking the SSH key of this Environment: key pair, registration on your account, GitHub's host keys, proof over SSH…",
         ];
       const challenge = state.challenge;
       if (challenge === undefined) return ["Starting the sign-in…"];
@@ -363,7 +363,7 @@ export async function runLogin(
       result,
       text: json
         ? JSON.stringify(result)
-        : "--ssh-key applies to gh only (the SSH key of this Machine on GitHub).",
+        : "--ssh-key applies to gh only (the SSH key of this Environment on GitHub).",
     };
   }
   if (phone !== undefined && name !== "wacli") {
@@ -511,7 +511,7 @@ export async function runLogout(
       ? [
           result.revocation === "remote"
             ? `${name}: signed out; the linked device was removed from the account.`
-            : `${name}: signed out on this Machine. The provider still lists this sign-in until you revoke it there.`,
+            : `${name}: signed out in this Environment. The provider still lists this sign-in until you revoke it there.`,
           ...(result.sshKey === undefined
             ? []
             : [sshRemovalText(result.sshKey)]),
@@ -529,18 +529,18 @@ export function sshRemovalText(removal: SshKeyRemoval): string {
   const key =
     removal.fingerprint === undefined ? "" : ` (${removal.fingerprint})`;
   const where =
-    "Remove it under GitHub Settings > SSH and GPG keys (https://github.com/settings/keys) if this Machine must lose access.";
+    "Remove it under GitHub Settings > SSH and GPG keys (https://github.com/settings/keys) if this Environment must lose access.";
   switch (removal.state) {
     case "removed":
-      return `The SSH key of this Machine${key} was removed from your GitHub account; the key files in ~/.ssh stay.`;
+      return `The SSH key of this Environment${key} was removed from your GitHub account; the key files in ~/.ssh stay.`;
     case "not-registered":
-      return `The SSH key of this Machine${key} was not registered on your GitHub account.`;
+      return `The SSH key of this Environment${key} was not registered on your GitHub account.`;
     case "no-key":
-      return "This Machine has no SSH key in ~/.ssh; nothing was removed from GitHub.";
+      return "This Environment has no SSH key in ~/.ssh; nothing was removed from GitHub.";
     case "kept-not-lazurio":
-      return `The SSH key of this Machine${key} stays registered on your GitHub account: it was not registered by Lazurio. ${where}`;
+      return `The SSH key of this Environment${key} stays registered on your GitHub account: it was not registered by Lazurio. ${where}`;
     case "not-removed":
-      return `The SSH key of this Machine${key} may still be registered on your GitHub account: ${
+      return `The SSH key of this Environment${key} may still be registered on your GitHub account: ${
         removal.reason === "scope-missing"
           ? "the gh sign-in may not manage SSH keys (scope admin:public_key)"
           : "gh could not remove it"

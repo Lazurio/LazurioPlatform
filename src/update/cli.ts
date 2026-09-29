@@ -65,7 +65,7 @@ install [--verify-release <directory>] [--service systemd-user --folder <absolut
   written it verifies, as lazurio update does, that the release workflow at
   that tag attested the manifest and exactly these bytes, and otherwise
   refuses and leaves nothing behind. It needs Sigstore's trust root from the
-  network. Staged (the Machines role, --base): no release files and no
+  network. Staged (the Lazurio Machines role, --base): no release files and no
   network; the custody that pinned the file is the authority. Repeating it
   completes what is missing and never changes the active version. It links
   ~/.local/bin/lazurio to bin/lazurio; an entry there that is not Lazurio's is
@@ -94,7 +94,7 @@ update [--version <vX.Y.Z[-rc.N]>] [--folder <absolute Folder>] [--json]
   It never writes the Folder. When the Folder renders an older template
   revision than the product, the result says "Folder refresh needed" with the
   exact command (folderRefresh in --json). The Folder is --folder, the
-  supervised unit's, or on a hosted Machine the declared operator's.
+  supervised unit's, or in a Remote Environment the declared operator's.
 update --check [--version <tag>] [--json]
   Verifies and reports; downloads and activates nothing.
   Exit 0 up to date, 10 update available.
@@ -470,7 +470,7 @@ function installFailureText(error: UpdateError): string {
     code === "attestation-invalid"
       ? `The release attestation does not vouch for this executable: it is not what the release workflow of ${productOrigin.repository} built for this version. ${nothing}`
       : code === "trust-unavailable"
-        ? `Sigstore's trust root could not be reached, so the release attestation could not be checked. ${nothing} Try again when this computer can reach tuf-repo-cdn.sigstore.dev.`
+        ? `Sigstore's trust root could not be reached, so the release attestation could not be checked. ${nothing} Try again when this Environment can reach tuf-repo-cdn.sigstore.dev.`
         : code === "release-invalid" &&
             ["manifest", "bundle", "artifact"].includes(
               String(context.resource),

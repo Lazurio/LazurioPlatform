@@ -22,7 +22,7 @@ import {
 /** `lazurio recover`: the terminal surface of the recovery use case
  * (docs/recovery.md). It reads, prints and files nothing. */
 export const recoverHelp = `recover [--json] [--locale cs|en] [--folder <absolute Folder>]
-  Checks whether Lazurio on this Machine is broken: update state no crash can
+  Checks whether Lazurio in this Environment is broken: update state no crash can
   produce (R2), the Folder's state as this version reads it, the active
   executable's self-check (R5), and where a unit lazurio install --service
   wrote supervises the Launchpad, that unit (systemctl --user) and the
@@ -32,9 +32,9 @@ export const recoverHelp = `recover [--json] [--locale cs|en] [--folder <absolut
   public repository Lazurio/LazurioPlatform, with the exact gh commands to
   search for a duplicate and to create it. It files NOTHING: filing is the
   repair agent's act under the standing mandate for issues (root decision
-  0163). A body in which a known private value of this Machine survives is
+  0163). A body in which a known private value of this Environment survives is
   refused, naming only the kind of value. The Folder is --folder, the
-  supervised unit's, or on a hosted Machine the declared operator's.
+  supervised unit's, or in a Remote Environment the declared operator's.
   Exit status: 0 healthy or not installed, 3 broken, 2 usage, 1 failure.`;
 
 /** Something is broken: distinct from a failure of the command itself. */
@@ -151,7 +151,7 @@ function humanText(result: RecoveryResult, base: string): string {
   if (result.prompt !== null)
     lines.push(
       "",
-      "Prompt for the repair agent (it stays on this Machine):",
+      "Prompt for the repair agent (it stays in this Environment):",
       "",
       result.prompt,
     );
@@ -159,7 +159,7 @@ function humanText(result: RecoveryResult, base: string): string {
   if (issue?.kind === "refused")
     lines.push(
       "",
-      `No issue body for ${issue.repository}: after sanitization it still contains ${issue.found.join(", ")}. Nothing may leave this Machine automatically.`,
+      `No issue body for ${issue.repository}: after sanitization it still contains ${issue.found.join(", ")}. Nothing may leave this Environment automatically.`,
     );
   if (issue?.kind === "prepared")
     lines.push(

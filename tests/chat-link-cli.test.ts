@@ -255,7 +255,7 @@ test.skipIf(process.platform === "win32")(
     expect(human).toEqual({
       code: 10,
       stderr:
-        "No T3 Code link: this Folder has no recorded hosted entry, so T3 Code runs wherever the operator runs it.",
+        "No T3 Code link: this Folder has no recorded Remote Environment entry, so T3 Code runs wherever the operator runs it.",
     });
     // No Folder at all (a workstation without a supervised unit): the same.
     const none = await runChatCommand(["link", "--json"], context);

@@ -323,7 +323,7 @@ folder-preview --folder <absolute Folder directory>
   --locale <cs|en> --detail <concise|technical>
   --coordination <direct|coordinator>
 
-All five choices are required. OS is detected on the execution Machine.
+All five choices are required. OS is detected in the Environment that runs the command.
 Alternatively supply --profile <JSON> instead of the five profile choices.
 Optional --previous-digest <sha256> is inventory input, not proof of ownership.
 The directory must already exist and be caller-owned, non-shared and stable.
@@ -332,18 +332,18 @@ profile-preview uses the same profile choices and --folder, plus required
 --expected-revision <positive integer>. It reads existing .lazurio state and
 creates/removes only its operation lock. It does not apply the proposed change.
 Both profile commands accept optional --preset <name> to change the workspace preset
-within what the recorded Machine handover allows; omitted keeps the current preset.
+within what the recorded Environment handover allows; omitted keeps the current preset.
 profile-update takes the same inputs as profile-preview and APPLIES the change:
 it replaces owned instructions/preferences/manifest and archives the transaction.
-On an installed Machine the Folder is the operator's ~/Lazurio; the change is applied
+In an installed Environment the Folder is the operator's ~/Lazurio; the change is applied
 only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
-In a hosted Folder (adopted from a Machine handover) a top-level entry other than
+In a Remote Environment's Folder (adopted from its handover) a top-level entry other than
 organizations/, personalspace/, the two legacy launchpad files and the owned AGENTS.md,
 manual/ and .lazurio/ is refused by name (exit 2, folder-foreign-entry) before
 preparation, before every replacement and in profile-resume; the journal stays for a
 later resume. A workstation Folder keeps your own top-level files untouched.
-On a hosted Machine, machine folder-refresh re-renders the same owned files from the
+In a Remote Environment, machine folder-refresh re-renders the same owned files from the
 current handover through this same transaction, keeping the recorded profile.
 tools enable|disable <tool> --folder <Folder> --expected-revision <n> records which
 catalog tools agents are told to use and re-renders the same owned files through this
@@ -392,7 +392,7 @@ Without a Launchpad: {organizationDirectory, operation, selection} with operatio
 status or stop addresses an application owned by the systemd user manager directly,
 through the same core, runner and coordination lock. Where applications are
 session-scoped it answers launchpad-required; it never starts or prepares anything.
-open returns the execution Machine's local URL; it does not launch a browser or tunnel.
+open returns the local URL in the Environment that runs it; it does not launch a browser or tunnel.
 Native Windows filesystem inspection is not yet qualified.`);
     console.log(`legacy-paths-inspect --home <absolute owned home directory>
 Read-only macOS inventory of Lazurio, Conglomerate and Conglomerate_GEN3 paths.
@@ -688,7 +688,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       : { os: executionOs(process.platform), ...axes },
   );
   if (profile.os !== executionOs(process.platform))
-    throw new Error("Profile OS does not match execution Machine");
+    throw new Error("Profile OS does not match this Environment's OS");
   if (initializing) {
     console.log(JSON.stringify(await initializeFolder(folder, profile)));
     return 0;

@@ -323,7 +323,7 @@ test.skipIf(!posix)(
         opened.context(),
       );
       expect(out.code).toBe(0);
-      expect(out.text).toContain("signed out on this Machine");
+      expect(out.text).toContain("signed out in this Environment");
     } finally {
       await opened.close();
     }
@@ -419,7 +419,7 @@ test.skipIf(!keygen)(
       expect(linked.code).toBe(0);
       const done = opened.lines.join("\n");
       expect(done).not.toContain(fakeCodes.gh);
-      expect(done).toContain("Linking the SSH key of this Machine");
+      expect(done).toContain("Linking the SSH key of this Environment");
       expect(done).toContain(
         `SSH key linked: ${join(opened.directory, ".ssh", "id_ed25519")} (SHA256:`,
       );

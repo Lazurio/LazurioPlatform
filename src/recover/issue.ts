@@ -66,14 +66,14 @@ function bodyText(evidence: RecoveryEvidence) {
   return [
     `\`lazurio recover\` found the check \`${evidence.check}\`${
       evidence.rule === null ? "" : ` (${evidence.rule})`
-    } failing with the code \`${evidence.code}\` on a Machine.`,
+    } failing with the code \`${evidence.code}\` in an Environment.`,
     "",
     `- Fingerprint: \`${evidence.fingerprint}\``,
     `- Detected: ${evidence.detectedAt}`,
     `- Product: ${running.version} (${running.target})`,
     `- Failed checks: ${evidence.failed.map((id) => `\`${id}\``).join(", ")}`,
     "",
-    "Prepared by Lazurio and sanitized on the Machine. It carries structured fields only; the journal and other free text stayed on the Machine. A state the product could not handle is a missing test: this issue closes with a regression test.",
+    "Prepared by Lazurio and sanitized in the Environment. It carries structured fields only; the journal and other free text stayed in the Environment. A state the product could not handle is a missing test: this issue closes with a regression test.",
     "",
     `### Evidence (${evidence.schema})`,
     "",

@@ -25,9 +25,9 @@ import { readLinuxOperator } from "./operator";
 
 export const machineHelp = `machine inspect
 Read the root-issued /etc/lazurio/lazurio.machine.json on Linux only and print
-it as written, including its optional entry (how the gateway reaches this
-Machine's Launchpad, T3 Code and modules).
-Output contains private Machine/Organization context; do not publish it.
+it as written, including its optional entry (how the gateway reaches the
+Launchpad, T3 Code and modules of this Remote Environment).
+Output contains private Environment/Organization context; do not publish it.
 The declaration grants no permissions, provider identity or access.
 machine folder-init [--preset <name>] [--locale <cs|en>]
   [--detail <concise|technical>] [--coordination <direct|coordinator>]
@@ -36,8 +36,8 @@ The workspace preset is derived from the handover (personal-vm -> hosted-persona
 workspace-vm with owner.assignment operator -> hosted-organization-personal, team
 -> hosted-organization-team; without owner.assignment and without owner.team ->
 hosted-organization-personal). A workspace-vm handover with owner.team and no
-owner.assignment does not say whether the Machine is assigned to one operator or
-shared, so it derives nothing: --preset hosted-organization-personal or --preset
+owner.assignment does not say whether the Remote Environment is assigned to one
+operator or shared, so it derives nothing: --preset hosted-organization-personal or --preset
 hosted-organization-team is required and recorded as an explicit choice. --preset may also pick another preset the handover allows. Omitted
 communication choices take the preset's defaults; all are changeable later in
 the Launchpad.
@@ -56,7 +56,7 @@ current handover, keeping the recorded preset and profile. Run it as the
 declared operator after every handover rewrite and product update; it takes no
 options. A Folder rendered by an older template revision is re-rendered in full
 when every generated file still matches its recorded digest.
-The Machine identity (kind, name, Owner, tailnet node, host) must be the one
+The Environment identity (kind, name, Owner, tailnet node, host) must be the one
 the Folder was adopted for; assignment, relationships and the document digest
 follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the current handover
@@ -67,7 +67,7 @@ top-level entry the Folder does not own or tolerate), drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
 (the assignment now derives another preset: choose it with profile-update
 --preset), template-upgrade-required (a newer product rendered the Folder;
-nothing is downgraded), or a Machine context code. Exit 1 is an
+nothing is downgraded), or a machine-context-* code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
 profile-resume --folder <Folder> --target-revision <n>.`;
 
@@ -97,7 +97,7 @@ function parseMachineTokens(args: string[]) {
       options: machineOptions,
     });
   } catch {
-    throw new MachineUsageError("Unknown or malformed Machine option");
+    throw new MachineUsageError("Unknown or malformed lazurio machine option");
   }
 }
 
@@ -108,7 +108,7 @@ function parseMachineArguments(args: string[]) {
     command !== "folder-init" &&
     command !== "folder-refresh"
   )
-    throw new MachineUsageError("Unknown Machine command");
+    throw new MachineUsageError("Unknown lazurio machine command");
   const parsed = parseMachineTokens(options);
   const { values, tokens } = parsed;
   if (
@@ -118,7 +118,7 @@ function parseMachineArguments(args: string[]) {
       .size !== tokens.length
   )
     throw new MachineUsageError(
-      "Explicit nonduplicate Machine options required",
+      "Explicit nonduplicate lazurio machine options required",
     );
   const value = (name: keyof typeof choices) => {
     const chosen = values[name];
@@ -126,7 +126,7 @@ function parseMachineArguments(args: string[]) {
       chosen !== undefined &&
       !(choices[name] as readonly string[]).includes(chosen)
     )
-      throw new MachineUsageError(`Invalid Machine choice: ${name}`);
+      throw new MachineUsageError(`Invalid lazurio machine choice: ${name}`);
     return chosen;
   };
   let preset: ReturnType<typeof parsePresetName> | undefined;
@@ -182,7 +182,7 @@ export async function runMachineCommand(args: string[]) {
         result: {
           kind: "blocked",
           reason: error.code,
-          next: "Ask the Machines operator to verify the handover; do not edit the identity file or reset product trust.",
+          next: "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
         },
       };
     throw error;
@@ -229,7 +229,7 @@ export async function initializeMachineFolder(
         kind: "blocked",
         reason: "preset-ambiguous",
         allowed,
-        next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+        next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Remote Environment is assigned to one operator or shared; the Lazurio Machines resident role passes it from the owner infrastructure.",
       },
     };
   }
@@ -289,13 +289,13 @@ export function describeFolderAdoption(error: FolderAdoptionError) {
     "foreign-entry":
       "Move this entry out of the Folder; only organizations/, personalspace/, the two legacy launchpad files and what Lazurio generated may be present.",
     "layout-missing":
-      "Ask the Machines operator to deliver the standard Folder layout; nothing is created in its place.",
+      "Ask the operator who hosts this Remote Environment to deliver the standard Folder layout; nothing is created in its place.",
     "personalspace-conflict":
       "An Organization preset never has a Personalspace; move it away yourself, nothing is deleted.",
     "state-unrecognized":
       "Complete a recognized initialization with folder-resume or diagnose the state; nothing is reset.",
     "binding-changed":
-      "The Folder was adopted from a different handover; verify the Machine identity with the Machines operator.",
+      "The Folder was adopted from a different handover; verify the identity of this Remote Environment with the operator who hosts it.",
     "directory-shared":
       "chmod g-w,o-w this path under the Lazurio Folder (Ubuntu's default umask 0002 makes new directories group-writable); nothing was changed.",
   } as const;

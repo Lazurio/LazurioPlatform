@@ -24,7 +24,7 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   as in module list: its slug, or its directory name; a slug that two
   directories declare is refused (organization-ambiguous), and a module that
   cannot run is refused with its catalog reason. On a Folder with a
-  Personalspace (a workstation, a personal VM) its modules are named
+  Personalspace (a workstation, a personal Remote Environment) its modules are named
   personalspace/<module>. On Linux with a user service
   manager the app is a transient systemd user service: it keeps running when
   the Launchpad restarts, ends with a reboot, and its output goes to the
@@ -46,8 +46,8 @@ module stop <Organization>/<module> [--app <package>] [--folder <F>] [--json]
 module status <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   What the service manager reports: state (running, starting, stopping,
   ended, stopped), whether the declared health passed, the service invocation
-  and, while healthy, the link runtime.url. On a hosted Machine the link is
-  the module's hostname from the recorded Machine entry, never a localhost
+  and, while healthy, the link runtime.url. In a Remote Environment the link
+  is the module's hostname from its recorded entry, never a localhost
   address; locally it is the loopback address the app listens on.
 module logs <Organization>/<module> [--app <package>] [--lines N] [--folder <F>] [--json]
   The newest N (default ${moduleLogLinesDefault}, at most 1000) lines the app's
@@ -74,9 +74,9 @@ const explanations: Readonly<Record<string, string>> = {
   "app-unknown": "Not a declared app of this module; see lazurio module list.",
   "app-not-runnable": "This app's runtime declaration is missing or invalid.",
   "launchpad-required":
-    "Apps on this Machine are children of the Launchpad session: start, stop and see them in the Launchpad.",
+    "Apps in this Environment are children of the Launchpad session: start, stop and see them in the Launchpad.",
   "logs-unavailable":
-    "Apps on this Machine are children of the Launchpad session; their output is not kept.",
+    "Apps in this Environment are children of the Launchpad session; their output is not kept.",
   "journal-unavailable": "The user journal could not be read.",
   "toolchain-missing": `Bun is not at ${standardBun}; see lazurio tools status.`,
   "home-unknown": "The account's home directory is not known (HOME).",
@@ -111,7 +111,7 @@ const explanations: Readonly<Record<string, string>> = {
     "This package depends on a local package (file:…) that is not in the checkout; check out the repository that holds it.",
   "preparation-toolchain-mismatch": `This package pins a Bun version (packageManager) that the Bun at ${standardBun} is not.`,
   "preparation-install-failed":
-    "bun install --frozen-lockfile from this lockfile failed: the lockfile may not match the package, or a dependency could not be fetched (a private Git dependency needs your GitHub access on this Machine).",
+    "bun install --frozen-lockfile from this lockfile failed: the lockfile may not match the package, or a dependency could not be fetched (a private Git dependency needs your GitHub access in this Environment).",
   "preparation-recovery-required":
     "An earlier dependency preparation of this module did not finish; starting stays blocked until it is recovered.",
   "declaration-not-regular":

@@ -24,7 +24,7 @@ import { LaunchpadStartRefused, readStartState } from "./start-check";
  * (launchpad-parity B8, C.5 item 10). The same recorded entry and the same
  * `issueChatLink` as `POST /api/chat/pair`; it records nothing. */
 export const chatHelp = `chat link [--folder <absolute Folder>] [--plain] [--json]
-  The link into T3 Code on this hosted Machine, from the Folder's recorded
+  The link into T3 Code in this Remote Environment, from the Folder's recorded
   entry, as the Launchpad's Chat entry opens it: a one-time pairing link
   <T3 Code origin>/pair#token=… minted by the T3 launcher t3 on PATH (single
   use, valid 60 seconds), for the operator's browser. Without the launcher
@@ -35,7 +35,7 @@ export const chatHelp = `chat link [--folder <absolute Folder>] [--plain] [--jso
   link (not-hosted). The link alone is on stdout; the reason goes to stderr,
   which never carries the token. --json prints {kind: "chat-link", url,
   pairing, reason?}. The Folder is found as for lazurio doctor.
-  Exit status: 0 a link, 10 not hosted, 2 usage, 1 failure.`;
+  Exit status: 0 a link, 10 not a Remote Environment, 2 usage, 1 failure.`;
 
 export const exitNotHosted = exitUpdateAvailable;
 
@@ -57,7 +57,7 @@ const reasons = {
     "t3-pairing-failed":
       "No pairing: T3 Code's pairing call failed. The plain link opens T3 Code, which asks the browser to pair.",
     "not-hosted":
-      "No T3 Code link: this Folder has no recorded hosted entry, so T3 Code runs wherever the operator runs it.",
+      "No T3 Code link: this Folder has no recorded Remote Environment entry, so T3 Code runs wherever the operator runs it.",
   },
   cs: {
     "plain-requested":
@@ -67,7 +67,7 @@ const reasons = {
     "t3-pairing-failed":
       "Bez párování: párovací volání T3 Code selhalo. Prostý odkaz otevře T3 Code, které si prohlížeč spáruje samo.",
     "not-hosted":
-      "Žádný odkaz na T3 Code: tenhle Folder nemá zaznamenaný hostovaný vstup, T3 Code běží tam, kde ho Operátor spouští.",
+      "Žádný odkaz na T3 Code: tenhle Folder nemá zaznamenaný vstup Remote Environmentu, T3 Code běží tam, kde ho Operátor spouští.",
   },
   paired: {
     en: "A one-time link, valid for 60 seconds: hand it to the operator.",

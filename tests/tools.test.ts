@@ -666,8 +666,8 @@ test("the prepared agent prompt: task, target state and the rule to enable the t
       expect(prompt).not.toContain("undefined");
       expect(prompt).toContain(
         locale === "cs"
-          ? `Úkol: nainstaluj na téhle Mašině nástroj \`${entry.name}\` (příkaz \`${entry.command}\`)`
-          : `Task: install the tool \`${entry.name}\` (command \`${entry.command}\`) on this Machine`,
+          ? `Úkol: nainstaluj na tomhle Environmentu nástroj \`${entry.name}\` (příkaz \`${entry.command}\`)`
+          : `Task: install the tool \`${entry.name}\` (command \`${entry.command}\`) in this Environment`,
       );
       expect(prompt).toContain(entry.activation.purpose[locale]);
       expect(prompt).toContain(entry.activation.installation[locale]);

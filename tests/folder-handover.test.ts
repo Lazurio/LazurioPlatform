@@ -573,7 +573,7 @@ test.skipIf(process.platform === "win32")(
           kind: "blocked",
           reason: "preset-ambiguous",
           allowed: ["hosted-organization-personal", "hosted-organization-team"],
-          next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+          next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Remote Environment is assigned to one operator or shared; the Lazurio Machines resident role passes it from the owner infrastructure.",
         }),
       );
       expect(blocked.code).toBe(2);
