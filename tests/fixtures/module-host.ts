@@ -168,13 +168,15 @@ export async function undeclaredModule(
 }
 
 /** A Linux host over the in-memory user manager: a started unit's main
- * process (pid 4242) listens on the declared port and answers its health. */
+ * process (pid 4242) listens on the declared port (or each of the declared
+ * ports) and answers its health. */
 export function linuxHost(
   manager: ReturnType<typeof createFakeServiceManager>,
   home: string,
-  port: number,
+  port: number | readonly number[],
   binary: string,
 ): ModuleHost {
+  const ports = typeof port === "number" ? [port] : port;
   return {
     platform: "linux",
     home,
@@ -191,22 +193,23 @@ export function linuxHost(
         controlGroupEmpty: manager.controlGroupEmpty,
         confirmStopMs: 200,
         sleep: () => Bun.sleep(1),
-        observeBindings: async () => ({
+        observeBindings: async (observed) => ({
           kind: "observed",
-          bindings: [...manager.units.values()].some(
-            (unit) => unit.active === "active",
-          )
-            ? [
-                {
-                  pid: 4242,
-                  group: 4242,
-                  uid: 1000,
-                  fd: 3,
-                  host: "127.0.0.1",
-                  port,
-                },
-              ]
-            : [],
+          bindings:
+            [...manager.units.values()].some(
+              (unit) => unit.active === "active",
+            ) && ports.includes(observed)
+              ? [
+                  {
+                    pid: 4242,
+                    group: 4242,
+                    uid: 1000,
+                    fd: 3 + ports.indexOf(observed),
+                    host: "127.0.0.1",
+                    port: observed,
+                  },
+                ]
+              : [],
         }),
         probeHealth: async () => ({ kind: "responding", status: 200 }),
         processControlGroup: async (pid) =>
