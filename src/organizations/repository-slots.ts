@@ -2,10 +2,17 @@ import { posix } from "node:path";
 import { array } from "../modules/manifest";
 import { organizationDocumentHash } from "./document-hash";
 
-const rootPaths = new Set([
+/** The root-level application slots of an Organization: beside its workspace
+ * modules, each its own repository, and a module of the catalog when it
+ * carries a `lazurio.module.json` (decision F24). The other root slots,
+ * `infra` and `mission-control/db`, are repositories, never applications. */
+export const rootApplicationPaths: ReadonlySet<string> = new Set([
   "design-system",
-  "infra",
   "mission-control",
+]);
+const rootPaths = new Set([
+  ...rootApplicationPaths,
+  "infra",
   "mission-control/db",
 ]);
 const mount = "[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?";

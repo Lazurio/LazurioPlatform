@@ -149,6 +149,20 @@ recomputed on every read. A candidate that cannot be read keeps its typed reason
 `organization-changed`, `organization-unavailable` for a link or a directory that is
 not the operator's) and never hides the others; two candidates that declare the same
 slug are both `organization-duplicate`, because `<Org>/<Module>` would be ambiguous.
+The modules of an Organization are its declared slots (`modules.manifest.json`
+`module_slots`), in declaration order: every workspace slot
+(`workspace/<module>`), and a root-level application slot, `mission-control` or
+`design-system`, when it carries a `lazurio.module.json` (decision F24); a
+root-level application slot that is not declared, or not checked out, or checked out
+without a module manifest, is not a module, and nothing is guessed from a directory.
+Such an application is a module like any other: its `path` is the slot path, its id
+is the slot's id (its `slug`, else the last path segment), which its manifest's `id`
+must equal, exactly as for a workspace module, and its Teams, checkout rule,
+executability and reasons are a workspace module's. The repository slots `infra` and
+`mission-control/db` and everything under `productionspace/` are never modules. An
+id that a workspace module and a root-level application share is
+`declaration-conflict` on both, with the inventory issue `repository-id-collision` on
+the Organization, as for any two slots declaring one id.
 Per module: Organization slug, module id, path, apps and the default app, Teams (N:M)
 with their source `teamsSource`, the root state and `executable`, or a typed `reason`
 (`organization-not-executable`, `declaration-conflict`, `module-unavailable`,

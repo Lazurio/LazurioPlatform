@@ -26,9 +26,12 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   catalog, modules included, and on a Folder with a Personalspace its group
   (personalspace), which is not an Organization and is not in the table.
 module list [<Organization>] [--folder <absolute Folder>] [--json]
-  The workspace modules of every Organization, or of the one named by its
-  slug or directory name: <Organization>/<module>, its Teams, its default app
-  and whether it may run or the typed reason why not. Teams come from
+  The modules of every Organization, or of the one named by its slug or
+  directory name: its workspace modules and, when declared with a
+  lazurio.module.json, its root-level applications mission-control and
+  design-system (infra and mission-control/db are repositories, not
+  modules); <Organization>/<module>, its Teams, its default app and whether
+  it may run or the typed reason why not. Teams come from
   module_slots[].teams; an older manifest's legacy alias (workspaces, then
   workspace) is read for compatibility and named once per Organization; a
   module that declares none is in the default Team workspace. On a Folder

@@ -8,7 +8,10 @@ import { presetProfile } from "../src/folder/presets";
 import { moduleOrigin } from "../src/launchpad/hosted-entry";
 import { startLaunchpad } from "../src/launchpad/server";
 import { runModuleCommand } from "../src/modules/module-cli";
-import type { ModuleHost } from "../src/modules/module-operations";
+import {
+  createModuleOperations,
+  type ModuleHost,
+} from "../src/modules/module-operations";
 import { createSessionRunner } from "../src/modules/session-runner";
 import { applicationUnitName } from "../src/modules/systemd-user-runner";
 import type { CliContext } from "../src/update/cli";
@@ -19,6 +22,7 @@ import {
   compilePlatform,
   linuxHost as moduleHost,
   runnable,
+  runnableModule,
 } from "./fixtures/module-host";
 import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
 
@@ -416,6 +420,127 @@ posixTest(
         expected: "~/.local/bin/bun",
       });
       expect(manager.commands("systemd-run")).toHaveLength(1);
+    });
+  },
+  60_000,
+);
+
+posixTest(
+  "a root-level application (mission-control) starts, reports, logs and stops like a workspace module, from the CLI, the Launchpad and the gateway's ensure by its id",
+  async () => {
+    await folderFixture(async (folder) => {
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      const organization = join(folder, "organizations", "alpha_GEN3");
+      const port = await runnableModule(
+        join(organization, "mission-control"),
+        join(folder, ".."),
+      );
+      const manager = createFakeServiceManager({
+        runtimeDirectory: join(folder, "..", "runtime"),
+      });
+      await mkdir(manager.runtimeDirectory);
+      const host = await linuxHost(manager, home, port);
+      const cli = async (...args: string[]) => {
+        const result = await runModuleCommand(
+          ["module", ...args, "--folder", folder, "--json"],
+          cliContext(home),
+          host,
+        );
+        return { code: result.code, body: JSON.parse(result.text) };
+      };
+      const unit = applicationUnitName(organization, {
+        company: "alpha",
+        module: "mission-control",
+        package: "app/package.json",
+      });
+      expect(await cli("start", "alpha/mission-control")).toMatchObject({
+        code: 0,
+        body: {
+          kind: "module",
+          operation: "start",
+          organization: "alpha",
+          module: "mission-control",
+          app: "app/package.json",
+          outcome: "started",
+          state: "running",
+          healthy: true,
+          service: { unit },
+          runtime: { url: `http://127.0.0.1:${port}/` },
+        },
+      });
+      const [run] = manager.commands("systemd-run");
+      // The unit runs in the application's own directory at the slot path.
+      expect(run?.args).toContain(
+        `--working-directory=${join(organization, "mission-control", "app")}`,
+      );
+      const app = await startLaunchpad(
+        folder,
+        undefined,
+        undefined,
+        undefined,
+        {},
+        undefined,
+        {},
+        undefined,
+        host,
+      );
+      try {
+        const fromHttp = await client(app).status("alpha/mission-control");
+        expect(fromHttp.code).toBe(200);
+        expect(fromHttp.body).toEqual(
+          (await cli("status", "alpha/mission-control")).body,
+        );
+      } finally {
+        expect(await app.close()).toEqual({ kind: "closed" });
+      }
+      // The gateway names it by its lazurio.module.v1 id alone.
+      const operations = createModuleOperations({
+        folder,
+        owner: "launchpad",
+        host,
+      });
+      try {
+        expect(
+          await operations.ensure("mission-control", {
+            mayStart: true,
+            waitMs: 2_000,
+            pollMs: 10,
+          }),
+        ).toMatchObject({
+          operation: "ensure",
+          organization: "alpha",
+          module: "mission-control",
+          healthy: true,
+        });
+      } finally {
+        await operations.close();
+      }
+      expect(manager.commands("systemd-run")).toHaveLength(1);
+      manager.log(unit, "synthetic module listening");
+      expect(await cli("logs", "alpha/mission-control")).toMatchObject({
+        code: 0,
+        body: {
+          kind: "module-logs",
+          module: "mission-control",
+          unit,
+          lines: ["synthetic module listening"],
+        },
+      });
+      expect(await cli("stop", "alpha/mission-control")).toMatchObject({
+        code: 0,
+        body: { outcome: "group-stopped", state: "stopped" },
+      });
+      // A repository slot is never a module, even with a module manifest.
+      for (const name of [
+        "alpha/infra",
+        "alpha/mission-control-db",
+        "alpha/db",
+      ])
+        expect(await cli("start", name)).toMatchObject({
+          code: 2,
+          body: { kind: "blocked", reason: "module-unknown" },
+        });
     });
   },
   60_000,

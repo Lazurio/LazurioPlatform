@@ -160,11 +160,13 @@ posixTest(
         "personalspace",
       );
       const modules = (await run("module", "list")).text;
+      // The name column is as wide as the Folder's longest module name,
+      // alpha/mission-control.
       expect(modules).toContain(
-        "personalspace/diary  -           app/package.json  default-app-invalid",
+        "personalspace/diary    -           app/package.json  default-app-invalid",
       );
       expect(modules).toContain(
-        "personalspace/notes  -           app/package.json  executable",
+        "personalspace/notes    -           app/package.json  executable",
       );
       privateNames(modules);
       expect(

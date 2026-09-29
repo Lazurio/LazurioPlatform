@@ -1,3 +1,4 @@
+import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { object, parseModuleManifest, text } from "../modules/manifest";
@@ -10,6 +11,7 @@ import { readCheckoutJson } from "../providers/owned-json";
 import { inspectCanonicalInventory } from "./canonical-inventory";
 import { organizationDocumentHash } from "./document-hash";
 import { organizationDocumentFiles } from "./read-documents";
+import { rootApplicationPaths } from "./repository-slots";
 import { resolveOrganizationRoot } from "./root-resolution";
 
 // Resolve a selection against the live inventory, never a caller-supplied path.
@@ -156,7 +158,18 @@ export async function observeOrganizationApplications(
     );
     const entries = [];
     for (const slot of inventory.inventory.slots) {
-      if (slot?.scope !== "workspace" || slot.nestedDatabase) continue;
+      // A workspace slot is a module; a root-level application slot is one
+      // only when it carries a module manifest (decision F24), never by its
+      // directory alone. Other root slots and productionspace never are.
+      if (!slot) continue;
+      const workspace = slot.scope === "workspace" && !slot.nestedDatabase;
+      const application =
+        slot.scope === "root" &&
+        rootApplicationPaths.has(slot.path) &&
+        (await declaresModule(
+          join(directory, slot.path, "lazurio.module.json"),
+        ));
+      if (!workspace && !application) continue;
       const identity = { module: slot.id, path: slot.path };
       if (conflicted.has(slot.index) || slot.id === null) {
         entries.push(
@@ -249,6 +262,16 @@ export async function observeOrganizationApplications(
       : without(Object.freeze({ kind: "checkout-refused" as const, refused }));
   }
 }
+
+// Whether a module manifest is there at all: only its absence (the slot not
+// checked out, or checked out without one) answers no. Anything else is read
+// by the module reader, which names what it refuses.
+const declaresModule = (manifest: string) =>
+  lstat(manifest).then(
+    () => true,
+    (error: NodeJS.ErrnoException) =>
+      error.code !== "ENOENT" && error.code !== "ENOTDIR",
+  );
 
 /** One module directory's declaration, the reader Organization slots and the
  * Personalspace share (launchpad-parity B1, B11): `lazurio.module.json`, and
