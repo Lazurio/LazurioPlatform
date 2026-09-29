@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { parseProcessLaunch } from "./process-launch";
 
 const execute = promisify(execFile);
@@ -25,7 +25,7 @@ export async function inspectBunToolchain(input: {
     args: ["--version"],
   });
   try {
-    await inspectOwnedDirectory(launch.cwd);
+    await inspectCheckoutDirectory(launch.cwd);
     const { stdout, stderr } = await execute(
       launch.executable,
       [...launch.args],

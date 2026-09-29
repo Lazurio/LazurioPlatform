@@ -13,20 +13,24 @@ the selected managed app is still checked separately. No other app is stopped.
 The Bun adapter's explicit `cleanInstall: true` performs cleanup only in the effect
 phase, under the existing owner coordination after app stop. Package, lock and
 configuration authority are rechecked. Only `<resolved owner>/node_modules` is a
-cleanup target. A symlink at that root, a separate filesystem, nested mounts,
-foreign ownership, Git metadata or non-derived special entries are
-refused. Descendant symlinks are unlinked without following their destinations.
+cleanup target. A symlink at that root, a separate filesystem, nested mounts, an
+entry another account owns (`directory-owner`, `declaration-owner`), Git metadata or
+non-derived special entries are refused. A tree the operator owns is the operator's
+own whatever its write bits (decision F23), so a group-writable `node_modules` left
+by an install under umask `002` is removed like any other; a refusal of the checkout
+rule answers `preparation-failed` with its rule and module-relative path. Descendant symlinks are unlinked without following their destinations.
 Source, lockfiles, database, Git outside this tree and global cache are not targets.
 
 The dedicated POSIX process guard tightens its inherited creation mask with
 `umask | 0077` before spawning a managed install or application. New default-created
 files/directories in its descendants are private to the executing user, consistent
-with the existing non-shared ownership contract. The caller's process mask is not
+with the product's own files, which keep their strict rule. The caller's process mask is not
 changed, stricter inherited restrictions are not relaxed, and existing files,
 directories and shared cache inodes are never chmodded. This covers application
 cache creation as well as installation; otherwise a guest with umask `0002` can
 install successfully and then fail clean preparation on its own new shared tree.
-An explicitly shared pre-existing tree is still refused rather than repaired.
+A pre-existing group-writable tree the operator owns is accepted and never chmodded
+(decision F23); another account's tree is refused rather than repaired.
 Trusted scripts can deliberately change their own mask or modes; the guard is not
 a filesystem sandbox and does not certify arbitrary module code.
 
@@ -42,6 +46,13 @@ as the normal Linux installation backend, unlike macOS clonefile. Rejecting ever
 multi-link regular file prevented ordinary Linux clean preparation. A regression
 fixture reproduces that rejection and verifies surviving cache/checkout links after
 cleanup, including unchanged bytes, mode, inode and modification time.
+
+The same holds for reading: the checkout rule of decision F23 reads a hard-linked
+`package.json` of a local package, and the permission bits of the operator's
+checkout files are not a reason to refuse them. When local `file:` inputs exist, the
+frozen install uses `--backend copyfile`, so the Platform's own preparation does not
+hard-link a source file into the installed tree; an earlier install by another tool
+may have, and that is read as it is.
 
 This relies on cooperative stable filesystem custody, not protection against a
 hostile same-user writer replacing paths during traversal/removal. Cleanup safety

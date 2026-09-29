@@ -1,5 +1,7 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, spyOn, test } from "bun:test";
+import * as fsPromises from "node:fs/promises";
 import {
+  chmod,
   link,
   lstat,
   mkdir,
@@ -25,6 +27,7 @@ import {
 import { inspectInstallAuthority } from "../src/modules/install-authority";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
 import { createSessionRunner } from "../src/modules/session-runner";
+import { checkoutRefusal } from "../src/providers/checkout-custody";
 
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
@@ -403,6 +406,73 @@ posixTest(
 );
 
 posixTest(
+  "clean dependency removal: a group- or world-writable tree the operator owns is the operator's own (decision F23)",
+  async () => {
+    const f = await fixture("clean-shared-bits");
+    const tree = join(f.directory, "node_modules");
+    await mkdir(join(tree, "package/lib"), { recursive: true });
+    await writeFile(join(tree, "package/package.json"), "{}");
+    await writeFile(join(tree, "package/lib/index.js"), "export {};");
+    // What an install under umask 002 (or 000) leaves behind.
+    await chmod(tree, 0o775);
+    await chmod(join(tree, "package"), 0o777);
+    await chmod(join(tree, "package/lib"), 0o775);
+    await chmod(join(tree, "package/package.json"), 0o664);
+    await chmod(join(tree, "package/lib/index.js"), 0o666);
+    expect(await cleanDerivedDependencies(f.request.authority)).toEqual({
+      kind: "dependencies-removed",
+    });
+    await expect(lstat(tree)).rejects.toThrow();
+    expect(await readFile(join(f.directory, "package.json"), "utf8")).toContain(
+      "synthetic-install-fixture",
+    );
+  },
+);
+
+posixTest(
+  "clean dependency removal refuses an entry another account owns, by its rule and module-relative path, and removes nothing",
+  async () => {
+    for (const [entry, reason] of [
+      ["node_modules/package/lib", "directory-owner"],
+      ["node_modules/package/package.json", "declaration-owner"],
+      ["node_modules", "directory-owner"],
+    ] as const) {
+      const f = await fixture(`clean-foreign-${reason}-${entry.length}`);
+      const tree = join(f.directory, "node_modules");
+      await mkdir(join(tree, "package/lib"), { recursive: true });
+      await writeFile(join(tree, "package/package.json"), "{}");
+      // A faked stat: only root can give an entry to another account.
+      const foreign = join(f.directory, entry);
+      const original = fsPromises.lstat;
+      const spy = spyOn(fsPromises, "lstat").mockImplementation((async (
+        path: Parameters<typeof original>[0],
+        options?: Parameters<typeof original>[1],
+      ) => {
+        const stat = await original(path, options as undefined);
+        if (path === foreign)
+          Object.defineProperty(stat, "uid", { value: stat.uid + 1 });
+        return stat;
+      }) as typeof original);
+      try {
+        const error = await cleanDerivedDependencies(f.request.authority).then(
+          () => null,
+          (thrown: unknown) => thrown,
+        );
+        expect(checkoutRefusal(error, f.directory)).toEqual({
+          reason,
+          file: entry,
+        });
+      } finally {
+        spy.mockRestore();
+      }
+      expect(await readFile(join(tree, "package/package.json"), "utf8")).toBe(
+        "{}",
+      );
+    }
+  },
+);
+
+posixTest(
   "clean preparation refuses a linked dependency root without touching its destination",
   async () => {
     const f = await fixture("clean-linked-root");
@@ -421,8 +491,12 @@ posixTest(
       verifyPrepared: async () => true,
     });
     try {
+      // A symlinked tree is not the checkout's own directory (decision F23),
+      // named by its rule and module-relative path.
       expect(await preparation.run(new AbortController().signal)).toEqual({
         kind: "preparation-failed",
+        reason: "directory-not-regular",
+        file: "node_modules",
       });
       expect(await readFile(join(external, "work"), "utf8")).toBe("preserve");
       expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(false);

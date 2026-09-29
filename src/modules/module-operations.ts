@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
-import { canonicalOwnedDirectory } from "../folder/owned-directory";
+import { canonicalCheckoutDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
 import {
   isModuleId,
@@ -23,6 +23,7 @@ import {
   observePersonalspaceModule,
   resolvePersonalspaceApplication,
 } from "../organizations/personalspace";
+import { checkoutRefusal } from "../providers/checkout-custody";
 import { createApplicationCoordination } from "./application-coordination";
 import {
   type ApplicationRunner,
@@ -156,7 +157,10 @@ export function processModuleHost(
 /** The typed refusal of a module operation. Reasons of the catalog
  * (`organization-not-executable`, `no-app`, …) and of the lifecycle
  * (`port-occupied`, `prerequisites-not-ready`, `coordination-busy`, …) are
- * kept verbatim. */
+ * kept verbatim. A file of the module's checkout that the checkout rule
+ * refuses (decision F23) is `declaration-not-regular`, `declaration-owner`
+ * or `declaration-too-large` with its module-relative `file`, whether the
+ * catalog or the start read it. */
 export type ModuleBlocked = Readonly<{
   kind: "blocked";
   operation: ModuleOperation;
@@ -170,6 +174,10 @@ export type ModuleBlocked = Readonly<{
   /** `toolchain-missing`: which tool and where it is expected. */
   tool?: string;
   expected?: string;
+  /** `declaration-*`: the refused file, relative to the module, to the
+   * Organization root for an Organization document, or `~/…` for the
+   * account's own package manager configuration. Never absolute. */
+  file?: string;
 }>;
 
 export type ModuleState =
@@ -259,6 +267,8 @@ type Target = Readonly<{
   isDefaultApp: boolean;
   /** The Organization root, or the Personalspace's owner directory. */
   organizationDirectory: string;
+  /** The module's checkout: the names of refused files are relative to it. */
+  moduleDirectory: string;
   personalspace: boolean;
 }>;
 
@@ -311,6 +321,29 @@ export function createModuleOperations(input: {
     extra: Partial<Omit<ModuleBlocked, "kind" | "operation" | "reason">> = {},
   ): ModuleBlocked =>
     Object.freeze({ kind: "blocked" as const, operation, reason, ...extra });
+
+  // The refusal of a throw inside an operation: a refused file of the
+  // module's checkout by its rule and module-relative name, anything else
+  // `operation-failed`. Never the error's message or an absolute path.
+  const moduleFailure = (
+    operation: ModuleOperation,
+    target: Target,
+    error: unknown,
+  ): ModuleBlocked => {
+    const where = {
+      organization: target.organization,
+      module: target.module,
+      app: target.app,
+    };
+    const refused = checkoutRefusal(
+      error,
+      [target.moduleDirectory, target.organizationDirectory],
+      host.home,
+    );
+    return refused === null
+      ? blocked(operation, "operation-failed", where)
+      : blocked(operation, refused.reason, { ...where, file: refused.file });
+  };
 
   // `<Org>/<module>` through the catalog's one selection rule, then the app:
   // `--app` when named, otherwise the module's declared default.
@@ -394,33 +427,48 @@ export function createModuleOperations(input: {
     );
     const module = matches[0];
     if (module === undefined)
-      return blocked(
-        operation,
-        organization.modules.length === 0 && organization.reason !== undefined
-          ? organization.reason
-          : "module-unknown",
-        { organization: shownOrganization, module: moduleName },
-      );
+      return organization.modules.length === 0 &&
+        organization.reason !== undefined
+        ? blocked(operation, organization.reason, {
+            organization: shownOrganization,
+            module: moduleName,
+            ...(organization.file === undefined
+              ? {}
+              : { file: organization.file }),
+          })
+        : blocked(operation, "module-unknown", {
+            organization: shownOrganization,
+            module: moduleName,
+          });
     const where = { organization: shownOrganization, module: moduleName };
     if (matches.length > 1)
       return blocked(operation, "declaration-conflict", where);
-    // A module whose only fault is its default app still runs a named app.
+    // A module whose only fault is its default app still runs a named app:
+    // no default, an invalid one, or one whose package.json was refused (the
+    // module was read, so it lists its apps).
     const namedApp = options.app !== undefined;
-    if (
-      !module.executable &&
-      !(
-        namedApp &&
-        (module.reason === "no-app" || module.reason === "default-app-invalid")
-      )
-    )
-      return blocked(operation, module.reason ?? "not-executable", where);
+    const defaultAppFault =
+      module.reason === "no-app" ||
+      module.reason === "default-app-invalid" ||
+      (module.file !== undefined && module.apps.length > 0);
+    if (!module.executable && !(namedApp && defaultAppFault))
+      return blocked(operation, module.reason ?? "not-executable", {
+        ...where,
+        ...(module.file === undefined ? {} : { file: module.file }),
+      });
     const app = options.app ?? module.defaultApp;
     if (app === null) return blocked(operation, "no-app", where);
     const declared = module.apps.find((entry) => entry.package === app);
     if (declared === undefined)
       return blocked(operation, "app-unknown", { ...where, app });
     if (declared.kind !== "runtime-declared")
-      return blocked(operation, "app-not-runnable", { ...where, app });
+      return declared.reason !== undefined && declared.file !== undefined
+        ? blocked(operation, declared.reason, {
+            ...where,
+            app,
+            file: declared.file,
+          })
+        : blocked(operation, "app-not-runnable", { ...where, app });
     if (organization.organization === null)
       return blocked(operation, "organization-unavailable", where);
     const common = {
@@ -437,17 +485,21 @@ export function createModuleOperations(input: {
       const located = await locatePersonalspace(folder);
       if (located.kind !== "owner") return unavailable();
       try {
-        const directory = await canonicalOwnedDirectory(located.directory);
-        const { observed } = await observePersonalspaceModule(
+        const directory = await canonicalCheckoutDirectory(located.directory);
+        const { path, observed } = await observePersonalspaceModule(
           directory,
           module.module,
         );
         if (observed.kind !== "module-observed")
-          return blocked(operation, observed.kind, where);
+          return blocked(operation, observed.kind, {
+            ...where,
+            ...("file" in observed ? { file: observed.file } : {}),
+          });
         return Object.freeze({
           ...common,
           company: observed.company,
           organizationDirectory: directory,
+          moduleDirectory: path,
           personalspace: true,
         });
       } catch {
@@ -457,7 +509,7 @@ export function createModuleOperations(input: {
     let organizationDirectory: string;
     try {
       // ONE canonical spelling before any unit name or lock is derived.
-      organizationDirectory = await canonicalOwnedDirectory(
+      organizationDirectory = await canonicalCheckoutDirectory(
         join(folder, "organizations", organization.directory),
       );
     } catch {
@@ -467,6 +519,7 @@ export function createModuleOperations(input: {
       ...common,
       company: organization.organization,
       organizationDirectory,
+      moduleDirectory: join(organizationDirectory, module.path),
       personalspace: false,
     });
   }
@@ -512,15 +565,12 @@ export function createModuleOperations(input: {
     target: Target,
     action: (lifecycle: Lifecycle) => Promise<T>,
   ): Promise<T | ModuleBlocked> {
-    // A throw inside the lifecycle changed nothing it could not confirm; it
-    // is typically a module that is not a declared self-owned Bun package
-    // (no preparation declaration, lockfile or exact packageManager).
-    const failed = () =>
-      blocked(operation, "operation-failed", {
-        organization: target.organization,
-        module: target.module,
-        app: target.app,
-      });
+    // A throw inside the lifecycle changed nothing it could not confirm. A
+    // file of the module's checkout that the checkout rule refused is named
+    // by its rule and file (decision F23); any other throw is typically a
+    // module that is not a declared self-owned Bun package (no preparation
+    // declaration, lockfile or exact packageManager).
+    const failed = (error: unknown) => moduleFailure(operation, target, error);
     if (owner === "launchpad") {
       try {
         let lifecycle = held.get(target.organizationDirectory);
@@ -532,20 +582,20 @@ export function createModuleOperations(input: {
           held.set(target.organizationDirectory, lifecycle);
         }
         return await action(lifecycle);
-      } catch {
-        return failed();
+      } catch (error) {
+        return failed(error);
       }
     }
     let lifecycle: Lifecycle;
     try {
       lifecycle = lifecycleFor(kind, target);
-    } catch {
-      return failed();
+    } catch (error) {
+      return failed(error);
     }
     try {
       return await action(lifecycle);
-    } catch {
-      return failed();
+    } catch (error) {
+      return failed(error);
     } finally {
       await lifecycle.close();
     }
@@ -771,13 +821,7 @@ export function createModuleOperations(input: {
       let starting = ensuring.get(key);
       if (starting === undefined) {
         const run = startOwned(prepared)
-          .catch(() =>
-            blocked("start", "operation-failed", {
-              organization: target.organization,
-              module: target.module,
-              app: target.app,
-            }),
-          )
+          .catch((error: unknown) => moduleFailure("start", target, error))
           .finally(() => {
             if (ensuring.get(key) === run) ensuring.delete(key);
           });

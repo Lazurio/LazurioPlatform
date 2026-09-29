@@ -680,6 +680,11 @@ posixTest(
           state: "conflict",
           issues: ["legacy_document_unreadable"],
         },
+        // The checkout rule's reason and the document's file (decision F23).
+        refused: {
+          reason: "declaration-not-regular",
+          file: "company.gen3.json",
+        },
       } as const;
       expect(await readOrganizationApplications(root)).toEqual(conflict);
       expect(

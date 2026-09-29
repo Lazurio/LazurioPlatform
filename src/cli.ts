@@ -6,7 +6,7 @@ import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectOutput } from "./folder/inventory";
 import {
-  canonicalOwnedDirectory,
+  canonicalCheckoutDirectory,
   inspectOwnedDirectory,
 } from "./folder/owned-directory";
 import { executionOs } from "./folder/platform";
@@ -126,7 +126,7 @@ async function operateServiceApplication(input: unknown) {
   )
     throw new Error("Direct application request supports status and stop");
   // ONE canonical spelling before any unit name or lock file is derived from it.
-  const organizationDirectory = await canonicalOwnedDirectory(
+  const organizationDirectory = await canonicalCheckoutDirectory(
     value.organizationDirectory,
   );
   const runtimeDirectory = process.env.XDG_RUNTIME_DIR;
@@ -487,7 +487,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     const organizationDirectory =
       values["organization-directory"] === undefined
         ? undefined
-        : await canonicalOwnedDirectory(values["organization-directory"]);
+        : await canonicalCheckoutDirectory(values["organization-directory"]);
     if (values["bun-executable"] !== undefined) {
       if (!organizationDirectory || !process.env.HOME)
         throw new Error("Local Organization and account home required");

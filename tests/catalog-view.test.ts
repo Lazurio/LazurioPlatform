@@ -81,6 +81,9 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
     "explicit-apps-required",
     "no-app",
     "default-app-invalid",
+    "declaration-not-regular",
+    "declaration-owner",
+    "declaration-too-large",
   ];
   for (const locale of ["cs", "en"]) {
     const copy = messages(locale);
@@ -106,6 +109,21 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
       code: "future-reason",
     });
   }
+  // A refused file of the operator's checkout is named in the sentence
+  // (decision F23), as text.
+  for (const locale of ["cs", "en"])
+    for (const reason of [
+      "declaration-not-regular",
+      "declaration-owner",
+      "declaration-too-large",
+    ]) {
+      const status = catalogStatus(
+        { executable: false, reason, file: "app/package.json" },
+        messages(locale),
+      );
+      expect(status.text).toContain("app/package.json");
+      expect(status.text).not.toContain("{file}");
+    }
   expect(messages("cs").catalogReasonNoApp).not.toBe(
     messages("en").catalogReasonNoApp,
   );

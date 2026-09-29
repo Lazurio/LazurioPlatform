@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import { lstat } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { snapshotOrganizationDocument } from "../organizations/document-hash";
-import { readOwnedDeclarationBytes } from "../providers/owned-json";
+import { readCheckoutFileBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import { inspectLocalDependencyInputs } from "./local-dependency-inputs";
 import { inspectPatchInputs } from "./patch-inputs";
@@ -43,7 +43,7 @@ export async function inspectInstallAuthority(
           args: [],
           env: environment,
         }).env;
-  const checkoutStat = await inspectOwnedDirectory(checkout);
+  const checkoutStat = await inspectCheckoutDirectory(checkout);
   const offset = relative(checkout, owner);
   if (isAbsolute(offset) || offset === ".." || offset.startsWith(`..${sep}`))
     throw new Error("Install owner outside selected checkout");
@@ -51,9 +51,9 @@ export async function inspectInstallAuthority(
   if (offset)
     for (const segment of offset.split(sep)) {
       parent = join(parent, segment);
-      await inspectOwnedDirectory(parent);
+      await inspectCheckoutDirectory(parent);
     }
-  const ownerStat = await inspectOwnedDirectory(owner);
+  const ownerStat = await inspectCheckoutDirectory(owner);
   const configuration: Record<string, string | null> = {};
   if (env) {
     if (!env.HOME || !isAbsolute(env.HOME))
@@ -71,13 +71,13 @@ export async function inspectInstallAuthority(
     ])) {
       if (!isAbsolute(directory))
         throw new Error("Explicit configuration directory required");
-      const identity = await inspectOwnedDirectory(directory);
+      const identity = await inspectCheckoutDirectory(directory);
       configuration[`directory:${directory}`] =
         `${identity.dev}:${identity.ino}`;
       for (const name of [".npmrc", ".bunfig.toml"]) {
         const path = join(directory, name);
         configuration[`global:${path}`] = (await present(path))
-          ? digest(await readOwnedDeclarationBytes(path))
+          ? digest(await readCheckoutFileBytes(path))
           : null;
       }
     }
@@ -88,13 +88,11 @@ export async function inspectInstallAuthority(
     for (const name of [".npmrc", "bunfig.toml"]) {
       const path = join(configDirectory, name);
       configuration[relative(checkout, path)] = (await present(path))
-        ? digest(await readOwnedDeclarationBytes(path))
+        ? digest(await readCheckoutFileBytes(path))
         : null;
     }
   }
-  const packageBytes = await readOwnedDeclarationBytes(
-    join(owner, "package.json"),
-  );
+  const packageBytes = await readCheckoutFileBytes(join(owner, "package.json"));
   const pkg = snapshotOrganizationDocument(
     parseUniqueJson(
       new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
@@ -118,7 +116,7 @@ export async function inspectInstallAuthority(
     if (await present(join(owner, name))) locks.push(name);
   if (locks.length !== 1) throw new Error("One explicit Bun lockfile required");
   const lockfile = locks[0] as string;
-  const lockBytes = await readOwnedDeclarationBytes(join(owner, lockfile));
+  const lockBytes = await readCheckoutFileBytes(join(owner, lockfile));
   if (!lockBytes.length) throw new Error("Empty Bun lockfile");
   // The lock remains opaque here: only Bun may validate its actual syntax; no
   // regeneration or parsing as ordinary JSON (text locks can be JSONC).
@@ -138,8 +136,8 @@ export async function inspectInstallAuthority(
     configuration: Object.freeze(configuration),
     environment: env,
   });
-  const afterCheckout = await inspectOwnedDirectory(checkout);
-  const afterOwner = await inspectOwnedDirectory(owner);
+  const afterCheckout = await inspectCheckoutDirectory(checkout);
+  const afterOwner = await inspectCheckoutDirectory(owner);
   if (
     `${afterCheckout.dev}:${afterCheckout.ino}` !== snapshot.checkoutIdentity ||
     `${afterOwner.dev}:${afterOwner.ino}` !== snapshot.ownerIdentity

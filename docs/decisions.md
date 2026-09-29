@@ -1987,3 +1987,85 @@ switch. The resident Launchpad serves every hosted Machine until the switch rele
 | Port the resident's code | Carries a Git client, a plan browser and click ranking nobody decided; rejected: concepts, not code |
 | Keep transition-only admission until an identity continuity proof | The proof has no owner; every migrated Organization would lose its applications at the switch; rejected (H1) |
 | Parity by concept, CLI first, one Machines apply (selected) | No new Folder state and no parallel run; the switch waits for Recovery mode and a qualified candidate |
+
+## F23 — The operator's own checkout is read by ownership, not by permission bits or link count
+
+**Principal's decision 2026-09-29, accepted** (issue #92, last comment; the reasons of
+issue #93 follow from it; the directory, dependency-tree and lockfile points were
+decided the same day on the open questions of #94). The Principal did not pick one of
+the options of #92 as written; he stated the principle, which decides it:
+
+> The rights of the signed-in GitHub account are the authority. What GitHub allows the
+> operator, the operator may use. The Platform does not add a second, local permission
+> layer on top of the operator's own checkout. [...] Keep it simple.
+
+The hosted setup only installs Lazurio from the public checkout; the operator installs
+the Organization under their own rights after linking GitHub in the Launchpad, and
+nothing but the operator writes the Organization's files. On a hosted work Machine the
+operator's umask is `002`: Git creates the checkout's directories `0775` and its files
+`0664`.
+
+1. **Files of the checkout.** A file of the operator's own checkout is read when it is
+   a regular file (not a symlink, directory or device) owned by the operator's account
+   and within its bound: **1 MiB** for a declaration or a small input, **16 MiB** for a
+   lockfile (`bun.lock`, `bun.lockb`, and `package-lock.json`, `npm-shrinkwrap.json`,
+   `yarn.lock`, `pnpm-lock.yaml` wherever the install reads them), which grows with
+   every dependency. Its permission bits and its link count are never a reason to
+   refuse it: Git under a umask `002` writes `0664`, Bun hard-links local packages,
+   and both are the operator's own tools under the operator's own account, which say
+   nothing about who may change the Organization (GitHub does). A world-writable file
+   (`0666`) is read too: that is the operator's own choice about their own files.
+2. **Directories of the checkout.** A directory of the operator's own checkout is
+   accepted when it is a real directory (not a symlink, and not reached through one)
+   owned by the operator; group or world write bits are not a reason to refuse it.
+3. **Where the checkout rule applies.** `organizations/` and each Organization root
+   with its `.git`; the Organization's `lazurio.organization.json`,
+   `company.gen3.json` and `modules.manifest.json`; `workspace/`, each module and app
+   directory, and a module's declarations (`lazurio.module.json` and the
+   `package.json` of each app it lists); `personalspace/`, the Personalspace owner
+   directory and its modules; the install inputs the start reads (the preparation
+   owner's `package.json` and lockfile, workspace members, patch files and their
+   directories, local `file:` dependencies, `.npmrc`/`bunfig.toml` of the checkout
+   and of the account's home and configuration directory); the working directory of
+   a managed install or application; the dependency owner's retained operation lock
+   directory; and a module's `node_modules` tree when a clean preparation removes it.
+4. **Where it does not.** What the product, root or the system writes keeps the
+   strict rules byte for byte (single link, no group or world write, the expected
+   owner): the Folder itself and its parent at initialization, its state and history
+   directories, preferences, locks and generated inventory, the install base, the
+   root-issued Machine context and handover and their directories, and runtime
+   directories (application coordination under `XDG_RUNTIME_DIR`). Those are not the
+   operator's checkout.
+5. **Another account's file or directory is refused**, for declarations, install
+   inputs and dependency trees alike: that is not the operator's checkout. A clean
+   preparation refuses a `node_modules` tree, or any entry in it, owned by another
+   account, and keeps every safety that is not about permission bits (no symlink
+   followed, nothing removed outside the module's `node_modules`, no nested mount).
+6. **A refusal has a specific reason**: `declaration-not-regular`,
+   `declaration-owner`, `declaration-too-large` for a file, `directory-not-regular`,
+   `directory-owner` for a directory, with the path relative to its module (`.` for
+   the module itself), else to the Organization root, or `~/…` for the account's
+   configuration; never an absolute path or content. `lazurio module list` reports a
+   refused declaration or module directory as `executable: false` with that reason,
+   and an Organization whose root or document is refused carries it too; `module
+   start`, `status` and the gateway's `ensure` answer `blocked` with it; a clean
+   preparation answers `preparation-failed` with it; `lazurio doctor` names it; the
+   Launchpad shows it. An install input is not a declaration: it does not make the
+   module unexecutable in the list, and the start refuses it with its reason.
+   `operation-failed` stays only for throws without a reason.
+7. **Nothing changes the operator's files.** Neither the product nor the hosted setup
+   normalizes modes or links of a checkout (option 2 of #92 is rejected by the
+   principle).
+
+**Amends** the file- and directory-custody sentences of
+[module adoption](module-adoption.md) and [clean module
+preparation](clean-module-preparation.md) (single-link and non-shared-write
+declarations, install inputs and dependency trees).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Refuse only world-writable, accept group-writable with the owner's private group (#92 option 1) | Keeps a local permission layer and needs a group lookup; not chosen: permission bits are not the product's business |
+| Normalize the checkout to umask `022` from the hosted setup (#92 option 2) | The product or Machines would change the operator's files, and every later clone breaks again; rejected by the principle |
+| Keep the rule and only report it (#92 option 3) | Every Machine with umask `002` stays unusable; not chosen |
+| Relax files only, keep the directory rule | A clone under umask `002` still has `0775` directories and nothing runs; not chosen |
+| One checkout rule by ownership, type and size for files and directories, with a typed reason (selected) | Simple; another account's file or directory, a symlink and an oversized file are still refused and named |

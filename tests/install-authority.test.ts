@@ -17,6 +17,7 @@ import {
   verifyInstallAuthority,
 } from "../src/modules/install-authority";
 import { inspectPatchInputs } from "../src/modules/patch-inputs";
+import { checkoutRefusal } from "../src/providers/checkout-custody";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -319,12 +320,14 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect(await verifyInstallAuthority(before)).toBe(false);
       await writeFile(patch, "original patch bytes");
       expect(await verifyInstallAuthority(before)).toBe(true);
+      // Permission bits and the link count of the operator's checkout are
+      // not install inputs (decision F23): the same bytes stay the same input.
       await chmod(patch, 0o666);
-      expect(await verifyInstallAuthority(before)).toBe(false);
+      expect(await verifyInstallAuthority(before)).toBe(true);
       await chmod(patch, 0o600);
       const alias = join(root, "alias.patch");
       await link(patch, alias);
-      expect(await verifyInstallAuthority(before)).toBe(false);
+      expect(await verifyInstallAuthority(before)).toBe(true);
       await rm(alias);
       await rename(patch, alias);
       expect(await verifyInstallAuthority(before)).toBe(false);
@@ -335,6 +338,35 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       await rename(join(root, "patches"), join(root, "retained-patches"));
       await symlink(join(root, "retained-patches"), join(root, "patches"));
       expect(await verifyInstallAuthority(before)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "the Bun lockfile has the lockfile bound: 1 MiB + 1 byte is an install input, 16 MiB + 1 byte is refused as declaration-too-large (decision F23)",
+  async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "lock-bound-")));
+    try {
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({ packageManager: "bun@1.4.2" }),
+      );
+      const lock = join(root, "bun.lock");
+      await writeFile(lock, Buffer.alloc(1024 * 1024 + 1, 32));
+      expect((await inspectInstallAuthority(root, root)).lockfile).toBe(
+        "bun.lock",
+      );
+      await writeFile(lock, Buffer.alloc(16 * 1024 * 1024 + 1, 32));
+      const error = await inspectInstallAuthority(root, root).then(
+        () => null,
+        (thrown: unknown) => thrown,
+      );
+      expect(checkoutRefusal(error, root)).toEqual({
+        reason: "declaration-too-large",
+        file: "bun.lock",
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { readOwnedJson as readDeclaration } from "../providers/owned-json";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
+import { readCheckoutJson as readDeclaration } from "../providers/owned-json";
 import { selectModuleApplication } from "./manifest";
 import { parsePreparationDeclaration } from "./preparation-declaration";
 import { planModuleRuntime } from "./runtime";
@@ -20,7 +20,7 @@ export async function readModuleApplication(
 ) {
   if (process.platform === "win32")
     throw new Error("Unqualified module reader platform");
-  const root = await inspectOwnedDirectory(moduleDirectory);
+  const root = await inspectCheckoutDirectory(moduleDirectory);
   const manifest = await readDeclaration(
     join(moduleDirectory, "lazurio.module.json"),
   );
@@ -33,7 +33,7 @@ export async function readModuleApplication(
   if (parents !== ".")
     for (const segment of parents.split("/")) {
       directory = join(directory, segment);
-      await inspectOwnedDirectory(directory);
+      await inspectCheckoutDirectory(directory);
     }
   const pkg = record(await readDeclaration(packagePath));
   if (pkg.companyascode && Object.hasOwn(record(pkg.companyascode), "app"))
@@ -49,7 +49,7 @@ export async function readModuleApplication(
     selection.package,
     pkg.scripts,
   );
-  const after = await inspectOwnedDirectory(moduleDirectory);
+  const after = await inspectCheckoutDirectory(moduleDirectory);
   if (after.dev !== root.dev || after.ino !== root.ino)
     throw new Error("Module directory changed");
   return Object.freeze({

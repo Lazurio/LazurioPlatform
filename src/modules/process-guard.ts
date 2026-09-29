@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { object } from "./manifest";
 import { parseProcessLaunch } from "./process-launch";
 
@@ -54,11 +54,12 @@ export async function runProcessGuard() {
         if (!launched) {
           if (stopping) return;
           const config = parseProcessLaunch(JSON.parse(line));
-          await inspectOwnedDirectory(config.cwd);
+          await inspectCheckoutDirectory(config.cwd);
           if (stopping) return;
           // This dedicated guard, not the caller, owns the child environment.
-          // Managed install/app descendants must not inherit a group-writable
-          // creation default and produce trees our private-owner checks refuse.
+          // What managed install/app descendants create stays private to the
+          // account; the checkout's own write bits are not refused (decision
+          // F23), so this only tightens what Lazurio's runs create.
           // Only tighten creation permissions; never chmod existing/shared inodes
           // or relax a stricter inherited mask. This is not a script sandbox.
           process.umask(process.umask() | 0o077);

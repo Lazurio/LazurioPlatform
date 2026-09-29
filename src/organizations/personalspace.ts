@@ -1,6 +1,6 @@
 import { lstat, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { workspacePreset } from "../folder/presets";
 import { readStateJson } from "../folder/read-state";
 import { parseFolderPreferences } from "../folder/state";
@@ -74,7 +74,7 @@ export type PersonalspaceLocation =
     }>;
 
 /** The owner directory of `<Folder>/personalspace/`: absent without one,
- * blocked with more than one or when it is not a caller-owned, non-shared
+ * blocked with more than one or when it is not a real, caller-owned
  * directory. Its name is returned only to the caller, never shown. */
 export async function locatePersonalspace(
   folder: string,
@@ -82,13 +82,13 @@ export async function locatePersonalspace(
   const root = join(folder, personalspaceName);
   try {
     if (await absent(root)) return { kind: "absent" };
-    await inspectOwnedDirectory(root);
+    await inspectCheckoutDirectory(root);
     const names = await candidates(root);
     if (names.length === 0) return { kind: "absent" };
     if (names.length > 1)
       return { kind: "blocked", reason: "personalspace-ambiguous" };
     const directory = join(root, names[0] as string);
-    await inspectOwnedDirectory(directory);
+    await inspectCheckoutDirectory(directory);
     return { kind: "owner", directory };
   } catch {
     return { kind: "blocked", reason: "personalspace-unavailable" };
@@ -97,11 +97,12 @@ export async function locatePersonalspace(
 
 /** The ids of the modules in an owner directory: every directory in
  * `workspace/` named like a module id that holds a `lazurio.module.json`.
- * Throws when `workspace/` is not a caller-owned, non-shared directory. */
+ * Throws when `workspace/` is not a real, caller-owned directory
+ * (decision F23: its write bits are the operator's). */
 export async function personalspaceModuleIds(space: string): Promise<string[]> {
   const workspace = join(space, "workspace");
   if (await absent(workspace)) return [];
-  await inspectOwnedDirectory(workspace);
+  await inspectCheckoutDirectory(workspace);
   const ids = [];
   for (const name of await candidates(workspace))
     if (
@@ -116,9 +117,9 @@ export async function personalspaceModuleIds(space: string): Promise<string[]> {
  * its declared id must be its directory name. Throws when it cannot be read. */
 export async function observePersonalspaceModule(space: string, id: string) {
   const name = text(id, moduleId);
-  await inspectOwnedDirectory(space);
+  await inspectCheckoutDirectory(space);
   const workspace = join(space, "workspace");
-  await inspectOwnedDirectory(workspace);
+  await inspectCheckoutDirectory(workspace);
   const path = join(workspace, name);
   return {
     path,

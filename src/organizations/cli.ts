@@ -82,8 +82,16 @@ export function columns(input: readonly (readonly string[])[]): string[] {
   );
 }
 
-const status = (entry: { executable: boolean; reason?: string }) =>
-  entry.executable ? "executable" : (entry.reason ?? "not-executable");
+// Not executable: the reason, and the refused file when there is one
+// (decision F23).
+const status = (entry: {
+  executable: boolean;
+  reason?: string;
+  file?: string;
+}) =>
+  entry.executable
+    ? "executable"
+    : `${entry.reason ?? "not-executable"}${entry.file === undefined ? "" : ` (${entry.file})`}`;
 
 // One line per Organization whose manifest still uses the legacy Team alias,
 // under the table: said once, never per module.
@@ -225,7 +233,7 @@ export async function runCatalogCommand(
       modules,
     },
     organization?.reason !== undefined && organization.modules.length === 0
-      ? `${shown(organization.organization ?? organization.directory)}: ${organization.reason}`
+      ? `${shown(organization.organization ?? organization.directory)}: ${status(organization)}`
       : moduleLines(
           modules,
           organization === undefined ? catalog.organizations : [organization],

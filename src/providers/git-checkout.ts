@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { promisify } from "node:util";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 
 const run = promisify(execFile);
 export function githubRemoteCoordinate(input: string): string | null {
@@ -30,7 +30,7 @@ export async function inspectGitCheckout(
   )
     throw new Error("Explicit qualified Git executable required");
   try {
-    const before = await inspectOwnedDirectory(directory);
+    const before = await inspectCheckoutDirectory(directory);
     const command = async (args: string[]) => {
       const { stdout, stderr } = await run(executable, args, {
         cwd: directory,
@@ -62,8 +62,8 @@ export async function inspectGitCheckout(
     const commonDirectory = (
       await command(["rev-parse", "--path-format=absolute", "--git-common-dir"])
     ).replace(/\n$/, "");
-    const gitBefore = await inspectOwnedDirectory(gitDirectory);
-    const commonBefore = await inspectOwnedDirectory(commonDirectory);
+    const gitBefore = await inspectCheckoutDirectory(gitDirectory);
+    const commonBefore = await inspectCheckoutDirectory(commonDirectory);
     const readRemote = () =>
       command([
         "config",
@@ -82,9 +82,9 @@ export async function inspectGitCheckout(
       return Object.freeze({ kind: "remote-unavailable" as const });
     if ((await readRemote()) !== raw)
       return Object.freeze({ kind: "checkout-changed" as const });
-    const after = await inspectOwnedDirectory(directory);
-    const gitAfter = await inspectOwnedDirectory(gitDirectory);
-    const commonAfter = await inspectOwnedDirectory(commonDirectory);
+    const after = await inspectCheckoutDirectory(directory);
+    const gitAfter = await inspectCheckoutDirectory(gitDirectory);
+    const commonAfter = await inspectCheckoutDirectory(commonDirectory);
     if (
       before.dev !== after.dev ||
       before.ino !== after.ino ||

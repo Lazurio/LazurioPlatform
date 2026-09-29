@@ -191,6 +191,23 @@ test("the sentence after Start or Stop names what happened or why not", () => {
   expect(moduleResultMessage(refusal("prerequisites-not-ready"), en)).toBe(
     en.appPrerequisitesNotReady,
   );
+  // A refused file of the module's checkout is named (decision F23), and a
+  // refusal whose file is not text is not read at all.
+  const refused: ModuleBlocked = {
+    ...refusal("declaration-not-regular"),
+    file: "app/dependency/package.json",
+  };
+  expect(parseModuleResult(refused)).toEqual(refused);
+  expect(parseModuleResult({ ...refused, file: 7 })).toBeNull();
+  for (const copy of [en, cs]) {
+    const sentence = moduleResultMessage(refused, copy);
+    expect(sentence).toContain("app/dependency/package.json");
+    expect(sentence).not.toContain("{file}");
+    expect(moduleStatusView(refused, copy).text).toBe(sentence);
+    expect(moduleStatusView(refused, copy).code).toBe(
+      "declaration-not-regular",
+    );
+  }
   // An unknown code is named, never guessed; a lost answer is unknown.
   expect(moduleResultMessage(refusal("something-new"), en)).toBe(
     "Refused: something-new.",

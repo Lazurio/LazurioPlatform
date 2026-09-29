@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import type {
   ApplicationRef,
   ApplicationRunner,
@@ -298,7 +298,7 @@ export function createSystemdUserRunner(input: {
   const processControlGroup =
     input.processControlGroup ?? readProcessControlGroup;
   const controlGroupEmpty = input.controlGroupEmpty ?? isControlGroupEmpty;
-  const inspectDirectory = input.inspectDirectory ?? inspectOwnedDirectory;
+  const inspectDirectory = input.inspectDirectory ?? inspectCheckoutDirectory;
   const sleep =
     input.sleep ?? ((milliseconds: number) => Bun.sleep(milliseconds));
   if (

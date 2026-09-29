@@ -112,7 +112,11 @@ export function createCatalogPanel(
     mark.setAttribute("aria-hidden", "true");
     return mark;
   };
-  const statusLine = (entry: { executable: boolean; reason?: string }) => {
+  const statusLine = (entry: {
+    executable: boolean;
+    reason?: string;
+    file?: string;
+  }) => {
     const copy = options.copy();
     const view = catalogStatus(entry, copy);
     const line = element("p", "row-status catalog-status");
