@@ -322,9 +322,20 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   handover `/etc/lazurio/lazurio.machine.json` and the effective account exactly as
   `lazurio update` finds it. The handover alone does not decide it (an ambiguous
   handover derives no preset, and the operator may choose another allowed preset), the
-  Folder does. Where there is no such Folder (a workstation, another account, a
-  missing or invalid handover, a Folder not initialized or not readable) the commands
-  behave as before and say nothing. `tools list --folder` reads the named Folder.
+  Folder does. Only where there positively is no such Folder (not Linux, no handover
+  at all, or a valid handover whose operator is another account) do the commands
+  behave as on a workstation. A hosted context that is there but cannot be read is
+  never a workstation (#83): a handover that is unreadable, in unsafe custody,
+  malformed or off the schema, an operator record that cannot be resolved, a declared
+  Folder that is missing, or whose state or preferences are missing or malformed.
+  Then gh's `tools login` (with or without `--ssh-key`) and `tools logout` stop before
+  gh runs with `{ kind: "failed", tool: "gh", reason: "environment-unreadable" }`,
+  exit 1; nothing is signed out or removed. A running gh session reads it again before
+  each step above and ends the same way when it can no longer be read, also when the
+  hosted Folder it found at the start is no longer found; an external device flow
+  already approved is not undone. composio and wacli, `tools install` and
+  `tools prompt` are not gated and keep their workstation texts. `tools list --folder`
+  reads the named Folder.
 - **The Organization's brokered gh.** On a Team Machine gh is normally the
   Organization's brokered wrapper, which of all `gh auth` commands answers exactly
   `gh auth status --json hosts`, as `lazurio-for-github[bot]`. The JSON status reads it
@@ -355,10 +366,9 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   in `~/.config/gh` of a Machine whose gh is the wrapper is out of this sign-out's
   reach. gh stores a sign-in when its code is approved: a preset switched by another
   process while the operator approves is seen only afterwards, so no key is linked but
-  the person's account is then signed in there and offered for sign-out. Without a
-  readable hosted operator Folder the CLI cannot tell a Team
-  Environment and behaves as on a workstation (the Launchpad, which serves its Folder,
-  fails closed instead).
+  the person's account is then signed in there and offered for sign-out. Another
+  account than the declared operator on a hosted Machine has no hosted Folder and is
+  treated as on a workstation.
 - **Not built.** The path through Lazurio for GitHub is not part of the Platform:
   nothing here provisions the App, its broker or a brokered `gh`. The product refuses
   the personal sign-in and relies on what the Machine delivers.

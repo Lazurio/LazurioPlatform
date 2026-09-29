@@ -1612,9 +1612,22 @@ hosted Machine they read the preset of the declared operator's Folder, which the
 product already finds from the root-issued handover and the effective account for
 `lazurio update` (`hostedOperatorFolder`, F17 addendum). The handover alone is not
 used: an ambiguous handover derives no preset and the operator may record another
-allowed one, so the Folder is the owner of the answer. Without such a Folder (a
-workstation, another account, a missing or invalid handover, a Folder not initialized
-or not readable) the commands behave as before and say nothing.
+allowed one, so the Folder is the owner of the answer. Only where there positively is
+no such Folder (not Linux, no handover, a valid handover whose operator is another
+account) do the commands behave as before. *Addendum (#83):* a hosted context that is
+there but cannot be read is not a workstation. `discoverHostedOperator` tells the three
+kinds apart (`absent`, `hosted`, `unreadable`: an unreadable, unsafe, malformed or
+off-schema handover, or an operator record that cannot be resolved), and
+`hostedEnvironmentPreset` rejects with `HostedEnvironmentUnreadable` also when the
+declared Folder, its state or its preferences are missing or malformed. gh's curated
+login, key linking and sign-out then stop before gh runs as `failed` /
+`environment-unreadable` (exit 1), the reason a running session already ended with;
+a session re-reads it before every step below, and a hosted Folder found earlier in the
+same command that is no longer found counts as unreadable. The refusal never signs out
+or removes a credential. Commands that only look up a Folder (`update`,
+`organization`, `module`, `chat link`, `recover`) take none from an unreadable context
+and so act on none; `doctor` names it as `machine-binding` `warn`
+`handover-unreadable`.
 
 *A person's account or the Organization's identity.* gh's sign-in probe asks
 `gh auth status --json hosts` first. gh has that flag since **2.81.0** (cli/cli#11544,
@@ -1693,9 +1706,8 @@ the template revision is unchanged.
 the active account, is not offered for sign-out and has to be removed by hand (`gh auth
 logout --user <login>` with the broker variable cleared); a personal token left in
 `~/.config/gh` of a Machine whose gh is the wrapper is out of the wrapper's reach and
-of this sign-out. Without a readable hosted operator Folder the CLI cannot tell a Team
-Environment and behaves as on a workstation; the Launchpad, which serves its Folder,
-fails closed.
+of this sign-out. (The earlier limit, that the CLI took an unreadable hosted operator
+Folder for a workstation, ended with #83.)
 
 *Not built.* The path through Lazurio for GitHub is not part of the Platform: nothing
 here provisions the App, its token broker or a brokered `gh`. The product refuses the

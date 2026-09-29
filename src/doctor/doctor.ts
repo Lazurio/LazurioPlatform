@@ -364,11 +364,16 @@ type Handover = Awaited<ReturnType<RecoveryEnvironment["machineContext"]>>;
 function bindingChecks(
   folder: Awaited<ReturnType<typeof observeFolder>>,
   handover: Handover,
+  hostedUnreadable: boolean,
 ): DoctorCheck[] {
   const preferences = folder.preferences;
   if (preferences === null)
     return [
-      check("machine-binding", "skipped", "no-folder"),
+      // No Folder because the hosted context could not be read (#83): said,
+      // not skipped as if this were a workstation.
+      hostedUnreadable
+        ? check("machine-binding", "warn", "handover-unreadable")
+        : check("machine-binding", "skipped", "no-folder"),
       check("machine-entry", "skipped", "no-folder"),
     ];
   const recorded = preferences.machine;
@@ -553,10 +558,16 @@ export async function collectDoctor(
   // The one Folder every reader below is asked about: the named one, the
   // supervised unit's, or on a hosted Machine the declared operator's.
   const service = await detectServiceControl({ base, platform, env, run });
+  // A hosted context that is there but unreadable gives no Folder; doctor
+  // reads on without one and names it (#83).
+  let hostedUnreadable = false;
   const folder =
     environment.folder ??
     service?.folder ??
-    (await environment.hostedFolder?.().catch(() => undefined));
+    (await environment.hostedFolder?.().catch(() => {
+      hostedUnreadable = true;
+      return undefined;
+    }));
 
   // The broken-product checks exactly as `lazurio recover` computes them;
   // the health answer is kept to say which one the socket gave.
@@ -610,7 +621,7 @@ export async function collectDoctor(
         ? {}
         : { preset: facts.preset, machineKind: facts.machineKind },
     ),
-    ...bindingChecks(observed, handover),
+    ...bindingChecks(observed, handover, hostedUnreadable),
     ...tools.map(toolCheck),
     ...catalogChecks(catalog),
     fromRecovery("launchpad-unit", recovered, "launchpad-unit"),

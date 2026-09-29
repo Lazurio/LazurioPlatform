@@ -124,7 +124,9 @@ export type CliContext = Readonly<{
   run?: ProcessRunner | undefined;
   /** Tests only: the compiled default is the product origin and Sigstore. */
   environment?: Partial<UpdateEnvironment> | undefined;
-  /** The declared operator's Folder on a hosted Machine; absent, none. */
+  /** The declared operator's Folder on a hosted Machine; absent, none.
+   * Resolves undefined where there positively is none and rejects where a
+   * hosted context is there but unreadable (`hostedOperatorFolder`, #83). */
   hostedFolder?: (() => Promise<string | undefined>) | undefined;
 }>;
 
@@ -230,13 +232,26 @@ export async function updateEnvironment(
  * the supervised unit records in its `[X-Lazurio] Folder=` line, otherwise on
  * a hosted Machine the declared operator's (decision F17 addendum). The one
  * lookup of `lazurio update` and of every command that reads the Folder
- * without `--folder`; undefined on a workstation without a supervised unit. */
+ * without `--folder`; undefined on a workstation without a supervised unit.
+ *
+ * Also undefined, deliberately, where a hosted context is there but
+ * unreadable (`hostedFolder` rejects, #83): none of these commands acts on a
+ * Folder it was not given, so without one `organization`, `module` refuse as
+ * `folder-unknown`, `chat link` answers without an entry and `update` reports
+ * no Folder refresh; `lazurio doctor` names the unreadable handover. Only the
+ * gh gate of `lazurio tools`, whose "none" would allow a person's sign-in,
+ * reads the seam itself and refuses. */
 export async function standardFolder(
   context: CliContext,
   service: ServiceControl | null,
 ): Promise<string | undefined> {
   if (service?.folder !== undefined) return service.folder;
-  return context.hostedFolder ? await context.hostedFolder() : undefined;
+  if (context.hostedFolder === undefined) return undefined;
+  try {
+    return await context.hostedFolder();
+  } catch {
+    return undefined;
+  }
 }
 
 /** The same lookup where no update core is built: the service of this

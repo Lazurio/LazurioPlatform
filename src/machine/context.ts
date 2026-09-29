@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import { readCustodiedDeclarationBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
@@ -161,25 +161,42 @@ export function parseMachineContext(bytes: Uint8Array): MachineContext {
   }
 }
 
+/** Where the handover is read: the platform, the filesystem root the fixed
+ * path lies under and the account that must own it and every parent up to
+ * that root. Production is Linux, `/` and root; a test names a private
+ * directory it owns instead, so the same custody checks, parser and schema
+ * read real files there. A parameter only: no CLI flag or environment
+ * variable reaches it. */
+export type MachineContextSource = Readonly<{
+  platform: string;
+  root: string;
+  custodian: number;
+}>;
+export const productionMachineContextSource: MachineContextSource =
+  Object.freeze({ platform: process.platform, root: "/", custodian: 0 });
+
 // Read-only. A root-issued identity is descriptive context, never an access grant.
 // The production location/custodian cannot be overridden through CLI/env flags.
-export async function readMachineContext() {
-  if (process.platform !== "linux")
+export async function readMachineContext(
+  source: MachineContextSource = productionMachineContextSource,
+) {
+  if (source.platform !== "linux")
     throw new MachineContextError("machine-platform-unsupported");
+  const file = join(source.root, machineContextPath);
   let bytes: Buffer;
   try {
-    for (let path = dirname(machineContextPath); ; path = dirname(path)) {
+    for (let path = dirname(file); ; path = dirname(path)) {
       const stat = await lstat(path);
       if (
         !stat.isDirectory() ||
-        stat.uid !== 0 ||
+        stat.uid !== source.custodian ||
         (stat.mode & 0o022) !== 0 ||
         (await realpath(path)) !== path
       )
         throw new Error("Unsafe Machine context parent");
-      if (path === "/") break;
+      if (path === source.root || path === dirname(path)) break;
     }
-    bytes = await readCustodiedDeclarationBytes(machineContextPath, 0);
+    bytes = await readCustodiedDeclarationBytes(file, source.custodian);
   } catch (error) {
     throw new MachineContextError(
       (error as NodeJS.ErrnoException).code === "ENOENT"

@@ -1,10 +1,11 @@
-import type { PresetName } from "../folder/presets";
 import { sharedEnvironment } from "../folder/render";
 import { activatableTools } from "./catalog";
 import {
   githubLoginRefused,
   githubRefusal,
   githubRefusalText,
+  type HostedEnvironment,
+  HostedEnvironmentUnreadable,
 } from "./github-gate";
 import {
   curatedTool,
@@ -36,13 +37,41 @@ export type CuratedContext = Readonly<{
   write: (line: string) => void;
   /** Ctrl-C: cancels a running login. */
   signal?: AbortSignal | undefined;
-  /** The kind of Environment when it is known (the hosted operator Folder's
-   * preset); undefined on a workstation, where nothing changes. */
-  preset?: PresetName | undefined;
+  /** The kind of Environment at the start of install, login and logout:
+   * the hosted operator Folder's preset, none on a workstation, or
+   * unreadable, where gh's sign-in, key linking and sign-out stop before gh
+   * runs (#83). Absent: none. */
+  environment?: HostedEnvironment | undefined;
   /** The same read again now: a running gh login re-checks the Team rule
-   * before every step that changes the account or the Machine. */
-  presetNow?: (() => Promise<PresetName | undefined>) | undefined;
+   * before every step that changes the account or the Machine, and stops as
+   * `environment-unreadable` when it can no longer be read. */
+  environmentNow?: (() => Promise<HostedEnvironment>) | undefined;
 }>;
+
+/** gh's sign-in, key linking or sign-out on an Environment whose kind could
+ * not be read: stopped before gh runs, with the reason a running session
+ * ends with (fail closed, #83). Refusal only: nothing is signed out or
+ * removed. */
+function environmentUnreadable(
+  tool: string,
+  json: boolean,
+  action: "login" | "logout",
+): CuratedOutput {
+  const result: LoginState = Object.freeze({
+    kind: "failed",
+    tool,
+    reason: "environment-unreadable",
+  });
+  return {
+    code: 1,
+    result,
+    text: json
+      ? JSON.stringify(result)
+      : action === "login"
+        ? loginLines(result).join("\n")
+        : `${tool}: sign-out stopped: the kind of this Environment could not be read, so nothing was signed out.`,
+  };
+}
 
 /** On an Environment shared by several operators (the Team preset). */
 export const sharedSignInsText =
@@ -161,7 +190,8 @@ export async function runInstall(
       ? JSON.stringify(result)
       : installText(
           result,
-          context.preset !== undefined && sharedEnvironment(context.preset),
+          context.environment?.kind === "hosted" &&
+            sharedEnvironment(context.environment.preset),
         ),
   };
 }
@@ -346,21 +376,36 @@ export async function runLogin(
         : "--phone applies to wacli only (WhatsApp pairing).",
     };
   }
-  const presetNow = context.presetNow;
+  const environment = context.environment ?? { kind: "none" };
+  if (environment.kind === "unreadable" && name === "gh")
+    return environmentUnreadable(name, json, "login");
+  const environmentNow = context.environmentNow;
   const sessions = createLoginSessions({
     ...context.login,
-    ...(presetNow === undefined
+    ...(environmentNow === undefined
       ? {}
       : {
-          refused: async (tool, action) =>
-            githubLoginRefused(await presetNow(), tool, action),
+          // Unreadable now: the session fails as environment-unreadable
+          // before the step (LoginEnvironment.refused throws).
+          refused: async (tool, action) => {
+            const now = await environmentNow();
+            if (now.kind === "unreadable")
+              throw new HostedEnvironmentUnreadable(now.source);
+            return githubLoginRefused(
+              now.kind === "hosted" ? now.preset : undefined,
+              tool,
+              action,
+            );
+          },
         }),
   });
   // gh on a Team Environment (Principal 2026-09-28): neither a person's
   // sign-in nor their SSH key; the Organization's Lazurio for GitHub is the
-  // way. Refused before anything runs.
+  // way. Refused before anything runs. (Another tool on an unreadable
+  // Environment runs as before: the Team rule is gh's only.)
+  const preset = environment.kind === "hosted" ? environment.preset : undefined;
   const refusal = await githubRefusal(
-    context.preset,
+    preset,
     name,
     sshKey ? "ssh-key" : "login",
     sessions,
@@ -373,11 +418,7 @@ export async function runLogin(
       text: json ? JSON.stringify(refusal) : githubRefusalText(refusal, "en"),
     };
   }
-  if (
-    !json &&
-    context.preset !== undefined &&
-    sharedEnvironment(context.preset)
-  )
+  if (!json && preset !== undefined && sharedEnvironment(preset))
     context.write(sharedSignInsText);
   const emit = (state: LoginState) => {
     if (json) context.write(JSON.stringify(state));
@@ -439,13 +480,18 @@ export async function runLogout(
 ): Promise<CuratedOutput> {
   const refused = refuseTool(name, json);
   if (refused) return refused;
+  const environment = context.environment ?? { kind: "none" };
+  // Whether this is a Team Environment decides which account may be signed
+  // out; unknown, gh is not signed out at all (#83).
+  if (environment.kind === "unreadable" && name === "gh")
+    return environmentUnreadable(name, json, "logout");
   const sessions = createLoginSessions(context.login);
   let result: LogoutResult;
   try {
     // A Team Environment signs out a person's account left there, never
     // the Organization's identity (Principal 2026-09-28).
     const refusal = await githubRefusal(
-      context.preset,
+      environment.kind === "hosted" ? environment.preset : undefined,
       name,
       "logout",
       sessions,
