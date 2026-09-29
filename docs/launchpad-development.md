@@ -81,10 +81,10 @@ the frame.
 
 | Before | Now |
 | --- | --- |
-| Machine profile: Workspace preset, Language, Detail, Coordination, Preview, Apply previewed change, the status line | Settings → General, one group of rows; Preview and Apply in its last row |
+| Environment profile: Workspace preset, Language, Detail, Coordination, Preview, Apply previewed change, the status line | Settings → General, one group of rows; Preview and Apply in its last row |
 | Reload profile | Settings → General, page action in the header |
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
-| This Machine (read-only handover) | Settings → This Machine, one row per recorded fact |
+| This Environment (read-only handover) | Settings → This Environment, one row per recorded fact |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
 | Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Principal 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
