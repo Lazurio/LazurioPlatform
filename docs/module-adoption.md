@@ -162,13 +162,16 @@ own qualification before the workspace execution refusal can be removed.
 The authority also captures the bytes of owner-level `patchedDependencies` files
 (the [Bun patch mechanism](https://bun.sh/docs/pm/cli/patch)). Paths must remain
 relative to the explicit dependency owner, outside Git and derived dependency
-trees. Every parent directory and regular patch file passes the existing custody
-checks; linked, missing or shared-write inputs cannot verify as unchanged. This
+trees. Every parent directory passes the directory custody check and every patch file
+the checkout rule of decision F23 (a regular file of at most 1 MiB owned by the
+operator; permission bits and link count are not reasons); a missing, symlinked or
+changed input cannot verify as unchanged. This
 does not apply patches, validate patch syntax, qualify workspace-level patch
 semantics or complete the remaining local dependency input snapshot.
 
 Direct owner-relative `file:` dependency content is now inventoried, including
-added and removed files, with directory identities and regular-file custody checks.
+added and removed files, with directory identities and the checkout rule of decision
+F23 for every file (a hard-linked `package.json` of a local package is read).
 Git metadata and derived `node_modules` trees are excluded; the inventory has
 explicit depth, entry and byte limits and refuses unsafe inputs rather than
 returning a truncated snapshot. When these inputs exist, the frozen Bun install
@@ -894,9 +897,11 @@ is allowed; legacy `companyascode.app` requires explicit adoption, not an implic
 fallback. Undeclared applications return the selector's blocked result.
 
 This POSIX development adapter requires a canonical, caller-owned, non-shared-write
-module directory and checks every intermediate app directory. Files must be owned,
-regular, single-link and non-shared-write; reads use no-follow/nonblocking opens,
-identity checks, a 1 MiB declaration limit and strict UTF-8 JSON. It never scans
+module directory and checks every intermediate app directory. Files follow the
+checkout rule of decision F23: owned by the operator, regular and at most 1 MiB, with
+permission bits and link count not a reason; a refusal carries its rule
+(`declaration-not-regular`, `declaration-owner`, `declaration-too-large`). Reads use
+no-follow/nonblocking opens, identity checks and strict UTF-8 JSON. It never scans
 Organizations, executes scripts, fetches URLs or writes files. Tests use invented
 temporary modules, including links, malformed/oversized data and legacy conflicts.
 
@@ -1124,7 +1129,8 @@ reader already used by application declarations. No recursive directory discover
 Organization data modification or implicit creation occurs.
 
 Mac-host fixtures exercise all three states, malformed UTF-8, size bounds, symlinks,
-hard links, directories and shared-writable files/root, with original contents retained.
+directories and a shared-writable root (refused), hard links and group- or
+world-writable documents (read, decision F23), with original contents retained.
 These are acquisition tests, not semantic Organization acceptance. Reads assume a
 stable cooperative directory and are not one atomic multi-document transaction.
 Windows is refused; native Linux qualification remains outstanding.

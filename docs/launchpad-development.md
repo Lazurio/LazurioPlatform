@@ -152,7 +152,10 @@ slug are both `organization-duplicate`, because `<Org>/<Module>` would be ambigu
 Per module: Organization slug, module id, path, apps and the default app, Teams (N:M)
 with their source `teamsSource`, the root state and `executable`, or a typed `reason`
 (`organization-not-executable`, `declaration-conflict`, `module-unavailable`,
-`explicit-apps-required`, `no-app`, `default-app-invalid`). Executable means the
+`explicit-apps-required`, `no-app`, `default-app-invalid`, or a refused declaration
+`declaration-not-regular`, `declaration-owner`, `declaration-too-large` with its
+module-relative `file`, decision F23; an Organization whose document is refused gets
+the same reason with the document's `file`). Executable means the
 declarations admit a start of the default app under the one admission rule of the
 [organization contract](organization-contract.md) (variant B, decided 2026-09-28 on
 question H1: a canonical-only `current` Organization runs); it is not readiness, provider permission or a lease. A malformed
@@ -302,8 +305,12 @@ with it; the CLI, another process, answers `launchpad-required`, and `logs`
 `logs-unavailable` (session logs are the macOS line, P14). **No Folder state:** the
 running state is the service manager's or the session's; every call reads the catalog
 again. Lifecycle refusals keep their codes (`port-occupied`, `prerequisites-not-ready`,
-`coordination-busy`, `service-unrecognized`, …); a throw inside the lifecycle is
-`operation-failed` (most often a module that is not a declared self-owned Bun package).
+`coordination-busy`, `service-unrecognized`, …). A file of the module's checkout that
+the checkout rule refuses during the start (an install input such as a local
+dependency's file) is `declaration-not-regular`, `declaration-owner` or
+`declaration-too-large` with its module-relative `file` (decision F23); any other
+throw inside the lifecycle is `operation-failed` (most often a module that is not a
+declared self-owned Bun package).
 
 **Answer.** `{kind: "module", operation, organization, module, app, runner,
 survivesLaunchpadRestart, outcome, state, healthy, service, runtime, runtimeReason?}`;

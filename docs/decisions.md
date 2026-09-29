@@ -1987,3 +1987,64 @@ switch. The resident Launchpad serves every hosted Machine until the switch rele
 | Port the resident's code | Carries a Git client, a plan browser and click ranking nobody decided; rejected: concepts, not code |
 | Keep transition-only admission until an identity continuity proof | The proof has no owner; every migrated Organization would lose its applications at the switch; rejected (H1) |
 | Parity by concept, CLI first, one Machines apply (selected) | No new Folder state and no parallel run; the switch waits for Recovery mode and a qualified candidate |
+
+## F23 — The operator's own checkout is read by ownership, not by permission bits or link count
+
+**Principal's decision 2026-09-29, accepted** (issue #92, last comment; the reasons of
+issue #93 follow from it). The Principal did not pick one of the options of #92 as
+written; he stated the principle, which decides it:
+
+> The rights of the signed-in GitHub account are the authority. What GitHub allows the
+> operator, the operator may use. The Platform does not add a second, local permission
+> layer on top of the operator's own checkout. [...] Keep it simple.
+
+The hosted setup only installs Lazurio from the public checkout; the operator installs
+the Organization under their own rights after linking GitHub in the Launchpad, and
+nothing but the operator writes the Organization's files.
+
+1. **One checkout rule.** A file of the operator's own checkout is read when it is a
+   regular file (not a symlink, directory or device), of at most 1 MiB, owned by the
+   operator's account. Its permission bits and its link count are never a reason to
+   refuse it: Git under a umask `002` writes `0664`, Bun hard-links local packages,
+   and both are the operator's own tools under the operator's own account, which say
+   nothing about who may change the Organization (GitHub does). A world-writable file
+   (`0666`) is read too: that is the operator's own choice about their own files, and
+   the Principal decided that permission bits are not the product's business.
+2. **Where it applies.** The Organization's `lazurio.organization.json`,
+   `company.gen3.json` and `modules.manifest.json`; a module's declarations
+   (`lazurio.module.json` and the `package.json` of each app it lists, the same for a
+   Personalspace module); and the install inputs the start reads from the module
+   (the preparation owner's `package.json` and Bun lockfile, workspace members, patch
+   files, the files of local `file:` dependencies, `.npmrc`/`bunfig.toml` of the
+   checkout and of the account's home).
+3. **Where it does not.** What the product or root writes keeps the strict rule
+   (single link, no group or world write, the expected owner): the Folder's state and
+   preferences, its lock, the generated Folder inventory, the root-issued Machine
+   context and handover, the install base. Those are not the operator's checkout.
+4. **A refused file has a specific reason**: `declaration-not-regular`,
+   `declaration-owner` or `declaration-too-large`, with the file relative to its
+   module (or Organization root, or `~/…` for the account's configuration), never an
+   absolute path or content. `lazurio module list` reports a refused declaration as
+   `executable: false` with that reason; `module start`, `status` and the gateway's
+   `ensure` answer `blocked` with it; `lazurio doctor` names it; the Launchpad shows
+   it. An install input is not a declaration: it does not make the module
+   unexecutable in the list, and the start refuses it with its reason.
+   `operation-failed` stays only for throws without a reason.
+5. **Nothing changes the operator's files.** Neither the product nor the hosted setup
+   normalizes modes or links of a checkout (option 2 of #92 is rejected by the
+   principle).
+
+**Not changed, and open** (see #92 for the follow-up): directories of the checkout are
+still inspected by the older directory rule (owned by the operator, no group or world
+write); a checkout cloned under umask `002` has group-writable directories, so this
+decision alone does not make such a Machine's modules run.
+
+**Amends** the file-custody sentences of [module adoption](module-adoption.md)
+(single-link and non-shared-write declarations and install inputs).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Refuse only world-writable, accept group-writable with the owner's private group (#92 option 1) | Keeps a local permission layer and needs a group lookup; not chosen: permission bits are not the product's business |
+| Normalize the checkout to umask `022` from the hosted setup (#92 option 2) | The product or Machines would change the operator's files, and every later clone breaks again; rejected by the principle |
+| Keep the rule and only report it (#92 option 3) | Every Machine with umask `002` stays unusable; not chosen |
+| One checkout rule by ownership, type and size, with a typed reason (selected) | Simple; another account's file, a symlink and an oversized file are still refused and named |

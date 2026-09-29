@@ -43,6 +43,13 @@ multi-link regular file prevented ordinary Linux clean preparation. A regression
 fixture reproduces that rejection and verifies surviving cache/checkout links after
 cleanup, including unchanged bytes, mode, inode and modification time.
 
+The same holds for reading: the checkout rule of decision F23 reads a hard-linked
+`package.json` of a local package, and the permission bits of the operator's
+checkout files are not a reason to refuse them. When local `file:` inputs exist, the
+frozen install uses `--backend copyfile`, so the Platform's own preparation does not
+hard-link a source file into the installed tree; an earlier install by another tool
+may have, and that is read as it is.
+
 This relies on cooperative stable filesystem custody, not protection against a
 hostile same-user writer replacing paths during traversal/removal. Cleanup safety
 errors fail preparation; no success is inferred from missing dependencies. Missing

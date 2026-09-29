@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -8,7 +9,9 @@ import {
   readFile,
   readlink,
   realpath,
+  rename,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -493,6 +496,44 @@ test("a module that is not executable needs attention with its typed reason", as
   });
   expect(result.stdout).not.toContain("Acme");
   expect(result.human).not.toContain("Acme");
+  expectTierOne(result.stdout, world);
+  expectSameAnswer(result.human, result.json);
+});
+
+test("a refused declaration of the operator's checkout is named by its rule and file (decision F23)", async () => {
+  const world = await createWorld();
+  const organization = await writeOrganization(world.folder, "alpha", {
+    slug: "alpha",
+    state: "current",
+    modules: [{ id: "web" }, { id: "shop" }],
+  });
+  // umask 002 on a Machine: group-writable declarations are the operator's.
+  const web = join(organization, "workspace", "web");
+  for (const name of ["lazurio.module.json", "app/package.json"])
+    await chmod(join(web, name), 0o664);
+  const manifest = join(
+    organization,
+    "workspace",
+    "shop",
+    "lazurio.module.json",
+  );
+  await rename(manifest, join(world.folder, "..", "outside.json"));
+  await symlink(join(world.folder, "..", "outside.json"), manifest);
+  const result = await doctor(world);
+  expect(result.json.verdict).toBe("attention");
+  expect(find(result.json, "module", "alpha/web")?.outcome).toBe("ok");
+  expect(find(result.json, "module", "alpha/shop")).toEqual({
+    id: "module",
+    outcome: "warn",
+    reason: "declaration-not-regular",
+    context: {
+      organization: "alpha",
+      module: "shop",
+      file: "lazurio.module.json",
+    },
+  });
+  expect(result.stdout).not.toContain(world.folder);
+  expect(result.human).not.toContain(world.folder);
   expectTierOne(result.stdout, world);
   expectSameAnswer(result.human, result.json);
 });
