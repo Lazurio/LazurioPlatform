@@ -86,6 +86,12 @@ const explanations: Readonly<Record<string, string>> = {
     "The lifecycle failed before it could confirm a change. Most often the module is not a declared self-owned Bun package: it needs lazurio.preparation, one Bun lockfile and an exact packageManager.",
   "preparation-recovery-required":
     "An earlier dependency preparation of this module did not finish; starting stays blocked until it is recovered.",
+  "declaration-not-regular":
+    "This file of the module is not a regular file (a symlink, for example); Lazurio reads the module's files only as files of your own checkout.",
+  "declaration-owner":
+    "This file of the module belongs to another account, so it is not a file of your own checkout; make it yours again (chown) or check it out again.",
+  "declaration-too-large":
+    "This file of the module is larger than the 1 MiB a declaration may be.",
 };
 
 function describe(name: string, result: ModuleResult): string {
@@ -95,7 +101,8 @@ function describe(name: string, result: ModuleResult): string {
         ? ""
         : ` (${result.candidates.map(shown).join(", ")})`;
     const explanation = explanations[result.reason];
-    return `${shown(name)}: ${result.reason}${candidates}${explanation === undefined ? "" : `\n${explanation}`}`;
+    const file = result.file === undefined ? "" : ` (${shown(result.file)})`;
+    return `${shown(name)}: ${result.reason}${file}${candidates}${explanation === undefined ? "" : `\n${explanation}`}`;
   }
   if (result.kind === "module-logs") return result.lines.join("\n");
   const title = `${result.organization}/${result.module}`;

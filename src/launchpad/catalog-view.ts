@@ -37,7 +37,16 @@ const reasonKeys: Readonly<
   "explicit-apps-required": "catalogReasonExplicitApps",
   "no-app": "catalogReasonNoApp",
   "default-app-invalid": "catalogReasonDefaultApp",
+  "declaration-not-regular": "catalogReasonDeclarationNotRegular",
+  "declaration-owner": "catalogReasonDeclarationOwner",
+  "declaration-too-large": "catalogReasonDeclarationTooLarge",
 };
+
+/** A reason's sentence with the refused file in it (decision F23), when the
+ * reason names one; the file is text, never markup. */
+export function withFile(sentence: string, file: string | undefined): string {
+  return sentence.replace("{file}", file ?? "?");
+}
 
 export type CatalogStatus = Readonly<{
   /** The status dot: `ready` runs, `blocked` does not. */
@@ -51,7 +60,7 @@ export type CatalogStatus = Readonly<{
 /** Whether an Organization or module can run, and why not, in words. An
  * unknown reason code is named by its code rather than guessed. */
 export function catalogStatus(
-  entry: Readonly<{ executable: boolean; reason?: string }>,
+  entry: Readonly<{ executable: boolean; reason?: string; file?: string }>,
   copy: Copy,
 ): CatalogStatus {
   if (entry.executable)
@@ -62,7 +71,7 @@ export function catalogStatus(
     : undefined;
   return {
     state: "blocked",
-    text: key === undefined ? reason : copy[key],
+    text: key === undefined ? reason : withFile(copy[key], entry.file),
     code: reason,
   };
 }
@@ -224,7 +233,8 @@ function isModule(value: unknown): value is CatalogModule {
     orNull(entry.defaultApp) &&
     orNull(entry.state) &&
     typeof entry.executable === "boolean" &&
-    (entry.reason === undefined || text(entry.reason))
+    (entry.reason === undefined || text(entry.reason)) &&
+    (entry.file === undefined || text(entry.file))
   );
 }
 function isOrganization(value: unknown): value is CatalogOrganization {
@@ -238,6 +248,7 @@ function isOrganization(value: unknown): value is CatalogOrganization {
     texts(entry.issues) &&
     typeof entry.executable === "boolean" &&
     (entry.reason === undefined || text(entry.reason)) &&
+    (entry.file === undefined || text(entry.file)) &&
     Array.isArray(entry.teams) &&
     entry.teams.every(
       (team: unknown) =>

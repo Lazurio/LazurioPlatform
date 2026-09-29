@@ -3,7 +3,7 @@ import { readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { GLOBSTAR, Minimatch } from "minimatch";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { readOwnedDeclarationBytes } from "../providers/owned-json";
+import { readCheckoutFileBytes } from "../providers/owned-json";
 import { compileWorkspacePatterns } from "./workspace-membership";
 
 // Read-only manifest inventory, not complete workspace execution qualification.
@@ -87,7 +87,7 @@ export async function inspectWorkspaceInputs(
       const identity = await inspectOwnedDirectory(directory);
       result[`directory:${directory}`] = `${identity.dev}:${identity.ino}`;
     }
-    const bytes = await readOwnedDeclarationBytes(join(owner, member));
+    const bytes = await readCheckoutFileBytes(join(owner, member));
     result[member] = createHash("sha256").update(bytes).digest("hex");
   }
   return Object.freeze(result);

@@ -410,6 +410,12 @@ const en = {
   catalogReasonNoApp: "The module has no app to run.",
   catalogReasonDefaultApp:
     "The default app's runtime declaration is missing or invalid.",
+  catalogReasonDeclarationNotRegular:
+    "{file} is not a regular file (a symlink, for example); Lazurio reads the module's files only as files of your own checkout.",
+  catalogReasonDeclarationOwner:
+    "{file} belongs to another account on this Machine, so it is not a file of your own checkout. Make it yours again (for example with chown) or check it out again.",
+  catalogReasonDeclarationTooLarge:
+    "{file} is larger than the 1 MiB a declaration may be.",
   moduleApplication: "Application",
   moduleStart: "Start",
   moduleStop: "Stop",
@@ -960,6 +966,12 @@ const cs: Record<MessageKey, string> = {
   catalogReasonNoApp: "Modul nemá žádnou aplikaci ke spuštění.",
   catalogReasonDefaultApp:
     "Deklarace běhu výchozí aplikace chybí nebo je neplatná.",
+  catalogReasonDeclarationNotRegular:
+    "{file} není obyčejný soubor (například je to symlink); Lazurio čte soubory modulu jen jako soubory vašeho vlastního checkoutu.",
+  catalogReasonDeclarationOwner:
+    "{file} patří jinému účtu na téhle Mašině, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
+  catalogReasonDeclarationTooLarge:
+    "{file} je větší než 1 MiB, které deklarace smí mít.",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
   moduleStop: "Zastavit",

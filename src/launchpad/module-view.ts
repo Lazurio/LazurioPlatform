@@ -1,4 +1,5 @@
 import type { ModuleAnswer, ModuleBlocked } from "../modules/module-operations";
+import { withFile } from "./catalog-view";
 import type { MessageKey } from "./messages";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -16,7 +17,9 @@ export function parseModuleResult(
   const value = input as Record<string, unknown>;
   const text = (entry: unknown) => typeof entry === "string";
   if (value.kind === "blocked")
-    return text(value.operation) && text(value.reason)
+    return text(value.operation) &&
+      text(value.reason) &&
+      (value.file === undefined || text(value.file))
       ? (value as ModuleBlocked)
       : null;
   if (
@@ -82,17 +85,25 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "hosted-entry-missing": "moduleNoLinkEntry",
   "hosted-app-not-default": "moduleNoLinkApp",
   "no-browser-entrypoint": "moduleNoLinkBrowser",
+  "declaration-not-regular": "catalogReasonDeclarationNotRegular",
+  "declaration-owner": "catalogReasonDeclarationOwner",
+  "declaration-too-large": "catalogReasonDeclarationTooLarge",
 };
 
 /** A refusal or a missing link in words; an unknown code is named by its
- * code, never guessed. */
-export function moduleReasonText(reason: string, copy: Copy): string {
+ * code, never guessed. A refused file of the module's checkout is named in
+ * the sentence (decision F23). */
+export function moduleReasonText(
+  reason: string,
+  copy: Copy,
+  file?: string,
+): string {
   const key = Object.hasOwn(reasonKeys, reason)
     ? reasonKeys[reason]
     : undefined;
   return key === undefined
     ? copy.moduleRefused.replace("{reason}", reason)
-    : copy[key];
+    : withFile(copy[key], file);
 }
 
 // Why a healthy app has no Open link, in words, or by its code.
@@ -140,7 +151,7 @@ export function moduleStatusView(
   if (status.kind === "blocked")
     return {
       dot: "unknown",
-      text: moduleReasonText(status.reason, copy),
+      text: moduleReasonText(status.reason, copy, status.file),
       code: status.reason,
       action: null,
       ...none,
@@ -217,7 +228,8 @@ export function moduleResultMessage(
   copy: Copy,
 ): string {
   if (result === null) return copy.appResultUnknown;
-  if (result.kind === "blocked") return moduleReasonText(result.reason, copy);
+  if (result.kind === "blocked")
+    return moduleReasonText(result.reason, copy, result.file);
   switch (result.outcome) {
     case "started":
       return result.healthy ? copy.moduleStartedHealthy : copy.moduleStarted;

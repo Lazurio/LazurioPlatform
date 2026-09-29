@@ -319,12 +319,14 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect(await verifyInstallAuthority(before)).toBe(false);
       await writeFile(patch, "original patch bytes");
       expect(await verifyInstallAuthority(before)).toBe(true);
+      // Permission bits and the link count of the operator's checkout are
+      // not install inputs (decision F23): the same bytes stay the same input.
       await chmod(patch, 0o666);
-      expect(await verifyInstallAuthority(before)).toBe(false);
+      expect(await verifyInstallAuthority(before)).toBe(true);
       await chmod(patch, 0o600);
       const alias = join(root, "alias.patch");
       await link(patch, alias);
-      expect(await verifyInstallAuthority(before)).toBe(false);
+      expect(await verifyInstallAuthority(before)).toBe(true);
       await rm(alias);
       await rename(patch, alias);
       expect(await verifyInstallAuthority(before)).toBe(false);

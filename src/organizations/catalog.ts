@@ -1,6 +1,7 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import type { CheckoutFileReason } from "../providers/owned-json";
 import { catalogGroups, selectCatalogOrganization } from "./catalog-selection";
 import {
   folderHasPersonalspace,
@@ -37,7 +38,11 @@ export type OrganizationReason =
   | "organization-unavailable"
   /** Another candidate declares the same Organization slug (GitHub slugs are
    * case-insensitive): `<Org>/<Module>` would be ambiguous. */
-  | "organization-duplicate";
+  | "organization-duplicate"
+  /** One of its documents is not a file of the operator's checkout: not a
+   * regular file, another account's or too large (decision F23); `file`
+   * names it. */
+  | CheckoutFileReason;
 
 /** Why the Personalspace group's modules cannot be listed (launchpad-parity
  * B11). */
@@ -55,11 +60,18 @@ export type ModuleReason =
   | "module-unavailable"
   | "explicit-apps-required"
   | "no-app"
-  | "default-app-invalid";
+  | "default-app-invalid"
+  /** `lazurio.module.json` or the default app's `package.json` is not a file
+   * of the operator's checkout (decision F23); `file` names it. */
+  | CheckoutFileReason;
 
 export type CatalogApp = Readonly<{
   package: string;
   kind: "runtime-declared" | "invalid-runtime";
+  /** Why an `invalid-runtime` app's declaration was refused, and which
+   * module-relative file (decision F23). */
+  reason?: CheckoutFileReason;
+  file?: string;
 }>;
 
 /** Where a module's Team membership comes from: the canonical
@@ -86,6 +98,9 @@ export type CatalogModule = Readonly<{
   state: OrganizationRootState | null;
   executable: boolean;
   reason?: OrganizationReason | ModuleReason;
+  /** With a refused declaration: the file, relative to the module (or to the
+   * Organization root for an Organization document). Never absolute. */
+  file?: string;
   /** `teams-invalid` when the declared membership is not a list of slugs. */
   issues?: readonly string[];
 }>;
@@ -104,6 +119,9 @@ export type CatalogOrganization = Readonly<{
   issues: readonly string[];
   executable: boolean;
   reason?: OrganizationReason | PersonalspaceReason;
+  /** With a refused Organization document: its file, relative to the
+   * Organization root. */
+  file?: string;
   teams: readonly CatalogTeam[];
   modules: readonly CatalogModule[];
 }>;
@@ -187,19 +205,35 @@ function slotTeams(slot: unknown): {
 }
 
 // Whether a module's own declaration admits a start of its default app: the
-// reader's kind, then a default app that is declared with a valid runtime.
+// reader's kind, then a default app that is declared with a valid runtime. A
+// refused declaration keeps its rule and file (decision F23).
 function moduleReason(
-  kind: ModuleReason | "module-observed",
+  observed: Readonly<{ kind: ModuleReason | "module-observed"; file?: string }>,
   defaultApp: string | null,
   apps: readonly CatalogApp[],
-): ModuleReason | undefined {
-  if (kind !== "module-observed") return kind;
-  if (defaultApp === null) return "no-app";
-  return apps.find((app) => app.package === defaultApp)?.kind !==
-    "runtime-declared"
-    ? "default-app-invalid"
-    : undefined;
+): Readonly<{ reason?: ModuleReason; file?: string }> {
+  if (observed.kind !== "module-observed")
+    return observed.file === undefined
+      ? { reason: observed.kind }
+      : { reason: observed.kind, file: observed.file };
+  if (defaultApp === null) return { reason: "no-app" };
+  const app = apps.find((entry) => entry.package === defaultApp);
+  if (app?.kind === "runtime-declared") return {};
+  return app?.reason !== undefined && app.file !== undefined
+    ? { reason: app.reason, file: app.file }
+    : { reason: "default-app-invalid" };
 }
+
+// An app of the catalog: its package, its kind and, when its declaration was
+// refused, the rule and file (decision F23).
+const catalogApp = (app: CatalogApp): CatalogApp =>
+  Object.freeze({
+    package: app.package,
+    kind: app.kind,
+    ...(app.reason === undefined || app.file === undefined
+      ? {}
+      : { reason: app.reason, file: app.file }),
+  });
 
 function failed(
   directory: string,
@@ -208,6 +242,7 @@ function failed(
     state: OrganizationRootState;
     issues: readonly string[];
   }>,
+  file?: string,
 ): CatalogOrganization {
   return Object.freeze({
     directory,
@@ -217,6 +252,7 @@ function failed(
     issues: Object.freeze([...(resolution?.issues ?? [])]),
     executable: false,
     reason,
+    ...(file === undefined ? {} : { file }),
     teams: Object.freeze([]),
     modules: Object.freeze([]),
   });
@@ -241,6 +277,13 @@ export async function readCatalogOrganization(
       return failed(name, "organization-unavailable");
     if (result.kind === "organization-changed")
       return failed(name, "organization-changed");
+    if (result.kind === "organization-conflict" && "refused" in result)
+      return failed(
+        name,
+        result.refused.reason,
+        result.resolution,
+        result.refused.file,
+      );
     return failed(name, result.kind, result.resolution);
   }
   const canonical = documents.canonical as Data;
@@ -261,16 +304,13 @@ export async function readCatalogOrganization(
     if (entry.module === null) return [];
     const { teams, source, invalid } = slotTeams(bySlotPath.get(entry.path));
     const apps =
-      entry.kind === "module-observed"
-        ? entry.apps.map((app) =>
-            Object.freeze({ package: app.package, kind: app.kind }),
-          )
-        : [];
+      entry.kind === "module-observed" ? entry.apps.map(catalogApp) : [];
     const defaultApp =
       entry.kind === "module-observed" ? entry.defaultApp : null;
-    const own = moduleReason(entry.kind, defaultApp, apps);
+    const own = moduleReason(entry, defaultApp, apps);
     // The Organization's gate comes first: it applies before any module.
-    const reason = executable ? own : "organization-not-executable";
+    const reason = executable ? own.reason : "organization-not-executable";
+    const file = executable ? own.file : undefined;
     return [
       Object.freeze({
         organization: result.company,
@@ -283,6 +323,7 @@ export async function readCatalogOrganization(
         state,
         executable: reason === undefined,
         ...(reason === undefined ? {} : { reason }),
+        ...(file === undefined ? {} : { file }),
         ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
       } satisfies CatalogModule),
     ];
@@ -381,13 +422,11 @@ async function readCatalogPersonalspace(
         .catch(() => ({ kind: "module-unavailable" as const }));
       const apps =
         observed.kind === "module-observed"
-          ? observed.apps.map((app) =>
-              Object.freeze({ package: app.package, kind: app.kind }),
-            )
+          ? observed.apps.map(catalogApp)
           : [];
       const defaultApp =
         observed.kind === "module-observed" ? observed.defaultApp : null;
-      const reason = moduleReason(observed.kind, defaultApp, apps);
+      const { reason, file } = moduleReason(observed, defaultApp, apps);
       return Object.freeze({
         organization: personalspaceName,
         module: id,
@@ -399,6 +438,7 @@ async function readCatalogPersonalspace(
         state: null,
         executable: reason === undefined,
         ...(reason === undefined ? {} : { reason }),
+        ...(file === undefined ? {} : { file }),
       });
     }),
   );

@@ -230,7 +230,7 @@ posixTest(
   },
 );
 posixTest(
-  "module reader refuses linked files and intermediate directories",
+  "module reader refuses a symlinked declaration and a linked intermediate directory; a hard-linked declaration is the operator's checkout and is read",
   async () => {
     for (const mode of ["symlink", "hardlink", "directory"])
       await fixture(async (root) => {
@@ -245,15 +245,25 @@ posixTest(
             await readFile(join(root, "outside.json")),
           );
           await symlink(join(root, "actual"), join(root, "app"));
-        } else if (mode === "symlink")
+          await expect(readModuleApplication(root)).rejects.toThrow();
+        } else if (mode === "symlink") {
           await symlink(join(root, "outside.json"), path);
-        else await link(join(root, "outside.json"), path);
-        await expect(readModuleApplication(root)).rejects.toThrow();
+          await expect(readModuleApplication(root)).rejects.toMatchObject({
+            reason: "declaration-not-regular",
+          });
+        } else {
+          // Bun hard-links local packages; Git and the package manager of
+          // the operator's own account made it (decision F23).
+          await link(join(root, "outside.json"), path);
+          expect((await readModuleApplication(root)).kind).toBe(
+            "declared-runtime-plan",
+          );
+        }
       });
   },
 );
 posixTest(
-  "module reader refuses malformed, oversized and shared-write declarations",
+  "module reader refuses malformed and oversized declarations; permission bits are not a reason",
   async () => {
     for (const bytes of [
       Buffer.from([0xff]),
@@ -265,9 +275,24 @@ posixTest(
         await expect(readModuleApplication(root)).rejects.toThrow();
       });
     await fixture(async (root) => {
-      await chmod(join(root, "app/package.json"), 0o666);
-      await expect(readModuleApplication(root)).rejects.toThrow();
+      await writeFile(
+        join(root, "app/package.json"),
+        Buffer.alloc(1024 * 1024 + 1, 32),
+      );
+      await expect(readModuleApplication(root)).rejects.toMatchObject({
+        reason: "declaration-too-large",
+      });
     });
+    // umask 022, umask 002 (a user-private group) and a world-writable file:
+    // the operator's checkout, read as it is.
+    for (const mode of [0o644, 0o664, 0o666])
+      await fixture(async (root) => {
+        await chmod(join(root, "app/package.json"), mode);
+        await chmod(join(root, "lazurio.module.json"), mode);
+        expect((await readModuleApplication(root)).kind).toBe(
+          "declared-runtime-plan",
+        );
+      });
   },
 );
 posixTest("module reader does not silently adopt legacy apps", async () => {

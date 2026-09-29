@@ -1,16 +1,22 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { readOwnedJson } from "../providers/owned-json";
+import {
+  type CheckoutFileReason,
+  CheckoutFileRefused,
+  readCheckoutJson,
+} from "../providers/owned-json";
 
-const paths = Object.freeze({
+/** The file of each Organization document, relative to its root. */
+export const organizationDocumentFiles = Object.freeze({
   canonical: "lazurio.organization.json",
   legacy: "company.gen3.json",
   modules: "modules.manifest.json",
 });
 type Document =
   | { kind: "missing" }
-  | { kind: "invalid" }
+  // `refused`: the checkout rule refused the file (decision F23), by name.
+  | { kind: "invalid"; refused?: CheckoutFileReason }
   | { kind: "present"; value: Readonly<Record<string, unknown>> };
 
 function freezeJson(value: unknown): void {
@@ -33,7 +39,7 @@ async function readDocument(path: string): Promise<Readonly<Document>> {
   }
   // Once observed, a disappearing file is invalid, not optional absence.
   try {
-    const value = await readOwnedJson(path);
+    const value = await readCheckoutJson(path);
     if (!value || typeof value !== "object" || Array.isArray(value))
       return Object.freeze({ kind: "invalid" });
     freezeJson(value);
@@ -41,8 +47,12 @@ async function readDocument(path: string): Promise<Readonly<Document>> {
       kind: "present",
       value: value as Readonly<Record<string, unknown>>,
     });
-  } catch {
-    return Object.freeze({ kind: "invalid" });
+  } catch (error) {
+    return Object.freeze(
+      error instanceof CheckoutFileRefused
+        ? { kind: "invalid", refused: error.reason }
+        : { kind: "invalid" },
+    );
   }
 }
 
@@ -55,9 +65,15 @@ export async function readOrganizationDocuments(directory: string) {
     return Object.freeze({ kind: "unavailable" as const });
   try {
     const before = await inspectOwnedDirectory(directory);
-    const canonical = await readDocument(join(directory, paths.canonical));
-    const legacy = await readDocument(join(directory, paths.legacy));
-    const modules = await readDocument(join(directory, paths.modules));
+    const canonical = await readDocument(
+      join(directory, organizationDocumentFiles.canonical),
+    );
+    const legacy = await readDocument(
+      join(directory, organizationDocumentFiles.legacy),
+    );
+    const modules = await readDocument(
+      join(directory, organizationDocumentFiles.modules),
+    );
     const after = await inspectOwnedDirectory(directory);
     if (before.dev !== after.dev || before.ino !== after.ino)
       return Object.freeze({ kind: "unavailable" as const });

@@ -65,26 +65,33 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
           canonical: { kind: "invalid" },
         });
       }
+      expect(await readOrganizationDocuments(root)).toMatchObject({
+        canonical: { kind: "invalid", refused: "declaration-too-large" },
+      });
       await rm(canonical);
       await symlink(modules, canonical);
       expect(await readOrganizationDocuments(root)).toMatchObject({
-        canonical: { kind: "invalid" },
+        canonical: { kind: "invalid", refused: "declaration-not-regular" },
       });
       await rm(canonical);
+      // The operator's checkout (decision F23): a hard link and permission
+      // bits are not reasons to refuse its documents.
       await link(modules, canonical);
       expect(await readOrganizationDocuments(root)).toMatchObject({
-        canonical: { kind: "invalid" },
-        modules: { kind: "invalid" },
+        canonical: { kind: "present" },
+        modules: { kind: "present" },
       });
       await rm(canonical);
       await mkdir(canonical);
       expect(await readOrganizationDocuments(root)).toMatchObject({
-        canonical: { kind: "invalid" },
+        canonical: { kind: "invalid", refused: "declaration-not-regular" },
       });
-      await chmod(modules, 0o666);
-      expect(await readOrganizationDocuments(root)).toMatchObject({
-        modules: { kind: "invalid" },
-      });
+      for (const mode of [0o664, 0o666]) {
+        await chmod(modules, mode);
+        expect(await readOrganizationDocuments(root)).toMatchObject({
+          modules: { kind: "present" },
+        });
+      }
       await chmod(root, 0o777);
       expect(await readOrganizationDocuments(root)).toEqual({
         kind: "unavailable",

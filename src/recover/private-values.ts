@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { MachineBinding } from "../folder/machine-binding";
 import type { MachineContext } from "../machine/context";
-import { readOwnedJson } from "../providers/owned-json";
+import { readCheckoutJson } from "../providers/owned-json";
 import type { PrivateKind, PrivateValue } from "./sanitize";
 
 /** The known private values of this Machine that the sanitizer replaces
@@ -81,7 +81,7 @@ const ownerAndName = (input: string | undefined) =>
  * it can and an unreadable one gives nothing. */
 async function declaredNames(directory: string): Promise<PrivateValue[]> {
   const read = (name: string) =>
-    readOwnedJson(join(directory, name)).catch(() => null);
+    readCheckoutJson(join(directory, name)).catch(() => null);
   const canonical = await read("lazurio.organization.json");
   const legacy = await read("company.gen3.json");
   return [

@@ -107,13 +107,17 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       );
       expect(await verifyInstallAuthority(before)).toBe(false);
       const changed = await inspectInstallAuthority(root, root);
-      // Same bytes and permissions are insufficient if another path can mutate
-      // the manifest (for example a local dependency hardlinked by Bun).
-      await link(member, join(root, "manifest-alias"));
+      // A second link (Bun hard-links local packages) is the operator's own
+      // checkout (decision F23): the same bytes stay the same input, and a
+      // change through either name is a change of the bytes.
+      const alias = join(root, "manifest-alias");
+      await link(member, alias);
+      expect(await verifyInstallAuthority(changed)).toBe(true);
+      expect(
+        (await inspectInstallAuthority(root, root)).workspaceInputs,
+      ).toEqual(changed.workspaceInputs);
+      await writeFile(alias, JSON.stringify({ name: "fixture-web" }));
       expect(await verifyInstallAuthority(changed)).toBe(false);
-      await expect(inspectInstallAuthority(root, root)).rejects.toThrow(
-        "Unsafe declaration file",
-      );
     } finally {
       await rm(root, { recursive: true });
     }

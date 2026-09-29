@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { readOwnedJson as readDeclaration } from "../providers/owned-json";
+import { readCheckoutJson as readDeclaration } from "../providers/owned-json";
 import { selectModuleApplication } from "./manifest";
 import { parsePreparationDeclaration } from "./preparation-declaration";
 import { planModuleRuntime } from "./runtime";

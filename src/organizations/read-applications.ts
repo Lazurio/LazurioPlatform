@@ -2,9 +2,14 @@ import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { object, parseModuleManifest, text } from "../modules/manifest";
 import { readModuleApplication } from "../modules/read-application";
-import { readOwnedJson } from "../providers/owned-json";
+import {
+  type CheckoutFileReason,
+  checkoutRefusal,
+  readCheckoutJson,
+} from "../providers/owned-json";
 import { inspectCanonicalInventory } from "./canonical-inventory";
 import { organizationDocumentHash } from "./document-hash";
+import { organizationDocumentFiles } from "./read-documents";
 import { resolveOrganizationRoot } from "./root-resolution";
 
 // Resolve a selection against the live inventory, never a caller-supplied path.
@@ -95,13 +100,30 @@ export async function observeOrganizationApplications(
           resolution,
         }),
       );
-    if (resolved.state === "conflict")
+    if (resolved.state === "conflict") {
+      // A document the checkout rule refused is named by its rule and file
+      // (decision F23) instead of the general conflict.
+      const refused = (["canonical", "legacy", "modules"] as const).flatMap(
+        (name) => {
+          const document = resolved.documents[name];
+          return document.kind === "invalid" && document.refused !== undefined
+            ? [
+                Object.freeze({
+                  reason: document.refused,
+                  file: organizationDocumentFiles[name],
+                }),
+              ]
+            : [];
+        },
+      )[0];
       return without(
         Object.freeze({
           kind: "organization-conflict" as const,
           resolution,
+          ...(refused === undefined ? {} : { refused }),
         }),
       );
+    }
     if (options.admission === "executable" && !resolved.executable)
       return without(
         Object.freeze({
@@ -161,7 +183,13 @@ export async function observeOrganizationApplications(
                 defaultApp: observed.defaultApp,
                 apps: observed.apps,
               })
-            : Object.freeze({ ...identity, kind: observed.kind }),
+            : "file" in observed
+              ? Object.freeze({
+                  ...identity,
+                  kind: observed.kind,
+                  file: observed.file,
+                })
+              : Object.freeze({ ...identity, kind: observed.kind }),
         );
       } catch {
         entries.push(
@@ -208,18 +236,35 @@ export async function observeOrganizationApplications(
  * for each declared app whether its runtime declaration names this module,
  * unchanged during the read. `accept` is the caller's identity rule; a
  * module it refuses, and anything unreadable, throws. The caller inspects the
- * parents of `path`. No raw content leaves this function. */
+ * parents of `path`. No raw content leaves this function.
+ *
+ * These are the module's declarations (decision F23): `lazurio.module.json`
+ * and the `package.json` of each app it lists. A declaration the checkout
+ * rule refuses is named by its rule and module-relative file, the module's
+ * when it is `lazurio.module.json`, the app's when it is the app's. */
 export async function observeModuleDirectory(
   path: string,
   accept: (module: Readonly<{ id: string; company: string }>) => boolean,
 ) {
   const moduleBefore = await inspectOwnedDirectory(path);
-  const manifest = await readOwnedJson(join(path, "lazurio.module.json"));
+  let manifest: unknown;
+  try {
+    manifest = await readCheckoutJson(join(path, "lazurio.module.json"));
+  } catch (error) {
+    const refused = checkoutRefusal(error, path);
+    if (refused === null) throw error;
+    return Object.freeze({ kind: refused.reason, file: refused.file });
+  }
   const module = parseModuleManifest(manifest);
   if (!accept(module)) throw new Error("Module identity conflict");
   if (module.apps === null)
     return Object.freeze({ kind: "explicit-apps-required" as const });
-  const apps = [];
+  const apps: Readonly<{
+    package: string;
+    kind: "runtime-declared" | "invalid-runtime";
+    reason?: CheckoutFileReason;
+    file?: string;
+  }>[] = [];
   for (const pkg of module.apps) {
     try {
       const app = await readModuleApplication(path, pkg);
@@ -232,9 +277,14 @@ export async function observeModuleDirectory(
       apps.push(
         Object.freeze({ package: pkg, kind: "runtime-declared" as const }),
       );
-    } catch {
+    } catch (error) {
+      const refused = checkoutRefusal(error, path);
       apps.push(
-        Object.freeze({ package: pkg, kind: "invalid-runtime" as const }),
+        Object.freeze({
+          package: pkg,
+          kind: "invalid-runtime" as const,
+          ...(refused ?? {}),
+        }),
       );
     }
   }
@@ -244,7 +294,7 @@ export async function observeModuleDirectory(
     moduleBefore.ino !== after.ino ||
     organizationDocumentHash(manifest) !==
       organizationDocumentHash(
-        await readOwnedJson(join(path, "lazurio.module.json")),
+        await readCheckoutJson(join(path, "lazurio.module.json")),
       )
   )
     throw new Error("Module changed during observation");

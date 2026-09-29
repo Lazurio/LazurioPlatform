@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { readOwnedDeclarationBytes } from "../providers/owned-json";
+import { readCheckoutFileBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 
 // File dependency graph within one explicit owner. No installation occurs here.
@@ -99,7 +99,7 @@ export async function inspectLocalDependencyInputs(
           pending.push(relative ? `${relative}/${entry}` : entry);
         }
       } else {
-        const bytes = await readOwnedDeclarationBytes(path);
+        const bytes = await readCheckoutFileBytes(path);
         size += bytes.length;
         if (size > 64 * 1024 * 1024)
           throw new Error("Local dependency byte limit exceeded");
