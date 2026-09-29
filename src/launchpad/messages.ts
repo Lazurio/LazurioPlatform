@@ -42,7 +42,7 @@ const en = {
   appStatus: "Status",
   appOpen: "Get application link",
   appStop: "Stop",
-  appVisit: "Open application on this machine",
+  appVisit: "Open application in this Environment",
   appBusy: "Operation in progress…",
   appStarted:
     "Process started. Check readiness before opening the application.",
@@ -62,7 +62,7 @@ const en = {
   appLinkReady:
     "Local application link available. Opening it does not prove functional acceptance.",
   appRemoteLink:
-    "This address belongs to the execution machine. Remote browser access needs a qualified route.",
+    "This address belongs to the Environment that runs the application. Remote browser access needs a qualified route.",
   updateTitle: "Product update",
   updateNotes: "Release notes",
   updateUnknown: "Lazurio {running}.",
@@ -79,7 +79,7 @@ const en = {
   updateChecked: "Last verified check: {age} ago.",
   updateNeverChecked: "No verified check yet.",
   updateStale:
-    "Last verified check: {age} ago. A newer release may be withheld from this machine.",
+    "Last verified check: {age} ago. A newer release may be withheld from this Environment.",
   updateFailed:
     "The update did not complete: {code}. The installed version keeps working; the same click retries.",
   updateStateInvalid:
@@ -187,7 +187,7 @@ const en = {
   toolsSignOutAction: "Sign out",
   toolsSignOutNamed: "Sign out of {name}",
   toolsSignedOutLocal:
-    "{name}: signed out on this Machine. The provider still lists this sign-in until you revoke it in your account settings there.",
+    "{name}: signed out in this Environment. The provider still lists this sign-in until you revoke it in your account settings there.",
   toolsSignedOutRemote:
     "{name}: signed out; the linked device was removed from your account.",
   toolsSignOutFailed:
@@ -206,11 +206,11 @@ const en = {
     "Installing {name} from its official source. This can take a minute.",
   toolsInstalledNow: "{name} {version} is installed.",
   toolsAlreadyInstalled:
-    "{name} already works on this Machine; nothing was changed.",
+    "{name} already works in this Environment; nothing was changed.",
   toolsInstallFailed:
     "The installation did not finish (step {stage}: {reason}). Nothing that already worked was changed.",
   toolsInstallUnsupported:
-    "The installer built into Lazurio does not cover this Machine ({platform} {arch}).",
+    "The installer built into Lazurio does not cover this Environment ({platform} {arch}).",
   toolsInstallNotOnPath:
     "~/.local/bin is not on the PATH of this Launchpad, so agents may not find the tool until it is added to the shell profile.",
   toolsInstallBusy:
@@ -245,7 +245,8 @@ const en = {
   toolsLoginSignedInAs: "You are signed in to {name} as {account}.",
   toolsLoginWacliSync:
     "WhatsApp now copies your recent messages to this Environment in the background. You can close this window.",
-  toolsLoginFailureNotInstalled: "The tool is not installed on this Machine.",
+  toolsLoginFailureNotInstalled:
+    "The tool is not installed in this Environment.",
   toolsLoginFailureUrl:
     "The tool offered an address that is not its official sign-in page, so it was not shown.",
   toolsLoginFailureOutput: "The tool answered in a form Lazurio does not know.",
@@ -266,26 +267,28 @@ const en = {
   toolsSshTeam: capitalized(teamGithubPhrase.en),
   toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
-  toolsLinkSshNamed: "Link the SSH key of this Machine to the {name} account",
+  toolsLinkSshNamed:
+    "Link the SSH key of this Environment to the {name} account",
   toolsLoginTitleSsh: "Link SSH key: {name}",
   toolsStepLinking: "Linking the SSH key",
   toolsStepLinked: "SSH key linked",
   toolsLoginLinking:
-    "Signed in to GitHub. Lazurio now links the SSH key of this Machine to your account and checks that git over SSH works. This takes a few seconds.",
+    "Signed in to GitHub. Lazurio now links the SSH key of this Environment to your account and checks that git over SSH works. This takes a few seconds.",
   toolsLoginRefreshText:
     "Your gh sign-in may not manage the SSH keys of your account yet. To allow it, open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
   toolsSshLinkedDone:
-    "The SSH key of this Machine is linked: git clone git@github.com:… works as {account}.",
+    "The SSH key of this Environment is linked: git clone git@github.com:… works as {account}.",
   toolsSshKeyCreated:
     "A new key without a passphrase was created, so agents can use it: {path} ({fingerprint}).",
   toolsSshKeyReused:
     "The existing key {path} ({fingerprint}) is used unchanged.",
   toolsSshNotLinkedDone:
-    "You are signed in to gh as {account}, but the SSH key of this Machine is not linked, so git over SSH does not work yet.",
-  toolsSshFailureNotSignedIn: "gh is not signed in on this Machine.",
+    "You are signed in to gh as {account}, but the SSH key of this Environment is not linked, so git over SSH does not work yet.",
+  toolsSshFailureNotSignedIn: "In this Environment gh is not signed in.",
   toolsSshFailureScopeMissing:
     "The gh sign-in may not manage the SSH keys of your account.",
-  toolsSshFailureKeygenMissing: "ssh-keygen is not installed on this Machine.",
+  toolsSshFailureKeygenMissing:
+    "ssh-keygen is not installed in this Environment.",
   toolsSshFailureKeygenFailed: "A new key could not be created in ~/.ssh.",
   toolsSshFailureKeyPassphrase:
     "The existing key {path} is protected by a passphrase, which agents cannot enter. It was left as it is.",
@@ -303,25 +306,25 @@ const en = {
     "~/.ssh/known_hosts holds a github.com host key that differs from the keys GitHub publishes. Nothing was changed.",
   toolsSshFailureKnownHostsFailed:
     "~/.ssh/known_hosts could not be read or written.",
-  toolsSshFailureSshMissing: "ssh is not installed on this Machine.",
+  toolsSshFailureSshMissing: "ssh is not installed in this Environment.",
   toolsSshFailureProofFailed:
     "The test connection to GitHub over SSH did not answer with GitHub's greeting.",
   toolsSshFailureProofOtherAccount:
-    "Over SSH GitHub greeted another account ({account}): another key of this Machine is offered first.",
+    "Over SSH GitHub greeted another account ({account}): another key of this Environment is offered first.",
   toolsLoginFailureNotSignedIn:
-    "gh is not signed in on this Machine. Sign in first; the SSH key is linked as part of it.",
+    "In this Environment gh is not signed in. Sign in first; the SSH key is linked as part of it.",
   toolsLoginFailureEnvironment:
     "The kind of this Environment could not be read, so the sign-in stopped before changing anything further.",
   toolsSshRemoved:
-    "The SSH key of this Machine ({fingerprint}) was removed from your GitHub account; the key files stay on this Machine.",
+    "The SSH key of this Environment ({fingerprint}) was removed from your GitHub account; the key files stay in this Environment.",
   toolsSshRemovalNotRegistered:
-    "The SSH key of this Machine was not registered on your GitHub account.",
+    "The SSH key of this Environment was not registered on your GitHub account.",
   toolsSshRemovalNoKey:
-    "This Machine has no SSH key in ~/.ssh; nothing was removed from GitHub.",
+    "This Environment has no SSH key in ~/.ssh; nothing was removed from GitHub.",
   toolsSshRemovalKept:
-    "The SSH key of this Machine ({fingerprint}) stays registered on your GitHub account because Lazurio did not register it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Machine must lose access.",
+    "The SSH key of this Environment ({fingerprint}) stays registered on your GitHub account because Lazurio did not register it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
   toolsSshRemovalFailed:
-    "The SSH key of this Machine may still be registered on your GitHub account: gh could not remove it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Machine must lose access.",
+    "The SSH key of this Environment may still be registered on your GitHub account: gh could not remove it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
   toolsComposioOrgLabel: "Composio organization of this Environment",
   toolsComposioOrgCurrent: "{name} (current)",
   toolsComposioOrgHint:
@@ -335,7 +338,7 @@ const en = {
     "The organizations could not be read. You can choose one later with lazurio tools composio-org.",
   toolsPromptTitle: "Set up {name} with an agent",
   toolsPromptHint:
-    "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
+    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent installs the tool and guides you through the sign-in in your browser. You never copy an API key.",
   toolsPromptLabel: "Prepared prompt",
   toolsCopy: "Copy prompt",
   toolsCopied: "Copied.",
@@ -347,7 +350,7 @@ const en = {
     "For an app the catalog does not cover, an agent sets up an MCP server on your request. MCP servers are not recorded in the Lazurio Folder.",
   toolsMcpAction: "Set up an MCP server with an agent",
   toolsMcpPromptHint:
-    "Copy this prompt and paste it into a new chat in T3 Code on this Machine. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
+    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
   catalogNavigation: "Organizations",
@@ -364,7 +367,7 @@ const en = {
     "This Organization or module is not in this Folder. It may have been renamed or removed; see all Organizations.",
   catalogAll: "All Organizations",
   chat: "Chat",
-  chatTitle: "Open T3 Code on this Machine",
+  chatTitle: "Open T3 Code in this Environment",
   catalogModules: "Modules",
   catalogNoModules: "This Organization declares no modules.",
   catalogOtherModules: "Other modules",
@@ -413,13 +416,13 @@ const en = {
   catalogReasonDeclarationNotRegular:
     "{file} is not a regular file (a symlink, for example); Lazurio reads the module's files only as files of your own checkout.",
   catalogReasonDeclarationOwner:
-    "{file} belongs to another account on this Machine, so it is not a file of your own checkout. Make it yours again (for example with chown) or check it out again.",
+    "{file} belongs to another account in this Environment, so it is not a file of your own checkout. Make it yours again (for example with chown) or check it out again.",
   catalogReasonDeclarationTooLarge:
     "{file} is larger than a file of the checkout may be (1 MiB; 16 MiB for a lockfile).",
   catalogReasonDirectoryNotRegular:
     "{file} is not a real directory (a symlink, for example); Lazurio reads the checkout only through its own directories.",
   catalogReasonDirectoryOwner:
-    "The directory {file} belongs to another account on this Machine, so it is not your own checkout. Make it yours again (for example with chown) or check it out again.",
+    "The directory {file} belongs to another account in this Environment, so it is not your own checkout. Make it yours again (for example with chown) or check it out again.",
   preparationReasonOwnerInvalid:
     "{file} cannot prepare this app: it is missing, is not a package, or the app is not a declared member of its workspace.",
   preparationReasonScriptMissing:
@@ -472,14 +475,14 @@ const en = {
   moduleReasonFailed:
     "The lifecycle failed before it could confirm a change, for a reason it cannot name. See lazurio module status and lazurio doctor.",
   moduleNoLinkEntry:
-    "No link: this Machine's recorded entry names no hostname for modules yet.",
+    "No link: the recorded entry of this Remote Environment names no hostname for modules yet.",
   moduleNoLinkApp:
-    "No link: on this Machine the gateway serves only the module's default app.",
+    "No link: the gateway of this Remote Environment serves only the module's default app.",
   moduleNoLinkBrowser: "No link: the app declares no browser entrypoint.",
   moduleNoLink: "No link: {reason}.",
   recoveryTitle: "Recovery",
   recoveryIntro:
-    "Whether Lazurio on this Machine needs a repair, read by the same check as lazurio recover. Reading changes nothing.",
+    "Whether Lazurio in this Environment needs a repair, read by the same check as lazurio recover. Reading changes nothing.",
   recoveryModeTitle: "The Launchpad is in Recovery mode",
   recoveryModeText:
     "It could not start normally and serves only this page. T3 Code, your tools, the Folder and the repositories keep working.",
@@ -499,11 +502,11 @@ const en = {
   recoveryLoading: "Checking…",
   recoveryAgain: "Check again",
   recoveryLoadFailed:
-    "The check could not be read here. An agent on this Machine can run lazurio recover.",
-  recoveryHealthy: "Lazurio on this Machine is healthy.",
-  recoveryBroken: "Lazurio on this Machine needs a repair.",
+    "The check could not be read here. An agent in this Environment can run lazurio recover.",
+  recoveryHealthy: "Lazurio in this Environment is healthy.",
+  recoveryBroken: "Lazurio in this Environment needs a repair.",
   recoveryNotInstalled:
-    "Lazurio is not installed on this Machine; there is nothing to check.",
+    "Lazurio is not installed in this Environment; there is nothing to check.",
   recoveryChecksTitle: "Checks",
   recoveryOutcomeOk: "ok",
   recoveryOutcomeFailed: "failed",
@@ -511,13 +514,13 @@ const en = {
   recoveryEvidenceTitle: "Evidence",
   recoveryEvidenceText:
     "Sanitized structured fields only, exactly as the prepared issue carries them.",
-  recoveryJournalShow: "Show journal (stays on this Machine)",
+  recoveryJournalShow: "Show journal (stays in this Environment)",
   recoveryJournalHide: "Hide journal",
   recoveryJournalText:
-    "The sanitized tail of the Launchpad's journal. It never leaves this Machine automatically.",
+    "The sanitized tail of the Launchpad's journal. It never leaves this Environment automatically.",
   recoveryPromptTitle: "Repair agent",
   recoveryPromptText:
-    "Copy the prompt and paste it into a new chat of your agent app on this Machine (T3 Code on a hosted Machine). The agent repairs forward, or records the fault on GitHub.",
+    "Copy the prompt and paste it into a new chat of your agent app in this Environment (T3 Code in a Remote Environment). The agent repairs forward, or records the fault on GitHub.",
   recoveryPromptCopy: "Copy the prompt",
   recoveryPromptOpenT3: "Open T3 Code",
   recoveryIssueTitle: "Prepared issue",
@@ -527,9 +530,9 @@ const en = {
   recoveryIssueLink: "Open the prefilled issue in the browser",
   recoveryIssueLinkPaste: "Open the issue form in the browser (paste the body)",
   recoveryIssueRefused:
-    "No issue body was prepared: after sanitization it still contained {kinds}. Nothing may leave this Machine automatically.",
+    "No issue body was prepared: after sanitization it still contained {kinds}. Nothing may leave this Environment automatically.",
   recoveryNothingFiled:
-    "Nothing was filed. This page only prepares the issue; nothing leaves this Machine automatically.",
+    "Nothing was filed. This page only prepares the issue; nothing leaves this Environment automatically.",
   settingsTitle: "Settings",
   settingsGeneral: "General",
   settingsBack: "Back",
@@ -537,7 +540,7 @@ const en = {
   navigationOpen: "Open navigation",
   technicalDetails: "Technical details",
   presetHint:
-    "The kind of Machine this Folder is set up for. Only the presets its handover allows are offered.",
+    "The kind of Environment this Folder is set up for. Only the presets its handover allows are offered.",
   localeHint:
     "The language of this page and of the agent instructions in this Folder. It changes once the change is applied.",
   detailHint:
@@ -549,13 +552,13 @@ const en = {
   toolsDetails: "Details",
   toolsDetailsNamed: "Details of {name}",
   toolsPathLabel: "Found at",
-  legend: "Machine profile",
-  machineTitle: "This Machine",
+  legend: "Environment profile",
+  machineTitle: "This Environment",
   machineNotice:
-    "Recorded from the Machine handover; shown here, changed only by the Machines operator.",
+    "Recorded when this Remote Environment was handed over; shown here, changed only by the operator who hosts it.",
   machineWorkstation: "Workstation of the signed-in Principal (no handover)",
   machineKind: "Kind",
-  machineName: "Machine",
+  machineName: "Name",
   machineOwner: "Owner",
   machineTeam: "Team",
   machineAssignment: "Assignment",
@@ -618,14 +621,14 @@ const cs: Record<MessageKey, string> = {
   appServiceUnrecognized:
     "Existuje služba se jménem této aplikace, kterou ale Lazurio v očekávané podobě nevytvořilo. Nebyla spuštěna, zastavena ani změněna; prověřte ji správcem služeb operačního systému.",
   appHealthyPersistent:
-    "Deklarované zdravotní kontroly prošly. Tato aplikace běží dál i při restartu Launchpadu; restart počítače nepřežije. Po otevření ověřte funkci aplikace.",
+    "Deklarované zdravotní kontroly prošly. Tato aplikace běží dál i při restartu Launchpadu; restart Environmentu nepřežije. Po otevření ověřte funkci aplikace.",
   appEnded:
     "Aplikace už neběží; její vlastník hlásí, že skončila. Prohlédněte výsledek a pak ji znovu spusťte, nebo ji zastavte a záznam tím uvolněte.",
   appStart: "Spustit",
   appStatus: "Stav",
   appOpen: "Získat odkaz aplikace",
   appStop: "Zastavit",
-  appVisit: "Otevřít aplikaci na této mašině",
+  appVisit: "Otevřít aplikaci na tomto Environmentu",
   appBusy: "Operace probíhá…",
   appStarted:
     "Proces je spuštěný. Před otevřením ověřte připravenost aplikace.",
@@ -645,7 +648,7 @@ const cs: Record<MessageKey, string> = {
   appLinkReady:
     "Lokální odkaz aplikace je připravený. Otevření samo neprokazuje její funkčnost.",
   appRemoteLink:
-    "Tato adresa patří execution mašině. Vzdálené otevření vyžaduje ověřenou přístupovou cestu.",
+    "Tato adresa patří Environmentu, který aplikaci spouští. Vzdálené otevření vyžaduje ověřenou přístupovou cestu.",
   updateTitle: "Aktualizace produktu",
   updateNotes: "Poznámky k vydání",
   updateUnknown: "Lazurio {running}.",
@@ -662,7 +665,7 @@ const cs: Record<MessageKey, string> = {
   updateChecked: "Poslední ověřená kontrola: před {age}.",
   updateNeverChecked: "Zatím žádná ověřená kontrola.",
   updateStale:
-    "Poslední ověřená kontrola: před {age}. Novější vydání může být této mašině zadržováno.",
+    "Poslední ověřená kontrola: před {age}. Novější vydání může být tomuhle Environmentu zadržováno.",
   updateFailed:
     "Aktualizace se nedokončila: {code}. Nainstalovaná verze běží dál; stejné kliknutí ji zopakuje.",
   updateStateInvalid:
@@ -679,7 +682,7 @@ const cs: Record<MessageKey, string> = {
   toolsTeamGithub: teamGithubText.cs,
   toolsTeamGithubLogout: teamGithubLogoutText.cs,
   toolsShared:
-    "Tohle Environment je sdílené. Účty přihlášené v nástroji platí pro celé Environment a používají je všichni jeho operátoři.",
+    "Tenhle Environment je sdílený. Účty přihlášené v nástroji platí pro celý Environment a používají je všichni jeho operátoři.",
   toolsRefresh: "Obnovit stav",
   toolsLoading: "Načítají se nástroje…",
   toolsLoadFailed:
@@ -689,7 +692,7 @@ const cs: Record<MessageKey, string> = {
   toolsTierRequiredNote: "Vždy součást instrukcí pro agenty.",
   toolsTierRecommended: "Doporučené",
   toolsTierRecommendedNote:
-    "Doporučený způsob, jak tohle Environment napojit na externí aplikace.",
+    "Doporučený způsob, jak tenhle Environment napojit na externí aplikace.",
   toolsTierOptional: "Volitelné",
   toolsTierOptionalNote:
     "Další nástroje pro jednotlivé služby. Zapněte ty, které používáte.",
@@ -769,7 +772,7 @@ const cs: Record<MessageKey, string> = {
   toolsSignOutAction: "Odhlásit",
   toolsSignOutNamed: "Odhlásit z {name}",
   toolsSignedOutLocal:
-    "{name}: odhlášeno na téhle Mašině. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
+    "{name}: odhlášeno na tomhle Environmentu. Poskytovatel přihlášení eviduje, dokud ho nezrušíte v nastavení účtu u něj.",
   toolsSignedOutRemote:
     "{name}: odhlášeno; propojené zařízení bylo z účtu odebráno.",
   toolsSignOutFailed:
@@ -787,11 +790,12 @@ const cs: Record<MessageKey, string> = {
   toolsInstalling:
     "{name} se instaluje z oficiálního zdroje. Může to chvíli trvat.",
   toolsInstalledNow: "{name} {version} je nainstalovaný.",
-  toolsAlreadyInstalled: "{name} na téhle Mašině už funguje; nic se neměnilo.",
+  toolsAlreadyInstalled:
+    "{name} na tomhle Environmentu už funguje; nic se neměnilo.",
   toolsInstallFailed:
     "Instalace nedoběhla (krok {stage}: {reason}). Nic, co už fungovalo, se nezměnilo.",
   toolsInstallUnsupported:
-    "Instalátor zabudovaný v Lazuriu tuhle Mašinu nepokrývá ({platform} {arch}).",
+    "Instalátor zabudovaný v Lazuriu tenhle Environment nepokrývá ({platform} {arch}).",
   toolsInstallNotOnPath:
     "~/.local/bin není na PATH tohoto Launchpadu, takže ho agenti nemusí najít, dokud se nepřidá do profilu shellu.",
   toolsInstallBusy:
@@ -826,7 +830,8 @@ const cs: Record<MessageKey, string> = {
   toolsLoginSignedInAs: "Jste přihlášeni do {name} jako {account}.",
   toolsLoginWacliSync:
     "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do tohoto Environmentu. Okno můžete zavřít.",
-  toolsLoginFailureNotInstalled: "Nástroj na téhle Mašině není nainstalovaný.",
+  toolsLoginFailureNotInstalled:
+    "Nástroj na tomhle Environmentu není nainstalovaný.",
   toolsLoginFailureUrl:
     "Nástroj nabídl adresu, která není jeho oficiální přihlašovací stránkou, a proto se nezobrazila.",
   toolsLoginFailureOutput: "Nástroj odpověděl v podobě, kterou Lazurio nezná.",
@@ -847,27 +852,27 @@ const cs: Record<MessageKey, string> = {
   toolsSshTeam: capitalized(teamGithubPhrase.cs),
   toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
-  toolsLinkSshNamed: "Propojit SSH klíč téhle Mašiny s účtem {name}",
+  toolsLinkSshNamed: "Propojit SSH klíč tohohle Environmentu s účtem {name}",
   toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
   toolsStepLinking: "Propojení SSH klíče",
   toolsStepLinked: "SSH klíč propojený",
   toolsLoginLinking:
-    "Přihlášeno do GitHubu. Lazurio teď propojí SSH klíč téhle Mašiny s vaším účtem a ověří, že git přes SSH funguje. Trvá to pár sekund.",
+    "Přihlášeno do GitHubu. Lazurio teď propojí SSH klíč tohohle Environmentu s vaším účtem a ověří, že git přes SSH funguje. Trvá to pár sekund.",
   toolsLoginRefreshText:
     "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Abyste to povolili, otevřete na libovolném zařízení (tomhle počítači, jiném nebo telefonu) stránku zařízení GitHubu a zadejte tento kód:",
   toolsSshLinkedDone:
-    "SSH klíč téhle Mašiny je propojený: git clone git@github.com:… funguje jako {account}.",
+    "SSH klíč tohohle Environmentu je propojený: git clone git@github.com:… funguje jako {account}.",
   toolsSshKeyCreated:
     "Vytvořil se nový klíč bez hesla, aby ho agenti mohli používat: {path} ({fingerprint}).",
   toolsSshKeyReused:
     "Používá se stávající klíč {path} ({fingerprint}) beze změny.",
   toolsSshNotLinkedDone:
-    "V gh jste přihlášeni jako {account}, ale SSH klíč téhle Mašiny propojený není, takže git přes SSH zatím nefunguje.",
-  toolsSshFailureNotSignedIn: "gh na téhle Mašině není přihlášený.",
+    "V gh jste přihlášeni jako {account}, ale SSH klíč tohohle Environmentu propojený není, takže git přes SSH zatím nefunguje.",
+  toolsSshFailureNotSignedIn: "gh na tomhle Environmentu není přihlášený.",
   toolsSshFailureScopeMissing:
     "Přihlášení gh nesmí spravovat SSH klíče vašeho účtu.",
   toolsSshFailureKeygenMissing:
-    "Na téhle Mašině není nainstalovaný ssh-keygen.",
+    "Na tomhle Environmentu není nainstalovaný ssh-keygen.",
   toolsSshFailureKeygenFailed: "Nový klíč se v ~/.ssh nepodařilo vytvořit.",
   toolsSshFailureKeyPassphrase:
     "Stávající klíč {path} je chráněný heslem, které agenti zadat nemůžou. Zůstal, jak byl.",
@@ -885,31 +890,31 @@ const cs: Record<MessageKey, string> = {
     "~/.ssh/known_hosts obsahuje klíč serveru github.com, který se liší od klíčů zveřejněných GitHubem. Nic se nezměnilo.",
   toolsSshFailureKnownHostsFailed:
     "~/.ssh/known_hosts se nepodařilo přečíst ani zapsat.",
-  toolsSshFailureSshMissing: "Na téhle Mašině není nainstalované ssh.",
+  toolsSshFailureSshMissing: "Na tomhle Environmentu není nainstalované ssh.",
   toolsSshFailureProofFailed:
     "Zkušební spojení s GitHubem přes SSH neodpovědělo pozdravem GitHubu.",
   toolsSshFailureProofOtherAccount:
-    "GitHub přes SSH pozdravil jiný účet ({account}): tahle Mašina nabízí nejdřív jiný klíč.",
+    "GitHub přes SSH pozdravil jiný účet ({account}): tenhle Environment nabízí nejdřív jiný klíč.",
   toolsLoginFailureNotSignedIn:
-    "gh na téhle Mašině není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
+    "gh na tomhle Environmentu není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
   toolsLoginFailureEnvironment:
     "Druh tohoto Environmentu se nepodařilo přečíst, proto se přihlášení zastavilo dřív, než by cokoli dalšího změnilo.",
   toolsSshRemoved:
-    "SSH klíč téhle Mašiny ({fingerprint}) byl z vašeho účtu GitHubu odebrán; soubory klíče na Mašině zůstávají.",
+    "SSH klíč tohohle Environmentu ({fingerprint}) byl z vašeho účtu GitHubu odebrán; soubory klíče na tomhle Environmentu zůstávají.",
   toolsSshRemovalNotRegistered:
-    "SSH klíč téhle Mašiny u vašeho účtu GitHubu registrovaný nebyl.",
+    "SSH klíč tohohle Environmentu u vašeho účtu GitHubu registrovaný nebyl.",
   toolsSshRemovalNoKey:
-    "Tahle Mašina nemá v ~/.ssh žádný SSH klíč; z GitHubu se nic neodebralo.",
+    "Tenhle Environment nemá v ~/.ssh žádný SSH klíč; z GitHubu se nic neodebralo.",
   toolsSshRemovalKept:
-    "SSH klíč téhle Mašiny ({fingerprint}) zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tahle Mašina přístup ztratit.",
+    "SSH klíč tohohle Environmentu ({fingerprint}) zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tenhle Environment přístup ztratit.",
   toolsSshRemovalFailed:
-    "SSH klíč téhle Mašiny může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tahle Mašina přístup ztratit.",
-  toolsComposioOrgLabel: "Organizace Composia pro tohle Environment",
+    "SSH klíč tohohle Environmentu může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tenhle Environment přístup ztratit.",
+  toolsComposioOrgLabel: "Organizace Composia pro tenhle Environment",
   toolsComposioOrgCurrent: "{name} (aktuální)",
   toolsComposioOrgHint:
     "Aplikace, které v Composiu napojíte, patří tomuto účtu a organizaci: účtu Environmentu, který používají jeho agenti.",
   toolsComposioOrgSaved:
-    "Organizace Composia pro tohle Environment je teď {name}.",
+    "Organizace Composia pro tenhle Environment je teď {name}.",
   toolsComposioOrgFailed:
     "Organizaci se nepodařilo změnit. Změnit ji můžete později příkazem lazurio tools composio-org.",
   toolsComposioOrgLoading: "Načítají se vaše organizace v Composiu…",
@@ -917,7 +922,7 @@ const cs: Record<MessageKey, string> = {
     "Organizace se nepodařilo načíst. Vybrat ji můžete později příkazem lazurio tools composio-org.",
   toolsPromptTitle: "Nastavit {name} s agentem",
   toolsPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent nástroj nainstaluje a provede vás přihlášením v prohlížeči. Žádný API klíč nikdy nekopírujete.",
   toolsPromptLabel: "Připravený prompt",
   toolsCopy: "Zkopírovat prompt",
   toolsCopied: "Zkopírováno.",
@@ -929,7 +934,7 @@ const cs: Record<MessageKey, string> = {
     "Pro aplikaci, kterou katalog nepokrývá, nastaví agent na vaši žádost MCP server. MCP servery se do Lazurio Folderu nezapisují.",
   toolsMcpAction: "Nastavit MCP server s agentem",
   toolsMcpPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na téhle Mašině. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
   catalogNavigation: "Organizace",
@@ -946,7 +951,7 @@ const cs: Record<MessageKey, string> = {
     "Tahle Organizace nebo modul v tomhle Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
   catalogAll: "Všechny Organizace",
   chat: "Chat",
-  chatTitle: "Otevřít T3 Code na této Mašině",
+  chatTitle: "Otevřít T3 Code na tomto Environmentu",
   catalogModules: "Moduly",
   catalogNoModules: "Tahle Organizace nedeklaruje žádné moduly.",
   catalogOtherModules: "Ostatní moduly",
@@ -995,13 +1000,13 @@ const cs: Record<MessageKey, string> = {
   catalogReasonDeclarationNotRegular:
     "{file} není obyčejný soubor (například je to symlink); Lazurio čte soubory modulu jen jako soubory vašeho vlastního checkoutu.",
   catalogReasonDeclarationOwner:
-    "{file} patří jinému účtu na téhle Mašině, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
+    "{file} patří jinému účtu na tomhle Environmentu, takže to není soubor vašeho vlastního checkoutu. Vraťte ho do svého vlastnictví (například chown) nebo ho znovu checkoutněte.",
   catalogReasonDeclarationTooLarge:
     "{file} je větší, než smí soubor checkoutu být (1 MiB; 16 MiB pro lockfile).",
   catalogReasonDirectoryNotRegular:
     "{file} není skutečná složka (například je to symlink); Lazurio čte checkout jen přes jeho vlastní složky.",
   catalogReasonDirectoryOwner:
-    "Složka {file} patří jinému účtu na téhle Mašině, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
+    "Složka {file} patří jinému účtu na tomhle Environmentu, takže to není váš vlastní checkout. Vraťte ji do svého vlastnictví (například chown) nebo ji znovu checkoutněte.",
   preparationReasonOwnerInvalid:
     "{file} nemůže tuhle aplikaci připravit: chybí, není to balíček, nebo aplikace není deklarovaným členem jeho workspace.",
   preparationReasonScriptMissing:
@@ -1039,7 +1044,7 @@ const cs: Record<MessageKey, string> = {
   moduleEnded:
     "Skončila sama. Zastavte ji, tím se ověří, že její procesy skončily, a pak ji spusťte znovu.",
   moduleKeepsRunning:
-    "Běží dál i po restartu Launchpadu; restart Mašiny ji ukončí.",
+    "Běží dál i po restartu Launchpadu; restart Environmentu ji ukončí.",
   moduleSessionBound: "Skončí, až skončí tenhle Launchpad.",
   moduleStarted: "Spuštěno. Čekám, až se ohlásí zdravá…",
   moduleStartedHealthy: "Spuštěno a zdravé.",
@@ -1054,14 +1059,14 @@ const cs: Record<MessageKey, string> = {
   moduleReasonFailed:
     "Životní cyklus selhal dřív, než mohl změnu potvrdit, z důvodu, který neumí pojmenovat. Viz lazurio module status a lazurio doctor.",
   moduleNoLinkEntry:
-    "Bez odkazu: zaznamenaný vstup téhle Mašiny zatím neuvádí hostname pro moduly.",
+    "Bez odkazu: zaznamenaný vstup tohohle Remote Environmentu zatím neuvádí hostname pro moduly.",
   moduleNoLinkApp:
-    "Bez odkazu: gateway téhle Mašiny obsluhuje jen výchozí aplikaci modulu.",
+    "Bez odkazu: gateway tohohle Remote Environmentu obsluhuje jen výchozí aplikaci modulu.",
   moduleNoLinkBrowser: "Bez odkazu: aplikace nedeklaruje vstup pro prohlížeč.",
   moduleNoLink: "Bez odkazu: {reason}.",
   recoveryTitle: "Obnova",
   recoveryIntro:
-    "Jestli Lazurio na téhle Mašině potřebuje opravu, zjištěné stejnou kontrolou jako lazurio recover. Čtení nic nemění.",
+    "Jestli Lazurio na tomhle Environmentu potřebuje opravu, zjištěné stejnou kontrolou jako lazurio recover. Čtení nic nemění.",
   recoveryModeTitle: "Launchpad je v režimu obnovy (Recovery mode)",
   recoveryModeText:
     "Nepodařilo se ho normálně spustit, a tak ukazuje jen tuhle stránku. T3 Code, vaše nástroje, Folder i repozitáře fungují dál.",
@@ -1080,11 +1085,11 @@ const cs: Record<MessageKey, string> = {
   recoveryLoading: "Kontroluji…",
   recoveryAgain: "Zkontrolovat znovu",
   recoveryLoadFailed:
-    "Výsledek kontroly tady nejde načíst. Agent na téhle Mašině může spustit lazurio recover.",
-  recoveryHealthy: "Lazurio na téhle Mašině je v pořádku.",
-  recoveryBroken: "Lazurio na téhle Mašině potřebuje opravu.",
+    "Výsledek kontroly tady nejde načíst. Agent na tomhle Environmentu může spustit lazurio recover.",
+  recoveryHealthy: "Lazurio na tomhle Environmentu je v pořádku.",
+  recoveryBroken: "Lazurio na tomhle Environmentu potřebuje opravu.",
   recoveryNotInstalled:
-    "Lazurio na téhle Mašině není nainstalované; není co kontrolovat.",
+    "Lazurio na tomhle Environmentu není nainstalované; není co kontrolovat.",
   recoveryChecksTitle: "Kontroly",
   recoveryOutcomeOk: "v pořádku",
   recoveryOutcomeFailed: "selhala",
@@ -1092,13 +1097,13 @@ const cs: Record<MessageKey, string> = {
   recoveryEvidenceTitle: "Důkazy",
   recoveryEvidenceText:
     "Jen sanitizovaná strukturovaná pole, přesně jak je nese připravené issue.",
-  recoveryJournalShow: "Zobrazit journal (zůstává na téhle Mašině)",
+  recoveryJournalShow: "Zobrazit journal (zůstává na tomhle Environmentu)",
   recoveryJournalHide: "Skrýt journal",
   recoveryJournalText:
-    "Sanitizovaný konec journalu Launchpadu. Nikdy automaticky neopouští tuhle Mašinu.",
+    "Sanitizovaný konec journalu Launchpadu. Nikdy automaticky neopouští tenhle Environment.",
   recoveryPromptTitle: "Opravný agent",
   recoveryPromptText:
-    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace na téhle Mašině (na hostované Mašině do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
+    "Zkopírujte prompt a vložte ho do nového chatu své agentní aplikace na tomhle Environmentu (na Remote Environmentu do T3 Code). Agent opraví Lazurio směrem dopředu, nebo závadu zapíše na GitHub.",
   recoveryPromptCopy: "Zkopírovat prompt",
   recoveryPromptOpenT3: "Otevřít T3 Code",
   recoveryIssueTitle: "Připravené issue",
@@ -1109,9 +1114,9 @@ const cs: Record<MessageKey, string> = {
   recoveryIssueLinkPaste:
     "Otevřít formulář issue v prohlížeči (tělo vložte sami)",
   recoveryIssueRefused:
-    "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí tuhle Mašinu opustit automaticky.",
+    "Tělo issue se nepřipravilo: po sanitizaci v něm zůstalo {kinds}. Nic nesmí tenhle Environment opustit automaticky.",
   recoveryNothingFiled:
-    "Nic nebylo odesláno. Tahle stránka issue jen připraví; nic automaticky neopouští tuhle Mašinu.",
+    "Nic nebylo odesláno. Tahle stránka issue jen připraví; nic automaticky neopouští tenhle Environment.",
   settingsTitle: "Nastavení",
   settingsGeneral: "Obecné",
   settingsBack: "Zpět",
@@ -1119,7 +1124,7 @@ const cs: Record<MessageKey, string> = {
   navigationOpen: "Otevřít navigaci",
   technicalDetails: "Technické podrobnosti",
   presetHint:
-    "Druh Mašiny, pro který je tenhle Folder nastavený. Nabízejí se jen presety, které dovoluje její handover.",
+    "Druh Environmentu, pro který je tenhle Folder nastavený. Nabízejí se jen presety, které dovoluje jeho handover.",
   localeHint:
     "Jazyk této stránky a instrukcí pro agenty v tomhle Folderu. Změní se, až změnu použijete.",
   detailHint:
@@ -1131,18 +1136,18 @@ const cs: Record<MessageKey, string> = {
   toolsDetails: "Podrobnosti",
   toolsDetailsNamed: "Podrobnosti o {name}",
   toolsPathLabel: "Umístění",
-  legend: "Profil mašiny",
-  machineTitle: "Tahle Mašina",
+  legend: "Profil Environmentu",
+  machineTitle: "Tenhle Environment",
   machineNotice:
-    "Zaznamenáno z handoveru Mašiny; tady se jen zobrazuje, mění ho jen operátor Machines.",
+    "Zaznamenáno při předání tohohle Remote Environmentu; tady se jen zobrazuje, mění ho jen provozovatel, který ho hostuje.",
   machineWorkstation:
     "Pracovní stanice přihlášeného Principála (bez handoveru)",
   machineKind: "Druh",
-  machineName: "Mašina",
+  machineName: "Název",
   machineOwner: "Owner",
   machineTeam: "Team",
   machineAssignment: "Přiřazení",
-  machineAssignmentTeam: "sdílená Teamem",
+  machineAssignmentTeam: "sdílený Teamem",
   machineTailnet: "Uzel tailnetu",
   machineHost: "Host",
   machineRelationships: "Vztahy (vynucuje Headscale, ne tahle stránka)",
