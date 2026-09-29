@@ -20,6 +20,9 @@ export type Slot = { path: string; slug?: string; teams?: unknown } & Record<
 >;
 export type ModuleFixture = {
   id: string;
+  // The slot path, `workspace/<id>` unless named: a root-level application
+  // of the Organization is `mission-control` or `design-system`.
+  path?: string;
   teams?: unknown;
   // More slot fields, such as the legacy Team alias.
   slot?: Record<string, unknown>;
@@ -132,6 +135,9 @@ export async function writeOrganization(
     kind?: "organization" | "template";
     teams?: { slug: string; display_name: string }[];
     modules: ModuleFixture[];
+    // More declared slots, after the modules', with no module written for
+    // them (such as `infra` or `mission-control/db`).
+    slots?: Slot[];
     // The GitHub login, when the slug is not one.
     forge?: string;
   },
@@ -141,15 +147,18 @@ export async function writeOrganization(
   const inventory = {
     company: options.slug,
     github_org: options.forge ?? options.slug,
-    module_slots: options.modules.map((module) => {
-      const slot: Slot = {
-        path: `workspace/${module.id}`,
-        slug: module.id,
-        ...module.slot,
-      };
-      if (module.teams !== undefined) slot.teams = module.teams;
-      return slot;
-    }),
+    module_slots: [
+      ...options.modules.map((module) => {
+        const slot: Slot = {
+          path: module.path ?? `workspace/${module.id}`,
+          slug: module.id,
+          ...module.slot,
+        };
+        if (module.teams !== undefined) slot.teams = module.teams;
+        return slot;
+      }),
+      ...(options.slots ?? []),
+    ],
   };
   const document = canonicalDocument(
     options.slug,
@@ -173,14 +182,22 @@ export async function writeOrganization(
       JSON.stringify(expected.projection),
     );
   for (const module of options.modules)
-    await writeModule(join(root, "workspace", module.id), options.slug, module);
+    await writeModule(
+      join(root, module.path ?? `workspace/${module.id}`),
+      options.slug,
+      module,
+    );
   return root;
 }
 
 // The fixture Folder of the slice: two Organizations (one `transition` with a
-// module in two Teams, one canonical-only `current`), one whose manifest
-// still uses the legacy Team alias, one invalid, one template, a file and a
-// hidden directory that are not candidates.
+// module in two Teams and a root-level application, one canonical-only
+// `current`), one whose manifest still uses the legacy Team alias, one
+// invalid, one template, a file and a hidden directory that are not
+// candidates. Beside its root-level application `mission-control`, alpha
+// declares `design-system` without a module manifest and the repository
+// slots `infra` and `mission-control/db`, which carry one: none of the three
+// is a module.
 export async function folderFixture(run: (folder: string) => Promise<void>) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "catalog-")));
   const folder = join(parent, "Lazurio");
@@ -194,7 +211,7 @@ export async function folderFixture(run: (folder: string) => Promise<void>) {
       coordination: "direct",
     });
     // folder-init creates organizations/ (and nothing in it).
-    await writeOrganization(folder, "alpha_GEN3", {
+    const alpha = await writeOrganization(folder, "alpha_GEN3", {
       slug: "alpha",
       state: "transition",
       teams: [
@@ -205,8 +222,20 @@ export async function folderFixture(run: (folder: string) => Promise<void>) {
         { id: "web", teams: ["core", "sales"] },
         { id: "docs", teams: ["core"], apps: false },
         { id: "shop", teams: "sales", broken: true },
+        { id: "mission-control", path: "mission-control", teams: ["core"] },
+      ],
+      slots: [
+        { path: "design-system", slug: "design-system" },
+        { path: "infra", slug: "infra" },
+        { path: "mission-control/db", slug: "mission-control-db" },
       ],
     });
+    await mkdir(join(alpha, "design-system"));
+    for (const [path, id] of [
+      ["infra", "infra"],
+      ["mission-control/db", "mission-control-db"],
+    ] as const)
+      await writeModule(join(alpha, path), "alpha", { id, apps: false });
     await writeOrganization(folder, "beta", {
       slug: "beta",
       state: "current",

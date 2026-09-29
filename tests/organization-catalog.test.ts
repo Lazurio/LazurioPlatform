@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { cp, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { cp, mkdtemp, realpath, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -18,7 +18,11 @@ import { runCatalogCommand } from "../src/organizations/cli";
 import { isExecutableOrganizationState } from "../src/organizations/root-resolution";
 import { type CliContext, installBase } from "../src/update/cli";
 import { renderLaunchpadUnit } from "../src/update/install";
-import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
+import {
+  folderFixture,
+  writeModule,
+  writeOrganization,
+} from "./fixtures/catalog-folder";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -87,6 +91,22 @@ posixTest(
                 executable: false,
                 reason: "default-app-invalid",
                 issues: ["teams-invalid"],
+              },
+              // A root-level application: a module like any other, at its
+              // slot path. design-system (no module manifest), infra and
+              // mission-control/db (repository slots) are not modules.
+              {
+                organization: "alpha",
+                module: "mission-control",
+                path: "mission-control",
+                teams: ["core"],
+                teamsSource: "teams",
+                apps: [
+                  { package: "app/package.json", kind: "runtime-declared" },
+                ],
+                defaultApp: "app/package.json",
+                state: "transition",
+                executable: true,
               },
             ],
           },
@@ -177,6 +197,7 @@ posixTest(
         "alpha/web",
         "alpha/docs",
         "alpha/shop",
+        "alpha/mission-control",
         "beta/api",
         "delta/crm",
         "delta/wiki",
@@ -263,6 +284,164 @@ posixTest(
 );
 
 posixTest(
+  "a root-level application is a module when declared with a module manifest, under the rules of a workspace module; repository slots and productionspace never are, and an id it shares with a workspace module is a declaration conflict",
+  async () => {
+    await folderFixture(async (folder) => {
+      // gamma: both root-level applications beside a workspace module, in
+      // declaration order, with the Teams their slots declare (none: the
+      // default Team); a productionspace repository with a manifest is not
+      // a module.
+      const gamma = await writeOrganization(folder, "gamma", {
+        slug: "gamma",
+        state: "transition",
+        modules: [
+          { id: "design-system", path: "design-system", apps: false },
+          { id: "web" },
+          { id: "mission-control", path: "mission-control" },
+        ],
+        slots: [{ path: "productionspace/firmware", slug: "firmware" }],
+      });
+      await mkdir(join(gamma, "productionspace"));
+      await writeModule(join(gamma, "productionspace/firmware"), "gamma", {
+        id: "firmware",
+      });
+      // epsilon: design-system is not declared, though its directory holds a
+      // valid manifest; mission-control's manifest is a link, refused by the
+      // checkout rule (decision F23) with its module-relative file.
+      const epsilon = await writeOrganization(folder, "epsilon", {
+        slug: "epsilon",
+        state: "transition",
+        modules: [
+          { id: "web" },
+          { id: "mission-control", path: "mission-control" },
+        ],
+      });
+      await writeModule(join(epsilon, "design-system"), "epsilon", {
+        id: "design-system",
+      });
+      const linked = join(epsilon, "mission-control", "lazurio.module.json");
+      await rename(linked, join(epsilon, "mission-control", "module.json"));
+      await symlink("module.json", linked);
+      // zeta: a workspace module and a root-level application declare one id;
+      // neither is picked. design-system's directory is a link.
+      const zeta = await writeOrganization(folder, "zeta", {
+        slug: "zeta",
+        state: "transition",
+        modules: [
+          { id: "mission-control" },
+          { id: "mission-control", path: "mission-control" },
+          { id: "design-system", path: "design-system" },
+        ],
+      });
+      await rename(join(zeta, "design-system"), join(zeta, "styles"));
+      await symlink("styles", join(zeta, "design-system"));
+      // eta: mission-control's manifest declares another id; design-system is
+      // declared and not checked out.
+      const eta = await writeOrganization(folder, "eta", {
+        slug: "eta",
+        state: "transition",
+        modules: [{ id: "mission-control", path: "mission-control" }],
+        slots: [{ path: "design-system", slug: "design-system" }],
+      });
+      const manifest = join(eta, "mission-control", "lazurio.module.json");
+      await writeFile(
+        manifest,
+        JSON.stringify({
+          ...JSON.parse(await Bun.file(manifest).text()),
+          id: "planner",
+        }),
+      );
+
+      const catalog = await readFolderCatalog(folder);
+      const rows = (name: string) =>
+        findCatalogOrganization(catalog, name)?.modules.map((module) => [
+          module.module,
+          module.path,
+          module.teams.join(","),
+          module.executable ? "executable" : module.reason,
+          ...(module.file === undefined ? [] : [module.file]),
+        ]);
+      expect(rows("gamma")).toEqual([
+        ["design-system", "design-system", "workspace", "no-app"],
+        ["web", "workspace/web", "workspace", "executable"],
+        ["mission-control", "mission-control", "workspace", "executable"],
+      ]);
+      expect(findCatalogOrganization(catalog, "gamma")).toMatchObject({
+        executable: true,
+        issues: [],
+      });
+      expect(rows("epsilon")).toEqual([
+        ["web", "workspace/web", "workspace", "executable"],
+        [
+          "mission-control",
+          "mission-control",
+          "workspace",
+          "declaration-not-regular",
+          "lazurio.module.json",
+        ],
+      ]);
+      expect(rows("zeta")).toEqual([
+        [
+          "mission-control",
+          "workspace/mission-control",
+          "workspace",
+          "declaration-conflict",
+        ],
+        [
+          "mission-control",
+          "mission-control",
+          "workspace",
+          "declaration-conflict",
+        ],
+        [
+          "design-system",
+          "design-system",
+          "workspace",
+          "directory-not-regular",
+          ".",
+        ],
+      ]);
+      expect(findCatalogOrganization(catalog, "zeta")?.issues).toEqual([
+        "repository-id-collision",
+      ]);
+      expect(rows("eta")).toEqual([
+        [
+          "mission-control",
+          "mission-control",
+          "workspace",
+          "module-unavailable",
+        ],
+      ]);
+      // `module list` shows the same rows, by the manifest id at the slot
+      // path; infra, mission-control/db and productionspace are never there.
+      const home = join(folder, "..", "home");
+      await mkdir(home);
+      const listed = await runCatalogCommand(
+        ["module", "list", "--folder", folder, "--json"],
+        cliContext(home),
+      );
+      const names = (
+        JSON.parse(listed.text) as {
+          modules: { organization: string; module: string; path: string }[];
+        }
+      ).modules.map((module) => `${module.organization}:${module.path}`);
+      expect(names).toContain("alpha:mission-control");
+      expect(names).toContain("gamma:design-system");
+      for (const path of [
+        "infra",
+        "mission-control/db",
+        "productionspace/firmware",
+      ])
+        expect(names.some((name) => name.endsWith(`:${path}`))).toBe(false);
+      expect(names).not.toContain("alpha:design-system");
+      expect(names).not.toContain("epsilon:design-system");
+      expect(names).not.toContain("eta:design-system");
+    });
+  },
+  30_000,
+);
+
+posixTest(
   "a Folder without organizations/ has an empty catalog; an unowned Folder is refused",
   async () => {
     const parent = await realpath(await mkdtemp(join(tmpdir(), "catalog-")));
@@ -323,7 +502,7 @@ posixTest(
         (await run(["organization", "list", "--folder", folder])).text,
       ).toBe(
         [
-          "alpha    transition  3 modules  executable",
+          "alpha    transition  4 modules  executable",
           `beta     current     1 module   ${beta}`,
           "broken   conflict    0 modules  organization-conflict",
           "delta    transition  4 modules  executable",
@@ -333,14 +512,15 @@ posixTest(
       );
       expect((await run(["module", "list", "--folder", folder])).text).toBe(
         [
-          "alpha/web   core,sales  app/package.json  executable",
-          "alpha/docs  core        -                 no-app",
-          "alpha/shop  workspace   app/package.json  default-app-invalid",
-          `beta/api    workspace   app/package.json  ${beta}`,
-          "delta/crm   sales,core  -                 no-app",
-          "delta/wiki  core        -                 no-app",
-          "delta/misc  workspace   -                 no-app",
-          "delta/pos   core        -                 no-app",
+          "alpha/web              core,sales  app/package.json  executable",
+          "alpha/docs             core        -                 no-app",
+          "alpha/shop             workspace   app/package.json  default-app-invalid",
+          "alpha/mission-control  core        app/package.json  executable",
+          `beta/api               workspace   app/package.json  ${beta}`,
+          "delta/crm              sales,core  -                 no-app",
+          "delta/wiki             core        -                 no-app",
+          "delta/misc             workspace   -                 no-app",
+          "delta/pos              core        -                 no-app",
           legacyNote,
         ].join("\n"),
       );
