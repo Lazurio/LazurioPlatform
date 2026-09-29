@@ -149,59 +149,19 @@ export async function observeOrganizationApplications(
           path = join(path, segment);
           await inspectOwnedDirectory(path);
         }
-        const moduleBefore = await inspectOwnedDirectory(path);
-        const manifest = await readOwnedJson(join(path, "lazurio.module.json"));
-        const module = parseModuleManifest(manifest);
-        if (module.company !== company || module.id !== slot.id)
-          throw new Error("Module identity conflict");
-        if (module.apps === null) {
-          entries.push(
-            Object.freeze({
-              ...identity,
-              kind: "explicit-apps-required" as const,
-            }),
-          );
-          continue;
-        }
-        const apps = [];
-        for (const pkg of module.apps) {
-          try {
-            const app = await readModuleApplication(path, pkg);
-            if (
-              app.kind !== "declared-runtime-plan" ||
-              app.runtime.company !== company ||
-              app.runtime.module !== slot.id
-            )
-              throw new Error("Application declaration unavailable");
-            apps.push(
-              Object.freeze({
-                package: pkg,
-                kind: "runtime-declared" as const,
-              }),
-            );
-          } catch {
-            apps.push(
-              Object.freeze({ package: pkg, kind: "invalid-runtime" as const }),
-            );
-          }
-        }
-        const after = await inspectOwnedDirectory(path);
-        if (
-          moduleBefore.dev !== after.dev ||
-          moduleBefore.ino !== after.ino ||
-          organizationDocumentHash(manifest) !==
-            organizationDocumentHash(
-              await readOwnedJson(join(path, "lazurio.module.json")),
-            )
-        )
-          throw new Error("Module changed during observation");
+        const observed = await observeModuleDirectory(
+          path,
+          (module) => module.company === company && module.id === slot.id,
+        );
         entries.push(
-          Object.freeze({
-            ...identity,
-            kind: "module-observed" as const,
-            defaultApp: module.default_app,
-            apps: Object.freeze(apps),
-          }),
+          observed.kind === "module-observed"
+            ? Object.freeze({
+                ...identity,
+                kind: observed.kind,
+                defaultApp: observed.defaultApp,
+                apps: observed.apps,
+              })
+            : Object.freeze({ ...identity, kind: observed.kind }),
         );
       } catch {
         entries.push(
@@ -241,4 +201,57 @@ export async function observeOrganizationApplications(
     // No raw manifest content, environment, script or filesystem error in output.
     return unavailable();
   }
+}
+
+/** One module directory's declaration, the reader Organization slots and the
+ * Personalspace share (launchpad-parity B1, B11): `lazurio.module.json`, and
+ * for each declared app whether its runtime declaration names this module,
+ * unchanged during the read. `accept` is the caller's identity rule; a
+ * module it refuses, and anything unreadable, throws. The caller inspects the
+ * parents of `path`. No raw content leaves this function. */
+export async function observeModuleDirectory(
+  path: string,
+  accept: (module: Readonly<{ id: string; company: string }>) => boolean,
+) {
+  const moduleBefore = await inspectOwnedDirectory(path);
+  const manifest = await readOwnedJson(join(path, "lazurio.module.json"));
+  const module = parseModuleManifest(manifest);
+  if (!accept(module)) throw new Error("Module identity conflict");
+  if (module.apps === null)
+    return Object.freeze({ kind: "explicit-apps-required" as const });
+  const apps = [];
+  for (const pkg of module.apps) {
+    try {
+      const app = await readModuleApplication(path, pkg);
+      if (
+        app.kind !== "declared-runtime-plan" ||
+        app.runtime.company !== module.company ||
+        app.runtime.module !== module.id
+      )
+        throw new Error("Application declaration unavailable");
+      apps.push(
+        Object.freeze({ package: pkg, kind: "runtime-declared" as const }),
+      );
+    } catch {
+      apps.push(
+        Object.freeze({ package: pkg, kind: "invalid-runtime" as const }),
+      );
+    }
+  }
+  const after = await inspectOwnedDirectory(path);
+  if (
+    moduleBefore.dev !== after.dev ||
+    moduleBefore.ino !== after.ino ||
+    organizationDocumentHash(manifest) !==
+      organizationDocumentHash(
+        await readOwnedJson(join(path, "lazurio.module.json")),
+      )
+  )
+    throw new Error("Module changed during observation");
+  return Object.freeze({
+    kind: "module-observed" as const,
+    company: module.company,
+    defaultApp: module.default_app,
+    apps: Object.freeze(apps),
+  });
 }

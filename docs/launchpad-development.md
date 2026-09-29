@@ -185,6 +185,43 @@ workstation without a unit names it. Human output is aligned columns as in
 `organization list --json`), behind the same admission as every other route: the
 fragment token locally, the gateway's cookie hosted.
 
+**The Personalspace group (P13, launchpad-parity B11).** On a preset that has a
+Personalspace (`local`, `hosted-personal`: `personalspace: "present"` in
+`src/folder/presets.ts`) the catalog carries one more group, `personalspace`, with the
+modules in `<Folder>/personalspace/<owner>/workspace/<module>/`, the glob the
+Machines gateway serves (`M:workloads/workspace-vm/gateway-catalog.py:106-107`, where
+the module id is the manifest's `id`, `:139-148`). An Organization preset never reads
+`personalspace/`; nor does a Folder whose state cannot be read (fail closed). The
+preset is read from `preferences.json` without the Folder lock, as `observeFolder`
+reads it: its Personalspace policy never changes for a Folder, because each Machine
+kind allows only presets of one policy. There is no Organization manifest and no new
+state: a directory in `workspace/` named like a module id that holds a
+`lazurio.module.json` is a module, its declared `id` must be its directory name, and
+it is read by the same module reader as an Organization slot
+(`observeModuleDirectory` in `src/organizations/read-applications.ts`), with the same
+module reasons. Executable means the module's own declaration admits a start of its
+default app; there are no Teams (`teams: []`, `teamsSource: "none"`), no root state
+(`state: null`) and no company check against an identity, since nothing but the
+module declares one. The group has the shape of an Organization named
+`personalspace` (`directory`, `organization` and the modules' `organization` are that
+literal; the owner's directory name is never in any output) and sits in the catalog's
+own `personalspace` field, not in `organizations`, so no reader of Organizations (the
+Doctor's checks, the table of `organization list`) lists it by accident; `module
+list`, the selection rule (`catalogGroups` in `catalog-selection.ts`) and the page add
+it after the Organizations. Exactly one owner directory is expected (hidden entries
+are skipped): with two or more, which one is the Principal's is not guessed, none is
+read, and the group is listed with `personalspace-ambiguous` and no modules (decision
+0091); an owner directory or `workspace/` that is not the operator's own is
+`personalspace-unavailable`. An Organization whose slug is `personalspace` is
+ambiguous with the group under the selection rule. The resident addressed these apps
+as `<owner login>/<module>` (its `company` was the owner,
+`R:lazurio/runtime/personalspace-lib.mjs:1126`, selected by
+`R:lazurio/core/module-lifecycle-client-lib.mjs:297,385`) and its CLI refused them on a
+personal server (`:76`); the Platform names them `personalspace/<module>` instead, so
+no output carries the login. The company a module declares is still part of its
+transient unit's readable name (`applicationUnitName`), as it was in the resident's
+inventory.
+
 **Routes.** `/` is every Organization's modules with their default app; `/o/<org>` one
 Organization (directory, resolution state, Teams, issues, then its modules per Team);
 `/o/<org>/<module>` one module (Organization, Teams, apps with the default marked,
@@ -370,7 +407,7 @@ characters escaped), Czech or English by the Folder's locale.
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
 | tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `signIn`/`ssh` ids with `--sign-in` |
-| organizations | `catalog` | `readFolderCatalog` | counts; `warn catalog-unreadable` |
+| organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
 | organizations | `module` | catalog entry | `warn` with the module or Organization reason |
 | launchpad | `launchpad-unit` | `collectRecovery` unit (Linux, supervised) | `fail unit-*`; `skipped no-user-manager`, `not-supervised` |
@@ -435,8 +472,9 @@ loopback port gains nothing without the session cookie, and the browser never re
 the namespace because the gateway answers 404 for it on every public hostname
 (`ingress.ts:54-57`). No fragment token, no forwarded identity header.
 
-**Which app.** The id must name a module of exactly one Organization of the catalog;
-every Organization that lists it counts, runnable or not, because the gateway serves the
+**Which app.** The id must name a module of exactly one Organization of the catalog,
+the Personalspace group counting as one (`personalspace` in `candidates`);
+every group that lists it counts, runnable or not, because the gateway serves the
 id at one hostname and routes it to one of their declared ports. Two or more:
 `module-ambiguous` with every candidate's directory (the fix is `{organization}` in
 Machines' origin template, launchpad-parity B4). Then the catalog's own rules, as for
@@ -523,6 +561,24 @@ hosted, the fragment token locally):
 | `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate} \| null}`: the recorded entry's public parts, read-only; the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
 | `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON or a credential of another shape); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
 
+**CLI.** `lazurio chat link [--folder <absolute Folder>] [--plain] [--json]`
+(`src/launchpad/chat-cli.ts`) is the same entry for an agent in a terminal: it reads the
+Folder's recorded entry as the Launchpad start does (`readStartState`, without the lock,
+so it writes nothing), found as for `lazurio doctor` (`--folder`, the supervised unit's,
+or on a hosted Machine the declared operator's), and answers from the same
+`issueChatLink` with the same tools environment (`toolsEnvironmentOf`, this process's
+`PATH` and `HOME`), through `chatLinkAnswer` in `src/launchpad/chat.ts`. With a pairing
+the link `<t3codeOrigin>/pair#token=…` alone is on stdout, for the operator's browser;
+without one, on `t3-launcher-missing`, `t3-pairing-failed` or with `--plain`
+(`plain-requested`), stdout carries the plain `t3codeOrigin`, where T3 Code asks the
+browser to pair, and stderr one sentence naming the reason, in the Folder's language.
+Without a recorded entry (`not-hosted`) there is no link: exit 10 and the sentence on
+stderr. `--json` prints `{kind: "chat-link", url, pairing, reason?}` (`url: null` when
+not hosted). Stderr never carries the token. Exit status: 0 a link (paired or plain), 10
+not hosted, 2 usage, 1 the Folder could not be read (its enumerated start refusal, never
+a path). The generated manual tells agents on a hosted Machine to hand this link to the
+operator, never a localhost one (base-instructions-13).
+
 **Page.** `src/launchpad/chat-view.ts` (pure, tested) accepts the entry only in the
 recorded shapes and a pairing link only on the recorded T3 Code origin, path `/pair`, no
 query, a `token` fragment. The Chat link's `href` is `t3codeOrigin` itself, so a modified
@@ -543,8 +599,8 @@ environment; without it Chat stays visible and opens the plain origin instead of
 (the resident's button was either configured or hidden; here the entry decides whether
 there is a T3 Code, the launcher only whether the browser is paired on the way). A
 refused pairing answers 409 with a reason instead of 502 with the resident's
-`t3_pairing_*` codes, as every blocked Platform answer. `lazurio chat link` (B8's CLI and
-C.5 item 10) is not in this slice.
+`t3_pairing_*` codes, as every blocked Platform answer. `lazurio chat link` came in a
+follow-up of the slice (above).
 
 **Verification 2026-09-28.** `tests/launchpad-chat.test.ts`: a hosted Folder from the
 handover fixture behind a fake auth endpoint (`/api/entry` 401 without the cookie, the
@@ -563,6 +619,15 @@ for the hosted case: absent on the workstation; `href` the recorded origin on th
 Settings and the Recovery page; a click landing on the pair URL, and on the plain origin
 when the pairing is refused. A real gateway, a real T3 Code and the launcher of
 DEV-6624 were **not** exercised; that is C.5 items 10 and 14.
+`tests/chat-link-cli.test.ts` (the CLI): a hosted Folder from the handover fixture with a
+fake launcher on a private PATH (the pairing link on the recorded origin, the resident's
+exact arguments, human and `--json` answering the same link, nothing written in the
+home), the launcher missing (the plain origin with `t3-launcher-missing`, nothing run), a
+failing call whose stderr holds the credential (`t3-pairing-failed`, the credential in
+neither stream), `--plain` (nothing run), a workstation Folder and no Folder (exit 10,
+`not-hosted`), usage and an unreadable Folder, and the real command line in a child
+process with `HOME`, `PATH` and XDG in temporary directories (the link alone on stdout,
+no token on stderr).
 
 ## Tools section
 

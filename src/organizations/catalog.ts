@@ -1,7 +1,14 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
-import { selectCatalogOrganization } from "./catalog-selection";
+import { catalogGroups, selectCatalogOrganization } from "./catalog-selection";
+import {
+  folderHasPersonalspace,
+  locatePersonalspace,
+  observePersonalspaceModule,
+  personalspaceModuleIds,
+  personalspaceName,
+} from "./personalspace";
 import { observeOrganizationApplications } from "./read-applications";
 import type { OrganizationRootState } from "./root-resolution";
 
@@ -32,6 +39,16 @@ export type OrganizationReason =
    * case-insensitive): `<Org>/<Module>` would be ambiguous. */
   | "organization-duplicate";
 
+/** Why the Personalspace group's modules cannot be listed (launchpad-parity
+ * B11). */
+export type PersonalspaceReason =
+  /** More than one directory in `personalspace/`: which one is the
+   * Principal's is not guessed, and none of them is read (decision 0091). */
+  | "personalspace-ambiguous"
+  /** `personalspace/` or its owner directory is not a caller-owned,
+   * non-shared, stable directory, or unreadable. */
+  | "personalspace-unavailable";
+
 /** Why one module cannot run, when its Organization can. */
 export type ModuleReason =
   | "declaration-conflict"
@@ -47,8 +64,9 @@ export type CatalogApp = Readonly<{
 
 /** Where a module's Team membership comes from: the canonical
  * `module_slots[].teams`, the legacy alias (`workspaces`, then the singular
- * `workspace`) read for compatibility, or neither (the default Team). */
-export type TeamsSource = "teams" | "legacy-alias" | "default";
+ * `workspace`) read for compatibility, or neither (the default Team). A
+ * Personalspace module has no Teams at all (`none`). */
+export type TeamsSource = "teams" | "legacy-alias" | "default" | "none";
 
 /** The Team of a workspace module that declares none (decision 0041). */
 export const defaultTeam = "workspace";
@@ -57,12 +75,15 @@ export type CatalogModule = Readonly<{
   organization: string;
   module: string;
   path: string;
-  /** Team slugs, N:M, in declaration order; never empty (see `teamsSource`). */
+  /** Team slugs, N:M, in declaration order; never empty for an Organization
+   * module (see `teamsSource`), empty for a Personalspace module. */
   teams: readonly string[];
   teamsSource: TeamsSource;
   apps: readonly CatalogApp[];
   defaultApp: string | null;
-  state: OrganizationRootState;
+  /** The Organization root's state; null for a Personalspace module, which
+   * has no Organization documents. */
+  state: OrganizationRootState | null;
   executable: boolean;
   reason?: OrganizationReason | ModuleReason;
   /** `teams-invalid` when the declared membership is not a list of slugs. */
@@ -72,7 +93,9 @@ export type CatalogModule = Readonly<{
 export type CatalogTeam = Readonly<{ slug: string; displayName: string }>;
 
 export type CatalogOrganization = Readonly<{
-  /** The candidate's directory name under `organizations/`. */
+  /** The candidate's directory name under `organizations/`; for the
+   * Personalspace group the literal `personalspace`, never the owner's
+   * directory. */
   directory: string;
   /** The canonical slug; null when the root could not be read. */
   organization: string | null;
@@ -80,7 +103,7 @@ export type CatalogOrganization = Readonly<{
   state: OrganizationRootState | null;
   issues: readonly string[];
   executable: boolean;
-  reason?: OrganizationReason;
+  reason?: OrganizationReason | PersonalspaceReason;
   teams: readonly CatalogTeam[];
   modules: readonly CatalogModule[];
 }>;
@@ -88,6 +111,12 @@ export type CatalogOrganization = Readonly<{
 export type Catalog = Readonly<{
   kind: "catalog";
   organizations: readonly CatalogOrganization[];
+  /** The Personalspace group (launchpad-parity B11), in the shape of an
+   * Organization named `personalspace`: only on a preset that has a
+   * Personalspace, and only when `personalspace/` holds an owner directory.
+   * Kept apart from `organizations` so that no reader of Organizations (the
+   * Doctor, `organization list`) ever lists its modules by accident. */
+  personalspace?: CatalogOrganization;
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -157,6 +186,21 @@ function slotTeams(slot: unknown): {
     : { teams, source: canonical ? "teams" : "legacy-alias", invalid };
 }
 
+// Whether a module's own declaration admits a start of its default app: the
+// reader's kind, then a default app that is declared with a valid runtime.
+function moduleReason(
+  kind: ModuleReason | "module-observed",
+  defaultApp: string | null,
+  apps: readonly CatalogApp[],
+): ModuleReason | undefined {
+  if (kind !== "module-observed") return kind;
+  if (defaultApp === null) return "no-app";
+  return apps.find((app) => app.package === defaultApp)?.kind !==
+    "runtime-declared"
+    ? "default-app-invalid"
+    : undefined;
+}
+
 function failed(
   directory: string,
   reason: OrganizationReason,
@@ -224,15 +268,7 @@ export async function readCatalogOrganization(
         : [];
     const defaultApp =
       entry.kind === "module-observed" ? entry.defaultApp : null;
-    const own: ModuleReason | undefined =
-      entry.kind !== "module-observed"
-        ? entry.kind
-        : defaultApp === null
-          ? "no-app"
-          : apps.find((app) => app.package === defaultApp)?.kind !==
-              "runtime-declared"
-            ? "default-app-invalid"
-            : undefined;
+    const own = moduleReason(entry.kind, defaultApp, apps);
     // The Organization's gate comes first: it applies before any module.
     const reason = executable ? own : "organization-not-executable";
     return [
@@ -306,9 +342,73 @@ function isolateDuplicates(
   );
 }
 
+// The Personalspace group, in the shape of an Organization named
+// `personalspace` (launchpad-parity B11): no Organization documents, so no
+// state, Teams or issues; executable means the module's own declaration
+// admits a start of its default app. Never throws.
+async function readCatalogPersonalspace(
+  folder: string,
+): Promise<CatalogOrganization | undefined> {
+  if (!(await folderHasPersonalspace(folder))) return undefined;
+  const located = await locatePersonalspace(folder);
+  if (located.kind === "absent") return undefined;
+  const group = (
+    modules: readonly CatalogModule[],
+    reason?: PersonalspaceReason,
+  ): CatalogOrganization =>
+    Object.freeze({
+      directory: personalspaceName,
+      organization: personalspaceName,
+      displayName: "Personalspace",
+      state: null,
+      issues: Object.freeze([]),
+      executable: reason === undefined,
+      ...(reason === undefined ? {} : { reason }),
+      teams: Object.freeze([]),
+      modules: Object.freeze(modules),
+    });
+  if (located.kind === "blocked") return group([], located.reason);
+  let ids: string[];
+  try {
+    ids = await personalspaceModuleIds(located.directory);
+  } catch {
+    return group([], "personalspace-unavailable");
+  }
+  const modules = await Promise.all(
+    ids.map(async (id): Promise<CatalogModule> => {
+      const observed = await observePersonalspaceModule(located.directory, id)
+        .then((read) => read.observed)
+        .catch(() => ({ kind: "module-unavailable" as const }));
+      const apps =
+        observed.kind === "module-observed"
+          ? observed.apps.map((app) =>
+              Object.freeze({ package: app.package, kind: app.kind }),
+            )
+          : [];
+      const defaultApp =
+        observed.kind === "module-observed" ? observed.defaultApp : null;
+      const reason = moduleReason(observed.kind, defaultApp, apps);
+      return Object.freeze({
+        organization: personalspaceName,
+        module: id,
+        path: `workspace/${id}`,
+        teams: Object.freeze([]),
+        teamsSource: "none",
+        apps: Object.freeze(apps),
+        defaultApp,
+        state: null,
+        executable: reason === undefined,
+        ...(reason === undefined ? {} : { reason }),
+      });
+    }),
+  );
+  return group(modules);
+}
+
 /** The catalog of one Folder. Throws only when the Folder itself is not a
  * caller-owned, non-shared directory; a Folder without `organizations/` has
- * an empty catalog, and every candidate below it fails on its own. */
+ * no Organizations, and every candidate below it fails on its own. On a
+ * preset that has a Personalspace the catalog also carries its group. */
 export async function readFolderCatalog(folder: string): Promise<Catalog> {
   await inspectOwnedDirectory(folder);
   const root = join(folder, "organizations");
@@ -319,8 +419,15 @@ export async function readFolderCatalog(folder: string): Promise<Catalog> {
       throw error;
     },
   );
+  const personalspace = await readCatalogPersonalspace(folder);
+  const withPersonalspace =
+    personalspace === undefined ? {} : { personalspace };
   if (!present)
-    return Object.freeze({ kind: "catalog", organizations: Object.freeze([]) });
+    return Object.freeze({
+      kind: "catalog",
+      organizations: Object.freeze([]),
+      ...withPersonalspace,
+    });
   await inspectOwnedDirectory(root);
   const names = (await readdir(root, { withFileTypes: true }))
     // A directory, or a link that may name one (the reader refuses links and
@@ -340,15 +447,17 @@ export async function readFolderCatalog(folder: string): Promise<Catalog> {
   return Object.freeze({
     kind: "catalog",
     organizations: Object.freeze(isolateDuplicates(organizations)),
+    ...withPersonalspace,
   });
 }
 
-/** Every module of the catalog, optionally of one Organization. */
+/** Every module of the catalog, the Personalspace's last, optionally of one
+ * Organization or of the Personalspace group. */
 export function catalogModules(
   catalog: Catalog,
   organization?: CatalogOrganization,
 ): readonly CatalogModule[] {
-  return (organization ? [organization] : catalog.organizations).flatMap(
+  return (organization ? [organization] : catalogGroups(catalog)).flatMap(
     (entry) => entry.modules,
   );
 }

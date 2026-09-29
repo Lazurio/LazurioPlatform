@@ -36,9 +36,12 @@ import {
   type LoginEnvironment,
   type LoginState,
 } from "../tools/login";
-import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
+import {
+  type ToolsEnvironment,
+  toolsEnvironmentOf,
+  toolsOverview,
+} from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
-import { runTool, xdgOf } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { issueChatLink, publicEntry } from "./chat";
 import { serveHealthSocket } from "./health-socket";
@@ -156,13 +159,10 @@ export async function startLaunchpad(
   // Where the tools screen reads its live facts: this process's PATH and
   // home, as `lazurio tools status` does. Trusted composition, never HTTP
   // input.
-  toolsEnvironment: ToolsEnvironment = {
-    path: process.env.PATH,
-    home: process.env.HOME,
-    xdg: xdgOf(process.env),
-    platform: process.platform,
-    run: runTool,
-  },
+  toolsEnvironment: ToolsEnvironment = toolsEnvironmentOf(
+    process.env,
+    process.platform,
+  ),
   // Test seams of the curated install and login (decision F19): the
   // official-source fetcher, the architecture and the login timings.
   curatedOptions: Readonly<{

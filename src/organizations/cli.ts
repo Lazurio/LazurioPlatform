@@ -23,15 +23,20 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   and never run. Reads only; nothing is written, fetched or started. The
   Folder is --folder, otherwise the supervised unit's, or on a hosted Machine
   the declared operator's (as for lazurio update). --json prints the whole
-  catalog, modules included.
+  catalog, modules included, and on a Folder with a Personalspace its group
+  (personalspace), which is not an Organization and is not in the table.
 module list [<Organization>] [--folder <absolute Folder>] [--json]
   The workspace modules of every Organization, or of the one named by its
   slug or directory name: <Organization>/<module>, its Teams, its default app
   and whether it may run or the typed reason why not. Teams come from
   module_slots[].teams; an older manifest's legacy alias (workspaces, then
   workspace) is read for compatibility and named once per Organization; a
-  module that declares none is in the default Team workspace. Same Folder and
-  rules as organization list.
+  module that declares none is in the default Team workspace. On a Folder
+  with a Personalspace (the local and hosted-personal presets) the modules in
+  personalspace/<owner>/workspace/ follow as personalspace/<module>, with no
+  Teams; name the group personalspace to list only them. More than one
+  directory in personalspace/ is refused (personalspace-ambiguous) and none
+  of them is read. Same Folder and rules as organization list.
 Exit status: 0 listed, 2 usage, unknown Organization or no Folder known,
 1 the Folder could not be read.`;
 

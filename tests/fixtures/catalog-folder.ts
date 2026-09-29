@@ -62,6 +62,65 @@ export function canonicalDocument(
 }
 
 let port = 4400;
+
+// One module directory: its lazurio.module.json, and unless app-less its
+// app's package.json with the runtime declaration, all declaring `company`.
+export async function writeModule(
+  path: string,
+  company: string,
+  module: ModuleFixture,
+) {
+  await mkdir(join(path, "app"), { recursive: true });
+  const apps = module.apps !== false;
+  await writeFile(
+    join(path, "lazurio.module.json"),
+    JSON.stringify({
+      schema_version: "lazurio.module.v1",
+      id: module.id,
+      company,
+      tcp_port_policy: { mode: apps ? "single" : "none" },
+      port_leases: apps
+        ? [{ id: "main", host: "127.0.0.1", port: port++ }]
+        : [],
+      apps: apps ? ["app/package.json"] : [],
+      ...(apps ? { default_app: "app/package.json" } : {}),
+    }),
+  );
+  if (!apps) return;
+  await writeFile(
+    join(path, "app/package.json"),
+    JSON.stringify({
+      name: `fixture-${module.id}`,
+      scripts: { dev: "must never execute" },
+      ...(module.broken
+        ? {}
+        : {
+            lazurio: {
+              runtime: {
+                schema_version: "lazurio.runtime.v1",
+                id: module.id,
+                title: module.id,
+                company,
+                module: module.id,
+                surface: "internal",
+                dev_script: "dev",
+                tags: [],
+                listeners: [
+                  {
+                    id: "web",
+                    role: "entrypoint",
+                    lease: "main",
+                    protocol: "http",
+                    health: { kind: "http", path: "/" },
+                  },
+                ],
+              },
+            },
+          }),
+    }),
+  );
+}
+
 // One Organization root in <Folder>/organizations/<directory>: canonical
 // documents, the exact projection for `transition`, none for `current`.
 export async function writeOrganization(
@@ -113,58 +172,8 @@ export async function writeOrganization(
       join(root, "company.gen3.json"),
       JSON.stringify(expected.projection),
     );
-  for (const module of options.modules) {
-    const path = join(root, "workspace", module.id);
-    await mkdir(join(path, "app"), { recursive: true });
-    const apps = module.apps !== false;
-    await writeFile(
-      join(path, "lazurio.module.json"),
-      JSON.stringify({
-        schema_version: "lazurio.module.v1",
-        id: module.id,
-        company: options.slug,
-        tcp_port_policy: { mode: apps ? "single" : "none" },
-        port_leases: apps
-          ? [{ id: "main", host: "127.0.0.1", port: port++ }]
-          : [],
-        apps: apps ? ["app/package.json"] : [],
-        ...(apps ? { default_app: "app/package.json" } : {}),
-      }),
-    );
-    if (!apps) continue;
-    await writeFile(
-      join(path, "app/package.json"),
-      JSON.stringify({
-        name: `fixture-${module.id}`,
-        scripts: { dev: "must never execute" },
-        ...(module.broken
-          ? {}
-          : {
-              lazurio: {
-                runtime: {
-                  schema_version: "lazurio.runtime.v1",
-                  id: module.id,
-                  title: module.id,
-                  company: options.slug,
-                  module: module.id,
-                  surface: "internal",
-                  dev_script: "dev",
-                  tags: [],
-                  listeners: [
-                    {
-                      id: "web",
-                      role: "entrypoint",
-                      lease: "main",
-                      protocol: "http",
-                      health: { kind: "http", path: "/" },
-                    },
-                  ],
-                },
-              },
-            }),
-      }),
-    );
-  }
+  for (const module of options.modules)
+    await writeModule(join(root, "workspace", module.id), options.slug, module);
   return root;
 }
 
@@ -242,4 +251,18 @@ export async function folderFixture(run: (folder: string) => Promise<void>) {
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
+}
+
+/** A module of the Personalspace (launchpad-parity B11) in
+ * <Folder>/personalspace/<owner>/workspace/<id>, declaring `company`. */
+export async function writePersonalspaceModule(
+  folder: string,
+  owner: string,
+  company: string,
+  module: ModuleFixture,
+) {
+  const path = join(folder, "personalspace", owner, "workspace", module.id);
+  await mkdir(path, { recursive: true });
+  await writeModule(path, company, module);
+  return path;
 }

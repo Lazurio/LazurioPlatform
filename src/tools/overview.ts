@@ -12,10 +12,12 @@ import {
   toolPrompt,
 } from "./catalog";
 import {
+  runTool,
   type ToolRunner,
   type ToolSignIn,
   toolsSignIn,
   toolsStatus,
+  xdgOf,
 } from "./status";
 
 /** Where the live facts are read: the PATH and home of the process that
@@ -28,6 +30,23 @@ export type ToolsEnvironment = Readonly<{
   platform: string;
   run: ToolRunner;
 }>;
+
+/** The tools environment of a process: its PATH, home and XDG base
+ * directories, as the Launchpad, `lazurio doctor` and `lazurio chat link`
+ * read them. */
+export function toolsEnvironmentOf(
+  env: Readonly<Record<string, string | undefined>>,
+  platform: string,
+  run: ToolRunner = runTool,
+): ToolsEnvironment {
+  return {
+    path: env.PATH,
+    home: env.HOME,
+    xdg: xdgOf(env),
+    platform,
+    run,
+  };
+}
 
 export type ToolOverview = Readonly<{
   name: string;

@@ -48,13 +48,20 @@ export async function runnable(
   id: string,
   check = "process.exit(0);",
 ) {
-  const moduleDirectory = join(
-    folder,
-    "organizations",
-    directory,
-    "workspace",
-    id,
+  return runnableModule(
+    join(folder, "organizations", directory, "workspace", id),
+    join(folder, ".."),
+    check,
   );
+}
+
+/** `runnable` for any module directory, such as a Personalspace module;
+ * `home` is the HOME of the lockfile install. */
+export async function runnableModule(
+  moduleDirectory: string,
+  home: string,
+  check = "process.exit(0);",
+) {
   const manifest = JSON.parse(
     await readFile(join(moduleDirectory, "lazurio.module.json"), "utf8"),
   );
@@ -86,7 +93,7 @@ export async function runnable(
   );
   const install = Bun.spawn([process.execPath, "install", "--lockfile-only"], {
     cwd: app,
-    env: { HOME: join(folder, ".."), PATH: "/usr/bin:/bin" },
+    env: { HOME: home, PATH: "/usr/bin:/bin" },
     stdout: "ignore",
     stderr: "pipe",
   });

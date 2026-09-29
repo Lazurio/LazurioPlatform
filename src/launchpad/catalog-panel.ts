@@ -4,7 +4,10 @@ import type {
   CatalogModule,
   CatalogOrganization,
 } from "../organizations/catalog";
-import { catalogOrganizationKey } from "../organizations/catalog-selection";
+import {
+  catalogGroups,
+  catalogOrganizationKey,
+} from "../organizations/catalog-selection";
 import {
   catalogSelection,
   catalogStatus,
@@ -31,7 +34,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Organizations are the sidebar's groups (T3's projects), their modules its
 // rows with a status dot (T3's threads), a subheader per Team; the main view
 // shows every module (`/`), one Organization (`/o/<org>`) or one module
-// (`/o/<org>/<module>`). Every value from the server is drawn with
+// (`/o/<org>/<module>`). On a preset with a Personalspace its modules are one
+// more group, `personalspace`, after the Organizations (B11). Every value from the server is drawn with
 // textContent. The module page carries the module lifecycle (slice P5): the
 // status of its app with a dot, the one primary action (Start or Stop) and
 // Open while the app reports a link, over `/api/modules/<org>/<module>/…`,
@@ -250,9 +254,10 @@ export function createCatalogPanel(
 
   function overview(value: Catalog): Node[] {
     const copy = options.copy();
-    if (value.organizations.length === 0)
+    const groups = catalogGroups(value);
+    if (groups.length === 0)
       return [element("p", "callout", copy.catalogEmpty)];
-    return value.organizations.map((organization) => {
+    return groups.map((organization) => {
       const name = organizationName(organization);
       const href = organizationRoute(value, organization);
       const heading = href === null ? name : routeLink(href, "", name);
@@ -329,7 +334,7 @@ export function createCatalogPanel(
             ),
       ),
       fact(copy.catalogPath, module.path),
-      fact(copy.catalogState, module.state),
+      fact(copy.catalogState, module.state ?? copy.catalogNone),
       ...(module.issues === undefined || module.issues.length === 0
         ? []
         : [fact(copy.catalogIssues, module.issues)]),
@@ -497,7 +502,7 @@ export function createCatalogPanel(
     const copy = options.copy();
     const selection = catalogSelection(value, route);
     tree.replaceChildren(
-      ...value.organizations.map((organization) => {
+      ...catalogGroups(value).map((organization) => {
         const section = element("div", "catalog-group");
         const name = organizationName(organization);
         const head = maybeLink(
