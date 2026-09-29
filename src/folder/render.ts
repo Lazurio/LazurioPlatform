@@ -26,7 +26,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-14";
+export const instructionTemplateRevision = "base-instructions-15";
 
 // Template revisions are ordered by their number. A Folder rendered by an
 // older revision is re-rendered by the next change of the generated Folder
@@ -99,8 +99,14 @@ export function instructionSource(
 
 export type Text = Readonly<{ cs: string; en: string }>;
 const peerKinds: Readonly<Record<MachinePeer["kind"], Text>> = {
-  "personal-vm": { cs: "osobní VM", en: "personal VM" },
-  "workspace-vm": { cs: "pracovní VM", en: "work VM" },
+  "personal-vm": {
+    cs: "osobní Remote Environment",
+    en: "personal Remote Environment",
+  },
+  "workspace-vm": {
+    cs: "pracovní Remote Environment",
+    en: "work Remote Environment",
+  },
   "client-device": { cs: "klientské zařízení", en: "client device" },
   "conglomerate-host": { cs: "Conglomerate Host", en: "Conglomerate Host" },
 };
@@ -112,7 +118,7 @@ const sshDirections: Readonly<
   Record<NonNullable<MachinePeer["ssh"]>["direction"], Text>
 > = {
   outbound: { cs: "SSH odsud na", en: "SSH from here to" },
-  inbound: { cs: "SSH sem z", en: "SSH to this Machine from" },
+  inbound: { cs: "SSH sem z", en: "SSH to this Environment from" },
   both: { cs: "SSH oběma směry s", en: "SSH both ways with" },
 };
 
@@ -163,11 +169,11 @@ export function assignmentLine(
   const text: Text =
     assignment.kind === "team"
       ? {
-          cs: "- Přiřazení: sdílená Teamem.",
+          cs: "- Přiřazení: sdílený Teamem.",
           en: "- Assignment: shared by the Team.",
         }
       : {
-          cs: `- Přiřazení: přiřazená Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+          cs: `- Přiřazení: přiřazený Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
           en: `- Assignment: assigned to operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
         };
   return [text[locale]];
@@ -184,7 +190,7 @@ function machineSection(
 ): string[] {
   const pick = (text: Text) => text[locale];
   const lines = [
-    pick({ cs: "## Tahle Mašina", en: "## This Machine" }),
+    pick({ cs: "## Tenhle Environment", en: "## This Environment" }),
     pick({
       cs: `- Preset: \`${preset}\` (verze ${presetVersion}).`,
       en: `- Preset: \`${preset}\` (version ${presetVersion}).`,
@@ -205,8 +211,8 @@ function machineSection(
   const owner =
     machine.owner.kind === "principal"
       ? pick({
-          cs: `- Owner: Principál s GitHub loginem \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). Je to jeho jediná osobní hostovaná Mašina.`,
-          en: `- Owner: the Principal with GitHub login \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). This is their one personal hosted Machine.`,
+          cs: `- Owner: Principál s GitHub loginem \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). Je to jeho jediný osobní Remote Environment.`,
+          en: `- Owner: the Principal with GitHub login \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). This is their one personal Remote Environment.`,
         })
       : machine.owner.team === null || preset !== "hosted-organization-team"
         ? pick({
@@ -219,12 +225,12 @@ function machineSection(
           });
   const principal = {
     "hosted-personal": {
-      cs: "- Principál: Owner Mašiny. Agenti tu jednají za něj v jeho právech; Buddy je volitelný rezident téže Mašiny.",
-      en: "- Principal: the Machine's Owner. Agents here act for them within their rights; a Buddy is an optional resident of this same Machine.",
+      cs: "- Principál: Owner tohohle Environmentu. Agenti tu jednají za něj v jeho právech; Buddy je volitelný rezident téhož Environmentu.",
+      en: "- Principal: the Owner of this Environment. Agents here act for them within their rights; a Buddy is an optional resident of this same Environment.",
     },
     "hosted-organization-personal": {
-      cs: "- Principál: jediný Operátor, kterému Organizace tuhle pracovní VM přiřadila. Agenti jednají za něj v jeho živých právech.",
-      en: "- Principal: the one operator the Organization assigned this work VM to. Agents act for them within their live rights.",
+      cs: "- Principál: jediný Operátor, kterému Organizace tenhle pracovní Remote Environment přiřadila. Agenti jednají za něj v jeho živých právech.",
+      en: "- Principal: the one operator the Organization assigned this work Remote Environment to. Agents act for them within their live rights.",
     },
     "hosted-organization-team": {
       cs: "- Principál: Kolega, který se právě připojil. OS účet je sdílený členy Teamu a není osoba; změny se připisují Teamu přes brokerovanou identitu Organizace.",
@@ -234,8 +240,8 @@ function machineSection(
   }[preset];
   lines.push(
     pick({
-      cs: `- Mašina: \`${machine.name}\` (${machine.kind}).`,
-      en: `- Machine: \`${machine.name}\` (${machine.kind}).`,
+      cs: `- Název: \`${machine.name}\` (${machine.kind}).`,
+      en: `- Name: \`${machine.name}\` (${machine.kind}).`,
     }),
     owner,
     ...assignmentLine(machine, locale),
@@ -250,16 +256,16 @@ function machineSection(
           en: `- Tailnet: Headscale node \`${machine.network.headscaleHostname}\`.`,
         }),
     pick({
-      cs: `- Host: ${machine.host.kind} \`${machine.host.id}\`; vyšší doména správy a obnovy než tahle Mašina.`,
-      en: `- Host: ${machine.host.kind} \`${machine.host.id}\`; a higher administration and recovery domain than this Machine.`,
+      cs: `- Host: ${machine.host.kind} \`${machine.host.id}\`; vyšší doména správy a obnovy než tenhle Environment.`,
+      en: `- Host: ${machine.host.kind} \`${machine.host.id}\`; a higher administration and recovery domain than this Environment.`,
     }),
   );
   if (machine.relationships !== undefined)
     lines.push(
-      pick({ cs: "### Vztahy k dalším Mašinám", en: "### Related Machines" }),
+      pick({ cs: "### Peers v tailnetu", en: "### Tailnet peers" }),
       pick({
-        cs: `Peers v tailnetu podle handoveru (${peerZones[machine.relationships.zone].cs} této Mašiny); vynucuje je Headscale, ne Lazurio.`,
-        en: `Tailnet peers as the handover records them (this Machine is in the ${peerZones[machine.relationships.zone].en}); Headscale enforces them, Lazurio does not.`,
+        cs: `Peers v tailnetu podle handoveru (${peerZones[machine.relationships.zone].cs} tohohle Environmentu); vynucuje je Headscale, ne Lazurio.`,
+        en: `Tailnet peers as the handover records them (this Environment is in the ${peerZones[machine.relationships.zone].en}); Headscale enforces them, Lazurio does not.`,
       }),
       ...machine.relationships.peers.map((peer) => peerLine(peer, locale)),
     );
@@ -279,13 +285,13 @@ function boundarySection(
           en: "- Personalspace: `personalspace/` is the intimate space of exactly one Principal and their optional Buddy. Nobody else reads it and it is never shared.",
         })
       : pick({
-          cs: "- Personalspace: na Mašině vlastněné Organizací nikdy není. Nezakládej ho, nemountuj ho a nekopíruj sem osobní data ani přihlášení.",
-          en: "- Personalspace: never present on an Organization-owned Machine. Do not create or mount one and never copy personal data or sign-ins here.",
+          cs: "- Personalspace: na Environmentu vlastněném Organizací nikdy není. Nezakládej ho, nemountuj ho a nekopíruj sem osobní data ani přihlášení.",
+          en: "- Personalspace: never present in an Organization-owned Environment. Do not create or mount one and never copy personal data or sign-ins here.",
         }),
     preset === "hosted-personal"
       ? pick({
-          cs: "- Organizace: na osobní Mašině nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovní VM, kterou ti Principál potvrdí jako přiřazenou jemu; repozitáře Organizací sem nikdy neklonuj.",
-          en: "- Organizations: no Organization repositories are mounted on a personal Machine. Organization work (code, repositories, runs) happens over SSH on a work VM the Principal confirms is assigned to them; never clone Organization repositories here.",
+          cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu, který ti Principál potvrdí jako přiřazený jemu; repozitáře Organizací sem nikdy neklonuj.",
+          en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment the Principal confirms is assigned to them; never clone Organization repositories here.",
         })
       : pick({
           cs: "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář.",
@@ -308,12 +314,12 @@ function boundarySection(
 function hostedLines(pick: (text: Text) => string): string[] {
   return [
     pick({
-      cs: "- SSH na jinou Mašinu jen na její tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x` (`manual/this-machine.md`).",
-      en: "- SSH to another Machine only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare `100.64.0.x` address (`manual/this-machine.md`).",
+      cs: "- SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x` (`manual/this-machine.md`).",
+      en: "- SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare `100.64.0.x` address (`manual/this-machine.md`).",
     }),
     pick({
-      cs: "- Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá; `lazurio update status` smíš kdykoli. Pin provozovatele Machines je jen minimum a rollout verzi nikdy nesníží. Po aktualizaci obnoví tenhle Folder `lazurio machine folder-refresh`. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun…) aktualizuj jen na výslovný pokyn Principála oficiálním instalátorem daného nástroje, jinak jen nahlas jejich verze (`manual/troubleshooting.md`, decisions 0161 a F17).",
-      en: "- The operator owns the version of Lazurio: run `lazurio update` when they ask for it; `lazurio update status` is free to use. The Machines operator's pin is only a minimum, and a rollout never lowers a version. After an update, `lazurio machine folder-refresh` refreshes this Folder. Update the operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun…) only on the Principal's explicit instruction with that tool's official installer, otherwise only report their versions (`manual/troubleshooting.md`, decisions 0161 and F17).",
+      cs: "- Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá; `lazurio update status` smíš kdykoli. Pin provozovatele hostingu (Lazurio Machines) je jen minimum a rollout verzi nikdy nesníží. Po aktualizaci obnoví tenhle Folder `lazurio machine folder-refresh`. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun…) aktualizuj jen na výslovný pokyn Principála oficiálním instalátorem daného nástroje, jinak jen nahlas jejich verze (`manual/troubleshooting.md`, decisions 0161 a F17).",
+      en: "- The operator owns the version of Lazurio: run `lazurio update` when they ask for it; `lazurio update status` is free to use. The hosting operator's pin (Lazurio Machines) is only a minimum, and a rollout never lowers a version. After an update, `lazurio machine folder-refresh` refreshes this Folder. Update the operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun…) only on the Principal's explicit instruction with that tool's official installer, otherwise only report their versions (`manual/troubleshooting.md`, decisions 0161 and F17).",
     }),
   ];
 }
@@ -381,7 +387,7 @@ export const mcpInstruction: Text = {
 // On an Environment shared by several operators (the Team preset) a sign-in
 // of a tool belongs to the whole Environment, not to the person who made it.
 export const sharedSignInWarning: Text = {
-  cs: "**Sdílené Environment:** účty přihlášené v nástrojích platí pro celé tohle Environment a sdílí je všichni jeho Operátoři i jejich agenti. Přihlašuj tu jen účty, které mají být dostupné celému Teamu; osobní účet sem nepatří.",
+  cs: "**Sdílený Environment:** účty přihlášené v nástrojích platí pro celý tenhle Environment a sdílí je všichni jeho Operátoři i jejich agenti. Přihlašuj tu jen účty, které mají být dostupné celému Teamu; osobní účet sem nepatří.",
   en: "**Shared Environment:** accounts signed in to the tools apply to this whole Environment and are shared by all its operators and their agents. Sign in only accounts meant for the whole Team; a personal account does not belong here.",
 };
 
@@ -417,6 +423,14 @@ function toolsSection(
   ];
 }
 
+// How agents name the place they work in when they talk to people (decision
+// F27): Environment, and Remote Environment when it is hosted. "Machine" stays
+// the technical term; the rule has to name the words it replaces.
+export const environmentWording: Text = {
+  cs: "- Lidem říkej tomu, kde pracuješ, Environment (ten Environment, na tomto Environmentu) a hostovanému Remote Environment; slova Mašina, VM ani server jim neříkej. Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura).",
+  en: "- Towards people, call the place you work in the Environment, and a hosted one a Remote Environment; do not say Machine, VM or server to them. Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
+};
+
 // Two general working rules of root decision 0163, in their short form; the
 // full form is in `manual/working-here.md`.
 const workingRules: readonly Text[] = [
@@ -449,6 +463,7 @@ export function renderInstructions(input: unknown): string {
       cs: "- Komunikuj česky, pokud uživatel nepožádá jinak.",
       en: "- Communicate in English unless the user requests otherwise.",
     }),
+    pick(environmentWording),
     profile.detail === "concise"
       ? pick({
           cs: "- Začni výsledkem a vysvětluj stručně.",
@@ -477,8 +492,8 @@ export function renderInstructions(input: unknown): string {
       en: "- Before Organization work, load its current AGENTS.md under `organizations/<org>/`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.",
     }),
     pick({
-      cs: `- Ověř systém provádějící Mašiny (${profile.os}); přístup ${profile.access} nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.`,
-      en: `- Verify the execution Machine's OS (${profile.os}); ${profile.access} access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.`,
+      cs: `- Ověř systém Environmentu, na kterém pracuješ (${profile.os}); přístup ${profile.access} nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.`,
+      en: `- Verify the OS of the Environment you work in (${profile.os}); ${profile.access} access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.`,
     }),
     pick({
       cs: "- Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.",
@@ -505,8 +520,8 @@ function manualSection(locale: FolderProfile["locale"]): string[] {
   return [
     locale === "cs" ? "## Manuál" : "## Manual",
     locale === "cs"
-      ? "Úplný manuál pro agenty na téhle Mašině je v `manual/` (generuje ho produkt, needituj ho):"
-      : "The complete agent manual for this Machine is in `manual/` (generated by the product, do not edit):",
+      ? "Úplný manuál pro agenty na tomhle Environmentu je v `manual/` (generuje ho produkt, needituj ho):"
+      : "The complete agent manual for this Environment is in `manual/` (generated by the product, do not edit):",
     ...manualEntries.map(
       (entry) =>
         `- [${entry.title[locale]}](${entry.path}) — ${entry.summary[locale]}.`,

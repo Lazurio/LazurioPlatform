@@ -14,10 +14,10 @@ export const manualEntries = Object.freeze([
   },
   {
     path: "manual/this-machine.md",
-    title: { cs: "Tahle Mašina", en: "This Machine" },
+    title: { cs: "Tenhle Environment", en: "This Environment" },
     summary: {
-      cs: "druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Mašiny",
-      en: "kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Machines",
+      cs: "druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Environmenty a zařízení",
+      en: "kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Environments and devices",
     },
   },
   {
@@ -40,16 +40,16 @@ export const manualEntries = Object.freeze([
     path: "manual/glossary.md",
     title: { cs: "Slovník", en: "Glossary" },
     summary: {
-      cs: "pojmy, které agent na Mašině potřebuje",
-      en: "the terms an agent on a Machine needs",
+      cs: "pojmy, které agent na Environmentu potřebuje",
+      en: "the terms an agent in an Environment needs",
     },
   },
   {
     path: "manual/troubleshooting.md",
     title: { cs: "Řešení problémů", en: "Troubleshooting" },
     summary: {
-      cs: "aktualizace produktu a obsahu, Machine identita, odmítnutí a hlášení problémů",
-      en: "product and content updates, Machine identity, refusals and reporting",
+      cs: "aktualizace produktu a obsahu, identita Environmentu, odmítnutí a hlášení problémů",
+      en: "product and content updates, the Environment's identity, refusals and reporting",
     },
   },
 ] as const);

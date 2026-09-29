@@ -111,18 +111,18 @@ test("relationships render only when the recorded binding carries them, one line
     machine: bindings.personal,
     profile,
   });
-  expect(plain).not.toContain("Related Machines");
+  expect(plain).not.toContain("### Tailnet peers");
   const related = renderInstructions({
     preset: "hosted-personal",
     machine: bindings.personalRelated,
     profile,
   });
-  expect(related).toContain("### Related Machines");
+  expect(related).toContain("### Tailnet peers");
   expect(related).toContain(
     "- `example-laptop` (client device, personal zone): SSH both ways with `example-laptop.tailnet.example.invalid`; no HTTPS.",
   );
   expect(related).toContain(
-    "- `example-workspace` (work VM, work zone, Organization `example`): SSH from here to `example-workspace.tailnet.example.invalid` as `operator`; HTTPS `launchpad.example-workspace.example.lazurio.io`.",
+    "- `example-workspace` (work Remote Environment, work zone, Organization `example`): SSH from here to `example-workspace.tailnet.example.invalid` as `operator`; HTTPS `launchpad.example-workspace.example.lazurio.io`.",
   );
   expect(related).toContain("Headscale enforces them, Lazurio does not.");
   expect(related).toMatchSnapshot();
@@ -133,9 +133,9 @@ test("relationships render only when the recorded binding carries them, one line
       locale: "cs",
     }),
   });
-  expect(work).toContain("### Vztahy k dalším Mašinám");
+  expect(work).toContain("### Peers v tailnetu");
   expect(work).toContain(
-    "- `example` (osobní VM, osobní zóna): SSH sem z `example.tailnet.example.invalid` jako `operator`; bez HTTPS.",
+    "- `example` (osobní Remote Environment, osobní zóna): SSH sem z `example.tailnet.example.invalid` jako `operator`; bez HTTPS.",
   );
   expect(work).toContain(
     "- `example-gateway` (Conglomerate Host, Organizace `example`): bez SSH; HTTPS `auth.example.lazurio.io`.",
@@ -178,7 +178,7 @@ test("the Assignment line renders the handover's owner.assignment and nothing el
         locale: "cs",
       }),
     }),
-  ).toContain("- Přiřazení: sdílená Teamem.");
+  ).toContain("- Přiřazení: sdílený Teamem.");
   expect(
     renderInstructions({
       preset: "hosted-organization-personal",
@@ -188,7 +188,7 @@ test("the Assignment line renders the handover's owner.assignment and nothing el
       }),
     }),
   ).toContain(
-    "- Přiřazení: přiřazená Operátorovi `example` (GitHub id 12345).",
+    "- Přiřazení: přiřazený Operátorovi `example` (GitHub id 12345).",
   );
 });
 
@@ -269,8 +269,8 @@ test("the hosted update rule in AGENTS.md agrees with the manual under decisions
       // Lazurio too; the pin is a minimum.
       expect(instructions).toMatch(
         locale === "cs"
-          ? /Verzi Lazuria vlastní operátor: .*Pin provozovatele Machines je jen minimum.*Nástroje operátora \(Codex, Claude Code, `gh`, Node, npm, Bun…\) aktualizuj jen na výslovný pokyn Principála/
-          : /The operator owns the version of Lazurio: .*The Machines operator's pin is only a minimum.*Update the operator's tools \(Codex, Claude Code, `gh`, Node, npm, Bun…\) only on the Principal's explicit instruction/,
+          ? /Verzi Lazuria vlastní operátor: .*Pin provozovatele hostingu \(Lazurio Machines\) je jen minimum.*Nástroje operátora \(Codex, Claude Code, `gh`, Node, npm, Bun…\) aktualizuj jen na výslovný pokyn Principála/
+          : /The operator owns the version of Lazurio: .*The hosting operator's pin \(Lazurio Machines\) is only a minimum.*Update the operator's tools \(Codex, Claude Code, `gh`, Node, npm, Bun…\) only on the Principal's explicit instruction/,
       );
     }
   }
