@@ -566,3 +566,126 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     }
   },
 );
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "the owner's package names its Bun or none, and its one lockfile is beside it; every refusal is typed with the package it concerns (decision F25)",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "install-owner-")),
+    );
+    const file = join(root, "package.json");
+    const refused = (reason: string, path = file) =>
+      expect(inspectInstallAuthority(root, root)).rejects.toMatchObject({
+        reason,
+        path,
+      });
+    try {
+      // No packageManager: the operator's Bun, whichever version it is.
+      await writeFile(file, JSON.stringify({ name: "owner" }));
+      await refused("preparation-lockfile-missing");
+      await writeFile(join(root, "bun.lock"), "");
+      await refused("preparation-lockfile-missing");
+      await writeFile(join(root, "bun.lock"), "opaque fixture lock");
+      expect((await inspectInstallAuthority(root, root)).packageManager).toBe(
+        null,
+      );
+      await writeFile(join(root, "bun.lockb"), "opaque binary lock");
+      await refused("preparation-lockfile-ambiguous");
+      await rm(join(root, "bun.lockb"));
+      for (const packageManager of ["npm@10.0.0", "bun@latest", "bun", 7]) {
+        await writeFile(
+          file,
+          JSON.stringify({ name: "owner", packageManager }),
+        );
+        await refused("preparation-package-manager-unsupported");
+      }
+      await writeFile(
+        file,
+        JSON.stringify({ name: "owner", packageManager: "bun@1.4.2" }),
+      );
+      expect((await inspectInstallAuthority(root, root)).packageManager).toBe(
+        "bun@1.4.2",
+      );
+      await writeFile(
+        file,
+        JSON.stringify({
+          name: "owner",
+          dependencies: { shared: "file:../shared" },
+        }),
+      );
+      await refused("preparation-dependency-outside-owner");
+      await writeFile(file, "[]");
+      await refused("preparation-owner-invalid");
+      expect(await readFile(join(root, "bun.lock"), "utf8")).toBe(
+        "opaque fixture lock",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "with a dependency boundary, a local dependency outside the owner but inside the boundary is an install input; the boundary itself, beyond it and a missing one are refused (decision F25)",
+  async () => {
+    const boundary = await realpath(
+      await mkdtemp(join(tmpdir(), "install-boundary-")),
+    );
+    const owner = join(boundary, "workspace/module/app/v3");
+    const checkout = join(boundary, "workspace/module");
+    const contracts = join(boundary, "launchpad/contracts/v1");
+    const file = join(owner, "package.json");
+    const write = (reference: string) =>
+      writeFile(
+        file,
+        JSON.stringify({
+          name: "owner",
+          dependencies: { contracts: reference },
+        }),
+      );
+    try {
+      await mkdir(owner, { recursive: true });
+      await mkdir(contracts, { recursive: true });
+      await writeFile(
+        join(contracts, "package.json"),
+        JSON.stringify({ name: "contracts", version: "1.0.0" }),
+      );
+      await writeFile(join(owner, "bun.lock"), "opaque fixture lock");
+      await write("file:../../../../launchpad/contracts/v1");
+      // Without the boundary the owner is the limit, as before.
+      await expect(
+        inspectInstallAuthority(checkout, owner),
+      ).rejects.toMatchObject({
+        reason: "preparation-dependency-outside-owner",
+        path: file,
+      });
+      const before = await inspectInstallAuthority(
+        checkout,
+        owner,
+        undefined,
+        boundary,
+      );
+      expect(await verifyInstallAuthority(before)).toBe(true);
+      await writeFile(
+        join(contracts, "package.json"),
+        JSON.stringify({ name: "contracts", version: "2.0.0" }),
+      );
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      for (const [reference, reason] of [
+        ["file:../../../..", "preparation-dependency-outside-owner"],
+        ["file:../../../../..", "preparation-dependency-outside-owner"],
+        [
+          "file:../../../../launchpad/contracts/v9",
+          "preparation-dependency-missing",
+        ],
+      ] as const) {
+        await write(reference);
+        await expect(
+          inspectInstallAuthority(checkout, owner, undefined, boundary),
+        ).rejects.toMatchObject({ reason, path: file });
+      }
+    } finally {
+      await rm(boundary, { recursive: true, force: true });
+    }
+  },
+);

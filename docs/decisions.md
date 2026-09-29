@@ -2080,6 +2080,9 @@ operator's umask is `002`: Git creates the checkout's directories `0775` and its
 [module adoption](module-adoption.md) and [clean module
 preparation](clean-module-preparation.md) (single-link and non-shared-write
 declarations, install inputs and dependency trees).
+Point 6 is amended by F25: the list also reports what the preparation's shape refuses
+(the owner's package, its Bun, its one lockfile), while the install inputs' contents
+stay the start's to refuse.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -2144,3 +2147,251 @@ discovery and the Folder manual are unchanged.
 | A second reader for root-level applications | Two discovery paths to keep consistent; rejected: the existing reader admits two more paths |
 | List root-level applications first, or in a group of their own | An ordering rule nobody decided; not chosen: declaration order, as for every slot |
 | Declared root-level application slots with a module manifest, read by the one reader under a workspace module's rules (selected) | Small; the switch's check finds the served applications; an undeclared one is refused visibly, not guessed |
+
+## F25 — A module without a preparation declaration starts by a default preparation
+
+**Principal's decision 2026-09-29, accepted** (issue #97, last comment: option (a)).
+Observed the same day on the first real Machine switched to this Launchpad
+(`0.1.8-rc.7`): `lazurio module start` of its only module answered `operation-failed`,
+because the application's `package.json` declares `lazurio.runtime` and no
+`lazurio.preparation`, which the start required. On a hosted Organization work Machine
+none of 27 application packages of 21 modules declares it. The Launchpad this one
+replaces started the same modules by running their dev script after a frozen install
+from their lockfile. The Principal's rule: what the replaced Launchpad started must keep
+starting without a change in the module. The catalog meanwhile called these modules
+`executable: true`, which the Machines switch relies on before its point of no return,
+and the operator saw only `operation-failed`. Both are fixed with the decision.
+
+1. **The default.** An application package without `lazurio.preparation` has the
+   default preparation: its own `package.json` is the owner (`owner_package` is the
+   application package itself); preparing is the frozen install, `bun --no-env-file
+   install --frozen-lockfile` (with `--backend copyfile` when the package has local
+   `file:` dependencies, as for a declared preparation), from the one Bun lockfile
+   (`bun.lock` or `bun.lockb`) beside that package, under the existing install
+   authority, checkout rule (F23) and guarded process; there is no prepare script and
+   **no check script**. No owner is searched among the ancestors, and no script name is
+   invented.
+1a. **Local dependencies in the same Organization checkout** (extension of 2026-09-29,
+   after a read-only check of this change on a real hosted Organization work Machine:
+   of 21 modules 16 were executable, 1 had no app, and 4 were refused as
+   `preparation-dependency-outside-owner`, because their application packages share a
+   contracts package of the Organization's root repository, for example
+   `"@<scope>/v1": "file:../../../../launchpad/contracts/v1"` from
+   `workspace/<module>/app/v3/`; the replaced Launchpad starts them). For the default
+   preparation a local `file:` dependency may lie anywhere inside the same Organization
+   directory (`organizations/<Org>/…`; for a Personalspace module its owner directory
+   `personalspace/<owner>/…`), also outside the module's own repository. The reference
+   is normalized as text, without following a symlink, and the dependency is then
+   reached from the Organization directory one real directory at a time under the
+   checkout rule (F23: no symlink on the way, owned by the operator; permission bits are
+   not a reason). Its files are install inputs of the operator's checkout like any other
+   local dependency: the install authority inventories that dependency, and only it,
+   so a change invalidates the observation; the Organization is never inventoried as a
+   whole, and the Organization directory itself is not a dependency. Still refused: a
+   dependency that leaves the Organization directory
+   (`preparation-dependency-outside-owner`), one through or at a symlink or owned by
+   another account (the checkout rule's `directory-not-regular`, `directory-owner`, …
+   with its file relative to the module, else to the Organization root), and one that
+   is not there (`preparation-dependency-missing`, named by the application package
+   that declares it). This follows decision (a), what the replaced Launchpad started
+   keeps starting, and F23, the operator's own checkout is read by ownership with no
+   second permission layer. A declared preparation keeps its owner as the boundary. Git
+   dependencies (`git+https://…`, `git+ssh://…`) are not local dependencies: the frozen
+   install resolves them with the operator's own GitHub access.
+2. **The start.** A declared preparation's start runs its check and installs nothing,
+   as before. The default has no check, so the check is optional for the default only:
+   its start-time step is the frozen install itself, which changes nothing when
+   `node_modules` matches the lockfile and repairs it when it does not (observed on a
+   real Machine: dependencies older than the lockfile pinned, fixed by exactly this
+   install). The same holds for the gateway's `ensure` and the Launchpad's Start, which
+   run the same core. The install runs under the start's coordination, not as a
+   separate transaction: an interrupted install leaves no retained record, because the
+   next start's frozen install is its repair.
+3. **The toolchain.** A package that pins Bun (`packageManager: bun@x.y.z`) is
+   installed and run with exactly that Bun, as before; a mismatch with the operator's
+   Bun is `preparation-toolchain-mismatch`. **A package that pins none is installed and
+   run with the operator's Bun at `~/.local/bin/bun` (B2), whichever version it is**,
+   which is what the replaced Launchpad did; real application packages do not
+   guarantee a `packageManager`. Any other `packageManager` value is refused. This rule
+   is the install authority's and holds for a declared preparation too.
+4. **The catalog tells the truth.** `executable` means that a start of the default app
+   can proceed as far as is known without running anything: after the declarations and
+   the Organization's admission, the preparation in effect is inspected read-only
+   (`inspectPreparationShape`): the owner's path and package, its `packageManager`, its
+   one lockfile under the checkout's file rule (a regular file of the operator, at most
+   16 MiB, not empty), the checkout's `.npmrc` and `bunfig.toml` down to the owner under
+   the same rule, its own local dependencies being there inside their boundary (point
+   1a) and reached through real directories (a symlink there, dangling or not, is
+   `directory-not-regular`; a file dependency is under the file rule), the default's
+   separate application directories (point 6), and a declared owner's membership and
+   scripts with no workspace install. What fails there is `executable: false` with the
+   start's reason and file, and `preparationRefused: true`, in `module list`,
+   `organization list`'s JSON, the Launchpad's module view and `lazurio doctor`.
+   **Amends F23 point 6** only in this: the preparation's shape is now reported by the
+   list. Deliberately left to the start, as F23 point 6 says, because the list would
+   have to read or inventory them: the files inside local dependencies and their
+   transitive dependencies, patch files, workspace members, the account's own
+   configuration (`~/.npmrc`, `~/.bunfig.toml`, the XDG directory), an explicit owner's
+   package that does not parse (`module-unavailable` in the list), the inventory limits;
+   and what only running shows: a Bun version mismatch and a failing install.
+4a. **Reading and stopping never depend on the preparation.** A module refused only by
+   its default app's preparation keeps its lifecycle: `module status`, `module logs` and
+   `module stop` operate its running app (the Launchpad's module page keeps the card
+   and its Stop), and the stop of a session app does not resolve the preparation. Only
+   what would start it depends on the preparation: `module start` refuses with the
+   reason, and `ensure` reports a running app as it is and refuses with the reason only
+   where it would start a stopped or ended one. A running app whose lockfile disappears
+   is therefore still read and stopped (review 5359095003).
+5. **Typed reasons.** A preparation that cannot run for a known reason answers one of a
+   closed set, with the module-relative package or lockfile as `file`, never an
+   absolute path or the error message: `preparation-lockfile-missing` (no lockfile, or
+   an empty one), `preparation-lockfile-ambiguous` (both `bun.lock` and `bun.lockb`),
+   `preparation-package-manager-unsupported`, `preparation-dependency-outside-owner` (a
+   `file:` dependency outside the Organization directory, or for a declared preparation
+   outside its owner), `preparation-dependency-missing` (a `file:` dependency that is not
+   there), `preparation-owner-invalid`,
+   `preparation-script-missing`, `preparation-workspace-unqualified`,
+   `preparation-applications-overlap` (point 6), and from the start
+   only `preparation-toolchain-mismatch` and `preparation-install-failed` (with the
+   lockfile). The CLI and the Launchpad explain each in words (English and Czech on the
+   page). `operation-failed` stays for a throw without a known cause.
+
+6. **Application packages of one module do not overlap under the default.** The
+   default install writes the application directory's `node_modules`, beneath any other
+   application package nested there, whose app may be running from it. The default
+   preparation therefore refuses an application whose directory contains, or lies
+   inside, the directory of another application package the same module declares
+   (`preparation-applications-overlap`, naming the module-relative package, in the list
+   and at the start of either). Sibling packages (`app/v1`, `app/v2`, `app/v3`) never
+   overlap, and a local package inside the application's directory
+   (`app/v3/packages/<name>`) is a dependency, not an application. Such a module
+   declares its preparation (review 5359095003).
+
+**What the explicit declaration is still for**: a workspace owner (still refused for
+installation until its inputs are qualified), a prepare script (data or DB setup the
+module owns), a check the start runs instead of installing, or application packages
+nested in one another.
+
+**Not covered.** The default does not qualify workspaces, local dependencies outside
+the Organization's checkout (point 1a), an application without dependencies (Bun deletes an empty lockfile, so it
+has none and is `preparation-lockfile-missing`), or private Git dependencies beyond
+what the operator's own Git and GitHub access on the Machine allow the install. The
+install runs the package's own lifecycle scripts as `bun install` does. No new
+configuration, Folder state or second mechanism: the default is the absent case of the
+existing composition. The qualification journeys (J1–J5) start no module; the
+contract tests' fixture modules include undeclared ones, and a journey that starts an
+undeclared module is a follow-up.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Every application package declares `lazurio.preparation` before its Machine switches, with a migration and `executable: false` until then (option b) | A change in every module of every Organization before the switch; not chosen by the Principal |
+| Search the ancestors for a lockfile or workspace owner | Guesses which install owns the app; excluded by the issue's rule |
+| Default with a check script by convention (for example `check`) | Invents a script name the modules never agreed to; rejected |
+| Pin the default toolchain to the Platform's own Bun version | Real Machines update their Bun (B2); every module would stop at the first Bun update; not chosen |
+| Local dependencies only inside the application's package directory | The first version of this change; four real modules sharing the Organization's contracts package stayed refused; widened (point 1a) |
+| Local dependencies inside the module's own repository | The shared contracts package lives in the Organization's root repository; the same four stay refused; not chosen |
+| Local dependencies anywhere the operator can read | Crosses the Organization's access boundary (one Organization, one access boundary); rejected |
+| The application's own package, a frozen install from its lockfile, no check (selected) | Starts what the replaced Launchpad started; honest refusals with a reason for what it cannot |
+| Local dependencies anywhere in the same Organization (or Personalspace owner) directory, through real directories of the operator's checkout, only the dependency inventoried (selected, point 1a) | Starts the real modules unchanged; the Organization stays the boundary and F23 the only rule |
+
+## F26 — A started application gets the runtime environment of the replaced Launchpad
+
+**Required by the Principal 2026-09-29 (issue #102); the details proposed 2026-09-30
+and implemented.** Observed on 2026-09-29 on a hosted personal Environment, at its first
+real switch to this Launchpad: a module started through the module operations ran and
+was healthy on its loopback port, and opened at its own hostname it answered the dev
+server's refusal "Blocked request. This host (…) is not allowed." The application reads
+its hosted origin from `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` and allows exactly that
+hostname (and checks the `Origin` header against it). Its unit had exactly `HOME`,
+`PATH`, `LAZURIO_RUNTIME_LISTENER_ENTRYPOINT_HOST` and `_PORT`; `lazurio module status`
+already answered the right `runtime.url`. The rule is F25's: what the replaced Launchpad
+started keeps starting without a change in the module.
+
+**Source of the contract.** The replaced Launchpad (public, `HumanAndMachines/Lazurio`):
+the start's overrides (`R:lazurio/runtime/runtime-lib.mjs:703-722`), `runtimeProcessEnv`,
+`listenerRuntimeEnv`, `hostedRuntimeOrigin`, `organizationRuntimeEnv`
+(`:2080-2188`), `runtimeListenerState` (`:127-143`), `runtimeListenerEnvironmentNames`
+(`R:lazurio/core/runtime-contract-lib.mjs:54-78`), the listener binding of a module
+lease (`R:lazurio/core/module-contract-lib.mjs:183-209`), `launchpad/README.md` and
+`launchpad/docs/hosted-workspace-parity-contract.md` (the hosted origin), pinned by
+`launchpad/src/runtime-lib.test.mjs` and `runtime-contract-lib.test.mjs`.
+
+1. **What a declared runtime gets.** On top of the closed base `HOME`, `PATH` and
+   optional `TMPDIR`, in both runners (`src/modules/application-environment.ts`, built
+   in `localApplicationAdapters.prepareLaunch`):
+
+   | Name | Value | Present | Replaced Launchpad |
+   | --- | --- | --- | --- |
+   | `LAZURIO_RUNTIME_LISTENER_<ID>_HOST`, `_PORT` | the listener's lease host and port; `<ID>` upper-cased, `-` as `_` | every listener | `listenerRuntimeEnv` |
+   | `LAZURIO_RUNTIME_HOST`, `LAZURIO_RUNTIME_PORT` | the entrypoint's lease | always | start overrides |
+   | `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` of the entrypoint, `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` | the browser origin, `https://<host>`, no slash, no path | hosted, the entrypoint of the module's default app | `listenerRuntimeEnv`, `hostedRuntimeOrigin` |
+   | `LAZURIO_RUNTIME_LISTENERS_JSON` | `[{id, role, allocation: "static", host, port, protocol, health, claim: {mode: "exclusive"}, external_origin?}]` | always | `runtimeListenerState` |
+   | `LAZURIO_RUNTIME_SCHEMA_VERSION`, `LAZURIO_RUNTIME_APP_ID`, `LAZURIO_RUNTIME_ENTRYPOINT_ID` | `lazurio.runtime.v1`, the runtime `id`, the entrypoint's `id` | always | start overrides |
+   | `COMPANYASCODE_APP_ID`, `COMPANYASCODE_RUNTIME_KEY`, `COMPANYASCODE_RUNTIME_SOURCE` | the runtime `id`, the runtime `id`, `main` | always | start overrides (the key and source of the module's own checkout) |
+   | `COMPANYASCODE_ORGANIZATION_ROOT` | the canonical Organization root | an Organization's module; not a Personalspace module | `organizationRuntimeEnv` |
+   | `NODE_PATH` | `<application directory>/node_modules` | always | `runtimeProcessEnv` |
+   | `NODE_ENV`, `ASTRO_DEV_BACKGROUND`, `ASTRO_PREVIEW_BACKGROUND` | `development`, `1`, `1` | always | start overrides |
+
+2. **One source for the origin.** The origin is the one `runtime.url` links to, from one
+   function (`applicationOrigin` in `src/modules/module-operations.ts`): on a Folder with
+   a Machine binding, `moduleOrigin` of the recorded entry's module origin template
+   (B4), for the module's default app, which is what the gateway serves at the module
+   hostname. So the variable is exactly `runtime.url` without its slash, `new URL(x).origin`
+   of it. No entry (`hosted-entry-missing`), another app of the module
+   (`hosted-app-not-default`), a label the gateway does not serve, a workstation and every
+   listener but the entrypoint: no origin, the app is loopback-only, as its link says. A
+   Folder whose state cannot be read is not taken for a workstation (#83): the start is
+   refused as `folder-state-unreadable` before any effect.
+3. **Closed.** The environment is built from the declaration, the application's
+   directory, the Organization root and the origin only; nothing ambient is read, so an
+   ambient `HOST`, `PORT`, `NODE_PATH`, `COMPANYASCODE_ORGANIZATION_ROOT` or
+   `LAZURIO_RUNTIME_*` of the Launchpad, the CLI or the user manager never reaches the app
+   (the user manager's own names stay unset, F8). This is the replaced Launchpad's
+   removal list, enforced by construction.
+4. **Not carried over, and why.**
+   - *The rest of the parent's environment.* The replaced Launchpad passed its whole
+     process environment minus the names above; this Platform's owner passes a closed
+     allowlist (the unit environment of F8, `docs/module-adoption.md`: a user manager's
+     environment carries session sockets and credentials). A module that read another ambient variable gets it from its own
+     declaration or configuration, not from the Machine.
+   - *`HOST` and `PORT`.* Given only to a legacy `companyascode.app` declaration; this
+     Platform refuses such a declaration ("explicit adoption"), so no started app is one.
+   - *`COMPANIES_WORKSPACE_ROOT`.* The directory holding every Organization of the
+     Machine; telling a module where the other Organizations are crosses the access
+     boundary of its own (one Organization, one access boundary), and its only reader
+     is the replaced Launchpad's own per-Organization app, which this Launchpad replaces.
+   - *`COMPANYASCODE_WORKTREE_SLUG`.* Only for a worktree source, which does not exist yet
+     (P9); it comes with it, as would another `COMPANYASCODE_RUNTIME_KEY` and `_SOURCE`.
+   - *The hosted fail-closed start without an origin.* The replaced Launchpad refused a
+     hosted start whose origin it could not derive; this Platform's hosted mode is the
+     recorded entry (F16), so without an entry the Machine is served as a workstation and
+     the app starts loopback-only, as its link already said.
+5. **Running applications.** The declaration digest (`declaration sha256`) covers the
+   module's declaration files only, and the unit's name its identity; neither covers the
+   environment. The unit's `definition sha256` covers it but only proves that the unit is
+   the one this runner created. An application started before this change (or before
+   the Machine's entry changed) is therefore still recognized, reported running and
+   healthy, `start` answers `already-managed`, and Stop works; it keeps its old
+   environment until it is stopped and started once (`lazurio module stop` and `start`,
+   the Launchpad's Stop and Start, or a reboot, which ends every transient unit). No
+   start stops a running application as a side effect (F8: an update must not interrupt
+   people's work). A session application
+   (macOS) ends with its Launchpad, so an update always starts it anew.
+
+**Not covered.** The preparation's processes (install, prepare and check scripts) keep
+the closed base environment, as before. Other differences of the start that the
+replaced Launchpad had and this one does not (`bun run` without `--no-env-file`, so Bun
+loaded the package's `.env` files; its own log file per app; a port takeover) are
+separate questions, not changed here. The qualification journeys start no module; the
+contract tests (`tests/application-environment.test.ts`) start a fixture application
+that allows only its origin's hostname, on a hosted and a workstation fixture Folder, in
+both runners, and compare the whole environment exactly.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Add only `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` | Fixes the observed module; a module reading the aliases, the listener JSON or `NODE_PATH` breaks at the next switch; rejected by the F25 rule |
+| Pass the parent's environment minus a removal list, as the replaced Launchpad did | Hands session sockets and credentials to every module; rejected by the F8 unit's allowlist |
+| Compose the origin from the Launchpad's origin or the Machine name | Composition from a convention (`docs/hosted-entry.md`); rejected |
+| Bind the environment into the declaration digest, so a stale app reads as `declaration-changed` | The app then reports unhealthy and without a link but still runs stale, and nothing restarts it; not chosen |
+| Restart a running app whose environment differs | A start that stops an app people may be using, against F8; not chosen |
+| The replaced Launchpad's names and values, built from the declaration and the recorded entry, on the closed base (selected) | Modules run unchanged; one source for the link and the origin; nothing ambient |

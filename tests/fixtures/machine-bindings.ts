@@ -111,12 +111,16 @@ export function binding(document: unknown) {
   );
 }
 const { team: _, ...withoutTeam } = organization.owner;
-// An Organization work VM of one operator (no Team) with its entry on `port`.
-export function organizationWithEntry(listenPort = 20000) {
+// An Organization work VM of one operator (no Team) with its entry on `port`,
+// for the Machine hostname `host`.
+export function organizationWithEntry(
+  listenPort = 20000,
+  host = "workspace.example.lazurio.io",
+) {
   return binding({
     ...organization,
     owner: withoutTeam,
-    entry: handoverEntry("workspace.example.lazurio.io", listenPort),
+    entry: handoverEntry(host, listenPort),
   });
 }
 // A personal VM of `example` with its entry on `port`.

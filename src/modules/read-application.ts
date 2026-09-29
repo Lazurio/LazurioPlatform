@@ -26,6 +26,7 @@ export async function readModuleApplication(
   );
   const selection = selectModuleApplication(manifest, requestedPackage);
   if (selection.kind !== "selected") return selection;
+  const byDefault = selectModuleApplication(manifest);
   const packagePath = join(moduleDirectory, selection.package);
   // Check each intermediate directory, not just the final package parent.
   let directory = moduleDirectory;
@@ -54,6 +55,10 @@ export async function readModuleApplication(
     throw new Error("Module directory changed");
   return Object.freeze({
     ...plan,
+    // The module's declared default app: the one the gateway serves at the
+    // module's hostname (launchpad-parity B4, B5).
+    defaultApp:
+      byDefault.kind === "selected" && byDefault.package === selection.package,
     preparation,
     // Include package hooks/toolchain/dependencies, not only the selected script.
     // This is a local change detector, never a publisher or authority proof.

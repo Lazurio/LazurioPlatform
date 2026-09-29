@@ -927,6 +927,7 @@ rows remain proposals of this shaping.
 | Two Organizations with the same module id on one Machine | `module-ambiguous` 409; C.5 case; Machines template gains `{organization}` when it happens |
 | Logs contain secrets and reach a Team member | Same exposure as the resident; stated on the Team page; journal retention is the OS's; no log text in issues without F21's sanitizer |
 | Journal output changes the fixed unit policy and older units become `service-unrecognized` | No Platform-owned module units exist on hosted Machines before M2; on qualification VMs, stop once; P5 test for the transition |
+| A started module misses a runtime variable of the resident and refuses its own hostname (seen 2026-09-29, issue #102) | Decision F26: the resident's names and values, the whole environment compared exactly in `tests/application-environment.test.ts`; C.3 item 12. A module started before the change keeps its environment until Stop and Start |
 | The installed unit's environment differs from the updater's | F21 pre-switch probe runs the start sequence; C.3 item 1 reads the unit; P2 pins PATH |
 | The apply dies after the point of no return | Idempotent steps; C.5 interrupted-apply case; F21 static page |
 | An old Platform receives a handover with `entry` | M2 pins P3+ as minimum; the closed schema refuses rather than guessing |

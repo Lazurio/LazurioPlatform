@@ -2,8 +2,9 @@ import { dirname, join } from "node:path";
 import { retainedOperationLockPresent } from "../folder/retained-lock";
 import { resolveOrganizationApplication } from "../organizations/read-applications";
 import type { createApplicationCoordination } from "./application-coordination";
+import { applicationEnvironment } from "./application-environment";
 import type { ApplicationRunner } from "./application-runner";
-import { inspectBunToolchain } from "./bun-toolchain";
+import { inspectBunToolchain, requireBunToolchain } from "./bun-toolchain";
 import {
   preflightDeclaredBunCheck,
   preflightDeclaredBunPreparation,
@@ -37,6 +38,12 @@ export function localApplicationAdapters(input: {
     directory: string,
     selection: unknown,
   ) => Promise<Readonly<{ moduleDirectory: string }>>;
+  // What a started application is told about where it runs (decision F26):
+  // its Organization root (none for a Personalspace module) and, for the
+  // module's default app, the browser origin the Machine's gateway serves it
+  // at; null on a workstation. A throw refuses the launch.
+  organizationRoot?: string;
+  externalOrigin?: (module: string) => Promise<string | null>;
 }): Adapters {
   const selected = parseProcessLaunch({
     executable: input.bunExecutable,
@@ -79,13 +86,15 @@ export function localApplicationAdapters(input: {
       const options = {
         moduleDirectory: module.moduleDirectory,
         applicationPackage: plan.package,
+        organizationDirectory: selected.cwd,
         executable: selected.executable,
         platformExecutable,
         env: selected.env,
         timeoutMs: 600_000,
-        // The declared check supplies the module-owned postcondition. This
-        // additional check only verifies that the observed install inputs stayed
-        // unchanged; actual start/health remain separate lifecycle operations.
+        // The declared check supplies the module-owned postcondition (the
+        // default preparation has none, decision F25). This additional check
+        // only verifies that the observed install inputs stayed unchanged;
+        // actual start/health remain separate lifecycle operations.
         verifyPrepared: async (
           authority: Parameters<typeof verifyInstallAuthority>[0],
           signal: AbortSignal,
@@ -114,31 +123,36 @@ export function localApplicationAdapters(input: {
         module.moduleDirectory,
         plan.package,
         selected.env,
+        selected.cwd,
       );
       if (
         binding.plan.declarationDigest !== plan.declarationDigest ||
         binding.authority.owner !== cwd
       )
         throw new Error("Application preparation changed");
-      const tool = await inspectBunToolchain({
-        executable: selected.executable,
+      requireBunToolchain(
+        await inspectBunToolchain({
+          executable: selected.executable,
+          cwd,
+          env: selected.env,
+          packageManager: binding.authority.packageManager,
+        }),
         cwd,
-        env: selected.env,
-        packageManager: binding.authority.packageManager,
-      });
-      if (tool.kind !== "toolchain-observed")
-        throw new Error("Required toolchain unavailable");
-      const environment: Record<string, string> = { ...selected.env };
-      for (const listener of plan.listeners) {
-        const prefix = `LAZURIO_RUNTIME_LISTENER_${listener.id.replaceAll("-", "_").toUpperCase()}`;
-        environment[`${prefix}_HOST`] = listener.host;
-        environment[`${prefix}_PORT`] = String(listener.port);
-      }
+      );
       return {
         executable: selected.executable,
         cwd,
         args: ["--no-env-file", "run", plan.runtime.dev_script],
-        env: environment,
+        env: applicationEnvironment({
+          base: selected.env,
+          plan,
+          cwd,
+          organizationRoot: input.organizationRoot,
+          externalOrigin:
+            plan.defaultApp && input.externalOrigin
+              ? await input.externalOrigin(plan.runtime.module)
+              : null,
+        }),
       };
     },
     async coordinateMutation(selection, action, intent) {
@@ -162,6 +176,7 @@ export function localApplicationAdapters(input: {
           module.moduleDirectory,
           selection.package,
           selected.env,
+          selected.cwd,
         );
         return binding.authority.owner;
       };
@@ -169,7 +184,10 @@ export function localApplicationAdapters(input: {
       // after an owner crash there is nothing left to operate, and the retained
       // lock is also what keeps another process from reinstalling beneath an
       // application only this owner can see. Every mutation keeps it until close.
-      if (!coordination) return owners.run(await owner(), action);
+      // Stop changes no dependency tree: it never resolves the preparation,
+      // which may no longer be possible for a running app (decision F25).
+      if (!coordination)
+        return intent === "stop" ? action() : owners.run(await owner(), action);
       // Service-owned applications: two kinds of exclusion.
       return coordination.run(async () => {
         // Stop has no effect on the dependency tree and is idempotent in the

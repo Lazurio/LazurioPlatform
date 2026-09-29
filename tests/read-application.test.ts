@@ -118,12 +118,42 @@ posixTest(
 );
 
 posixTest(
+  "without a declaration the application's own package is the preparation owner, with no scripts and the operator's Bun (decision F25)",
+  async () => {
+    await fixture(async (root, pkg) => {
+      const path = join(root, "app/package.json");
+      const bytes = JSON.stringify(pkg);
+      await writeFile(path, bytes);
+      await writeFile(join(root, "app/bun.lock"), "opaque local lock");
+      // A lockfile of the module above is never the application's.
+      await writeFile(join(root, "bun.lock"), "never substituted");
+      const binding = await inspectPreparationBinding(root, "app/package.json");
+      expect(binding.plan.preparation).toBeNull();
+      expect(binding.preparation).toEqual({
+        kind: "default",
+        owner_package: "app/package.json",
+      });
+      expect(binding.authority.owner).toBe(join(root, "app"));
+      expect(binding.authority.lockfile).toBe("bun.lock");
+      expect(binding.authority.packageManager).toBeNull();
+      expect(binding.workspaceMember).toBe(false);
+      expect(await readFile(path, "utf8")).toBe(bytes);
+    });
+  },
+);
+
+posixTest(
   "preparation binding resolves explicit owner scripts and refuses unrelated or excluded packages",
   async () => {
     await fixture(async (root, pkg) => {
+      // Without a declaration the application's own package is the owner
+      // (decision F25), and this one has no lockfile beside it.
       await expect(
         inspectPreparationBinding(root, "app/package.json"),
-      ).rejects.toThrow("Explicit preparation");
+      ).rejects.toMatchObject({
+        reason: "preparation-lockfile-missing",
+        path: join(root, "app/package.json"),
+      });
       const owner = {
         packageManager: "bun@1.4.2",
         scripts: { "check:data": "never executed" },

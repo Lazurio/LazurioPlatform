@@ -4,6 +4,11 @@ import {
   inspectCheckoutDirectory,
   inspectOwnedDirectory,
 } from "../folder/owned-directory";
+import { inspectPreparationShape } from "../modules/preparation-binding";
+import {
+  type PreparationReason,
+  preparationRefusal,
+} from "../modules/preparation-refusal";
 import {
   type CheckoutReason,
   checkoutRefusal,
@@ -70,7 +75,10 @@ export type ModuleReason =
   | "default-app-invalid"
   /** `lazurio.module.json` or the default app's `package.json` is not a file
    * of the operator's checkout (decision F23); `file` names it. */
-  | CheckoutReason;
+  | CheckoutReason
+  /** The default app's preparation cannot run for a reason known without
+   * running anything (decision F25); `file` names the package it concerns. */
+  | PreparationReason;
 
 export type CatalogApp = Readonly<{
   package: string;
@@ -108,6 +116,11 @@ export type CatalogModule = Readonly<{
   /** With a refused declaration: the file, relative to the module (or to the
    * Organization root for an Organization document). Never absolute. */
   file?: string;
+  /** Set when `reason` is the default app's preparation (decision F25): the
+   * module's declarations admit it, so its running app is still read,
+   * logged and stopped; only a start (and `ensure` that would start) is
+   * refused. */
+  preparationRefused?: true;
   /** `teams-invalid` when the declared membership is not a list of slugs. */
   issues?: readonly string[];
 }>;
@@ -211,21 +224,61 @@ function slotTeams(slot: unknown): {
     : { teams, source: canonical ? "teams" : "legacy-alias", invalid };
 }
 
+// Whether the default app's preparation can run as far as is known without
+// running anything (decision F25): the preparation in effect, its owner's
+// package, Bun and lockfile, its own local dependencies and declared
+// scripts. The install inputs' contents are the start's to refuse (decision
+// F23 point 6). A refusal is marked `preparationRefused`: the module's
+// declarations admit it, so its running app is still read and stopped.
+// Never throws.
+async function preparationReason(
+  moduleDirectory: string,
+  app: string,
+  organizationDirectory: string,
+): Promise<
+  Readonly<{ reason?: ModuleReason; file?: string; preparationRefused?: true }>
+> {
+  try {
+    await inspectPreparationShape(moduleDirectory, app, organizationDirectory);
+    return {};
+  } catch (error) {
+    // Named relative to the module, else to the Organization root, as the
+    // start names them (a dependency may lie in the Organization's root
+    // repository, decision F25).
+    const bases = [moduleDirectory, organizationDirectory];
+    return {
+      ...(preparationRefusal(error, bases) ??
+        checkoutRefusal(error, bases) ?? { reason: "module-unavailable" }),
+      preparationRefused: true,
+    };
+  }
+}
+
 // Whether a module's own declaration admits a start of its default app: the
-// reader's kind, then a default app that is declared with a valid runtime. A
-// refused declaration keeps its rule and file (decision F23).
-function moduleReason(
+// reader's kind, then a default app that is declared with a valid runtime,
+// then its preparation. A refused declaration keeps its rule and file
+// (decision F23).
+async function moduleReason(
   observed: Readonly<{ kind: ModuleReason | "module-observed"; file?: string }>,
   defaultApp: string | null,
   apps: readonly CatalogApp[],
-): Readonly<{ reason?: ModuleReason; file?: string }> {
+  moduleDirectory: string,
+  organizationDirectory: string,
+): Promise<
+  Readonly<{ reason?: ModuleReason; file?: string; preparationRefused?: true }>
+> {
   if (observed.kind !== "module-observed")
     return observed.file === undefined
       ? { reason: observed.kind }
       : { reason: observed.kind, file: observed.file };
   if (defaultApp === null) return { reason: "no-app" };
   const app = apps.find((entry) => entry.package === defaultApp);
-  if (app?.kind === "runtime-declared") return {};
+  if (app?.kind === "runtime-declared")
+    return preparationReason(
+      moduleDirectory,
+      defaultApp,
+      organizationDirectory,
+    );
   return app?.reason !== undefined && app.file !== undefined
     ? { reason: app.reason, file: app.file }
     : { reason: "default-app-invalid" };
@@ -314,34 +367,51 @@ export async function readCatalogOrganization(
         bySlotPath.set(slot.path, slot);
   const executable = result.admission === "executable";
   const state = result.resolution.state;
-  const modules = result.entries.flatMap((entry) => {
-    if (entry.module === null) return [];
-    const { teams, source, invalid } = slotTeams(bySlotPath.get(entry.path));
-    const apps =
-      entry.kind === "module-observed" ? entry.apps.map(catalogApp) : [];
-    const defaultApp =
-      entry.kind === "module-observed" ? entry.defaultApp : null;
-    const own = moduleReason(entry, defaultApp, apps);
-    // The Organization's gate comes first: it applies before any module.
-    const reason = executable ? own.reason : "organization-not-executable";
-    const file = executable ? own.file : undefined;
-    return [
-      Object.freeze({
-        organization: result.company,
-        module: entry.module,
-        path: entry.path,
-        teams: Object.freeze(teams),
-        teamsSource: source,
-        apps: Object.freeze(apps),
-        defaultApp,
-        state,
-        executable: reason === undefined,
-        ...(reason === undefined ? {} : { reason }),
-        ...(file === undefined ? {} : { file }),
-        ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
-      } satisfies CatalogModule),
-    ];
-  });
+  const modules = (
+    await Promise.all(
+      result.entries.map(async (entry) => {
+        if (entry.module === null) return [];
+        const { teams, source, invalid } = slotTeams(
+          bySlotPath.get(entry.path),
+        );
+        const apps =
+          entry.kind === "module-observed" ? entry.apps.map(catalogApp) : [];
+        const defaultApp =
+          entry.kind === "module-observed" ? entry.defaultApp : null;
+        // The Organization's gate comes first: it applies before any module,
+        // and its modules' preparation is not inspected.
+        const own = executable
+          ? await moduleReason(
+              entry,
+              defaultApp,
+              apps,
+              join(directory, entry.path),
+              directory,
+            )
+          : {};
+        const reason = executable ? own.reason : "organization-not-executable";
+        const file = executable ? own.file : undefined;
+        const preparation = executable && own.preparationRefused === true;
+        return [
+          Object.freeze({
+            organization: result.company,
+            module: entry.module,
+            path: entry.path,
+            teams: Object.freeze(teams),
+            teamsSource: source,
+            apps: Object.freeze(apps),
+            defaultApp,
+            state,
+            executable: reason === undefined,
+            ...(reason === undefined ? {} : { reason }),
+            ...(file === undefined ? {} : { file }),
+            ...(preparation ? { preparationRefused: true } : {}),
+            ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
+          } satisfies CatalogModule),
+        ];
+      }),
+    )
+  ).flat();
   return Object.freeze({
     directory: name,
     organization: result.company,
@@ -431,12 +501,13 @@ async function readCatalogPersonalspace(
   }
   const modules = await Promise.all(
     ids.map(async (id): Promise<CatalogModule> => {
+      const moduleDirectory = join(located.directory, "workspace", id);
       const observed = await observePersonalspaceModule(located.directory, id)
         .then((read) => read.observed)
         .catch((error: unknown) => {
           // A refused directory of the module (decision F23), by its rule.
           const refused = checkoutRefusal(error, [
-            join(located.directory, "workspace", id),
+            moduleDirectory,
             located.directory,
           ]);
           return refused === null
@@ -449,7 +520,13 @@ async function readCatalogPersonalspace(
           : [];
       const defaultApp =
         observed.kind === "module-observed" ? observed.defaultApp : null;
-      const { reason, file } = moduleReason(observed, defaultApp, apps);
+      const { reason, file, preparationRefused } = await moduleReason(
+        observed,
+        defaultApp,
+        apps,
+        moduleDirectory,
+        located.directory,
+      );
       return Object.freeze({
         organization: personalspaceName,
         module: id,
@@ -462,6 +539,7 @@ async function readCatalogPersonalspace(
         executable: reason === undefined,
         ...(reason === undefined ? {} : { reason }),
         ...(file === undefined ? {} : { file }),
+        ...(preparationRefused ? { preparationRefused } : {}),
       });
     }),
   );

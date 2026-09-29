@@ -84,6 +84,15 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
     "declaration-not-regular",
     "declaration-owner",
     "declaration-too-large",
+    "preparation-owner-invalid",
+    "preparation-script-missing",
+    "preparation-lockfile-missing",
+    "preparation-lockfile-ambiguous",
+    "preparation-package-manager-unsupported",
+    "preparation-workspace-unqualified",
+    "preparation-dependency-outside-owner",
+    "preparation-dependency-missing",
+    "preparation-applications-overlap",
   ];
   for (const locale of ["cs", "en"]) {
     const copy = messages(locale);
@@ -116,6 +125,8 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
       "declaration-not-regular",
       "declaration-owner",
       "declaration-too-large",
+      "preparation-lockfile-missing",
+      "preparation-dependency-outside-owner",
     ]) {
       const status = catalogStatus(
         { executable: false, reason, file: "app/package.json" },

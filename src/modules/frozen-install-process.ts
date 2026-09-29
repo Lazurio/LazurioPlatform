@@ -1,9 +1,11 @@
+import { join } from "node:path";
 import { inspectBunToolchain } from "./bun-toolchain";
 import { startGuardedProcess } from "./guarded-process";
 import {
   type inspectInstallAuthority,
   verifyInstallAuthority,
 } from "./install-authority";
+import { PreparationRefused } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 
 type Outcome =
@@ -31,8 +33,11 @@ type ProcessInput = {
   signal?: AbortSignal;
 };
 
+// A declared script of the owner, as the arguments that run it; a script the
+// owner does not declare is `preparation-script-missing`, named by the
+// owner's package.json (decision F25).
 export function modulePreparationArgs(
-  authority: ProcessInput["authority"],
+  authority: Pick<ProcessInput["authority"], "owner" | "manifest">,
   script: string,
 ) {
   const scripts = authority.manifest.scripts;
@@ -46,7 +51,11 @@ export function modulePreparationArgs(
     typeof (scripts as Record<string, unknown>)[script] !== "string" ||
     !(scripts as Record<string, string>)[script]?.trim()
   )
-    throw new Error("Explicit declared module preparation script required");
+    throw new PreparationRefused(
+      "preparation-script-missing",
+      join(authority.owner, "package.json"),
+      "Explicit declared module preparation script required",
+    );
   return Object.freeze(["--no-env-file", "run", script]);
 }
 

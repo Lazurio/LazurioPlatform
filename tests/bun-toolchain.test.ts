@@ -51,3 +51,34 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     }
   },
 );
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "a package that names no Bun runs the selected Bun, whichever version it reports (decision F25)",
+  async () => {
+    const cwd = await realpath(await mkdtemp(join(tmpdir(), "bun-toolchain-")));
+    try {
+      expect(
+        await inspectBunToolchain({
+          executable: process.execPath,
+          cwd,
+          env: {},
+          packageManager: null,
+        }),
+      ).toEqual({
+        kind: "toolchain-observed",
+        executable: process.execPath,
+        packageManager: `bun@${Bun.version}`,
+      });
+      expect(
+        await inspectBunToolchain({
+          executable: join(cwd, "missing"),
+          cwd,
+          env: {},
+          packageManager: null,
+        }),
+      ).toEqual({ kind: "toolchain-unavailable" });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  },
+);

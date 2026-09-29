@@ -31,8 +31,15 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   journal. Elsewhere apps are children of the Launchpad session and are
   started from the Launchpad (launchpad-required). The toolchain is the
   operator's Bun at ${standardBun} (toolchain-missing otherwise; see lazurio
-  tools status). Dependencies are not installed by start: a module whose
-  declared check fails answers prerequisites-not-ready.
+  tools status). An app whose package declares no lazurio.preparation is
+  prepared by default first: bun install --frozen-lockfile from the bun.lock
+  beside its package.json, which changes nothing when node_modules already
+  matches it (preparation-install-failed otherwise). An app that declares
+  one is not installed by start: its declared check runs, and a failed check
+  answers prerequisites-not-ready. A preparation that cannot run answers its
+  reason (preparation-lockfile-missing, preparation-toolchain-mismatch, …)
+  with the file it concerns; status, stop and logs still operate a module
+  refused only by its preparation.
 module stop <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Stops the app and confirms its whole process group ended; stopping an app
   that does not run answers not-managed.
@@ -83,7 +90,28 @@ const explanations: Readonly<Record<string, string>> = {
   "service-unrecognized":
     "A service of this app's name exists that Lazurio did not create in its current form (for example one started by an older release); stop it once with systemctl --user stop.",
   "operation-failed":
-    "The lifecycle failed before it could confirm a change. Most often the module is not a declared self-owned Bun package: it needs lazurio.preparation, one Bun lockfile and an exact packageManager.",
+    "The lifecycle failed before it could confirm a change, for a reason it cannot name; see lazurio doctor.",
+  "preparation-owner-invalid":
+    "This package cannot prepare the app: it is missing, is not a package, or the app is not a declared member of its workspace.",
+  "preparation-script-missing":
+    "The app's lazurio.preparation names a script this package does not have.",
+  "preparation-lockfile-missing":
+    "No Bun lockfile (bun.lock) beside this package: its dependencies cannot be installed exactly. Commit the lockfile with the app.",
+  "preparation-lockfile-ambiguous":
+    "Both bun.lock and bun.lockb beside this package; keep only the one Bun installs from.",
+  "preparation-package-manager-unsupported":
+    "This package's packageManager is not an exact Bun version (bun@x.y.z); modules are installed and run with Bun.",
+  "preparation-applications-overlap":
+    "This app's directory contains, or lies inside, another app of this module, whose running app its install could change; declare lazurio.preparation or keep the apps in sibling directories.",
+  "preparation-workspace-unqualified":
+    "This package is a workspace owner or member; installing a workspace is not supported yet.",
+  "preparation-dependency-outside-owner":
+    "This package depends on a local package (file:…) outside its Organization's checkout (or, with a declared preparation, outside its owner); a local dependency must lie in the same Organization.",
+  "preparation-dependency-missing":
+    "This package depends on a local package (file:…) that is not in the checkout; check out the repository that holds it.",
+  "preparation-toolchain-mismatch": `This package pins a Bun version (packageManager) that the Bun at ${standardBun} is not.`,
+  "preparation-install-failed":
+    "bun install --frozen-lockfile from this lockfile failed: the lockfile may not match the package, or a dependency could not be fetched (a private Git dependency needs your GitHub access on this Machine).",
   "preparation-recovery-required":
     "An earlier dependency preparation of this module did not finish; starting stays blocked until it is recovered.",
   "declaration-not-regular":

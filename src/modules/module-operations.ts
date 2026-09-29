@@ -32,6 +32,7 @@ import {
 } from "./application-runner";
 import { createApplicationLifecycle } from "./lifecycle";
 import { localApplicationAdapters } from "./local-application-adapters";
+import { preparationRefusal } from "./preparation-refusal";
 import {
   createServiceManagerProcess,
   userManagerState,
@@ -160,7 +161,9 @@ export function processModuleHost(
  * kept verbatim. A file of the module's checkout that the checkout rule
  * refuses (decision F23) is `declaration-not-regular`, `declaration-owner`
  * or `declaration-too-large` with its module-relative `file`, whether the
- * catalog or the start read it. */
+ * catalog or the start read it. A preparation that cannot run for a known
+ * reason (decision F25) is one of `preparationReasons` with the package or
+ * lockfile it concerns. */
 export type ModuleBlocked = Readonly<{
   kind: "blocked";
   operation: ModuleOperation;
@@ -176,7 +179,8 @@ export type ModuleBlocked = Readonly<{
   expected?: string;
   /** `declaration-*`: the refused file, relative to the module, to the
    * Organization root for an Organization document, or `~/…` for the
-   * account's own package manager configuration. Never absolute. */
+   * account's own package manager configuration; `preparation-*`: the
+   * package or lockfile, relative to the module. Never absolute. */
   file?: string;
 }>;
 
@@ -270,6 +274,10 @@ type Target = Readonly<{
   /** The module's checkout: the names of refused files are relative to it. */
   moduleDirectory: string;
   personalspace: boolean;
+  /** The default app's preparation cannot run (decision F25): its running
+   * app is still read, logged and stopped, and `ensure` refuses only where
+   * it would start. */
+  preparationFault?: Readonly<{ reason: string; file?: string }>;
 }>;
 
 type Lifecycle = ReturnType<typeof createApplicationLifecycle>;
@@ -292,6 +300,48 @@ async function folderPlace(folder: string) {
   } catch {
     return { kind: "unknown" as const };
   }
+}
+
+// The browser origin of a module's app on this Folder's Machine: the one
+// source of both `runtime.url` and the origin a started app is told (decision
+// F26). Hosted: the recorded entry's module origin, which the gateway serves
+// for the module's default app only (B4, B5); nothing is composed from a
+// convention. `local` on a workstation; otherwise why there is none.
+async function applicationOrigin(
+  folder: string,
+  module: string,
+  isDefaultApp: boolean,
+): Promise<
+  Readonly<
+    | { kind: "local" }
+    | { kind: "origin"; origin: string }
+    | { kind: "none"; reason: string }
+  >
+> {
+  const place = await folderPlace(folder);
+  if (place.kind === "local") return { kind: "local" };
+  if (place.kind === "unknown")
+    return { kind: "none", reason: "folder-state-unreadable" };
+  if (place.template === null)
+    return { kind: "none", reason: "hosted-entry-missing" };
+  if (!isDefaultApp) return { kind: "none", reason: "hosted-app-not-default" };
+  try {
+    return { kind: "origin", origin: moduleOrigin(place.template, module) };
+  } catch (error) {
+    return {
+      kind: "none",
+      reason: error instanceof ModuleOriginError ? error.code : "module-origin",
+    };
+  }
+}
+
+/** A started app is told its origin; a Folder whose state cannot be read is
+ * not taken for a workstation (#83), so nothing starts. */
+async function launchOrigin(folder: string, module: string) {
+  const origin = await applicationOrigin(folder, module, true);
+  if (origin.kind === "none" && origin.reason === "folder-state-unreadable")
+    throw new Error("Folder state unreadable");
+  return origin.kind === "origin" ? origin.origin : null;
 }
 
 /** The module operations of one Folder. `owner` is who holds a lifecycle:
@@ -322,8 +372,9 @@ export function createModuleOperations(input: {
   ): ModuleBlocked =>
     Object.freeze({ kind: "blocked" as const, operation, reason, ...extra });
 
-  // The refusal of a throw inside an operation: a refused file of the
-  // module's checkout by its rule and module-relative name, anything else
+  // The refusal of a throw inside an operation: a preparation refused for a
+  // known reason (decision F25) or a refused file of the module's checkout
+  // (decision F23), by its reason and module-relative file; anything else
   // `operation-failed`. Never the error's message or an absolute path.
   const moduleFailure = (
     operation: ModuleOperation,
@@ -335,11 +386,16 @@ export function createModuleOperations(input: {
       module: target.module,
       app: target.app,
     };
-    const refused = checkoutRefusal(
-      error,
-      [target.moduleDirectory, target.organizationDirectory],
-      host.home,
-    );
+    const refused =
+      preparationRefusal(error, [
+        target.moduleDirectory,
+        target.organizationDirectory,
+      ]) ??
+      checkoutRefusal(
+        error,
+        [target.moduleDirectory, target.organizationDirectory],
+        host.home,
+      );
     return refused === null
       ? blocked(operation, "operation-failed", where)
       : blocked(operation, refused.reason, { ...where, file: refused.file });
@@ -451,7 +507,23 @@ export function createModuleOperations(input: {
       module.reason === "no-app" ||
       module.reason === "default-app-invalid" ||
       (module.file !== undefined && module.apps.length > 0);
-    if (!module.executable && !(namedApp && defaultAppFault))
+    // Refused by its default app's preparation only (decision F25): reading,
+    // logging and stopping never depend on the preparation; a start does.
+    const preparationFault =
+      !module.executable &&
+      module.preparationRefused === true &&
+      !namedApp &&
+      module.reason !== undefined
+        ? Object.freeze({
+            reason: module.reason,
+            ...(module.file === undefined ? {} : { file: module.file }),
+          })
+        : undefined;
+    if (
+      !module.executable &&
+      !(namedApp && defaultAppFault) &&
+      !(preparationFault !== undefined && operation !== "start")
+    )
       return blocked(operation, module.reason ?? "not-executable", {
         ...where,
         ...(module.file === undefined ? {} : { file: module.file }),
@@ -476,6 +548,7 @@ export function createModuleOperations(input: {
       module: module.module,
       app,
       isDefaultApp: app === module.defaultApp,
+      ...(preparationFault === undefined ? {} : { preparationFault }),
     };
     if (personalspace) {
       // The owner directory again, by the same rule as the catalog, and the
@@ -542,7 +615,8 @@ export function createModuleOperations(input: {
         runner,
         ...(target.personalspace
           ? { resolveApplication: resolvePersonalspaceApplication }
-          : {}),
+          : { organizationRoot: organizationDirectory }),
+        externalOrigin: (module) => launchOrigin(folder, module),
         ...(kind === "systemd-user"
           ? {
               coordination: createApplicationCoordination({
@@ -566,10 +640,9 @@ export function createModuleOperations(input: {
     action: (lifecycle: Lifecycle) => Promise<T>,
   ): Promise<T | ModuleBlocked> {
     // A throw inside the lifecycle changed nothing it could not confirm. A
-    // file of the module's checkout that the checkout rule refused is named
-    // by its rule and file (decision F23); any other throw is typically a
-    // module that is not a declared self-owned Bun package (no preparation
-    // declaration, lockfile or exact packageManager).
+    // preparation refused for a known reason (decision F25) and a file of the
+    // module's checkout that the checkout rule refused (decision F23) are
+    // named by their reason and file; any other throw is `operation-failed`.
     const failed = (error: unknown) => moduleFailure(operation, target, error);
     if (owner === "launchpad") {
       try {
@@ -650,28 +723,16 @@ export function createModuleOperations(input: {
     const observed = await lifecycle.entrypoint(selection);
     if (observed.kind !== "local-entrypoint")
       return { runtime: null, runtimeReason: observed.kind };
-    const place = await folderPlace(folder);
-    if (place.kind === "local") return { runtime: { url: observed.url } };
-    if (place.kind === "unknown")
-      return { runtime: null, runtimeReason: "folder-state-unreadable" };
-    // Hosted: never the loopback address. The link is the recorded entry's
-    // module origin, which the gateway serves for the module's default app
-    // only (B4, B5); nothing is composed from a convention.
-    if (place.template === null)
-      return { runtime: null, runtimeReason: "hosted-entry-missing" };
-    if (!target.isDefaultApp)
-      return { runtime: null, runtimeReason: "hosted-app-not-default" };
-    try {
-      return {
-        runtime: { url: `${moduleOrigin(place.template, target.module)}/` },
-      };
-    } catch (error) {
-      return {
-        runtime: null,
-        runtimeReason:
-          error instanceof ModuleOriginError ? error.code : "module-origin",
-      };
-    }
+    // Hosted: never the loopback address.
+    const origin = await applicationOrigin(
+      folder,
+      target.module,
+      target.isDefaultApp,
+    );
+    if (origin.kind === "local") return { runtime: { url: observed.url } };
+    if (origin.kind === "none")
+      return { runtime: null, runtimeReason: origin.reason };
+    return { runtime: { url: `${origin.origin}/` } };
   }
 
   // The owner's view of one app now, as an answer.
@@ -753,6 +814,14 @@ export function createModuleOperations(input: {
         tool: "bun",
         expected: host.bunExecutable === undefined ? standardBun : bun,
       });
+    // Whether the app is told a hosted origin must be known before any
+    // effect: an unreadable Folder state is not a workstation (decision F26).
+    if ((await folderPlace(folder)).kind === "unknown")
+      return blocked("start", "folder-state-unreadable", {
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
+      });
     return operate("start", kind, target, async (lifecycle) => {
       const started = await lifecycle.start(selection);
       if (started.kind !== "started" && started.kind !== "already-managed")
@@ -760,6 +829,10 @@ export function createModuleOperations(input: {
           organization: target.organization,
           module: target.module,
           app: target.app,
+          // The file a failed preparation concerns (decision F25).
+          ...("file" in started && typeof started.file === "string"
+            ? { file: started.file }
+            : {}),
         });
       return observe("start", started.kind, kind, target, selection, lifecycle);
     });
@@ -768,7 +841,8 @@ export function createModuleOperations(input: {
   // Seams of later slices, deliberately not built here:
   // - B3 `prepare` and `open` (prepare when needed, start, wait for health,
   //   the link) compose `lifecycle.prepare` and the same `observe`; until
-  //   then `ensure` starts but does not prepare.
+  //   then `ensure` starts, which for a module without a declared
+  //   preparation includes its default frozen install (decision F25).
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
   return Object.freeze({
@@ -817,6 +891,17 @@ export function createModuleOperations(input: {
       const current = await read(null);
       if (current.kind === "blocked" || current.healthy || !options.mayStart)
         return current;
+      // A default app whose preparation cannot run is not started; one that
+      // already runs is reported as it is (decision F25).
+      const fault = target.preparationFault;
+      if (fault !== undefined)
+        return current.state === "stopped" || current.state === "ended"
+          ? blocked("ensure", fault.reason, {
+              organization: target.organization,
+              module: target.module,
+              ...(fault.file === undefined ? {} : { file: fault.file }),
+            })
+          : current;
       const key = `${target.organizationDirectory}\0${target.module}\0${target.app}`;
       let starting = ensuring.get(key);
       if (starting === undefined) {
