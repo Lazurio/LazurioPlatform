@@ -8,7 +8,7 @@ import {
   symlink,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
@@ -84,8 +84,9 @@ type World = Readonly<{
   host: (module: string) => ModuleHost;
   list: () => Promise<Record<string, Record<string, unknown>>>;
   run: (
-    verb: "start" | "status" | "stop",
+    verb: "start" | "status" | "stop" | "logs",
     module: string,
+    app?: string,
   ) => Promise<Record<string, unknown>>;
   ensure: (module: string) => Promise<Record<string, unknown>>;
 }>;
@@ -151,10 +152,18 @@ async function world(
           .modules;
         return Object.fromEntries(rows.map((row) => [row.module, row]));
       },
-      run: async (verb, id) =>
+      run: async (verb, id, app) =>
         (
           await runModuleCommand(
-            ["module", verb, `delta/${id}`, "--folder", folder, "--json"],
+            [
+              "module",
+              verb,
+              `delta/${id}`,
+              "--folder",
+              folder,
+              "--json",
+              ...(app === undefined ? [] : ["--app", app]),
+            ],
             context,
             host(id),
           )
@@ -453,6 +462,19 @@ posixTest(
           await (await fetch(`http://127.0.0.1:${world.ports.ledger}/`)).text(),
         ).toBe("current");
         expect(await installed(world.app("ledger"))).toBe("2.0.0");
+        // Without its lockfile the running app is still read and stopped;
+        // only a start depends on its preparation.
+        await rm(join(world.app("ledger"), "bun.lock"));
+        const stopped = await fetch(route("stop"), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(stopped.status).toBe(200);
+        expect(await stopped.json()).toMatchObject({
+          outcome: "group-stopped",
+          state: "stopped",
+        });
       } finally {
         expect(await app.close()).toEqual({ kind: "closed" });
       }
@@ -628,6 +650,275 @@ posixTest(
       expect(await world.run("stop", "orders")).toMatchObject({
         outcome: "group-stopped",
       });
+    });
+  },
+  120_000,
+);
+
+posixTest(
+  "status, logs and stop of a running module do not depend on its preparation: after its lockfile is gone they work, and only a start or ensure is refused by the reason",
+  async () => {
+    await world("lockfile-gone", [], async (world) => {
+      expect(await world.run("start", "ledger")).toMatchObject({
+        outcome: "started",
+        healthy: true,
+      });
+      await rm(join(world.app("ledger"), "bun.lock"));
+      expect((await world.list()).ledger).toMatchObject({
+        executable: false,
+        reason: "preparation-lockfile-missing",
+        file: "app/package.json",
+        preparationRefused: true,
+      });
+      expect(await world.run("status", "ledger")).toMatchObject({
+        kind: "module",
+        operation: "status",
+        state: "running",
+        healthy: true,
+      });
+      expect(await world.run("logs", "ledger")).toMatchObject({
+        kind: "module-logs",
+        module: "ledger",
+      });
+      // The gateway still reaches the running app.
+      expect(await world.ensure("ledger")).toMatchObject({
+        kind: "module",
+        operation: "ensure",
+        healthy: true,
+      });
+      expect(await world.run("stop", "ledger")).toMatchObject({
+        kind: "module",
+        outcome: "group-stopped",
+        state: "stopped",
+      });
+      const refused = {
+        reason: "preparation-lockfile-missing",
+        organization: "delta",
+        module: "ledger",
+        file: "app/package.json",
+      };
+      expect(await world.run("start", "ledger")).toEqual({
+        kind: "blocked",
+        operation: "start",
+        ...refused,
+      });
+      expect(await world.ensure("ledger")).toEqual({
+        kind: "blocked",
+        operation: "ensure",
+        ...refused,
+      });
+      expect(world.manager.commands("systemd-run")).toHaveLength(1);
+    });
+  },
+  120_000,
+);
+
+// One declared application package of a module: its package.json with the
+// runtime declaration of the module's fixture app, one local dependency and
+// its own lockfile beside it.
+async function applicationPackage(
+  world: World,
+  module: string,
+  pkgPath: string,
+  dependencies: Record<string, string> = {
+    "fixture-dependency": "file:./dependency",
+  },
+) {
+  const root = join(world.organization, "workspace", module);
+  const runtime = JSON.parse(
+    await readFile(join(root, "app/package.json"), "utf8").catch(async () =>
+      readFile(join(root, ".fixture-runtime.json"), "utf8"),
+    ),
+  ).lazurio;
+  await writeFile(
+    join(root, ".fixture-runtime.json"),
+    JSON.stringify({ lazurio: runtime }),
+  );
+  const directory = dirname(join(root, pkgPath));
+  await mkdir(directory, { recursive: true });
+  for (const reference of Object.values(dependencies)) {
+    const target = join(directory, reference.slice("file:".length));
+    await mkdir(target, { recursive: true });
+    await writeFile(
+      join(target, "package.json"),
+      JSON.stringify({
+        name: `fixture-${relative(root, target).replaceAll("/", "-")}`,
+        version: "1.0.0",
+      }),
+    );
+  }
+  await writeFile(
+    join(directory, "package.json"),
+    JSON.stringify({
+      name: `fixture-${module}-${relative(root, directory).replaceAll("/", "-") || "root"}`,
+      private: true,
+      dependencies,
+      scripts: { dev: `"${process.execPath}" --no-env-file server.ts` },
+      lazurio: runtime,
+    }),
+  );
+  const install = Bun.spawn([process.execPath, "install", "--lockfile-only"], {
+    cwd: directory,
+    env: { HOME: world.home, PATH: "/usr/bin:/bin" },
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  const [error, code] = await Promise.all([
+    new Response(install.stderr).text(),
+    install.exited,
+  ]);
+  expect(code, error).toBe(0);
+}
+
+// The module's declared apps and default app.
+async function declareApps(
+  world: World,
+  module: string,
+  apps: string[],
+  defaultApp: string,
+) {
+  const path = join(
+    world.organization,
+    "workspace",
+    module,
+    "lazurio.module.json",
+  );
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  manifest.apps = apps;
+  manifest.default_app = defaultApp;
+  await writeFile(path, JSON.stringify(manifest));
+}
+
+posixTest(
+  "application packages of one module that contain one another are refused by the default preparation; sibling packages, one with a local package inside it, start",
+  async () => {
+    const more = ["nested", "siblings"].map((id) => ({ id }));
+    await world("overlap", more, async (world) => {
+      // nested: an app at the module root and one under app/v2.
+      await applicationPackage(world, "nested", "package.json");
+      await applicationPackage(world, "nested", "app/v2/package.json");
+      await rm(join(world.app("nested"), "package.json"));
+      await rm(join(world.app("nested"), "bun.lock"));
+      await declareApps(
+        world,
+        "nested",
+        ["package.json", "app/v2/package.json"],
+        "package.json",
+      );
+      // siblings: app/v1, app/v2, app/v3, the last with a local package in
+      // its own directory, as the real modules have them.
+      for (const version of ["v1", "v2"])
+        await applicationPackage(
+          world,
+          "siblings",
+          `app/${version}/package.json`,
+        );
+      await applicationPackage(world, "siblings", "app/v3/package.json", {
+        "fixture-shared": "file:./packages/shared",
+      });
+      await rm(join(world.app("siblings"), "package.json"));
+      await rm(join(world.app("siblings"), "bun.lock"));
+      await declareApps(
+        world,
+        "siblings",
+        ["app/v1/package.json", "app/v2/package.json", "app/v3/package.json"],
+        "app/v3/package.json",
+      );
+      const rows = await world.list();
+      expect(rows.nested).toMatchObject({
+        executable: false,
+        reason: "preparation-applications-overlap",
+        file: "package.json",
+      });
+      expect(rows.siblings).toMatchObject({ executable: true });
+      expect(rows.siblings).not.toHaveProperty("reason");
+      expect(await world.run("start", "nested")).toEqual({
+        kind: "blocked",
+        operation: "start",
+        reason: "preparation-applications-overlap",
+        organization: "delta",
+        module: "nested",
+        file: "package.json",
+      });
+      // The nested app is refused too: its directory is inside another's.
+      expect(await world.run("start", "nested", "app/v2/package.json")).toEqual(
+        {
+          kind: "blocked",
+          operation: "start",
+          reason: "preparation-applications-overlap",
+          organization: "delta",
+          module: "nested",
+          app: "app/v2/package.json",
+          file: "app/v2/package.json",
+        },
+      );
+      expect(world.manager.commands("systemd-run")).toHaveLength(0);
+      expect(await world.run("start", "siblings")).toMatchObject({
+        kind: "module",
+        app: "app/v3/package.json",
+        outcome: "started",
+      });
+      expect(
+        JSON.parse(
+          await readFile(
+            join(
+              world.app("siblings"),
+              "v3/node_modules/fixture-shared/package.json",
+            ),
+            "utf8",
+          ),
+        ).version,
+      ).toBe("1.0.0");
+      expect(await world.run("stop", "siblings")).toMatchObject({
+        outcome: "group-stopped",
+      });
+    });
+  },
+  120_000,
+);
+
+posixTest(
+  "the catalog applies the start's rules read-only: a symlinked lockfile, a dangling symlink as a local dependency and a missing declared owner are not executable, with the start's reason and file",
+  async () => {
+    const more = ["linklock", "dangling", "ownerless"].map((id) => ({ id }));
+    await world("read-only-rules", more, async (world) => {
+      await variant(world, "linklock", () => {});
+      const lock = join(world.app("linklock"), "bun.lock");
+      await writeFile(join(world.home, "elsewhere.lock"), await readFile(lock));
+      await rm(lock);
+      await symlink(join(world.home, "elsewhere.lock"), lock);
+      await variant(world, "dangling", (pkg) => {
+        pkg.dependencies = { "fixture-dependency": "file:./dependency-link" };
+      });
+      await symlink(
+        join(world.app("dangling"), "nowhere"),
+        join(world.app("dangling"), "dependency-link"),
+      );
+      await variant(world, "ownerless", (pkg) => {
+        (pkg.lazurio as Record<string, unknown>).preparation = {
+          schema_version: "lazurio.preparation.v1",
+          owner_package: "missing/package.json",
+          check_script: "check",
+        };
+      });
+      const rows = await world.list();
+      const expected: Record<string, [string, string]> = {
+        linklock: ["declaration-not-regular", "app/bun.lock"],
+        dangling: ["directory-not-regular", "app/dependency-link"],
+        ownerless: ["preparation-owner-invalid", "missing/package.json"],
+      };
+      for (const [id, [reason, file]] of Object.entries(expected)) {
+        expect(rows[id]).toMatchObject({ executable: false, reason, file });
+        expect(await world.run("start", id)).toEqual({
+          kind: "blocked",
+          operation: "start",
+          reason,
+          organization: "delta",
+          module: id,
+          file,
+        });
+      }
+      expect(world.manager.commands("systemd-run")).toHaveLength(0);
     });
   },
   120_000,
