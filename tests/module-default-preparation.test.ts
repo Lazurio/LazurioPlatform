@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { lstat, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  lstat,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
@@ -69,6 +76,7 @@ const modules = ["ledger", "notes", "drafts"] as const;
 
 type World = Readonly<{
   folder: string;
+  organization: string;
   home: string;
   app: (module: string) => string;
   ports: Readonly<Record<string, number>>;
@@ -128,6 +136,7 @@ async function world(
     const context = cliContext(home);
     await body({
       folder,
+      organization,
       home,
       app: (id) => join(module(id), "app"),
       ports,
@@ -447,6 +456,178 @@ posixTest(
       } finally {
         expect(await app.close()).toEqual({ kind: "closed" });
       }
+    });
+  },
+  120_000,
+);
+
+// An application of a module in the shape of the real ones that share a
+// contracts package of the Organization's root repository: its package is
+// `app/v3/package.json`, undeclared, depending on `reference`. Its lockfile
+// is written while the dependency is the Organization's contracts package,
+// then the reference is set.
+async function contractsApplication(
+  world: World,
+  id: string,
+  reference: string,
+) {
+  const module = join(world.organization, "workspace", id);
+  const manifestPath = join(module, "lazurio.module.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  manifest.apps = ["app/v3/package.json"];
+  manifest.default_app = "app/v3/package.json";
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  const pkg = JSON.parse(
+    await readFile(join(module, "app/package.json"), "utf8"),
+  );
+  await rm(join(module, "app/package.json"));
+  await rm(join(module, "app/bun.lock"));
+  const app = join(module, "app/v3");
+  await mkdir(app);
+  pkg.private = true;
+  pkg.scripts = { dev: `"${process.execPath}" --no-env-file server.ts` };
+  pkg.dependencies = {
+    "@fixture/v1": "file:../../../../launchpad/contracts/v1",
+  };
+  await writeFile(join(app, "package.json"), JSON.stringify(pkg));
+  await writeFile(
+    join(app, "server.ts"),
+    'import { contract } from "@fixture/v1"; Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch: () => new Response(contract) });',
+  );
+  const install = Bun.spawn([process.execPath, "install", "--lockfile-only"], {
+    cwd: app,
+    env: { HOME: world.home, PATH: "/usr/bin:/bin" },
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  const [error, code] = await Promise.all([
+    new Response(install.stderr).text(),
+    install.exited,
+  ]);
+  expect(code, error).toBe(0);
+  pkg.dependencies = { "@fixture/v1": reference };
+  await writeFile(join(app, "package.json"), JSON.stringify(pkg));
+  return app;
+}
+
+posixTest(
+  "a local dependency in the same Organization checkout, outside the module's repository, is installed by the default preparation; one that leaves the Organization, passes a symlink or does not exist is refused by its reason",
+  async () => {
+    const more = ["orders", "leaving", "linked", "absent"].map((id) => ({
+      id,
+    }));
+    await world("contracts", more, async (world) => {
+      // The Organization root repository's contracts package.
+      const contracts = join(world.organization, "launchpad/contracts/v1");
+      await mkdir(contracts, { recursive: true });
+      await writeFile(
+        join(contracts, "package.json"),
+        JSON.stringify({
+          name: "@fixture/v1",
+          version: "1.0.0",
+          main: "index.js",
+        }),
+      );
+      await writeFile(
+        join(contracts, "index.js"),
+        'export const contract = "contract-v1";\n',
+      );
+      await symlink(
+        join(world.organization, "launchpad/contracts"),
+        join(world.organization, "launchpad/linked"),
+      );
+      // A directory of the Folder beside the Organization, with a package.
+      const beside = join(world.folder, "organizations/outside/v1");
+      await mkdir(beside, { recursive: true });
+      await writeFile(
+        join(beside, "package.json"),
+        JSON.stringify({ name: "@fixture/v1", version: "1.0.0" }),
+      );
+      const orders = await contractsApplication(
+        world,
+        "orders",
+        "file:../../../../launchpad/contracts/v1",
+      );
+      await contractsApplication(
+        world,
+        "leaving",
+        "file:../../../../../outside/v1",
+      );
+      await contractsApplication(
+        world,
+        "linked",
+        "file:../../../../launchpad/linked/v1",
+      );
+      await contractsApplication(
+        world,
+        "absent",
+        "file:../../../../launchpad/contracts/v9",
+      );
+      const rows = await world.list();
+      expect(rows.orders).toMatchObject({
+        executable: true,
+        defaultApp: "app/v3/package.json",
+      });
+      expect(rows.orders).not.toHaveProperty("reason");
+      const refused: Record<string, [string, string]> = {
+        leaving: [
+          "preparation-dependency-outside-owner",
+          "app/v3/package.json",
+        ],
+        linked: ["directory-not-regular", "launchpad/linked"],
+        absent: ["preparation-dependency-missing", "app/v3/package.json"],
+      };
+      for (const [id, [reason, file]] of Object.entries(refused)) {
+        expect(rows[id]).toMatchObject({ executable: false, reason, file });
+        expect(await world.run("start", id)).toEqual({
+          kind: "blocked",
+          operation: "start",
+          reason,
+          organization: "delta",
+          module: id,
+          file,
+        });
+        expect(await world.ensure(id)).toEqual({
+          kind: "blocked",
+          operation: "ensure",
+          reason,
+          organization: "delta",
+          module: id,
+          file,
+        });
+      }
+      expect(world.manager.commands("systemd-run")).toHaveLength(0);
+
+      // orders starts: the contracts package is installed from the
+      // Organization's root repository, nothing of it is changed.
+      const source = await readFile(join(contracts, "package.json"), "utf8");
+      expect(await world.run("start", "orders")).toMatchObject({
+        kind: "module",
+        outcome: "started",
+        healthy: true,
+      });
+      expect(
+        JSON.parse(
+          await readFile(
+            join(orders, "node_modules/@fixture/v1/package.json"),
+            "utf8",
+          ),
+        ).version,
+      ).toBe("1.0.0");
+      expect(await readFile(join(contracts, "package.json"), "utf8")).toBe(
+        source,
+      );
+      expect(await world.run("stop", "orders")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      expect(await world.ensure("orders")).toMatchObject({
+        kind: "module",
+        operation: "ensure",
+        healthy: true,
+      });
+      expect(await world.run("stop", "orders")).toMatchObject({
+        outcome: "group-stopped",
+      });
     });
   },
   120_000,
