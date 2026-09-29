@@ -580,7 +580,7 @@ test.skipIf(process.platform === "win32")(
         await signInTool(
           standard,
           "wacli",
-          '{"authenticated":false,"phone":"+420000000000"}',
+          '{"success":true,"data":{"authenticated":false},"error":null}',
         );
         await signInTool(standard, "neon", "not json at all");
         return [standard];
