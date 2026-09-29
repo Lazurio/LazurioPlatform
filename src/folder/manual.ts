@@ -989,8 +989,8 @@ const presetMeaning: Readonly<Record<PresetName, Text>> = {
     "An Organization-owned team VM: one OS account shared by the Team's Principals. The Principal is whichever Team member is connected; the OS account is not a person. It never holds personal credentials, sessions or a Personalspace. Its provider identity is the brokered Organization identity with short-lived tokens, and changes are attributed to the Team (decisions 0147/0149). Applications are owned by the OS service manager.",
   ),
   "hosted-organization-steward": t(
-    "Automatizované Environment persony Organizace (decision 0169): pracovní VM vlastněná Organizací s jedním odpovědným operátorem, Ownerem nebo Adminem Organizace, který automatizace nastavuje a odpovídá za ně. GitHub identitou je vlastní strojový uživatelský účet persony, ne účet operátora ani Lazurio for GitHub. Lazurio MausBot tu vedle Launchpadu a T3 Code provozuje tým botů persony. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`. Aplikace i boty vlastní OS service manager.",
-    "The Automated Environment of an Organization persona (decision 0169): an Organization-owned work VM with one responsible operator, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own machine user account, not the operator's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under `organizations/<org>/`. Applications and bots are owned by the OS service manager.",
+    "Automatizovaný Environment persony Organizace (decision 0169): Remote Environment vlastněný Organizací s jedním odpovědným operátorem, Ownerem nebo Adminem Organizace, který automatizace nastavuje a odpovídá za ně. GitHub identitou je vlastní GitHub uživatelský účet persony (účet bota), ne účet operátora ani Lazurio for GitHub. Lazurio MausBot tu vedle Launchpadu a T3 Code provozuje tým botů persony. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`. Aplikace i boty vlastní OS service manager.",
+    "The Automated Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible operator, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the operator's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under `organizations/<org>/`. Applications and bots are owned by the OS service manager.",
   ),
 };
 
@@ -1081,8 +1081,8 @@ function zoneOfThisMachine(
       );
     case "hosted-organization-steward":
       return t(
-        `Tahle Mašina je Automatizované Environment persony v pracovní zóně Organizace \`${organization}\` s jedním odpovědným operátorem. Připojuje se na ni jen tento operátor, přes SSH pro servisní zákroky; Kolegové s personou spolupracují přes GitHub. Na osobní Mašinu nikdy nesmí.`,
-        `This Machine is the Automated Environment of a persona in the work zone of Organization \`${organization}\`, with one responsible operator. Only that operator connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Machine.`,
+        `Tento Environment je Automatizovaný Environment persony v pracovní zóně Organizace \`${organization}\` s jedním odpovědným operátorem. Připojuje se do něj jen tento operátor, přes SSH pro servisní zákroky; Kolegové s personou spolupracují přes GitHub. Do osobního Environmentu nikdy nesmí.`,
+        `This is the Automated Environment of a persona in the work zone of Organization \`${organization}\`, with one responsible operator. Only that operator connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.`,
       );
   }
 }
@@ -1139,8 +1139,8 @@ function botTeam(
       "## Lazurio MausBot: the persona's bot team",
     ),
     t(
-      "Výchozí nastavení presetu pro Lazurio MausBot (fork OpenMausBotu od Lazuria) na téhle Mašině (decision 0169). Uplatňuje je služba, která Lazurio MausBot instaluje a spouští; Lazurio je tu jen uvádí, žádné z nich neuplatňuje a operátor je smí v Lazurio MausBotu změnit. Rozdíl nahlas operátorovi; službu sám neměň.",
-      "The preset's defaults for Lazurio MausBot (Lazurio's fork of OpenMausBot) on this Machine (decision 0169). The service that installs and runs Lazurio MausBot applies them; Lazurio only lists them here, applies none of them, and the operator may change them in Lazurio MausBot. Report a difference to the operator; do not change the service yourself.",
+      "Výchozí nastavení presetu pro Lazurio MausBot (fork OpenMausBotu od Lazuria) v tomto Environmentu (decision 0169). Uplatňuje je služba, která Lazurio MausBot instaluje a spouští; Lazurio je tu jen uvádí, žádné z nich neuplatňuje a operátor je smí v Lazurio MausBotu změnit. Rozdíl nahlas operátorovi; službu sám neměň.",
+      "The preset's defaults for Lazurio MausBot (Lazurio's fork of OpenMausBot) in this Environment (decision 0169). The service that installs and runs Lazurio MausBot applies them; Lazurio only lists them here, applies none of them, and the operator may change them in Lazurio MausBot. Report a difference to the operator; do not change the service yourself.",
     ),
     blank,
     t("| Nastavení | Výchozí hodnota |", "| Setting | Default |"),
@@ -1154,8 +1154,8 @@ function botTeam(
       `| Team | the Steward team \`${team.team}\` imported from the installed Lazurio MausBot release: a leader named after the persona and three workers |`,
     ),
     t(
-      "| `OMB_GITHUB_INTAKE` | `1`: napojení na GitHub bez modelu pod účtem `gh` téhle Mašiny, tedy personou |",
-      "| `OMB_GITHUB_INTAKE` | `1`: the model-free GitHub intake under this Machine's `gh` account, the persona |",
+      "| `OMB_GITHUB_INTAKE` | `1`: napojení na GitHub bez modelu pod účtem `gh` tohoto Environmentu, tedy personou |",
+      "| `OMB_GITHUB_INTAKE` | `1`: the model-free GitHub intake under this Environment's `gh` account, the persona |",
     ),
     t(
       "| `OMB_GITHUB_INTAKE_BOT` | jméno leadera importovaného týmu |",
@@ -1169,8 +1169,8 @@ function botTeam(
     ),
     blank,
     t(
-      "**Přihlášení.** Účet persony je strojový GitHub uživatel Organizace. Odpovědný operátor ho na téhle Mašině jednou přihlásí příkazem `lazurio tools login gh` nebo v Launchpadu (Nástroje): v prohlížeči zvolí účet persony a propojí s ním SSH klíč téhle Mašiny. Dvoufázové ověření a kódy pro obnovu účtu drží operátor mimo tuhle Mašinu. Jiný účet než persony přihlášený v `gh` je nález pro operátora.",
-      "**Sign-in.** The persona's account is a machine GitHub user of the Organization. The responsible operator signs it in once on this Machine with `lazurio tools login gh` or in the Launchpad (Tools): they choose the persona's account in the browser and link this Machine's SSH key to it. The operator holds the account's two-factor authentication and recovery codes outside this Machine. An account other than the persona's signed in to `gh` is a finding for the operator.",
+      "**Přihlášení.** Účet persony je GitHub účet bota Organizace. Odpovědný operátor ho v tomto Environmentu jednou přihlásí příkazem `lazurio tools login gh` nebo v Launchpadu (Nástroje): v prohlížeči zvolí účet persony a propojí s ním SSH klíč tohoto Environmentu. Dvoufázové ověření a kódy pro obnovu účtu drží operátor mimo tento Environment. Jiný účet než persony přihlášený v `gh` je nález pro operátora.",
+      "**Sign-in.** The persona's account is a bot GitHub user of the Organization. The responsible operator signs it in once in this Environment with `lazurio tools login gh` or in the Launchpad (Tools): they choose the persona's account in the browser and link this Environment's SSH key to it. The operator holds the account's two-factor authentication and recovery codes outside this Environment. An account other than the persona's signed in to `gh` is a finding for the operator.",
     ),
     blank,
     t(

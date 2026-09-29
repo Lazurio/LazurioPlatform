@@ -50,7 +50,7 @@ Folder; Platform applies none of it.
 | `hosted-personal` | A Principal's ONE personal VM (`machine.kind: personal-vm`) | The Machine's Owner; a Buddy is an optional resident of the same Machine | Own sign-in | Present and intimate | None mounted |
 | `hosted-organization-personal` | An Organization-owned work VM assigned to ONE operator (`workspace-vm`) | The assigned operator | Own sign-in | Never present | `organizations/<org>/` |
 | `hosted-organization-team` | An Organization-owned team VM, one OS account, several Principals (`workspace-vm`) | The connected Team member; the OS account is not a person | Brokered Organization identity; no personal credentials | Never present | `organizations/<org>/` |
-| `hosted-organization-steward` | The Automated Environment of an Organization persona (`workspace-vm`), decision 0169 | The one responsible operator, an Owner or Admin of the Organization; the persona's bot team works here | The persona's own machine GitHub user account, signed in by the operator | Never present | `organizations/<org>/` |
+| `hosted-organization-steward` | The Automated Environment of an Organization persona (`workspace-vm`), decision 0169 | The one responsible operator, an Owner or Admin of the Organization; the persona's bot team works here | The persona's own GitHub user account (a bot account), signed in by the operator | Never present | `organizations/<org>/` |
 
 The earlier names `hosted-private` and `hosted-team` were never implemented and were
 renamed without compatibility.
@@ -101,7 +101,7 @@ handover's `owner.assignment` exactly when it is present (`assigned to operator
 ## The Steward preset: Automated Environment
 
 Decision 0169 (Lazurio root register) adds a fourth kind of Environment next to the
-three of 0165: **Automated** (Automatizované). Automated work of an Organization is
+three of 0165: **Automated** (Automatizovaný). Automated work of an Organization is
 done by a bot team of its persona (Henry) in Lazurio MausBot, Lazurio's fork of
 OpenMausBot. `hosted-organization-steward` is that Environment's preset:
 
@@ -111,8 +111,8 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   interventions; colleagues work with the persona through GitHub. Personalspace is
   never present; Organization repositories are mounted under `organizations/<org>/`
   exactly as on the other Organization presets.
-- **Provider identity `persona-account`.** The persona's own machine GitHub user
-  account, one per Organization (not a GitHub App: a code owner, a requested reviewer
+- **Provider identity `persona-account`.** The persona's own GitHub user account
+  (a bot account), one per Organization (not a GitHub App: a code owner, a requested reviewer
   and an assignee must be users). It is neither the operator's account nor Lazurio for
   GitHub, which stays the identity of the Work Team Environment (0147, 0168). Every
   tool, T3 Code and every bot acts as that account and within its live GitHub rights.

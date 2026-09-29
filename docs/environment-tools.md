@@ -305,10 +305,10 @@ signed in there at all (next section).
 
 On the Steward preset (`hosted-organization-steward`, the Automated Environment of
 upstream decision 0169) the curated gh sign-in and SSH key linking are offered, as on
-a Work Environment. The account signed in is the persona's own machine GitHub user
-account, not the operator's: the responsible operator runs `lazurio tools login gh`
+a Work Environment. The account signed in is the persona's own GitHub user account
+(a bot account), not the operator's: the responsible operator runs `lazurio tools login gh`
 or the Launchpad's sign-in, chooses the persona's account in the device flow and
-keeps its two-factor authentication and recovery codes outside the Machine. The
+keeps its two-factor authentication and recovery codes outside the Environment. The
 rendered Folder states this rule; the gate does not compare accounts
 ([workspace presets](workspace-presets.md#the-steward-preset-automated-environment)).
 

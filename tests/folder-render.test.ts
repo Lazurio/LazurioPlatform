@@ -298,7 +298,7 @@ test("the Steward preset renders the persona, its bot team and the publication r
   const en = steward("en");
   for (const line of [
     "- Assignment: an automated Environment of an Organization persona; responsible operator `example` (GitHub id 12345).",
-    "- Identity: the persona's own machine GitHub user account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
+    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
     "## Persona bot team",
     "`/lazurio publish`",
     "Organization `example`",
@@ -307,6 +307,36 @@ test("the Steward preset renders the persona, its bot team and the publication r
   const cs = steward("cs");
   expect(cs).toContain("## Tým botů persony");
   expect(cs).toContain("`/lazurio publish`");
+  // Issue #99: the text this preset adds says Environment, never Machine.
+  const manual = (locale: "cs" | "en") =>
+    renderManual({
+      preset: "hosted-organization-steward",
+      machine: bindings.automated,
+      profile: presetProfile("hosted-organization-steward", "linux", {
+        locale,
+      }),
+    })["manual/this-machine.md"];
+  for (const [document, from, to] of [
+    [en, "## Persona bot team", "## How work is done here"],
+    [cs, "## Tým botů persony", "## Jak se tu pracuje"],
+    [manual("en"), "## Lazurio MausBot", "## Enabled tools"],
+    [manual("cs"), "## Lazurio MausBot", "## Zapnuté nástroje"],
+  ] as const) {
+    const section = document.slice(
+      document.indexOf(from),
+      document.indexOf(to),
+    );
+    expect(section.length).toBeGreaterThan(from.length);
+    expect(section).not.toMatch(/Mašin|Machine|\bVM\b|server/);
+  }
+  for (const document of [en, cs])
+    for (const line of document.split("\n"))
+      if (
+        /^- (Assignment|Přiřazení|Principal|Principál|Identity|Identita):/.test(
+          line,
+        )
+      )
+        expect(line).not.toMatch(/Mašin|Machine|\bVM\b|server/);
   for (const journey of journeys.filter(
     (entry) => entry.preset !== "hosted-organization-steward",
   ))

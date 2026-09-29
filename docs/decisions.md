@@ -539,8 +539,8 @@ Folder keeps preserving the Principal's own top-level files.
 `hosted-organization-steward`, for the fourth kind of Environment, **Automated**: the
 work VM of an Organization persona whose bot team runs in Lazurio MausBot, with one
 responsible operator (an Owner or Admin). Personalspace never, Organization
-repositories mounted, provider identity `persona-account` (the persona's own machine
-GitHub user account, signed in by the operator, who holds its 2FA and recovery),
+repositories mounted, provider identity `persona-account` (the persona's own GitHub
+user account, a bot account, signed in by the operator, who holds its 2FA and recovery),
 surfaces `launchpad`, `hosted-entry` and `openmausbot`, the OS service manager. A new
 preset field `botTeam` declares the defaults Lazurio MausBot starts the team with
 (`OMB_DEFAULT_BOT_CWD` = the Lazurio Folder, the Steward team file of the installed

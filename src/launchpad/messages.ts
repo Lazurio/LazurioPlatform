@@ -1184,7 +1184,7 @@ const cs: Record<MessageKey, string> = {
   presetHostedPersonal: "Osobní",
   presetHostedOrganizationPersonal: "Pracovní",
   presetHostedOrganizationTeam: "Pracovní týmové",
-  presetHostedOrganizationSteward: "Automatizované",
+  presetHostedOrganizationSteward: "Automatizovaný",
   locale: "Jazyk",
   detail: "Podrobnost",
   concise: "Stručně",

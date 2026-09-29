@@ -520,16 +520,16 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-steward / cs 1`] = `
 - Preset: \`hosted-organization-steward\` (verze 1).
 - Mašina: \`workspace\` (workspace-vm).
 - Owner: Organizace \`example\`.
-- Přiřazení: automatizované Environment persony Organizace; odpovědný operátor \`example\` (GitHub id 12345).
-- Principál: odpovědný operátor tohohle Automatizovaného Environmentu, Owner nebo Admin Organizace. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se připojuje jen operátor, pro servisní zákroky.
+- Přiřazení: automatizovaný Environment persony Organizace; odpovědný operátor \`example\` (GitHub id 12345).
+- Principál: odpovědný operátor tohoto Automatizovaného Environmentu, Owner nebo Admin Organizace. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se připojuje jen operátor, pro servisní zákroky.
 - Tailnet: Headscale node \`example-workspace\`.
 - Host: virtualization-host \`example-host\`; vyšší doména správy a obnovy než tahle Mašina.
 ## Hranice
 - Personalspace: na Mašině vlastněné Organizací nikdy není. Nezakládej ho, nemountuj ho a nekopíruj sem osobní data ani přihlášení.
 - Organizace: repozitáře žijí v \`organizations/<org>/\`; každá Organizace je vlastní access hranice a vlastní git repozitář.
-- Identita: vlastní strojový GitHub uživatelský účet persony, který v \`gh\` přihlašuje odpovědný operátor a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet operátora ani nikoho jiného sem nepřihlašuj; GitHub je jediná autorita přístupů.
+- Identita: vlastní GitHub uživatelský účet persony (účet bota), který v \`gh\` přihlašuje odpovědný operátor a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet operátora ani nikoho jiného sem nepřihlašuj; GitHub je jediná autorita přístupů.
 ## Tým botů persony
-- Lazurio MausBot provozuje tým botů persony jako službu a webovou aplikaci téhle Mašiny vedle T3 Code. Noví boti začínají v tomhle Folderu a řídí se stejnou kaskádou AGENTS.md, plány Mission Controlu a worktrees jako agenti v T3 Code (decision 0169).
+- Lazurio MausBot provozuje tým botů persony jako službu a webovou aplikaci tohoto Environmentu vedle T3 Code. Noví boti začínají v tomhle Folderu a řídí se stejnou kaskádou AGENTS.md, plány Mission Controlu a worktrees jako agenti v T3 Code (decision 0169).
 - Podle výchozího nastavení presetu sleduje napojení na GitHub pull requesty Organizace \`example\` bez modelu a leaderovi týmu předá jen skutečnou práci: review nového headu pull requestu v Ready, nebo publikaci. Repozitáře infra a productionspace Organizace vynechává; hranicí jsou tak jako tak práva účtu persony. Konfiguraci uvádí \`manual/this-machine.md\`.
 - Persona publikuje jen pull request, který jí byl přiřazen s výslovným pokynem \`/lazurio publish\` od člověka s právem zápisu, a to po schválení člověkem a se zelenými kontrolami; vlastní pull requesty persony schvaluje člověk (Owner, Admin nebo Steward). Kolegové s personou spolupracují přes GitHub.
 ## Jak se tu pracuje
@@ -575,9 +575,9 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-steward / en 1`] = `
 ## Boundaries
 - Personalspace: never present on an Organization-owned Machine. Do not create or mount one and never copy personal data or sign-ins here.
 - Organizations: repositories live under \`organizations/<org>/\`; each Organization is its own access boundary and its own git repository.
-- Identity: the persona's own machine GitHub user account, signed in to \`gh\` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.
+- Identity: the persona's own GitHub user account, a bot account, signed in to \`gh\` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.
 ## Persona bot team
-- Lazurio MausBot runs the persona's bot team as a service and web application of this Machine next to T3 Code. New bots start in this Folder and follow the same AGENTS.md cascade, Mission Control plans and worktrees as agents in T3 Code (decision 0169).
+- Lazurio MausBot runs the persona's bot team as a service and web application of this Environment next to T3 Code. New bots start in this Folder and follow the same AGENTS.md cascade, Mission Control plans and worktrees as agents in T3 Code (decision 0169).
 - By the preset's defaults, its GitHub intake watches pull requests of Organization \`example\` without a model and hands the team leader only real work: a review on a new head of a ready pull request, or a publication. It leaves out the Organization's infra and productionspace repositories; the persona account's rights are the limit either way. \`manual/this-machine.md\` lists the configuration.
 - The persona publishes only a pull request assigned to it with an explicit \`/lazurio publish\` instruction from a person with write access, after human approval and with green checks; a person (an Owner, Admin or Steward) approves the persona's own pull requests. Colleagues work with the persona through GitHub.
 ## How work is done here

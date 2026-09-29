@@ -671,7 +671,9 @@ test.skipIf(process.platform === "win32")(
         });
         const document = await readFile(join(folder, "AGENTS.md"), "utf8");
         expect(document).toContain("`hosted-organization-steward`");
-        expect(document).toContain("persona's own machine GitHub user account");
+        expect(document).toContain(
+          "persona's own GitHub user account, a bot account",
+        );
         expect(document).toContain("## Persona bot team");
         const manual = await readFile(
           join(folder, "manual", "this-machine.md"),

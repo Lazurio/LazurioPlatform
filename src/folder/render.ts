@@ -168,7 +168,7 @@ export function assignmentLine(
         }
       : assignment.kind === "automation"
         ? {
-            cs: `- Přiřazení: automatizované Environment persony Organizace; odpovědný operátor \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+            cs: `- Přiřazení: automatizovaný Environment persony Organizace; odpovědný operátor \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
             en: `- Assignment: an automated Environment of an Organization persona; responsible operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
           }
         : {
@@ -236,7 +236,7 @@ function machineSection(
       en: "- Principal: whichever Team member is connected now. The OS account is shared by the Team and is not a person; changes are attributed to the Team through the brokered Organization identity.",
     },
     "hosted-organization-steward": {
-      cs: "- Principál: odpovědný operátor tohohle Automatizovaného Environmentu, Owner nebo Admin Organizace. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se připojuje jen operátor, pro servisní zákroky.",
+      cs: "- Principál: odpovědný operátor tohoto Automatizovaného Environmentu, Owner nebo Admin Organizace. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se připojuje jen operátor, pro servisní zákroky.",
       en: "- Principal: the responsible operator of this Automated Environment, an Owner or Admin of the Organization. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the operator connects over SSH, for service interventions.",
     },
     local: { cs: "", en: "" },
@@ -317,8 +317,8 @@ function boundarySection(
 // The identity line of the Automated Environment (decision 0169), the same in
 // AGENTS.md and the manual.
 export const personaIdentity: Text = {
-  cs: "- Identita: vlastní strojový GitHub uživatelský účet persony, který v `gh` přihlašuje odpovědný operátor a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet operátora ani nikoho jiného sem nepřihlašuj; GitHub je jediná autorita přístupů.",
-  en: "- Identity: the persona's own machine GitHub user account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
+  cs: "- Identita: vlastní GitHub uživatelský účet persony (účet bota), který v `gh` přihlašuje odpovědný operátor a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet operátora ani nikoho jiného sem nepřihlašuj; GitHub je jediná autorita přístupů.",
+  en: "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
 };
 
 // The bot team of the Automated Environment (decision 0169) in its short form;
@@ -334,8 +334,8 @@ function botTeamSection(
   return [
     pick({ cs: "## Tým botů persony", en: "## Persona bot team" }),
     pick({
-      cs: "- Lazurio MausBot provozuje tým botů persony jako službu a webovou aplikaci téhle Mašiny vedle T3 Code. Noví boti začínají v tomhle Folderu a řídí se stejnou kaskádou AGENTS.md, plány Mission Controlu a worktrees jako agenti v T3 Code (decision 0169).",
-      en: "- Lazurio MausBot runs the persona's bot team as a service and web application of this Machine next to T3 Code. New bots start in this Folder and follow the same AGENTS.md cascade, Mission Control plans and worktrees as agents in T3 Code (decision 0169).",
+      cs: "- Lazurio MausBot provozuje tým botů persony jako službu a webovou aplikaci tohoto Environmentu vedle T3 Code. Noví boti začínají v tomhle Folderu a řídí se stejnou kaskádou AGENTS.md, plány Mission Controlu a worktrees jako agenti v T3 Code (decision 0169).",
+      en: "- Lazurio MausBot runs the persona's bot team as a service and web application of this Environment next to T3 Code. New bots start in this Folder and follow the same AGENTS.md cascade, Mission Control plans and worktrees as agents in T3 Code (decision 0169).",
     }),
     pick({
       cs: `- Podle výchozího nastavení presetu sleduje napojení na GitHub pull requesty Organizace \`${organization}\` bez modelu a leaderovi týmu předá jen skutečnou práci: review nového headu pull requestu v Ready, nebo publikaci. Repozitáře infra a productionspace Organizace vynechává; hranicí jsou tak jako tak práva účtu persony. Konfiguraci uvádí \`manual/this-machine.md\`.`,

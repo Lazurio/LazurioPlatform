@@ -1556,7 +1556,7 @@ exports[`rendered manual/this-machine.md snapshot: hosted-organization-steward 1
 - Host: virtualization-host \`example-host\`, a higher administration and recovery domain than this Machine.
 
 ## Preset \`hosted-organization-steward\` (version 1)
-The Automated Environment of an Organization persona (decision 0169): an Organization-owned work VM with one responsible operator, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own machine user account, not the operator's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under \`organizations/<org>/\`. Applications and bots are owned by the OS service manager.
+The Automated Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible operator, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the operator's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under \`organizations/<org>/\`. Applications and bots are owned by the OS service manager.
 
 ## Zones: what may reach what (decision 0155)
 One operator's Machines and clients form two zones. The **personal zone** holds the Principal's personal clients (laptop, phone) and their one personal VM; its Owner is the Principal. The **work zone** holds the work VMs assigned to this operator (possibly several, across Organizations of the same Conglomerate) and a work laptop issued by an Organization; its Owner is the Organization. The zone follows \`owner\` and \`operator\`, both bound to immutable GitHub IDs, never a Headscale user or a name.
@@ -1569,27 +1569,27 @@ One operator's Machines and clients form two zones. The **personal zone** holds 
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal VM is a node of its home tailnet only, and no bridge is built between tailnets.
 - Administration of the Conglomerate Host belongs to the Owner of the Organization that owns it, only from their personal laptop and personal VM.
 
-**This Machine's zone.** This Machine is the Automated Environment of a persona in the work zone of Organization \`example\`, with one responsible operator. Only that operator connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Machine.
+**This Machine's zone.** This is the Automated Environment of a persona in the work zone of Organization \`example\`, with one responsible operator. Only that operator connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.
 
 ## Boundaries on this Machine
 - Personalspace: never present on an Organization-owned Machine. Do not create or mount one and never copy personal data or sign-ins here.
 - Organizations: repositories live under \`organizations/<org>/\`; each Organization is its own access boundary and its own git repository with its own \`AGENTS.md\`.
-- Identity: the persona's own machine GitHub user account, signed in to \`gh\` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.
+- Identity: the persona's own GitHub user account, a bot account, signed in to \`gh\` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.
 
 ## Lazurio MausBot: the persona's bot team
-The preset's defaults for Lazurio MausBot (Lazurio's fork of OpenMausBot) on this Machine (decision 0169). The service that installs and runs Lazurio MausBot applies them; Lazurio only lists them here, applies none of them, and the operator may change them in Lazurio MausBot. Report a difference to the operator; do not change the service yourself.
+The preset's defaults for Lazurio MausBot (Lazurio's fork of OpenMausBot) in this Environment (decision 0169). The service that installs and runs Lazurio MausBot applies them; Lazurio only lists them here, applies none of them, and the operator may change them in Lazurio MausBot. Report a difference to the operator; do not change the service yourself.
 
 | Setting | Default |
 | --- | --- |
 | \`OMB_DEFAULT_BOT_CWD\` | this Lazurio Folder: new bots start here |
 | Team | the Steward team \`lazurio/teams/steward.openmaus.json\` imported from the installed Lazurio MausBot release: a leader named after the persona and three workers |
-| \`OMB_GITHUB_INTAKE\` | \`1\`: the model-free GitHub intake under this Machine's \`gh\` account, the persona |
+| \`OMB_GITHUB_INTAKE\` | \`1\`: the model-free GitHub intake under this Environment's \`gh\` account, the persona |
 | \`OMB_GITHUB_INTAKE_BOT\` | the name of the imported team's leader |
 | \`OMB_GITHUB_INTAKE_SCOPE\` | \`organization\` |
 | \`OMB_GITHUB_INTAKE_OWNERS\` | \`example\` |
 | \`OMB_GITHUB_INTAKE_EXCLUDE\` | the infra and productionspace repositories of Organization \`example\` as \`example/<repository>\`, as the Organization declares them |
 
-**Sign-in.** The persona's account is a machine GitHub user of the Organization. The responsible operator signs it in once on this Machine with \`lazurio tools login gh\` or in the Launchpad (Tools): they choose the persona's account in the browser and link this Machine's SSH key to it. The operator holds the account's two-factor authentication and recovery codes outside this Machine. An account other than the persona's signed in to \`gh\` is a finding for the operator.
+**Sign-in.** The persona's account is a bot GitHub user of the Organization. The responsible operator signs it in once in this Environment with \`lazurio tools login gh\` or in the Launchpad (Tools): they choose the persona's account in the browser and link this Environment's SSH key to it. The operator holds the account's two-factor authentication and recovery codes outside this Environment. An account other than the persona's signed in to \`gh\` is a finding for the operator.
 
 **Work.** An idle team calls no model: the intake only asks GitHub. A review starts on a ready pull request with a new head; a publication only on a pull request assigned to the persona with a \`/lazurio publish\` instruction from a person with write access. A person approves the persona's own pull requests. Colleagues reach the team through GitHub; only the operator opens Lazurio MausBot, to configure the team.
 
