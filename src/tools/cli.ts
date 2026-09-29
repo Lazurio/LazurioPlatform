@@ -15,7 +15,7 @@ import {
   runLogout,
   sharedSignInsText,
 } from "./curated-cli";
-import { hostedEnvironmentPreset } from "./github-gate";
+import { hostedEnvironmentReader } from "./github-gate";
 import type { InstallEnvironment } from "./install";
 import type { LoginEnvironment } from "./login";
 import {
@@ -163,9 +163,11 @@ export async function runToolsCommand(
     /** Test seams of the curated flows. */
     install?: Partial<InstallEnvironment>;
     login?: Partial<LoginEnvironment>;
-    /** The declared operator's Folder on a hosted Machine (the handover);
-     * absent, none. `login` and `logout` read its preset: gh on a Team
-     * Environment (Principal 2026-09-28). */
+    /** The declared operator's Folder on a hosted Machine (the handover):
+     * resolves to it, to undefined where there positively is none, and
+     * rejects where a hosted context is there but unreadable (#83). Absent,
+     * none. `login` and `logout` read its preset: gh on a Team Environment
+     * (Principal 2026-09-28). */
     hostedFolder?: (() => Promise<string | undefined>) | undefined;
   }> = { env: process.env, platform: process.platform },
 ): Promise<ToolsCommandOutput> {
@@ -224,9 +226,12 @@ export async function runToolsCommand(
       throw new ToolsUsageError(usage);
     // On a hosted Team Environment the prompt of gh guides no sign-in; it
     // knows that from the hosted operator Folder's preset, as login does.
-    const preset = await hostedEnvironmentPreset(context.hostedFolder);
+    // Text only: an unreadable Environment gets the ordinary prompt, and the
+    // sign-in it leads to refuses there as environment-unreadable (#83).
+    const environment = await hostedEnvironmentReader(context.hostedFolder)();
     const prompt = toolPrompt(name, locale, {
-      team: preset !== undefined && sharedEnvironment(preset),
+      team:
+        environment.kind === "hosted" && sharedEnvironment(environment.preset),
     });
     const entry = activatableTools().find((tool) => tool.name === name);
     if (prompt === undefined || entry === undefined) {
@@ -282,6 +287,9 @@ export async function runToolsCommand(
       run: runTool,
     };
     const [command, name] = positionals;
+    // One reader for the command: a running login's later reads cannot turn
+    // a hosted Environment found at the start into none.
+    const environmentNow = hostedEnvironmentReader(context.hostedFolder);
     const curatedContext: CuratedContext = {
       env: context.env,
       platform: context.platform,
@@ -290,9 +298,9 @@ export async function runToolsCommand(
       write: context.write ?? ((line) => console.log(line)),
       signal: context.signal,
       ...(command === "install" || command === "login" || command === "logout"
-        ? { preset: await hostedEnvironmentPreset(context.hostedFolder) }
+        ? { environment: await environmentNow() }
         : {}),
-      presetNow: () => hostedEnvironmentPreset(context.hostedFolder),
+      environmentNow,
     };
     if (command === "composio-org") {
       const output = await runComposioOrganization(

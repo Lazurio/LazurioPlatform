@@ -576,6 +576,30 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test("without a Folder, an unreadable hosted context is named, not skipped as a workstation (#83)", async () => {
+  const world = await createWorld();
+  const run = (hostedFolder: () => Promise<string | undefined>) =>
+    runDoctorCommand(["--base", world.base, "--json"], {
+      ...context(world),
+      hostedFolder,
+    });
+  const none = JSON.parse((await run(async () => undefined)).stdout ?? "");
+  expect(find(none, "machine-binding")).toEqual({
+    id: "machine-binding",
+    outcome: "skipped",
+    reason: "no-folder",
+  });
+  const unreadable = await run(async () => {
+    throw new Error("handover unreadable");
+  });
+  expect(unreadable.code).toBe(exitAttention);
+  expect(find(JSON.parse(unreadable.stdout ?? ""), "machine-binding")).toEqual({
+    id: "machine-binding",
+    outcome: "warn",
+    reason: "handover-unreadable",
+  });
+});
+
 test("the Launchpad's health answer: Recovery mode is broken, said as an id", async () => {
   const world = await createWorld();
   const result = await doctor(world, [], {

@@ -168,6 +168,8 @@ export async function collectRecovery(
   const detectedAt = environment.now().toISOString();
   const service = await detectServiceControl({ base, platform, env, run });
   const supervised = service !== null;
+  // An unreadable hosted context (the seam rejects, #83) gives no Folder:
+  // recover only reads and observes, and acts on no Folder it cannot name.
   const folder =
     environment.folder ??
     service?.folder ??

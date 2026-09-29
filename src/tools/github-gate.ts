@@ -22,24 +22,83 @@ export async function folderPreset(folder: string): Promise<PresetName> {
   });
 }
 
+/** A hosted context that is there but cannot be read: the handover or the
+ * operator's account (`handover`), or the declared Folder, its state or its
+ * preferences (`folder`), or a hosted Folder found earlier in the same
+ * command that is no longer found (`lost`). Never a workstation (#83). */
+export class HostedEnvironmentUnreadable extends Error {
+  constructor(public readonly source: "handover" | "folder" | "lost") {
+    super(`hosted-environment-unreadable:${source}`);
+  }
+}
+
 /** The kind of Environment a command without `--folder` runs in: on a hosted
  * Machine, the recorded preset of the declared operator's Folder, found from
  * the root-issued handover exactly as `lazurio update` finds it
  * (`hostedOperatorFolder`). The handover alone does not decide it (an
  * ambiguous handover derives no preset, and the operator may change it with
- * `profile-update --preset`), the Folder records it. Undefined wherever there
- * is none: a workstation, another account, a missing or invalid handover, a
- * Folder not initialized or not readable; the command then behaves as it
- * always did. */
+ * `profile-update --preset`), the Folder records it. Undefined only where
+ * there positively is none: no seam, a workstation, another account. A
+ * hosted context that is there but cannot be read — the seam rejects, the
+ * declared Folder is missing, its state or preferences are missing or
+ * malformed, its lock stays busy — rejects with `HostedEnvironmentUnreadable`
+ * (#83): the caller decides, and a gate refuses. */
 export async function hostedEnvironmentPreset(
   hostedFolder: (() => Promise<string | undefined>) | undefined,
 ): Promise<PresetName | undefined> {
+  let folder: string | undefined;
   try {
-    const folder = await hostedFolder?.();
-    return folder === undefined ? undefined : await folderPreset(folder);
+    folder = await hostedFolder?.();
   } catch {
-    return undefined;
+    throw new HostedEnvironmentUnreadable("handover");
   }
+  if (folder === undefined) return undefined;
+  try {
+    return await folderPreset(folder);
+  } catch {
+    throw new HostedEnvironmentUnreadable("folder");
+  }
+}
+
+/** The kind of Environment as one command sees it, read again on request. */
+export type HostedEnvironment =
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "hosted"; preset: PresetName }>
+  | Readonly<{
+      kind: "unreadable";
+      source: HostedEnvironmentUnreadable["source"];
+    }>;
+
+/** The reads of one command: the first, and each later one a running login
+ * asks before a step that changes the account or the Machine. Once a hosted
+ * Folder was found, a later read that finds none is `unreadable` (`lost`),
+ * never a workstation: a context cannot turn into none while a command runs. */
+export function hostedEnvironmentReader(
+  hostedFolder: (() => Promise<string | undefined>) | undefined,
+): () => Promise<HostedEnvironment> {
+  let hosted = false;
+  return async () => {
+    try {
+      const preset = await hostedEnvironmentPreset(hostedFolder);
+      if (preset !== undefined) {
+        hosted = true;
+        return Object.freeze({ kind: "hosted" as const, preset });
+      }
+      return hosted
+        ? Object.freeze({
+            kind: "unreadable" as const,
+            source: "lost" as const,
+          })
+        : Object.freeze({ kind: "none" as const });
+    } catch (error) {
+      if (!(error instanceof HostedEnvironmentUnreadable)) throw error;
+      if (error.source === "folder") hosted = true;
+      return Object.freeze({
+        kind: "unreadable" as const,
+        source: error.source,
+      });
+    }
+  };
 }
 
 export type GithubRefusal = Readonly<{
