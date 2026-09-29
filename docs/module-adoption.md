@@ -291,6 +291,33 @@ The client cannot supply these addresses. A compiled CLI regression consumes the
 variables in its real server and checks the resulting health/content; it failed
 before this propagation was added. Preparation does not start the declared listeners.
 
+**The whole environment of a started application** (decision F26,
+`src/modules/application-environment.ts`) is the one the replaced Launchpad gave a
+declared runtime, on top of the closed base `HOME`, `PATH` and optional `TMPDIR`:
+
+| Name | Value | Present |
+| --- | --- | --- |
+| `LAZURIO_RUNTIME_LISTENER_<ID>_HOST`, `_PORT` | the listener's module lease | every listener |
+| `LAZURIO_RUNTIME_HOST`, `LAZURIO_RUNTIME_PORT` | the entrypoint's lease | always |
+| `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN`, `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` | the entrypoint's browser origin, `https://<host>` without a slash: exactly `runtime.url` without its slash | hosted Machine with a recorded entry, the module's default app, the entrypoint only |
+| `LAZURIO_RUNTIME_LISTENERS_JSON` | `[{id, role, allocation: "static", host, port, protocol, health, claim: {mode: "exclusive"}, external_origin?}]` | always; `external_origin` as above |
+| `LAZURIO_RUNTIME_SCHEMA_VERSION`, `LAZURIO_RUNTIME_APP_ID`, `LAZURIO_RUNTIME_ENTRYPOINT_ID` | `lazurio.runtime.v1`, the runtime `id`, the entrypoint's `id` | always |
+| `COMPANYASCODE_APP_ID`, `COMPANYASCODE_RUNTIME_KEY`, `COMPANYASCODE_RUNTIME_SOURCE` | the runtime `id`, the runtime `id`, `main` | always |
+| `COMPANYASCODE_ORGANIZATION_ROOT` | the Organization root | an Organization's module, not a Personalspace module |
+| `NODE_PATH` | `<application directory>/node_modules` | always |
+| `NODE_ENV`, `ASTRO_DEV_BACKGROUND`, `ASTRO_PREVIEW_BACKGROUND` | `development`, `1`, `1` | always |
+
+Nothing else is passed, so an ambient `HOST`, `PORT`, `NODE_PATH` or `LAZURIO_RUNTIME_*`
+of the Launchpad, the CLI or the user manager never reaches the application (the
+user manager's own names are unset, below). A workstation run, a loopback-only
+listener and an app the gateway does not serve at the module hostname (not the
+module's default, or no recorded entry) get no external origin; a Folder whose state
+cannot be read refuses the start (`folder-state-unreadable`) instead of being taken
+for a workstation. Both runners start the same environment. `tests/application-environment.test.ts`
+starts a fixture application that allows only its external origin's hostname through
+the module operations on a hosted and a workstation fixture Folder and compares the
+whole environment exactly.
+
 For start-time prerequisites, `preflightDeclaredBunCheck` selects the explicit check
 operation of that same process owner. It skips frozen installation and prepare_script,
 requires check_script, and rejects clean-install mode. The default preparation (F25)
@@ -529,8 +556,9 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
   of the Launchpad parity, B6: the OS owns retention and rotation, `lazurio module logs`
   reads the unit's tail with `journalctl --user --unit=<unit> --output=cat`; until then
   both were `null`), and nothing that widens privileges or changes resource limits.
-- **Environment is an allowlist.** Exactly the launch environment the guard passes today
-  (`HOME`, `PATH`, optional `TMPDIR`, `LAZURIO_RUNTIME_LISTENER_*`). A real user manager
+- **Environment is an allowlist.** Exactly the launch environment the guard passes (the
+  closed base `HOME`, `PATH`, optional `TMPDIR` and the runtime environment of decision
+  F26 above). A real user manager
   hands its **own** environment to every service — on the qualification VM that included
   `DBUS_SESSION_BUS_ADDRESS` and `SSH_AUTH_SOCK`, an ambient credential socket — so the
   runner reads the manager's variable names (`show-environment`) and unsets every one
@@ -593,6 +621,13 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
 - The start-time declaration digest travels in the unit description, so a restarted
   Launchpad still refuses `open` with `declaration-changed` when the files on disk are
   no longer what the running invocation was started from.
+- The declaration digest covers the module's declaration files only, not the
+  environment. The environment is covered by the unit's own `definition sha256`, which
+  only proves that the unit is the one this runner created; it is not compared with
+  what a new start would produce. A unit started by an earlier release (or before the
+  Machine's entry changed) is therefore still this application's unit, reported
+  running, and Stop works on it; it keeps the environment it was started with until it
+  is stopped and started again (decision F26).
 
 ### Semantics
 

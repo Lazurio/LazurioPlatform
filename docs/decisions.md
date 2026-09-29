@@ -2246,3 +2246,105 @@ undeclared module is a follow-up.
 | Local dependencies anywhere the operator can read | Crosses the Organization's access boundary (one Organization, one access boundary); rejected |
 | The application's own package, a frozen install from its lockfile, no check (selected) | Starts what the replaced Launchpad started; honest refusals with a reason for what it cannot |
 | Local dependencies anywhere in the same Organization (or Personalspace owner) directory, through real directories of the operator's checkout, only the dependency inventoried (selected, point 1a) | Starts the real modules unchanged; the Organization stays the boundary and F23 the only rule |
+
+## F26 — A started application gets the runtime environment of the replaced Launchpad
+
+**Required by the Principal 2026-09-29 (issue #102); the details proposed 2026-09-30
+and implemented.** Observed on 2026-09-29 on a hosted personal Environment, at its first
+real switch to this Launchpad: a module started through the module operations ran and
+was healthy on its loopback port, and opened at its own hostname it answered the dev
+server's refusal "Blocked request. This host (…) is not allowed." The application reads
+its hosted origin from `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` and allows exactly that
+hostname (and checks the `Origin` header against it). Its unit had exactly `HOME`,
+`PATH`, `LAZURIO_RUNTIME_LISTENER_ENTRYPOINT_HOST` and `_PORT`; `lazurio module status`
+already answered the right `runtime.url`. The rule is F25's: what the replaced Launchpad
+started keeps starting without a change in the module.
+
+**Source of the contract.** The replaced Launchpad (public, `HumanAndMachines/Lazurio`):
+the start's overrides (`R:lazurio/runtime/runtime-lib.mjs:703-722`), `runtimeProcessEnv`,
+`listenerRuntimeEnv`, `hostedRuntimeOrigin`, `organizationRuntimeEnv`
+(`:2080-2188`), `runtimeListenerState` (`:127-143`), `runtimeListenerEnvironmentNames`
+(`R:lazurio/core/runtime-contract-lib.mjs:54-78`), the listener binding of a module
+lease (`R:lazurio/core/module-contract-lib.mjs:183-209`), `launchpad/README.md` and
+`launchpad/docs/hosted-workspace-parity-contract.md` (the hosted origin), pinned by
+`launchpad/src/runtime-lib.test.mjs` and `runtime-contract-lib.test.mjs`.
+
+1. **What a declared runtime gets.** On top of the closed base `HOME`, `PATH` and
+   optional `TMPDIR`, in both runners (`src/modules/application-environment.ts`, built
+   in `localApplicationAdapters.prepareLaunch`):
+
+   | Name | Value | Present | Replaced Launchpad |
+   | --- | --- | --- | --- |
+   | `LAZURIO_RUNTIME_LISTENER_<ID>_HOST`, `_PORT` | the listener's lease host and port; `<ID>` upper-cased, `-` as `_` | every listener | `listenerRuntimeEnv` |
+   | `LAZURIO_RUNTIME_HOST`, `LAZURIO_RUNTIME_PORT` | the entrypoint's lease | always | start overrides |
+   | `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` of the entrypoint, `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` | the browser origin, `https://<host>`, no slash, no path | hosted, the entrypoint of the module's default app | `listenerRuntimeEnv`, `hostedRuntimeOrigin` |
+   | `LAZURIO_RUNTIME_LISTENERS_JSON` | `[{id, role, allocation: "static", host, port, protocol, health, claim: {mode: "exclusive"}, external_origin?}]` | always | `runtimeListenerState` |
+   | `LAZURIO_RUNTIME_SCHEMA_VERSION`, `LAZURIO_RUNTIME_APP_ID`, `LAZURIO_RUNTIME_ENTRYPOINT_ID` | `lazurio.runtime.v1`, the runtime `id`, the entrypoint's `id` | always | start overrides |
+   | `COMPANYASCODE_APP_ID`, `COMPANYASCODE_RUNTIME_KEY`, `COMPANYASCODE_RUNTIME_SOURCE` | the runtime `id`, the runtime `id`, `main` | always | start overrides (the key and source of the module's own checkout) |
+   | `COMPANYASCODE_ORGANIZATION_ROOT` | the canonical Organization root | an Organization's module; not a Personalspace module | `organizationRuntimeEnv` |
+   | `NODE_PATH` | `<application directory>/node_modules` | always | `runtimeProcessEnv` |
+   | `NODE_ENV`, `ASTRO_DEV_BACKGROUND`, `ASTRO_PREVIEW_BACKGROUND` | `development`, `1`, `1` | always | start overrides |
+
+2. **One source for the origin.** The origin is the one `runtime.url` links to, from one
+   function (`applicationOrigin` in `src/modules/module-operations.ts`): on a Folder with
+   a Machine binding, `moduleOrigin` of the recorded entry's module origin template
+   (B4), for the module's default app, which is what the gateway serves at the module
+   hostname. So the variable is exactly `runtime.url` without its slash, `new URL(x).origin`
+   of it. No entry (`hosted-entry-missing`), another app of the module
+   (`hosted-app-not-default`), a label the gateway does not serve, a workstation and every
+   listener but the entrypoint: no origin, the app is loopback-only, as its link says. A
+   Folder whose state cannot be read is not taken for a workstation (#83): the start is
+   refused as `folder-state-unreadable` before any effect.
+3. **Closed.** The environment is built from the declaration, the application's
+   directory, the Organization root and the origin only; nothing ambient is read, so an
+   ambient `HOST`, `PORT`, `NODE_PATH`, `COMPANYASCODE_ORGANIZATION_ROOT` or
+   `LAZURIO_RUNTIME_*` of the Launchpad, the CLI or the user manager never reaches the app
+   (the user manager's own names stay unset, F8). This is the replaced Launchpad's
+   removal list, enforced by construction.
+4. **Not carried over, and why.**
+   - *The rest of the parent's environment.* The replaced Launchpad passed its whole
+     process environment minus the names above; this Platform's owner passes a closed
+     allowlist (the unit environment of F8, `docs/module-adoption.md`: a user manager's
+     environment carries session sockets and credentials). A module that read another ambient variable gets it from its own
+     declaration or configuration, not from the Machine.
+   - *`HOST` and `PORT`.* Given only to a legacy `companyascode.app` declaration; this
+     Platform refuses such a declaration ("explicit adoption"), so no started app is one.
+   - *`COMPANIES_WORKSPACE_ROOT`.* The directory holding every Organization of the
+     Machine; telling a module where the other Organizations are crosses the access
+     boundary of its own (one Organization, one access boundary), and its only reader
+     is the replaced Launchpad's own per-Organization app, which this Launchpad replaces.
+   - *`COMPANYASCODE_WORKTREE_SLUG`.* Only for a worktree source, which does not exist yet
+     (P9); it comes with it, as would another `COMPANYASCODE_RUNTIME_KEY` and `_SOURCE`.
+   - *The hosted fail-closed start without an origin.* The replaced Launchpad refused a
+     hosted start whose origin it could not derive; this Platform's hosted mode is the
+     recorded entry (F16), so without an entry the Machine is served as a workstation and
+     the app starts loopback-only, as its link already said.
+5. **Running applications.** The declaration digest (`declaration sha256`) covers the
+   module's declaration files only, and the unit's name its identity; neither covers the
+   environment. The unit's `definition sha256` covers it but only proves that the unit is
+   the one this runner created. An application started before this change (or before
+   the Machine's entry changed) is therefore still recognized, reported running and
+   healthy, `start` answers `already-managed`, and Stop works; it keeps its old
+   environment until it is stopped and started once (`lazurio module stop` and `start`,
+   the Launchpad's Stop and Start, or a reboot, which ends every transient unit). No
+   start stops a running application as a side effect (F8: an update must not interrupt
+   people's work). A session application
+   (macOS) ends with its Launchpad, so an update always starts it anew.
+
+**Not covered.** The preparation's processes (install, prepare and check scripts) keep
+the closed base environment, as before. Other differences of the start that the
+replaced Launchpad had and this one does not (`bun run` without `--no-env-file`, so Bun
+loaded the package's `.env` files; its own log file per app; a port takeover) are
+separate questions, not changed here. The qualification journeys start no module; the
+contract tests (`tests/application-environment.test.ts`) start a fixture application
+that allows only its origin's hostname, on a hosted and a workstation fixture Folder, in
+both runners, and compare the whole environment exactly.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Add only `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` | Fixes the observed module; a module reading the aliases, the listener JSON or `NODE_PATH` breaks at the next switch; rejected by the F25 rule |
+| Pass the parent's environment minus a removal list, as the replaced Launchpad did | Hands session sockets and credentials to every module; rejected by the F8 unit's allowlist |
+| Compose the origin from the Launchpad's origin or the Machine name | Composition from a convention (`docs/hosted-entry.md`); rejected |
+| Bind the environment into the declaration digest, so a stale app reads as `declaration-changed` | The app then reports unhealthy and without a link but still runs stale, and nothing restarts it; not chosen |
+| Restart a running app whose environment differs | A start that stops an app people may be using, against F8; not chosen |
+| The replaced Launchpad's names and values, built from the declaration and the recorded entry, on the closed base (selected) | Modules run unchanged; one source for the link and the origin; nothing ambient |

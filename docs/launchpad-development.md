@@ -325,7 +325,15 @@ runner): it survives a Launchpad restart (same `InvocationID`), ends with a rebo
 writes to the journal (`StandardOutput/Error=journal`); `logs` is `journalctl --user
 --unit=<unit> --lines=N --output=cat`. The app's `PATH` is the installed unit's line
 (`~/.local/bin:/usr/local/bin:/usr/bin:/bin`), so the CLI and the Launchpad start
-identical units. On macOS the app is a child of the Launchpad session (`session`
+identical units. Beside `HOME`, `PATH` and optional `TMPDIR` the app gets exactly the
+runtime environment the replaced Launchpad gave it (decision F26, the table in
+`docs/module-adoption.md`): the keyed and entrypoint listener addresses, the listener
+JSON, `NODE_PATH`, `NODE_ENV=development`, the runtime and Organization identity, and on
+a hosted Machine, for the module's default app, the entrypoint's external origin
+`LAZURIO_RUNTIME_EXTERNAL_ORIGIN`, taken from the same recorded entry as `runtime.url`
+(that URL without its slash), so a dev server that allows only its own hostname
+accepts the browser. Nothing ambient is inherited. A running app keeps the environment
+it was started with; after an update that changes it, Stop and Start the app once. On macOS the app is a child of the Launchpad session (`session`
 runner), as before: the Launchpad holds one lifecycle per Organization and its apps end
 with it; the CLI, another process, answers `launchpad-required`, and `logs`
 `logs-unavailable` (session logs are the macOS line, P14). **No Folder state:** the
