@@ -740,7 +740,12 @@ warning and "Continue" come first. The dialog then installs (`/api/tools/install
 needed and starts the login (`/api/tools/login/start`), and polls
 `/api/tools/login/poll` every 2 seconds with the session handle while it is open;
 closing it sends `/api/tools/login/cancel`, clears the code, link or QR from the page
-and returns focus to the card. What it shows:
+and returns focus to the card. Until the tool shows something to act on, the status
+line says "Starting the sign-in…" and the body, never the same sentence, says that
+Lazurio waits for the tool's first step and for at most a minute (#98). A request that
+gets no answer within 45 seconds ends the dialog with "The Launchpad did not answer in
+time", and a sign-in that ends as `not-installed`, `spawn-failed`, `tool-exit` or
+`no-challenge` shows a sentence that says what to do. What it shows:
 
 - gh: the sentence that the code is entered on any device, the code in large
   selectable characters (with a spelled-out accessible name) and a link to

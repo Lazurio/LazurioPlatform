@@ -2,13 +2,16 @@ import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
 import type { MessageKey } from "./messages";
 import {
+  answerWithin,
   curatedActions,
   currentNotes,
   installOutcome,
   type LoginPhase,
   type LoginView,
+  loginAnswerMs,
   loginEndMessage,
   loginLink,
+  loginProgress,
   loginStepOrder,
   loginSteps,
   logoutOutcome,
@@ -343,19 +346,27 @@ export function createToolsPanel(
     current.qr = null;
     current.refresh = false;
     const turn = ++current.turn;
-    phase(ssh ? "linking" : "waiting", copy.toolsLoginStarting);
-    if (loginBody.childElementCount === 0 || phone === undefined)
-      loginBody.append(element("p", "tools-muted", copy.toolsLoginStarting));
-    let value: unknown = null;
-    try {
-      ({ value } = await options.post("/api/tools/login/start", {
+    // The status names the step; the detail, never the same sentence, says
+    // what happens and how long at most.
+    const progress = loginProgress(null, copy);
+    phase(ssh ? "linking" : "waiting", progress.status);
+    if (
+      !ssh &&
+      progress.detail !== null &&
+      (loginBody.childElementCount === 0 || phone === undefined)
+    )
+      loginBody.append(element("p", "tools-muted", progress.detail));
+    const answer = await answerWithin(
+      options.post("/api/tools/login/start", {
         tool: current.tool.name,
         ...(phone === undefined ? {} : { phone }),
         ...(ssh ? { sshKey: true } : {}),
-      }));
-    } catch {}
+      }),
+      loginAnswerMs,
+    );
     if (flow !== current || current.turn !== turn) return;
-    accept(value);
+    if (!answer.answered) return loginFailed(copy.toolsLoginNoAnswer, false);
+    accept(answer.value);
   }
 
   function schedulePoll() {
@@ -364,15 +375,25 @@ export function createToolsPanel(
     const turn = current.turn;
     const handle = current.handle;
     current.timer = setTimeout(async () => {
-      let value: unknown = null;
-      try {
-        ({ value } = await options.post("/api/tools/login/poll", {
+      const answer = await answerWithin(
+        options.post("/api/tools/login/poll", {
           tool: current.tool.name,
           session: handle,
-        }));
-      } catch {}
+        }),
+        loginAnswerMs,
+      );
       if (flow !== current || current.turn !== turn) return;
-      accept(value);
+      if (!answer.answered) {
+        // The session is not left running without anyone to watch it.
+        void options
+          .post("/api/tools/login/cancel", {
+            tool: current.tool.name,
+            session: handle,
+          })
+          .catch(() => undefined);
+        return loginFailed(options.copy().toolsLoginNoAnswer, false);
+      }
+      accept(answer.value);
     }, 2_000);
   }
 
@@ -399,7 +420,9 @@ export function createToolsPanel(
         if (current.mode === "ssh" && state.challenge !== undefined)
           current.refresh = true;
         current.failedAt = "waiting";
-        phase("waiting", copy.toolsLoginWaiting);
+        // Nothing to act on yet: the status still says it is starting and
+        // the detail below stays.
+        phase("waiting", loginProgress(state, copy).status);
         showChallenge(state);
       }
       schedulePoll();

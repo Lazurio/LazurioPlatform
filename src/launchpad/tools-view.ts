@@ -553,6 +553,7 @@ const loginFailures = [
   "spawn-failed",
   "not-signed-in",
   "environment-unreadable",
+  "no-challenge",
 ] as const;
 
 function parseKeyFacts(input: unknown): SshKeyFacts | null {
@@ -966,6 +967,7 @@ export function loginEndMessage(
       "spawn-failed": "toolsLoginFailureSpawn",
       "not-signed-in": "toolsLoginFailureNotSignedIn",
       "environment-unreadable": "toolsLoginFailureEnvironment",
+      "no-challenge": "toolsLoginFailureNoChallenge",
     };
     return {
       message: copy[reasons[state.reason]],
@@ -981,6 +983,53 @@ export function loginEndMessage(
   if (state.kind === "expired")
     return { message: copy.toolsLoginExpired, agent: false, retry: true };
   return { message: copy.toolsLoginEnded, agent: false, retry: true };
+}
+
+/** What the dialog's status line and detail say while a sign-in runs: before
+ * the first answer and while the tool has shown nothing to act on, the status
+ * names the step and the detail says what happens and for how long at most,
+ * never the same sentence twice; with a challenge the status says it waits
+ * for you and the challenge is the detail. */
+export function loginProgress(
+  state: LoginView | null,
+  copy: Copy,
+): Readonly<{ status: string; detail: string | null }> {
+  if (state?.kind === "pending" && state.step === "ssh-key")
+    return { status: copy.toolsLoginLinking, detail: null };
+  if (state?.kind === "pending" && state.challenge !== undefined)
+    return { status: copy.toolsLoginWaiting, detail: null };
+  return {
+    status: copy.toolsLoginStarting,
+    detail: copy.toolsLoginStartingDetail,
+  };
+}
+
+/** How long the dialog waits for one answer of the Launchpad: longer than
+ * the start's own wait for the first challenge (20 s). */
+export const loginAnswerMs = 45_000;
+
+/** One request of the dialog, awaited at most `ms`: a request that never
+ * settles ends as not answered instead of leaving the dialog waiting. A
+ * failed request answers `null`, which no parser accepts. */
+export async function answerWithin(
+  request: Promise<Readonly<{ value: unknown }>>,
+  ms: number,
+): Promise<Readonly<{ answered: true; value: unknown } | { answered: false }>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<{ answered: false }>((resolve) => {
+    timer = setTimeout(() => resolve({ answered: false }), ms);
+  });
+  try {
+    return await Promise.race([
+      request.then(
+        ({ value }) => ({ answered: true as const, value }),
+        () => ({ answered: true as const, value: null }),
+      ),
+      late,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** "You are signed in to gh as octocat (Org)." */

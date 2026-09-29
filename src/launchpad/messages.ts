@@ -219,6 +219,8 @@ const en = {
   toolsAgentFallback:
     "An agent can finish the setup by the written target state of this tool.",
   toolsLoginStarting: "Starting the sign-in…",
+  toolsLoginStartingDetail:
+    "Lazurio has started the tool's own sign-in and waits for its first step: a link, a code or a QR code. It usually takes a few seconds; after a minute without one the sign-in stops and says why.",
   toolsLoginGhText:
     "Open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
   toolsLoginGhLink: "Open github.com/login/device in a new tab",
@@ -245,14 +247,21 @@ const en = {
   toolsLoginSignedInAs: "You are signed in to {name} as {account}.",
   toolsLoginWacliSync:
     "WhatsApp now copies your recent messages to this Environment in the background. You can close this window.",
-  toolsLoginFailureNotInstalled: "The tool is not installed on this Machine.",
+  toolsLoginFailureNotInstalled:
+    "The tool is not installed on this Machine. Close this window and choose Install and sign in on its card.",
   toolsLoginFailureUrl:
     "The tool offered an address that is not its official sign-in page, so it was not shown.",
   toolsLoginFailureOutput: "The tool answered in a form Lazurio does not know.",
-  toolsLoginFailureExit: "The tool ended without completing the sign-in.",
+  toolsLoginFailureExit:
+    "The tool ended without completing the sign-in. Try again; if it ends again, finish it with an agent.",
   toolsLoginFailureNotConfirmed:
     "The tool ended, but its status does not say signed in.",
-  toolsLoginFailureSpawn: "The tool could not be started.",
+  toolsLoginFailureSpawn:
+    "The tool could not be started. Try again; if it does not start, finish it with an agent.",
+  toolsLoginFailureNoChallenge:
+    "The tool showed no link, code or QR code within a minute, so its sign-in was stopped. Check that this Machine reaches the internet and try again; if it happens again, finish it with an agent.",
+  toolsLoginNoAnswer:
+    "The Launchpad did not answer in time. Try again; if it does not answer again, reload the page.",
   toolsLoginExpired:
     "The sign-in expired before it was finished. Start it again when you are ready.",
   toolsLoginEnded:
@@ -778,6 +787,8 @@ const cs: Record<MessageKey, string> = {
   toolsAgentFallback:
     "Nastavení může dokončit agent podle sepsaného cílového stavu tohoto nástroje.",
   toolsLoginStarting: "Spouští se přihlášení…",
+  toolsLoginStartingDetail:
+    "Lazurio spustilo přihlášení nástroje a čeká na jeho první krok: odkaz, kód nebo QR kód. Obvykle to trvá pár sekund; když se do minuty neobjeví, přihlášení skončí a řekne proč.",
   toolsLoginGhText:
     "Na libovolném zařízení (tomhle počítači, jiném nebo telefonu) otevřete stránku zařízení GitHubu a zadejte tento kód:",
   toolsLoginGhLink: "Otevřít github.com/login/device v nové záložce",
@@ -804,14 +815,21 @@ const cs: Record<MessageKey, string> = {
   toolsLoginSignedInAs: "Jste přihlášeni do {name} jako {account}.",
   toolsLoginWacliSync:
     "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do tohoto Environmentu. Okno můžete zavřít.",
-  toolsLoginFailureNotInstalled: "Nástroj na téhle Mašině není nainstalovaný.",
+  toolsLoginFailureNotInstalled:
+    "Nástroj na téhle Mašině není nainstalovaný. Zavřete okno a na jeho kartě zvolte Nainstalovat a přihlásit.",
   toolsLoginFailureUrl:
     "Nástroj nabídl adresu, která není jeho oficiální přihlašovací stránkou, a proto se nezobrazila.",
   toolsLoginFailureOutput: "Nástroj odpověděl v podobě, kterou Lazurio nezná.",
-  toolsLoginFailureExit: "Nástroj skončil, aniž by přihlášení dokončil.",
+  toolsLoginFailureExit:
+    "Nástroj skončil, aniž by přihlášení dokončil. Zkuste to znovu; když skončí znovu, dokončete to s agentem.",
   toolsLoginFailureNotConfirmed:
     "Nástroj skončil, ale jeho stav neříká, že je přihlášený.",
-  toolsLoginFailureSpawn: "Nástroj se nepodařilo spustit.",
+  toolsLoginFailureSpawn:
+    "Nástroj se nepodařilo spustit. Zkuste to znovu; když se nespustí, dokončete to s agentem.",
+  toolsLoginFailureNoChallenge:
+    "Nástroj do minuty neukázal odkaz, kód ani QR kód, a proto se jeho přihlášení zastavilo. Ověřte, že se tahle Mašina dostane na internet, a zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
+  toolsLoginNoAnswer:
+    "Launchpad včas neodpověděl. Zkuste to znovu; když zase neodpoví, obnovte stránku.",
   toolsLoginExpired:
     "Přihlášení vypršelo dřív, než bylo dokončeno. Spusťte ho znovu, až budete připraveni.",
   toolsLoginEnded:

@@ -91,7 +91,21 @@ export type LoginFailure =
   | "not-signed-in"
   /** The kind of Environment could not be read before a step that changes
    * the account or the Machine, so the session stopped (fail closed). */
-  | "environment-unreadable";
+  | "environment-unreadable"
+  /** The tool ran but showed no challenge (link, code, QR or pairing code)
+   * within the bound, so the session stopped and its process was killed. */
+  | "no-challenge";
+
+/** One line of the owner's journal about a curated sign-in: the tool and the
+ * outcome, never the tool's output, a challenge or an account. */
+export type LoginJournalEntry =
+  | Readonly<{ tool: string; event: "start" }>
+  | Readonly<{
+      tool: string;
+      event: "end";
+      outcome: "signed-in" | "failed" | "blocked" | "expired" | "cancelled";
+      reason?: string;
+    }>;
 
 export type LogoutResult =
   | Readonly<{
@@ -149,6 +163,12 @@ export type LoginEnvironment = Readonly<{
   lifetimes?: Partial<Record<"gh" | "composio" | "wacli", number>>;
   /** How long `start` waits for the first challenge. */
   firstChallengeMs?: number;
+  /** How long a sign-in may run without showing its first challenge before
+   * it fails as `no-challenge` (default one minute). */
+  challengeMs?: number;
+  /** Where the owner journals the start and the end of each sign-in (the
+   * Launchpad: its unit's journal). Absent: nothing is journaled. */
+  journal?: (entry: LoginJournalEntry) => void;
   probeIntervalMs?: number;
   /** How long wacli's bootstrap sync may run on after pairing. */
   backgroundMs?: number;
@@ -170,6 +190,10 @@ const defaultLifetimes = {
   composio: 10 * 60_000,
   wacli: 5 * 60_000,
 };
+// A tool that shows nothing to act on for a minute is not starting its
+// sign-in: gh prints its code and composio its link at once, and wacli's
+// first QR code follows its connection to WhatsApp within seconds.
+const defaultChallengeMs = 60_000;
 const probeTimeoutMs = 10_000;
 // Linking the SSH key after the sign-in: every step is bounded by 30 s.
 const sshLinkMs = 5 * 60_000;
@@ -324,6 +348,8 @@ type Session = {
   action: "login" | "ssh-key";
   expiresAt: number;
   challenge?: LoginChallenge;
+  /** A challenge was shown at least once. */
+  challenged: boolean;
   step?: "ssh-key";
   processes: Set<Streamed>;
   timers: Set<ReturnType<typeof setTimeout>>;
@@ -389,6 +415,23 @@ export function createLoginSessions(environment: LoginEnvironment) {
     }
   }
 
+  // The journal names the tool and the outcome only: a challenge, an account
+  // or anything the tool printed never reaches it.
+  const journal = (entry: LoginJournalEntry) => {
+    try {
+      environment.journal?.(entry);
+    } catch {}
+  };
+  const ended = (tool: string, outcome: Terminal) =>
+    journal({
+      tool,
+      event: "end",
+      outcome: outcome.kind,
+      ...(outcome.kind === "failed" || outcome.kind === "blocked"
+        ? { reason: outcome.reason }
+        : {}),
+    });
+
   const notify = (session: Session) => {
     session.sequence++;
     for (const waiter of session.waiters) waiter();
@@ -410,6 +453,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
     session.processes.clear();
     if (sessions.get(session.tool) === session) sessions.delete(session.tool);
     if (outcome.kind !== "cancelled") finished.set(session.tool, session);
+    ended(session.tool, outcome);
     notify(session);
   }
   const fail = (session: Session, reason: LoginFailure) =>
@@ -444,6 +488,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
   const setChallenge = (session: Session, challenge: LoginChallenge) => {
     if (!current(session)) return;
     session.challenge = challenge;
+    session.challenged = true;
     notify(session);
   };
   const later = (session: Session, ms: number, action: () => void) => {
@@ -884,20 +929,27 @@ export function createLoginSessions(environment: LoginEnvironment) {
         throw new Error("Only wacli pairs with a phone number");
       if (options.sshKey === true && name !== "gh")
         throw new Error("Only gh links an SSH key");
+      journal({ tool: name, event: "start" });
+      // Ended before a session exists: journaled like every other end.
+      const refused = (reason: LoginFailure): LoginState => {
+        const outcome = { kind: "failed", tool: name, reason } as const;
+        ended(name, outcome);
+        return outcome;
+      };
       const phone =
         options.phone === undefined ? undefined : normalizePhone(options.phone);
       if (options.phone !== undefined && phone === undefined)
-        return { kind: "failed", tool: name, reason: "invalid-phone" };
+        return refused("invalid-phone");
       cancelRunning(name);
       const path = await locate(entry);
-      if (path === undefined)
-        return { kind: "failed", tool: name, reason: "not-installed" };
+      if (path === undefined) return refused("not-installed");
       const lifetime = lifetimes[name as keyof typeof lifetimes];
       const session: Session = {
         id: randomBytes(16).toString("hex"),
         tool: name,
         action: options.sshKey === true ? "ssh-key" : "login",
         expiresAt: now() + lifetime,
+        challenged: false,
         processes: new Set(),
         timers: new Set(),
         waiters: new Set(),
@@ -913,6 +965,18 @@ export function createLoginSessions(environment: LoginEnvironment) {
         else finish(session, { kind: "expired", tool: name });
       };
       later(session, lifetime, expire);
+      // A sign-in that shows nothing to act on within the bound ends with a
+      // reason instead of waiting out its lifetime. The linking of gh's SSH
+      // key has bounded steps of its own and shows no challenge.
+      if (session.action === "login")
+        later(session, environment.challengeMs ?? defaultChallengeMs, () => {
+          if (
+            current(session) &&
+            !session.challenged &&
+            session.step === undefined
+          )
+            fail(session, "no-challenge");
+        });
       const flow =
         name === "gh"
           ? options.sshKey === true

@@ -210,6 +210,8 @@ const failureText: Record<string, string> = {
     "gh is not signed in on this Machine; sign in first: lazurio tools login gh",
   "environment-unreadable":
     "the kind of this Environment could not be read, so the sign-in stopped before changing anything further",
+  "no-challenge":
+    "the tool showed no link, code or QR code within a minute, so it was stopped; check that this Machine reaches the internet and try again",
 };
 
 const sshFailureText: Record<SshLinkFailure, string> = {

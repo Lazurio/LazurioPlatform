@@ -1,11 +1,13 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
+  answerWithin,
   curatedActions,
   currentNotes,
   installOutcome,
   loginEndMessage,
   loginLink,
+  loginProgress,
   loginStepOrder,
   loginSteps,
   logoutOutcome,
@@ -982,4 +984,69 @@ test("the sign-in of gh may carry its SSH state, only in its exact form", () => 
     { state: "maybe" },
   ])
     expect(gh(bad)).toBeNull();
+});
+
+test("a starting sign-in never shows the same sentence as status and detail; no challenge in time ends with what to do", () => {
+  const pending = {
+    kind: "pending",
+    tool: "wacli",
+    session: "0".repeat(32),
+    expiresAt: "2026-09-29T12:00:00.000Z",
+  } as const;
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    // Before the first answer and while the tool shows nothing to act on.
+    for (const state of [null, pending]) {
+      const progress = loginProgress(state, copy);
+      expect(progress.status).toBe(copy.toolsLoginStarting);
+      expect(progress.detail).toBe(copy.toolsLoginStartingDetail);
+      expect(progress.detail).not.toBe(progress.status);
+    }
+    expect(
+      loginProgress(
+        { ...pending, challenge: { kind: "qr", payload: "x", sequence: 1 } },
+        copy,
+      ),
+    ).toEqual({ status: copy.toolsLoginWaiting, detail: null });
+    const failed = parseLoginState({
+      kind: "failed",
+      tool: "wacli",
+      reason: "no-challenge",
+    });
+    expect(failed).toEqual({
+      kind: "failed",
+      tool: "wacli",
+      reason: "no-challenge",
+    });
+    expect(loginEndMessage(failed as NonNullable<typeof failed>, copy)).toEqual(
+      { message: copy.toolsLoginFailureNoChallenge, agent: true, retry: true },
+    );
+    // Every end of a sign-in that did not start, ended early or showed
+    // nothing says what to do next, distinct from the starting sentence.
+    for (const key of [
+      "toolsLoginFailureNotInstalled",
+      "toolsLoginFailureSpawn",
+      "toolsLoginFailureExit",
+      "toolsLoginFailureNoChallenge",
+      "toolsLoginNoAnswer",
+    ] as const) {
+      expect(copy[key].split(". ").length).toBeGreaterThan(1);
+      expect(copy[key]).not.toBe(copy.toolsLoginStarting);
+    }
+  }
+});
+
+test("a dialog request that never settles is not answered within its bound", async () => {
+  expect(
+    await answerWithin(Promise.resolve({ value: { kind: "none" } }), 1_000),
+  ).toEqual({ answered: true, value: { kind: "none" } });
+  expect(await answerWithin(Promise.reject(new Error("x")), 1_000)).toEqual({
+    answered: true,
+    value: null,
+  });
+  const began = Date.now();
+  expect(await answerWithin(new Promise(() => undefined), 50)).toEqual({
+    answered: false,
+  });
+  expect(Date.now() - began).toBeLessThan(1_000);
 });

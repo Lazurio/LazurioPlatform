@@ -1713,6 +1713,16 @@ Folder for a workstation, ended with #83.)
 here provisions the App, its token broker or a brokered `gh`. The product refuses the
 personal sign-in and relies on what the Machine delivers.
 
+**Addendum 2026-09-29 (#98): a sign-in that shows nothing ends with a reason, and the
+journal names it.** A sign-in that shows no challenge within one minute is killed and
+ends as `failed` with the fixed code `no-challenge`, instead of waiting out its
+lifetime; the linking of gh's SSH key, which has bounded steps of its own, is not
+affected. The Launchpad writes the start and the end of each sign-in to its journal:
+the tool, the outcome and the fixed reason code, never output, a challenge or an
+account. The dialog never waits for an answer of the Launchpad for longer than 45
+seconds, never shows the same sentence as its status and its detail, and every end of
+a sign-in that did not start, ended early or showed nothing says what to do next.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Principal's decision 2026-09-28, implemented in this revision for Linux and macOS.**
