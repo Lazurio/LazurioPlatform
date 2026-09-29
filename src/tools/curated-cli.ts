@@ -202,7 +202,8 @@ const failureText: Record<string, string> = {
     "the tool offered an address that is not its official sign-in page, so it was not shown",
   "unexpected-output": "the tool answered in a form Lazurio does not know",
   "tool-exit": "the tool ended without completing the sign-in",
-  "not-confirmed": "the tool ended, but its status does not say signed in",
+  "not-confirmed":
+    "the tool did not complete it: its status does not say signed in, so it was stopped",
   "invalid-phone":
     "the phone number is not an international number (+ country code and number)",
   "spawn-failed": "the tool could not be started",

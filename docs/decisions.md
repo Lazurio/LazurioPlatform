@@ -1725,7 +1725,10 @@ a sign-in that did not start, ended early or showed nothing says what to do next
 A wacli that reports `connected` without a challenge was paired before this session:
 confirmed by its probe, the session ends as `signed-in` with `already: true` and the
 dialog says "already signed in"; this is a sign-in that changed nothing, not a new
-pairing. The wacli probe reads `wacli auth status --json`'s own envelope
+pairing. Only the probe confirms it: unconfirmed 20 s after `connected` (and always
+within the minute above) with no challenge shown, the process is killed and the
+session ends as `not-confirmed`. A session that has shown a challenge keeps its
+pairing lifetime. The wacli probe reads `wacli auth status --json`'s own envelope
 (`data.authenticated`, `data.phone`, `data.linked_jid`); it read the top level before
 and reported a paired wacli as not signed in.
 

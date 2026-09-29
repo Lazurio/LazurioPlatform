@@ -744,8 +744,8 @@ and returns focus to the card. Until the tool shows something to act on, the sta
 line says "Starting the sign-in…" and the body, never the same sentence, says that
 Lazurio waits for the tool's first step and for at most a minute (#98). A request that
 gets no answer within 45 seconds ends the dialog with "The Launchpad did not answer in
-time", and a sign-in that ends as `not-installed`, `spawn-failed`, `tool-exit` or
-`no-challenge` shows a sentence that says what to do. A tool that was signed in
+time", and a sign-in that ends as `not-installed`, `spawn-failed`, `tool-exit`,
+`not-confirmed` or `no-challenge` shows a sentence that says what to do. A tool that was signed in
 before (`signed-in` with `already: true`) is reported as "already signed in" and the
 card's state is read again. What it shows:
 

@@ -59,7 +59,11 @@ ${body}
 
 async function launchpad(
   body: string | null,
-  login: Readonly<{ firstChallengeMs: number; challengeMs: number }>,
+  login: Readonly<{
+    firstChallengeMs: number;
+    challengeMs: number;
+    connectedMs?: number;
+  }>,
   status = notSignedIn,
 ) {
   const parent = await realpath(
@@ -375,6 +379,49 @@ test.skipIf(!posix)(
       expect(await gone(await opened.pid())).toBe(true);
       journaled(opened.journal, { outcome: "signed-in" });
       expect(JSON.stringify(opened.journal)).not.toContain(fictionalPhone);
+    } finally {
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+test.skipIf(!posix)(
+  "wacli that reports connected while its status check keeps answering not signed in ends as not-confirmed within the bound and is killed",
+  async () => {
+    // The reviewer's case: `connected`, no QR or pairing code, and the
+    // status check never confirms. Only the check confirms a sign-in, so
+    // the session ends as not-confirmed 20 s (here 500 ms) after
+    // `connected`, not at the 5-minute lifetime.
+    const opened = await launchpad(
+      [`echo '{"event":"connected","ts":2}' >&2`, "exec sleep 300"].join("\n"),
+      { firstChallengeMs: 200, challengeMs: 60_000, connectedMs: 500 },
+      notSignedIn,
+    );
+    try {
+      const began = Date.now();
+      const started = await opened.post("/api/tools/login/start", {
+        tool: "wacli",
+      });
+      expect(started).toMatchObject({ kind: "pending", tool: "wacli" });
+      expect(started.challenge).toBeUndefined();
+      const session = started.session as string;
+      let polled: Json = started;
+      while (polled.kind === "pending" && Date.now() - began < 5_000) {
+        await Bun.sleep(50);
+        polled = await opened.post("/api/tools/login/poll", {
+          tool: "wacli",
+          session,
+        });
+      }
+      expect(polled).toEqual({
+        kind: "failed",
+        tool: "wacli",
+        reason: "not-confirmed",
+      });
+      expect(Date.now() - began).toBeLessThan(5_000);
+      expect(await gone(await opened.pid())).toBe(true);
+      journaled(opened.journal, { outcome: "failed", reason: "not-confirmed" });
     } finally {
       await opened.close();
     }

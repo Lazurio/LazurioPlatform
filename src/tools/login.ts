@@ -169,6 +169,9 @@ export type LoginEnvironment = Readonly<{
   /** How long a sign-in may run without showing its first challenge before
    * it fails as `no-challenge` (default one minute). */
   challengeMs?: number;
+  /** How long after `connected` without a challenge the probe may take to
+   * confirm before the sign-in fails as `not-confirmed` (default 20 s). */
+  connectedMs?: number;
   /** Where the owner journals the start and the end of each sign-in (the
    * Launchpad: its unit's journal). Absent: nothing is journaled. */
   journal?: (entry: LoginJournalEntry) => void;
@@ -197,6 +200,9 @@ const defaultLifetimes = {
 // sign-in: gh prints its code and composio its link at once, and wacli's
 // first QR code follows its connection to WhatsApp within seconds.
 const defaultChallengeMs = 60_000;
+// After wacli's `connected` without a code, its probe has this long to
+// confirm the sign-in (retried every 2 s), within the minute above.
+const defaultConnectedMs = 20_000;
 const probeTimeoutMs = 10_000;
 // Linking the SSH key after the sign-in: every step is bounded by 30 s.
 const sshLinkMs = 5 * 60_000;
@@ -353,7 +359,7 @@ type Session = {
   challenge?: LoginChallenge;
   /** A challenge was shown at least once. */
   challenged: boolean;
-  /** wacli reported `connected`: it is past the point of a challenge. */
+  /** wacli reported `connected`: the probe decides from here, bounded. */
   connected?: boolean;
   step?: "ssh-key";
   processes: Set<Streamed>;
@@ -859,7 +865,18 @@ export function createLoginSessions(environment: LoginEnvironment) {
           });
         } else if (name === "connected") {
           // Connected without a code first: wacli was signed in already
-          // (#98), which the probe confirms; after a code: paired now.
+          // (#98), which only the probe confirms; after a code: paired now.
+          // Unconfirmed and still without a code, the session ends as
+          // not-confirmed a bounded time after the first `connected`.
+          if (session.connected !== true && !session.challenged)
+            later(
+              session,
+              environment.connectedMs ?? defaultConnectedMs,
+              () => {
+                if (current(session) && !session.challenged)
+                  fail(session, "not-confirmed");
+              },
+            );
           session.connected = true;
           void check();
         }
@@ -985,10 +1002,12 @@ export function createLoginSessions(environment: LoginEnvironment) {
           if (
             current(session) &&
             !session.challenged &&
-            session.connected !== true &&
             session.step === undefined
           )
-            fail(session, "no-challenge");
+            fail(
+              session,
+              session.connected === true ? "not-confirmed" : "no-challenge",
+            );
         });
       const flow =
         name === "gh"

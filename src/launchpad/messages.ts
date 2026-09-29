@@ -259,7 +259,7 @@ const en = {
   toolsLoginFailureExit:
     "The tool ended without completing the sign-in. Try again; if it ends again, finish it with an agent.",
   toolsLoginFailureNotConfirmed:
-    "The tool ended, but its status does not say signed in.",
+    "The tool did not complete the sign-in: its status does not say signed in, so it was stopped. Try again; if it happens again, finish it with an agent.",
   toolsLoginFailureSpawn:
     "The tool could not be started. Try again; if it does not start, finish it with an agent.",
   toolsLoginFailureNoChallenge:
@@ -831,7 +831,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginFailureExit:
     "Nástroj skončil, aniž by přihlášení dokončil. Zkuste to znovu; když skončí znovu, dokončete to s agentem.",
   toolsLoginFailureNotConfirmed:
-    "Nástroj skončil, ale jeho stav neříká, že je přihlášený.",
+    "Nástroj přihlášení nedokončil: jeho stav neříká, že je přihlášený, a proto se zastavil. Zkuste to znovu; když se to zopakuje, dokončete to s agentem.",
   toolsLoginFailureSpawn:
     "Nástroj se nepodařilo spustit. Zkuste to znovu; když se nespustí, dokončete to s agentem.",
   toolsLoginFailureNoChallenge:

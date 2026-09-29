@@ -228,9 +228,12 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   A wacli that reports `connected` without a QR or pairing code first was paired
   before: once its probe confirms it the sign-in ends at once as `signed-in` with
   `already: true` ("already signed in", nothing paired or changed) and the process
-  finishes its sync to its own idle exit (#98). A tool that shows no link, code or QR
-  code within a minute, and has not reported `connected`, is killed and the sign-in
-  fails as `no-challenge` (#98), instead of waiting out its lifetime; a tool that is
+  finishes its sync to its own idle exit (#98). Only the probe confirms: when it has not
+  confirmed 20 s after `connected` (retried every 2 s) and no code was shown, the
+  process is killed and the sign-in fails as `not-confirmed`. A tool that shows no
+  link, code or QR code within a minute is killed and the sign-in fails as
+  `no-challenge` (or `not-confirmed` after `connected`), instead of waiting out its
+  lifetime; a session that has shown a code keeps its lifetime; a tool that is
   not found fails as `not-installed`, one that cannot be started as `spawn-failed`,
   and one that exits before it is signed in as `tool-exit`.
   After WhatsApp pairing it waits for the first sync of messages. `--json` prints one
