@@ -187,7 +187,7 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
         troubleshooting.includes(
           locale === "cs"
             ? "Verzi Lazuria na tomhle Environmentu vlastní operátor."
-            : "The operator owns the version of Lazurio on this Environment.",
+            : "The operator owns the version of Lazurio in this Environment.",
         ),
       ).toBe(hosted);
       // Only the workstation, which may run the supervised unit, names the
