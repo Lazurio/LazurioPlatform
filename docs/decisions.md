@@ -2152,6 +2152,33 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    authority, checkout rule (F23) and guarded process; there is no prepare script and
    **no check script**. No owner is searched among the ancestors, and no script name is
    invented.
+1a. **Local dependencies in the same Organization checkout** (extension of 2026-09-29,
+   after a read-only check of this change on a real hosted Organization work Machine:
+   of 21 modules 16 were executable, 1 had no app, and 4 were refused as
+   `preparation-dependency-outside-owner`, because their application packages share a
+   contracts package of the Organization's root repository, for example
+   `"@<scope>/v1": "file:../../../../launchpad/contracts/v1"` from
+   `workspace/<module>/app/v3/`; the replaced Launchpad starts them). For the default
+   preparation a local `file:` dependency may lie anywhere inside the same Organization
+   directory (`organizations/<Org>/…`; for a Personalspace module its owner directory
+   `personalspace/<owner>/…`), also outside the module's own repository. The reference
+   is normalized as text, without following a symlink, and the dependency is then
+   reached from the Organization directory one real directory at a time under the
+   checkout rule (F23: no symlink on the way, owned by the operator; permission bits are
+   not a reason). Its files are install inputs of the operator's checkout like any other
+   local dependency: the install authority inventories that dependency, and only it,
+   so a change invalidates the observation; the Organization is never inventoried as a
+   whole, and the Organization directory itself is not a dependency. Still refused: a
+   dependency that leaves the Organization directory
+   (`preparation-dependency-outside-owner`), one through or at a symlink or owned by
+   another account (the checkout rule's `directory-not-regular`, `directory-owner`, …
+   with its file relative to the module, else to the Organization root), and one that
+   is not there (`preparation-dependency-missing`, named by the application package
+   that declares it). This follows decision (a), what the replaced Launchpad started
+   keeps starting, and F23, the operator's own checkout is read by ownership with no
+   second permission layer. A declared preparation keeps its owner as the boundary. Git
+   dependencies (`git+https://…`, `git+ssh://…`) are not local dependencies: the frozen
+   install resolves them with the operator's own GitHub access.
 2. **The start.** A declared preparation's start runs its check and installs nothing,
    as before. The default has no check, so the check is optional for the default only:
    its start-time step is the frozen install itself, which changes nothing when
@@ -2172,7 +2199,8 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    can proceed as far as is known without running anything: after the declarations and
    the Organization's admission, the preparation in effect is inspected read-only
    (`inspectPreparationShape`: the owner's package, its `packageManager`, its one
-   lockfile, its own local dependencies staying inside it, a declared owner's
+   lockfile, its own local dependencies being there inside their boundary (point 1a) and
+   reached through real directories, a declared owner's
    membership and scripts, and no workspace install). What fails there is
    `executable: false` with the start's reason and the package it concerns, in `module
    list`, `organization list`'s JSON, the Launchpad's module view and `lazurio doctor`.
@@ -2185,7 +2213,9 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    absolute path or the error message: `preparation-lockfile-missing` (no lockfile, or
    an empty one), `preparation-lockfile-ambiguous` (both `bun.lock` and `bun.lockb`),
    `preparation-package-manager-unsupported`, `preparation-dependency-outside-owner` (a
-   `file:` dependency outside the owner's directory), `preparation-owner-invalid`,
+   `file:` dependency outside the Organization directory, or for a declared preparation
+   outside its owner), `preparation-dependency-missing` (a `file:` dependency that is not
+   there), `preparation-owner-invalid`,
    `preparation-script-missing`, `preparation-workspace-unqualified`, and from the start
    only `preparation-toolchain-mismatch` and `preparation-install-failed` (with the
    lockfile). The CLI and the Launchpad explain each in words (English and Czech on the
@@ -2196,9 +2226,7 @@ installation until its inputs are qualified), a prepare script (data or DB setup
 module owns), or a check the start runs instead of installing.
 
 **Not covered.** The default does not qualify workspaces, local dependencies outside
-the application's directory (a module whose app uses `file:../…` is not executable, by
-its reason, until the module moves the dependency inside or a later decision widens
-the owner), an application without dependencies (Bun deletes an empty lockfile, so it
+the Organization's checkout (point 1a), an application without dependencies (Bun deletes an empty lockfile, so it
 has none and is `preparation-lockfile-missing`), or private Git dependencies beyond
 what the operator's own Git and GitHub access on the Machine allow the install. The
 install runs the package's own lifecycle scripts as `bun install` does. No new
@@ -2213,4 +2241,8 @@ undeclared module is a follow-up.
 | Search the ancestors for a lockfile or workspace owner | Guesses which install owns the app; excluded by the issue's rule |
 | Default with a check script by convention (for example `check`) | Invents a script name the modules never agreed to; rejected |
 | Pin the default toolchain to the Platform's own Bun version | Real Machines update their Bun (B2); every module would stop at the first Bun update; not chosen |
+| Local dependencies only inside the application's package directory | The first version of this change; four real modules sharing the Organization's contracts package stayed refused; widened (point 1a) |
+| Local dependencies inside the module's own repository | The shared contracts package lives in the Organization's root repository; the same four stay refused; not chosen |
+| Local dependencies anywhere the operator can read | Crosses the Organization's access boundary (one Organization, one access boundary); rejected |
 | The application's own package, a frozen install from its lockfile, no check (selected) | Starts what the replaced Launchpad started; honest refusals with a reason for what it cannot |
+| Local dependencies anywhere in the same Organization (or Personalspace owner) directory, through real directories of the operator's checkout, only the dependency inventoried (selected, point 1a) | Starts the real modules unchanged; the Organization stays the boundary and F23 the only rule |

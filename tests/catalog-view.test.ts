@@ -91,6 +91,7 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
     "preparation-package-manager-unsupported",
     "preparation-workspace-unqualified",
     "preparation-dependency-outside-owner",
+    "preparation-dependency-missing",
   ];
   for (const locale of ["cs", "en"]) {
     const copy = messages(locale);

@@ -79,6 +79,7 @@ export function localApplicationAdapters(input: {
       const options = {
         moduleDirectory: module.moduleDirectory,
         applicationPackage: plan.package,
+        organizationDirectory: selected.cwd,
         executable: selected.executable,
         platformExecutable,
         env: selected.env,
@@ -115,6 +116,7 @@ export function localApplicationAdapters(input: {
         module.moduleDirectory,
         plan.package,
         selected.env,
+        selected.cwd,
       );
       if (
         binding.plan.declarationDigest !== plan.declarationDigest ||
@@ -164,6 +166,7 @@ export function localApplicationAdapters(input: {
           module.moduleDirectory,
           selection.package,
           selected.env,
+          selected.cwd,
         );
         return binding.authority.owner;
       };

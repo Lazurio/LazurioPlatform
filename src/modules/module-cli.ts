@@ -103,7 +103,9 @@ const explanations: Readonly<Record<string, string>> = {
   "preparation-workspace-unqualified":
     "This package is a workspace owner or member; installing a workspace is not supported yet.",
   "preparation-dependency-outside-owner":
-    "This package depends on a local package outside its own directory (file:../…); its local dependencies must be inside it.",
+    "This package depends on a local package (file:…) outside its Organization's checkout (or, with a declared preparation, outside its owner); a local dependency must lie in the same Organization.",
+  "preparation-dependency-missing":
+    "This package depends on a local package (file:…) that is not in the checkout; check out the repository that holds it.",
   "preparation-toolchain-mismatch": `This package pins a Bun version (packageManager) that the Bun at ${standardBun} is not.`,
   "preparation-install-failed":
     "bun install --frozen-lockfile from this lockfile failed: the lockfile may not match the package, or a dependency could not be fetched (a private Git dependency needs your GitHub access on this Machine).",

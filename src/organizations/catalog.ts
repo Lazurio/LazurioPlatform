@@ -227,14 +227,19 @@ function slotTeams(slot: unknown): {
 async function preparationReason(
   moduleDirectory: string,
   app: string,
+  organizationDirectory: string,
 ): Promise<Readonly<{ reason?: ModuleReason; file?: string }>> {
   try {
-    await inspectPreparationShape(moduleDirectory, app);
+    await inspectPreparationShape(moduleDirectory, app, organizationDirectory);
     return {};
   } catch (error) {
+    // Named relative to the module, else to the Organization root, as the
+    // start names them (a dependency may lie in the Organization's root
+    // repository, decision F25).
+    const bases = [moduleDirectory, organizationDirectory];
     return (
-      preparationRefusal(error, moduleDirectory) ??
-      checkoutRefusal(error, moduleDirectory) ?? {
+      preparationRefusal(error, bases) ??
+      checkoutRefusal(error, bases) ?? {
         reason: "module-unavailable",
       }
     );
@@ -250,6 +255,7 @@ async function moduleReason(
   defaultApp: string | null,
   apps: readonly CatalogApp[],
   moduleDirectory: string,
+  organizationDirectory: string,
 ): Promise<Readonly<{ reason?: ModuleReason; file?: string }>> {
   if (observed.kind !== "module-observed")
     return observed.file === undefined
@@ -258,7 +264,11 @@ async function moduleReason(
   if (defaultApp === null) return { reason: "no-app" };
   const app = apps.find((entry) => entry.package === defaultApp);
   if (app?.kind === "runtime-declared")
-    return preparationReason(moduleDirectory, defaultApp);
+    return preparationReason(
+      moduleDirectory,
+      defaultApp,
+      organizationDirectory,
+    );
   return app?.reason !== undefined && app.file !== undefined
     ? { reason: app.reason, file: app.file }
     : { reason: "default-app-invalid" };
@@ -366,6 +376,7 @@ export async function readCatalogOrganization(
               defaultApp,
               apps,
               join(directory, entry.path),
+              directory,
             )
           : {};
         const reason = executable ? own.reason : "organization-not-executable";
@@ -502,6 +513,7 @@ async function readCatalogPersonalspace(
         defaultApp,
         apps,
         moduleDirectory,
+        located.directory,
       );
       return Object.freeze({
         organization: personalspaceName,

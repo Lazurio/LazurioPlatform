@@ -325,10 +325,10 @@ posixTest(
       await variant(world, "unsupported", (pkg) => {
         pkg.packageManager = "npm@10.0.0";
       });
-      // A local dependency outside the application's package directory, the
-      // default owner: the owner is never searched among the ancestors.
+      // A local dependency that leaves the Organization's checkout (from
+      // workspace/outside/app, four levels up is organizations/).
       await variant(world, "outside", (pkg) => {
-        pkg.dependencies = { "fixture-shared": "file:../shared" };
+        pkg.dependencies = { "fixture-shared": "file:../../../../shared" };
       });
       // The explicit declaration names a check script the package lacks.
       await variant(world, "unchecked", (pkg) => {

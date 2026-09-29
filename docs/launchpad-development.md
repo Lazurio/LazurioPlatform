@@ -174,7 +174,8 @@ or document is refused gets the same reason with its `file`; or, since decision 
 preparation of the default app that cannot run for a reason known without running
 anything, with the package it concerns as `file`: `preparation-lockfile-missing`,
 `preparation-lockfile-ambiguous`, `preparation-package-manager-unsupported`,
-`preparation-dependency-outside-owner`, `preparation-owner-invalid`,
+`preparation-dependency-outside-owner`, `preparation-dependency-missing`,
+`preparation-owner-invalid`,
 `preparation-script-missing`, `preparation-workspace-unqualified`). Executable means the
 declarations admit a start of the default app under the one admission rule of the
 [organization contract](organization-contract.md) (variant B, decided 2026-09-28 on

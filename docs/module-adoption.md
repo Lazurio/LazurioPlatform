@@ -142,8 +142,19 @@ that pins `bun@x.y.z` still requires exactly that Bun, and any other `packageMan
 is refused. Because the default has no check, **its start-time step is the frozen
 install itself**, which changes nothing when `node_modules` already matches the
 lockfile and repairs it when it does not; an explicit declaration's start still runs
-only its check and installs nothing. The explicit declaration remains for everything
-the default does not do: a workspace owner, a prepare script, or a check.
+only its check and installs nothing. A local `file:` dependency of the default preparation
+may lie anywhere in the same Organization directory (for a Personalspace module, its
+owner directory), also outside the module's own repository: real modules share a
+contracts package of the Organization's root repository
+(`file:../../../../launchpad/contracts/v1` from `workspace/<module>/app/v3/`), which the
+replaced Launchpad installs. The reference is normalized as text and reached from the
+Organization directory through real directories owned by the operator (F23); the
+install authority inventories that dependency, never the whole Organization. One that
+leaves the Organization is `preparation-dependency-outside-owner`, one that is not
+there `preparation-dependency-missing`, and one through a symlink or another account's
+directory keeps the checkout rule's reason. A declared preparation's local dependencies
+stay inside its owner. The explicit declaration remains for everything the default does
+not do: a workspace owner, a prepare script, or a check.
 `inspectPreparationBinding` returns the preparation in effect as `preparation`
 (`kind: "declared" | "default"`), and `inspectPreparationShape` is its read-only part
 that the catalog runs for each module's default app. A preparation that cannot run for

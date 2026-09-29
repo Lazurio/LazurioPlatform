@@ -52,7 +52,10 @@ export async function inspectOwnerDirectories(checkout: string, owner: string) {
  * catalog) can know without the rest of the snapshot (decision F25). The
  * caller has inspected the owner's directories. Each refusal names the
  * owner's package.json. */
-export async function readInstallOwner(owner: string) {
+export async function readInstallOwner(
+  owner: string,
+  dependencyBoundary: string = owner,
+) {
   const packagePath = join(owner, "package.json");
   const refused = (reason: PreparationReason, message: string) =>
     new PreparationRefused(reason, packagePath, message);
@@ -105,7 +108,7 @@ export async function readInstallOwner(owner: string) {
       "preparation-lockfile-missing",
       "One explicit Bun lockfile required",
     );
-  inspectDirectLocalDependencies(owner, manifest);
+  await inspectDirectLocalDependencies(owner, manifest, dependencyBoundary);
   return Object.freeze({
     owner,
     packageBytes,
@@ -125,6 +128,10 @@ export async function inspectInstallAuthority(
   checkout: string,
   owner: string,
   environment?: Readonly<Record<string, string>>,
+  // Where local `file:` dependencies may lie: the owner by default; for the
+  // default preparation the Organization (or Personalspace owner) directory
+  // holding it (decision F25).
+  dependencyBoundary: string = owner,
 ) {
   const env =
     environment === undefined
@@ -178,7 +185,7 @@ export async function inspectInstallAuthority(
     }
   }
   const { packageBytes, manifest, packageManager, lockfile } =
-    await readInstallOwner(owner);
+    await readInstallOwner(owner, dependencyBoundary);
   const lockBytes = await readCheckoutFileBytes(join(owner, lockfile));
   if (!lockBytes.length)
     throw new PreparationRefused(
@@ -200,7 +207,12 @@ export async function inspectInstallAuthority(
     manifest,
     workspaceInputs: await inspectWorkspaceInputs(owner, manifest.workspaces),
     patchInputs: await inspectPatchInputs(owner, manifest.patchedDependencies),
-    localDependencyInputs: await inspectLocalDependencyInputs(owner, manifest),
+    dependencyBoundary,
+    localDependencyInputs: await inspectLocalDependencyInputs(
+      owner,
+      manifest,
+      dependencyBoundary,
+    ),
     configuration: Object.freeze(configuration),
     environment: env,
   });
@@ -222,6 +234,7 @@ export async function verifyInstallAuthority(
       expected.checkout,
       expected.owner,
       expected.environment ?? undefined,
+      expected.dependencyBoundary,
     );
     return (
       current.checkoutIdentity === expected.checkoutIdentity &&

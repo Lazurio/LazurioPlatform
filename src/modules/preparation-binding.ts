@@ -43,6 +43,21 @@ function preparationOf(plan: Plan, applicationPackage: string): Preparation {
   });
 }
 
+// Where the owner's local `file:` dependencies may lie (decision F25): for
+// the default preparation anywhere in the Organization (or Personalspace
+// owner) directory that holds the module, as the replaced Launchpad
+// installed them, so a contracts package of the Organization's root
+// repository is an input; for a declared preparation, as before, the owner.
+function dependencyBoundary(
+  preparation: Preparation,
+  owner: string,
+  organizationDirectory: string | undefined,
+) {
+  return preparation.kind === "default" && organizationDirectory !== undefined
+    ? organizationDirectory
+    : owner;
+}
+
 async function declaredPlan(
   moduleDirectory: string,
   applicationPackage: string,
@@ -104,19 +119,23 @@ export function requireQualifiedInstall(
 /** Whether an application's preparation can run as far as is known without
  * running anything and without the install inputs' contents: its preparation
  * in effect, the owner's package, its Bun, its one lockfile, its own local
- * dependencies staying inside it, the declared scripts and a qualified
+ * dependencies being there inside their boundary, the declared scripts and a qualified
  * install. What the catalog reports; the start inspects all of it again, and
  * the install inputs too. Throws the typed refusal (decision F25), or a
  * refusal of the checkout rule (decision F23). */
 export async function inspectPreparationShape(
   moduleDirectory: string,
   applicationPackage: string,
+  organizationDirectory?: string,
 ) {
   const plan = await declaredPlan(moduleDirectory, applicationPackage);
   const preparation = preparationOf(plan, applicationPackage);
   const owner = dirname(join(moduleDirectory, preparation.owner_package));
   await inspectOwnerDirectories(moduleDirectory, owner);
-  const installOwner = await readInstallOwner(owner);
+  const installOwner = await readInstallOwner(
+    owner,
+    dependencyBoundary(preparation, owner, organizationDirectory),
+  );
   checkOwner(preparation, applicationPackage, installOwner);
   requireQualifiedInstall(preparation, applicationPackage, installOwner);
   return preparation;
@@ -129,6 +148,7 @@ export async function inspectPreparationBinding(
   moduleDirectory: string,
   applicationPackage: string,
   environment?: Readonly<Record<string, string>>,
+  organizationDirectory?: string,
 ) {
   const plan = await declaredPlan(moduleDirectory, applicationPackage);
   const preparation = preparationOf(plan, applicationPackage);
@@ -137,6 +157,7 @@ export async function inspectPreparationBinding(
     moduleDirectory,
     owner,
     environment,
+    dependencyBoundary(preparation, owner, organizationDirectory),
   );
   checkOwner(preparation, applicationPackage, authority);
   const current = await readModuleApplication(

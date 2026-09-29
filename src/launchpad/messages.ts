@@ -433,7 +433,9 @@ const en = {
   preparationReasonWorkspace:
     "{file} is a workspace; installing a workspace is not supported yet.",
   preparationReasonDependencyOutside:
-    "{file} depends on a local package outside its own directory (file:../…); the app's own directory must hold its local dependencies.",
+    "{file} depends on a local package (file:…) outside its Organization's checkout; a local dependency must lie in the same Organization.",
+  preparationReasonDependencyMissing:
+    "{file} depends on a local package (file:…) that is not in the checkout; check out the repository that holds it.",
   preparationReasonToolchainMismatch:
     "{file} pins a Bun version (packageManager) that the Bun in ~/.local/bin is not.",
   preparationReasonInstallFailed:
@@ -1011,7 +1013,9 @@ const cs: Record<MessageKey, string> = {
   preparationReasonWorkspace:
     "{file} je workspace; instalace workspace zatím není podporovaná.",
   preparationReasonDependencyOutside:
-    "{file} závisí na lokálním balíčku mimo vlastní složku (file:../…); lokální závislosti aplikace musí být v její vlastní složce.",
+    "{file} závisí na lokálním balíčku (file:…) mimo checkout své Organizace; lokální závislost musí být ve stejné Organizaci.",
+  preparationReasonDependencyMissing:
+    "{file} závisí na lokálním balíčku (file:…), který v checkoutu není; naklonujte repozitář, ve kterém je.",
   preparationReasonToolchainMismatch:
     "{file} vyžaduje verzi Bunu (packageManager), kterou Bun v ~/.local/bin nemá.",
   preparationReasonInstallFailed:

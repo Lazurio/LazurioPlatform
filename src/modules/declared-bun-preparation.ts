@@ -9,8 +9,18 @@ import { parseProcessLaunch } from "./process-launch";
 
 type Input = Omit<
   Parameters<typeof preflightBunPreparation>[0],
-  "checkout" | "owner" | "modulePreparationScript" | "moduleCheckScript"
-> & { moduleDirectory: string; applicationPackage: string };
+  | "checkout"
+  | "owner"
+  | "modulePreparationScript"
+  | "moduleCheckScript"
+  | "dependencyBoundary"
+> & {
+  moduleDirectory: string;
+  applicationPackage: string;
+  // The Organization (or Personalspace owner) directory holding the module:
+  // where the default preparation's local dependencies may lie (F25).
+  organizationDirectory?: string;
+};
 
 // Trusted composition inside the existing authorized lifecycle/owner queue.
 // This selects scripts from declarations, never an HTTP-provided command.
@@ -26,6 +36,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   const moduleDirectory = launch.cwd;
   const applicationPackage = input.applicationPackage;
   const verifyPrepared = input.verifyPrepared;
+  const organizationDirectory = input.organizationDirectory;
   const requested = input.operation;
   const options = {
     executable: launch.executable,
@@ -40,6 +51,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
     moduleDirectory,
     applicationPackage,
     options.env,
+    organizationDirectory,
   );
   const declaration = binding.preparation;
   requireQualifiedInstall(declaration, applicationPackage, binding.authority);
@@ -62,6 +74,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
         moduleDirectory,
         applicationPackage,
         environment,
+        organizationDirectory,
       );
       return (
         observed.plan.declarationDigest === binding.plan.declarationDigest &&
@@ -76,6 +89,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
     ...(operation === undefined ? {} : { operation }),
     checkout: moduleDirectory,
     owner: binding.authority.owner,
+    dependencyBoundary: binding.authority.dependencyBoundary,
     ...(declaration.prepare_script === undefined
       ? {}
       : { modulePreparationScript: declaration.prepare_script }),

@@ -97,6 +97,7 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-package-manager-unsupported": "preparationReasonPackageManager",
   "preparation-workspace-unqualified": "preparationReasonWorkspace",
   "preparation-dependency-outside-owner": "preparationReasonDependencyOutside",
+  "preparation-dependency-missing": "preparationReasonDependencyMissing",
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
 };

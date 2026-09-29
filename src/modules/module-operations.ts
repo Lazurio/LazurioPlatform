@@ -341,7 +341,10 @@ export function createModuleOperations(input: {
       app: target.app,
     };
     const refused =
-      preparationRefusal(error, target.moduleDirectory) ??
+      preparationRefusal(error, [
+        target.moduleDirectory,
+        target.organizationDirectory,
+      ]) ??
       checkoutRefusal(
         error,
         [target.moduleDirectory, target.organizationDirectory],

@@ -2,9 +2,9 @@ import { refusedFileName } from "../providers/checkout-custody";
 
 // Why a module's preparation cannot run (decision F25): a closed set of
 // reasons, each with the package or lockfile it concerns, instead of the
-// `operation-failed` a throw without a reason becomes. The first seven are
-// known without running anything, so the catalog reports them as well; the
-// last two only the start can know.
+// `operation-failed` a throw without a reason becomes. All but the last two
+// are known without running anything, so the catalog reports them as well;
+// the last two only the start can know.
 
 export const preparationReasons = [
   /** The preparation owner's package.json is missing, is not a package
@@ -21,8 +21,13 @@ export const preparationReasons = [
   "preparation-package-manager-unsupported",
   /** A workspace owner or member: its install inputs are not qualified. */
   "preparation-workspace-unqualified",
-  /** A local `file:` dependency outside the owner's directory. */
+  /** A local `file:` dependency outside where it may lie: the owner's
+   * directory, or for the default preparation the Organization (or
+   * Personalspace owner) directory holding the application. */
   "preparation-dependency-outside-owner",
+  /** A local `file:` dependency that is not there; named by the package
+   * that declares it. */
+  "preparation-dependency-missing",
   /** The owner pins an exact Bun (`packageManager`) the operator's Bun is
    * not. */
   "preparation-toolchain-mismatch",

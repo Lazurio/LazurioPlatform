@@ -42,6 +42,9 @@ export async function preflightBunPreparation(input: {
   operation?: "prepare" | "check";
   cleanInstall?: boolean;
   modulePreparationScript?: string;
+  // Where local `file:` dependencies may lie (the install authority's
+  // boundary, decision F25); the owner when absent.
+  dependencyBoundary?: string;
   // Trusted declaration selection, not a script name supplied by an HTTP request.
   // Read-only behavior is the module contract, not an OS sandbox guarantee.
   moduleCheckScript?: string;
@@ -60,6 +63,7 @@ export async function preflightBunPreparation(input: {
     input.checkout,
     input.owner,
     input.env,
+    input.dependencyBoundary,
   );
   const modulePreparationScript = input.modulePreparationScript;
   if (modulePreparationScript !== undefined)

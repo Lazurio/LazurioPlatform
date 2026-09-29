@@ -1,20 +1,22 @@
 import { createHash } from "node:crypto";
 import { lstat, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { readCheckoutFileBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import { PreparationRefused } from "./preparation-refusal";
 
-// The owner-relative roots of one manifest's `file:` dependencies, added to
-// `roots`; `base` is the manifest's directory relative to the owner and
-// `file` its path, which a dependency outside the owner is refused with
-// (decision F25). Parses only; nothing is read.
+// The roots of one manifest's `file:` dependencies, relative to the
+// boundary, each with the manifest that declares it, added to `roots`.
+// `base` is the manifest's directory relative to the boundary and `file` its
+// path, which a dependency outside the boundary is refused with (decision
+// F25). Paths are normalized as text: no symlink is followed. Parses only;
+// nothing is read.
 function collect(
   manifest: Readonly<Record<string, unknown>>,
   base: string,
   file: string,
-  roots: Set<string>,
+  roots: Map<string, string>,
 ) {
   const outside = () =>
     new PreparationRefused(
@@ -22,6 +24,9 @@ function collect(
       file,
       "Local dependency escapes its owner",
     );
+  const add = (root: string) => {
+    if (!roots.has(root)) roots.set(root, file);
+  };
   for (const field of [
     "dependencies",
     "devDependencies",
@@ -57,7 +62,7 @@ function collect(
       if (path === "..") {
         if (!prefix.length) throw outside();
         prefix.pop();
-        roots.add(prefix.join("/"));
+        add(prefix.join("/"));
         continue;
       }
       if (
@@ -74,46 +79,113 @@ function collect(
         )
       )
         throw new Error("Owner-relative local dependency required");
-      roots.add([...prefix, path].join("/"));
+      add([...prefix, path].join("/"));
     }
   }
 }
 
-/** Whether the owner's own `file:` dependencies stay inside it, without
- * reading them: what a read-only check of the preparation (the catalog)
- * can know. */
-export function inspectDirectLocalDependencies(
-  owner: string,
-  manifest: Readonly<Record<string, unknown>>,
-) {
-  collect(manifest, "", join(owner, "package.json"), new Set());
+// Where the dependencies of `owner` may lie: the owner itself, or for the
+// default preparation the Organization (or Personalspace owner) directory
+// that holds it (decision F25). The boundary itself is never a dependency:
+// that would be the whole checkout.
+function scope(owner: string, boundary: string) {
+  const offset = relative(boundary, owner);
+  if (isAbsolute(offset) || offset === ".." || offset.startsWith(`..${sep}`))
+    throw new Error("Install owner outside its dependency boundary");
+  return offset.split(sep).filter(Boolean).join("/");
 }
 
-// File dependency graph within one explicit owner. No installation occurs here.
-// Other local protocols and workspace effects still need qualification.
+// A dependency root, reached from the boundary one real directory of the
+// checkout at a time (decision F23: no symlink, the operator's own). A root
+// that is not there is `preparation-dependency-missing`, named by the
+// manifest that declares it.
+async function reach(
+  boundary: string,
+  root: string,
+  file: string,
+  widened: boolean,
+  seen?: Record<string, string>,
+) {
+  if (widened && root === "")
+    throw new PreparationRefused(
+      "preparation-dependency-outside-owner",
+      file,
+      "Local dependency is its whole boundary",
+    );
+  const missing = (error: unknown) => {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR"
+      ? new PreparationRefused(
+          "preparation-dependency-missing",
+          file,
+          "Local dependency missing",
+        )
+      : error;
+  };
+  let parent = boundary;
+  for (const segment of root.split("/").slice(0, -1)) {
+    parent = join(parent, segment);
+    const identity = await inspectCheckoutDirectory(parent).catch(
+      (error: unknown) => {
+        throw missing(error);
+      },
+    );
+    if (seen) seen[`directory:${parent}`] = `${identity.dev}:${identity.ino}`;
+  }
+  const path = join(boundary, root);
+  const stat = await lstat(path).catch((error: unknown) => {
+    throw missing(error);
+  });
+  return { path, stat };
+}
+
+/** Whether the owner's own `file:` dependencies stay inside the boundary
+ * and are there, reached through real directories of the operator's
+ * checkout, without reading their contents: what a read-only check of the
+ * preparation (the catalog) can know. */
+export async function inspectDirectLocalDependencies(
+  owner: string,
+  manifest: Readonly<Record<string, unknown>>,
+  boundary: string = owner,
+) {
+  const roots = new Map<string, string>();
+  collect(manifest, scope(owner, boundary), join(owner, "package.json"), roots);
+  for (const [root, file] of roots) {
+    const { path, stat } = await reach(
+      boundary,
+      root,
+      file,
+      boundary !== owner,
+    );
+    if (stat.isDirectory() || stat.isSymbolicLink())
+      await inspectCheckoutDirectory(path);
+  }
+}
+
+// File dependency graph within one explicit boundary: the owner, or for the
+// default preparation the Organization directory holding it (decision F25).
+// Only the declared dependencies are inventoried, never the boundary as a
+// whole. No installation occurs here. Other local protocols and workspace
+// effects still need qualification.
 export async function inspectLocalDependencyInputs(
   owner: string,
   manifest: Readonly<Record<string, unknown>>,
+  boundary: string = owner,
 ) {
-  const roots = new Set<string>();
-  collect(manifest, "", join(owner, "package.json"), roots);
+  const roots = new Map<string, string>();
+  collect(manifest, scope(owner, boundary), join(owner, "package.json"), roots);
   const result: Record<string, string> = Object.create(null);
   let count = 0;
   let size = 0;
-  // Set iteration includes newly discovered roots and visits cycles only once.
-  for (const root of roots) {
-    let parent = owner;
-    for (const segment of root.split("/").slice(0, -1)) {
-      parent = join(parent, segment);
-      const identity = await inspectCheckoutDirectory(parent);
-      result[`directory:${parent}`] = `${identity.dev}:${identity.ino}`;
-    }
+  // Map iteration includes newly discovered roots and visits cycles only once.
+  for (const [root, file] of roots) {
+    await reach(boundary, root, file, boundary !== owner, result);
     const pending = [root];
     while (pending.length) {
       const relative = pending.pop() as string;
       if (++count > 20_000 || relative.split("/").length > 64)
         throw new Error("Local dependency inventory limit exceeded");
-      const path = join(owner, relative);
+      const path = join(boundary, relative);
       const stat = await lstat(path);
       if (stat.isDirectory()) {
         const identity = await inspectCheckoutDirectory(path);
