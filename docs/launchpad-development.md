@@ -170,10 +170,19 @@ with their source `teamsSource`, the root state and `executable`, or a typed `re
 checkout rule of decision F23 with its module-relative `file`: a declaration
 `declaration-not-regular`, `declaration-owner`, `declaration-too-large`, a directory
 of the module `directory-not-regular`, `directory-owner`; an Organization whose root
-or document is refused gets the same reason with its `file`). Executable means the
+or document is refused gets the same reason with its `file`; or, since decision F25, a
+preparation of the default app that cannot run for a reason known without running
+anything, with the package it concerns as `file`: `preparation-lockfile-missing`,
+`preparation-lockfile-ambiguous`, `preparation-package-manager-unsupported`,
+`preparation-dependency-outside-owner`, `preparation-owner-invalid`,
+`preparation-script-missing`, `preparation-workspace-unqualified`). Executable means the
 declarations admit a start of the default app under the one admission rule of the
 [organization contract](organization-contract.md) (variant B, decided 2026-09-28 on
-question H1: a canonical-only `current` Organization runs); it is not readiness, provider permission or a lease. A malformed
+question H1: a canonical-only `current` Organization runs) and that its preparation can
+run as far as is known read-only (`inspectPreparationShape`); it is not readiness,
+provider permission or a lease. The contents of the install inputs (lockfile bytes,
+local dependencies, patches, configuration) are still the start's to refuse (F23 point
+6), and so are a Bun version mismatch and a failing install. A malformed
 Team membership is reported as `teams-invalid` on the module and never blocks it.
 
 **Teams.** The canonical form is `module_slots[].teams`. The catalog resolves membership
@@ -305,8 +314,9 @@ read.
 
 **What runs, and who owns it.** Start runs the module's default app (or `--app`) from
 its own declaration through the existing lifecycle (`src/modules/lifecycle.ts`), the
-runners and `localApplicationAdapters`: the declared start check, then the dev script,
-never a hostname convention. The toolchain is the operator's Bun at
+runners and `localApplicationAdapters`: the declared start check, or for an app without
+a `lazurio.preparation` its default preparation, the frozen install from the lockfile
+beside its package (decision F25), then the dev script, never a hostname convention. The toolchain is the operator's Bun at
 `<home>/.local/bin/bun` (B2); missing, start is refused as `toolchain-missing` before any
 effect (`--bun-executable` stays a development flag of the old panel only). On Linux with
 a reachable user manager the app is a transient systemd user unit (`systemd-user`
@@ -323,9 +333,10 @@ again. Lifecycle refusals keep their codes (`port-occupied`, `prerequisites-not-
 `coordination-busy`, `service-unrecognized`, …). A file or directory of the module's
 checkout that the checkout rule refuses during the start (an install input such as a
 local dependency's file) is named by its rule (`declaration-*`, `directory-*`) with
-its module-relative `file` (decision F23); any other
-throw inside the lifecycle is `operation-failed` (most often a module that is not a
-declared self-owned Bun package).
+its module-relative `file` (decision F23); a preparation that cannot run for a known
+reason by its `preparation-*` reason and the package or lockfile it concerns (decision
+F25, `src/modules/preparation-refusal.ts`); any other throw inside the lifecycle is
+`operation-failed`.
 
 **Answer.** `{kind: "module", operation, organization, module, app, runner,
 survivesLaunchpadRestart, outcome, state, healthy, service, runtime, runtimeReason?}`;
@@ -358,8 +369,10 @@ keyboard focus returns to the action. Pure presentation in
 `src/launchpad/module-view.ts` (tested in `tests/module-view.test.ts`), Czech and
 English.
 
-**Not in this slice.** `prepare` and `open` verbs (dependency installation stays with
-the module's own `bun install --frozen-lockfile`; `prerequisites-not-ready` says so),
+**Not in this slice.** `prepare` and `open` verbs (for an app with a declared
+preparation, dependency installation stays with the module's own `bun install
+--frozen-lockfile` and `prerequisites-not-ready` says so; an app without one is
+installed by its start, decision F25),
 the T3 Code chat link (P7, since in [Chat entry](#chat-entry)), worktree `--source` (P9), a logs
 tail on the page, and the retirement of `/api/apps/*`, `app-request`,
 `--organization-directory` and `--bun-executable`: they keep working unchanged for their

@@ -2061,6 +2061,9 @@ operator's umask is `002`: Git creates the checkout's directories `0775` and its
 [module adoption](module-adoption.md) and [clean module
 preparation](clean-module-preparation.md) (single-link and non-shared-write
 declarations, install inputs and dependency trees).
+Point 6 is amended by F25: the list also reports what the preparation's shape refuses
+(the owner's package, its Bun, its one lockfile), while the install inputs' contents
+stay the start's to refuse.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -2125,3 +2128,89 @@ discovery and the Folder manual are unchanged.
 | A second reader for root-level applications | Two discovery paths to keep consistent; rejected: the existing reader admits two more paths |
 | List root-level applications first, or in a group of their own | An ordering rule nobody decided; not chosen: declaration order, as for every slot |
 | Declared root-level application slots with a module manifest, read by the one reader under a workspace module's rules (selected) | Small; the switch's check finds the served applications; an undeclared one is refused visibly, not guessed |
+
+## F25 — A module without a preparation declaration starts by a default preparation
+
+**Principal's decision 2026-09-29, accepted** (issue #97, last comment: option (a)).
+Observed the same day on the first real Machine switched to this Launchpad
+(`0.1.8-rc.7`): `lazurio module start` of its only module answered `operation-failed`,
+because the application's `package.json` declares `lazurio.runtime` and no
+`lazurio.preparation`, which the start required. On a hosted Organization work Machine
+none of 27 application packages of 21 modules declares it. The Launchpad this one
+replaces started the same modules by running their dev script after a frozen install
+from their lockfile. The Principal's rule: what the replaced Launchpad started must keep
+starting without a change in the module. The catalog meanwhile called these modules
+`executable: true`, which the Machines switch relies on before its point of no return,
+and the operator saw only `operation-failed`. Both are fixed with the decision.
+
+1. **The default.** An application package without `lazurio.preparation` has the
+   default preparation: its own `package.json` is the owner (`owner_package` is the
+   application package itself); preparing is the frozen install, `bun --no-env-file
+   install --frozen-lockfile` (with `--backend copyfile` when the package has local
+   `file:` dependencies, as for a declared preparation), from the one Bun lockfile
+   (`bun.lock` or `bun.lockb`) beside that package, under the existing install
+   authority, checkout rule (F23) and guarded process; there is no prepare script and
+   **no check script**. No owner is searched among the ancestors, and no script name is
+   invented.
+2. **The start.** A declared preparation's start runs its check and installs nothing,
+   as before. The default has no check, so the check is optional for the default only:
+   its start-time step is the frozen install itself, which changes nothing when
+   `node_modules` matches the lockfile and repairs it when it does not (observed on a
+   real Machine: dependencies older than the lockfile pinned, fixed by exactly this
+   install). The same holds for the gateway's `ensure` and the Launchpad's Start, which
+   run the same core. The install runs under the start's coordination, not as a
+   separate transaction: an interrupted install leaves no retained record, because the
+   next start's frozen install is its repair.
+3. **The toolchain.** A package that pins Bun (`packageManager: bun@x.y.z`) is
+   installed and run with exactly that Bun, as before; a mismatch with the operator's
+   Bun is `preparation-toolchain-mismatch`. **A package that pins none is installed and
+   run with the operator's Bun at `~/.local/bin/bun` (B2), whichever version it is**,
+   which is what the replaced Launchpad did; real application packages do not
+   guarantee a `packageManager`. Any other `packageManager` value is refused. This rule
+   is the install authority's and holds for a declared preparation too.
+4. **The catalog tells the truth.** `executable` means that a start of the default app
+   can proceed as far as is known without running anything: after the declarations and
+   the Organization's admission, the preparation in effect is inspected read-only
+   (`inspectPreparationShape`: the owner's package, its `packageManager`, its one
+   lockfile, its own local dependencies staying inside it, a declared owner's
+   membership and scripts, and no workspace install). What fails there is
+   `executable: false` with the start's reason and the package it concerns, in `module
+   list`, `organization list`'s JSON, the Launchpad's module view and `lazurio doctor`.
+   **Amends F23 point 6** only in this: the preparation's shape is now reported by the
+   list; the contents of the install inputs (lockfile bytes, local dependency files,
+   patches, workspace members, configuration) are still the start's to refuse, and so
+   are a Bun version mismatch and a failing install, which only running can show.
+5. **Typed reasons.** A preparation that cannot run for a known reason answers one of a
+   closed set, with the module-relative package or lockfile as `file`, never an
+   absolute path or the error message: `preparation-lockfile-missing` (no lockfile, or
+   an empty one), `preparation-lockfile-ambiguous` (both `bun.lock` and `bun.lockb`),
+   `preparation-package-manager-unsupported`, `preparation-dependency-outside-owner` (a
+   `file:` dependency outside the owner's directory), `preparation-owner-invalid`,
+   `preparation-script-missing`, `preparation-workspace-unqualified`, and from the start
+   only `preparation-toolchain-mismatch` and `preparation-install-failed` (with the
+   lockfile). The CLI and the Launchpad explain each in words (English and Czech on the
+   page). `operation-failed` stays for a throw without a known cause.
+
+**What the explicit declaration is still for**: a workspace owner (still refused for
+installation until its inputs are qualified), a prepare script (data or DB setup the
+module owns), or a check the start runs instead of installing.
+
+**Not covered.** The default does not qualify workspaces, local dependencies outside
+the application's directory (a module whose app uses `file:../…` is not executable, by
+its reason, until the module moves the dependency inside or a later decision widens
+the owner), an application without dependencies (Bun deletes an empty lockfile, so it
+has none and is `preparation-lockfile-missing`), or private Git dependencies beyond
+what the operator's own Git and GitHub access on the Machine allow the install. The
+install runs the package's own lifecycle scripts as `bun install` does. No new
+configuration, Folder state or second mechanism: the default is the absent case of the
+existing composition. The qualification journeys (J1–J5) start no module; the
+contract tests' fixture modules include undeclared ones, and a journey that starts an
+undeclared module is a follow-up.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Every application package declares `lazurio.preparation` before its Machine switches, with a migration and `executable: false` until then (option b) | A change in every module of every Organization before the switch; not chosen by the Principal |
+| Search the ancestors for a lockfile or workspace owner | Guesses which install owns the app; excluded by the issue's rule |
+| Default with a check script by convention (for example `check`) | Invents a script name the modules never agreed to; rejected |
+| Pin the default toolchain to the Platform's own Bun version | Real Machines update their Bun (B2); every module would stop at the first Bun update; not chosen |
+| The application's own package, a frozen install from its lockfile, no check (selected) | Starts what the replaced Launchpad started; honest refusals with a reason for what it cannot |
