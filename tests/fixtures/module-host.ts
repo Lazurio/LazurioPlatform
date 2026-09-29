@@ -1,5 +1,5 @@
 import { expect } from "bun:test";
-import { readFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { ModuleHost } from "../../src/modules/module-operations";
 import {
@@ -98,6 +98,72 @@ export async function runnableModule(
     stderr: "pipe",
   });
   expect(await install.exited).toBe(0);
+  return port;
+}
+
+/** A module shaped like a real application package that the replaced
+ * Launchpad started (issue #97): `lazurio.runtime` with a dev script, its own
+ * `bun.lock` beside its package.json and one local `file:` dependency, and
+ * neither `lazurio.preparation` nor `packageManager`. Its dev script serves
+ * the installed dependency's marker. With `stale`, `node_modules` holds an
+ * earlier install of the dependency (1.0.0, `installed-earlier`) than the
+ * checkout now has (2.0.0, `current`), as after a pull without an install.
+ * `home` is the HOME of the fixture's own installs. Returns the declared
+ * port. */
+export async function undeclaredModule(
+  moduleDirectory: string,
+  home: string,
+  options: { stale?: boolean } = {},
+) {
+  const manifest = JSON.parse(
+    await readFile(join(moduleDirectory, "lazurio.module.json"), "utf8"),
+  );
+  const port = manifest.port_leases[0].port as number;
+  const app = join(moduleDirectory, "app");
+  const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
+  pkg.private = true;
+  pkg.dependencies = { "fixture-dependency": "file:./dependency" };
+  pkg.scripts = { dev: `"${process.execPath}" --no-env-file server.ts` };
+  delete pkg.packageManager;
+  delete pkg.lazurio.preparation;
+  await writeFile(join(app, "package.json"), JSON.stringify(pkg));
+  await writeFile(
+    join(app, "server.ts"),
+    'import { marker } from "fixture-dependency"; Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch: () => new Response(marker) });',
+  );
+  const dependency = async (version: string, marker: string) => {
+    // New files, never rewritten in place: Bun may hard-link a local
+    // package's files into node_modules (issue #93).
+    await rm(join(app, "dependency"), { recursive: true, force: true });
+    await mkdir(join(app, "dependency"));
+    await writeFile(
+      join(app, "dependency/package.json"),
+      JSON.stringify({ name: "fixture-dependency", version, main: "index.js" }),
+    );
+    await writeFile(
+      join(app, "dependency/index.js"),
+      `export const marker = ${JSON.stringify(marker)};\n`,
+    );
+  };
+  const install = async (...args: string[]) => {
+    const run = Bun.spawn([process.execPath, "install", ...args], {
+      cwd: app,
+      env: { HOME: home, PATH: "/usr/bin:/bin" },
+      stdout: "ignore",
+      stderr: "pipe",
+    });
+    const [error, code] = await Promise.all([
+      new Response(run.stderr).text(),
+      run.exited,
+    ]);
+    expect(code, error).toBe(0);
+  };
+  if (options.stale) {
+    await dependency("1.0.0", "installed-earlier");
+    await install();
+  }
+  await dependency("2.0.0", "current");
+  await install("--lockfile-only");
   return port;
 }
 

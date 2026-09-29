@@ -566,3 +566,61 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     }
   },
 );
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "the owner's package names its Bun or none, and its one lockfile is beside it; every refusal is typed with the package it concerns (decision F25)",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "install-owner-")),
+    );
+    const file = join(root, "package.json");
+    const refused = (reason: string, path = file) =>
+      expect(inspectInstallAuthority(root, root)).rejects.toMatchObject({
+        reason,
+        path,
+      });
+    try {
+      // No packageManager: the operator's Bun, whichever version it is.
+      await writeFile(file, JSON.stringify({ name: "owner" }));
+      await refused("preparation-lockfile-missing");
+      await writeFile(join(root, "bun.lock"), "");
+      await refused("preparation-lockfile-missing");
+      await writeFile(join(root, "bun.lock"), "opaque fixture lock");
+      expect((await inspectInstallAuthority(root, root)).packageManager).toBe(
+        null,
+      );
+      await writeFile(join(root, "bun.lockb"), "opaque binary lock");
+      await refused("preparation-lockfile-ambiguous");
+      await rm(join(root, "bun.lockb"));
+      for (const packageManager of ["npm@10.0.0", "bun@latest", "bun", 7]) {
+        await writeFile(
+          file,
+          JSON.stringify({ name: "owner", packageManager }),
+        );
+        await refused("preparation-package-manager-unsupported");
+      }
+      await writeFile(
+        file,
+        JSON.stringify({ name: "owner", packageManager: "bun@1.4.2" }),
+      );
+      expect((await inspectInstallAuthority(root, root)).packageManager).toBe(
+        "bun@1.4.2",
+      );
+      await writeFile(
+        file,
+        JSON.stringify({
+          name: "owner",
+          dependencies: { shared: "file:../shared" },
+        }),
+      );
+      await refused("preparation-dependency-outside-owner");
+      await writeFile(file, "[]");
+      await refused("preparation-owner-invalid");
+      expect(await readFile(join(root, "bun.lock"), "utf8")).toBe(
+        "opaque fixture lock",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

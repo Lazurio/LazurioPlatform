@@ -30,7 +30,24 @@ export type ModuleFixture = {
   apps?: boolean;
   // The runtime declaration is missing, so the default app is invalid.
   broken?: boolean;
+  // Without the Bun lockfile beside the app's package.json, which every
+  // other fixture app has, as a real application package has (issue #97).
+  lockfile?: boolean;
 };
+
+/** The Bun lockfile a fixture app carries beside its package.json: never
+ * installed from (a started fixture app locks its own dependencies), only
+ * there, as in a real application package. */
+export const fixtureLockfile = (name: string) =>
+  `${JSON.stringify(
+    {
+      lockfileVersion: 1,
+      workspaces: { "": { name } },
+      packages: {},
+    },
+    null,
+    2,
+  )}\n`;
 
 export function canonicalDocument(
   slug: string,
@@ -122,6 +139,11 @@ export async function writeModule(
           }),
     }),
   );
+  if (module.lockfile !== false)
+    await writeFile(
+      join(path, "app/bun.lock"),
+      fixtureLockfile(`fixture-${module.id}`),
+    );
 }
 
 // One Organization root in <Folder>/organizations/<directory>: canonical
