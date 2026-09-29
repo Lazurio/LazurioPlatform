@@ -184,7 +184,10 @@ export function localApplicationAdapters(input: {
       // after an owner crash there is nothing left to operate, and the retained
       // lock is also what keeps another process from reinstalling beneath an
       // application only this owner can see. Every mutation keeps it until close.
-      if (!coordination) return owners.run(await owner(), action);
+      // Stop changes no dependency tree: it never resolves the preparation,
+      // which may no longer be possible for a running app (decision F25).
+      if (!coordination)
+        return intent === "stop" ? action() : owners.run(await owner(), action);
       // Service-owned applications: two kinds of exclusion.
       return coordination.run(async () => {
         // Stop has no effect on the dependency tree and is idempotent in the

@@ -432,6 +432,8 @@ const en = {
     "The packageManager of {file} is not an exact Bun version (bun@x.y.z); Lazurio installs and runs modules with Bun.",
   preparationReasonWorkspace:
     "{file} is a workspace; installing a workspace is not supported yet.",
+  preparationReasonApplicationsOverlap:
+    "{file} lies inside, or contains, the directory of another app of this module, whose running app its install could change. Declare the module's preparation (lazurio.preparation) or keep its apps in sibling directories.",
   preparationReasonDependencyOutside:
     "{file} depends on a local package (file:…) outside its Organization's checkout; a local dependency must lie in the same Organization.",
   preparationReasonDependencyMissing:
@@ -1012,6 +1014,8 @@ const cs: Record<MessageKey, string> = {
     "packageManager v {file} není přesná verze Bunu (bun@x.y.z); Lazurio moduly instaluje a spouští Bunem.",
   preparationReasonWorkspace:
     "{file} je workspace; instalace workspace zatím není podporovaná.",
+  preparationReasonApplicationsOverlap:
+    "{file} leží ve složce jiné aplikace tohoto modulu, nebo ji obsahuje, a jeho instalace by mohla změnit soubory, které ta běžící aplikace používá. Deklarujte přípravu modulu (lazurio.preparation), nebo mějte aplikace v sourozeneckých složkách.",
   preparationReasonDependencyOutside:
     "{file} závisí na lokálním balíčku (file:…) mimo checkout své Organizace; lokální závislost musí být ve stejné Organizaci.",
   preparationReasonDependencyMissing:

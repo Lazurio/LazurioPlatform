@@ -175,12 +175,14 @@ preparation of the default app that cannot run for a reason known without runnin
 anything, with the package it concerns as `file`: `preparation-lockfile-missing`,
 `preparation-lockfile-ambiguous`, `preparation-package-manager-unsupported`,
 `preparation-dependency-outside-owner`, `preparation-dependency-missing`,
-`preparation-owner-invalid`,
+`preparation-owner-invalid`, `preparation-applications-overlap`,
 `preparation-script-missing`, `preparation-workspace-unqualified`). Executable means the
 declarations admit a start of the default app under the one admission rule of the
 [organization contract](organization-contract.md) (variant B, decided 2026-09-28 on
 question H1: a canonical-only `current` Organization runs) and that its preparation can
-run as far as is known read-only (`inspectPreparationShape`); it is not readiness,
+run as far as is known read-only (`inspectPreparationShape`; a module refused only by
+it carries `preparationRefused: true`, and its status, logs and stop still work, F25
+point 4a); it is not readiness,
 provider permission or a lease. The contents of the install inputs (lockfile bytes,
 local dependencies, patches, configuration) are still the start's to refuse (F23 point
 6), and so are a Bun version mismatch and a failing install. A malformed

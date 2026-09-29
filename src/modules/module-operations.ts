@@ -274,6 +274,10 @@ type Target = Readonly<{
   /** The module's checkout: the names of refused files are relative to it. */
   moduleDirectory: string;
   personalspace: boolean;
+  /** The default app's preparation cannot run (decision F25): its running
+   * app is still read, logged and stopped, and `ensure` refuses only where
+   * it would start. */
+  preparationFault?: Readonly<{ reason: string; file?: string }>;
 }>;
 
 type Lifecycle = ReturnType<typeof createApplicationLifecycle>;
@@ -503,7 +507,23 @@ export function createModuleOperations(input: {
       module.reason === "no-app" ||
       module.reason === "default-app-invalid" ||
       (module.file !== undefined && module.apps.length > 0);
-    if (!module.executable && !(namedApp && defaultAppFault))
+    // Refused by its default app's preparation only (decision F25): reading,
+    // logging and stopping never depend on the preparation; a start does.
+    const preparationFault =
+      !module.executable &&
+      module.preparationRefused === true &&
+      !namedApp &&
+      module.reason !== undefined
+        ? Object.freeze({
+            reason: module.reason,
+            ...(module.file === undefined ? {} : { file: module.file }),
+          })
+        : undefined;
+    if (
+      !module.executable &&
+      !(namedApp && defaultAppFault) &&
+      !(preparationFault !== undefined && operation !== "start")
+    )
       return blocked(operation, module.reason ?? "not-executable", {
         ...where,
         ...(module.file === undefined ? {} : { file: module.file }),
@@ -528,6 +548,7 @@ export function createModuleOperations(input: {
       module: module.module,
       app,
       isDefaultApp: app === module.defaultApp,
+      ...(preparationFault === undefined ? {} : { preparationFault }),
     };
     if (personalspace) {
       // The owner directory again, by the same rule as the catalog, and the
@@ -870,6 +891,17 @@ export function createModuleOperations(input: {
       const current = await read(null);
       if (current.kind === "blocked" || current.healthy || !options.mayStart)
         return current;
+      // A default app whose preparation cannot run is not started; one that
+      // already runs is reported as it is (decision F25).
+      const fault = target.preparationFault;
+      if (fault !== undefined)
+        return current.state === "stopped" || current.state === "ended"
+          ? blocked("ensure", fault.reason, {
+              organization: target.organization,
+              module: target.module,
+              ...(fault.file === undefined ? {} : { file: fault.file }),
+            })
+          : current;
       const key = `${target.organizationDirectory}\0${target.module}\0${target.app}`;
       let starting = ensuring.get(key);
       if (starting === undefined) {

@@ -38,7 +38,8 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   one is not installed by start: its declared check runs, and a failed check
   answers prerequisites-not-ready. A preparation that cannot run answers its
   reason (preparation-lockfile-missing, preparation-toolchain-mismatch, …)
-  with the file it concerns.
+  with the file it concerns; status, stop and logs still operate a module
+  refused only by its preparation.
 module stop <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Stops the app and confirms its whole process group ended; stopping an app
   that does not run answers not-managed.
@@ -100,6 +101,8 @@ const explanations: Readonly<Record<string, string>> = {
     "Both bun.lock and bun.lockb beside this package; keep only the one Bun installs from.",
   "preparation-package-manager-unsupported":
     "This package's packageManager is not an exact Bun version (bun@x.y.z); modules are installed and run with Bun.",
+  "preparation-applications-overlap":
+    "This app's directory contains, or lies inside, another app of this module, whose running app its install could change; declare lazurio.preparation or keep the apps in sibling directories.",
   "preparation-workspace-unqualified":
     "This package is a workspace owner or member; installing a workspace is not supported yet.",
   "preparation-dependency-outside-owner":

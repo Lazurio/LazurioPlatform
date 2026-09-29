@@ -19,6 +19,11 @@ export const preparationReasons = [
   "preparation-lockfile-ambiguous",
   /** `packageManager` names something other than an exact Bun version. */
   "preparation-package-manager-unsupported",
+  /** For the default preparation: the application's directory contains, or
+   * lies inside, the directory of another application package the module
+   * declares, whose running app the install could change beneath it. Such a
+   * module declares its preparation. */
+  "preparation-applications-overlap",
   /** A workspace owner or member: its install inputs are not qualified. */
   "preparation-workspace-unqualified",
   /** A local `file:` dependency outside where it may lie: the owner's

@@ -153,8 +153,15 @@ install authority inventories that dependency, never the whole Organization. One
 leaves the Organization is `preparation-dependency-outside-owner`, one that is not
 there `preparation-dependency-missing`, and one through a symlink or another account's
 directory keeps the checkout rule's reason. A declared preparation's local dependencies
-stay inside its owner. The explicit declaration remains for everything the default does
-not do: a workspace owner, a prepare script, or a check.
+stay inside its owner. The default refuses an application whose directory contains, or
+lies inside, another application package of the same module
+(`preparation-applications-overlap`): its install would write beneath a possibly
+running app; sibling packages (`app/v1`, `app/v2`) are fine. The catalog runs the same
+rules read-only, including the lockfile's and the checkout configuration's file rule
+(F25 point 4). A module refused only by its preparation is still read, logged and
+stopped; only a start depends on the preparation (F25 point 4a). The explicit
+declaration remains for everything the default does not do: a workspace owner, a
+prepare script, a check, or nested application packages.
 `inspectPreparationBinding` returns the preparation in effect as `preparation`
 (`kind: "declared" | "default"`), and `inspectPreparationShape` is its read-only part
 that the catalog runs for each module's default app. A preparation that cannot run for

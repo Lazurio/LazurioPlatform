@@ -60,8 +60,10 @@ export async function inspectCheckoutDirectory(directory: string) {
   const stat = await lstat(directory);
   const uid = process.getuid?.();
   if (uid === undefined) throw new Error("Directory owner unavailable");
+  // A symlink is never a directory of the checkout, also when it dangles
+  // (its target is not resolved at all).
   const refused =
-    (await realpath(directory)) !== resolve(directory)
+    stat.isSymbolicLink() || (await realpath(directory)) !== resolve(directory)
       ? "directory-not-regular"
       : checkoutDirectoryRefusal(stat, uid);
   if (refused !== null) throw new CheckoutRefused(refused, directory);

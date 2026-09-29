@@ -820,12 +820,12 @@ posixTest(
               kind: "applications-observed",
               admission: "inspection-only",
               resolution: item.resolution,
+              // A dangling symlink in place of workspace/ is refused as it
+              // is, without resolving it (decision F23).
               entries: [
-                {
-                  kind: workspaceInspectable
-                    ? "module-observed"
-                    : "module-unavailable",
-                },
+                workspaceInspectable
+                  ? { kind: "module-observed" }
+                  : { kind: "directory-not-regular", file: "workspace" },
               ],
             });
         }
@@ -1123,7 +1123,7 @@ posixTest(
       await rm(join(root, "workspace"), { recursive: true });
       await symlink("/nonexistent-workspace-fixture", join(root, "workspace"));
       expect(await readOrganizationApplications(root)).toMatchObject({
-        entries: [{ kind: "module-unavailable" }],
+        entries: [{ kind: "directory-not-regular", file: "workspace" }],
       });
     });
   },

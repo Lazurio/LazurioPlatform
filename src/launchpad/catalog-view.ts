@@ -48,6 +48,7 @@ const reasonKeys: Readonly<
   "preparation-lockfile-ambiguous": "preparationReasonLockfileAmbiguous",
   "preparation-package-manager-unsupported": "preparationReasonPackageManager",
   "preparation-workspace-unqualified": "preparationReasonWorkspace",
+  "preparation-applications-overlap": "preparationReasonApplicationsOverlap",
   "preparation-dependency-outside-owner": "preparationReasonDependencyOutside",
   "preparation-dependency-missing": "preparationReasonDependencyMissing",
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
@@ -246,7 +247,9 @@ function isModule(value: unknown): value is CatalogModule {
     orNull(entry.state) &&
     typeof entry.executable === "boolean" &&
     (entry.reason === undefined || text(entry.reason)) &&
-    (entry.file === undefined || text(entry.file))
+    (entry.file === undefined || text(entry.file)) &&
+    (entry.preparationRefused === undefined ||
+      entry.preparationRefused === true)
   );
 }
 function isOrganization(value: unknown): value is CatalogOrganization {
