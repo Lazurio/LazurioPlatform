@@ -2069,3 +2069,59 @@ declarations, install inputs and dependency trees).
 | Keep the rule and only report it (#92 option 3) | Every Machine with umask `002` stays unusable; not chosen |
 | Relax files only, keep the directory rule | A clone under umask `002` still has `0775` directories and nothing runs; not chosen |
 | One checkout rule by ownership, type and size for files and directories, with a typed reason (selected) | Simple; another account's file or directory, a symlink and an oversized file are still refused and named |
+
+## F24 — An Organization's root-level applications are modules of the catalog
+
+**Direction decided by the Principal 2026-09-28; the details proposed 2026-09-29 and
+implemented** (issue #95). The direction is the decided row of [Launchpad
+parity](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over): "Mission Control
+is an Organization application; the Launchpad opens it like any module". Observed on
+2026-09-29 against a hosted Organization work Folder: the catalog listed the modules
+under `workspace/` and neither of the two root-level applications the Organization
+keeps beside them, which the Machine's gateway serves. The Machines switch to this
+Launchpad requires every module the gateway serves to be exactly one executable
+module of the catalog, so it stopped (`module-unknown`). The issue left open how such
+a module is named, ordered and grouped in Teams; the points below are the
+implementation's answers, proposed for review.
+
+1. **Which.** A declared slot of `modules.manifest.json` at the root-level
+   application path `mission-control` or `design-system` is a module of its
+   Organization when a `lazurio.module.json` is there. A slot that is not declared, not
+   checked out, or checked out without a module manifest is not a module: nothing is
+   guessed from a directory. The repository slots `infra` and `mission-control/db` and
+   everything under `productionspace/` are never modules, whatever they contain.
+2. **One code path.** The existing canonical reader (`observeOrganizationApplications`)
+   admits the two paths beside the workspace slots; the catalog, `organization list`,
+   `module list`, the Launchpad's module view, `lazurio module start|stop|status|logs`,
+   the Launchpad's module routes and the gateway's `ensure` read it unchanged. No
+   second discovery, no configuration, no state.
+3. **Name and order.** The module id is the slot's id, its `slug` or else the last
+   segment of its path, which the manifest's `id` must equal, exactly as for a
+   workspace module (a different `id` is `module-unavailable`); in the real layout
+   both are `mission-control` and `design-system`, the ids the gateway serves. `path`
+   is the slot path (`mission-control`, `design-system`). Modules keep the declaration
+   order of `module_slots`; a root-level application is not moved before or after the
+   workspace modules.
+4. **Teams, custody, executability.** The same as a workspace module's: the slot's
+   `teams`, else the legacy alias, else the default Team `workspace`; the checkout rule
+   of F23 on its directory, its manifest and its apps, with the same typed reasons;
+   the same admission of the Organization and of its default app.
+5. **A shared id is a conflict.** A workspace module and a root-level application that
+   declare one id are both `declaration-conflict`, and the Organization carries the
+   inventory issue `repository-id-collision`, as for any two slots declaring one id.
+   Neither is picked, and neither is executable.
+
+**Not covered.** A root-level application that the gateway serves without its slot
+being declared stays outside the catalog; the Organization declares it, or the switch
+refuses it (`module-unknown`). The same id in two Organizations of one Folder stays
+`module-ambiguous` for `ensure` (B5). No qualification journey lists or starts modules;
+the contract tests' fixture Organization carries a root-level application, and a
+journey that lists and starts modules is a follow-up. The Machines gateway's
+discovery and the Folder manual are unchanged.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A module directory with a manifest is a module, declared or not (the gateway's glob) | Guesses from the directory and makes an undeclared checkout executable; rejected by the issue's rule: declarations decide |
+| A second reader for root-level applications | Two discovery paths to keep consistent; rejected: the existing reader admits two more paths |
+| List root-level applications first, or in a group of their own | An ordering rule nobody decided; not chosen: declaration order, as for every slot |
+| Declared root-level application slots with a module manifest, read by the one reader under a workspace module's rules (selected) | Small; the switch's check finds the served applications; an undeclared one is refused visibly, not guessed |

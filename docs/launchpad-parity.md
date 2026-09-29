@@ -182,7 +182,11 @@ from module and Machine alone collide across Organizations
 - Discovery: every directory in `<Folder>/organizations/` is one candidate; the
   existing canonical reader resolves it (`src/organizations/root-resolution.ts`); a
   failure isolates that Organization with its reason, never the list. Templates stay
-  refused. No allowlist, no planned slots.
+  refused. No allowlist, no planned slots. An Organization's modules are its declared
+  workspace slots and, when they carry a `lazurio.module.json`, its declared
+  root-level application slots `mission-control` and `design-system`, which the
+  Machines gateway serves too; `infra` and `mission-control/db` are repositories,
+  not modules (decision F24, issue #95).
 - Output per module: Organization slug, module id, default app, Teams, root state,
   `executable` with a reason, and on hosted the external origin (B4).
 - **State: none.** The list is recomputed on every read, as the resident does after
@@ -896,7 +900,7 @@ rows remain proposals of this shaping.
 | Resident capability | Why not |
 |---|---|
 | Git client in the browser: worktree create from Mission Control plans, "Publikovat draft" (`git add -A`, commit, push), Git read model with background fetch (`R:launchpad/src/worktree-actions-lib.mjs:56-75`, `:428-507`) | **Decided 2026-09-28.** Agents in T3 do Git with the worktree discipline of the manual (F14); a browser commit of `git add -A` bypasses it; Git and GitHub are the history owners |
-| Mission Control plan browser | **Decided 2026-09-28.** Mission Control is an Organization application; the Launchpad opens it like any module |
+| Mission Control plan browser | **Decided 2026-09-28.** Mission Control is an Organization application; the Launchpad opens it like any module (the catalog lists it since decision F24) |
 | Notifications, "most used", recent changes, `usage.json` ranking (`R:launchpad/src/server.mjs:981-1003`) | **Decided 2026-09-28.** Click-derived state with no decision behind it; root `ARCHITECTURE.md:269-270` already calls click evidence non-authoritative || Cross-Organization port takeover with audit log (`R:…/runtime-lib.mjs:977-1016`, `:3156-3195`) | Replaced by refusal plus an explicit Stop (D) |
 | Hosted maintenance loop re-deriving the app set every 15 s (`R:launchpad/src/server.mjs:545-552`) | On-demand `ensure` needs no background loop |
 | Source-hash "stale server" restarts (`R:lazurio/core/server-identity-lib.mjs:227-247`) | The product is a versioned executable; only `lazurio update` changes it |
