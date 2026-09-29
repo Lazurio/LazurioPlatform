@@ -66,6 +66,9 @@ export type LoginState =
       /** gh only: whether `git clone git@github.com:…` works as `account`
        * (decision F19, addendum 2026-09-28). A gh sign-in always says it. */
       ssh?: SshLink;
+      /** The tool was signed in before this session: it connected without
+       * showing a challenge, and its probe confirmed it (#98). */
+      already?: true;
     }>
   | Readonly<{ kind: "failed"; tool: string; reason: LoginFailure }>
   /** gh on a Team Environment (Principal 2026-09-28): the Environment became
@@ -350,6 +353,8 @@ type Session = {
   challenge?: LoginChallenge;
   /** A challenge was shown at least once. */
   challenged: boolean;
+  /** wacli reported `connected`: it is past the point of a challenge. */
+  connected?: boolean;
   step?: "ssh-key";
   processes: Set<Streamed>;
   timers: Set<ReturnType<typeof setTimeout>>;
@@ -530,6 +535,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
         ...(signIn.organization === undefined
           ? {}
           : { organization: signIn.organization }),
+        ...(session.challenged ? {} : { already: true as const }),
       },
       keep,
     );
@@ -851,12 +857,17 @@ export function createLoginSessions(environment: LoginEnvironment) {
             code: code.toUpperCase(),
             sequence,
           });
-        } else if (name === "connected") void check();
+        } else if (name === "connected") {
+          // Connected without a code first: wacli was signed in already
+          // (#98), which the probe confirms; after a code: paired now.
+          session.connected = true;
+          void check();
+        }
       }),
     );
     track(session, child);
     // Paired means: the read-only status probe says authenticated. It runs
-    // while a challenge is shown, one at a time.
+    // while a challenge is shown or after `connected`, one at a time.
     const check = async () => {
       if (session.probing || !current(session) || signedIn) return;
       session.probing = true;
@@ -869,7 +880,8 @@ export function createLoginSessions(environment: LoginEnvironment) {
     };
     const tick = () => {
       if (!current(session)) return;
-      if (session.challenge !== undefined) void check();
+      if (session.challenge !== undefined || session.connected === true)
+        void check();
       later(session, environment.probeIntervalMs ?? 2_000, tick);
     };
     later(session, environment.probeIntervalMs ?? 2_000, tick);
@@ -973,6 +985,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
           if (
             current(session) &&
             !session.challenged &&
+            session.connected !== true &&
             session.step === undefined
           )
             fail(session, "no-challenge");

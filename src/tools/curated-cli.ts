@@ -316,11 +316,15 @@ function loginLines(state: LoginState): string[] {
     }
     case "signed-in":
       return [
-        state.account === undefined
-          ? `${state.tool}: signed in.`
-          : `${state.tool}: signed in as ${state.account}${
-              state.organization === undefined ? "" : ` (${state.organization})`
-            }.`,
+        `${state.tool}: ${state.already === true ? "already signed in on this Machine" : "signed in"}${
+          state.account === undefined
+            ? ""
+            : ` as ${state.account}${
+                state.organization === undefined
+                  ? ""
+                  : ` (${state.organization})`
+              }`
+        }${state.already === true ? "; nothing was paired or changed" : ""}.`,
         ...(state.tool === "gh" && state.ssh !== undefined
           ? sshLines(state.account, state.ssh)
           : []),

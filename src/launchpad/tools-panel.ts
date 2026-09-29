@@ -585,7 +585,8 @@ export function createToolsPanel(
     phase("signed-in", message);
     // The status line above already says it; the body adds what follows.
     loginBody.replaceChildren(
-      ...(current.tool.name === "wacli"
+      ...(current.tool.name === "wacli" &&
+      !(state.kind === "signed-in" && state.already === true)
         ? [element("p", "tools-muted", copy.toolsLoginWacliSync)]
         : []),
     );

@@ -31,12 +31,21 @@ const payload =
   "https://wa.me/settings/linked_devices#2@standinref,AAAAnoisekey=,BBBBidentity=,CCCCadv=,1";
 const qrEvent = `{"event":"qr_code","data":{"code":"${payload}"},"ts":2}`;
 
-// `auth status` answers "not signed in"; `auth` records whether any standard
-// stream is a terminal and its pid, then runs the variant's body.
-const standIn = (body: string) => `#!/bin/sh
+// `wacli auth status --json` of 0.18.2 as its source prints it
+// (`internal/out` WriteJSON wraps every answer in success/data/error), with
+// fictional values.
+const notSignedIn =
+  '{"success":true,"data":{"authenticated":false},"error":null}';
+const fictionalPhone = "420000000000";
+const fictionalJid = `${fictionalPhone}@s.whatsapp.net`;
+const signedIn = `{"success":true,"data":{"authenticated":true,"linked_jid":"${fictionalJid}","phone":"${fictionalPhone}"},"error":null}`;
+
+// `auth status` answers the given status; `auth` records whether any
+// standard stream is a terminal and its pid, then runs the variant's body.
+const standIn = (body: string, status: string) => `#!/bin/sh
 case "$1 $2" in
 "--version ") echo "wacli 0.18.2"; exit 0;;
-"auth status") echo '{"authenticated":false}'; exit 0;;
+"auth status") echo '${status}'; exit 0;;
 esac
 tty=none
 [ -t 0 ] && tty=stdin
@@ -51,6 +60,7 @@ ${body}
 async function launchpad(
   body: string | null,
   login: Readonly<{ firstChallengeMs: number; challengeMs: number }>,
+  status = notSignedIn,
 ) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-wacli-")),
@@ -59,7 +69,7 @@ async function launchpad(
   const path = await fakeLoginTools(home, body === null ? [] : ["wacli"]);
   if (body !== null) {
     const script = join(home, ".local", "bin", "wacli");
-    await writeFile(script, standIn(body));
+    await writeFile(script, standIn(body, status));
     await chmod(script, 0o755);
   }
   const folder = join(parent, "Lazurio");
@@ -308,6 +318,63 @@ test.skipIf(!posix)(
         await opened.post("/api/tools/login/start", { tool: "wacli" }),
       ).toEqual({ kind: "failed", tool: "wacli", reason: "not-installed" });
       journaled(opened.journal, { outcome: "failed", reason: "not-installed" });
+    } finally {
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+test.skipIf(!posix)(
+  "wacli signed in already: the observed event stream without a QR code ends the start as already signed in, and the state reads signed in",
+  async () => {
+    // The kinds and order observed on a Machine whose wacli was paired
+    // before; the 33 s idle exit is shortened to 1.5 s. No value is real.
+    const opened = await launchpad(
+      [
+        `echo '{"event":"warning","data":{"code":"sync_limits_unset","message":"stand-in"},"ts":1}' >&2`,
+        "sleep 0.8",
+        `echo '{"event":"connected","ts":2}' >&2`,
+        "sleep 0.2",
+        `echo '{"event":"offline_sync_completed","data":{"count":0},"ts":3}' >&2`,
+        `echo '{"event":"warning","data":{"code":"app_state_sync_failed","message":"stand-in"},"ts":4}' >&2`,
+        `echo '{"event":"warning","data":{"code":"app_state_sync_failed","message":"stand-in"},"ts":4}' >&2`,
+        `echo '{"event":"app_state_recovery_requested","data":{"name":"regular","id":"stand-in"},"ts":5}' >&2`,
+        "sleep 1.5",
+        `echo '{"event":"idle_exit","ts":6}' >&2`,
+        `echo "Authenticated. Messages stored: 0"`,
+        "exit 0",
+      ].join("\n"),
+      { firstChallengeMs: 10_000, challengeMs: 60_000 },
+      signedIn,
+    );
+    try {
+      const began = Date.now();
+      const started = await opened.post("/api/tools/login/start", {
+        tool: "wacli",
+      });
+      // Ended at `connected`, well before the idle exit, as signed in
+      // before this session; not as no-challenge and not as not-confirmed.
+      expect(started).toEqual({
+        kind: "signed-in",
+        tool: "wacli",
+        account: fictionalPhone,
+        already: true,
+      });
+      expect(Date.now() - began).toBeLessThan(5_000);
+      // The panel's refresh reads the same probe: signed in.
+      const status = await opened.post("/api/tools/status", { signIn: true });
+      const wacli = (status.tools as Json[]).find(
+        (tool) => tool.name === "wacli",
+      );
+      expect(wacli?.signIn).toMatchObject({
+        state: "signed-in",
+        account: fictionalPhone,
+      });
+      // The tool finishes its sync and exits on its own idle.
+      expect(await gone(await opened.pid())).toBe(true);
+      journaled(opened.journal, { outcome: "signed-in" });
+      expect(JSON.stringify(opened.journal)).not.toContain(fictionalPhone);
     } finally {
       await opened.close();
     }

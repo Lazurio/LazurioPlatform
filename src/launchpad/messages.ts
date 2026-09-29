@@ -245,6 +245,10 @@ const en = {
     "Waiting for you to finish. This window checks every 2 seconds.",
   toolsLoginSignedIn: "You are signed in to {name}.",
   toolsLoginSignedInAs: "You are signed in to {name} as {account}.",
+  toolsLoginAlreadySignedIn:
+    "{name} was already signed in on this Machine; nothing was paired or changed.",
+  toolsLoginAlreadySignedInAs:
+    "{name} was already signed in on this Machine as {account}; nothing was paired or changed.",
   toolsLoginWacliSync:
     "WhatsApp now copies your recent messages to this Environment in the background. You can close this window.",
   toolsLoginFailureNotInstalled:
@@ -813,6 +817,10 @@ const cs: Record<MessageKey, string> = {
     "Čeká se, až to dokončíte. Okno to ověřuje každé 2 sekundy.",
   toolsLoginSignedIn: "Jste přihlášeni do {name}.",
   toolsLoginSignedInAs: "Jste přihlášeni do {name} jako {account}.",
+  toolsLoginAlreadySignedIn:
+    "{name} už byl na téhle Mašině přihlášený; nic se nepárovalo ani neměnilo.",
+  toolsLoginAlreadySignedInAs:
+    "{name} už byl na téhle Mašině přihlášený jako {account}; nic se nepárovalo ani neměnilo.",
   toolsLoginWacliSync:
     "WhatsApp teď na pozadí kopíruje vaše nedávné zprávy do tohoto Environmentu. Okno můžete zavřít.",
   toolsLoginFailureNotInstalled:

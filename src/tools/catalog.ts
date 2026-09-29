@@ -240,10 +240,16 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
       setup: "launchpad",
       signInProbe: {
         argv: ["auth", "status", "--json", "--read-only"],
+        // wacli wraps every `--json` answer in its envelope (`internal/out`
+        // `WriteJSON`): `{"success":true,"data":{"authenticated":…,
+        // "linked_jid":…,"phone":…},"error":null}` (#98).
         account: {
           kind: "json",
-          paths: [["phone"], ["linked_jid"]],
-          flag: ["authenticated"],
+          paths: [
+            ["data", "phone"],
+            ["data", "linked_jid"],
+          ],
+          flag: ["data", "authenticated"],
         },
       },
       installation: installation(

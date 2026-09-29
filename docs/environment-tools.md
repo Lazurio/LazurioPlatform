@@ -159,7 +159,11 @@ request. They run in parallel, 10 s each, with only `PATH`, `HOME` and `XDG_*` i
 environment. `signIn` is `{ state: "signed-in" | "signed-out" | "unknown", account?,
 organization? }`: signed in when the probe exits 0 and its rules hold (composio exits
 0 also when not logged in and counts as signed in only with its JSON line and a
-non-empty email), `unknown` for a tool not installed, a timeout or unreadable output.
+non-empty email; wacli wraps its answer as `{"success":true,"data":{"authenticated":…,
+"linked_jid":…,"phone":…},"error":null}` and counts as signed in only when
+`data.authenticated` is `true`, with `data.phone`, else `data.linked_jid`, as the
+account (#98: the probe read these fields at the top level before and so reported every
+paired wacli as not signed in)), `unknown` for a tool not installed, a timeout or unreadable output.
 `account` and `organization` (composio's current organization) are the only things
 taken from the output, as plain text of at most 120 characters; the output itself is
 never returned or logged. A signed-in gh also carries `ssh` ([F19 addendum
@@ -221,7 +225,11 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   any device; nothing is typed into Lazurio and no key is copied. It waits until signed
   in (confirmed by the tool's sign-in probe), failed or expired (gh 15 minutes,
   composio 10, WhatsApp pairing 5); Ctrl-C cancels and kills the tool's process group.
-  A tool that shows no link, code or QR code within a minute is killed and the sign-in
+  A wacli that reports `connected` without a QR or pairing code first was paired
+  before: once its probe confirms it the sign-in ends at once as `signed-in` with
+  `already: true` ("already signed in", nothing paired or changed) and the process
+  finishes its sync to its own idle exit (#98). A tool that shows no link, code or QR
+  code within a minute, and has not reported `connected`, is killed and the sign-in
   fails as `no-challenge` (#98), instead of waiting out its lifetime; a tool that is
   not found fails as `not-installed`, one that cannot be started as `spawn-failed`,
   and one that exits before it is signed in as `tool-exit`.

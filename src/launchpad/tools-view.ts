@@ -681,6 +681,7 @@ export function parseLoginState(input: unknown): LoginView | null {
     case "signed-in": {
       if (!optionalText(value.account) || !optionalText(value.organization))
         return null;
+      if (value.already !== undefined && value.already !== true) return null;
       const ssh = value.ssh === undefined ? undefined : parseSshLink(value.ssh);
       if (ssh === null) return null;
       return {
@@ -691,6 +692,7 @@ export function parseLoginState(input: unknown): LoginView | null {
           ? {}
           : { organization: value.organization }),
         ...(ssh === undefined ? {} : { ssh }),
+        ...(value.already === true ? { already: true as const } : {}),
       };
     }
     case "pending": {
@@ -1035,13 +1037,21 @@ export async function answerWithin(
 /** "You are signed in to gh as octocat (Org)." */
 export function signedInMessage(state: LoginView, copy: Copy): string {
   if (state.kind !== "signed-in") return "";
+  // Signed in before this sign-in started (#98): nothing was paired now.
+  const already = state.already === true;
   if (state.account === undefined)
-    return fill(copy.toolsLoginSignedIn, { name: state.tool });
+    return fill(
+      already ? copy.toolsLoginAlreadySignedIn : copy.toolsLoginSignedIn,
+      { name: state.tool },
+    );
   const account =
     state.organization === undefined
       ? state.account
       : `${state.account} (${state.organization})`;
-  return fill(copy.toolsLoginSignedInAs, { name: state.tool, account });
+  return fill(
+    already ? copy.toolsLoginAlreadySignedInAs : copy.toolsLoginSignedInAs,
+    { name: state.tool, account },
+  );
 }
 
 export type OrganizationChoice = Readonly<{

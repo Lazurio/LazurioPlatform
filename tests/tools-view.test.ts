@@ -1050,3 +1050,36 @@ test("a dialog request that never settles is not answered within its bound", asy
   });
   expect(Date.now() - began).toBeLessThan(1_000);
 });
+
+test("a tool signed in before the sign-in says so, in both languages", () => {
+  const already = parseLoginState({
+    kind: "signed-in",
+    tool: "wacli",
+    account: "420000000000",
+    already: true,
+  });
+  expect(already).toEqual({
+    kind: "signed-in",
+    tool: "wacli",
+    account: "420000000000",
+    already: true,
+  });
+  expect(
+    parseLoginState({ kind: "signed-in", tool: "wacli", already: "yes" }),
+  ).toBeNull();
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    expect(signedInMessage(already as NonNullable<typeof already>, copy)).toBe(
+      copy.toolsLoginAlreadySignedInAs
+        .replace("{name}", "wacli")
+        .replace("{account}", "420000000000"),
+    );
+    expect(
+      signedInMessage(
+        { kind: "signed-in", tool: "wacli", already: true },
+        copy,
+      ),
+    ).toBe(copy.toolsLoginAlreadySignedIn.replace("{name}", "wacli"));
+    expect(copy.toolsLoginAlreadySignedIn).not.toBe(copy.toolsLoginSignedIn);
+  }
+});

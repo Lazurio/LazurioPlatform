@@ -1722,6 +1722,12 @@ the tool, the outcome and the fixed reason code, never output, a challenge or an
 account. The dialog never waits for an answer of the Launchpad for longer than 45
 seconds, never shows the same sentence as its status and its detail, and every end of
 a sign-in that did not start, ended early or showed nothing says what to do next.
+A wacli that reports `connected` without a challenge was paired before this session:
+confirmed by its probe, the session ends as `signed-in` with `already: true` and the
+dialog says "already signed in"; this is a sign-in that changed nothing, not a new
+pairing. The wacli probe reads `wacli auth status --json`'s own envelope
+(`data.authenticated`, `data.phone`, `data.linked_jid`); it read the top level before
+and reported a paired wacli as not signed in.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
