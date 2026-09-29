@@ -216,8 +216,8 @@ case "$1" in
 auth)
   case "$2" in
   status)
-    if [ -f "$HOME/.wacli/paired" ]; then echo '{"authenticated":true,"linked_jid":"420123456789@s.whatsapp.net","phone":"420123456789"}'
-    else echo '{"authenticated":false}'; fi
+    if [ -f "$HOME/.wacli/paired" ]; then echo '{"success":true,"data":{"authenticated":true,"linked_jid":"420123456789@s.whatsapp.net","phone":"420123456789"},"error":null}'
+    else echo '{"success":true,"data":{"authenticated":false},"error":null}'; fi
     exit 0;;
   logout) rm -f "$HOME/.wacli/paired"; exit 0;;
   esac

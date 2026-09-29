@@ -202,7 +202,8 @@ const failureText: Record<string, string> = {
     "the tool offered an address that is not its official sign-in page, so it was not shown",
   "unexpected-output": "the tool answered in a form Lazurio does not know",
   "tool-exit": "the tool ended without completing the sign-in",
-  "not-confirmed": "the tool ended, but its status does not say signed in",
+  "not-confirmed":
+    "the tool did not complete it: its status does not say signed in, so it was stopped",
   "invalid-phone":
     "the phone number is not an international number (+ country code and number)",
   "spawn-failed": "the tool could not be started",
@@ -210,6 +211,8 @@ const failureText: Record<string, string> = {
     "gh has no sign-in in this Environment; sign in first: lazurio tools login gh",
   "environment-unreadable":
     "the kind of this Environment could not be read, so the sign-in stopped before changing anything further",
+  "no-challenge":
+    "the tool showed no link, code or QR code within a minute, so it was stopped; check that this Environment reaches the internet and try again",
 };
 
 const sshFailureText: Record<SshLinkFailure, string> = {
@@ -314,11 +317,15 @@ function loginLines(state: LoginState): string[] {
     }
     case "signed-in":
       return [
-        state.account === undefined
-          ? `${state.tool}: signed in.`
-          : `${state.tool}: signed in as ${state.account}${
-              state.organization === undefined ? "" : ` (${state.organization})`
-            }.`,
+        `${state.tool}: ${state.already === true ? "already signed in in this Environment" : "signed in"}${
+          state.account === undefined
+            ? ""
+            : ` as ${state.account}${
+                state.organization === undefined
+                  ? ""
+                  : ` (${state.organization})`
+              }`
+        }${state.already === true ? "; nothing was paired or changed" : ""}.`,
         ...(state.tool === "gh" && state.ssh !== undefined
           ? sshLines(state.account, state.ssh)
           : []),

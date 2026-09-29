@@ -806,22 +806,47 @@ test("each catalog probe reads signed in, as whom, signed out or unknown from it
     state: "unknown",
   });
 
+  // wacli 0.18.2 wraps every --json answer (internal/out WriteJSON) in
+  // {"success","data","error"}; the fields of `auth status` are in `data`
+  // (#98). The values are fictional.
   const wacli = probeOf("wacli");
-  expect(
-    readSignIn(wacli, answer('{"authenticated":true,"phone":"+420123"}')),
-  ).toEqual({ state: "signed-in", account: "+420123" });
+  const envelope = (data: unknown) =>
+    answer(JSON.stringify({ success: true, data, error: null }));
   expect(
     readSignIn(
       wacli,
-      answer('{"authenticated":true,"linked_jid":"420123@s.whatsapp.net"}'),
+      envelope({
+        authenticated: true,
+        linked_jid: "420123@s.whatsapp.net",
+        phone: "420123",
+      }),
+    ),
+  ).toEqual({ state: "signed-in", account: "420123" });
+  expect(
+    readSignIn(
+      wacli,
+      envelope({ authenticated: true, linked_jid: "420123@s.whatsapp.net" }),
     ),
   ).toEqual({ state: "signed-in", account: "420123@s.whatsapp.net" });
-  expect(
-    readSignIn(wacli, answer('{"authenticated":false,"phone":"+420123"}')),
-  ).toEqual({ state: "signed-out" });
-  expect(readSignIn(wacli, answer('{"authenticated":"yes"}'))).toEqual({
+  expect(readSignIn(wacli, envelope({ authenticated: false }))).toEqual({
     state: "signed-out",
   });
+  expect(readSignIn(wacli, envelope({ authenticated: "yes" }))).toEqual({
+    state: "signed-out",
+  });
+  // The shape the probe read before #98, top-level fields, is not wacli's:
+  // it never counted as signed in and still does not.
+  expect(
+    readSignIn(wacli, answer('{"authenticated":true,"phone":"420123"}')),
+  ).toEqual({ state: "signed-out" });
+  // An error answer of the read-only status (exit 1, envelope on stderr).
+  expect(
+    readSignIn(wacli, {
+      exitCode: 1,
+      stdout: "",
+      stderr: '{"success":false,"data":null,"error":"read auth status: x"}\n',
+    }),
+  ).toEqual({ state: "signed-out" });
 
   const gog = probeOf("gogcli");
   expect(
