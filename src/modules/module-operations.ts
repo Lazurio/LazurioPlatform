@@ -298,6 +298,48 @@ async function folderPlace(folder: string) {
   }
 }
 
+// The browser origin of a module's app on this Folder's Machine: the one
+// source of both `runtime.url` and the origin a started app is told (decision
+// F26). Hosted: the recorded entry's module origin, which the gateway serves
+// for the module's default app only (B4, B5); nothing is composed from a
+// convention. `local` on a workstation; otherwise why there is none.
+async function applicationOrigin(
+  folder: string,
+  module: string,
+  isDefaultApp: boolean,
+): Promise<
+  Readonly<
+    | { kind: "local" }
+    | { kind: "origin"; origin: string }
+    | { kind: "none"; reason: string }
+  >
+> {
+  const place = await folderPlace(folder);
+  if (place.kind === "local") return { kind: "local" };
+  if (place.kind === "unknown")
+    return { kind: "none", reason: "folder-state-unreadable" };
+  if (place.template === null)
+    return { kind: "none", reason: "hosted-entry-missing" };
+  if (!isDefaultApp) return { kind: "none", reason: "hosted-app-not-default" };
+  try {
+    return { kind: "origin", origin: moduleOrigin(place.template, module) };
+  } catch (error) {
+    return {
+      kind: "none",
+      reason: error instanceof ModuleOriginError ? error.code : "module-origin",
+    };
+  }
+}
+
+/** A started app is told its origin; a Folder whose state cannot be read is
+ * not taken for a workstation (#83), so nothing starts. */
+async function launchOrigin(folder: string, module: string) {
+  const origin = await applicationOrigin(folder, module, true);
+  if (origin.kind === "none" && origin.reason === "folder-state-unreadable")
+    throw new Error("Folder state unreadable");
+  return origin.kind === "origin" ? origin.origin : null;
+}
+
 /** The module operations of one Folder. `owner` is who holds a lifecycle:
  * the Launchpad keeps one per Organization for its whole life (a session
  * app is its child); the CLI builds one per call and closes it, and so can
@@ -552,7 +594,8 @@ export function createModuleOperations(input: {
         runner,
         ...(target.personalspace
           ? { resolveApplication: resolvePersonalspaceApplication }
-          : {}),
+          : { organizationRoot: organizationDirectory }),
+        externalOrigin: (module) => launchOrigin(folder, module),
         ...(kind === "systemd-user"
           ? {
               coordination: createApplicationCoordination({
@@ -659,28 +702,16 @@ export function createModuleOperations(input: {
     const observed = await lifecycle.entrypoint(selection);
     if (observed.kind !== "local-entrypoint")
       return { runtime: null, runtimeReason: observed.kind };
-    const place = await folderPlace(folder);
-    if (place.kind === "local") return { runtime: { url: observed.url } };
-    if (place.kind === "unknown")
-      return { runtime: null, runtimeReason: "folder-state-unreadable" };
-    // Hosted: never the loopback address. The link is the recorded entry's
-    // module origin, which the gateway serves for the module's default app
-    // only (B4, B5); nothing is composed from a convention.
-    if (place.template === null)
-      return { runtime: null, runtimeReason: "hosted-entry-missing" };
-    if (!target.isDefaultApp)
-      return { runtime: null, runtimeReason: "hosted-app-not-default" };
-    try {
-      return {
-        runtime: { url: `${moduleOrigin(place.template, target.module)}/` },
-      };
-    } catch (error) {
-      return {
-        runtime: null,
-        runtimeReason:
-          error instanceof ModuleOriginError ? error.code : "module-origin",
-      };
-    }
+    // Hosted: never the loopback address.
+    const origin = await applicationOrigin(
+      folder,
+      target.module,
+      target.isDefaultApp,
+    );
+    if (origin.kind === "local") return { runtime: { url: observed.url } };
+    if (origin.kind === "none")
+      return { runtime: null, runtimeReason: origin.reason };
+    return { runtime: { url: `${origin.origin}/` } };
   }
 
   // The owner's view of one app now, as an answer.
@@ -761,6 +792,14 @@ export function createModuleOperations(input: {
         app: target.app,
         tool: "bun",
         expected: host.bunExecutable === undefined ? standardBun : bun,
+      });
+    // Whether the app is told a hosted origin must be known before any
+    // effect: an unreadable Folder state is not a workstation (decision F26).
+    if ((await folderPlace(folder)).kind === "unknown")
+      return blocked("start", "folder-state-unreadable", {
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
       });
     return operate("start", kind, target, async (lifecycle) => {
       const started = await lifecycle.start(selection);

@@ -2,6 +2,7 @@ import { dirname, join } from "node:path";
 import { retainedOperationLockPresent } from "../folder/retained-lock";
 import { resolveOrganizationApplication } from "../organizations/read-applications";
 import type { createApplicationCoordination } from "./application-coordination";
+import { applicationEnvironment } from "./application-environment";
 import type { ApplicationRunner } from "./application-runner";
 import { inspectBunToolchain, requireBunToolchain } from "./bun-toolchain";
 import {
@@ -37,6 +38,12 @@ export function localApplicationAdapters(input: {
     directory: string,
     selection: unknown,
   ) => Promise<Readonly<{ moduleDirectory: string }>>;
+  // What a started application is told about where it runs (decision F26):
+  // its Organization root (none for a Personalspace module) and, for the
+  // module's default app, the browser origin the Machine's gateway serves it
+  // at; null on a workstation. A throw refuses the launch.
+  organizationRoot?: string;
+  externalOrigin?: (module: string) => Promise<string | null>;
 }): Adapters {
   const selected = parseProcessLaunch({
     executable: input.bunExecutable,
@@ -132,17 +139,20 @@ export function localApplicationAdapters(input: {
         }),
         cwd,
       );
-      const environment: Record<string, string> = { ...selected.env };
-      for (const listener of plan.listeners) {
-        const prefix = `LAZURIO_RUNTIME_LISTENER_${listener.id.replaceAll("-", "_").toUpperCase()}`;
-        environment[`${prefix}_HOST`] = listener.host;
-        environment[`${prefix}_PORT`] = String(listener.port);
-      }
       return {
         executable: selected.executable,
         cwd,
         args: ["--no-env-file", "run", plan.runtime.dev_script],
-        env: environment,
+        env: applicationEnvironment({
+          base: selected.env,
+          plan,
+          cwd,
+          organizationRoot: input.organizationRoot,
+          externalOrigin:
+            plan.defaultApp && input.externalOrigin
+              ? await input.externalOrigin(plan.runtime.module)
+              : null,
+        }),
       };
     },
     async coordinateMutation(selection, action, intent) {

@@ -530,15 +530,11 @@ posixTest(
       expect(received.PATH?.endsWith(launch.PATH as string)).toBe(true);
       for (const name of ["HOST", "PORT", "SSH_AUTH_SOCK"])
         expect(Object.hasOwn(received, name), name).toBe(false);
-      expect(
-        Object.keys(received).filter((name) =>
-          name.startsWith("LAZURIO_RUNTIME_"),
-        ),
-      ).toEqual(
-        Object.keys(launch).filter((name) =>
-          name.startsWith("LAZURIO_RUNTIME_"),
-        ),
-      );
+      const runtimeNames = (environment: Record<string, string>) =>
+        Object.keys(environment)
+          .filter((name) => name.startsWith("LAZURIO_RUNTIME_"))
+          .sort();
+      expect(runtimeNames(received)).toEqual(runtimeNames(launch));
       expect((await ask(web, { Host: `notes.${machineHost}` })).status).toBe(
         200,
       );

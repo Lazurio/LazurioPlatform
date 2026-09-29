@@ -517,6 +517,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
           : createSessionRunner(process.execPath);
       applicationAdapters = localApplicationAdapters({
         organizationDirectory,
+        organizationRoot: organizationDirectory,
         bunExecutable: values["bun-executable"],
         platformExecutable: process.execPath,
         environment,
