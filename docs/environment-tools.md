@@ -159,7 +159,11 @@ request. They run in parallel, 10 s each, with only `PATH`, `HOME` and `XDG_*` i
 environment. `signIn` is `{ state: "signed-in" | "signed-out" | "unknown", account?,
 organization? }`: signed in when the probe exits 0 and its rules hold (composio exits
 0 also when not logged in and counts as signed in only with its JSON line and a
-non-empty email), `unknown` for a tool not installed, a timeout or unreadable output.
+non-empty email; wacli wraps its answer as `{"success":true,"data":{"authenticated":…,
+"linked_jid":…,"phone":…},"error":null}` and counts as signed in only when
+`data.authenticated` is `true`, with `data.phone`, else `data.linked_jid`, as the
+account (#98: the probe read these fields at the top level before and so reported every
+paired wacli as not signed in)), `unknown` for a tool not installed, a timeout or unreadable output.
 `account` and `organization` (composio's current organization) are the only things
 taken from the output, as plain text of at most 120 characters; the output itself is
 never returned or logged. A signed-in gh also carries `ssh` ([F19 addendum
@@ -214,10 +218,24 @@ arm64. CLI first; the Launchpad serves the same core. The tools set up by an age
   for composio the dashboard link (`composio login --no-wait --no-skill-install`, then
   `composio login --poll --no-skill-install`); for wacli the WhatsApp QR code drawn in
   the terminal on a white background, redrawn when it rotates (`wacli auth --events
-  --idle-exit 30s`), or with `--phone` the pairing code. The code or link is opened on
+  --idle-exit 30s`), or with `--phone` the pairing code. wacli prints these as
+  `--events` NDJSON on stderr whether or not it has a terminal, so the sign-in works
+  from a Launchpad that runs as a service; the tool gets no terminal (stdin is
+  `/dev/null`, stdout and stderr are read). The code or link is opened on
   any device; nothing is typed into Lazurio and no key is copied. It waits until signed
   in (confirmed by the tool's sign-in probe), failed or expired (gh 15 minutes,
   composio 10, WhatsApp pairing 5); Ctrl-C cancels and kills the tool's process group.
+  A wacli that reports `connected` without a QR or pairing code first was paired
+  before: once its probe confirms it the sign-in ends at once as `signed-in` with
+  `already: true` ("already signed in", nothing paired or changed) and the process
+  finishes its sync to its own idle exit (#98). Only the probe confirms: when it has not
+  confirmed 20 s after `connected` (retried every 2 s) and no code was shown, the
+  process is killed and the sign-in fails as `not-confirmed`. A tool that shows no
+  link, code or QR code within a minute is killed and the sign-in fails as
+  `no-challenge` (or `not-confirmed` after `connected`), instead of waiting out its
+  lifetime; a session that has shown a code keeps its lifetime; a tool that is
+  not found fails as `not-installed`, one that cannot be started as `spawn-failed`,
+  and one that exits before it is signed in as `tool-exit`.
   After WhatsApp pairing it waits for the first sync of messages. `--json` prints one
   JSON object per state change, the challenge included, because the running command
   holds the session. Exit 0 signed in, 1 not, 2 usage or refused.
@@ -270,7 +288,13 @@ true` for gh only ("Link SSH key"; anything else with it is `400`), and a pendin
 login says `step: "ssh-key"` while the key is being linked. No answer carries private
 key content or a public key's blob; only the key's path and SHA-256 fingerprint.
 
-A challenge is never written to a log, a file, the Folder or an error. The tools keep
+A challenge is never written to a log, a file, the Folder or an error. The Launchpad
+writes one JSON line to its journal (the unit's journal on a Machine) when a sign-in
+starts and one when it ends: `{"scope":"tools-login","tool":"wacli","event":"start"}`
+and `{"scope":"tools-login","tool":"wacli","event":"end","outcome":"failed","reason":"no-challenge"}`,
+with the tool, the outcome (`signed-in`, `failed`, `blocked`, `expired`, `cancelled`)
+and the fixed reason code only; never the tool's output, a challenge or an account.
+The tools keep
 their own pending state in their own stores (composio's pending login in
 `~/.composio`), which is the tool's custody and is not copied anywhere. On a shared
 Environment (the Team preset) a composio or wacli login belongs to the whole

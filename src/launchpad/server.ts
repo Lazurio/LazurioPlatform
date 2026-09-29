@@ -216,8 +216,12 @@ export async function startLaunchpad(
   // A running gh session asks the Team rule again, on this Folder's current
   // preset, before every step that changes the account or the Machine
   // (Principal 2026-09-28).
+  // The start and the end of each sign-in go to this process's journal (the
+  // unit's journal on a Machine): the tool and the outcome, nothing else.
   const logins = createLoginSessions({
     ...toolsEnvironment,
+    journal: (entry) =>
+      console.log(JSON.stringify({ scope: "tools-login", ...entry })),
     ...curatedOptions.login,
     refused: async (tool, action) =>
       githubLoginRefused(await folderPreset(folder), tool, action),
