@@ -13,6 +13,9 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli } from "../src/cli";
+import { parseMachineBinding } from "../src/folder/machine-binding";
+import { derivePreset, selectablePresets } from "../src/folder/presets";
+import { machineBinding } from "../src/machine/binding";
 import {
   MachineUsageError,
   machineInspection,
@@ -31,6 +34,7 @@ import {
   workRelationships,
 } from "./fixtures/machine-bindings";
 import fixture from "./fixtures/machine-context.json";
+import automated from "./fixtures/machine-context-automated.json";
 import personal from "./fixtures/machine-context-personal.json";
 
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
@@ -244,6 +248,34 @@ for (const [name, input] of Object.entries({
     ...fixture,
     owner: { ...fixture.owner, assignment: null },
   },
+  "an automation assignment on the personal branch": {
+    ...personal,
+    owner: { ...personal.owner, assignment: assignments.automation },
+  },
+  "an automation assignment without the immutable GitHub id": {
+    ...fixture,
+    owner: {
+      ...fixture.owner,
+      assignment: { kind: "automation", github_login: "example" },
+    },
+  },
+  "an automation assignment with an uppercase login": {
+    ...fixture,
+    owner: {
+      ...fixture.owner,
+      assignment: { ...assignments.automation, github_login: "Example" },
+    },
+  },
+  "an automation assignment that also names the persona": {
+    ...fixture,
+    owner: {
+      ...fixture.owner,
+      assignment: {
+        ...assignments.automation,
+        persona: { github_login: "persona", github_id: 1 },
+      },
+    },
+  },
   "personal-zone relationships on the organization branch": {
     ...fixture,
     relationships: personalRelationships,
@@ -305,6 +337,51 @@ for (const [name, input] of Object.entries({
       "machine-context-invalid",
     );
   });
+// Machines #277 (decision 0169): the third assignment kind, `automation`, names
+// the responsible operator of an Automated Environment with the operator's
+// shape. The handover is read, projected into the binding and derives the
+// Steward preset; it is the only preset a new choice may take there.
+for (const [name, input] of Object.entries({
+  "organization VM of a persona with its responsible operator": automated,
+  "organization VM with a Team, of a persona": {
+    ...fixture,
+    owner: { ...fixture.owner, assignment: assignments.automation },
+  },
+}))
+  test(`#277 accepts ${name} exactly as written`, () => {
+    const context = parseMachineContext(bytes(input));
+    expect(JSON.stringify(context)).toBe(JSON.stringify(input));
+    expect(machineInspection({ context, digest: "a".repeat(64) })).toEqual({
+      kind: "machine-context-observed",
+      context,
+      digest: "a".repeat(64),
+      authority: "none",
+    });
+  });
+test("an automation handover projects the responsible operator into the binding and round-trips", () => {
+  const document = bytes(automated);
+  const binding = machineBinding(parseMachineContext(document), "d".repeat(64));
+  expect(binding.owner).toEqual({
+    kind: "organization",
+    organization: "example",
+    team: null,
+    assignment: {
+      kind: "automation",
+      githubLogin: "example-admin",
+      githubId: 87654321,
+    },
+  });
+  expect(Object.isFrozen(binding.owner)).toBe(true);
+  if (binding.owner.kind !== "organization") throw new Error("organization");
+  expect(Object.isFrozen(binding.owner.assignment)).toBe(true);
+  expect(parseMachineBinding(JSON.parse(JSON.stringify(binding)))).toEqual(
+    binding,
+  );
+  expect(derivePreset(binding)).toBe("hosted-organization-steward");
+  expect(selectablePresets(binding)).toEqual(["hosted-organization-steward"]);
+  // The persona is not in the handover and never enters the binding.
+  expect(JSON.stringify(binding)).not.toContain("persona");
+});
 // Machines 0.12.93: the optional closed `entry` on both branches.
 for (const [name, input] of Object.entries({
   "organization VM with its entry": { ...fixture, entry: entries.organization },
@@ -464,7 +541,14 @@ test("machine CLI refuses overrides, unknown presets and duplicate or invalid ch
     ["folder-init", "--json"],
     ["folder-init", "extra"],
     ["folder-refresh", "--locale", "cs"],
-    ["folder-refresh", "--preset", "hosted-personal"],
+    ["folder-refresh", "--preset", "hosted-private"],
+    [
+      "folder-refresh",
+      "--preset",
+      "hosted-organization-team",
+      "--preset",
+      "hosted-organization-team",
+    ],
     ["folder-refresh", "--expected-revision", "1"],
     ["folder-refresh", "extra"],
     ["reset"],
@@ -472,6 +556,17 @@ test("machine CLI refuses overrides, unknown presets and duplicate or invalid ch
     await expect(runMachineCommand(args)).rejects.toBeInstanceOf(
       MachineUsageError,
     );
+});
+// folder-refresh takes one option, the preset a changed assignment now
+// derives: it parses and reaches the handover (which this host lacks).
+test("machine folder-refresh accepts a known --preset and nothing else", async () => {
+  const result = await runMachineCommand([
+    "folder-refresh",
+    "--preset",
+    "hosted-organization-steward",
+  ]);
+  expect(result.code).toBe(2);
+  expect(result.result.kind).toBe("blocked");
 });
 test("a wrong machine invocation prints the help on stderr with exit 2, not a failed Folder operation", async () => {
   const child = Bun.spawn(

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { bindingValues } from "../src/recover/private-values";
+import { parseMachineContext } from "../src/machine/context";
+import { bindingValues, contextValues } from "../src/recover/private-values";
 import {
   createSanitizer,
   journalLimits,
@@ -9,7 +10,9 @@ import {
   withheldLine,
 } from "../src/recover/sanitize";
 import { safeTail } from "../src/tools/redact";
-import { bindings } from "./fixtures/machine-bindings";
+import { assignments, bindings } from "./fixtures/machine-bindings";
+import organization from "./fixtures/machine-context.json";
+import automated from "./fixtures/machine-context-automated.json";
 
 // The sanitizer of the recovery evidence: what may leave the Machine in a
 // public issue. Generated private values of every kind are planted in many
@@ -313,6 +316,30 @@ test("the assigned or responsible operator of a work VM is a private value", () 
       expect.arrayContaining([
         { kind: "github-login", value: "example" },
         { kind: "github-id", value: "12345" },
+      ]),
+    );
+});
+
+// The handover itself is read when the Folder copy may be what failed: the
+// responsible operator of an Automated Environment is withheld from it too.
+test("the assigned or responsible operator in the handover is a private value", () => {
+  for (const [document, login, id] of [
+    [
+      {
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.operator },
+      },
+      "example",
+      "12345",
+    ],
+    [automated, "example-admin", "87654321"],
+  ] as const)
+    expect(
+      contextValues(parseMachineContext(Buffer.from(JSON.stringify(document)))),
+    ).toEqual(
+      expect.arrayContaining([
+        { kind: "github-login", value: login },
+        { kind: "github-id", value: id },
       ]),
     );
 });

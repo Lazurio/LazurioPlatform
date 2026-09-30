@@ -1,0 +1,19 @@
+{
+  "schema_version": "lazurio.machine.v1",
+  "machine": { "id": "example-steward", "kind": "workspace-vm", "name": "steward", "vmid": 901 },
+  "owner": {
+    "kind": "organization",
+    "organization": "example",
+    "organization_key": "Example",
+    "assignment": { "kind": "automation", "github_login": "example-admin", "github_id": 87654321 }
+  },
+  "operator": { "os_user": "operator", "home": "/home/operator", "lazurio_root": "/home/operator/Lazurio" },
+  "host": { "kind": "virtualization-host", "machine_id": "example-host", "custody_repository": "Example/infra", "provider": "example" },
+  "network": { "headscale_server_url": "https://network.example.invalid", "headscale_hostname": "example-steward" },
+  "installed": {
+    "machines_release": { "repository": "Example/Machines", "version": "v1.0.0", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "deployment_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recorded_at": "2026-01-01T00:00:00Z"
+  },
+  "account": null
+}
