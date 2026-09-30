@@ -575,6 +575,8 @@ const en = {
   machineTeam: "Team",
   machineAssignment: "Assignment",
   machineAssignmentTeam: "shared by the Team",
+  machineAssignmentAutomation:
+    "an automated Environment of an Organization persona; responsible operator {operator}",
   machineTailnet: "Tailnet node",
   machineHost: "Host",
   machineRelationships: "Relationships (enforced by Headscale, not here)",
@@ -1173,6 +1175,8 @@ const cs: Record<MessageKey, string> = {
   machineTeam: "Team",
   machineAssignment: "Přiřazení",
   machineAssignmentTeam: "sdílený Teamem",
+  machineAssignmentAutomation:
+    "automatizovaný Environment persony Organizace; odpovědný operátor {operator}",
   machineTailnet: "Uzel tailnetu",
   machineHost: "Host",
   machineRelationships: "Vztahy (vynucuje Headscale, ne tahle stránka)",

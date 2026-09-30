@@ -153,6 +153,99 @@ test("the preset changes only within the handover allow-list and keeps the bindi
   ).rejects.toThrow();
 });
 
+// Issue #107: on a work VM whose handover states `owner.assignment`, a new
+// preset choice is only the derived one. A Folder that recorded another preset
+// before keeps it valid (a profile or tools change carries it forward), and
+// may switch to the derived one; a switch to any other is refused.
+test("a preset change narrows to the stated assignment and the recorded preset stays valid", async () => {
+  const stored = (
+    name:
+      | "hosted-organization-personal"
+      | "hosted-organization-team"
+      | "hosted-organization-steward",
+    machine: typeof bindings.assignedOperator,
+    selection: "derived" | "explicit",
+  ) =>
+    parseFolderPreferences({
+      schemaVersion: 2,
+      revision: 3,
+      customInstructions: "",
+      preset: { name, version: 1, selection },
+      machine,
+      profile: { ...current.profile, access: "remote" },
+    });
+  const steward = stored(
+    "hosted-organization-steward",
+    bindings.assignedOperator,
+    "explicit",
+  );
+  const { manifest, inspect } = await fixture(steward);
+  const kept = await planProfileChange(
+    steward,
+    manifest,
+    3,
+    { profile: { ...steward.profile, locale: "cs" } },
+    inspect,
+  );
+  if (kept.kind !== "profile-change") throw new Error("Expected change");
+  expect(kept.preferences.preset).toEqual(steward.preset);
+  expect(
+    await planProfileChange(
+      steward,
+      manifest,
+      3,
+      { preset: "hosted-organization-steward", profile: steward.profile },
+      inspect,
+    ),
+  ).toEqual({ kind: "unchanged" });
+  expect(
+    await planProfileChange(
+      steward,
+      manifest,
+      3,
+      { preset: "hosted-organization-team", profile: steward.profile },
+      inspect,
+    ),
+  ).toEqual({ kind: "blocked", reason: "preset-not-allowed" });
+  const derived = await planProfileChange(
+    steward,
+    manifest,
+    3,
+    { preset: "hosted-organization-personal", profile: steward.profile },
+    inspect,
+  );
+  if (derived.kind !== "profile-change") throw new Error("Expected change");
+  expect(derived.preferences.preset).toEqual({
+    name: "hosted-organization-personal",
+    version: 1,
+    selection: "derived",
+  });
+  // Every stated assignment refuses the two presets it does not derive.
+  for (const [name, machine] of [
+    ["hosted-organization-personal", bindings.assignedOperator],
+    ["hosted-organization-team", bindings.assignedTeam],
+    ["hosted-organization-steward", bindings.automated],
+  ] as const) {
+    const recorded = stored(name, machine, "derived");
+    const own = await fixture(recorded);
+    for (const other of [
+      "hosted-organization-personal",
+      "hosted-organization-team",
+      "hosted-organization-steward",
+    ] as const)
+      if (other !== name)
+        expect(
+          await planProfileChange(
+            recorded,
+            own.manifest,
+            3,
+            { preset: other, profile: recorded.profile },
+            own.inspect,
+          ),
+        ).toEqual({ kind: "blocked", reason: "preset-not-allowed" });
+  }
+});
+
 test("stale, incomplete, incompatible and custom state blocks before inventory", async () => {
   const { manifest } = await fixture();
   const inspect = async (): Promise<never> => {

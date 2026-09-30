@@ -24,6 +24,7 @@ import { updateProfile } from "../src/folder/update-profile";
 import {
   describeFolderAdoption,
   initializeMachineFolder,
+  refreshMachineFolder,
 } from "../src/machine/cli";
 import { bindings, workRelationships } from "./fixtures/machine-bindings";
 
@@ -639,16 +640,15 @@ test.skipIf(process.platform === "win32")(
 );
 
 // Decision 0169: the Automated Environment. The `automation` assignment derives
-// the Steward preset; until Machines carries it (and Platform re-pins the
-// handover schema), the operator of a work VM chooses the preset explicitly on
-// today's handover. A personal VM never takes it.
+// the Steward preset; a work VM whose handover states no assignment takes it
+// as an explicit choice. A personal VM never takes it.
 test.skipIf(process.platform === "win32")(
-  "folder-init derives the Steward preset from the automation assignment and takes it explicitly on today's work VM handover",
+  "folder-init derives the Steward preset from the automation assignment and takes it explicitly on a work VM without assignment",
   async () => {
     for (const [machine, selection] of [
       [bindings.automated, "derived"],
-      [bindings.assignedOperator, "explicit"],
       [bindings.team, "explicit"],
+      [bindings.organization, "explicit"],
     ] as const) {
       const { parent, folder } = await setup({
         personalspace: "empty",
@@ -716,6 +716,133 @@ test.skipIf(process.platform === "win32")(
           next: "Choose a preset the handover allows, or omit --preset for the derived one.",
         },
       });
+      expect(await snapshot(folder)).toEqual(before);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Issue #107: when the handover states `owner.assignment`, the only preset a
+// new Folder may take is the one it derives. An explicit --preset outside it
+// is refused before any write, naming the one allowed choice.
+test.skipIf(process.platform === "win32")(
+  "folder-init with an explicit --preset takes only the preset the stated assignment derives",
+  async () => {
+    for (const [machine, derived, refused] of [
+      [
+        bindings.assignedOperator,
+        "hosted-organization-personal",
+        ["hosted-organization-team", "hosted-organization-steward"],
+      ],
+      [
+        bindings.assignedTeam,
+        "hosted-organization-team",
+        ["hosted-organization-personal", "hosted-organization-steward"],
+      ],
+      [
+        bindings.automated,
+        "hosted-organization-steward",
+        ["hosted-organization-personal", "hosted-organization-team"],
+      ],
+    ] as const) {
+      const { parent, folder } = await setup({ personalspace: "empty" });
+      try {
+        const before = await snapshot(folder);
+        for (const preset of refused)
+          expect(
+            await initializeMachineFolder(folder, machine, {
+              ...noChoices,
+              preset,
+            }),
+          ).toEqual({
+            code: 2,
+            result: {
+              kind: "blocked",
+              reason: "preset-not-allowed",
+              derived,
+              allowed: [derived],
+              next: "Choose a preset the handover allows, or omit --preset for the derived one.",
+            },
+          });
+        expect(await snapshot(folder)).toEqual(before);
+        await expect(
+          initializeHandoverFolder(folder, {
+            preset: refused[0],
+            machine,
+            profile: presetProfile(refused[0], executionOs(process.platform)),
+          }),
+        ).rejects.toThrow("not allowed");
+        expect(await snapshot(folder)).toEqual(before);
+        // The derived preset passed explicitly is recorded as derived.
+        expect(
+          await initializeMachineFolder(folder, machine, {
+            ...noChoices,
+            preset: derived,
+          }),
+        ).toEqual({
+          code: 0,
+          result: {
+            kind: "initialized",
+            revision: 1,
+            preset: { name: derived, version: 1, selection: "derived" },
+          },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+// Issue #107, review of #110: rerunning the command that adopted a Folder is
+// no new preset choice. A Folder adopted with an explicit preset before its
+// handover stated an assignment keeps that preset, and the same folder-init
+// reports it as adopted instead of refusing it; nothing is written.
+test.skipIf(process.platform === "win32")(
+  "folder-init rerun on a Folder whose explicit preset is no longer offered reports it adopted",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      const preset = "hosted-organization-steward" as const;
+      const explicit = {
+        name: preset,
+        version: 1,
+        selection: "explicit",
+      } as const;
+      expect(
+        await initializeMachineFolder(folder, bindings.team, {
+          ...noChoices,
+          preset,
+        }),
+      ).toEqual({
+        code: 0,
+        result: { kind: "initialized", revision: 1, preset: explicit },
+      });
+      // The owner now states the operator assignment; the refresh keeps the
+      // recorded explicit preset.
+      expect(
+        await refreshMachineFolder(folder, bindings.assignedOperator),
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 2 } });
+      const before = await snapshot(folder);
+      const adopted = {
+        kind: "already-adopted",
+        revision: 2,
+        preset: explicit,
+      } as const;
+      expect(
+        await initializeMachineFolder(folder, bindings.assignedOperator, {
+          ...noChoices,
+          preset,
+        }),
+      ).toEqual({ code: 0, result: adopted });
+      expect(
+        await initializeHandoverFolder(folder, {
+          preset,
+          machine: bindings.assignedOperator,
+          profile: presetProfile(preset, executionOs(process.platform)),
+        }),
+      ).toEqual(adopted);
       expect(await snapshot(folder)).toEqual(before);
     } finally {
       await rm(parent, { recursive: true, force: true });

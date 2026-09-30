@@ -2403,7 +2403,7 @@ both runners, and compare the whole environment exactly.
 ## F27 — The Steward preset for the Automated Environment
 
 **Proposed 2026-09-30 (upstream decision 0169; plan DEV-6632, milestone M2); implemented
-locally, derivation waiting for Machines.** A fifth [workspace preset](workspace-presets.md) (F10),
+locally; derived from the handover since the re-pin to Machines #277 (amendment below).** A fifth [workspace preset](workspace-presets.md) (F10),
 `hosted-organization-steward`, for the fourth kind of Environment, **Automated**: the
 work VM of an Organization persona whose bot team runs in Lazurio MausBot, with one
 responsible operator (an Owner or Admin). Personalspace never, Organization
@@ -2435,8 +2435,43 @@ re-render every Folder for no change in content. The user-facing text says
 | Derive the Automated kind from the Machine or Team name, or from a persona account signed in to `gh` | A guess from names or from live state that changes; forbidden by 0169 and F10; rejected |
 | A separate handover field for the persona identity next to `owner.assignment` | Two fields to keep consistent for one fact; 0165 already derives the kind from `owner.assignment.kind`; rejected in favour of a third kind of the same value |
 | `owner.assignment` `{kind: "automation", github_login, github_id}` of the responsible operator (selected) | Same shape as `operator`, one selector, fail closed on unknown kinds; needs a Machines schema change and a re-pin |
-| Allow the Steward preset only on an `automation` handover | Nothing to choose until Machines ships, and a work VM re-assigned from a Team to `automation` could not reach the preset through the change path (the old binding would refuse it); rejected for the kind-wide allow-list that F10 already uses |
+| Allow the Steward preset only on an `automation` handover | Nothing to choose until Machines ships, and a work VM re-assigned from a Team to `automation` could not reach the preset through the change path (the old binding would refuse it); rejected for the kind-wide allow-list that F10 already uses. Superseded for new choices by the amendment below, which also gives the re-assignment its path |
 | Configure Lazurio MausBot from Platform (write its environment or unit) | A second supervisor and a writer outside the Folder; Machines runs the service today; rejected: the preset declares, the service applies |
+
+**Amendment 2026-09-30 (Machines #277; issue #107).** The vendored handover schema is
+re-pinned to the head of Machines pull request #277 (commit `504db74`), which adds
+`owner.assignment` `{kind: "automation", github_login, github_id}`; the pin moves to
+its merge commit before a release. `src/machine/binding.ts` projects it one member to
+one, so an Automated Environment's handover derives `hosted-organization-steward` and
+`folder-init` records it as `derived`. Recovery withholds the responsible operator
+from the handover evidence as from the binding; the Launchpad names the assignment as
+the Folder renders it.
+
+New preset choices are narrowed by the stated assignment (issue #107, following
+upstream decision 0168): when the handover states `owner.assignment`, the only
+selectable preset is the one it derives (`selectablePresets` next to
+`allowedPresets`); without a stated assignment the choice stays the machine-kind
+allow-list. This governs `folder-init --preset`, the profile change and the
+Launchpad's offered presets. A recorded preset stays valid within the allow-list
+(state and render validation are unchanged) and stays offered, so no existing Folder
+becomes invalid; switching it to a preset that is not selectable is
+`preset-not-allowed`. No transition relief keeps the Steward preset selectable on an
+`operator` handover: the handover states `automation` directly. A re-assignment whose
+recorded derived preset the new assignment no longer derives stays
+`preset-derivation-changed` on refresh; since the profile change plans against the
+recorded binding, which now offers only the old preset, `lazurio machine
+folder-refresh --preset <derived>` takes the newly derived preset (and only it) with
+the new binding in one revision, recorded as `derived`. The refresh of the F10
+amendment of 2026-09-23 took no options; it now takes exactly this one choice, named
+explicitly by the operator, so nothing is switched silently.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the kind-wide allow-list for every choice | Leaves a Team Environment one explicit choice away from a user-account sign-in (0168); rejected by issue #107 |
+| Narrow validation of stored presets too | Would make existing Folders invalid (an explicit Steward preset recorded on an `operator` handover under #106); rejected: only new choices narrow |
+| Refresh switches to the newly derived preset by itself | A silent switch of provider identity, against F10's refresh rule; rejected for the explicit `--preset` |
+| Profile change reads the current handover | The Launchpad and profile commands would read the Linux handover and mix an infrastructure rewrite into a Principal's revision, as F10 rejected; rejected |
+| `folder-refresh --preset <derived>` (selected) | One explicit option on the existing refresh, same planner and transaction; takes only the derived preset |
 
 ## F28 — Towards people the place they work in is the Environment; a hosted one is a Remote Environment
 

@@ -23,11 +23,13 @@ function isPersonal(
   return context.machine.kind === "personal-vm";
 }
 
+// One member to one; `operator` and `automation` (the responsible operator of
+// an Automated Environment, decision 0169) keep their own kind.
 function assignment(input: OrganizationAssignment): MachineAssignment {
   return input.kind === "team"
     ? Object.freeze({ kind: "team" })
     : Object.freeze({
-        kind: "operator",
+        kind: input.kind,
         githubLogin: input.github_login,
         githubId: input.github_id,
       });

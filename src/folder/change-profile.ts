@@ -11,11 +11,11 @@ import {
 } from "./machine-binding";
 import type { OutputPath } from "./outputs";
 import {
-  allowedPresets,
   derivePreset,
   type PresetName,
   parsePresetName,
   presetReference,
+  selectablePresets,
   workspacePreset,
 } from "./presets";
 import { desiredOutputs, outputDigests, previewFolder } from "./preview";
@@ -185,10 +185,12 @@ export async function planFolderChange(
     JSON.stringify(machineIdentity(current.machine))
   )
     return { kind: "blocked", reason: "binding-changed" } as const;
-  // The preset may only change within what the handover allows, and the fixed
+  // The preset may only change to one the handover offers as a new choice
+  // (issue #107: the derived one when it states `owner.assignment`); the
+  // recorded preset stays valid within the machine-kind allow-list. The fixed
   // axes of the profile must match the requested preset's composition.
   const presetName = change.preset ?? current.preset.name;
-  if (!allowedPresets(machine).includes(presetName))
+  if (!selectablePresets(machine, current.preset.name).includes(presetName))
     return { kind: "blocked", reason: "preset-not-allowed" } as const;
   const composition = workspacePreset(presetName).composition;
   if (

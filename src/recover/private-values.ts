@@ -202,7 +202,7 @@ export function contextValues(context: MachineContext | null): PrivateValue[] {
           ...value("organization", owner.organization),
           ...value("organization", owner.organization_key),
           ...value("team", owner.team),
-          ...(owner.assignment?.kind === "operator"
+          ...(owner.assignment !== undefined && owner.assignment.kind !== "team"
             ? [
                 ...value("github-login", owner.assignment.github_login),
                 ...value("github-id", owner.assignment.github_id),

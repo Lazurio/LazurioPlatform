@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { parseMachineBinding } from "../../src/folder/machine-binding";
 import { machineBinding } from "../../src/machine/binding";
 import { parseMachineContext } from "../../src/machine/context";
 import organization from "./machine-context.json";
@@ -7,9 +6,12 @@ import personal from "./machine-context-personal.json";
 
 // The v0.12.61 fields as Machines writes them: the assignment copied from the
 // owner overlay, and the peers derived from the Conglomerate Host grants.
+// `automation` (Machines #277, decision 0169) names the responsible operator
+// of an Automated Environment, with the operator's shape.
 export const assignments = Object.freeze({
   operator: { kind: "operator", github_login: "example", github_id: 12345 },
   team: { kind: "team" },
+  automation: { kind: "automation", github_login: "example", github_id: 12345 },
 } as const);
 // A work VM of operator `example`: their laptop and personal VM may reach it,
 // it reaches the Conglomerate Host gateway over HTTPS and nothing over SSH.
@@ -131,11 +133,9 @@ export function personalWithEntry(listenPort = 20000) {
     entry: handoverEntry("example.lazurio.io", listenPort),
   });
 }
-// The Automated Environment of decision 0169 as Platform accepts it in a stored
-// binding: a work VM of an Organization persona with one responsible operator.
-// The vendored handover schema does not carry `automation` yet (a Machines
-// change and a re-pin), so this fixture is a stored binding, not a projected
-// document.
+// The Automated Environment of decision 0169 as the binding records it: a work
+// VM of an Organization persona with one responsible operator, projected from
+// the handover's `owner.assignment` of kind `automation`.
 export const automationAssignment = Object.freeze({
   kind: "automation",
   githubLogin: "example",
@@ -168,9 +168,9 @@ export const bindings = Object.freeze({
   // Machines 0.12.93 shapes: the entry on both lanes.
   organizationEntry: organizationWithEntry(),
   personalEntry: binding({ ...personal, entry: entries.personal }),
-  // Decision 0169: the Automated Environment, as a stored binding.
-  automated: parseMachineBinding({
-    ...assignedOperator,
-    owner: { ...assignedOperator.owner, assignment: automationAssignment },
-  }) as NonNullable<ReturnType<typeof parseMachineBinding>>,
+  // Decision 0169: the Automated Environment, projected from its handover.
+  automated: binding({
+    ...organization,
+    owner: { ...organization.owner, assignment: assignments.automation },
+  }),
 });

@@ -2,8 +2,10 @@
 
 Status: **local preset model implemented (2026-09-22, names, derivation and
 adoption accepted by the Principal); typed owner requests remain accepted direction.
-The Steward preset (decision 0169, 2026-09-30) is proposed and implemented locally;
-its derivation waits for the Machines handover value `automation`.**
+The Steward preset (decision 0169, 2026-09-30) is proposed and implemented locally
+and derived from the handover value `automation` (Machines #277, pinned to its pull
+request head until it merges). New preset choices are narrowed to the stated
+assignment (issue #107).**
 See [decision F10](decisions.md#f10--workspace-presets-and-typed-owner-requests).
 
 A workspace preset is a different concept from the application presets in
@@ -64,20 +66,35 @@ The derivation is a function of one **assignment** value — is the work VM assi
 to ONE operator, shared by a Team, or the Automated Environment of a persona? — and
 `machine.kind`. Since Machines v0.12.61
 the handover states the assignment as `owner.assignment`
-(`{kind: "operator", github_login, github_id}` | `{kind: "team"}`), copied from the
-reviewed owner overlay and never inferred; when present it is **the only selector**
-between the two Organization presets (`machineAssignment` in
-`src/folder/presets.ts` reads it and nothing else):
+(`{kind: "operator", github_login, github_id}` | `{kind: "team"}`, and since Machines
+#277 `{kind: "automation", github_login, github_id}`), copied from the reviewed owner
+overlay and never inferred; when present it is **the only selector** between the
+Organization presets (`machineAssignment` in `src/folder/presets.ts` reads it and
+nothing else).
 
-| `owner.assignment` | Handover | Assignment | Derived preset | Allowed presets |
-| --- | --- | --- | --- | --- |
-| — | No handover (workstation) | — | `local` | `local` |
-| never present | `machine.kind: "personal-vm"` | one operator | `hosted-personal` | `hosted-personal` |
-| `{kind: "operator", …}` | `"workspace-vm"`, with or without `owner.team` | one operator | `hosted-organization-personal` | the three Organization presets |
-| `{kind: "team"}` | `"workspace-vm"`, with or without `owner.team` | the Team | `hosted-organization-team` | the three Organization presets |
-| `{kind: "automation", …}` (not in the handover schema yet) | `"workspace-vm"`, with or without `owner.team` | a persona, one responsible operator | `hosted-organization-steward` | the three Organization presets |
-| absent | `"workspace-vm"` without `owner.team` | one operator | `hosted-organization-personal` | the three Organization presets |
-| absent | `"workspace-vm"` with `owner.team` | **ambiguous** | none: explicit `--preset` required | the three Organization presets |
+Two lists follow from the handover. **Allowed** presets (`allowedPresets`) depend on
+the machine kind only; a preset a Folder has recorded is valid within them, so no
+existing Folder becomes invalid. **Selectable** presets (`selectablePresets`) are
+what a new choice may take (issue #107): when the handover states
+`owner.assignment`, only the preset it derives; otherwise the allowed ones.
+
+| `owner.assignment` | Handover | Assignment | Derived preset | Allowed presets | Selectable (new choice) |
+| --- | --- | --- | --- | --- | --- |
+| — | No handover (workstation) | — | `local` | `local` | `local` |
+| never present | `machine.kind: "personal-vm"` | one operator | `hosted-personal` | `hosted-personal` | `hosted-personal` |
+| `{kind: "operator", …}` | `"workspace-vm"`, with or without `owner.team` | one operator | `hosted-organization-personal` | the three Organization presets | `hosted-organization-personal` |
+| `{kind: "team"}` | `"workspace-vm"`, with or without `owner.team` | the Team | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
+| `{kind: "automation", …}` | `"workspace-vm"`, with or without `owner.team` | a persona, one responsible operator | `hosted-organization-steward` | the three Organization presets | `hosted-organization-steward` |
+| absent | `"workspace-vm"` without `owner.team` | one operator | `hosted-organization-personal` | the three Organization presets | the three Organization presets |
+| absent | `"workspace-vm"` with `owner.team` | **ambiguous** | none: explicit `--preset` required | the three Organization presets | the three Organization presets |
+
+The narrowing follows decision 0168: a Work Team Environment works in GitHub only
+through the Organization bot, and an explicit Work or Steward preset there would
+re-open a user-account sign-in (the operator's own account or the persona's); the
+same holds for the Team or Work preset on an Automated Environment, and for the Team
+or Steward preset on one operator's work VM. No transition allowance keeps the
+Steward preset selectable on an `operator` handover: the handover now states
+`automation` directly.
 
 The ambiguous row remains only for handovers without `owner.assignment` (an older
 Machines release, or an owner that declares none). A Team alone is not a fact about
@@ -88,11 +105,13 @@ comparing the Team name with the Machine name) stands in for the assignment.
 
 `lazurio machine folder-init [--preset <name>]` records the derived preset by default.
 On an ambiguous handover it ends `blocked` with `reason: "preset-ambiguous"` and the
-three allowed presets, before any write, unless the Folder is already adopted (an adopted
+three selectable presets, before any write, unless the Folder is already adopted (an adopted
 Folder already has its preset and re-runs report `already-adopted`). A `--preset` must
-be one the handover allows (a personal VM never takes an Organization preset and vice
-versa) and is recorded as an explicit choice; on an ambiguous handover every choice is
-explicit. The same allow-list governs every later change. The rendered Owner line names
+be selectable (a personal VM never takes an Organization preset and vice versa, and a
+stated assignment offers only its derived preset; otherwise `preset-not-allowed` names
+the selectable ones) and is recorded as an explicit choice unless it is the derived one;
+on an ambiguous handover every choice is explicit. Every later change may end on the
+recorded preset or a selectable one. The rendered Owner line names
 the handover's Team only under `hosted-organization-team`; the recorded binding keeps
 the Team value untouched either way, and the rendered Assignment line states the
 handover's `owner.assignment` exactly when it is present (`assigned to operator
@@ -161,18 +180,16 @@ DEV-6632, not part of the preset.
 
 **Derivation.** The kind comes from a typed handover value, never from names:
 `owner.assignment` `{kind: "automation", github_login, github_id}`, naming the
-responsible operator exactly like `operator`. A stored binding accepts it
-(`{kind: "automation", githubLogin, githubId}`) and derives `hosted-organization-steward`;
-any other kind still fails closed. The vendored handover schema does not carry it:
-until Machines adds it to `lazurio.machine.v1` and Platform re-pins the schema and
-projects it in `src/machine/binding.ts`, a handover declaring it is refused whole
-(`machine-context-invalid`) and the operator of a work VM chooses the preset
-explicitly: every `workspace-vm` allows the three Organization presets. A work VM
-re-assigned to `automation` whose derived preset was recorded is
-`preset-derivation-changed` on refresh; the Principal chooses the Steward preset with
-`profile-update --preset` and the refresh follows. For every handover that exists
-today the derivation, the recorded state and the rendered bytes are unchanged; the
-only visible change is the third allowed preset.
+responsible operator exactly like `operator`. The vendored handover schema carries it
+since Machines #277; `src/machine/binding.ts` projects it one member to one into the
+binding (`{kind: "automation", githubLogin, githubId}`), which derives
+`hosted-organization-steward`; any other kind still fails closed. On such a handover
+the Steward preset is the only new choice. A work VM without a stated assignment may
+still take it as an explicit choice. A work VM re-assigned to `automation` whose
+derived preset was recorded is `preset-derivation-changed` on refresh; the operator
+takes the Steward preset with `lazurio machine folder-refresh --preset
+hosted-organization-steward`, recorded with the new binding as `derived`. A Folder
+that recorded the Steward preset explicitly (Platform #106, before #277) keeps it.
 
 ## Immutable and mutable
 
@@ -180,19 +197,22 @@ only visible change is the third allowed preset.
 | --- | --- | --- |
 | Machine identity: kind, name, Owner (Principal or Organization + Team), tailnet node, host | The handover, recorded at adoption as part of the **Machine binding**; immutable | Shown only |
 | Assignment and relationships when the handover carries them, handover digest | The current handover; `machine folder-refresh` re-records them in the binding | Shown only |
-| Preset | Derived, confirmed or explicitly chosen within the allow-list | Changeable through the ordinary preview → apply profile change |
+| Preset | Derived, confirmed or explicitly chosen among the selectable presets; a recorded one stays valid within the allow-list | Changeable through the ordinary preview → apply profile change, to the recorded preset or a selectable one |
 | Communication axes `locale`, `detail`, `coordination` | Preset defaults, then the Principal | Changeable through the same flow |
 | Fixed axes `access`, `purpose` | The preset's composition | Not controls; a request whose fixed axes disagree with the preset is a blocked plan |
 
 There is one change path. CLI (`profile-preview`/`profile-update --preset`), Launchpad
 and a future typed owner request all send `{expectedRevision, preset?, profile}` to the
-same use case; a preset outside the allow-list is `preset-not-allowed`, a profile that
-disagrees with the preset is `preset-composition`, both without a write. A handover
-rewrite enters the same planner and transaction through `lazurio machine
-folder-refresh`, with the recorded preset and profile and the re-projected binding of
-the same Machine ([refresh](machine-handover.md#refresh-after-a-handover-rewrite)); a
-preset recorded as derived that the new assignment no longer derives is
-`preset-derivation-changed`, never silently kept or switched.
+same use case; a preset that is neither the recorded one nor selectable is
+`preset-not-allowed`, a profile that disagrees with the preset is
+`preset-composition`, both without a write. A handover rewrite enters the same planner
+and transaction through `lazurio machine folder-refresh`, with the recorded preset and
+profile and the re-projected binding of the same Machine
+([refresh](machine-handover.md#refresh-after-a-handover-rewrite)); a preset recorded as
+derived that the new assignment no longer derives is `preset-derivation-changed`, never
+silently kept or switched. The profile change plans against the recorded binding and
+cannot offer the newly derived preset, so the refresh takes it when the operator
+names it (`--preset`), and takes no other.
 
 ## Storage and ownership
 
@@ -313,7 +333,9 @@ Unit tests prove derivation from `owner.assignment` (operator and Team, with and
 without `owner.team`) and the remaining ambiguous handover without it (blocked
 `folder-init` with the exact reason, explicit choice recorded, adopted Folder
 unaffected), that a v0.12.59-shaped handover derives exactly as before, the
-allow-list, whole-composition validation, adoption
+allow-list and the selectable presets per handover shape (explicit `folder-init`,
+profile change, Launchpad offer and refresh refusals; a recorded preset outside the
+selectable set kept valid), whole-composition validation, adoption
 (non-empty work directories, legacy files, foreign entries, idempotence, the
 Personalspace conflict), conformance of both handover branches, the rendered document
 per preset and language, and the Launchpad flow. A native run of `folder-init` on a
@@ -323,9 +345,10 @@ and a native Launchpad preset change are not proven. For the Steward preset, uni
 tests prove its whole composition, that the four earlier presets are unchanged field
 by field and render the same bytes (their snapshots and the template revision are
 unchanged), derivation from a stored `automation` assignment with and without
-`owner.team`, the fail-closed refusal of every other assignment shape, the vendored
-schema's refusal of `automation` today, `folder-init` derived and explicit (today's
-operator and Team handovers) with the rendered persona, bot team and publication
-rule, the refusal on a personal VM and of a used `personalspace/`, the refresh after
-a re-assignment to `automation`, the gh gate offering sign-in and key linking, and
+`owner.team`, the fail-closed refusal of every other assignment shape, a synthetic
+`automation` handover read and projected through the vendored #277 schema,
+`folder-init` derived and explicit (handovers without assignment) with the rendered
+persona, bot team and publication rule, the refusal on a personal VM and of a used
+`personalspace/`, the refresh after a re-assignment to `automation` with
+`--preset`, the gh gate offering sign-in and key linking, and
 the responsible operator withheld from recovery evidence. No native run exists.

@@ -11,6 +11,7 @@ import {
   type FolderChangeRequest,
   prepareFolderChangeLocked,
 } from "./prepare-profile-change";
+import type { PresetName } from "./presets";
 
 export type UpdateStep = "prepared" | "applied" | "finalized";
 
@@ -65,15 +66,20 @@ export async function updateTools(
 // Machine with the recorded preset and profile: the same planner, transaction,
 // archive and recovery (`profile-resume`) as a profile change. Edited or
 // removed owned files are refused by path exactly as there; a binding that
-// renders the same bytes is `unchanged` and nothing is written.
+// renders the same bytes is `unchanged` and nothing is written. `preset`,
+// when given, is the preset a changed assignment now derives, recorded with
+// the new binding in the same revision (issue #107).
 export async function refreshFolder(
   folder: string,
   machine: MachineBinding,
   checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
+  preset: PresetName | undefined = undefined,
 ) {
   const result = await changeFolder(
     folder,
-    { kind: "handover", machine },
+    preset === undefined
+      ? { kind: "handover", machine }
+      : { kind: "handover", machine, preset },
     checkpoint,
   );
   return result.kind === "updated"

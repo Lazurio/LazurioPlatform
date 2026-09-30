@@ -16,7 +16,6 @@ import { join } from "node:path";
 import { runCli } from "../src/cli";
 import { applyPreparation } from "../src/folder/apply-preparation";
 import { FolderAdoptionError } from "../src/folder/handover-layout";
-import { parseMachineBinding } from "../src/folder/machine-binding";
 import { outputPaths } from "../src/folder/outputs";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
@@ -29,7 +28,11 @@ import {
   initializeMachineFolder,
   refreshMachineFolder,
 } from "../src/machine/cli";
-import { automationAssignment, binding } from "./fixtures/machine-bindings";
+import {
+  assignments,
+  automationAssignment,
+  binding,
+} from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
@@ -493,13 +496,31 @@ test.skipIf(process.platform === "win32")(
         noChoices,
       );
       const settled = await snapshot(folder);
-      expect(
-        await refreshMachineFolder(folder, assigned({ kind: "team" })),
-      ).toEqual({
+      const team = assigned({ kind: "team" });
+      expect(await refreshMachineFolder(folder, team)).toEqual({
         code: 2,
         result: { kind: "blocked", reason: "preset-derivation-changed" },
       });
       expect(await snapshot(folder)).toEqual(settled);
+      // The refresh takes only the preset the new assignment derives (#107);
+      // another one is refused and nothing is written.
+      for (const preset of [
+        "hosted-organization-personal",
+        "hosted-organization-steward",
+      ] as const)
+        expect(await refreshMachineFolder(folder, team, preset)).toEqual({
+          code: 2,
+          result: { kind: "blocked", reason: "preset-not-allowed" },
+        });
+      expect(await snapshot(folder)).toEqual(settled);
+      expect(
+        await refreshMachineFolder(folder, team, "hosted-organization-team"),
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 2 } });
+      expect((await preferences(folder)).preset).toEqual({
+        name: "hosted-organization-team",
+        version: 1,
+        selection: "derived",
+      });
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -508,30 +529,25 @@ test.skipIf(process.platform === "win32")(
 
 // Decision 0169: a work VM of one operator that the Organization turns into the
 // Automated Environment of its persona. The recorded, derived preset is not
-// carried forward silently; the Principal chooses the Steward preset (allowed
-// on every workspace VM) and the refresh then renders the new handover.
+// carried forward silently. The profile change runs against the recorded
+// binding, whose stated assignment offers only the Work preset (#107), so
+// the Steward preset is chosen where the new handover is read: the refresh
+// takes it with --preset and records the new binding and preset together.
 test.skipIf(process.platform === "win32")(
-  "a work VM re-assigned to automation needs the Steward preset chosen, then refreshes",
+  "a work VM re-assigned to automation takes the Steward preset through the refresh",
   async () => {
     const { parent, folder } = await setup();
     try {
       await rm(join(folder, "personalspace"), { recursive: true });
       const operator = binding({
         ...organization,
-        owner: {
-          ...organization.owner,
-          assignment: {
-            kind: "operator",
-            github_login: "example",
-            github_id: 1,
-          },
-        },
+        owner: { ...organization.owner, assignment: assignments.operator },
       });
       await initializeMachineFolder(folder, operator, noChoices);
-      const automated = parseMachineBinding({
-        ...operator,
-        owner: { ...operator.owner, assignment: automationAssignment },
-      }) as NonNullable<ReturnType<typeof parseMachineBinding>>;
+      const automated = binding({
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.automation },
+      });
       const settled = await snapshot(folder);
       expect(await refreshMachineFolder(folder, automated)).toEqual({
         code: 2,
@@ -544,21 +560,89 @@ test.skipIf(process.platform === "win32")(
           preset: "hosted-organization-steward",
           profile: recorded.profile,
         }),
-      ).toMatchObject({ kind: "updated", revision: 2 });
-      expect(await refreshMachineFolder(folder, automated)).toEqual({
-        code: 0,
-        result: { kind: "refreshed", revision: 3 },
-      });
+      ).toEqual({ kind: "blocked", reason: "preset-not-allowed" });
+      expect(await snapshot(folder)).toEqual(settled);
+      expect(
+        await refreshMachineFolder(
+          folder,
+          automated,
+          "hosted-organization-steward",
+        ),
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 2 } });
       const current = await preferences(folder);
       expect(current.preset).toEqual({
         name: "hosted-organization-steward",
         version: 1,
-        selection: "explicit",
+        selection: "derived",
       });
       expect(current.machine.owner.assignment).toEqual(automationAssignment);
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
         "responsible operator `example` (GitHub id 12345)",
       );
+      // Settled: a plain refresh of the same handover changes nothing.
+      expect(await refreshMachineFolder(folder, automated)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Issue #107 changes only new choices: a Folder that recorded the Steward
+// preset explicitly on a work VM without assignment keeps it when the
+// handover later states an assignment that derives another preset.
+test.skipIf(process.platform === "win32")(
+  "an explicitly recorded preset stays valid when the handover starts to state an assignment",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await rm(join(folder, "personalspace"), { recursive: true });
+      await initializeMachineFolder(folder, binding(organization), {
+        ...noChoices,
+        preset: "hosted-organization-steward",
+      });
+      // The refresh takes no preset from a handover that derives none; the
+      // choice between Organization presets there stays a profile change.
+      expect(
+        await refreshMachineFolder(
+          folder,
+          binding(organization),
+          "hosted-organization-team",
+        ),
+      ).toEqual({
+        code: 2,
+        result: { kind: "blocked", reason: "preset-not-allowed" },
+      });
+      const operator = binding({
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.operator },
+      });
+      expect(await refreshMachineFolder(folder, operator)).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 2 },
+      });
+      const recorded = await preferences(folder);
+      expect(recorded.preset).toEqual({
+        name: "hosted-organization-steward",
+        version: 1,
+        selection: "explicit",
+      });
+      expect(
+        await updateProfile(folder, 2, {
+          profile: { ...recorded.profile, locale: "cs" },
+        }),
+      ).toEqual({ kind: "updated", revision: 3 });
+      expect((await preferences(folder)).preset.name).toBe(
+        "hosted-organization-steward",
+      );
+      expect(
+        await updateProfile(folder, 3, {
+          preset: "hosted-organization-team",
+          profile: { ...recorded.profile, locale: "cs" },
+        }),
+      ).toEqual({ kind: "blocked", reason: "preset-not-allowed" });
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
