@@ -198,15 +198,14 @@ export function parsePresetReference(input: unknown): PresetReference {
 // to ONE operator, shared by a Team, or the Automated Environment of a persona
 // with one responsible operator (decision 0169)? Since Machines v0.12.61 the
 // handover states it as `owner.assignment` ({kind: "operator", github_login,
-// github_id} | {kind: "team"}), copied from the reviewed owner overlay and
-// never inferred; when present it is the only selector and nothing else is
-// read. `automation` is accepted in a stored binding ahead of the Machines
-// schema that will carry it. A handover
-// without it (an older release, or an owner that declares none) proves only
-// one side: a workspace VM without `owner.team` is assigned to one operator. A
-// Team alone is NOT a fact about assignment: an Organization may model one
-// operator's work VM as a GitHub Team named after them (found on the first real
-// canary, 2026-09-22). So a Team-bearing handover without assignment has none
+// github_id} | {kind: "team"}, and since Machines #277 {kind: "automation",
+// github_login, github_id}), copied from the reviewed owner overlay and never
+// inferred; when present it is the only selector and nothing else is read. A
+// handover without it (an older release, or an owner that declares none)
+// proves only one side: a workspace VM without `owner.team` is assigned to one
+// operator. A Team alone is NOT a fact about assignment: an Organization may
+// model one operator's work VM as a GitHub Team named after them (found on the
+// first real canary, 2026-09-22). So a Team-bearing handover without assignment has none
 // (`null`) and the preset must be passed explicitly. Never guess from the Team
 // name, the Machine name, the hostname or the operator account.
 export type MachineAssignment = "operator" | "team" | "automation";
@@ -239,7 +238,9 @@ export function derivePreset(
 }
 
 // What the handover allows: a personal VM never takes an Organization preset
-// and vice versa; a workstation is always `local`.
+// and vice versa; a workstation is always `local`. A recorded preset is valid
+// within this allow-list, so no Folder becomes invalid when the choices
+// below narrow.
 export function allowedPresets(
   machine: MachineBinding | null,
 ): readonly PresetName[] {
@@ -249,11 +250,35 @@ export function allowedPresets(
   );
 }
 
+// What a NEW choice may take (issue #107). When the handover states
+// `owner.assignment`, the assignment decides the preset and nothing else is
+// offered: a Team Environment works in GitHub only through the Organization
+// bot (decision 0168), so an explicit Work or Steward preset there would
+// re-open a user-account sign-in, and likewise for the other two. Without a
+// stated assignment the choice stays the allow-list. `recorded`, the preset a
+// Folder already has, stays selectable when the allow-list admits it:
+// keeping it is not a new choice.
+export function selectablePresets(
+  machine: MachineBinding | null,
+  recorded: PresetName | null = null,
+): readonly PresetName[] {
+  const allowed = allowedPresets(machine);
+  if (
+    machine === null ||
+    machine.owner.kind !== "organization" ||
+    machine.owner.assignment === undefined
+  )
+    return allowed;
+  const derived = derivePreset(machine);
+  return allowed.filter((name) => name === derived || name === recorded);
+}
+
+// Records a new choice, which must be selectable.
 export function presetReference(
   name: PresetName,
   machine: MachineBinding | null,
 ): PresetReference {
-  if (!allowedPresets(machine).includes(name))
+  if (!selectablePresets(machine).includes(name))
     throw new Error("Workspace preset is not allowed by the Machine handover");
   return Object.freeze({
     name,
@@ -263,12 +288,14 @@ export function presetReference(
 }
 
 // Validates a stored or requested composition as a whole, before any mutation.
+// A stored preset is checked against the allow-list, never the narrower
+// selectable set: a Folder keeps the preset it recorded.
 export function validatePresetComposition(
-  reference: PresetReference,
+  name: PresetName,
   machine: MachineBinding | null,
   profile: FolderProfile,
 ): WorkspacePreset {
-  const preset = workspacePreset(reference.name);
+  const preset = workspacePreset(name);
   if (!allowedPresets(machine).includes(preset.name))
     throw new Error("Workspace preset is not allowed by the Machine handover");
   if (

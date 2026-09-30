@@ -603,6 +603,18 @@ test.skipIf(process.platform === "win32")(
         ...noChoices,
         preset: "hosted-organization-steward",
       });
+      // The refresh takes no preset from a handover that derives none; the
+      // choice between Organization presets there stays a profile change.
+      expect(
+        await refreshMachineFolder(
+          folder,
+          binding(organization),
+          "hosted-organization-team",
+        ),
+      ).toEqual({
+        code: 2,
+        result: { kind: "blocked", reason: "preset-not-allowed" },
+      });
       const operator = binding({
         ...organization,
         owner: { ...organization.owner, assignment: assignments.operator },

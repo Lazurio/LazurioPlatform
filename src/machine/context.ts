@@ -38,9 +38,15 @@ export type MachinePeer = Readonly<{
 export type MachineRelationships<Zone extends MachineZone = MachineZone> =
   Readonly<{ zone: Zone; peers: readonly MachinePeer[] }>;
 // Authored per guest in the owner Deployment Repo and copied by Machines, never
-// inferred. Only the Organization branch carries it.
+// inferred. Only the Organization branch carries it. `automation` (Machines
+// #277, decision 0169) names the responsible operator of an Automated
+// Environment with the operator's shape, never the persona.
 export type OrganizationAssignment =
-  | Readonly<{ kind: "operator"; github_login: string; github_id: number }>
+  | Readonly<{
+      kind: "operator" | "automation";
+      github_login: string;
+      github_id: number;
+    }>
   | Readonly<{ kind: "team" }>;
 // How the Machine is entered through its workspace gateway, rendered by
 // Machines from the same route catalog as the gateway (Machines 0.12.93).

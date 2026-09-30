@@ -8,7 +8,7 @@ import {
 } from "../folder/inspect-tools-change";
 import { withFolderReadLock } from "../folder/lock";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { allowedPresets } from "../folder/presets";
+import { selectablePresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
@@ -438,11 +438,16 @@ export async function startLaunchpad(
             readFolderState(state),
           );
           // The preset and the communication axes are changeable; the Machine
-          // binding is shown and never accepted back from the browser.
+          // binding is shown and never accepted back from the browser. The
+          // presets offered are those a change may end on: the recorded one
+          // and what the handover offers as a new choice (issue #107).
           return response({
             revision: current.preferences.revision,
             preset: current.preferences.preset,
-            allowedPresets: allowedPresets(current.preferences.machine),
+            allowedPresets: selectablePresets(
+              current.preferences.machine,
+              current.preferences.preset.name,
+            ),
             machine: current.preferences.machine,
             profile: current.preferences.profile,
             // The catalog tools agents may be told to use, with tier and

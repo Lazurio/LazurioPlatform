@@ -136,7 +136,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
   const preset = parsePresetReference(value.preset);
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
-  validatePresetComposition(preset, machine, profile);
+  validatePresetComposition(preset.name, machine, profile);
   return Object.freeze({
     schemaVersion: 2,
     revision: revision(value.revision),

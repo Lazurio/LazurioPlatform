@@ -15,7 +15,6 @@ import { manualEntries } from "./outputs";
 import {
   type PresetName,
   parsePresetName,
-  presetReference,
   presetVersion,
   validatePresetComposition,
   workspacePreset,
@@ -77,7 +76,7 @@ export function parseInstructionSource(input: unknown): InstructionSource {
   const preset = parsePresetName(value.preset);
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
-  validatePresetComposition(presetReference(preset, machine), machine, profile);
+  validatePresetComposition(preset, machine, profile);
   const tools = withTools ? parseEnabledTools(value.tools) : Object.freeze([]);
   const notes = withNotes
     ? parseToolNotes(value.toolNotes, tools)

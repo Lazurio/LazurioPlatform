@@ -19,9 +19,8 @@ import { ownDataValue, stateFields } from "./state-fields";
 // Organization presets differ on. `automation` is the Automated Environment
 // of decision 0169: the work VM of an Organization persona, with the one
 // responsible operator (an Owner or Admin of the Organization) named exactly
-// like `operator`. The vendored handover schema does not carry it yet; a
-// stored binding accepts it so that Platform is ready for the Machines change
-// and its re-pin. Any other kind fails closed.
+// like `operator`; the handover carries it since Machines #277. Any other
+// kind fails closed.
 export type MachineAssignment =
   | Readonly<{
       kind: "operator" | "automation";

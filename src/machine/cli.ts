@@ -7,11 +7,11 @@ import {
 import type { MachineBinding } from "../folder/machine-binding";
 import { executionOs } from "../folder/platform";
 import {
-  allowedPresets,
   derivePreset,
   type PresetName,
   parsePresetName,
   presetProfile,
+  selectablePresets,
 } from "../folder/presets";
 import { refreshFolder } from "../folder/update-profile";
 import { machineBinding } from "./binding";
@@ -34,18 +34,17 @@ machine folder-init [--preset <name>] [--locale <cs|en>]
 Initialize the declared operator's standard Lazurio Folder from the handover.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
 workspace-vm with owner.assignment operator -> hosted-organization-personal, team
--> hosted-organization-team, automation (not in the handover schema yet) ->
-hosted-organization-steward; without
-owner.assignment and without owner.team -> hosted-organization-personal). A
-workspace-vm handover with owner.team and no owner.assignment does not say
-whether the Remote Environment is assigned to one operator or shared, so it derives
-nothing: --preset hosted-organization-personal or --preset
-hosted-organization-team is required and recorded as an explicit choice. --preset may also pick another preset the handover allows: every workspace-vm allows
-hosted-organization-steward, the Automated Environment of an Organization
-persona (decision 0169), as an explicit choice until the handover carries
-owner.assignment automation. Omitted
-communication choices take the preset's defaults; all are changeable later in
-the Launchpad.
+-> hosted-organization-team, automation (the Automated Environment of an
+Organization persona, decision 0169) -> hosted-organization-steward; without
+owner.assignment and without owner.team -> hosted-organization-personal). When
+the handover states owner.assignment, --preset may name only the preset it
+derives. A workspace-vm handover with owner.team and no owner.assignment does
+not say whether the Remote Environment is assigned to one operator or shared, so
+it derives nothing: --preset with one of hosted-organization-personal,
+hosted-organization-team or hosted-organization-steward is required and
+recorded as an explicit choice; without owner.assignment --preset may pick any
+of these on a workspace-vm. Omitted communication choices take the preset's
+defaults; all are changeable later in the Launchpad.
 Adopts the existing Folder: organizations/ and personalspace/ may hold work
 and are never entered; launchpad.gen3.json and launchpad.gen3.local.json are
 tolerated; any other top-level entry is refused by name. Re-running on an
@@ -55,12 +54,14 @@ Run as the declared operator, never root. No path or custody override.
 No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
 missing/damaged journals require operator diagnosis, never blanket cleanup.
-machine folder-refresh
+machine folder-refresh [--preset <name>]
 Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
 current handover, keeping the recorded preset and profile. Run it as the
-declared operator after every handover rewrite and product update; it takes no
-options. A Folder rendered by an older template revision is re-rendered in full
-when every generated file still matches its recorded digest.
+declared operator after every handover rewrite and product update. --preset
+names the preset the handover now derives, to take it after
+preset-derivation-changed; no other preset is taken here. A Folder rendered by
+an older template revision is re-rendered in full when every generated file
+still matches its recorded digest.
 The Environment identity (kind, name, Owner, tailnet node, host) must be the one
 the Folder was adopted for; assignment, relationships and the document digest
 follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
@@ -70,8 +71,9 @@ exit 2, nothing written: folder-not-initialized (run folder-init first),
 folder-binding-changed, folder-state-unrecognized, folder-foreign-entry (a
 top-level entry the Folder does not own or tolerate), drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
-(the assignment now derives another preset: choose it with profile-update
---preset), template-upgrade-required (a newer product rendered the Folder;
+(the assignment now derives another preset: take it with folder-refresh
+--preset <the derived preset>), preset-not-allowed (--preset is not the
+preset the handover derives), template-upgrade-required (a newer product rendered the Folder;
 nothing is downgraded), or a machine-context-* code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
 profile-resume --folder <Folder> --target-revision <n>.`;
@@ -117,7 +119,11 @@ function parseMachineArguments(args: string[]) {
   const parsed = parseMachineTokens(options);
   const { values, tokens } = parsed;
   if (
-    (command !== "folder-init" && tokens.length !== 0) ||
+    (command === "inspect" && tokens.length !== 0) ||
+    (command === "folder-refresh" &&
+      tokens.some(
+        (token) => token.kind === "option" && token.name !== "preset",
+      )) ||
     tokens.some((token) => token.kind !== "option") ||
     new Set(tokens.map((token) => (token.kind === "option" ? token.name : "")))
       .size !== tokens.length
@@ -169,7 +175,7 @@ export async function runMachineCommand(args: string[]) {
     );
     const { code, result } =
       command === "folder-refresh"
-        ? await refreshMachineFolder(folder, machine)
+        ? await refreshMachineFolder(folder, machine, requestedPreset)
         : await initializeMachineFolder(folder, machine, {
             preset: requestedPreset,
             ...values,
@@ -214,16 +220,18 @@ export type FolderInitChoices = Readonly<{
 }>;
 
 // folder-init after the handover and the operator are bound. The preset is
-// --preset when given (within what the handover allows), else the derived one.
-// A handover that derives none (see machineAssignment) never gets a guess: an
-// already adopted Folder keeps the preset it has, anything else needs --preset.
+// --preset when given (within what the handover offers as a new choice: only
+// the derived one when it states owner.assignment, issue #107), else the
+// derived one. A handover that derives none (see machineAssignment) never gets
+// a guess: an already adopted Folder keeps the preset it has, anything else
+// needs --preset.
 export async function initializeMachineFolder(
   folder: string,
   machine: MachineBinding,
   choices: FolderInitChoices,
 ) {
   const derived = derivePreset(machine);
-  const allowed = allowedPresets(machine);
+  const allowed = selectablePresets(machine);
   const preset = choices.preset ?? derived;
   if (preset === null) {
     const adopted = await adoptedHandoverFolder(folder, machine);
@@ -270,9 +278,11 @@ export async function initializeMachineFolder(
 // folder-refresh after the handover and the operator are bound. The adoption
 // check refuses another Machine's or unrecognized state by name before the
 // update transaction; the planner checks the identity again under its lock.
+// `preset` is the preset the handover now derives, taken with it (#107).
 export async function refreshMachineFolder(
   folder: string,
   machine: MachineBinding,
+  preset: PresetName | undefined = undefined,
 ) {
   const adopted = await adoptedHandoverFolder(folder, machine);
   if (adopted === null)
@@ -284,7 +294,7 @@ export async function refreshMachineFolder(
         next: "Run lazurio machine folder-init first; nothing was created.",
       },
     };
-  const result = await refreshFolder(folder, machine);
+  const result = await refreshFolder(folder, machine, undefined, preset);
   return { code: result.kind === "blocked" ? 2 : 0, result };
 }
 

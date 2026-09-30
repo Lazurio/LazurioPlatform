@@ -1,6 +1,7 @@
 import { createCatalogPanel } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import { chatHref, chatPairLink, parseEntryAnswer } from "./chat-view";
+import { type AssignmentView, assignmentText } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
@@ -108,9 +109,7 @@ type MachineBinding = {
         kind: "organization";
         organization: string;
         team: string | null;
-        assignment?:
-          | { kind: "operator"; githubLogin: string; githubId: number }
-          | { kind: "team" };
+        assignment?: AssignmentView;
       };
   network: { headscaleHostname: string } | null;
   host: { kind: string; id: string };
@@ -119,6 +118,7 @@ type MachineBinding = {
 let current: {
   revision: number;
   preset: { name: string; version: number; selection: string };
+  // The presets a change may end on: the recorded one and the new choices.
   allowedPresets: string[];
   machine: MachineBinding | null;
   profile: Record<string, string>;
@@ -162,9 +162,7 @@ function machineRows(
   const assignment =
     binding.owner.kind === "organization" &&
     binding.owner.assignment !== undefined
-      ? binding.owner.assignment.kind === "team"
-        ? copy.machineAssignmentTeam
-        : `${binding.owner.assignment.githubLogin} (GitHub id ${binding.owner.assignment.githubId})`
+      ? assignmentText(binding.owner.assignment, copy)
       : null;
   return [
     ["machineKind", binding.kind],
