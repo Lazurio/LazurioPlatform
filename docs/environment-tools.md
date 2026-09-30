@@ -434,8 +434,8 @@ the repair with the operator's mandate. `tools status` reports
 nástroje" / "Where the tools live") so agents keep the layout when they add tools.
 
 **The Codex app-server daemon at boot (F29).** In a Remote Environment whose Launchpad
-is supervised (`lazurio install --service systemd-user` as the handover's declared
-operator), a second installer unit, `lazurio-codex-app-server.service`, runs the
+is supervised, every `lazurio install` and `lazurio update` run as the handover's
+declared operator ensures a second installer unit, `lazurio-codex-app-server.service`, runs the
 operator's own `~/.local/bin/codex app-server daemon start` at every boot, so a Codex
 client connecting over SSH finds the daemon without anyone starting it by hand. This
 is the one thing the Platform does with Codex beyond reporting it: it never installs,

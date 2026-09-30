@@ -4,11 +4,13 @@ import type { ToolRunner } from "../tools/status";
 import { writeDurableFile } from "./durable-file";
 import type { ProcessRunner } from "./self-check";
 import {
+  detectServiceControl,
   serviceCommandTimeoutMs,
   serviceEnvironment,
   systemctl,
   unitMarker,
   unitPath,
+  userUnitDirectory,
 } from "./service-control";
 
 /** The operator's Codex app-server daemon, started with a hosted Machine
@@ -69,9 +71,10 @@ export function renderCodexAppServerUnit(): string {
   ].join("\n");
 }
 
-/** What `lazurio install --service` did with the Codex unit. Never a reason
- * for the installation to fail: the Launchpad is installed and switched
- * whatever happens here, and `next` says what a person or agent does. */
+/** What `lazurio install` or `lazurio update` did with the Codex unit on a
+ * supervised installation. Never a reason for either to fail: the Launchpad
+ * is installed and switched whatever happens here, and `next` says what a
+ * person or agent does. */
 export type CodexAppServer =
   /** Written (or already identical), enabled and started; a missing Codex
    * skips only the start, by the unit's condition. */
@@ -135,6 +138,36 @@ export async function installCodexAppServer(
   if (!(await systemctl(command, "start", codexAppServerUnit)))
     return failed("start");
   return Object.freeze({ state: "enabled" });
+}
+
+/** The Platform converges its entry units itself (decision F29): whenever
+ * `lazurio install` (with or without `--service`) or `lazurio update` finds
+ * this base supervised — the Launchpad unit is the installer's unit of THIS
+ * base (`detectServiceControl`) — the Codex unit is ensured, if this process
+ * is the hosted operator. An installation without its Launchpad unit is left
+ * alone and the result has no `codexAppServer` (undefined here); `hosted` is
+ * asked only for a supervised base. A Machine delivered before this release
+ * so gets the unit from its next `install --base` or `update`, without
+ * `--service`. */
+export async function convergeEntryUnits(
+  input: Readonly<{
+    base: string;
+    platform: string;
+    env: Readonly<Record<string, string | undefined>>;
+    run: ProcessRunner;
+    hosted: () => Promise<boolean>;
+  }>,
+): Promise<CodexAppServer | undefined> {
+  const directory = userUnitDirectory(input.env);
+  if (input.platform !== "linux" || directory === undefined) return undefined;
+  const service = await detectServiceControl(input);
+  if (service === null) return undefined;
+  return installCodexAppServer({
+    directory,
+    hosted: await input.hosted().catch(() => false),
+    run: input.run,
+    env: input.env,
+  });
 }
 
 // ---- Observation, for `lazurio doctor` --------------------------------------

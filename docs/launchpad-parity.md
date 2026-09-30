@@ -487,7 +487,8 @@ Taken from F21 ([recovery mode](recovery-mode.md), F.1): `Restart=always`,
 PATH line of B2. `KillMode` stays the default: modules are separate transient units,
 so a Launchpad restart no longer stops them (A.4 #34). Nothing else is added; the port
 and host come from the Folder's entry. The operator's Codex app-server daemon has its
-own unit, written by the same `install --service` and independent of this one (F29).
+own unit, independent of this one, which the Platform converges on every install and
+update of a supervised hosted base (F29).
 
 ### B14. Worktree previews under a temporary hostname (P9, proposal)
 

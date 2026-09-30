@@ -1,5 +1,5 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
@@ -13,6 +13,10 @@ import {
   selfCheckCommand,
   versionCommand,
 } from "../src/update/cli";
+import {
+  codexAppServerUnit,
+  renderCodexAppServerUnit,
+} from "../src/update/codex-app-server";
 import { updateErrorCodes } from "../src/update/errors";
 import {
   developmentCommit,
@@ -20,12 +24,15 @@ import {
   embeddedIdentity,
   nativeTarget,
 } from "../src/update/identity";
+import { renderLaunchpadUnit } from "../src/update/install";
 import { layout } from "../src/update/layout";
-import { launchpadHealth } from "../src/update/service-control";
+import { runProcess } from "../src/update/self-check";
+import { launchpadHealth, launchpadUnit } from "../src/update/service-control";
 import {
   closeSharedSigstore,
   commitOf,
   createWorld,
+  fakeService,
   target,
   type World,
 } from "./fixtures/update-world";
@@ -310,3 +317,110 @@ test.skipIf(process.platform === "win32")(
     expect(await launchpadHealth(world.base)).toBeNull();
   },
 );
+
+// Decision F29: `lazurio update` converges the Codex app-server unit of a
+// supervised base in a Remote Environment, so an Environment switched before
+// this release gets it without --service; it never restarts or stops it.
+test("lazurio update converges the Codex app-server unit on a supervised hosted base, up to date or updated, and leaves an unsupervised base alone", async () => {
+  world = await createWorld();
+  await world.release("1.1.0");
+  const folder = join(world.root, "Lazurio");
+  await mkdir(folder);
+  const config = join(world.root, "config");
+  const units = join(config, "systemd", "user");
+  const commands: string[][] = [];
+  const service = fakeService(world.base, { folder });
+  const linux = (
+    running: string,
+    hostedFolder: () => Promise<string | undefined>,
+  ): CliContext => ({
+    ...context(running),
+    platform: "linux",
+    env: {
+      HOME: world.root,
+      XDG_DATA_HOME: world.root,
+      XDG_CONFIG_HOME: config,
+    },
+    run: async (command, timeoutMs, env) => {
+      if (command[0] !== "systemctl")
+        return runProcess(command, timeoutMs, env);
+      commands.push([...command]);
+      return { exitCode: 0, stdout: "" };
+    },
+    hostedFolder,
+    environment: world.environment(running, { service }),
+  });
+  const update = async (running: string, hosted = true) =>
+    JSON.parse(
+      (
+        await runUpdateCommand(
+          ["--base", world.base, "--json"],
+          linux(running, async () => (hosted ? folder : undefined)),
+        )
+      ).stdout ?? "",
+    );
+
+  // Unsupervised: no key, nothing written, the service manager not asked.
+  const unsupervised = await update("1.0.0");
+  expect(unsupervised).toMatchObject({ kind: "updated", to: "1.1.0" });
+  expect(Object.keys(unsupervised)).not.toContain("codexAppServer");
+  expect(commands).toEqual([]);
+  await expect(readdir(units)).rejects.toThrow();
+
+  // Supervised by this base's Launchpad unit, switched before this release.
+  await mkdir(units, { recursive: true });
+  await writeFile(
+    join(units, launchpadUnit),
+    renderLaunchpadUnit(world.base, folder),
+  );
+  expect(await update("1.1.0", false)).toMatchObject({
+    kind: "up-to-date",
+    codexAppServer: { state: "skipped-not-hosted" },
+  });
+  expect(commands).toEqual([]);
+  expect(await update("1.1.0")).toMatchObject({
+    kind: "up-to-date",
+    codexAppServer: { state: "enabled" },
+  });
+  expect(await readFile(join(units, codexAppServerUnit), "utf8")).toBe(
+    renderCodexAppServerUnit(),
+  );
+  expect(commands).toEqual([
+    ["systemctl", "--user", "daemon-reload"],
+    ["systemctl", "--user", "enable", codexAppServerUnit],
+    ["systemctl", "--user", "start", codexAppServerUnit],
+  ]);
+
+  // An update: the Launchpad restarts (its service), the Codex unit is only
+  // ensured again — identical text, no reload, never a restart or a stop.
+  await world.release("1.2.0");
+  commands.length = 0;
+  const restarts = service.restarts;
+  expect(await update("1.1.0")).toMatchObject({
+    kind: "updated",
+    from: "1.1.0",
+    to: "1.2.0",
+    codexAppServer: { state: "enabled" },
+  });
+  expect(service.restarts).toBe(restarts + 1);
+  expect(commands).toEqual([
+    ["systemctl", "--user", "enable", codexAppServerUnit],
+    ["systemctl", "--user", "start", codexAppServerUnit],
+  ]);
+
+  // A failing start is reported and the update is still a success.
+  const failing = await runUpdateCommand(["--base", world.base], {
+    ...linux("1.2.0", async () => folder),
+    run: async (command, timeoutMs, env) =>
+      command[0] === "systemctl" && command[2] === "start"
+        ? { exitCode: 1, stdout: "" }
+        : command[0] === "systemctl"
+          ? { exitCode: 0, stdout: "" }
+          : runProcess(command, timeoutMs, env),
+  });
+  expect(failing.code).toBe(0);
+  expect(failing.stdout).toContain("Lazurio 1.2.0 is up to date.");
+  expect(failing.stdout).toContain(
+    "The Codex app-server daemon is not set up to start with this Environment",
+  );
+});

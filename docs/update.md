@@ -460,11 +460,13 @@ standard tool path `~/.local/bin` first ([environment tools](environment-tools.m
 so the Launchpad and what it starts find Bun and the other tools there.
 
 **The Codex app-server unit ([F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)).**
-In a Remote Environment — the process is the declared operator of the Machine
-handover (`discoverHostedOperator` answers `hosted`) — `install --service
-systemd-user` also writes a second unit, so a Codex client connecting over SSH (the
-Codex app, for example) finds the operator's Codex app-server daemon after every boot
-without anyone starting it by hand:
+The Platform converges its entry units itself. Whenever `lazurio install` (with or
+without `--service`) or `lazurio update` (online, or offline through `install --base`)
+finds this base supervised — its Launchpad unit is this base's — in a Remote
+Environment — the process is the declared operator of the Machine handover
+(`discoverHostedOperator` answers `hosted`) — it ensures a second unit, so a Codex
+client connecting over SSH (the Codex app, for example) finds the operator's Codex
+app-server daemon after every boot without anyone starting it by hand:
 
 ```ini
 # Written by `lazurio install`; rewritten by it, so edit a drop-in instead.
@@ -497,19 +499,23 @@ no base and no Folder, so every installation renders the same bytes and the mark
 alone says it is the installer's; an unmarked file of that name (or a masked unit) is
 someone else's and is never rewritten, enabled or started.
 
-The step runs only after the Launchpad unit is enabled and started: the unit is
-written when its text differs (then `daemon-reload`), enabled and started; `install`
-and `update` never `restart` or `stop` it, because that would end live Codex sessions,
-and `start` of an active unit changes nothing. Nothing about it ever fails the
-installation or the Launchpad switch: `kind` and `serviceInstalled` mean what they
-meant, and with `--service` the result carries `codexAppServer` —
+The step runs only after the Launchpad unit is in place (on `update`, after a
+successful run, outside the lock): the unit is written when its text differs (then
+`daemon-reload`), enabled and started; `install` and `update` never `restart` or
+`stop` it, because that would end live Codex sessions, and `start` of an active unit
+changes nothing. Nothing about it ever fails the installation, the update or the
+Launchpad switch: `kind`, `serviceInstalled` (still only whether `--service` was
+given) and success mean what they meant. On a supervised base the result of
+`install` and of `update` (`updated` or `up-to-date`) carries `codexAppServer` —
 `{"state":"enabled"}`, `{"state":"skipped-not-hosted"}` (a workstation, or a hosted
 context that cannot be read, which `lazurio doctor` names), `{"state":"foreign-unit",
-"next"}` or `{"state":"failed","step":"unit"|"reload"|"enable"|"start","next"}`.
+"next"}` or `{"state":"failed","step":"unit"|"reload"|"enable"|"start","next"}`; a
+base without its Launchpad unit is left alone and its result has no such key. The
+first online update **to** the release that brings this runs the previous release's
+updater and converges nothing; the next `install --base` or update does.
 `lazurio doctor` reports the daemon as the fact `codex-app-server` (`ok`, `warn` or
 `skipped`, never `fail`; [doctor](launchpad-development.md#doctor)); `lazurio recover` and
-Recovery mode do not look at it. `lazurio update` does not write units: a Remote Environment gets this unit from
-the next `install --service`, which the Machines apply runs.
+Recovery mode do not look at it.
 
 ## Offline update
 

@@ -5,7 +5,7 @@ import type { AttestationVerifier } from "./attestation";
 import {
   type CodexAppServer,
   codexAppServerFailed,
-  installCodexAppServer,
+  convergeEntryUnits,
 } from "./codex-app-server";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
@@ -71,10 +71,10 @@ import { compareVersions } from "./version";
  * activation and floor as `lazurio update`, with the bytes coming from the
  * staged file instead of the network. It never goes below the floor.
  * Either way it ends by creating the standard entry `~/.local/bin/lazurio`
- * when it is missing or Lazurio's own (`path-entry.ts`). With the service on
- * a hosted Machine it also installs the unit that starts the operator's Codex
- * app-server daemon at boot (`codex-app-server.ts`, decision F29), which never
- * fails the installation.
+ * when it is missing or Lazurio's own (`path-entry.ts`). On a supervised base
+ * of a hosted Machine — with or without `--service` — it also converges the
+ * unit that starts the operator's Codex app-server daemon at boot
+ * (`codex-app-server.ts`, decision F29), which never fails the installation.
  */
 
 /** The PATH of the Launchpad and of everything it starts (`unitPath`). */
@@ -138,10 +138,11 @@ export type InstallInput = Readonly<{
   env: Readonly<Record<string, string | undefined>>;
   /** Present: install the systemd user service for this Folder. */
   service?: Readonly<{ folder: string }> | undefined;
-  /** This process is the declared operator of a Machine handover
-   * (`discoverHostedOperator` answers `hosted`). With `service`, the Codex
-   * app-server unit is installed too (decision F29). */
-  hosted?: boolean | undefined;
+  /** Whether this process is the declared operator of a Machine handover
+   * (`discoverHostedOperator` answers `hosted`); asked only when the base is
+   * supervised. Absent: not hosted. On a hosted supervised base the Codex
+   * app-server unit is converged (decision F29). */
+  hosted?: (() => Promise<boolean>) | undefined;
   run?: ProcessRunner | undefined;
   healthDeadlineMs?: number | undefined;
 }>;
@@ -158,7 +159,8 @@ export type InstallResult =
       serviceInstalled: boolean;
       /** `~/.local/bin/lazurio`; null without a home or on another OS. */
       entry: PathEntry | null;
-      /** Only with the service: what became of the Codex app-server unit. */
+      /** Only on a supervised base (its Launchpad unit is this base's): what
+       * became of the Codex app-server unit. */
       codexAppServer?: CodexAppServer;
     }>
   /** The offline update: a newer executable over an existing installation. */
@@ -429,7 +431,6 @@ async function install(input: InstallInput): Promise<InstallResult> {
   });
   const active = outcome.active;
 
-  let codexAppServer: CodexAppServer | undefined;
   if (unit !== undefined && unitDirectory !== undefined) {
     const command = { run: input.run ?? runProcess, env: input.env };
     try {
@@ -444,14 +445,16 @@ async function install(input: InstallInput): Promise<InstallResult> {
       !(await systemctl(command, "enable", "--now", launchpadUnit))
     )
       throw new UpdateFailure("activation-failed", { stage: "service" });
-    // Only after the Launchpad's unit is enabled and started, and whatever it
-    // answers, the installation stands.
-    codexAppServer = await installCodexAppServer({
-      directory: unitDirectory,
-      hosted: input.hosted === true,
-      ...command,
-    }).catch(() => codexAppServerFailed("unit"));
   }
+  // Only after the Launchpad's unit is in place, with or without `--service`,
+  // and whatever it answers, the installation stands.
+  const codexAppServer: CodexAppServer | undefined = await convergeEntryUnits({
+    base,
+    platform: input.platform,
+    env: input.env,
+    run: input.run ?? runProcess,
+    hosted: input.hosted ?? (async () => false),
+  }).catch(() => codexAppServerFailed("unit"));
   // Last, and never a reason to fail: the product is installed whatever
   // happens to its PATH entry, and the result says what it found.
   const entry = await ensurePathEntry({

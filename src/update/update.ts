@@ -7,6 +7,7 @@ import {
 import { instructionTemplateRevision } from "../folder/render";
 import { type ActivationStep, activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
+import { type CodexAppServer, codexAppServerFailed } from "./codex-app-server";
 import { type DownloadPolicy, downloadArtifact } from "./download";
 import {
   type ErrorContext,
@@ -70,6 +71,10 @@ export type UpdateEnvironment = Readonly<{
    * product's ("Folder refresh needed"). Reporting only: never written,
    * never a reason to refuse. */
   folder?: string | undefined;
+  /** After a successful run: converge the installer's entry units of a
+   * supervised hosted base (`convergeEntryUnits`, decision F29); undefined
+   * when there is nothing to converge. Absent: nothing is converged. */
+  entryUnits?: (() => Promise<CodexAppServer | undefined>) | undefined;
   run?: ProcessRunner | undefined;
   now?: (() => Date) | undefined;
   download?: Partial<DownloadPolicy> | undefined;
@@ -253,6 +258,8 @@ export type UpdateResult =
       running: string;
       latest: string;
       folderRefresh: FolderRefresh | null;
+      /** Supervised base only: the Codex app-server unit (decision F29). */
+      codexAppServer?: CodexAppServer;
     }>
   | Readonly<{
       kind: "updated";
@@ -262,6 +269,7 @@ export type UpdateResult =
       restartRequired: boolean;
       /** The Folder renders an older template revision than `to`. */
       folderRefresh: FolderRefresh | null;
+      codexAppServer?: CodexAppServer;
     }>
   | ErrorResult;
 
@@ -288,7 +296,25 @@ const runningRevision = async (
  * supervised, its Launchpad probe — before the switch; a failure removes it
  * and changes nothing. After the switch nothing is undone.
  */
-export const performUpdate = (
+export async function performUpdate(
+  environment: UpdateEnvironment,
+  exactVersion?: string,
+): Promise<UpdateResult> {
+  const result = await updateOnce(environment, exactVersion);
+  // After the run, outside the lock, as `lazurio install` does: the entry
+  // units of a supervised hosted base. Never a reason for the result to
+  // change; after a refusal nothing is converged.
+  if (result.kind === "error" || environment.entryUnits === undefined)
+    return result;
+  const codexAppServer = await environment
+    .entryUnits()
+    .catch(() => codexAppServerFailed("unit"));
+  return codexAppServer === undefined
+    ? result
+    : Object.freeze({ ...result, codexAppServer });
+}
+
+const updateOnce = (
   environment: UpdateEnvironment,
   exactVersion?: string,
 ): Promise<UpdateResult> =>

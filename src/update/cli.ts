@@ -15,6 +15,7 @@ import {
   sigstoreTrustedRoot,
 } from "./attestation";
 import { resolveInstallBase } from "./base";
+import { type CodexAppServer, convergeEntryUnits } from "./codex-app-server";
 import {
   exitFailure,
   exitOk,
@@ -37,7 +38,7 @@ import { installPrompt, readInstallFacts } from "./install-prompt";
 import { updateNotice } from "./last-check";
 import { layout } from "./layout";
 import { entryLinked, type PathEntry } from "./path-entry";
-import { type ProcessRunner, selfCheckReport } from "./self-check";
+import { type ProcessRunner, runProcess, selfCheckReport } from "./self-check";
 import {
   detectServiceControl,
   type ServiceControl,
@@ -73,12 +74,13 @@ install [--verify-release <directory>] [--service systemd-user --folder <absolut
   whether ~/.local/bin is on PATH and whether another lazurio resolves first.
   With --service (Linux) it writes, enables and starts
   the systemd user unit lazurio-launchpad.service for that Folder; the unit
-  restarts the Launchpad after every exit and never ends failed. In a Remote
-  Environment whose handover declares this account the operator it also
-  writes, enables and starts lazurio-codex-app-server.service, which runs the
-  operator's own codex app-server daemon start at boot; that step never
-  fails the installation and never stops or restarts a running daemon
-  (codexAppServer in --json).
+  restarts the Launchpad after every exit and never ends failed. Whenever
+  install or update finds this base supervised (its Launchpad unit is this
+  base's) in a Remote Environment whose handover declares this account the
+  operator, with or without --service, it also ensures
+  lazurio-codex-app-server.service, which runs the operator's own codex
+  app-server daemon start at boot; that step never fails the command and
+  never stops or restarts a running daemon (codexAppServer in --json).
 install prompt [--locale cs|en] [--json]
   The prepared prompt for an agent who straightens a non-standard
   installation: the standard layout on this platform, what was found instead,
@@ -203,6 +205,13 @@ const firstInstallVerifier =
     }
   };
 
+/** Whether this process is the declared operator of a Machine handover: the
+ * signal the Codex app-server unit is converged on (decision F29). An
+ * unreadable hosted context is not one; `lazurio doctor` names it. */
+const hostedOperator = (context: CliContext) => async () =>
+  context.hostedFolder !== undefined &&
+  (await context.hostedFolder().catch(() => undefined)) !== undefined;
+
 export async function updateEnvironment(
   context: CliContext,
   base: string,
@@ -228,6 +237,14 @@ export async function updateEnvironment(
     service,
     units: serviceUnits(context),
     folder: folder ?? service?.folder,
+    entryUnits: () =>
+      convergeEntryUnits({
+        base,
+        platform: context.platform,
+        env: context.env,
+        run: context.run ?? runProcess,
+        hosted: hostedOperator(context),
+      }),
     run: context.run,
     ...context.environment,
   });
@@ -412,6 +429,12 @@ async function firstStep(home: string, command: string): Promise<string[]> {
   ];
 }
 
+/** The Codex app-server unit in words, only when something needs a person. */
+const codexFinding = (value: CodexAppServer | undefined): string[] =>
+  value?.state === "foreign-unit" || value?.state === "failed"
+    ? [value.next]
+    : [];
+
 /** What a person reads after `lazurio install`: the verification, the
  * outcome, the command's PATH entry with whatever the operator or an agent
  * should do, and on a first installation the first step. */
@@ -459,10 +482,7 @@ async function installText(
       ? [
           "The Codex app-server daemon starts with this Environment (lazurio-codex-app-server.service).",
         ]
-      : result.codexAppServer?.state === "foreign-unit" ||
-          result.codexAppServer?.state === "failed"
-        ? [result.codexAppServer.next]
-        : []),
+      : codexFinding(result.codexAppServer)),
     ...(standard
       ? []
       : [
@@ -580,16 +600,6 @@ export async function runInstallCommand(
     )
       throw new UsageError(synopsis);
     const base = installBase(context, values.base);
-    // Asked only with the service: the Codex app-server unit is for the
-    // declared operator of a Machine handover. An unreadable hosted context
-    // is not one; `lazurio doctor` names it.
-    const hosted =
-      values.service !== undefined && context.hostedFolder !== undefined
-        ? await context.hostedFolder().then(
-            (folder) => folder !== undefined,
-            () => false,
-          )
-        : false;
     const result = await performInstall({
       base,
       executable: context.executable,
@@ -598,7 +608,7 @@ export async function runInstallCommand(
       env: context.env,
       service:
         values.folder === undefined ? undefined : { folder: values.folder },
-      hosted,
+      hosted: hostedOperator(context),
       release:
         directory === undefined
           ? undefined
@@ -733,11 +743,13 @@ export async function runUpdateCommand(
                 : ""
             }`,
             ...refresh(result.folderRefresh),
+            ...codexFinding(result.codexAppServer),
           ].join("\n")
         : result.kind === "up-to-date"
           ? [
               `Lazurio ${result.running} is up to date.`,
               ...refresh(result.folderRefresh),
+              ...codexFinding(result.codexAppServer),
             ].join("\n")
           : "",
     );
