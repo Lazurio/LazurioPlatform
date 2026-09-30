@@ -9,14 +9,18 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored byte-for-byte in `src/machine/lazurio-machine.v1.schema.json`
-from Machines **v0.12.93** (tag commit `ab84f387f517dd6bd06b2af2939a9a746a02533b`,
-the merge of pull request #243; SHA-256
-`1ccce08bd774aea62367085b13bb4afcc8c443f07a4b645f0ae7ebcd16aaf09d`), which adds the
-optional `entry` to the v0.12.61 schema and changes nothing else; its
-`origin_template` description says the reader substitutes the gateway label of a
-module id, never the id itself. The bytes at the tag equal the bytes of the PR head
-`63826c8` the pin was first taken from; a digest other than this one is a new
-re-pin, not a tag update. Adjacent
+from the head of Machines pull request **#277** (commit
+`504db74806c2da9f435722379c216453061cfeaa`, SHA-256
+`0313169bb859aa7ee8372a96425c44e6b113bdeb4bcbd0bd490de76630f6479a`), which adds the
+third `owner.assignment` kind `automation` to the v0.12.93 schema and changes nothing
+else. #277 is not merged or released yet, so the provenance names no version and no
+tag; the pin moves to its merge commit (and later tag) before a Platform release
+reads it, and a digest other than this one is a new re-pin. The previous pin was
+Machines **v0.12.93** (tag commit `ab84f387f517dd6bd06b2af2939a9a746a02533b`, the
+merge of pull request #243; SHA-256
+`1ccce08bd774aea62367085b13bb4afcc8c443f07a4b645f0ae7ebcd16aaf09d`), which added the
+optional `entry` to the v0.12.61 schema; its `origin_template` description says the
+reader substitutes the gateway label of a module id, never the id itself. Adjacent
 `schema-provenance.json` records the source version, pull request, commit, tag and
 byte digest, and a test fails when the vendored bytes drift from it. Changes
 originate in Machines, then the consumer is re-pinned and conformance tested. No runtime dependency on a private checkout. The test
@@ -41,14 +45,14 @@ for byte). Neither is part of the Machine identity: both follow the current hand
 through [`folder-refresh`](#refresh-after-a-handover-rewrite):
 
 - **`owner.assignment`** — Organization branch only; the personal branch refuses it.
-  `{kind: "operator", github_login, github_id}` or `{kind: "team"}`, authored per guest
-  in the owner Deployment Repo and copied by Machines, never inferred from names,
-  Team names or Team size. It is **the** selector between the Organization
-  presets. A third kind, `{kind: "automation", github_login, github_id}` (the
-  responsible operator of an Automated Environment, decision 0169), is accepted in a
-  stored binding and derives `hosted-organization-steward`; the vendored schema does
-  not carry it until Machines adds it and Platform re-pins, so a handover declaring it
-  is refused today ([workspace presets](workspace-presets.md#derived-from-the-handover-confirmed-or-explicitly-overridden)).
+  `{kind: "operator", github_login, github_id}`, `{kind: "team"}` or, since Machines
+  #277, `{kind: "automation", github_login, github_id}` (the responsible operator of
+  an Automated Environment, decision 0169, never the persona), authored per guest in
+  the owner Deployment Repo and copied by Machines, never inferred from names, Team
+  names or Team size. It is **the** selector between the Organization presets, and
+  when present the only preset a new choice may take is the one it derives
+  ([workspace presets](workspace-presets.md#derived-from-the-handover-confirmed-or-explicitly-overridden)).
+  The binding records `automation` as `{kind: "automation", githubLogin, githubId}`.
 - **`relationships`** — `{zone, peers[]}`: this Machine's tailnet peers from its own
   point of view, derived by Machines only from the home Conglomerate Host grants that
   name its Headscale node; omitted when the Deployment Repo declares no home
@@ -99,16 +103,18 @@ The handover has no selected-preset field and needs none. The
 [workspace preset](workspace-presets.md) is derived from its typed fields only:
 `personal-vm` → `hosted-personal`; `workspace-vm` with `owner.assignment.kind`
 `"operator"` → `hosted-organization-personal`, `"team"` → `hosted-organization-team`,
-`"automation"` (once the schema carries it) → `hosted-organization-steward`.
+`"automation"` → `hosted-organization-steward`.
 `owner.assignment` is the only selector between the Organization presets; when it
-is present nothing else is read. A `workspace-vm` handover **without** it proves only
+is present nothing else is read, and a new choice (`--preset`, a profile change, the
+Launchpad) may take only the derived preset; a preset the Folder already recorded
+stays valid (issue #107). A `workspace-vm` handover **without** it proves only
 one side: without `owner.team` it is one operator's (`hosted-organization-personal`,
 as before v0.12.61); with `owner.team` it is ambiguous, because an Organization may
 model one operator's VM as a Team named after them, and Platform derives no preset
 from it. Never from the Machine name, the hostname, the Team name or the operator
 account, and never from `relationships`. For such a handover the Machines resident
 role passes the preset from the owner infrastructure. `folder-init` records the
-derived preset, or an explicit `--preset` the handover allows, in the Environment
+derived preset, or an explicit `--preset` the handover offers, in the Environment
 configuration together with the **Machine binding** (kind, name, owner, team,
 assignment, tailnet node, host, relationships, entry and the handover digest).
 Machines does not rewrite the identity; a Folder adopted for a different Machine is
@@ -138,7 +144,7 @@ resident role passes the preset from the owner infrastructure, because the hando
 does not decide it:
 
 ```sh
-lazurio machine folder-init --preset <hosted-organization-personal|hosted-organization-team>
+lazurio machine folder-init --preset <hosted-organization-personal|hosted-organization-team|hosted-organization-steward>
 ```
 
 It reads the handover, derives the preset, adopts the Folder and prints one JSON
@@ -153,7 +159,9 @@ is the Team-bearing handover without `owner.assignment` and without `--preset` o
 not yet adopted Folder:
 `{"kind":"blocked","reason":"preset-ambiguous","allowed":["hosted-organization-personal","hosted-organization-team","hosted-organization-steward"],"next":…}`;
 a re-run on an adopted Folder is never ambiguous. Optional `--preset <name>` picks another preset the handover
-allows (recorded as an explicit choice); optional `--locale`, `--detail` and
+offers (recorded as an explicit choice): on a handover that states `owner.assignment`
+only the derived one, so any other is `preset-not-allowed` with `allowed` naming it;
+without it any preset of the machine kind; optional `--locale`, `--detail` and
 `--coordination` override the preset's defaults and stay changeable in the Launchpad.
 `lazurio machine inspect` prints the validated handover and its digest.
 
@@ -169,10 +177,12 @@ as the declared operator, after every handover write on a Machine whose Folder e
 lazurio machine folder-refresh
 ```
 
-It takes no options: the handover, the operator and the Folder are bound exactly as
-for `folder-init`, and no caller-held revision is needed because the refresh changes
-no choice of the Principal; it plans under the Folder lock from the revision it
-finds. It requires the same Machine identity (`folder-binding-changed` otherwise),
+The handover, the operator and the Folder are bound exactly as for `folder-init`, and
+no caller-held revision is needed: the refresh keeps the recorded choices and plans
+under the Folder lock from the revision it finds. Its one option, `--preset <name>`,
+takes the preset the current handover derives after `preset-derivation-changed`
+(below); it records that preset with the new binding in the same revision, as
+`derived`, and refuses any other preset with `preset-not-allowed` (issue #107). It requires the same Machine identity (`folder-binding-changed` otherwise),
 re-projects the binding from the current handover and plans with the recorded preset
 and profile through the one Folder change planner and transaction that
 `profile-update` uses: every owned output is checked against its recorded digest, all
@@ -187,7 +197,8 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
 | `{"kind":"blocked","reason":"folder-foreign-entry","entry":…}` | 2 | A top-level entry the Folder neither owns nor tolerates; refused by name before any journal is written |
-| `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; the Principal chooses it with `profile-update --preset` |
+| `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; take it with `lazurio machine folder-refresh --preset <derived preset>`. The profile change cannot: it plans against the recorded binding, which offers only the old preset |
+| `{"kind":"blocked","reason":"preset-not-allowed"}` | 2 | `--preset` is not the preset the current handover derives; nothing is written |
 | `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by a newer (or unknown) template revision than this product renders; nothing is downgraded, see below |
 | Machine context codes | 2 | As for `folder-init` |
 | stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
@@ -293,8 +304,9 @@ and no persona is rendered. The Owner line names the Team only under
 After a handover rewrite `folder-refresh` renders the current assignment and
 relationships ([refresh](#refresh-after-a-handover-rewrite)).
 The Launchpad shows the binding, including the assignment and a compact read-only
-list of the peers, and lets the Principal change the preset (within the allow-list)
-and the communication axes through the ordinary preview → apply flow.
+list of the peers, and lets the Principal change the preset (to the recorded one or a
+preset the handover offers as a new choice) and the communication axes through the
+ordinary preview → apply flow.
 
 ## The hosted entry (decision F16)
 
@@ -495,7 +507,12 @@ branch's zone, closed peer shapes) and the 0.12.93 `entry` on both branches (its
 projection into the binding, refusal of a port below 1024, an http origin or a
 module template whose first label is not the whole `{module}`, a changed entry
 recorded by the refresh, and the gateway's label of a module id: normalized,
-reserved and empty), preset derivation from the assignment, that a v0.12.59-shaped
+reserved and empty), the #277 `automation` assignment (a synthetic Automated
+Environment handover read as written, its refusals, its projection and round-trip
+through the binding, the responsible operator withheld from recovery evidence),
+preset derivation from the assignment and the narrowing of new choices to it
+(`folder-init --preset`, the profile change, the Launchpad offer, the refresh after a
+re-assignment, a recorded preset kept valid), that a v0.12.59-shaped
 handover still reads, projects and derives exactly as before, the
 rendered assignment and relationships, adoption (used work directories, legacy
 files, foreign entries, idempotence, the Personalspace conflict), directory
