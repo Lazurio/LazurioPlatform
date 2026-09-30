@@ -572,7 +572,11 @@ test.skipIf(process.platform === "win32")(
         JSON.stringify({
           kind: "blocked",
           reason: "preset-ambiguous",
-          allowed: ["hosted-organization-personal", "hosted-organization-team"],
+          allowed: [
+            "hosted-organization-personal",
+            "hosted-organization-team",
+            "hosted-organization-steward",
+          ],
           next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
         }),
       );
@@ -588,7 +592,11 @@ test.skipIf(process.platform === "win32")(
           kind: "blocked",
           reason: "preset-not-allowed",
           derived: null,
-          allowed: ["hosted-organization-personal", "hosted-organization-team"],
+          allowed: [
+            "hosted-organization-personal",
+            "hosted-organization-team",
+            "hosted-organization-steward",
+          ],
           next: "Choose a preset the handover allows; this handover derives none.",
         },
       });
@@ -624,6 +632,91 @@ test.skipIf(process.platform === "win32")(
           result: { kind: "already-adopted", revision: 1, preset: explicit },
         });
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(document);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Decision 0169: the Automated Environment. The `automation` assignment derives
+// the Steward preset; until Machines carries it (and Platform re-pins the
+// handover schema), the operator of a work VM chooses the preset explicitly on
+// today's handover. A personal VM never takes it.
+test.skipIf(process.platform === "win32")(
+  "folder-init derives the Steward preset from the automation assignment and takes it explicitly on today's work VM handover",
+  async () => {
+    for (const [machine, selection] of [
+      [bindings.automated, "derived"],
+      [bindings.assignedOperator, "explicit"],
+      [bindings.team, "explicit"],
+    ] as const) {
+      const { parent, folder } = await setup({
+        personalspace: "empty",
+        work: true,
+        legacy: true,
+      });
+      try {
+        const preset = {
+          name: "hosted-organization-steward",
+          version: 1,
+          selection,
+        } as const;
+        const choice =
+          selection === "derived"
+            ? noChoices
+            : { ...noChoices, preset: "hosted-organization-steward" as const };
+        expect(await initializeMachineFolder(folder, machine, choice)).toEqual({
+          code: 0,
+          result: { kind: "initialized", revision: 1, preset },
+        });
+        const document = await readFile(join(folder, "AGENTS.md"), "utf8");
+        expect(document).toContain("`hosted-organization-steward`");
+        expect(document).toContain(
+          "persona's own GitHub user account, a bot account",
+        );
+        expect(document).toContain("## Persona bot team");
+        const manual = await readFile(
+          join(folder, "manual", "this-machine.md"),
+          "utf8",
+        );
+        expect(manual).toContain("OMB_DEFAULT_BOT_CWD");
+        expect(manual).toContain("lazurio/teams/steward.openmaus.json");
+        expect(
+          await initializeMachineFolder(folder, machine, noChoices),
+        ).toEqual({
+          code: 0,
+          result: { kind: "already-adopted", revision: 1, preset },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+    // A used personalspace/ is refused as for every Organization preset, and a
+    // personal VM never takes the Steward preset; nothing is written.
+    const { parent, folder } = await setup({ personalspace: "used" });
+    try {
+      const before = await snapshot(folder);
+      expect(
+        await refusal(
+          initializeMachineFolder(folder, bindings.automated, noChoices),
+        ),
+      ).toEqual({ code: "personalspace-conflict", entry: "personalspace" });
+      expect(
+        await initializeMachineFolder(folder, bindings.personal, {
+          ...noChoices,
+          preset: "hosted-organization-steward",
+        }),
+      ).toEqual({
+        code: 2,
+        result: {
+          kind: "blocked",
+          reason: "preset-not-allowed",
+          derived: "hosted-personal",
+          allowed: ["hosted-personal"],
+          next: "Choose a preset the handover allows, or omit --preset for the derived one.",
+        },
+      });
+      expect(await snapshot(folder)).toEqual(before);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

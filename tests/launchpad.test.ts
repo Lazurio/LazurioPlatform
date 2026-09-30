@@ -343,6 +343,7 @@ test.skipIf(process.platform === "win32")(
         allowedPresets: [
           "hosted-organization-personal",
           "hosted-organization-team",
+          "hosted-organization-steward",
         ],
         machine: bindings.organization,
         profile: session.profile,
