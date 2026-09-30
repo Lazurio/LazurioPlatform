@@ -418,8 +418,9 @@ is `--folder`, the supervised unit's, or on a hosted Machine the declared operat
 (as for `lazurio update`). Exit status: 0 `ok`, 10 `attention` (a `warn`), 3 `broken`
 (a `fail`), 2 usage, 1 the command itself failed.
 
-**Read-only.** Doctor adds no check of its own: every answer comes from a reader the
-product already has, and none of them writes. The Folder's tool selection is read under
+**Read-only.** Doctor adds one check of its own, the operator's Codex app-server
+daemon of a Remote Environment (`codex-app-server`, F29); every other answer comes
+from a reader the product already has, and none of them writes. The Folder's tool selection is read under
 the Folder's read lock (`toolsOverview`) where its state is recognized, and without a
 lock otherwise, since taking the lock of a state without one would create it; nothing
 is fetched (`update-available` is the
@@ -459,6 +460,7 @@ characters escaped), Czech or English by the Folder's locale.
 | launchpad | `launchpad-unit` | `collectRecovery` unit (Linux, supervised) | `fail unit-*`; `skipped no-user-manager`, `not-supervised` |
 | launchpad | `launchpad-health` | `collectRecovery` health socket, `answer` normal/recovery/none/unexpected | `fail launchpad-recovery-mode`, `launchpad-not-answering`, `launchpad-version-mismatch` |
 | machine | `machine-entry` | the recorded binding's `entry` on a hosted preset | `warn entry-not-recorded`; `skipped not-hosted` |
+| machine | `codex-app-server` | `observeCodexAppServer` ([F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)): `systemctl --user show` of `lazurio-codex-app-server.service`, then, when it is active, `codex app-server daemon version` from `~/.local/bin/codex` (10 s, PATH and HOME only); never `fail`, never in `recover` | `ok` when active and Codex answers `running`; `warn daemon-not-running`, `warn daemon-state-unknown`, `warn unit-failed`, `unit-inactive`, `unit-not-loaded` (the next step is `systemctl --user start lazurio-codex-app-server.service`, or `lazurio install --service systemd-user --folder <Folder>` when the unit is missing); `skipped no-user-manager`, `not-supervised`, `not-hosted`, `codex-missing`, `user-manager-unreachable`, `unit-state-unknown` |
 
 **C.2 step 4.** The apply reads `lazurio doctor --json` and stops on any `fail`; for
 modules it keeps reading `lazurio module list --json`, since only the apply knows which

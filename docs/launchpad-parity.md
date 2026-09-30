@@ -486,7 +486,8 @@ Taken from F21 ([recovery mode](recovery-mode.md), F.1): `Restart=always`,
 `RestartSec=5`, start limit pinned so it never ends `failed`, no `OnFailure=`, the
 PATH line of B2. `KillMode` stays the default: modules are separate transient units,
 so a Launchpad restart no longer stops them (A.4 #34). Nothing else is added; the port
-and host come from the Folder's entry.
+and host come from the Folder's entry. The operator's Codex app-server daemon has its
+own unit, written by the same `install --service` and independent of this one (F29).
 
 ### B14. Worktree previews under a temporary hostname (P9, proposal)
 
@@ -634,7 +635,9 @@ Owned by Machines M2; each step names its readback.
    (`M:workloads/workspace-vm/README.md:875-880`).
 6. `<base>/bin/lazurio install --base <base> --service systemd-user --folder <home>/Lazurio --json`
    with `XDG_RUNTIME_DIR` set (`M:…/workspace_services/tasks/main.yml:67-68` already
-   does it for its units). It writes and starts the unit on the entry port.
+   does it for its units). It writes and starts the unit on the entry port, and then
+   the operator's Codex app-server unit (F29, [machine handover](machine-handover.md#the-codex-app-server-unit-f29)),
+   which never fails this step; its `codexAppServer` result is a readback fact.
 7. Gateway: the `launchpad` route becomes a snippet with admission and the internal
    deny, **without** `header_up Host` and **without** cookie stripping; the `ensure`
    subrequest sends `Host: launchpad.<vm>.<org>…` (B5); the static Recovery page of

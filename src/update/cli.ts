@@ -73,7 +73,12 @@ install [--verify-release <directory>] [--service systemd-user --folder <absolut
   whether ~/.local/bin is on PATH and whether another lazurio resolves first.
   With --service (Linux) it writes, enables and starts
   the systemd user unit lazurio-launchpad.service for that Folder; the unit
-  restarts the Launchpad after every exit and never ends failed.
+  restarts the Launchpad after every exit and never ends failed. In a Remote
+  Environment whose handover declares this account the operator it also
+  writes, enables and starts lazurio-codex-app-server.service, which runs the
+  operator's own codex app-server daemon start at boot; that step never
+  fails the installation and never stops or restarts a running daemon
+  (codexAppServer in --json).
 install prompt [--locale cs|en] [--json]
   The prepared prompt for an agent who straightens a non-standard
   installation: the standard layout on this platform, what was found instead,
@@ -450,6 +455,14 @@ async function installText(
         ? [`Put ${result.path} on your PATH.`]
         : []),
     ...(entry?.next ?? []),
+    ...(result.codexAppServer?.state === "enabled"
+      ? [
+          "The Codex app-server daemon starts with this Environment (lazurio-codex-app-server.service).",
+        ]
+      : result.codexAppServer?.state === "foreign-unit" ||
+          result.codexAppServer?.state === "failed"
+        ? [result.codexAppServer.next]
+        : []),
     ...(standard
       ? []
       : [
@@ -567,6 +580,16 @@ export async function runInstallCommand(
     )
       throw new UsageError(synopsis);
     const base = installBase(context, values.base);
+    // Asked only with the service: the Codex app-server unit is for the
+    // declared operator of a Machine handover. An unreadable hosted context
+    // is not one; `lazurio doctor` names it.
+    const hosted =
+      values.service !== undefined && context.hostedFolder !== undefined
+        ? await context.hostedFolder().then(
+            (folder) => folder !== undefined,
+            () => false,
+          )
+        : false;
     const result = await performInstall({
       base,
       executable: context.executable,
@@ -575,6 +598,7 @@ export async function runInstallCommand(
       env: context.env,
       service:
         values.folder === undefined ? undefined : { folder: values.folder },
+      hosted,
       release:
         directory === undefined
           ? undefined

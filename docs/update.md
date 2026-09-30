@@ -459,6 +459,58 @@ manager-wide default). There is no `OnFailure=`. `PATH` puts the operator's
 standard tool path `~/.local/bin` first ([environment tools](environment-tools.md#the-standard-path-decision-0161-point-6)),
 so the Launchpad and what it starts find Bun and the other tools there.
 
+**The Codex app-server unit ([F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)).**
+In a Remote Environment — the process is the declared operator of the Machine
+handover (`discoverHostedOperator` answers `hosted`) — `install --service
+systemd-user` also writes a second unit, so a Codex client connecting over SSH (the
+Codex app, for example) finds the operator's Codex app-server daemon after every boot
+without anyone starting it by hand:
+
+```ini
+# Written by `lazurio install`; rewritten by it, so edit a drop-in instead.
+[Unit]
+Description=Codex app-server daemon (operator's Codex)
+ConditionFileIsExecutable=%h/.local/bin/codex
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+KillMode=process
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.local/bin/codex app-server daemon start
+ExecStop=-%h/.local/bin/codex app-server daemon stop
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target
+```
+
+It runs the operator's own Codex from its standard entry: `daemon start` detaches the
+daemon and exits, and the unit stays `active` for what it started. Codex — binary,
+version, updater, configuration, sign-in — stays the operator's (root decision 0161):
+the Platform never installs, updates or reconfigures it. Without Codex the condition
+skips the start and nothing fails. `KillMode=process` leaves the daemon's processes to
+Codex's own `daemon stop`; there is no `Restart=` (Codex supervises its daemon), no
+`PrivateTmp=` (the daemon's socket lives under `/tmp`, where a client session of the
+same account must find it) and no ordering against the Launchpad unit. The unit names
+no base and no Folder, so every installation renders the same bytes and the marker
+alone says it is the installer's; an unmarked file of that name (or a masked unit) is
+someone else's and is never rewritten, enabled or started.
+
+The step runs only after the Launchpad unit is enabled and started: the unit is
+written when its text differs (then `daemon-reload`), enabled and started; `install`
+and `update` never `restart` or `stop` it, because that would end live Codex sessions,
+and `start` of an active unit changes nothing. Nothing about it ever fails the
+installation or the Launchpad switch: `kind` and `serviceInstalled` mean what they
+meant, and with `--service` the result carries `codexAppServer` —
+`{"state":"enabled"}`, `{"state":"skipped-not-hosted"}` (a workstation, or a hosted
+context that cannot be read, which `lazurio doctor` names), `{"state":"foreign-unit",
+"next"}` or `{"state":"failed","step":"unit"|"reload"|"enable"|"start","next"}`.
+`lazurio doctor` reports the daemon as the fact `codex-app-server` (`ok`, `warn` or
+`skipped`, never `fail`; [doctor](launchpad-development.md#doctor)); `lazurio recover` and
+Recovery mode do not look at it. `lazurio update` does not write units: a Remote Environment gets this unit from
+the next `install --service`, which the Machines apply runs.
+
 ## Offline update
 
 A Machine delivered by Machines receives the Platform from a custody-staged,
@@ -476,7 +528,8 @@ high-water mark is raised; a supervised Launchpad that does not report the new
 version is `activation-unhealthy`, exactly as for `lazurio update`. The supervisor is
 the installer-written unit if there is one; with a foreign unit or none nothing is
 restarted and `restartRequired` is true. The result is `{"kind":"updated","from",
-"to","restartRequired","path","serviceInstalled"}`. The same version again is
+"to","restartRequired","path","serviceInstalled"}` (with `--service` also
+`codexAppServer`, above). The same version again is
 `installed` and changes nothing; a version lower than the active one or below the
 high-water mark is refused as `release-invalid` (`reason: "below-floor"`), so a stale
 pin can never downgrade a Machine and there is no force. The mark is the floor even

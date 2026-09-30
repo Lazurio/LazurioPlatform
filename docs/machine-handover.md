@@ -454,11 +454,12 @@ From the first release without rollback (the change of 2026-09-28 in
   there is no `<base>/previous` link and `update status --json` has no `previous`
   field (it has `legacyRollbackState` until the first `install` or `update` of a
   release without rollback removed what an older release left).
-- **No rollback unit.** `lazurio install --service systemd-user` writes only
+- **No rollback unit.** `lazurio install --service systemd-user` writes
   `lazurio-launchpad.service` (`Restart=always`, `RestartSec=5`, no start rate
-  limit, no `OnFailure=`, `PATH` with `~/.local/bin` first) and removes a
+  limit, no `OnFailure=`, `PATH` with `~/.local/bin` first) and, on a hosted Machine,
+  `lazurio-codex-app-server.service` (below), and removes a
   `lazurio-rollback.service` it wrote earlier. The role does not pass `--service`
-  today, so its Machines have neither unit.
+  today, so its Machines have none of these units.
 - **Never run `lazurio update rollback`.** The command no longer exists (usage
   error, exit 2), and no executable of an earlier version may be copied or
   selected by hand. "Its owner rolled back" is no longer a reason for `ahead`:
@@ -468,6 +469,30 @@ From the first release without rollback (the change of 2026-09-28 in
   old updater** (the installed `v0.1.x`): it records `previous` and may switch back
   if the new release's Launchpad is unhealthy. The first `install` or `update` the
   new release runs removes that state.
+
+### The Codex app-server unit (F29)
+
+With the Launchpad switch (C.2 step 6 of [Launchpad parity](launchpad-parity.md#c2-the-apply-in-order))
+`install --service systemd-user` writes **two** units on a hosted Machine: the
+Launchpad's and `lazurio-codex-app-server.service`, which runs the operator's own
+`~/.local/bin/codex app-server daemon start` at boot so a Codex client connecting over
+SSH (the Codex app, for example) finds the daemon ([product update](update.md#state-on-disk),
+[F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)).
+"Hosted" is the handover the role writes: the unit is written only when the process
+is the declared operator of a readable handover. The second unit never blocks: it is
+written after the Launchpad unit is enabled and started, and whatever becomes of it —
+no Codex yet (the unit's condition skips the start), a unit of that name the installer
+did not write (left unchanged), a failing `enable` or `start` — the result is still
+`installed` or `updated` with `serviceInstalled: true`, and `codexAppServer` says what
+happened (`enabled`, `skipped-not-hosted`, `foreign-unit` with `next`, `failed` with
+`step` and `next`). The role records `foreign-unit` and `failed` as findings, never
+retries with force and never writes, masks, restarts or stops the unit itself: a
+restart ends the operator's live Codex sessions. Codex stays the operator's
+([environment tools](environment-tools.md#operator-tools-are-the-operators-decision-0161-f17));
+the role never installs or updates it for this unit. The readback lists both units
+(`systemctl --user is-enabled` / `is-active` of each) and reads `lazurio doctor --json`,
+where `codex-app-server` is `ok`, `warn` or `skipped` and never `fail`, so it never
+stops the C.2 preflight.
 
 ## Bounded diagnosis and repair
 
