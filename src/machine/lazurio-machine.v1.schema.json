@@ -100,7 +100,7 @@
       }
     },
     "organization_assignment": {
-      "description": "Explicit assignment of an Organization work VM, authored per guest in the owner Deployment Repo and never inferred from names, Team names or Team size: one individual operator, or a shared Team. Omitted when the owner declares none; consumers then must not guess.",
+      "description": "Explicit assignment of an Organization work VM, authored per guest in the owner Deployment Repo and never inferred from names, Team names or Team size: one individual operator, a shared Team, or an Automated Environment (decision 0169) named by its one responsible operator, never by its persona. Omitted when the owner declares none; consumers then must not guess. It grants nothing.",
       "oneOf": [
         {
           "type": "object",
@@ -117,6 +117,16 @@
           "additionalProperties": false,
           "required": ["kind"],
           "properties": { "kind": { "const": "team" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "github_login", "github_id"],
+          "properties": {
+            "kind": { "const": "automation" },
+            "github_login": { "type": "string", "maxLength": 39, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+            "github_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+          }
         }
       ]
     },
