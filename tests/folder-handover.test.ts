@@ -24,6 +24,7 @@ import { updateProfile } from "../src/folder/update-profile";
 import {
   describeFolderAdoption,
   initializeMachineFolder,
+  refreshMachineFolder,
 } from "../src/machine/cli";
 import { bindings, workRelationships } from "./fixtures/machine-bindings";
 
@@ -790,6 +791,61 @@ test.skipIf(process.platform === "win32")(
       } finally {
         await rm(parent, { recursive: true, force: true });
       }
+    }
+  },
+);
+
+// Issue #107, review of #110: rerunning the command that adopted a Folder is
+// no new preset choice. A Folder adopted with an explicit preset before its
+// handover stated an assignment keeps that preset, and the same folder-init
+// reports it as adopted instead of refusing it; nothing is written.
+test.skipIf(process.platform === "win32")(
+  "folder-init rerun on a Folder whose explicit preset is no longer offered reports it adopted",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      const preset = "hosted-organization-steward" as const;
+      const explicit = {
+        name: preset,
+        version: 1,
+        selection: "explicit",
+      } as const;
+      expect(
+        await initializeMachineFolder(folder, bindings.team, {
+          ...noChoices,
+          preset,
+        }),
+      ).toEqual({
+        code: 0,
+        result: { kind: "initialized", revision: 1, preset: explicit },
+      });
+      // The owner now states the operator assignment; the refresh keeps the
+      // recorded explicit preset.
+      expect(
+        await refreshMachineFolder(folder, bindings.assignedOperator),
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 2 } });
+      const before = await snapshot(folder);
+      const adopted = {
+        kind: "already-adopted",
+        revision: 2,
+        preset: explicit,
+      } as const;
+      expect(
+        await initializeMachineFolder(folder, bindings.assignedOperator, {
+          ...noChoices,
+          preset,
+        }),
+      ).toEqual({ code: 0, result: adopted });
+      expect(
+        await initializeHandoverFolder(folder, {
+          preset,
+          machine: bindings.assignedOperator,
+          profile: presetProfile(preset, executionOs(process.platform)),
+        }),
+      ).toEqual(adopted);
+      expect(await snapshot(folder)).toEqual(before);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
     }
   },
 );

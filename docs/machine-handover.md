@@ -107,7 +107,8 @@ The handover has no selected-preset field and needs none. The
 `owner.assignment` is the only selector between the Organization presets; when it
 is present nothing else is read, and a new choice (`--preset`, a profile change, the
 Launchpad) may take only the derived preset; a preset the Folder already recorded
-stays valid (issue #107). A `workspace-vm` handover **without** it proves only
+stays valid, and rerunning the `folder-init` that adopted the Folder reports it
+`already-adopted` instead of refusing that preset (issue #107). A `workspace-vm` handover **without** it proves only
 one side: without `owner.team` it is one operator's (`hosted-organization-personal`,
 as before v0.12.61); with `owner.team` it is ambiguous, because an Organization may
 model one operator's VM as a Team named after them, and Platform derives no preset

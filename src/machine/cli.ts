@@ -7,6 +7,7 @@ import {
 import type { MachineBinding } from "../folder/machine-binding";
 import { executionOs } from "../folder/platform";
 import {
+  allowedPresets,
   derivePreset,
   type PresetName,
   parsePresetName,
@@ -246,7 +247,13 @@ export async function initializeMachineFolder(
       },
     };
   }
-  if (!allowed.includes(preset))
+  if (!allowed.includes(preset)) {
+    // Rerunning the command that adopted this Folder is no new choice: a
+    // preset the handover still allows reports the adopted Folder (#107).
+    if (allowedPresets(machine).includes(preset)) {
+      const adopted = await adoptedHandoverFolder(folder, machine);
+      if (adopted) return { code: 0, result: adopted };
+    }
     return {
       code: 2,
       result: {
@@ -260,6 +267,7 @@ export async function initializeMachineFolder(
             : "Choose a preset the handover allows, or omit --preset for the derived one.",
       },
     };
+  }
   const profile = presetProfile(preset, executionOs(process.platform), {
     ...(choices.locale === undefined ? {} : { locale: choices.locale }),
     ...(choices.detail === undefined ? {} : { detail: choices.detail }),
