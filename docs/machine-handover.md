@@ -9,13 +9,13 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored byte-for-byte in `src/machine/lazurio-machine.v1.schema.json`
-from the head of Machines pull request **#277** (commit
-`504db74806c2da9f435722379c216453061cfeaa`, SHA-256
+from the merge of Machines pull request **#277** into `main` (commit
+`e41eb68453f3f8a6568f99c523aeaaf8cfa5ea0a`, SHA-256
 `0313169bb859aa7ee8372a96425c44e6b113bdeb4bcbd0bd490de76630f6479a`), which adds the
 third `owner.assignment` kind `automation` to the v0.12.93 schema and changes nothing
-else. #277 is not merged or released yet, so the provenance names no version and no
-tag; the pin moves to its merge commit (and later tag) before a Platform release
-reads it, and a digest other than this one is a new re-pin. The previous pin was
+else. No Machines release carries it yet, so the provenance names no version and no
+tag; the first release that does may add them with the same digest, and a digest
+other than this one is a new re-pin. The previous pin was
 Machines **v0.12.93** (tag commit `ab84f387f517dd6bd06b2af2939a9a746a02533b`, the
 merge of pull request #243; SHA-256
 `1ccce08bd774aea62367085b13bb4afcc8c443f07a4b645f0ae7ebcd16aaf09d`), which added the
