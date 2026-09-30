@@ -2437,3 +2437,55 @@ re-render every Folder for no change in content. The user-facing text says
 | `owner.assignment` `{kind: "automation", github_login, github_id}` of the responsible operator (selected) | Same shape as `operator`, one selector, fail closed on unknown kinds; needs a Machines schema change and a re-pin |
 | Allow the Steward preset only on an `automation` handover | Nothing to choose until Machines ships, and a work VM re-assigned from a Team to `automation` could not reach the preset through the change path (the old binding would refuse it); rejected for the kind-wide allow-list that F10 already uses |
 | Configure Lazurio MausBot from Platform (write its environment or unit) | A second supervisor and a writer outside the Folder; Machines runs the service today; rejected: the preset declares, the service applies |
+
+## F28 — Towards people the place they work in is the Environment; a hosted one is a Remote Environment
+
+**Decided by the Principal 2026-09-29 (issue #99).** What people read calls the place
+where they and their agents work the **Environment**, and a hosted one a **Remote
+Environment**. The words "Mašina", "Machine" (as the thing a person works in), "VM" and
+"server" are not used towards people. The reason is recognition: people know "Remote
+Environment" from the tools they already use (Codex and T3 Code name a hosted workspace
+that way, F16), and understand it better than "Machine", which in this project is a
+defined architectural term.
+
+1. **Czech.** The word stays unchanged and is masculine: *ten Environment*, *tento
+   (tenhle) Environment*, *na tomto (tomhle) Environmentu*, *Remote Environment*
+   (*osobní Remote Environment*, *pracovní Remote Environment*, *týmový Remote
+   Environment*). Texts that already treated it as neuter (*tohle Environment je
+   sdílené*) follow the masculine form.
+2. **Where it applies.** Every user-facing string of the Launchpad in both locales
+   (`src/launchpad/messages.ts` and the page's own fallback text), the human output and
+   help text of the CLI, the prompts a person copies for an agent, and the instructions
+   the Platform generates into the Folder (`AGENTS.md` and `manual/`, every preset, both
+   locales). The generated `AGENTS.md` carries one short rule that tells agents to say
+   Environment and Remote Environment to people and never Mašina, VM or server
+   (`environmentWording` in `src/folder/render.ts`); the template revision is
+   `base-instructions-15`. The manual defines **Machine** once, as the technical term,
+   in its glossary and in the boundary bullet of `manual/lazurio.md`.
+3. **Where "Machine" stays.** Machine remains the technical term for the runtime,
+   security and recovery boundary an Environment runs on (0144, 0153). Identifiers, JSON
+   keys, machine-readable values, command names (`lazurio machine inspect`,
+   `lazurio machine folder-refresh`), flags, file names (`manual/this-machine.md`,
+   `lazurio.machine.json`), schemas (`lazurio.machine.v1`), custody, `ARCHITECTURE.md`
+   and these decision records keep it. Where help text must name such a command, the
+   command stays and the prose around it says Environment. The hosting product keeps its
+   name, Lazurio Machines; in prose its operator is the hosting operator.
+4. **A guard.** `tests/environment-wording.test.ts` scans the message catalog in both
+   locales, the page's text, the prepared prompts and the generated Folder instructions
+   and manual of every preset and locale for "Mašin", "VM" and "Machine" as a noun. Its
+   allowlist is short and explained: the wording rule itself, code spans (commands,
+   paths, identifiers), the bold defined term **Machine**, the product name Lazurio
+   Machines, the name of the principle "Human and Machine", and the Czech word
+   *mašinérie* (machinery).
+
+**Not covered.** Renaming identifiers, JSON keys, commands, schema fields, file names
+or the architecture's term is a separate decision, because other products read those
+contracts. Docs that are architecture or decision records keep "Machine"; user guides
+may follow this wording when they are next edited.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep "Machine" / "Mašina" towards people | A defined architectural term people do not recognize; rejected by the Principal |
+| Czech "prostředí" / "vzdálené prostředí" | A common word that does not read as a name; not chosen by the Principal, so Czech and English texts name the same thing |
+| Rename the identifiers, commands and schemas too | Changes contracts other products read; a separate decision |
+| "Environment" and "Remote Environment" in what people read, "Machine" as the technical term, guarded by a test (selected) | People read one familiar word; contracts stay; regressions are caught |

@@ -362,7 +362,7 @@ test("install prompt reads the installation, writes nothing and names every devi
   });
   const text = (await prompt({ PATH: legacy })).stdout ?? "";
   expect(text).toStartWith(
-    "Task: straighten the Lazurio installation on this Machine to the standard.",
+    "Task: straighten the Lazurio installation in this Environment to the standard.",
   );
   expect(text).toContain(
     `Another program named lazurio resolves first on PATH: ${join(legacy, "lazurio")}`,

@@ -146,8 +146,8 @@ export function installPrompt(
   const run = shellWord(selector);
   const pick = (text: Text) => text[locale];
   const standard: Text = {
-    cs: `Standardní instalace Lazuria na téhle Mašině (${platform}): instalační základna ${base} drží nainstalované verze a selektor ${selector}, odkaz na aktivní verzi; příkaz ${entry.path} je symbolický odkaz na ten selektor; ${directory} je v PATH operátora a žádný jiný program jménem lazurio se v PATH nenajde dřív. Lazurio se instaluje jednopříkazovým instalátorem (install.sh) nebo \`lazurio install\` a aktualizuje výhradně příkazem \`lazurio update\`.`,
-    en: `The standard Lazurio installation on this Machine (${platform}): the install base ${base} holds the installed versions and the selector ${selector}, a link to the active version; the command ${entry.path} is a symbolic link to that selector; ${directory} is on the operator's PATH and no other program named lazurio resolves before it. Lazurio is installed by the one-command installer (install.sh) or \`lazurio install\` and updated only with \`lazurio update\`.`,
+    cs: `Standardní instalace Lazuria na tomhle Environmentu (${platform}): instalační základna ${base} drží nainstalované verze a selektor ${selector}, odkaz na aktivní verzi; příkaz ${entry.path} je symbolický odkaz na ten selektor; ${directory} je v PATH operátora a žádný jiný program jménem lazurio se v PATH nenajde dřív. Lazurio se instaluje jednopříkazovým instalátorem (install.sh) nebo \`lazurio install\` a aktualizuje výhradně příkazem \`lazurio update\`.`,
+    en: `The standard Lazurio installation in this Environment (${platform}): the install base ${base} holds the installed versions and the selector ${selector}, a link to the active version; the command ${entry.path} is a symbolic link to that selector; ${directory} is on the operator's PATH and no other program named lazurio resolves before it. Lazurio is installed by the one-command installer (install.sh) or \`lazurio install\` and updated only with \`lazurio update\`.`,
   };
   const state: Text =
     facts.deviations.length === 0
@@ -171,8 +171,8 @@ export function installPrompt(
         };
   return [
     pick({
-      cs: "Úkol: srovnej instalaci Lazuria na téhle Mašině do standardní podoby. Pravidlo operátora: Lazurio je na každém Environmentu nainstalované přesně standardně; odchylku nahlásíš a srovnáš podle tohohle postupu, nikdy ji potichu nepřepíšeš a nikdy ji nenecháš jako podporovanou variantu.",
-      en: "Task: straighten the Lazurio installation on this Machine to the standard. The operator's rule: Lazurio is installed exactly the standard way on every Environment; a deviation is reported and straightened by this procedure, never silently overwritten and never kept as a supported variant.",
+      cs: "Úkol: srovnej instalaci Lazuria na tomhle Environmentu do standardní podoby. Pravidlo operátora: Lazurio je na každém Environmentu nainstalované přesně standardně; odchylku nahlásíš a srovnáš podle tohohle postupu, nikdy ji potichu nepřepíšeš a nikdy ji nenecháš jako podporovanou variantu.",
+      en: "Task: straighten the Lazurio installation in this Environment to the standard. The operator's rule: Lazurio is installed exactly the standard way in every Environment; a deviation is reported and straightened by this procedure, never silently overwritten and never kept as a supported variant.",
     }),
     pick(standard),
     pick(state),

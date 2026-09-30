@@ -89,7 +89,7 @@ test("the prompt in English: task, evidence, mandate, never, proof, GitHub, stop
   );
   const paragraphs = prompt.split("\n\n");
   expect(paragraphs[0]).toBe(
-    "**Task:** Lazurio on this Machine needs a repair (check `update-state-invalid`, code `state-invalid`, detected 2026-09-28T10:00:00.000Z). Repair it forward. When you cannot, file everything needed for a fixed release as a GitHub Issue.",
+    "**Task:** Lazurio in this Environment needs a repair (check `update-state-invalid`, code `state-invalid`, detected 2026-09-28T10:00:00.000Z). Repair it forward. When you cannot, file everything needed for a fixed release as a GitHub Issue.",
   );
   expect(prompt).toContain(
     `\`\`\`json\n${readableJson({ ...evidence, journal: undefined })}\n\`\`\``,
@@ -121,7 +121,7 @@ test("the prompt in English: task, evidence, mandate, never, proof, GitHub, stop
   expect(prompt).toContain("root decision 0163");
   // Tier 2 stays here: the journal reaches the issue only as a comment.
   expect(paragraphs[9]).toContain(
-    "The body carries structured fields only. `evidence.journal` (the sanitized tail of the Launchpad's journal) and any other free text stay on this Machine: you may attach them to the issue only as a comment, after you have read them yourself and judged them public-safe; never in the body you create the issue with.",
+    "The body carries structured fields only. `evidence.journal` (the sanitized tail of the Launchpad's journal) and any other free text stay in this Environment: you may attach them to the issue only as a comment, after you have read them yourself and judged them public-safe; never in the body you create the issue with.",
   );
   expect(prompt.endsWith("Stop there; work around nothing.")).toBe(true);
 });
@@ -135,7 +135,7 @@ test("the prompt in Czech, supervised, with the same facts", () => {
   );
   expect(
     prompt.startsWith(
-      "**Úkol:** Lazurio na téhle Mašině potřebuje opravu (kontrola `update-state-invalid`, kód `state-invalid`",
+      "**Úkol:** Lazurio na tomhle Environmentu potřebuje opravu (kontrola `update-state-invalid`, kód `state-invalid`",
     ),
   ).toBe(true);
   expect(prompt).toContain(
@@ -149,7 +149,7 @@ test("the prompt in Czech, supervised, with the same facts", () => {
   );
   expect(prompt).toContain("**Nikdy:** `lazurio update rollback`");
   expect(prompt).toContain(
-    "Tělo nese jen strukturovaná pole. `evidence.journal` (sanitizovaný konec journalu Launchpadu) a jakýkoli jiný volný text zůstávají na téhle Mašině: k issue je smíš přidat jen jako komentář, až si je sám přečteš a usoudíš, že jsou veřejně bezpečné; nikdy ne do těla, se kterým issue zakládáš.",
+    "Tělo nese jen strukturovaná pole. `evidence.journal` (sanitizovaný konec journalu Launchpadu) a jakýkoli jiný volný text zůstávají na tomhle Environmentu: k issue je smíš přidat jen jako komentář, až si je sám přečteš a usoudíš, že jsou veřejně bezpečné; nikdy ne do těla, se kterým issue zakládáš.",
   );
   // No Folder was read: the rerun detects it the same way.
   expect(prompt).toContain("sám: `lazurio recover --json`.");

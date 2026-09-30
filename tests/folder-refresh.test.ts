@@ -75,8 +75,8 @@ const reapplied = binding(
 );
 
 const workVmLine = {
-  cs: "- `example-work` (pracovní VM, pracovní zóna, Organizace `example`): SSH odsud na `example-work.tailnet.example.invalid`; bez HTTPS.",
-  en: "- `example-work` (work VM, work zone, Organization `example`): SSH from here to `example-work.tailnet.example.invalid`; no HTTPS.",
+  cs: "- `example-work` (pracovní Remote Environment, pracovní zóna, Organizace `example`): SSH odsud na `example-work.tailnet.example.invalid`; bez HTTPS.",
+  en: "- `example-work` (work Remote Environment, work zone, Organization `example`): SSH from here to `example-work.tailnet.example.invalid`; no HTTPS.",
 } as const;
 const noChoices = {
   preset: undefined,

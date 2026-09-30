@@ -308,7 +308,7 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 <span class="sr-only" id="settings-nav-label" data-message="settingsTitle">Settings</span>
 <ul class="menu">
 <li><a class="menu-item" href="/settings/general" data-section="general" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span data-message="settingsGeneral">General</span></a></li>
-<li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span data-message="machineTitle">This Machine</span></a></li>
+<li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span data-message="machineTitle">This Environment</span></a></li>
 <li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span data-message="toolsTitle">Tools</span></a></li>
 <li><a class="menu-item" href="/settings/recovery" data-section="recovery" data-route><svg class="icon" aria-hidden="true"><use href="#i-recovery"/></svg><span data-message="recoveryTitle">Recovery</span></a></li>
 </ul>
@@ -359,9 +359,9 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 <section id="section-general" data-section="general" aria-labelledby="page-heading">
 <form id="profile">
 <fieldset disabled id="choices" class="group">
-<legend><h2 id="legend" data-message="legend">Machine profile</h2></legend>
+<legend><h2 id="legend" data-message="legend">Environment profile</h2></legend>
 <div class="card">
-<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="preset" data-message="preset">Workspace preset</label><p class="row-desc" id="preset-hint" data-message="presetHint">The kind of Machine this Folder is set up for. Only the presets its handover allows are offered.</p><p class="row-status" id="preset-selection"></p></div><div class="row-control"><select name="preset" id="preset" aria-describedby="preset-hint preset-selection"></select></div></div></div>
+<div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="preset" data-message="preset">Workspace preset</label><p class="row-desc" id="preset-hint" data-message="presetHint">The kind of Environment this Folder is set up for. Only the presets its handover allows are offered.</p><p class="row-status" id="preset-selection"></p></div><div class="row-control"><select name="preset" id="preset" aria-describedby="preset-hint preset-selection"></select></div></div></div>
 <div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="locale" data-message="locale">Language</label><p class="row-desc" id="locale-hint" data-message="localeHint">The language of this page and of the agent instructions in this Folder. It changes once the change is applied.</p></div><div class="row-control"><select name="locale" id="locale" aria-describedby="locale-hint"><option value="en">English</option><option value="cs">Čeština</option></select></div></div></div>
 <div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="detail" data-message="detail">Detail</label><p class="row-desc" id="detail-hint" data-message="detailHint">How agents explain their work: briefly, or with technical explanation and evidence.</p></div><div class="row-control"><select name="detail" id="detail" aria-describedby="detail-hint"><option value="concise" data-message="concise">Concise</option><option value="technical" data-message="technical">Technical</option></select></div></div></div>
 <div class="row"><div class="row-main"><div class="row-copy"><label class="row-title" for="coordination" data-message="coordination">Coordination</label><p class="row-desc" id="coordination-hint" data-message="coordinationHint">Whether agents work directly, or delegate within the task and verify the results.</p></div><div class="row-control"><select name="coordination" id="coordination" aria-describedby="coordination-hint"><option value="direct" data-message="direct">Direct</option><option value="coordinator" data-message="coordinator">Coordinator</option></select></div></div></div>
@@ -373,7 +373,7 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 </section>
 
 <section id="section-machine" data-section="machine" aria-labelledby="page-heading" hidden>
-<p class="intro" data-message="machineNotice">Recorded from the Machine handover; shown here, changed only by the Machines operator.</p>
+<p class="intro" data-message="machineNotice">Recorded when this Remote Environment was handed over; shown here, changed only by the operator who hosts it.</p>
 <dl id="machine" class="card"></dl>
 </section>
 
@@ -396,7 +396,7 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
      Recovery mode it is the whole page. -->
 <section id="section-recovery" data-section="recovery" aria-labelledby="page-heading" hidden>
 <div id="recovery-mode" class="callout recovery-mode" data-kind="warning" role="alert" hidden></div>
-<p class="intro" data-message="recoveryIntro">Whether Lazurio on this Machine needs a repair, read by the same check as lazurio recover. Reading changes nothing.</p>
+<p class="intro" data-message="recoveryIntro">Whether Lazurio in this Environment needs a repair, read by the same check as lazurio recover. Reading changes nothing.</p>
 <p id="recovery-status" class="row-status" role="status" aria-live="polite"></p>
 <div id="recovery-body" class="stack"></div>
 </section>

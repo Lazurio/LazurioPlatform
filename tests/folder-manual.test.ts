@@ -187,7 +187,7 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
         troubleshooting.includes(
           locale === "cs"
             ? "Verzi Lazuria na tomhle Environmentu vlastní operátor."
-            : "The operator owns the version of Lazurio on this Environment.",
+            : "The operator owns the version of Lazurio in this Environment.",
         ),
       ).toBe(hosted);
       // Only the workstation, which may run the supervised unit, names the
@@ -287,8 +287,8 @@ test("no generated output forbids lazurio update or gives the product version to
         );
         expect(troubleshooting).toContain(
           locale === "cs"
-            ? "Pin provozovatele Machines (Machines operator) je jen minimum"
-            : "The Machines operator's pin is only a minimum",
+            ? "Pin provozovatele hostingu (Lazurio Machines) je jen minimum"
+            : "The hosting operator's pin (Lazurio Machines) is only a minimum",
         );
       }
     }
@@ -319,13 +319,13 @@ test("a personal VM names reachable peers neutrally from the record and requires
       "manual/this-machine.md"
     ];
   const section = (text: string) =>
-    text.slice(text.indexOf("## From this personal VM"));
+    text.slice(text.indexOf("## From this personal Remote Environment"));
   const related = section(render(bindings.personalRelated));
   expect(related).toContain(
-    "Peers this Machine may reach over SSH, exactly as the handover records them:",
+    "Peers this Environment may reach over SSH, exactly as the handover records them:",
   );
   expect(related).toContain(
-    "- `example-workspace` (work VM, work zone, Organization `example`): SSH from here to `example-workspace.tailnet.example.invalid` as `operator`; HTTPS `launchpad.example-workspace.example.lazurio.io`.",
+    "- `example-workspace` (work Remote Environment, work zone, Organization `example`): SSH from here to `example-workspace.tailnet.example.invalid` as `operator`; HTTPS `launchpad.example-workspace.example.lazurio.io`.",
   );
   expect(related).toContain(
     "- `example-laptop` (client device, personal zone): SSH both ways with `example-laptop.tailnet.example.invalid`; no HTTPS.",
@@ -342,7 +342,7 @@ test("a personal VM names reachable peers neutrally from the record and requires
 
   // No relationships in the handover: nothing is guessed.
   expect(section(render(bindings.personal))).toContain(
-    "The handover records no peer this Machine may reach over SSH; do not look for one, tell the Principal.",
+    "The handover records no peer this Environment may reach over SSH; do not look for one, tell the Principal.",
   );
 
   // A work VM of a foreign zone, peers of an unknown zone and a client device
@@ -367,10 +367,10 @@ test("a personal VM names reachable peers neutrally from the record and requires
   );
   expect(mixed).not.toContain("example-phone");
   expect(mixed).toContain(
-    "- `foreign-vm` (work VM, personal zone, Organization `other`): SSH from here to `foreign-vm.tailnet.example.invalid`; no HTTPS.",
+    "- `foreign-vm` (work Remote Environment, personal zone, Organization `other`): SSH from here to `foreign-vm.tailnet.example.invalid`; no HTTPS.",
   );
   expect(mixed).toContain(
-    "- `unknown-vm` (work VM): SSH from here to `unknown-vm.tailnet.example.invalid`; no HTTPS.",
+    "- `unknown-vm` (work Remote Environment): SSH from here to `unknown-vm.tailnet.example.invalid`; no HTTPS.",
   );
   expect(mixed).toContain(
     "- `unzoned-device` (client device): SSH both ways with `unzoned-device.tailnet.example.invalid`; no HTTPS.",
@@ -393,21 +393,23 @@ test("a personal VM names reachable peers neutrally from the record and requires
         machine: bindings.related,
         profile: presetProfile(preset, "linux"),
       })["manual/this-machine.md"],
-    ).not.toContain("## From this personal VM");
+    ).not.toContain("## From this personal Remote Environment");
 
   // The same guidance in Czech.
   const cs = render(
     bindings.personalRelated,
     presetProfile("hosted-personal", "linux", { locale: "cs" }),
   );
-  expect(cs).toContain("## Z téhle osobní VM");
+  expect(cs).toContain("## Z tohohle osobního Remote Environmentu");
   expect(cs).toContain(
     "Dosažitelnost rozhoduje Headscale a není to identita ani mandát",
   );
   expect(cs).toContain(
     "potvrď s Principálem, že je jeho nebo že je přiřazený jemu",
   );
-  expect(cs.slice(cs.indexOf("## Z téhle osobní VM"))).not.toContain("Ownerov");
+  expect(
+    cs.slice(cs.indexOf("## Z tohohle osobního Remote Environmentu")),
+  ).not.toContain("Ownerov");
   expect(cs).toMatchSnapshot();
 });
 
@@ -490,9 +492,9 @@ test("this-machine.md renders relationships only when the binding carries them",
     profile,
   })["manual/this-machine.md"];
   expect(related).toContain("## Relationships");
-  expect(related).toContain("this Machine is in the work zone");
+  expect(related).toContain("this Environment is in the work zone");
   expect(related).toContain(
-    "- `example-laptop` (client device, personal zone): SSH to this Machine from `example-laptop.tailnet.example.invalid`; no HTTPS.",
+    "- `example-laptop` (client device, personal zone): SSH to this Environment from `example-laptop.tailnet.example.invalid`; no HTTPS.",
   );
   expect(related).toContain(
     "- `example-gateway` (Conglomerate Host, Organization `example`): no SSH; HTTPS `auth.example.lazurio.io`.",

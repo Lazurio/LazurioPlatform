@@ -21,8 +21,8 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   the typed reason why not. An Organization that cannot be read is listed with
   its reason and never hides the others; template Organizations are listed
   and never run. Reads only; nothing is written, fetched or started. The
-  Folder is --folder, otherwise the supervised unit's, or on a hosted Machine
-  the declared operator's (as for lazurio update). --json prints the whole
+  Folder is --folder, otherwise the supervised unit's, or in a Remote
+  Environment the declared operator's (as for lazurio update). --json prints the whole
   catalog, modules included, and on a Folder with a Personalspace its group
   (personalspace), which is not an Organization and is not in the table.
 module list [<Organization>] [--folder <absolute Folder>] [--json]

@@ -13,7 +13,7 @@ type Text = Readonly<{ cs: string; en: string }>;
 /** The one wording of the rule, for the CLI, the server's callers and the
  * Launchpad. */
 export const teamGithubText: Text = {
-  cs: "Tohle týmové Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady nepřihlašují.",
+  cs: "Tenhle týmový Environment pracuje v GitHubu přes Lazurio for GitHub, které nastavuje Organizace. Osobní účty GitHubu se tady nepřihlašují.",
   en: "This Team Environment works in GitHub through Lazurio for GitHub, set up by the Organization. Personal GitHub accounts are not signed in here.",
 };
 

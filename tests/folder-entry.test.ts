@@ -188,7 +188,7 @@ test.skipIf(process.platform === "win32")(
       const thisMachine = join(folder, "manual", "this-machine.md");
       const rendered = await readFile(thisMachine, "utf8");
       expect(rendered).toContain(
-        "- Entry: this Machine's Launchpad is reached at `https://launchpad.workspace.example.lazurio.io` through the Organization's gateway (decision F16)",
+        "- Entry: this Environment's Launchpad is reached at `https://launchpad.workspace.example.lazurio.io` through the Organization's gateway (decision F16)",
       );
       // The same handover again: nothing to record.
       expect(await refreshFolder(folder, bindings.organizationEntry)).toEqual({
@@ -237,7 +237,7 @@ test.skipIf(process.platform === "win32")(
       });
       expect((await recorded(folder)).machine?.entry).toEqual(entry);
       expect(await readFile(thisMachine, "utf8")).toContain(
-        "- Entry: this Machine's Launchpad is reached at `https://launchpad.workspace.example.lazurio.io`",
+        "- Entry: this Environment's Launchpad is reached at `https://launchpad.workspace.example.lazurio.io`",
       );
       expect(await refreshFolder(folder, bindings.organizationEntry)).toEqual({
         kind: "unchanged",
@@ -277,7 +277,7 @@ test.skipIf(process.platform === "win32")(
         "utf8",
       );
       expect(rendered).toContain(
-        "- Entry: this Machine's Launchpad is reached at `https://launchpad.example.lazurio.io` through this Machine's gateway (decision F16)",
+        "- Entry: this Environment's Launchpad is reached at `https://launchpad.example.lazurio.io` through this Environment's gateway (decision F16)",
       );
       expect(rendered).not.toContain("Organization's gateway");
     });

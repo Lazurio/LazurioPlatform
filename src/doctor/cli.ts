@@ -32,18 +32,18 @@ export const doctorHelp = `doctor [--folder <absolute Folder>] [--sign-in] [--js
   product already makes: product (update state, running and active version,
   the active executable's self-check, a verified newer release, a needed
   Folder refresh, the Folder's template revision), Folder (its state as this
-  version reads it, preset, a pending transaction; on a hosted Machine the
-  recorded binding against the live handover), tools (required missing is a
+  version reads it, preset, a pending transaction; in a Remote Environment
+  the recorded binding against the live handover), tools (required missing is a
   failure, recommended or enabled missing needs attention), Organizations and
   modules (every catalog entry, executable or the typed reason), Launchpad
-  (the supervised unit and its health socket) and Machine (on a hosted
-  Machine whether the entry is recorded). Reads only: the Folder's tool
+  (the supervised unit and its health socket) and Environment (in a Remote
+  Environment whether the entry is recorded). Reads only: the Folder's tool
   selection under the read lock, no write, no restart, no network; --sign-in
   also runs each installed tool's sign-in probe, which may contact its
   provider. --json prints {kind, verdict, locale, checks}; every check is
   {id, outcome ok|warn|fail|skipped, reason?, context?} of enumerated ids,
-  without paths or text. The Folder is --folder, the supervised unit's, or on
-  a hosted Machine the declared operator's. A broken product is repaired
+  without paths or text. The Folder is --folder, the supervised unit's, or in
+  a Remote Environment the declared operator's. A broken product is repaired
   through lazurio recover. Exit status: 0 ok, 10 attention, 3 broken,
   2 usage, 1 failure.`;
 
@@ -76,7 +76,7 @@ const texts = {
       tools: "Tools",
       organizations: "Organizations and modules",
       launchpad: "Launchpad",
-      machine: "Machine",
+      machine: "Environment",
     },
     footer: "Read only; nothing was changed.",
   },
@@ -92,7 +92,7 @@ const texts = {
       tools: "Nástroje",
       organizations: "Organizace a moduly",
       launchpad: "Launchpad",
-      machine: "Mašina",
+      machine: "Environment",
     },
     footer: "Jen čtení; nic se nezměnilo.",
   },

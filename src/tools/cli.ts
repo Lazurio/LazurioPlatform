@@ -68,8 +68,8 @@ tools list --folder <absolute Folder> [--sign-in] [--json]
 tools prompt <tool> [--locale cs|en] [--json]
   The prepared prompt for an agent who installs that tool and guides the
   operator's sign-in: the task, the target state and the rule to enable the
-  tool afterwards. Read-only text, no Folder; it installs nothing. On a
-  hosted Team Environment (the hosted operator Folder's preset) gh's prompt
+  tool afterwards. Read-only text, no Folder; it installs nothing. In a
+  Team Remote Environment (the preset of its operator's Folder) gh's prompt
   sets gh up without any sign-in or SSH key.
 tools enable <tool> --folder <absolute Folder> --expected-revision <n> [--json]
 tools disable <tool> --folder <absolute Folder> --expected-revision <n> [--json]
@@ -93,7 +93,7 @@ tools install <tool> [--json]
   archive, verified against the release's published SHA-256 checksums;
   composio: its official installer without agent plugins or shell changes).
   A tool that already works is not touched; a broken copy elsewhere on PATH
-  is not shadowed. On failure it points to the prepared agent prompt. On a
+  is not shadowed. On failure it points to the prepared agent prompt. In a
   Team Environment gh is installed only, never signed in afterwards.
 tools login <tool> [--phone <+number>] [--ssh-key] [--json]
   Signs the operator in to that tool in the foreground: gh prints a one-time
@@ -103,25 +103,26 @@ tools login <tool> [--phone <+number>] [--ssh-key] [--json]
   until signed in, failed or expired; Ctrl-C cancels. With --json one JSON
   object per state change (including the code, since this command holds the
   session). The code or link is never written to a file or log.
-  gh then links this Machine's SSH key to the account: the existing default
+  gh then links this Environment's SSH key to the account: the existing default
   key (~/.ssh/id_ed25519, id_ecdsa, id_rsa) or a new ed25519 key without a
   passphrase, registered on the account, GitHub's published host keys in
   ~/.ssh/known_hosts, and ssh -T git@github.com as the proof. Exit 0 only when
   the key is linked. --ssh-key (gh only) links the key for a gh that is
   signed in already, with a one-time code only when the token lacks the
   admin:public_key scope.
-  On a Team Environment (preset hosted-organization-team, read from the
-  hosted operator's Folder) gh is not signed in and --ssh-key links nothing:
+  In a Team Environment (preset hosted-organization-team, read from the
+  Remote Environment operator's Folder) gh is not signed in and --ssh-key links nothing:
   the Environment works in GitHub through Lazurio for GitHub, set up by the
   Organization (blocked, reason team-environment, exit 2). composio and wacli
   sign in for the whole shared Environment.
 tools logout <tool> [--json]
-  Runs the tool's own sign-out. gh and composio forget the sign-in on this
-  Machine only (revoke it at the provider); wacli unlinks the device. gh first
-  removes this Machine's SSH key from the account when Lazurio registered it
-  (title "Lazurio: <Machine>"); the key files stay. On a Team Environment gh
-  signs out only a person's account left signed in there, never a GitHub App
-  (bot) identity or a token from a variable (blocked, team-environment).
+  Runs the tool's own sign-out. gh and composio forget the sign-in in this
+  Environment only (revoke it at the provider); wacli unlinks the device. gh
+  first removes this Environment's SSH key from the account when Lazurio
+  registered it (title "Lazurio: <host name>"); the key files stay. In a Team
+  Environment gh signs out only a person's account left signed in there, never
+  a GitHub App (bot) identity or a token from a variable (blocked,
+  team-environment).
 tools composio-org [list | switch <id>] [--json]
   The Composio organizations of the signed-in account, the current one
   marked, and switching the current one. Apps connected in Composio belong to

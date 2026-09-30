@@ -60,21 +60,21 @@ const lazurio: readonly Text[] = [
   ),
   blank,
   t(
-    "Nainstalovaný release Lazuria obsahuje CLI `lazurio`, Launchpad a Folder Factory, která generuje soubory Lazurio Folderu vlastněné Lazuriem: `AGENTS.md`, `manual/` a `.lazurio/`. Folder spolu s nainstalovaným produktem, nástroji a přihlášeními dostupnými na Mašině tvoří **Lazurio Environment** téhle Mašiny (decision 0144). Mašiny sdílejí verzovaný kontrakt, ne živou sdílenou složku.",
-    "An installed Lazurio release contains the `lazurio` CLI, the Launchpad and the Folder Factory that generates the Lazurio-owned files of the Lazurio Folder: `AGENTS.md`, `manual/` and `.lazurio/`. The Folder together with the installed product, the tools and the sign-ins available on a Machine is that Machine's **Lazurio Environment** (decision 0144). Machines share a versioned contract, not a live shared directory.",
+    "Nainstalovaný release Lazuria obsahuje CLI `lazurio`, Launchpad a Folder Factory, která generuje soubory Lazurio Folderu vlastněné Lazuriem: `AGENTS.md`, `manual/` a `.lazurio/`. Folder spolu s nainstalovaným produktem, nástroji a přihlášeními, které jsou tu dostupné, tvoří **Lazurio Environment** (decision 0144). Environmenty sdílejí verzovaný kontrakt, ne živou sdílenou složku.",
+    "An installed Lazurio release contains the `lazurio` CLI, the Launchpad and the Folder Factory that generates the Lazurio-owned files of the Lazurio Folder: `AGENTS.md`, `manual/` and `.lazurio/`. The Folder together with the installed product, the tools and the sign-ins available here forms the **Lazurio Environment** (decision 0144). Environments share a versioned contract, not a live shared directory.",
   ),
   blank,
   t("## Model v jedné větě", "## The model in one sentence"),
   t(
-    "> Owner vlastní Mašinu jako jednu runtime, bezpečnostní a recovery hranici. Dlouhodobě na ní může žít Rezident, Agenti na ní dočasně vykonávají práci a Lazurio distribuuje a koordinuje, aniž by stálo mezi Ownerem a jeho prostředím.",
-    "> An Owner owns a Machine as one runtime, security and recovery boundary. A Resident may live on it long-term, Agents execute work on it temporarily, and Lazurio distributes and coordinates without standing between the Owner and their environment.",
+    "> Owner vlastní Environment jako jednu runtime, bezpečnostní a recovery hranici. Dlouhodobě na něm může žít Rezident, Agenti na něm dočasně vykonávají práci a Lazurio distribuuje a koordinuje, aniž by stálo mezi Ownerem a jeho prostředím.",
+    "> An Owner owns an Environment as one runtime, security and recovery boundary. A Resident may live on it long-term, Agents execute work on it temporarily, and Lazurio distributes and coordinates without standing between the Owner and their environment.",
   ),
   blank,
   same("```text"),
   same("Owner"),
   t(
-    "└── Mašina                  jedna bezpečnostní hranice",
-    "└── Machine                 one security boundary",
+    "└── Environment             jedna bezpečnostní hranice",
+    "└── Environment             one security boundary",
   ),
   t(
     "    ├── Rezident (volitelný) dlouhodobá identita a mandát",
@@ -102,12 +102,12 @@ const lazurio: readonly Text[] = [
     "- **GitHub is the only access authority.** Membership, Teams, repository grants and branch rules decide what anyone may do. There is no second, invented ACL, and the name of a role authorizes nothing; live GitHub rights do. Rules grow with the Organization: a young module may keep `main` open to a Builder, a locked `main` is merged by whoever the branch rules allow, typically a Steward or an Admin (decisions 0102/0103).",
   ),
   t(
-    "- **Mašina je hranice, ne druh hardwaru.** Fyzické zařízení, virtuální server nebo providerem izolovaný hostovaný pracovní prostor, který tvoří jednu sdílenou runtime, bezpečnostní a recovery hranici se známým Ownerem. Proces, modul, worktree, unixový účet ani kontejner Mašinou samy nejsou. Hostovaný Team workspace je Mašina Teamu na tenantní vrstvě; host, na kterém běží, zůstává vyšší doménou kompromitace a obnovy. Vždy pojmenuj konkrétní Mašinu, jejího Ownera a případnou vyšší hranici providera nebo provozovatele.",
-    "- **A Machine is a boundary, not a kind of hardware.** A physical device, a virtual server or a provider-isolated hosted workspace that forms one shared runtime, security and recovery boundary with a known Owner. A process, a module, a worktree, a Unix account or a container is not a Machine by itself. A hosted Team workspace is the Team's Machine on the tenant layer; the host it runs on stays a higher domain of compromise and recovery. Always name the concrete Machine, its Owner and any higher provider or operator boundary.",
+    "- **Environment je hranice, ne druh hardwaru.** Technicky běží na **Machine**: fyzické zařízení, virtuální server nebo providerem izolovaný hostovaný pracovní prostor, který tvoří jednu sdílenou runtime, bezpečnostní a recovery hranici se známým Ownerem. Proces, modul, worktree, unixový účet ani kontejner takovou hranicí samy nejsou. Hostovaný Team workspace je Remote Environment Teamu na tenantní vrstvě; host, na kterém běží, zůstává vyšší doménou kompromitace a obnovy. Vždy pojmenuj konkrétní Environment, jeho Ownera a případnou vyšší hranici providera nebo provozovatele. Lidem říkej Environment, hostovanému Remote Environment; **Machine** zůstává pojmem architektury, identifikátorů a příkazů.",
+    "- **An Environment is a boundary, not a kind of hardware.** Technically it runs on a **Machine**: a physical device, a virtual server or a provider-isolated hosted workspace that forms one shared runtime, security and recovery boundary with a known Owner. A process, a module, a worktree, a Unix account or a container is not one by itself. A hosted Team workspace is the Team's Remote Environment on the tenant layer; the host it runs on stays a higher domain of compromise and recovery. Always name the concrete Environment, its Owner and any higher provider or operator boundary. Towards people say Environment, and Remote Environment when it is hosted; **Machine** stays the term of the architecture, the identifiers and the commands.",
   ),
   t(
-    "- **Vlastní Mašina, vlastní Personalspace.** Každý Principál má Mašinu s plnými lokálními právy a privátní Personalspace: intimní prostor právě jednoho Principála a jeho volitelného Buddyho. Nikdo cizí, ani Steward, Admin nebo provozovatel, ho nečte a nikdy se nesdílí ani nemountuje jinam (decision 0091). Principál má právě jednu osobní hostovanou Mašinu; druhá trvalá Mašina patří do Organizace, kde ji koordinuje GitHub (decision 0153).",
-    "- **Own Machine, own Personalspace.** Every Principal has a Machine with full local rights and a private Personalspace: the intimate space of exactly one Principal and their optional Buddy. Nobody else, Steward, Admin or operator, reads it, and it is never shared or mounted elsewhere (decision 0091). A Principal has exactly one personal hosted Machine; a second permanent Machine belongs to an Organization, where GitHub coordinates it (decision 0153).",
+    "- **Vlastní Environment, vlastní Personalspace.** Každý Principál má Environment s plnými lokálními právy a privátní Personalspace: intimní prostor právě jednoho Principála a jeho volitelného Buddyho. Nikdo cizí, ani Steward, Admin nebo provozovatel, ho nečte a nikdy se nesdílí ani nemountuje jinam (decision 0091). Principál má právě jeden osobní Remote Environment; druhý trvalý patří do Organizace, kde ho koordinuje GitHub (decision 0153).",
+    "- **Own Environment, own Personalspace.** Every Principal has an Environment with full local rights and a private Personalspace: the intimate space of exactly one Principal and their optional Buddy. Nobody else, Steward, Admin or operator, reads it, and it is never shared or mounted elsewhere (decision 0091). A Principal has exactly one personal Remote Environment; a second permanent one belongs to an Organization, where GitHub coordinates it (decision 0153).",
   ),
   t(
     "- **Buddy je osobní.** Intimní kontrakt mezi lidským Principálem a jeho Buddym. Produkt řídí životní cyklus hostu, nikdy každodenní jednání Buddyho (decision 0089).",
@@ -123,8 +123,8 @@ const lazurio: readonly Text[] = [
     "## Access is held by existing providers",
   ),
   t(
-    "Členství, přístup k repozitářům, review a publikaci určuje GitHub. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Vlastnictví infrastruktury a cestu obnovy drží provider Mašiny. Lazurio z toho nic nekopíruje do interního IAM a nevede žádný registr Mašin; lokální checkout nikdy nedokazuje přístup u providera.",
-    "GitHub decides membership, repository access, review and publication. Headscale (Tailscale) or another approved access layer decides network reach. The Machine's provider holds infrastructure ownership and the recovery path. Lazurio copies none of this into an internal IAM and keeps no Machine registry; a local checkout never proves access at a provider.",
+    "Členství, přístup k repozitářům, review a publikaci určuje GitHub. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Vlastnictví infrastruktury a cestu obnovy drží provider, na kterém Environment běží. Lazurio z toho nic nekopíruje do interního IAM a nevede žádný registr Environmentů; lokální checkout nikdy nedokazuje přístup u providera.",
+    "GitHub decides membership, repository access, review and publication. Headscale (Tailscale) or another approved access layer decides network reach. The provider the Environment runs on holds infrastructure ownership and the recovery path. Lazurio copies none of this into an internal IAM and keeps no registry of Environments; a local checkout never proves access at a provider.",
   ),
   blank,
   t(
@@ -132,8 +132,8 @@ const lazurio: readonly Text[] = [
     "## Conglomerate and Conglomerate Host",
   ),
   t(
-    "**Conglomerate** je pohled na graf všech Mašin jednoho Principála napříč jeho Organizacemi: diagram pro orientaci, ne autorita, ACL ani registr; fakta o Mašině zůstávají u jejího Ownera (decision 0144). **Conglomerate Host** je Mašina, na které pro jeden Conglomerate běží Headscale a Vaultwarden; nehostuje žádné checkouty ani workspace moduly. Osobní hostovaná Mašina se do sítě připojuje jen jako node tailnetu Conglomerate Hostu, pod osobním Headscale uživatelem Principála, bez vlastní VPN (decision 0154).",
-    "The **Conglomerate** is the view of the graph of all Machines of one Principal across their Organizations: a diagram for orientation, not an authority, an ACL or a registry; the facts about a Machine stay with its Owner (decision 0144). The **Conglomerate Host** is the Machine that runs Headscale and Vaultwarden for one Conglomerate; it hosts no checkouts and no workspace modules. A personal hosted Machine reaches the network only as a node of the Conglomerate Host's tailnet, under the Principal's personal Headscale user, with no VPN of its own (decision 0154).",
+    "**Conglomerate** je pohled na graf všech Environmentů jednoho Principála napříč jeho Organizacemi: diagram pro orientaci, ne autorita, ACL ani registr; fakta o Environmentu zůstávají u jeho Ownera (decision 0144). **Conglomerate Host** je host, na kterém pro jeden Conglomerate běží Headscale a Vaultwarden; nehostuje žádné checkouty ani workspace moduly. Osobní Remote Environment se do sítě připojuje jen jako node tailnetu Conglomerate Hostu, pod osobním Headscale uživatelem Principála, bez vlastní VPN (decision 0154).",
+    "The **Conglomerate** is the view of the graph of all Environments of one Principal across their Organizations: a diagram for orientation, not an authority, an ACL or a registry; the facts about an Environment stay with its Owner (decision 0144). The **Conglomerate Host** is the host that runs Headscale and Vaultwarden for one Conglomerate; it hosts no checkouts and no workspace modules. A personal Remote Environment reaches the network only as a node of the Conglomerate Host's tailnet, under the Principal's personal Headscale user, with no VPN of its own (decision 0154).",
   ),
   blank,
   t(
@@ -145,25 +145,25 @@ const lazurio: readonly Text[] = [
     "- **Organization**: one company = one GitHub organization = one access boundary = one git repository checked out at `organizations/<org>/`. Every Organization has its own `AGENTS.md`; load it before working inside.",
   ),
   t(
-    "- **Workspace moduly**: verzované pracovní schopnosti uvnitř Organizace, všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (hostovaná VM) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné jen z tailnetu; produkční aplikace mají `<app>.<org>.lazurio.io` (decision 0146).",
-    "- **Workspace modules**: versioned working capabilities inside an Organization, all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop VM serves `<app>.<vm>.<org>.lazurio.io` reachable only from the tailnet; production applications are `<app>.<org>.lazurio.io` (decision 0146).",
+    "- **Workspace moduly**: verzované pracovní schopnosti uvnitř Organizace, všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné jen z tailnetu; produkční aplikace mají `<app>.<org>.lazurio.io` (decision 0146).",
+    "- **Workspace modules**: versioned working capabilities inside an Organization, all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable only from the tailnet; production applications are `<app>.<org>.lazurio.io` (decision 0146).",
   ),
   t(
     "- **`productionspace/`**: repozitáře na úrovni Organizace mimo workspace moduly (firmware, connect, monorepo). Každý má vlastní branch model a release proces (decision 0041); bez výslovné policy Organizace je z Folderu nespouštěj ani nereleasuj.",
     "- **`productionspace/`**: Organization-level repositories outside the workspace modules (firmware, connect, a monorepo). Each has its own branch model and release process (decision 0041); never start or release them from the Folder without explicit Organization policy.",
   ),
   t(
-    "- **Personalspace**: není Organizace. Privátní repozitář Principála na jeho vlastním GitHub účtu, včetně paměti Buddyho (decision 0046). Na Mašině vlastněné Organizací se nikdy nemountuje.",
-    "- **Personalspace**: not an Organization. The Principal's private repository on their own GitHub account, including the Buddy's memory (decision 0046). Never mounted on an Organization-owned Machine.",
+    "- **Personalspace**: není Organizace. Privátní repozitář Principála na jeho vlastním GitHub účtu, včetně paměti Buddyho (decision 0046). Na Environmentu vlastněném Organizací se nikdy nemountuje.",
+    "- **Personalspace**: not an Organization. The Principal's private repository on their own GitHub account, including the Buddy's memory (decision 0046). Never mounted in an Organization-owned Environment.",
   ),
   blank,
   t(
-    "## Machines a Platform se potkávají v handoveru",
-    "## Machines and the Platform meet at the handover",
+    "## Hosting a Platform se potkávají v handoveru",
+    "## The hosting and the Platform meet at the handover",
   ),
   t(
-    "Machines dodá Mašinu online: systém, síť, SSH a sudo, identitu Mašiny v `lazurio.machine.json`, vstup přes sdílenou Auth gateway a nainstalovaný release Lazuria. Od té chvíle všechno uvnitř, tedy Folder, Organizace, moduly, nástroje, přihlášení a jejich aktualizace, patří nainstalovanému produktu přes CLI `lazurio` a Operátorovi Mašiny (decision 0144). Verzi Lazuria vlastní operátor: pin provozovatele Machines je jen minimum, na které rollout Lazurio nainstaluje nebo zvedne, a verzi nikdy nesníží (decision F17). Nástroje operátora pin nevlastní vůbec, operátor si je aktualizuje sám a rollout je jen oprava baseline (decision 0161, `manual/troubleshooting.md`). Soubor s identitou pojmenovává Mašinu, jejího Ownera a vyšší hranici; nic neautorizuje.",
-    "Machines delivers a Machine online: system, network, SSH and sudo, the Machine identity in `lazurio.machine.json`, entry through the shared Auth gateway and an installed Lazurio release. From then on everything inside, the Folder, Organizations, modules, tools, sign-ins and their updates, belongs to the installed product through the `lazurio` CLI and the Machine's operator (decision 0144). The operator owns the version of Lazurio: the Machines operator's pin is only a minimum that a rollout installs or raises Lazurio to, and it never lowers a version (decision F17). The operator's tools are not owned by the pin at all; the operator updates them and the rollout is only a repair of the baseline (decision 0161, `manual/troubleshooting.md`). The identity file names the Machine, its Owner and the higher boundary; it authorizes nothing.",
+    "Hosting Lazurio Machines dodá Remote Environment online: systém, síť, SSH a sudo, jeho identitu v `lazurio.machine.json`, vstup přes sdílenou Auth gateway a nainstalovaný release Lazuria. Od té chvíle všechno uvnitř, tedy Folder, Organizace, moduly, nástroje, přihlášení a jejich aktualizace, patří nainstalovanému produktu přes CLI `lazurio` a Operátorovi Environmentu (decision 0144). Verzi Lazuria vlastní operátor: pin provozovatele hostingu je jen minimum, na které rollout Lazurio nainstaluje nebo zvedne, a verzi nikdy nesníží (decision F17). Nástroje operátora pin nevlastní vůbec, operátor si je aktualizuje sám a rollout je jen oprava baseline (decision 0161, `manual/troubleshooting.md`). Soubor s identitou pojmenovává Environment, jeho Ownera a vyšší hranici; nic neautorizuje.",
+    "The Lazurio Machines hosting delivers a Remote Environment online: system, network, SSH and sudo, its identity in `lazurio.machine.json`, entry through the shared Auth gateway and an installed Lazurio release. From then on everything inside, the Folder, Organizations, modules, tools, sign-ins and their updates, belongs to the installed product through the `lazurio` CLI and the Environment's operator (decision 0144). The operator owns the version of Lazurio: the hosting operator's pin is only a minimum that a rollout installs or raises Lazurio to, and it never lowers a version (decision F17). The operator's tools are not owned by the pin at all; the operator updates them and the rollout is only a repair of the baseline (decision 0161, `manual/troubleshooting.md`). The identity file names the Environment, its Owner and the higher boundary; it authorizes nothing.",
   ),
   blank,
   t("## Kde žije která pravda", "## Where which truth lives"),
@@ -189,8 +189,8 @@ const lazurio: readonly Text[] = [
     "| Plan, status and responsibility | the Organization's Mission Control |",
   ),
   t(
-    "| Provozní, obnovitelný runtime stav | Mašina |",
-    "| Operational, recoverable runtime state | the Machine |",
+    "| Provozní, obnovitelný runtime stav | Environment |",
+    "| Operational, recoverable runtime state | the Environment |",
   ),
   t(
     "| Důvod zásadního rozhodnutí | decision record |",
@@ -411,8 +411,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Principál", "## Principal (Principál)"),
   t(
-    "Vztah, ne pozice: ten, pro koho Agent pracuje. Je na Mašině přihlášený, drží pravomoce a má vždy poslední slovo. Principálem může být Kolega nebo, dokud nebude dokončené decision 0156, existující AI seat.",
-    "A relationship, not a position: the one the Agent works for. Signed in on the Machine, holding the authority and always having the last word. A Principal may be a Kolega or, until decision 0156 is completed, an existing AI seat.",
+    "Vztah, ne pozice: ten, pro koho Agent pracuje. Je na Environmentu přihlášený, drží pravomoce a má vždy poslední slovo. Principálem může být Kolega nebo, dokud nebude dokončené decision 0156, existující AI seat.",
+    "A relationship, not a position: the one the Agent works for. Signed in to the Environment, holding the authority and always having the last word. A Principal may be a Kolega or, until decision 0156 is completed, an existing AI seat.",
   ),
   blank,
   same("## Kolega"),
@@ -423,8 +423,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Role v Organizaci", "## Organization roles"),
   t(
-    "- **Organization Admin**: spravuje GitHub organizaci, její přístupy, omezené repozitáře a Mašiny, které Organizace vlastní.",
-    "- **Organization Admin**: administers the GitHub organization, its access, restricted repositories and the Machines the Organization owns.",
+    "- **Organization Admin**: spravuje GitHub organizaci, její přístupy, omezené repozitáře a Environmenty, které Organizace vlastní.",
+    "- **Organization Admin**: administers the GitHub organization, its access, restricted repositories and the Environments the Organization owns.",
   ),
   t(
     "- **Steward**: místo pro review; merguje zamčenou `main` tam, kde to branch rules dovolí, a typicky spouští Release.",
@@ -439,16 +439,16 @@ const roles: readonly Text[] = [
     "- **User**: uses the Organization's production applications; no development seat.",
   ),
   blank,
-  t("## Owner Mašiny", "## Owner of a Machine"),
+  t("## Owner Environmentu", "## Owner of an Environment"),
   t(
-    "Osoba nebo Organizace, která vlastní Mašinu, její data, přístupy a poslední cestu obnovy. Osobní Mašinu vlastní její Principál; pracovní VM nebo team workspace Organizace. Používání sdílené Mašiny nedává ani vlastnictví, ani pravomoce v celé Organizaci.",
-    "The person or Organization that owns the Machine, its data, its accesses and the last recovery path. A personal Machine is owned by its Principal; a work VM or a team workspace by the Organization. Using a shared Machine grants neither ownership nor Organization-wide authority.",
+    "Osoba nebo Organizace, která vlastní Environment, jeho data, přístupy a poslední cestu obnovy. Osobní Remote Environment vlastní jeho Principál; pracovní nebo týmový Remote Environment Organizace. Používání sdíleného Environmentu nedává ani vlastnictví, ani pravomoce v celé Organizaci.",
+    "The person or Organization that owns the Environment, its data, its accesses and the last recovery path. A personal Remote Environment is owned by its Principal; a work or Team Remote Environment by the Organization. Using a shared Environment grants neither ownership nor Organization-wide authority.",
   ),
   blank,
   t("## Operátor", "## Operator"),
   t(
-    "OS účet, který na Mašině vlastní Lazurio Folder, a na pracovní VM osoba, které je přiřazená. Nemusí to být lidský Principál: na team VM účet sdílí Team a není to osoba. Provozovatel Machines (Machines operator), který Mašinu dodává a aktualizuje, je jiná role.",
-    "The OS account that owns the Lazurio Folder on a Machine, and on a work VM the person it is assigned to. Not necessarily a human Principal: on a team VM the account is shared by the Team and is not a person. The Machines operator, who delivers and updates the Machine, is a different role.",
+    "OS účet, který na Environmentu vlastní Lazurio Folder, a na pracovním Remote Environmentu osoba, které je přiřazený. Nemusí to být lidský Principál: na týmovém Remote Environmentu účet sdílí Team a není to osoba. Provozovatel hostingu (Lazurio Machines), který Remote Environment dodává a aktualizuje, je jiná role.",
+    "The OS account that owns the Lazurio Folder in an Environment, and in a work Remote Environment the person it is assigned to. Not necessarily a human Principal: in a Team Remote Environment the account is shared by the Team and is not a person. The hosting operator (Lazurio Machines), who delivers and updates the Remote Environment, is a different role.",
   ),
   blank,
   t("## Opatrovník", "## Opatrovník (guardian)"),
@@ -459,8 +459,8 @@ const roles: readonly Text[] = [
   blank,
   same("## Buddy"),
   t(
-    "Důvěryhodný osobní zástupce lidského Principála, který jedná s Principálovými právy: morální kontrakt plus trvalé, scoped a odvolatelné mandáty (decision 0089). Transakčně specifické kroky (billing a vlastnictví, obnova, secrets, destruktivní operace, změny přístupů, merge, publish nebo release mimo výslovný mandát) vždy potřebují souhlas Principála s přesnou operací a Buddy si mandát nikdy sám nevydává, nerozšiřuje ani neobnovuje. Buddyho má jen lidský Principál; žije na jeho jediné osobní Mašině (decision 0153). Buddy je Rezident: dlouhodobá identita s kontinuitou, pamětí a mandátem. Rezident a Agent jsou různé identity a nikdy se neslučují.",
-    "The trusted personal representative of a human Principal, acting with the Principal's rights: a moral contract plus standing, scoped and revocable mandates (decision 0089). Transaction-specific steps (billing and ownership, recovery, secrets, destructive operations, access changes, merge, publish or release outside an explicit mandate) always need the Principal's consent for the exact operation, and a Buddy never issues, extends or renews its own mandate. Only a human Principal has a Buddy; it lives on the Principal's one personal Machine (decision 0153). A Buddy is a Resident: a long-lived identity with continuity, memory and mandate. Resident and Agent are different identities and never merge.",
+    "Důvěryhodný osobní zástupce lidského Principála, který jedná s Principálovými právy: morální kontrakt plus trvalé, scoped a odvolatelné mandáty (decision 0089). Transakčně specifické kroky (billing a vlastnictví, obnova, secrets, destruktivní operace, změny přístupů, merge, publish nebo release mimo výslovný mandát) vždy potřebují souhlas Principála s přesnou operací a Buddy si mandát nikdy sám nevydává, nerozšiřuje ani neobnovuje. Buddyho má jen lidský Principál; žije na jeho jediném osobním Remote Environmentu (decision 0153). Buddy je Rezident: dlouhodobá identita s kontinuitou, pamětí a mandátem. Rezident a Agent jsou různé identity a nikdy se neslučují.",
+    "The trusted personal representative of a human Principal, acting with the Principal's rights: a moral contract plus standing, scoped and revocable mandates (decision 0089). Transaction-specific steps (billing and ownership, recovery, secrets, destructive operations, access changes, merge, publish or release outside an explicit mandate) always need the Principal's consent for the exact operation, and a Buddy never issues, extends or renews its own mandate. Only a human Principal has a Buddy; it lives in the Principal's one personal Remote Environment (decision 0153). A Buddy is a Resident: a long-lived identity with continuity, memory and mandate. Resident and Agent are different identities and never merge.",
   ),
   blank,
   same("## Task Agent"),
@@ -471,8 +471,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Persona (decision 0156)", "## Persona (decision 0156)"),
   t(
-    "Pojem „AI Kolega“, tedy AI Principál s vlastním seatem, je deprecated. Automatizovanou práci pro Organizaci má nést automatizovaná Mašina Organizace, ne další Principál. **Persona** je jméno a charakter agentů na konkrétní Mašině: na osobní VM persona Buddyho (například „Friday“), na pracovní Mašině persona Organizace (například „Henry“). Persona není Principál, identita ani autorita; na Mašině s Operátorem jednají agenti za Operátora v jeho právech a pro Mašinu bez obsluhy to určí plné rozhodnutí. Dokud to plné rozhodnutí slovník nezmění, existující seaty a GitHub účty fungují beze změny a nové texty „AI Kolegu“ nezavádějí. Zobrazované jméno je jen popis (decision 0155).",
-    "The term “AI Kolega”, an AI Principal with its own seat, is deprecated. Automated work for an Organization is to be carried by an automated Machine of the Organization, not by another Principal. A **persona** is the name and character of the agents on a specific Machine: on a personal VM the Buddy's persona (for example “Friday”), on a work Machine the Organization's persona (for example “Henry”). A persona is not a Principal, an identity or an authority; on a Machine with an operator, agents act for the operator within the operator's rights, and for an unattended Machine the full decision will say. Until the vocabulary is changed by that full decision, existing seats and GitHub accounts work unchanged and new texts do not introduce “AI Kolega”. A display name is a description only (decision 0155).",
+    "Pojem „AI Kolega“, tedy AI Principál s vlastním seatem, je deprecated. Automatizovanou práci pro Organizaci má nést automatizovaný Environment Organizace, ne další Principál. **Persona** je jméno a charakter agentů na konkrétním Environmentu: na osobním Remote Environmentu persona Buddyho (například „Friday“), na pracovním Environmentu persona Organizace (například „Henry“). Persona není Principál, identita ani autorita; na Environmentu s Operátorem jednají agenti za Operátora v jeho právech a pro Environment bez obsluhy to určí plné rozhodnutí. Dokud to plné rozhodnutí slovník nezmění, existující seaty a GitHub účty fungují beze změny a nové texty „AI Kolegu“ nezavádějí. Zobrazované jméno je jen popis (decision 0155).",
+    "The term “AI Kolega”, an AI Principal with its own seat, is deprecated. Automated work for an Organization is to be carried by an automated Environment of the Organization, not by another Principal. A **persona** is the name and character of the agents in a specific Environment: in a personal Remote Environment the Buddy's persona (for example “Friday”), in a work Environment the Organization's persona (for example “Henry”). A persona is not a Principal, an identity or an authority; in an Environment with an operator, agents act for the operator within the operator's rights, and for an unattended Environment the full decision will say. Until the vocabulary is changed by that full decision, existing seats and GitHub accounts work unchanged and new texts do not introduce “AI Kolega”. A display name is a description only (decision 0155).",
   ),
 ];
 
@@ -489,48 +489,48 @@ const glossary: readonly Text[] = [
     "| Lazurio | The shared framework and product: CLI, Launchpad, Folder Factory, the hosted services around them. |",
   ),
   t(
-    "| Lazurio Folder (Folder) | Složka na Mašině, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/` a `.lazurio/`, vedle Operátorových `organizations/` a `personalspace/`. |",
-    "| Lazurio Folder (Folder) | The directory on a Machine that Lazurio owns files in: `AGENTS.md`, `manual/`, `.lazurio/`, next to the operator's `organizations/` and `personalspace/`. |",
+    "| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/` a `.lazurio/`, vedle Operátorových `organizations/` a `personalspace/`. |",
+    "| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: `AGENTS.md`, `manual/`, `.lazurio/`, next to the operator's `organizations/` and `personalspace/`. |",
   ),
   t(
-    "| Lazurio Environment | Prostředí jedné Mašiny: zvolený preset a profil, Folder a všechny nástroje a přihlášení dostupné na Mašině (decision 0144). |",
-    "| Lazurio Environment | One Machine's environment: the selected preset and profile, the Folder, and every tool and sign-in available on the Machine (decision 0144). |",
+    "| Lazurio Environment (Environment) | Prostředí, ve kterém se s Lazuriem pracuje: zvolený preset a profil, Folder a všechny nástroje a přihlášení, které jsou na něm dostupné (decision 0144). Česky ten Environment, na tomto Environmentu. |",
+    "| Lazurio Environment (Environment) | Where one works with Lazurio: the selected preset and profile, the Folder, and every tool and sign-in available in it (decision 0144). |",
   ),
   t(
-    "| Vzdálené prostředí (Remote Environment) | Hostovaná Mašina: pracovní VM Organizace na `launchpad.<mašina>.<org>.lazurio.io` v síti Organizace, nebo osobní VM na `launchpad.<login>.lazurio.io` v domovském tailnetu jejího Principála (decisions 0146, 0153); stejný pojem jako v Codexu a T3 Code (decision F16). |",
-    "| Remote Environment (Vzdálené prostředí) | A hosted Machine: an Organization's work VM at `launchpad.<machine>.<org>.lazurio.io` on the Organization's network, or a personal VM at `launchpad.<login>.lazurio.io` on its Principal's home tailnet (decisions 0146, 0153); the same term Codex and T3 Code use (decision F16). |",
+    "| Remote Environment | Hostovaný Environment: pracovní Remote Environment Organizace na `launchpad.<machine>.<org>.lazurio.io` v síti Organizace, nebo osobní Remote Environment na `launchpad.<login>.lazurio.io` v domovském tailnetu jeho Principála (decisions 0146, 0153); stejný pojem jako v Codexu a T3 Code (decision F16). |",
+    "| Remote Environment | A hosted Environment: an Organization's work Remote Environment at `launchpad.<machine>.<org>.lazurio.io` on the Organization's network, or a personal Remote Environment at `launchpad.<login>.lazurio.io` on its Principal's home tailnet (decisions 0146, 0153); the same term Codex and T3 Code use (decision F16). |",
   ),
   t(
-    "| Místní prostředí (Local Environment) | Tento počítač: zařízení, na kterém uživatel právě sedí a které není hostovanou Mašinou; osobní laptop nikdy není Remote Environment (decision F16). |",
-    "| Local Environment (Místní prostředí) | This computer: the device the user is sitting at, which is not a hosted Machine; a personal laptop is never a Remote Environment (decision F16). |",
+    "| Místní prostředí (Local Environment) | Tento počítač: zařízení, na kterém uživatel právě sedí a které není Remote Environmentem; osobní laptop nikdy není Remote Environment (decision F16). |",
+    "| Local Environment (Místní prostředí) | This computer: the device the user is sitting at, which is not a Remote Environment; a personal laptop is never a Remote Environment (decision F16). |",
   ),
   t(
-    "| Folder Factory | Součást produktu, která z presetu, Machine bindingu a profilu plánuje, generuje a srovnává soubory vlastněné Lazuriem. |",
-    "| Folder Factory | The product component that plans, generates and reconciles the Lazurio-owned files from the preset, the Machine binding and the profile. |",
+    "| Folder Factory | Součást produktu, která z presetu, zaznamenaného handoveru a profilu plánuje, generuje a srovnává soubory vlastněné Lazuriem. |",
+    "| Folder Factory | The product component that plans, generates and reconciles the Lazurio-owned files from the preset, the recorded handover and the profile. |",
   ),
   t(
-    "| Launchpad | Lokální povrch pro Buildery: spouští aplikace z `main` nebo z worktrees, ukazuje Machine binding a mění profil (decision 0047). |",
-    "| Launchpad | The builder-first local surface: starts applications from `main` or worktrees, shows the Machine binding and changes the profile (decision 0047). |",
+    "| Launchpad | Lokální povrch pro Buildery: spouští aplikace z `main` nebo z worktrees, ukazuje zaznamenaný handover a mění profil (decision 0047). |",
+    "| Launchpad | The builder-first local surface: starts applications from `main` or worktrees, shows the recorded handover and changes the profile (decision 0047). |",
   ),
   t(
     "| Lazurio Dashboard | Hostovaná administrace a vstup pro uživatele; není součástí self-hosted Environmentu (decision 0047). |",
     "| Lazurio Dashboard | The hosted administration and user entry; not part of a self-hosted Environment (decision 0047). |",
   ),
   t(
-    "| Mašina (Machine) | Jedna runtime, bezpečnostní a recovery hranice se známým Ownerem: pracovní stanice, virtuální server nebo providerem izolovaný hostovaný pracovní prostor. |",
-    "| Machine (Mašina) | One runtime, security and recovery boundary with a known Owner: a workstation, a virtual server or a provider-isolated hosted workspace. |",
+    "| **Machine** (technický pojem) | Runtime, bezpečnostní a recovery hranice se známým Ownerem, na které Environment běží: pracovní stanice, virtuální server nebo providerem izolovaný hostovaný pracovní prostor. Pojem architektury, identifikátorů a příkazů (`lazurio machine …`); lidem se říká Environment. |",
+    "| **Machine** (technical term) | The runtime, security and recovery boundary with a known Owner that an Environment runs on: a workstation, a virtual server or a provider-isolated hosted workspace. The term of the architecture, the identifiers and the commands (`lazurio machine …`); towards people it is the Environment. |",
   ),
   t(
-    "| Owner | Osoba nebo Organizace, která vlastní Mašinu, její data, přístupy a poslední cestu obnovy. |",
-    "| Owner | The person or Organization that owns a Machine, its data, accesses and the last recovery path. |",
+    "| Owner | Osoba nebo Organizace, která vlastní Environment, jeho data, přístupy a poslední cestu obnovy. |",
+    "| Owner | The person or Organization that owns an Environment, its data, accesses and the last recovery path. |",
   ),
   t(
-    "| Operátor (Operator) | OS účet, který na Mašině vlastní Folder; na pracovní VM přiřazená osoba. |",
-    "| Operator (Operátor) | The OS account owning the Folder on a Machine; on a work VM the assigned person. |",
+    "| Operátor (Operator) | OS účet, který na Environmentu vlastní Folder; na pracovním Remote Environmentu přiřazená osoba. |",
+    "| Operator (Operátor) | The OS account owning the Folder in an Environment; in a work Remote Environment the assigned person. |",
   ),
   t(
-    "| Provozovatel Machines (Machines operator) | Kdo Mašinu přes Machines dodává a aktualizuje: baseline Mašiny, první instalaci a opravu Lazuria (pin je minimum) a handover; verzi Lazuria ani nástroje operátora ne (decisions 0161, F17). |",
-    "| Machines operator | Whoever delivers and updates the Machine through Machines: the Machine's baseline, the first installation and repair of Lazurio (the pin is a minimum) and the handover; not the version of Lazurio or the operator's tools (decisions 0161, F17). |",
+    "| Provozovatel hostingu (hosting operator) | Kdo Remote Environment přes Lazurio Machines dodává a aktualizuje: jeho baseline, první instalaci a opravu Lazuria (pin je minimum) a handover; verzi Lazuria ani nástroje operátora ne (decisions 0161, F17). |",
+    "| Hosting operator | Whoever delivers and updates a Remote Environment through Lazurio Machines: its baseline, the first installation and repair of Lazurio (the pin is a minimum) and the handover; not the version of Lazurio or the operator's tools (decisions 0161, F17). |",
   ),
   t(
     "| Principál (Principal) | Ten, pro koho Agent pracuje; drží pravomoce a poslední slovo. |",
@@ -550,8 +550,8 @@ const glossary: readonly Text[] = [
     "| Resident | A long-lived identity with continuity, memory and mandate; a Buddy is a Resident profile. |",
   ),
   t(
-    "| Persona | Jméno a charakter agentů na Mašině; jen popis, nikdy identita ani autorita (decision 0156). |",
-    "| Persona | The name and character of the agents on a Machine; a description, never an identity or authority (decision 0156). |",
+    "| Persona | Jméno a charakter agentů na Environmentu; jen popis, nikdy identita ani autorita (decision 0156). |",
+    "| Persona | The name and character of the agents in an Environment; a description, never an identity or authority (decision 0156). |",
   ),
   t(
     "| Opatrovník | Jediný jmenovaný lidský opatrovník AI seatu pro obnovu a auditovaný servisní přístup. |",
@@ -574,48 +574,44 @@ const glossary: readonly Text[] = [
     "| productionspace | Organization-level repositories outside workspace modules, each with its own branch and release rules (decision 0041). |",
   ),
   t(
-    "| Personalspace | Soukromý prostor právě jednoho Principála a jeho volitelného Buddyho; nikdy se nesdílí a nikdy není na Mašině vlastněné Organizací (decision 0091). |",
-    "| Personalspace | The private space of exactly one Principal and their optional Buddy; never shared, never on an Organization-owned Machine (decision 0091). |",
+    "| Personalspace | Soukromý prostor právě jednoho Principála a jeho volitelného Buddyho; nikdy se nesdílí a nikdy není na Environmentu vlastněném Organizací (decision 0091). |",
+    "| Personalspace | The private space of exactly one Principal and their optional Buddy; never shared, never in an Organization-owned Environment (decision 0091). |",
   ),
   t(
     "| GBrain | Paměť Rezidenta; GBrain Buddyho patří do Personalspace (decision 0046). |",
     "| GBrain | The memory of a Resident; a Buddy's GBrain belongs to the Personalspace (decision 0046). |",
   ),
   t(
-    "| Conglomerate | Pohled na všechny Mašiny jednoho Principála napříč jeho Organizacemi; orientace, ne autorita (decision 0144). |",
-    "| Conglomerate | The view of all Machines of one Principal across their Organizations; orientation, not authority (decision 0144). |",
+    "| Conglomerate | Pohled na všechny Environmenty jednoho Principála napříč jeho Organizacemi; orientace, ne autorita (decision 0144). |",
+    "| Conglomerate | The view of all Environments of one Principal across their Organizations; orientation, not authority (decision 0144). |",
   ),
   t(
-    "| Conglomerate Host | Mašina, na které pro jeden Conglomerate běží Headscale a Vaultwarden (decision 0144). |",
-    "| Conglomerate Host | The Machine running Headscale and Vaultwarden for one Conglomerate (decision 0144). |",
+    "| Conglomerate Host | Host, na kterém pro jeden Conglomerate běží Headscale a Vaultwarden (decision 0144). |",
+    "| Conglomerate Host | The host running Headscale and Vaultwarden for one Conglomerate (decision 0144). |",
   ),
   t(
-    "| Tailnet | Headscale síť jednoho Conglomerate; jediná cesta k osobní hostované Mašině (decision 0154). Adresy `100.64.0.x` se opakují v každém tailnetu. |",
-    "| Tailnet | The Headscale network of one Conglomerate; the only path to a personal hosted Machine (decision 0154). Addresses `100.64.0.x` repeat in every tailnet. |",
+    "| Tailnet | Headscale síť jednoho Conglomerate; jediná cesta k osobnímu Remote Environmentu (decision 0154). Adresy `100.64.0.x` se opakují v každém tailnetu. |",
+    "| Tailnet | The Headscale network of one Conglomerate; the only path to a personal Remote Environment (decision 0154). Addresses `100.64.0.x` repeat in every tailnet. |",
   ),
   t(
-    "| Osobní VM (personal VM) | Jediná osobní hostovaná Mašina Principála (decision 0153); preset `hosted-personal`. |",
-    "| Personal VM (osobní VM) | A Principal's one personal hosted Machine (decision 0153); preset `hosted-personal`. |",
+    "| Osobní Remote Environment | Jediný osobní Remote Environment Principála (decision 0153); preset `hosted-personal`, druh `personal-vm`. |",
+    "| Personal Remote Environment | A Principal's one personal Remote Environment (decision 0153); preset `hosted-personal`, kind `personal-vm`. |",
   ),
   t(
-    "| Pracovní VM (work VM) | VM vlastněná Organizací a přiřazená jednomu Operátorovi; preset `hosted-organization-personal`. |",
-    "| Work VM (pracovní VM) | An Organization-owned VM assigned to one operator; preset `hosted-organization-personal`. |",
+    "| Pracovní Remote Environment | Remote Environment vlastněný Organizací a přiřazený jednomu Operátorovi; preset `hosted-organization-personal`. |",
+    "| Work Remote Environment | An Organization-owned Remote Environment assigned to one operator; preset `hosted-organization-personal`. |",
   ),
   t(
-    "| Team VM, Hosted Team Workspace | Sdílená Mašina Teamu vlastněná Organizací s jedním OS účtem; preset `hosted-organization-team`. |",
-    "| Team VM, Hosted Team Workspace | An Organization-owned shared Machine of a Team with one OS account; preset `hosted-organization-team`. |",
+    "| Týmový Remote Environment (Hosted Team Workspace) | Sdílený Remote Environment Teamu vlastněný Organizací s jedním OS účtem; preset `hosted-organization-team`. |",
+    "| Team Remote Environment (Hosted Team Workspace) | An Organization-owned shared Remote Environment of a Team with one OS account; preset `hosted-organization-team`. |",
   ),
   t(
-    "| Zóna (zone) | Osobní nebo pracovní strana Mašin a klientů jednoho Operátora; určuje, kdo smí na koho (decision 0155). |",
-    "| Zone (zóna) | The personal or the work side of one operator's Machines and clients; decides who may reach whom (decision 0155). |",
+    "| Zóna (zone) | Osobní nebo pracovní strana Environmentů a klientů jednoho Operátora; určuje, kdo smí na koho (decision 0155). |",
+    "| Zone (zóna) | The personal or the work side of one operator's Environments and clients; decides who may reach whom (decision 0155). |",
   ),
   t(
-    "| Handover | Předání Mašiny online z Machines se souborem `lazurio.machine.json`; od té chvíle vnitřek patří nainstalovanému produktu (decision 0144). |",
-    "| Handover | Machines delivering a Machine online with `lazurio.machine.json`; from then on the inside belongs to the installed product (decision 0144). |",
-  ),
-  t(
-    "| Machine binding | Neměnná projekce handoveru zaznamenaná ve Folderu: druh, jméno, Owner, Team, přiřazení, tailnet node, host, vztahy. |",
-    "| Machine binding | The immutable projection of the handover recorded in the Folder: kind, name, Owner, Team, assignment, tailnet node, host, relationships. |",
+    "| Handover | Předání Remote Environmentu online z Lazurio Machines se souborem `lazurio.machine.json`; od té chvíle vnitřek patří nainstalovanému produktu (decision 0144). Folder zaznamená jeho neměnnou projekci (`machine`): druh, jméno, Owner, Team, přiřazení, tailnet node, host, vztahy. |",
+    "| Handover | Lazurio Machines delivering a Remote Environment online with `lazurio.machine.json`; from then on the inside belongs to the installed product (decision 0144). The Folder records its immutable projection (`machine`): kind, name, Owner, Team, assignment, tailnet node, host, relationships. |",
   ),
   t(
     "| Workspace preset | Pojmenovaná, verzovaná kompozice pevných os profilu, výchozích hodnot, politiky Personalspace, režimu identity a povrchů. |",
@@ -674,8 +670,8 @@ const glossary: readonly Text[] = [
 const toolLayout: readonly Text[] = [
   t("### Kde bydlí nástroje", "### Where the tools live"),
   t(
-    "Nástroj operátora je první spustitelný soubor svého jména v `~/.local/bin` na PATH operátora: codex, claude, gh, node, npm, bun i každý další nástroj, který sem přidáš. Platí to na hostované Mašině i na pracovní stanici (decision 0161).",
-    "An operator tool is the first executable of its name in `~/.local/bin` on the operator's PATH: codex, claude, gh, node, npm, bun and every further tool you add. This holds on a hosted Machine and on a workstation alike (decision 0161).",
+    "Nástroj operátora je první spustitelný soubor svého jména v `~/.local/bin` na PATH operátora: codex, claude, gh, node, npm, bun i každý další nástroj, který sem přidáš. Platí to na Remote Environmentu i na pracovní stanici (decision 0161).",
+    "An operator tool is the first executable of its name in `~/.local/bin` on the operator's PATH: codex, claude, gh, node, npm, bun and every further tool you add. This holds in a Remote Environment and on a workstation alike (decision 0161).",
   ),
   blank,
   t(
@@ -707,15 +703,18 @@ const doctor: Text = t(
 function productUpdate(hosted: boolean): readonly Text[] {
   if (hosted)
     return [
-      t("## Aktualizace na téhle Mašině", "## Updates on this Machine"),
       t(
-        "Verzi Lazuria na tomhle Environmentu vlastní operátor. Aktualizace Lazuria je aktualizace nástroje operátorem, ne rollout (decision F17). Pin provozovatele Machines (Machines operator) je jen minimum: rollout Lazurio nainstaluje, když chybí nebo je rozbité, a Mašinu pod pinem smí zvednout. Verzi nikdy nesníží.",
-        "The operator owns the version of Lazurio on this Environment. Updating Lazurio is the operator's update of a tool, not a rollout (decision F17). The Machines operator's pin is only a minimum: a rollout installs Lazurio when it is missing or broken, and may raise a Machine that is below the pin. It never lowers a version.",
+        "## Aktualizace na tomhle Environmentu",
+        "## Updates in this Environment",
+      ),
+      t(
+        "Verzi Lazuria na tomhle Environmentu vlastní operátor. Aktualizace Lazuria je aktualizace nástroje operátorem, ne rollout (decision F17). Pin provozovatele hostingu (Lazurio Machines) je jen minimum: rollout Lazurio nainstaluje, když chybí nebo je rozbité, a Environment pod pinem smí zvednout. Verzi nikdy nesníží.",
+        "The operator owns the version of Lazurio in this Environment. Updating Lazurio is the operator's update of a tool, not a rollout (decision F17). The hosting operator's pin (Lazurio Machines) is only a minimum: a rollout installs Lazurio when it is missing or broken, and may raise an Environment that is below the pin. It never lowers a version.",
       ),
       blank,
       t(
-        "Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun a další na PATH operátora) pin nevlastní: operátor si je aktualizuje sám oficiálními instalátory a jejich verze jsou fakt, ne drift; rollout obnoví jen chybějící nebo slepý link v `~/.local/bin`, a je-li nefunkční sama binárka, spustí oficiální instalátor nástroje v baseline verzi (ten zapisuje do svého domova jako při každé instalaci); funkčnímu nástroji verzi nemění a konfigurace, přihlášení ani historie se nedotýká (decision 0161). Když si operátor prostředí rozbije tak, že agenti nefungují, rollout obnoví jen baseline Mašiny a nástroje operátora přeinstaluje do standardní cesty pravidlem „jen chybějící nebo rozbité, nikdy downgrade“; Machines apply sám žádného agenta nespouští, jen vrátí readback `lazurio doctor` a `lazurio tools status`, a opravu zbytku spustí rolloutující Task Agent s mandátem operátora podle `manual/troubleshooting.md`.",
-        "The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun and whatever else is on the operator's PATH) are not owned by the pin: the operator updates them with the official installers and their versions are facts, not drift; a rollout recreates only a missing or dangling link in `~/.local/bin`, and when the binary itself is non-functional runs the tool's official installer at the baseline version (which writes into its own home as on any installation); it never changes a working tool's version and never touches configuration, sign-ins or history (decision 0161). When the operator breaks the Environment so that agents no longer work, the rollout restores only the Machine's baseline and reinstalls the operator's tools into the standard path under the rule 'only missing or broken, never a downgrade'; the Machines apply itself starts no agent, it only returns the `lazurio doctor` and `lazurio tools status` readback, and the rolling-out Task Agent starts the repair of the rest with the operator's mandate per `manual/troubleshooting.md`.",
+        "Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun a další na PATH operátora) pin nevlastní: operátor si je aktualizuje sám oficiálními instalátory a jejich verze jsou fakt, ne drift; rollout obnoví jen chybějící nebo slepý link v `~/.local/bin`, a je-li nefunkční sama binárka, spustí oficiální instalátor nástroje v baseline verzi (ten zapisuje do svého domova jako při každé instalaci); funkčnímu nástroji verzi nemění a konfigurace, přihlášení ani historie se nedotýká (decision 0161). Když si operátor prostředí rozbije tak, že agenti nefungují, rollout obnoví jen baseline Environmentu a nástroje operátora přeinstaluje do standardní cesty pravidlem „jen chybějící nebo rozbité, nikdy downgrade“; apply hostingu sám žádného agenta nespouští, jen vrátí readback `lazurio doctor` a `lazurio tools status`, a opravu zbytku spustí rolloutující Task Agent s mandátem operátora podle `manual/troubleshooting.md`.",
+        "The operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun and whatever else is on the operator's PATH) are not owned by the pin: the operator updates them with the official installers and their versions are facts, not drift; a rollout recreates only a missing or dangling link in `~/.local/bin`, and when the binary itself is non-functional runs the tool's official installer at the baseline version (which writes into its own home as on any installation); it never changes a working tool's version and never touches configuration, sign-ins or history (decision 0161). When the operator breaks the Environment so that agents no longer work, the rollout restores only the Environment's baseline and reinstalls the operator's tools into the standard path under the rule 'only missing or broken, never a downgrade'; the hosting's apply itself starts no agent, it only returns the `lazurio doctor` and `lazurio tools status` readback, and the rolling-out Task Agent starts the repair of the rest with the operator's mandate per `manual/troubleshooting.md`.",
       ),
       blank,
       t(
@@ -736,8 +735,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
         "- There is no way back: Lazurio never returns to an earlier version. A new version proves itself before the switch; when it fails, it is removed and nothing changes. Repair only goes forward, with a newer release; never copy an older executable and never lower the version.",
       ),
       t(
-        "- Když Launchpad běží v Recovery mode, jeho stránka obnovy ukáže důvod, prompt pro opravného agenta ke zkopírování do nového chatu v T3 Code a připravené issue; nic z toho neopouští tuhle Mašinu automaticky.",
-        "- When the Launchpad is in Recovery mode, its Recovery page shows the reason, the prompt for a repair agent to copy into a new chat in T3 Code and the prepared issue; nothing of it leaves this Machine automatically.",
+        "- Když Launchpad běží v Recovery mode, jeho stránka obnovy ukáže důvod, prompt pro opravného agenta ke zkopírování do nového chatu v T3 Code a připravené issue; nic z toho neopouští tenhle Environment automaticky.",
+        "- When the Launchpad is in Recovery mode, its Recovery page shows the reason, the prompt for a repair agent to copy into a new chat in T3 Code and the prepared issue; nothing of it leaves this Environment automatically.",
       ),
       t(
         "- `lazurio install` je cesta rolloutu: instaluje nebo opravuje Lazurio z připraveného souboru. Na aktualizaci používej `lazurio update`.",
@@ -770,8 +769,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
       "- `lazurio update` checks, downloads, verifies the GitHub artifact attestation and activates the newest release. `--check` only reports (exit status 10 when an update is available). `--version vX.Y.Z` installs one exact tag; a version below the floor is refused.",
     ),
     t(
-      "- `lazurio update status [--json]` ukáže běžící, aktivní a poslední známou verzi a čas poslední ověřené kontroly. Poslední kontrola starší než den znamená, že Mašina nedosáhne na GitHub; nic se tím nemění.",
-      "- `lazurio update status [--json]` shows the running, active and latest known version and the time of the last verified check. A last check older than a day is a sign the Machine cannot reach GitHub; it changes nothing.",
+      "- `lazurio update status [--json]` ukáže běžící, aktivní a poslední známou verzi a čas poslední ověřené kontroly. Poslední kontrola starší než den znamená, že Environment nedosáhne na GitHub; nic se tím nemění.",
+      "- `lazurio update status [--json]` shows the running, active and latest known version and the time of the last verified check. A last check older than a day is a sign the Environment cannot reach GitHub; it changes nothing.",
     ),
     doctor,
     t(
@@ -787,8 +786,8 @@ function productUpdate(hosted: boolean): readonly Text[] {
       "- Repair only goes forward: a newer release (`lazurio update`), finishing an interrupted Folder change (`lazurio profile-resume`), a restart of the Launchpad (on Linux with the service, the unit `lazurio-launchpad.service`). Never copy an older executable, never edit `bin/lazurio` or `update/high-water` by hand, and never lower the version.",
     ),
     t(
-      "- Stránka obnovy Launchpadu (v Recovery mode celá stránka, jinak Nastavení → Obnova) nabízí prompt pro opravného agenta ke zkopírování do agentní aplikace a připravené issue; nic z toho neopouští tuhle Mašinu automaticky.",
-      "- The Launchpad's Recovery page (the whole page in Recovery mode, Settings → Recovery otherwise) offers the prompt for a repair agent to copy into your agent app and the prepared issue; nothing of it leaves this Machine automatically.",
+      "- Stránka obnovy Launchpadu (v Recovery mode celá stránka, jinak Nastavení → Obnova) nabízí prompt pro opravného agenta ke zkopírování do agentní aplikace a připravené issue; nic z toho neopouští tenhle Environment automaticky.",
+      "- The Launchpad's Recovery page (the whole page in Recovery mode, Settings → Recovery otherwise) offers the prompt for a repair agent to copy into your agent app and the prepared issue; nothing of it leaves this Environment automatically.",
     ),
     t(
       "- **Pill** v Launchpadu ukazuje `idle`, `checking`, `available`, `downloading`, `activating` a selhání, která se vrátí do `available` s chybou a možností zkusit znovu. Jedno kliknutí spustí totéž `lazurio update`.",
@@ -843,8 +842,8 @@ function moduleApplications(hosted: boolean): readonly Text[] {
     ),
     hosted
       ? t(
-          "- Na téhle Mašině je aplikace přechodná systemd user služba: běží dál i po restartu Launchpadu, restart Mašiny ji ukončí a její výstup jde do journalu. Odkaz pro Operátora je jen `runtime.url` (viz níže).",
-          "- On this Machine an application is a transient systemd user service: it keeps running when the Launchpad restarts, ends with a reboot, and its output goes to the journal. The link for the operator is only `runtime.url` (see below).",
+          "- Na tomhle Remote Environmentu je aplikace přechodná systemd user služba: běží dál i po restartu Launchpadu, restart Environmentu ji ukončí a její výstup jde do journalu. Odkaz pro Operátora je jen `runtime.url` (viz níže).",
+          "- In this Remote Environment an application is a transient systemd user service: it keeps running when the Launchpad restarts, ends with a reboot, and its output goes to the journal. The link for the operator is only `runtime.url` (see below).",
         )
       : t(
           "- Na Linuxu s uživatelským správcem služeb je aplikace přechodná systemd user služba (přežije restart Launchpadu, výstup jde do journalu). Na macOS je aplikace potomkem relace Launchpadu: spouštěj, zastavuj a otevírej ji v Launchpadu; CLI odpoví `launchpad-required` a výstup se neuchovává.",
@@ -858,19 +857,19 @@ function troubleshooting(preset: PresetName): readonly Text[] {
   return [
     t("## Nikdy nevypisuj secrets", "## Never print secrets"),
     t(
-      "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Mašiny, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
-      "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Machine identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
+      "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Environmentu, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
+      "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Environment's identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
     ),
     ...(hosted
       ? [
           blank,
           t(
-            "## Odkazy na aplikace z téhle Mašiny",
-            "## Application links from this Machine",
+            "## Odkazy na aplikace z tohohle Remote Environmentu",
+            "## Application links from this Remote Environment",
           ),
           t(
-            "Tahle Mašina je hostovaná: `localhost` a `127.0.0.1` existují jen uvnitř ní a Operátor je ve svém prohlížeči neotevře. Localhost link funguje jen pro proces na téhle Mašině; nikdy ho Operátorovi neposílej. Odkaz na aplikaci je její hostované jméno přes gateway téhle Mašiny (decision 0146) přesně tak, jak ho vrací `lazurio module status <Org>/<modul> --json` v `runtime.url` nebo jak ho ukazuje Launchpad: skládá se jen ze zaznamenaného vstupu téhle Mašiny, nikdy z odhadnuté konvence jmen. Když je `runtime` `null`, aplikace tu hostované jméno nemá; napiš to v handoffu místo odkazu. `lazurio chat link` vypíše odkaz do T3 Code téhle Mašiny; předej ho Operátorovi, nikdy ne localhost link.",
-            "This Machine is hosted: `localhost` and `127.0.0.1` exist only inside it and the operator cannot open them in their browser. A localhost link works only for a process on this Machine; never send it to the operator. The link to an application is its hosted name through this Machine's gateway (decision 0146), exactly as `lazurio module status <Org>/<module> --json` reports it in `runtime.url` or as the Launchpad shows it: it is composed only from this Machine's recorded entry, never guessed from a naming convention. When `runtime` is `null`, the application has no hosted name here; say so in the handoff instead of a link. `lazurio chat link` prints the link into T3 Code for this Machine; hand it to the operator, never a localhost link.",
+            "Tenhle Environment je Remote Environment: `localhost` a `127.0.0.1` existují jen uvnitř něj a Operátor je ve svém prohlížeči neotevře. Localhost link funguje jen pro proces na tomhle Environmentu; nikdy ho Operátorovi neposílej. Odkaz na aplikaci je její hostované jméno přes gateway tohohle Environmentu (decision 0146) přesně tak, jak ho vrací `lazurio module status <Org>/<modul> --json` v `runtime.url` nebo jak ho ukazuje Launchpad: skládá se jen ze zaznamenaného vstupu tohohle Environmentu, nikdy z odhadnuté konvence jmen. Když je `runtime` `null`, aplikace tu hostované jméno nemá; napiš to v handoffu místo odkazu. `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu; předej ho Operátorovi, nikdy ne localhost link.",
+            "This is a Remote Environment: `localhost` and `127.0.0.1` exist only inside it and the operator cannot open them in their browser. A localhost link works only for a process in this Environment; never send it to the operator. The link to an application is its hosted name through this Environment's gateway (decision 0146), exactly as `lazurio module status <Org>/<module> --json` reports it in `runtime.url` or as the Launchpad shows it: it is composed only from this Environment's recorded entry, never guessed from a naming convention. When `runtime` is `null`, the application has no hosted name here; say so in the handoff instead of a link. `lazurio chat link` prints the link into T3 Code of this Environment; hand it to the operator, never a localhost link.",
           ),
         ]
       : []),
@@ -880,10 +879,10 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       ? []
       : [blank, ...organizationContent, blank, ...moduleApplications(hosted)]),
     blank,
-    t("## Identita Mašiny", "## The Machine identity"),
+    t("## Identita Environmentu", "## The Environment's identity"),
     t(
-      "`lazurio machine inspect` přečte root-issued `/etc/lazurio/lazurio.machine.json` (Linux) a vypíše validovaný handover s jeho digestem. Odmítnutí: `machine-context-missing`, `machine-context-invalid`, `machine-context-custody` (nebezpečné vlastnictví, módy nebo linky), `machine-platform-unsupported`; `folder-init` navíc `machine-operator-mismatch` a `machine-operator-unavailable`. Požádej provozovatele Machines, ať handover ověří; soubor s identitou nikdy needituj a nevydávej se za jiného uživatele.",
-      "`lazurio machine inspect` reads the root-issued `/etc/lazurio/lazurio.machine.json` (Linux) and prints the validated handover with its digest. Refusals: `machine-context-missing`, `machine-context-invalid`, `machine-context-custody` (unsafe ownership, modes or links), `machine-platform-unsupported`; `folder-init` additionally `machine-operator-mismatch` and `machine-operator-unavailable`. Ask the Machines operator to verify the handover; never edit the identity file or impersonate another user.",
+      "`lazurio machine inspect` přečte root-issued `/etc/lazurio/lazurio.machine.json` (Linux) a vypíše validovaný handover s jeho digestem. Odmítnutí: `machine-context-missing`, `machine-context-invalid`, `machine-context-custody` (nebezpečné vlastnictví, módy nebo linky), `machine-platform-unsupported`; `folder-init` navíc `machine-operator-mismatch` a `machine-operator-unavailable`. Požádej provozovatele hostingu (Lazurio Machines), ať handover ověří; soubor s identitou nikdy needituj a nevydávej se za jiného uživatele.",
+      "`lazurio machine inspect` reads the root-issued `/etc/lazurio/lazurio.machine.json` (Linux) and prints the validated handover with its digest. Refusals: `machine-context-missing`, `machine-context-invalid`, `machine-context-custody` (unsafe ownership, modes or links), `machine-platform-unsupported`; `folder-init` additionally `machine-operator-mismatch` and `machine-operator-unavailable`. Ask the hosting operator (Lazurio Machines) to verify the handover; never edit the identity file or impersonate another user.",
     ),
     blank,
     t(
@@ -915,8 +914,8 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "- `folder-state-unrecognized`: pending or unrecognized `.lazurio/` state; complete a recognized initialization with `folder-resume` or diagnose it.",
     ),
     t(
-      "- `folder-binding-changed`: Folder byl převzatý z jiného handoveru; ověř identitu Mašiny s provozovatelem Machines.",
-      "- `folder-binding-changed`: the Folder was adopted from a different handover; verify the Machine identity with the Machines operator.",
+      "- `folder-binding-changed`: Folder byl převzatý z jiného handoveru; ověř identitu Environmentu s provozovatelem hostingu.",
+      "- `folder-binding-changed`: the Folder was adopted from a different handover; verify the Environment's identity with the hosting operator.",
     ),
     t(
       "- `preset-not-allowed`, `preset-ambiguous`: handover preset nepovoluje nebo ho neurčuje (Team bez `owner.assignment`); předej povolený `--preset`.",
@@ -977,16 +976,16 @@ const presetMeaning: Readonly<Record<PresetName, Text>> = {
     "The Principal's own workstation, without a handover. The signed-in user is both Owner and Principal. Personalspace is present, Organization repositories live under `organizations/<org>/`, and the Principal's own sign-ins are used. Applications started from the Launchpad live only for its session.",
   ),
   "hosted-personal": t(
-    "Jediná osobní hostovaná Mašina Principála (decision 0153). Personalspace je přítomný a intimní; Buddy je volitelný rezident téže Mašiny, ne druhý host. Žádná repa Organizací tu nejsou namountovaná: práce v Organizaci probíhá na Mašinách, které Organizace vlastní. Používají se Principálova vlastní přihlášení a aplikace vlastní OS service manager.",
-    "A Principal's one personal hosted Machine (decision 0153). Personalspace is present and intimate; a Buddy is an optional resident of this same Machine, not a second host. No Organization repositories are mounted: Organization work happens on Machines the Organization owns. The Principal's own sign-ins are used, and applications are owned by the OS service manager.",
+    "Jediný osobní Remote Environment Principála (decision 0153). Personalspace je přítomný a intimní; Buddy je volitelný rezident téhož Environmentu, ne druhý host. Žádná repa Organizací tu nejsou namountovaná: práce v Organizaci probíhá na Environmentech, které Organizace vlastní. Používají se Principálova vlastní přihlášení a aplikace vlastní OS service manager.",
+    "A Principal's one personal Remote Environment (decision 0153). Personalspace is present and intimate; a Buddy is an optional resident of this same Environment, not a second host. No Organization repositories are mounted: Organization work happens in Environments the Organization owns. The Principal's own sign-ins are used, and applications are owned by the OS service manager.",
   ),
   "hosted-organization-personal": t(
-    "Pracovní VM vlastněná Organizací a přiřazená jednomu Operátorovi. Principálem je ten Operátor a agenti jednají za něj v jeho živých právech. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`; Operátor se přihlašuje vlastní identitou. Aplikace vlastní OS service manager.",
-    "An Organization-owned work VM assigned to one operator. The Principal is that operator, and agents act for them within their live rights. Personalspace is never present. Organization repositories live under `organizations/<org>/`; the operator signs in with their own identity. Applications are owned by the OS service manager.",
+    "Pracovní Remote Environment vlastněný Organizací a přiřazený jednomu Operátorovi. Principálem je ten Operátor a agenti jednají za něj v jeho živých právech. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`; Operátor se přihlašuje vlastní identitou. Aplikace vlastní OS service manager.",
+    "An Organization-owned work Remote Environment assigned to one operator. The Principal is that operator, and agents act for them within their live rights. Personalspace is never present. Organization repositories live under `organizations/<org>/`; the operator signs in with their own identity. Applications are owned by the OS service manager.",
   ),
   "hosted-organization-team": t(
-    "Team VM vlastněná Organizací: jeden OS účet sdílený Principály Teamu. Principálem je ten člen Teamu, který je právě připojený; OS účet není osoba. Nikdy nedrží osobní přihlašovací údaje, session ani Personalspace. Identita u providerů je brokerovaná identita Organizace s krátkodobými tokeny a změny se připisují Teamu (decisions 0147/0149). Aplikace vlastní OS service manager.",
-    "An Organization-owned team VM: one OS account shared by the Team's Principals. The Principal is whichever Team member is connected; the OS account is not a person. It never holds personal credentials, sessions or a Personalspace. Its provider identity is the brokered Organization identity with short-lived tokens, and changes are attributed to the Team (decisions 0147/0149). Applications are owned by the OS service manager.",
+    "Týmový Remote Environment vlastněný Organizací: jeden OS účet sdílený Principály Teamu. Principálem je ten člen Teamu, který je právě připojený; OS účet není osoba. Nikdy nedrží osobní přihlašovací údaje, session ani Personalspace. Identita u providerů je brokerovaná identita Organizace s krátkodobými tokeny a změny se připisují Teamu (decisions 0147/0149). Aplikace vlastní OS service manager.",
+    "An Organization-owned Team Remote Environment: one OS account shared by the Team's Principals. The Principal is whichever Team member is connected; the OS account is not a person. It never holds personal credentials, sessions or a Personalspace. Its provider identity is the brokered Organization identity with short-lived tokens, and changes are attributed to the Team (decisions 0147/0149). Applications are owned by the OS service manager.",
   ),
   "hosted-organization-steward": t(
     "Automatizovaný Environment persony Organizace (decision 0169): Remote Environment vlastněný Organizací s jedním odpovědným operátorem, Ownerem nebo Adminem Organizace, který automatizace nastavuje a odpovídá za ně. GitHub identitou je vlastní GitHub uživatelský účet persony (účet bota), ne účet operátora ani Lazurio for GitHub. Lazurio MausBot tu vedle Launchpadu a T3 Code provozuje tým botů persony. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`. Aplikace i boty vlastní OS service manager.",
@@ -1027,8 +1026,8 @@ function identitySection(
   return [
     pick(
       t(
-        `- Mašina: \`${machine.name}\` (${machine.kind}).`,
-        `- Machine: \`${machine.name}\` (${machine.kind}).`,
+        `- Název: \`${machine.name}\` (${machine.kind}).`,
+        `- Name: \`${machine.name}\` (${machine.kind}).`,
       ),
     ),
     pick(owner),
@@ -1045,8 +1044,8 @@ function identitySection(
     ),
     pick(
       t(
-        `- Host: ${machine.host.kind} \`${machine.host.id}\`, vyšší doména správy a obnovy než tahle Mašina.`,
-        `- Host: ${machine.host.kind} \`${machine.host.id}\`, a higher administration and recovery domain than this Machine.`,
+        `- Host: ${machine.host.kind} \`${machine.host.id}\`, vyšší doména správy a obnovy než tenhle Environment.`,
+        `- Host: ${machine.host.kind} \`${machine.host.id}\`, a higher administration and recovery domain than this Environment.`,
       ),
     ),
   ];
@@ -1066,18 +1065,18 @@ function zoneOfThisMachine(
       );
     case "hosted-personal":
       return t(
-        "Tahle Mašina je osobní VM osobní zóny. Smí na každou pracovní VM svého Principála; žádná pracovní Mašina na ni nesmí.",
-        "This Machine is the personal VM of the personal zone. It may reach every work VM of its Principal; no work Machine may reach it.",
+        "Tenhle Environment je osobní Remote Environment osobní zóny. Smí na každý pracovní Remote Environment svého Principála; žádný pracovní Environment na něj nesmí.",
+        "This is the personal Remote Environment of the personal zone. It may reach every work Remote Environment of its Principal; no work Environment may reach it.",
       );
     case "hosted-organization-personal":
       return t(
-        `Tahle Mašina je v pracovní zóně Organizace \`${organization}\`, přiřazená jednomu Operátorovi. Operátorovi osobní klienti a jeho osobní VM na ni smějí; ona na ně nikdy a nikdy ani na jinou pracovní VM.`,
-        `This Machine is in the work zone of Organization \`${organization}\`, assigned to one operator. The operator's personal clients and personal VM may reach it; it never reaches them and never reaches another work VM.`,
+        `Tenhle Environment je v pracovní zóně Organizace \`${organization}\`, přiřazený jednomu Operátorovi. Operátorovi osobní klienti a jeho osobní Remote Environment na něj smějí; on na ně nikdy a nikdy ani na jiný pracovní Remote Environment.`,
+        `This Environment is in the work zone of Organization \`${organization}\`, assigned to one operator. The operator's personal clients and personal Remote Environment may reach it; it never reaches them and never reaches another work Remote Environment.`,
       );
     case "hosted-organization-team":
       return t(
-        `Tahle Mašina je sdílená team VM v pracovní zóně Organizace \`${organization}\`. Příchozí spojení přijímá jen od členů živého GitHub Teamu, ke kterému je svázaná, a nemá žádný odchozí grant na klienta ani Mašinu.`,
-        `This Machine is a shared team VM in the work zone of Organization \`${organization}\`. It accepts inbound connections only from members of the live GitHub Team it is bound to, and it has no outbound grant to any client or Machine.`,
+        `Tenhle Environment je sdílený týmový Remote Environment v pracovní zóně Organizace \`${organization}\`. Příchozí spojení přijímá jen od členů živého GitHub Teamu, ke kterému je svázaný, a nemá žádný odchozí grant na klienta ani jiný Environment.`,
+        `This Environment is a shared Team Remote Environment in the work zone of Organization \`${organization}\`. It accepts inbound connections only from members of the live GitHub Team it is bound to, and it has no outbound grant to any client or other Environment.`,
       );
     case "hosted-organization-steward":
       return t(
@@ -1096,13 +1095,13 @@ function boundaries(preset: PresetName): readonly Text[] {
           "- Personalspace: `personalspace/` is the intimate space of exactly one Principal and their optional Buddy. Nobody else reads it and it is never shared.",
         )
       : t(
-          "- Personalspace: na Mašině vlastněné Organizací nikdy není. Nezakládej ho, nemountuj ho a nikdy sem nekopíruj osobní data ani přihlášení.",
-          "- Personalspace: never present on an Organization-owned Machine. Do not create or mount one and never copy personal data or sign-ins here.",
+          "- Personalspace: na Environmentu vlastněném Organizací nikdy není. Nezakládej ho, nemountuj ho a nikdy sem nekopíruj osobní data ani přihlášení.",
+          "- Personalspace: never present in an Organization-owned Environment. Do not create or mount one and never copy personal data or sign-ins here.",
         ),
     preset === "hosted-personal"
       ? t(
-          "- Organizace: na osobní Mašině nejsou namountovaná žádná repa Organizací. Práce v Organizaci probíhá na Mašinách, které Organizace vlastní (viz níže).",
-          "- Organizations: no Organization repositories are mounted on a personal Machine. Organization work happens on Machines the Organization owns (see below).",
+          "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci probíhá na Environmentech, které Organizace vlastní (viz níže).",
+          "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work happens in Environments the Organization owns (see below).",
         )
       : t(
           "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář s vlastním `AGENTS.md`.",
@@ -1185,14 +1184,17 @@ function botTeam(
 // so identity comes from the peer's name and a pinned key, never from the
 // address or the first connection.
 const sshRules: readonly Text[] = [
-  t("## SSH na další Mašiny", "## SSH to other Machines"),
   t(
-    "- Připojuj se jen na tailnet hostname peeru tak, jak ho uvádí handover (`ssh.host` u peerů výše), nikdy na holou tailnet adresu typu `100.64.0.x`: ty se opakují v každém tailnetu a v každém znamenají jinou Mašinu.",
-    "- Connect only to a peer's tailnet hostname as the handover records it (the `ssh.host` of a peer above), never to a bare tailnet address such as `100.64.0.x`: those addresses repeat in every tailnet and mean a different Machine in each.",
+    "## SSH na další Environmenty a zařízení",
+    "## SSH to other Environments and devices",
   ),
   t(
-    "- Před spojením ověř aktivní tailnet: `tailscale status --json` → `CurrentTailnet.Name` musí být domovský tailnet téhle Mašiny a `CurrentTailnet.MagicDNSSuffix` musí odpovídat zaznamenaným `ssh.host` peerů. Pokud neodpovídá, nebo si nejsi jistý, zastav se a řekni to Principálovi. Profil Tailscale sám nepřepínej: je to jedno globální nastavení pro všechny relace na Mašině.",
-    "- Before connecting, verify the active tailnet: `tailscale status --json` → `CurrentTailnet.Name` must be this Machine's home tailnet and `CurrentTailnet.MagicDNSSuffix` must match the peers' recorded `ssh.host` names. If it does not, or you cannot tell, stop and tell the Principal. Never switch the Tailscale profile yourself: it is one global setting for every session on the Machine.",
+    "- Připojuj se jen na tailnet hostname peeru tak, jak ho uvádí handover (`ssh.host` u peerů výše), nikdy na holou tailnet adresu typu `100.64.0.x`: ty se opakují v každém tailnetu a v každém znamenají jiný peer.",
+    "- Connect only to a peer's tailnet hostname as the handover records it (the `ssh.host` of a peer above), never to a bare tailnet address such as `100.64.0.x`: those addresses repeat in every tailnet and mean a different peer in each.",
+  ),
+  t(
+    "- Před spojením ověř aktivní tailnet: `tailscale status --json` → `CurrentTailnet.Name` musí být domovský tailnet tohohle Environmentu a `CurrentTailnet.MagicDNSSuffix` musí odpovídat zaznamenaným `ssh.host` peerů. Pokud neodpovídá, nebo si nejsi jistý, zastav se a řekni to Principálovi. Profil Tailscale sám nepřepínej: je to jedno globální nastavení pro všechny relace na tomhle Environmentu.",
+    "- Before connecting, verify the active tailnet: `tailscale status --json` → `CurrentTailnet.Name` must be this Environment's home tailnet and `CurrentTailnet.MagicDNSSuffix` must match the peers' recorded `ssh.host` names. If it does not, or you cannot tell, stop and tell the Principal. Never switch the Tailscale profile yourself: it is one global setting for every session in this Environment.",
   ),
   t(
     "- Host klíč peeru je vždy pinnutý: v souboru `~/.ssh/known_hosts_lazurio` pod jménem peeru jako `HostKeyAlias`. S hodnotami z handoveru:",
@@ -1218,8 +1220,8 @@ const sshRules: readonly Text[] = [
   same("  ```"),
   blank,
   t(
-    "- Pinnutý klíč pochází od toho, kdo peer vlastní (z Machine Recordu owning Organizace, u vlastního zařízení od Principála), nikdy z prvního spojení: žádný `ssh-keyscan`, žádné přijetí neznámého klíče a nikdy obecný `~/.ssh/known_hosts`. Bez pinnutého klíče se nepřipojuj a požádej o něj Principála.",
-    "- The pinned key comes from whoever owns the peer (the Machine Record of the owning Organization, the Principal for their own device), never from the first connection: no `ssh-keyscan`, no accepting an unknown key, never the general `~/.ssh/known_hosts`. Without a pinned key, do not connect; ask the Principal for it.",
+    "- Pinnutý klíč pochází od toho, kdo peer vlastní (z evidence Organizace, která ho vlastní, u vlastního zařízení od Principála), nikdy z prvního spojení: žádný `ssh-keyscan`, žádné přijetí neznámého klíče a nikdy obecný `~/.ssh/known_hosts`. Bez pinnutého klíče se nepřipojuj a požádej o něj Principála.",
+    "- The pinned key comes from whoever owns the peer (the records of the Organization that owns it, the Principal for their own device), never from the first connection: no `ssh-keyscan`, no accepting an unknown key, never the general `~/.ssh/known_hosts`. Without a pinned key, do not connect; ask the Principal for it.",
   ),
   t(
     "- Hláška „host key changed“ (`REMOTE HOST IDENTIFICATION HAS CHANGED`) znamená nejdřív „jiný aktivní tailnet“, nikdy důvod klíč smazat nebo znovu přijmout. Zastav se a nahlas to.",
@@ -1230,8 +1232,8 @@ const sshRules: readonly Text[] = [
     "- A listed peer is transport Headscale allows, not permission for the task: the SSH key, the account and the Principal's mandate stay separate.",
   ),
   t(
-    "- Kam tahle Mašina dosáhne, Lazurio nevynucuje: vynucuje to Headscale policy Conglomerate Hostu. Tenhle manuál jen opisuje, co zaznamenal handover; peer, který handover neuvádí, neodvozuj ze jmen ani z adres.",
-    "- Lazurio enforces nothing about what this Machine can reach: the Headscale policy of the Conglomerate Host does. This manual only repeats what the handover recorded; never infer a peer the handover does not list from names or addresses.",
+    "- Kam tenhle Environment dosáhne, Lazurio nevynucuje: vynucuje to Headscale policy Conglomerate Hostu. Tenhle manuál jen opisuje, co zaznamenal handover; peer, který handover neuvádí, neodvozuj ze jmen ani z adres.",
+    "- Lazurio enforces nothing about what this Environment can reach: the Headscale policy of the Conglomerate Host does. This manual only repeats what the handover recorded; never infer a peer the handover does not list from names or addresses.",
   ),
 ];
 
@@ -1251,18 +1253,21 @@ function fromPersonalVm(
     reachesOverSsh,
   );
   return [
-    t("## Z téhle osobní VM", "## From this personal VM"),
+    t(
+      "## Z tohohle osobního Remote Environmentu",
+      "## From this personal Remote Environment",
+    ),
     ...(reachable.length === 0
       ? [
           t(
             "Handover neuvádí žádný peer, na který odsud smíš přes SSH; žádný nehledej a řekni to Principálovi.",
-            "The handover records no peer this Machine may reach over SSH; do not look for one, tell the Principal.",
+            "The handover records no peer this Environment may reach over SSH; do not look for one, tell the Principal.",
           ),
         ]
       : [
           t(
             "Peers, na které odsud smíš přes SSH, přesně jak je zaznamenal handover:",
-            "Peers this Machine may reach over SSH, exactly as the handover records them:",
+            "Peers this Environment may reach over SSH, exactly as the handover records them:",
           ),
           ...reachable.map((peer) => same(peerLine(peer, locale))),
         ]),
@@ -1271,16 +1276,16 @@ function fromPersonalVm(
       "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the Principal that it is theirs or assigned to them.",
     ),
     t(
-      "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní VM, kterou ti Principál potvrdí jako přiřazenou jemu, nikdy na tuhle Mašinu: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
-      "- Organization work (code, repositories, runs) belongs on a work VM the Principal confirms is assigned to them, never on this Machine: connect over SSH and work there. Never clone an Organization repository onto this personal VM.",
+      "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti Principál potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
+      "- Organization work (code, repositories, runs) belongs in a work Remote Environment the Principal confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
     ),
     t(
       "- Co potřebuje Principálovo vlastní zařízení, například přihlášený prohlížeč, se dělá přes SSH na zařízení, které ti Principál potvrdí jako své.",
       "- What needs the Principal's own device, for example the signed-in browser, is done over SSH on a device the Principal confirms is theirs.",
     ),
     t(
-      "- Žádná pracovní Mašina na tuhle osobní VM nikdy nesmí (decision 0155); cestu zpět neotevírej.",
-      "- No work Machine ever reaches this personal VM (decision 0155); do not open a way back.",
+      "- Žádný pracovní Environment na tenhle osobní Remote Environment nikdy nesmí (decision 0155); cestu zpět neotevírej.",
+      "- No work Environment ever reaches this personal Remote Environment (decision 0155); do not open a way back.",
     ),
   ];
 }
@@ -1299,8 +1304,8 @@ function enabledToolsSection(
   return [
     t("## Zapnuté nástroje", "## Enabled tools"),
     t(
-      "CLI z katalogu Lazuria, která mají agenti na téhle Mašině používat: povinná a ta, která operátor v tomhle Folderu zapnul (`lazurio tools list`, `lazurio tools enable|disable <tool>`). Zapnutí je kontext, ne autorita ani instalace: neuděluje přístup, nic neinstaluje a nepinuje verzi. Chybějící nebo nepřihlášený nástroj nahlas Principálovi; instaluj a přihlašuj jen na jeho pokyn.",
-      "The CLIs of the Lazurio catalog that agents on this Machine are to use: the required ones and those the operator enabled in this Folder (`lazurio tools list`, `lazurio tools enable|disable <tool>`). Enabling is context, not authority or installation: it grants no access, installs nothing and pins no version. Report a missing or signed-out tool to the Principal; install and sign in only on their instruction.",
+      "CLI z katalogu Lazuria, která mají agenti na tomhle Environmentu používat: povinná a ta, která operátor v tomhle Folderu zapnul (`lazurio tools list`, `lazurio tools enable|disable <tool>`). Zapnutí je kontext, ne autorita ani instalace: neuděluje přístup, nic neinstaluje a nepinuje verzi. Chybějící nebo nepřihlášený nástroj nahlas Principálovi; instaluj a přihlašuj jen na jeho pokyn.",
+      "The CLIs of the Lazurio catalog that agents in this Environment are to use: the required ones and those the operator enabled in this Folder (`lazurio tools list`, `lazurio tools enable|disable <tool>`). Enabling is context, not authority or installation: it grants no access, installs nothing and pins no version. Report a missing or signed-out tool to the Principal; install and sign in only on their instruction.",
     ),
     blank,
     ...(shared ? [sharedSignInWarning, blank] : []),
@@ -1319,7 +1324,7 @@ function thisMachine(source: InstructionSource): string {
   const entry = machine?.entry;
   return document(
     locale,
-    t("Tahle Mašina", "This Machine"),
+    t("Tenhle Environment", "This Environment"),
     `${generated[locale]}; ${JSON.stringify({ preset })}`,
     [
       t(
@@ -1331,8 +1336,8 @@ function thisMachine(source: InstructionSource): string {
       ...(entry
         ? [
             t(
-              `- Vstup: Launchpad téhle Mašiny je dosažitelný na \`${entry.externalOrigin}\` přes bránu ${machine?.kind === "personal-vm" ? "téhle Mašiny" : "Organizace"} (decision F16); přihlášení řeší brána a Launchpad poslouchá za ní jen na loopback portu ${entry.listenPort}.`,
-              `- Entry: this Machine's Launchpad is reached at \`${entry.externalOrigin}\` through ${machine?.kind === "personal-vm" ? "this Machine's" : "the Organization's"} gateway (decision F16); admission is the gateway's, and the Launchpad listens only on loopback port ${entry.listenPort} behind it.`,
+              `- Vstup: Launchpad tohohle Environmentu je dosažitelný na \`${entry.externalOrigin}\` přes bránu ${machine?.kind === "personal-vm" ? "tohohle Environmentu" : "Organizace"} (decision F16); přihlášení řeší brána a Launchpad poslouchá za ní jen na loopback portu ${entry.listenPort}.`,
+              `- Entry: this Environment's Launchpad is reached at \`${entry.externalOrigin}\` through ${machine?.kind === "personal-vm" ? "this Environment's" : "the Organization's"} gateway (decision F16); admission is the gateway's, and the Launchpad listens only on loopback port ${entry.listenPort} behind it.`,
             ),
           ]
         : []),
@@ -1348,45 +1353,48 @@ function thisMachine(source: InstructionSource): string {
         "## Zones: what may reach what (decision 0155)",
       ),
       t(
-        "Mašiny a klienti jednoho Operátora tvoří dvě zóny. **Osobní zóna** zahrnuje Principálovy osobní klienty (laptop, telefon) a jeho jedinou osobní VM; jejím Ownerem je Principál. **Pracovní zóna** zahrnuje pracovní VM přiřazené tomuhle Operátorovi (klidně několik, napříč Organizacemi téhož Conglomerate) a pracovní laptop vydaný Organizací; jejím Ownerem je Organizace. Zóna se řídí poli `owner` a `operator`, obě svázaná s neměnnými GitHub ID, nikdy Headscale uživatelem ani jménem.",
-        "One operator's Machines and clients form two zones. The **personal zone** holds the Principal's personal clients (laptop, phone) and their one personal VM; its Owner is the Principal. The **work zone** holds the work VMs assigned to this operator (possibly several, across Organizations of the same Conglomerate) and a work laptop issued by an Organization; its Owner is the Organization. The zone follows `owner` and `operator`, both bound to immutable GitHub IDs, never a Headscale user or a name.",
+        "Environmenty a klienti jednoho Operátora tvoří dvě zóny. **Osobní zóna** zahrnuje Principálovy osobní klienty (laptop, telefon) a jeho jediný osobní Remote Environment; jejím Ownerem je Principál. **Pracovní zóna** zahrnuje pracovní Remote Environmenty přiřazené tomuhle Operátorovi (klidně několik, napříč Organizacemi téhož Conglomerate) a pracovní laptop vydaný Organizací; jejím Ownerem je Organizace. Zóna se řídí poli `owner` a `operator`, obě svázaná s neměnnými GitHub ID, nikdy Headscale uživatelem ani jménem.",
+        "One operator's Environments and clients form two zones. The **personal zone** holds the Principal's personal clients (laptop, phone) and their one personal Remote Environment; its Owner is the Principal. The **work zone** holds the work Remote Environments assigned to this operator (possibly several, across Organizations of the same Conglomerate) and a work laptop issued by an Organization; its Owner is the Organization. The zone follows `owner` and `operator`, both bound to immutable GitHub IDs, never a Headscale user or a name.",
       ),
       blank,
       t(
-        "- Uvnitř zóny oběma směry: osobní klient ↔ osobní VM; pracovní laptop ↔ pracovní VM téže Organizace přiřazená témuž Operátorovi. Pracovní VM mezi sebou žádný grant nemají, ani v rámci jedné Organizace.",
-        "- Inside a zone, both directions: personal client ↔ personal VM; work laptop ↔ work VM of the same Organization assigned to the same operator. Work VMs have no grant between each other, not even within one Organization.",
+        "- Uvnitř zóny oběma směry: osobní klient ↔ osobní Remote Environment; pracovní laptop ↔ pracovní Remote Environment téže Organizace přiřazený témuž Operátorovi. Pracovní Remote Environmenty mezi sebou žádný grant nemají, ani v rámci jedné Organizace.",
+        "- Inside a zone, both directions: personal client ↔ personal Remote Environment; work laptop ↔ work Remote Environment of the same Organization assigned to the same operator. Work Remote Environments have no grant between each other, not even within one Organization.",
       ),
       t(
-        "- Z osobní do pracovní: ano. Osobní klienti a osobní VM smějí na každou pracovní VM téhož Operátora (SSH i HTTPS).",
-        "- From personal to work: yes. Personal clients and the personal VM reach every work VM of the same operator (SSH and HTTPS).",
+        "- Z osobní do pracovní: ano. Osobní klienti a osobní Remote Environment smějí na každý pracovní Remote Environment téhož Operátora (SSH i HTTPS).",
+        "- From personal to work: yes. Personal clients and the personal Remote Environment reach every work Remote Environment of the same operator (SSH and HTTPS).",
       ),
       t(
-        "- Z pracovní do osobní: nikdy. Žádná pracovní VM ani pracovní laptop nemá grant na osobní VM ani osobní laptop.",
-        "- From work to personal: never. No work VM or work laptop has a grant to a personal VM or a personal laptop.",
+        "- Z pracovní do osobní: nikdy. Žádný pracovní Remote Environment ani pracovní laptop nemá grant na osobní Remote Environment ani osobní laptop.",
+        "- From work to personal: never. No work Remote Environment or work laptop has a grant to a personal Remote Environment or a personal laptop.",
       ),
       t(
-        "- Sdílená team VM přijímá jen příchozí spojení od členů živého GitHub Teamu, ke kterému je svázaná (decisions 0147/0149), a nikdy nemá odchozí grant.",
-        "- A shared team VM accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.",
+        "- Sdílený týmový Remote Environment přijímá jen příchozí spojení od členů živého GitHub Teamu, ke kterému je svázaný (decisions 0147/0149), a nikdy nemá odchozí grant.",
+        "- A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.",
       ),
       t(
         "- Mezi Principály nic implicitně. Telefon není SSH server.",
         "- Nothing implicitly between Principals. A phone is not an SSH server.",
       ),
       t(
-        "- Všechno platí uvnitř jednoho Conglomerate (jednoho Headscale tailnetu); osobní VM je node jen svého domovského tailnetu a mezi tailnety se žádný most nestaví.",
-        "- Everything holds inside one Conglomerate (one Headscale tailnet); a personal VM is a node of its home tailnet only, and no bridge is built between tailnets.",
+        "- Všechno platí uvnitř jednoho Conglomerate (jednoho Headscale tailnetu); osobní Remote Environment je node jen svého domovského tailnetu a mezi tailnety se žádný most nestaví.",
+        "- Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.",
       ),
       t(
-        "- Správa Conglomerate Hostu patří Ownerovi Organizace, která ho vlastní, a jen z jeho osobního laptopu a osobní VM.",
-        "- Administration of the Conglomerate Host belongs to the Owner of the Organization that owns it, only from their personal laptop and personal VM.",
+        "- Správa Conglomerate Hostu patří Ownerovi Organizace, která ho vlastní, a jen z jeho osobního laptopu a osobního Remote Environmentu.",
+        "- Administration of the Conglomerate Host belongs to the Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.",
       ),
       blank,
       t(
-        `**Zóna téhle Mašiny.** ${zoneOfThisMachine(preset, machine).cs}`,
-        `**This Machine's zone.** ${zoneOfThisMachine(preset, machine).en}`,
+        `**Zóna tohohle Environmentu.** ${zoneOfThisMachine(preset, machine).cs}`,
+        `**This Environment's zone.** ${zoneOfThisMachine(preset, machine).en}`,
       ),
       blank,
-      t("## Hranice na téhle Mašině", "## Boundaries on this Machine"),
+      t(
+        "## Hranice na tomhle Environmentu",
+        "## Boundaries in this Environment",
+      ),
       ...boundaries(preset),
       ...botTeam(preset, machine),
       blank,
@@ -1402,8 +1410,8 @@ function thisMachine(source: InstructionSource): string {
             blank,
             t("## Vztahy", "## Relationships"),
             t(
-              `Peers téhle Mašiny v tailnetu, jak je handover odvozuje z grantů Conglomerate Hostu (tahle Mašina je v ${relationships.zone === "personal" ? "osobní" : "pracovní"} zóně): kam tahle Mašina smí a kdo smí na ni, u každého peeru jeho druh, zóna, Organizace, SSH host, účet a směr a HTTPS hostnames gateway dostupné odsud.`,
-              `This Machine's tailnet peers as the handover records them from the Conglomerate Host grants (this Machine is in the ${relationships.zone} zone): what this Machine may reach and what may reach it, per peer with its kind, zone, Organization, SSH host, account and direction, and the HTTPS gateway hostnames reachable from here.`,
+              `Peers tohohle Environmentu v tailnetu, jak je handover odvozuje z grantů Conglomerate Hostu (tenhle Environment je v ${relationships.zone === "personal" ? "osobní" : "pracovní"} zóně): kam tenhle Environment smí a kdo smí na něj, u každého peeru jeho druh, zóna, Organizace, SSH host, účet a směr a HTTPS hostnames gateway dostupné odsud.`,
+              `This Environment's tailnet peers as the handover records them from the Conglomerate Host grants (this Environment is in the ${relationships.zone} zone): what this Environment may reach and what may reach it, per peer with its kind, zone, Organization, SSH host, account and direction, and the HTTPS gateway hostnames reachable from here.`,
             ),
             ...relationships.peers.map((peer) => same(peerLine(peer, locale))),
             t(

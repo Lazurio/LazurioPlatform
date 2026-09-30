@@ -294,7 +294,7 @@ test.skipIf(process.platform === "win32")(
       );
       const html = await (await fetch(url.origin)).text();
       expect(html).toContain("Lazurio Launchpad");
-      expect(html).toContain("This Machine");
+      expect(html).toContain("This Environment");
       expect(html).not.toContain('name="access"');
       expect(html).not.toContain(url.hash.slice(1));
       // The catalog home is the page; the developer form is gone from it.

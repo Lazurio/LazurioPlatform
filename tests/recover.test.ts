@@ -963,10 +963,10 @@ test("the human form: checks, the prompt, where the issue goes and that nothing 
     "failed   launchpad-health              launchpad-not-answering reason=no-answer",
   ]);
   expect(result.stdout).toContain(
-    "Prompt for the repair agent (it stays on this Machine):",
+    "Prompt for the repair agent (it stays in this Environment):",
   );
   expect(result.stdout).toContain(
-    "**Task:** Lazurio on this Machine needs a repair",
+    "**Task:** Lazurio in this Environment needs a repair",
   );
   expect(result.stdout).toContain(
     "Issue for the public repository Lazurio/LazurioPlatform. This command filed nothing; filing is the repair agent's act under the standing mandate for issues (root decision 0163).",

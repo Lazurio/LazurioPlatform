@@ -150,7 +150,7 @@ test("the check and the reason by id and in words, in both languages", () => {
 test("broken: the evidence without the journal, the prompt and the issue to copy, nothing filed", () => {
   const copy = messages("en");
   const view = recoveryView(broken, copy);
-  expect(view.summary).toBe("Lazurio on this Machine needs a repair.");
+  expect(view.summary).toBe("Lazurio in this Environment needs a repair.");
   expect(view.checks).toEqual([
     {
       id: "update-state-invalid (R2)",
@@ -174,7 +174,7 @@ test("broken: the evidence without the journal, the prompt and the issue to copy
   // The journal is on the page only behind the explicit toggle.
   expect(JSON.stringify(view)).not.toContain("JOURNAL-LINE-CANARY");
   expect(view.journal).toBeNull();
-  expect(view.journalToggle).toBe("Show journal (stays on this Machine)");
+  expect(view.journalToggle).toBe("Show journal (stays in this Environment)");
   expect(JSON.parse(view.evidence ?? "{}")).toMatchObject({
     fingerprint: "rf-0123456789ab",
   });
@@ -196,7 +196,7 @@ test("broken: the evidence without the journal, the prompt and the issue to copy
     linkLabel: "Open the prefilled issue in the browser",
   });
   expect(view.nothingFiled).toBe(
-    "Nothing was filed. This page only prepares the issue; nothing leaves this Machine automatically.",
+    "Nothing was filed. This page only prepares the issue; nothing leaves this Environment automatically.",
   );
 
   const shown = recoveryView(broken, copy, { journal: true });
@@ -245,7 +245,7 @@ test("a refused issue names the kinds only, and offers no gh command", () => {
   );
   expect(view.issue).toEqual({
     kind: "refused",
-    text: "No issue body was prepared: after sanitization it still contained organization, ip-address. Nothing may leave this Machine automatically.",
+    text: "No issue body was prepared: after sanitization it still contained organization, ip-address. Nothing may leave this Environment automatically.",
   });
   expect(view.actions).toEqual([
     { control: "copy-prompt", label: "Copy the prompt" },
@@ -272,7 +272,7 @@ test("healthy: the checks, and nothing to copy or file", () => {
   const view = recoveryView(healthy, messages("cs"));
   expect(view).toEqual({
     verdict: "healthy",
-    summary: "Lazurio na téhle Mašině je v pořádku.",
+    summary: "Lazurio na tomhle Environmentu je v pořádku.",
     checks: [
       {
         id: "launchpad-health",
