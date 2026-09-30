@@ -22,7 +22,11 @@ import {
   withFolderReadLock,
 } from "../src/folder/lock";
 import { executionOs } from "../src/folder/platform";
-import { type PresetName, presetProfile } from "../src/folder/presets";
+import {
+  type PresetName,
+  presetNames,
+  presetProfile,
+} from "../src/folder/presets";
 import { messages } from "../src/launchpad/messages";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
@@ -38,6 +42,8 @@ import { sharedSignInsText } from "../src/tools/curated-cli";
 import { ghJsonStatusArgs, readGhJsonStatus } from "../src/tools/gh-status";
 import {
   folderPreset,
+  githubLoginRefused,
+  githubRefusal,
   hostedEnvironmentPreset,
 } from "../src/tools/github-gate";
 import type { InstallFetch } from "../src/tools/install";
@@ -131,6 +137,33 @@ test("the rule: gh on a brokered preset takes no sign-in or key, and signs out o
       signIn: { state: "signed-in", identity: "app" },
     }),
   ).toBe(false);
+});
+
+// Decision 0169: on the Steward preset (the Automated Environment) the gh
+// sign-in and SSH key linking stay offered, for the persona's own machine
+// account signed in by the responsible operator. Only the brokered Team preset
+// refuses them; the gate never reads gh for a sign-in or a key.
+test("gh sign-in and key linking are refused only on the Team preset; the Steward preset signs in the persona's account", async () => {
+  const sessions = {
+    ghSignIn: async (): Promise<ToolSignIn> => {
+      throw new Error("the gate must not read gh for a sign-in");
+    },
+  };
+  for (const preset of presetNames) {
+    const team = preset === "hosted-organization-team";
+    for (const action of ["login", "ssh-key"] as const) {
+      expect([
+        preset,
+        action,
+        githubLoginRefused(preset, "gh", action),
+      ]).toEqual([preset, action, team]);
+      expect(await githubRefusal(preset, "gh", action, sessions)).toEqual(
+        team
+          ? { kind: "blocked", reason: "team-environment", tool: "gh", action }
+          : undefined,
+      );
+    }
+  }
 });
 
 test("the Launchpad's Team gh row offers Sign out exactly for a person's account, with one wording", () => {

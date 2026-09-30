@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { parseMachineBinding } from "../../src/folder/machine-binding";
 import { machineBinding } from "../../src/machine/binding";
 import { parseMachineContext } from "../../src/machine/context";
 import organization from "./machine-context.json";
@@ -130,16 +131,27 @@ export function personalWithEntry(listenPort = 20000) {
     entry: handoverEntry("example.lazurio.io", listenPort),
   });
 }
+// The Automated Environment of decision 0169 as Platform accepts it in a stored
+// binding: a work VM of an Organization persona with one responsible operator.
+// The vendored handover schema does not carry `automation` yet (a Machines
+// change and a re-pin), so this fixture is a stored binding, not a projected
+// document.
+export const automationAssignment = Object.freeze({
+  kind: "automation",
+  githubLogin: "example",
+  githubId: 12345,
+} as const);
+const assignedOperator = binding({
+  ...organization,
+  owner: { ...organization.owner, assignment: assignments.operator },
+});
 export const bindings = Object.freeze({
   personal: binding(personal),
   // v0.12.59 shapes: a Team without assignment, and no Team at all.
   team: binding(organization),
   organization: binding({ ...organization, owner: withoutTeam }),
   // v0.12.61 shapes: the Team-bearing canary resolved by owner.assignment.
-  assignedOperator: binding({
-    ...organization,
-    owner: { ...organization.owner, assignment: assignments.operator },
-  }),
+  assignedOperator,
   assignedTeam: binding({
     ...organization,
     owner: { ...organization.owner, assignment: assignments.team },
@@ -156,4 +168,9 @@ export const bindings = Object.freeze({
   // Machines 0.12.93 shapes: the entry on both lanes.
   organizationEntry: organizationWithEntry(),
   personalEntry: binding({ ...personal, entry: entries.personal }),
+  // Decision 0169: the Automated Environment, as a stored binding.
+  automated: parseMachineBinding({
+    ...assignedOperator,
+    owner: { ...assignedOperator.owner, assignment: automationAssignment },
+  }) as NonNullable<ReturnType<typeof parseMachineBinding>>,
 });

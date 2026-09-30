@@ -34,11 +34,16 @@ machine folder-init [--preset <name>] [--locale <cs|en>]
 Initialize the declared operator's standard Lazurio Folder from the handover.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
 workspace-vm with owner.assignment operator -> hosted-organization-personal, team
--> hosted-organization-team; without owner.assignment and without owner.team ->
-hosted-organization-personal). A workspace-vm handover with owner.team and no
-owner.assignment does not say whether the Remote Environment is assigned to one
-operator or shared, so it derives nothing: --preset hosted-organization-personal or --preset
-hosted-organization-team is required and recorded as an explicit choice. --preset may also pick another preset the handover allows. Omitted
+-> hosted-organization-team, automation (not in the handover schema yet) ->
+hosted-organization-steward; without
+owner.assignment and without owner.team -> hosted-organization-personal). A
+workspace-vm handover with owner.team and no owner.assignment does not say
+whether the Remote Environment is assigned to one operator or shared, so it derives
+nothing: --preset hosted-organization-personal or --preset
+hosted-organization-team is required and recorded as an explicit choice. --preset may also pick another preset the handover allows: every workspace-vm allows
+hosted-organization-steward, the Automated Environment of an Organization
+persona (decision 0169), as an explicit choice until the handover carries
+owner.assignment automation. Omitted
 communication choices take the preset's defaults; all are changeable later in
 the Launchpad.
 Adopts the existing Folder: organizations/ and personalspace/ may hold work

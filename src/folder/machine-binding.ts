@@ -16,9 +16,18 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // The assignment of an Organization work VM, copied by Machines from the owner
 // Deployment Repo (schema v0.12.61) and never inferred. It is the one fact the
-// two Organization presets differ on.
+// Organization presets differ on. `automation` is the Automated Environment
+// of decision 0169: the work VM of an Organization persona, with the one
+// responsible operator (an Owner or Admin of the Organization) named exactly
+// like `operator`. The vendored handover schema does not carry it yet; a
+// stored binding accepts it so that Platform is ready for the Machines change
+// and its re-pin. Any other kind fails closed.
 export type MachineAssignment =
-  | Readonly<{ kind: "operator"; githubLogin: string; githubId: number }>
+  | Readonly<{
+      kind: "operator" | "automation";
+      githubLogin: string;
+      githubId: number;
+    }>
   | Readonly<{ kind: "team" }>;
 
 export type MachineOwner =
@@ -141,13 +150,13 @@ function assignment(input: unknown): MachineAssignment {
   }
   const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
   if (
-    value.kind !== "operator" ||
+    (value.kind !== "operator" && value.kind !== "automation") ||
     !isGithubLogin(value.githubLogin) ||
     !isGithubId(value.githubId)
   )
     throw new Error("Invalid Machine assignment");
   return Object.freeze({
-    kind: "operator",
+    kind: value.kind,
     githubLogin: value.githubLogin,
     githubId: value.githubId,
   });

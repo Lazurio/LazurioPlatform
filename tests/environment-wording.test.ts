@@ -12,7 +12,7 @@ import {
 } from "../src/tools/catalog";
 import { bindings } from "./fixtures/machine-bindings";
 
-// Decision F27: towards people the place they work in is the Environment,
+// Decision F28: towards people the place they work in is the Environment,
 // and a hosted one a Remote Environment. What people read in the Launchpad
 // (both locales), the prompts they copy, and the instructions the Folder
 // gives agents (who then talk to people) never call it Mašina, Machine or
@@ -122,6 +122,7 @@ const journeys = [
   ["hosted-organization-personal", bindings.related],
   ["hosted-organization-personal", bindings.organizationEntry],
   ["hosted-organization-team", bindings.team],
+  ["hosted-organization-steward", bindings.automated],
 ] as const;
 
 test("the generated Folder instructions and manual say Environment towards people and carry the rule", () => {

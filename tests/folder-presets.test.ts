@@ -15,7 +15,12 @@ import {
 import { parseFolderPreferences } from "../src/folder/state";
 import { machineBinding } from "../src/machine/binding";
 import { parseMachineContext } from "../src/machine/context";
-import { bindings, workRelationships } from "./fixtures/machine-bindings";
+import {
+  automationAssignment,
+  binding,
+  bindings,
+  workRelationships,
+} from "./fixtures/machine-bindings";
 import organizationDocument from "./fixtures/machine-context.json";
 import personalDocument from "./fixtures/machine-context-personal.json";
 
@@ -32,7 +37,25 @@ const machines = {
     owner: { ...bindings.organization.owner, assignment: { kind: "team" } },
   }),
   "workspace-vm without owner.team, with relationships": bindings.related,
+  "workspace-vm with owner.team of a persona with one responsible operator":
+    bindings.automated,
+  "workspace-vm without owner.team of a persona with one responsible operator":
+    parseMachineBinding({
+      ...bindings.organization,
+      owner: {
+        ...bindings.organization.owner,
+        assignment: automationAssignment,
+      },
+    }),
 } as const;
+// Every Organization preset is allowed on every workspace VM; the assignment
+// selects which one is derived (F10). The Automated Environment of decision
+// 0169 adds the third.
+const organizationPresets = [
+  "hosted-organization-personal",
+  "hosted-organization-team",
+  "hosted-organization-steward",
+] as const;
 
 // Derivation is a function of machine.kind and the assignment. Since Machines
 // v0.12.61 `owner.assignment` is the only selector when present; without it
@@ -47,37 +70,49 @@ test.each([
     "workspace-vm with owner.team, no assignment",
     null,
     null,
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
   ],
   [
     "workspace-vm without owner.team, no assignment",
     "operator",
     "hosted-organization-personal",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
   ],
   [
     "workspace-vm with owner.team assigned to one operator",
     "operator",
     "hosted-organization-personal",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
   ],
   [
     "workspace-vm with owner.team assigned to the Team",
     "team",
     "hosted-organization-team",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
   ],
   [
     "workspace-vm without owner.team assigned to the Team",
     "team",
     "hosted-organization-team",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
   ],
   [
     "workspace-vm without owner.team, with relationships",
     "operator",
     "hosted-organization-personal",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
+  ],
+  [
+    "workspace-vm with owner.team of a persona with one responsible operator",
+    "automation",
+    "hosted-organization-steward",
+    organizationPresets,
+  ],
+  [
+    "workspace-vm without owner.team of a persona with one responsible operator",
+    "automation",
+    "hosted-organization-steward",
+    organizationPresets,
   ],
 ] as const)(
   "%s has assignment %p, derives %p and allows exactly %p",
@@ -136,6 +171,106 @@ test("presets are complete compositions with defaults the Principal may override
   expect(workspacePreset("hosted-organization-team").providerIdentity).toBe(
     "brokered-organization",
   );
+});
+
+// The four presets that existed before decision 0169, field by field: adding
+// the Automated preset changes none of them (each only states that it runs no
+// bot team).
+test("the presets that existed before decision 0169 are unchanged", () => {
+  const defaults = { locale: "en", detail: "concise", coordination: "direct" };
+  const hosted = ["launchpad", "hosted-entry"];
+  const organization = {
+    version: 1,
+    machineKinds: ["workspace-vm"],
+    composition: { access: "remote", purpose: "human" },
+    defaults,
+    personalspace: "never",
+    surfaces: hosted,
+    supervision: "os-service-manager",
+    botTeam: null,
+  };
+  const before: unknown = Object.fromEntries(
+    presetNames
+      .filter((name) => name !== "hosted-organization-steward")
+      .map((name) => [name, workspacePreset(name)]),
+  );
+  expect(before).toEqual({
+    local: {
+      name: "local",
+      version: 1,
+      machineKinds: ["workstation"],
+      composition: { access: "local", purpose: "human" },
+      defaults,
+      personalspace: "present",
+      providerIdentity: "own-sign-in",
+      surfaces: ["launchpad"],
+      supervision: "session",
+      botTeam: null,
+    },
+    "hosted-personal": {
+      name: "hosted-personal",
+      version: 1,
+      machineKinds: ["personal-vm"],
+      composition: { access: "remote", purpose: "human" },
+      defaults,
+      personalspace: "present",
+      providerIdentity: "own-sign-in",
+      surfaces: hosted,
+      supervision: "os-service-manager",
+      botTeam: null,
+    },
+    "hosted-organization-personal": {
+      ...organization,
+      name: "hosted-organization-personal",
+      providerIdentity: "own-sign-in",
+    },
+    "hosted-organization-team": {
+      ...organization,
+      name: "hosted-organization-team",
+      providerIdentity: "brokered-organization",
+    },
+  });
+});
+
+// Decision 0169: the Automated Environment of an Organization persona. An
+// Organization work VM (Personalspace never, Organization repositories under
+// organizations/<org>/) whose GitHub identity is the persona's own machine
+// user account, signed in by the responsible operator; Lazurio MausBot runs
+// the persona's bot team as a service next to the Launchpad and T3 Code.
+test("the Steward preset composes the Automated Environment of decision 0169", () => {
+  const preset = workspacePreset("hosted-organization-steward");
+  expect(preset).toEqual({
+    name: "hosted-organization-steward",
+    version: 1,
+    machineKinds: ["workspace-vm"],
+    composition: { access: "remote", purpose: "human" },
+    defaults: { locale: "en", detail: "concise", coordination: "direct" },
+    personalspace: "never",
+    providerIdentity: "persona-account",
+    surfaces: ["launchpad", "hosted-entry", "openmausbot"],
+    supervision: "os-service-manager",
+    botTeam: {
+      runtime: "openmausbot",
+      workingFolder: "lazurio-folder",
+      team: "lazurio/teams/steward.openmaus.json",
+      githubIntake: {
+        bot: "team-leader",
+        scope: "organization",
+        owners: "machine-organization",
+        exclude: ["infra", "productionspace"],
+      },
+    },
+  });
+  expect(Object.isFrozen(preset.botTeam)).toBe(true);
+  expect(Object.isFrozen(preset.botTeam?.githubIntake.exclude)).toBe(true);
+  // Only the Steward preset runs a bot team or has a persona identity.
+  for (const name of presetNames)
+    if (name !== "hosted-organization-steward") {
+      expect(workspacePreset(name).botTeam).toBeNull();
+      expect(workspacePreset(name).providerIdentity).not.toBe(
+        "persona-account",
+      );
+    }
 });
 
 test("a profile whose fixed axes disagree with the preset never validates", () => {
@@ -275,7 +410,45 @@ test("Machine bindings are typed projections; branches never mix, assignment and
     expect(() =>
       parseMachineBinding({ ...bindings.personal, ...change }),
     ).toThrow();
+  // The Automated assignment (decision 0169) is the responsible operator,
+  // exactly like `operator`; anything else fails closed.
+  expect(bindings.automated.owner).toEqual({
+    kind: "organization",
+    organization: "example",
+    team: "sample-team",
+    assignment: { kind: "automation", githubLogin: "example", githubId: 12345 },
+  });
+  expect(Object.isFrozen(bindings.automated.owner)).toBe(true);
   for (const owner of [
+    { ...bindings.team.owner, assignment: { kind: "automation" } },
+    {
+      ...bindings.team.owner,
+      assignment: { kind: "automation", githubLogin: "example" },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, githubLogin: "Example" },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, githubId: 0 },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: {
+        ...automationAssignment,
+        persona: { githubLogin: "example-bot", githubId: 2 },
+      },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, kind: "Automation" },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, kind: "persona" },
+    },
+    { ...bindings.personal.owner, assignment: automationAssignment },
     { ...bindings.team.owner, assignment: null },
     { ...bindings.team.owner, assignment: { kind: "everyone" } },
     { ...bindings.team.owner, assignment: { kind: "team", team: "x" } },
@@ -383,4 +556,30 @@ test("a schema-valid handover projects into preferences that read back exactly",
     expect(() =>
       parseMachineContext(Buffer.from(JSON.stringify(document))),
     ).toThrow();
+});
+
+// The Automated assignment reaches Platform only through the vendored handover
+// schema, which Machines owns. Until Machines carries `owner.assignment.kind:
+// "automation"` and Platform re-pins the schema, a handover declaring it is
+// refused whole (machine-context-invalid): no local schema change and no
+// heuristic stand in for it (F10). Today the Steward preset is an explicit
+// choice on a workspace VM.
+test("the vendored handover schema does not carry the Automated assignment yet", () => {
+  const automated = {
+    ...organizationDocument,
+    owner: {
+      ...organizationDocument.owner,
+      assignment: { kind: "automation", github_login: "example", github_id: 1 },
+    },
+  };
+  expect(() =>
+    parseMachineContext(Buffer.from(JSON.stringify(automated))),
+  ).toThrow("machine-context-invalid");
+  const today = binding(organizationDocument);
+  expect(derivePreset(today)).toBeNull();
+  expect(presetReference("hosted-organization-steward", today)).toEqual({
+    name: "hosted-organization-steward",
+    version: 1,
+    selection: "explicit",
+  });
 });

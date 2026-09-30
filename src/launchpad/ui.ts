@@ -133,6 +133,7 @@ const presetLabels: Record<string, MessageKey> = {
   "hosted-personal": "presetHostedPersonal",
   "hosted-organization-personal": "presetHostedOrganizationPersonal",
   "hosted-organization-team": "presetHostedOrganizationTeam",
+  "hosted-organization-steward": "presetHostedOrganizationSteward",
 };
 // One compact read-only line per recorded peer, in the handover's own words.
 function peerText(peer: MachinePeer): string {
