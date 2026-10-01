@@ -2524,3 +2524,70 @@ may follow this wording when they are next edited.
 | Czech "prostředí" / "vzdálené prostředí" | A common word that does not read as a name; not chosen by the Principal, so Czech and English texts name the same thing |
 | Rename the identifiers, commands and schemas too | Changes contracts other products read; a separate decision |
 | "Environment" and "Remote Environment" in what people read, "Machine" as the technical term, guarded by a test (selected) | People read one familiar word; contracts stay; regressions are caught |
+
+## F29 — Entry units of a Remote Environment: the Launchpad, T3 Code and the operator's Codex app-server
+
+**Decided by the Principal 2026-09-30 (plan DEV-6635); implemented in this revision.**
+A Remote Environment has three ways in that must be there after every boot without
+anyone starting them by hand: the Launchpad (the installer's
+`lazurio-launchpad.service`, F21), T3 Code (baseline, its launcher's unit, Machines,
+F17) and the operator's **Codex app-server daemon**, which a Codex client — the Codex
+app over SSH, for example — connects to. Today nobody starts the daemon after a reboot
+and such a client waits forever. `codex app-server daemon start` does not survive a
+reboot on its own.
+
+1. **A second installer unit.** Next to the Launchpad unit the installer owns
+   `lazurio-codex-app-server.service`, a `oneshot` unit with
+   `RemainAfterExit=yes` that runs the operator's own `%h/.local/bin/codex app-server
+   daemon start` (`ExecStop=-… daemon stop`), `WantedBy=default.target`, with the
+   condition `ConditionFileIsExecutable=%h/.local/bin/codex`, `KillMode=process`, the
+   units' PATH, no `Restart=`, no `PrivateTmp=` and no ordering against the Launchpad.
+   Exact text and the reason for each directive: [product update](update.md#state-on-disk).
+2. **The Platform converges its entry units itself, on install and on update.**
+   Whenever `lazurio install` (with or without `--service`) or `lazurio update`
+   (online, or offline through `install --base`) finds this base supervised — the
+   Launchpad unit is the installer's unit of this base (`unitBelongsToBase`) — and the
+   process is the declared operator of a readable Machine handover
+   (`discoverHostedOperator` answers `hosted`, the signal that gives a Remote
+   Environment its Folder), it ensures the Codex unit. So every Environment switched
+   before this release gets it: Machines runs `install --service` once, at the
+   Launchpad switch, and afterwards only `install --base` without `--service`, and
+   operators run `lazurio update`. A workstation's supervised base writes the
+   Launchpad unit alone (`skipped-not-hosted`); a base without its Launchpad unit is
+   left alone and its result has no `codexAppServer`. The hosted context is asked only
+   for a supervised base. `serviceInstalled` still says only whether `--service` was
+   given. No new flag: the handover already says it. The first online update **to**
+   this release runs the previous release's updater, which does not converge; the next
+   `install --base` of a Machines apply, or the next update, does.
+3. **Codex stays the operator's** (root decision 0161, F17). The Platform never
+   installs, updates, downgrades or reconfigures Codex and never runs its installer;
+   without Codex the condition skips the start and nothing fails. `install` and
+   `update` never `restart` or `stop` the unit, because that ends live Codex sessions;
+   `start` of an active unit changes nothing, and identical text is not rewritten.
+4. **It never blocks.** The step runs only after the Launchpad unit is in place (and,
+   on update, after a successful run, outside the update lock), and nothing about it
+   fails the installation, the update or the Launchpad switch: the result keeps `kind`,
+   `serviceInstalled` and its success and adds `codexAppServer` (`enabled`,
+   `skipped-not-hosted`, `foreign-unit`, `failed` with `step`, each failure with
+   `next`). An unmarked file of that name, or a masked unit, is someone else's and is
+   left unchanged. The marker alone is ownership: the unit names no base or Folder, so
+   every installation renders the same bytes.
+5. **A fact in doctor, not a recovery.** `lazurio doctor` reports it as
+   `codex-app-server`: `ok` when the unit is active and Codex answers `running` to
+   `codex app-server daemon version`, otherwise `warn` with its reason, `skipped` where
+   the unit cannot be (not Linux, no user manager, not supervised, not hosted, no
+   Codex); never `fail`. `lazurio recover` and Recovery mode do not look at it.
+
+**Not decided here.** T3 Code's unit stays Machines'. A refused update
+(`activation-unhealthy` included) converges nothing; the next successful install or
+update does.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Leave the daemon to the operator or the client | The failure this decision fixes: nothing starts it after a reboot; rejected |
+| Machines writes the Codex unit | A second writer of the operator's user units next to the installer's, and one more thing to keep in step with the Platform's unit text; rejected: the installer that owns the Launchpad unit owns this one |
+| `Type=simple` running `codex app-server` in the foreground under systemd | systemd would supervise a process Codex supervises itself (its own daemon package and update loop), and Codex's `daemon` commands would no longer see it as their daemon; rejected |
+| Order the unit after the Launchpad or make it require it | Couples two independent ways in; a broken Launchpad would keep Codex away; rejected |
+| An explicit opt-in flag on `install` | The handover already declares a hosted operator; a flag is a second source for the same fact; rejected |
+| Write the unit only with `install --service` | Machines passes `--service` once, at the switch, so every Environment switched earlier would never get it; rejected for convergence on every install and update of a supervised hosted base |
+| A oneshot unit running the operator's `codex app-server daemon start`, written by `install --service` on a hosted Machine, never blocking (selected) | Uses Codex's own daemon lifecycle; one owner of the installer's units; failures are facts, not blockers |

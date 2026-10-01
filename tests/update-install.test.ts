@@ -9,16 +9,23 @@ import {
   realpath,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { runInstallCommand } from "../src/update/cli";
+import {
+  codexAppServerUnit,
+  renderCodexAppServerUnit,
+} from "../src/update/codex-app-server";
 import {
   performInstall,
   renderLaunchpadUnit,
   systemdQuote,
 } from "../src/update/install";
 import {
+  layout,
   readHighWater,
   readSelector,
   swapSelector,
@@ -621,4 +628,401 @@ test("install over an installation with the rollback unit and a previous version
   );
   // Reread, never restarted.
   expect(commands).toEqual([["systemctl", "--user", "daemon-reload"]]);
+});
+
+// The operator's Codex app-server daemon at boot on a hosted Machine
+// (decision F29, docs/update.md "State on disk"): a second installer unit,
+// written only with the service on the declared operator's account, that
+// never fails the installation and is never restarted or stopped by it.
+const hostedOperator = async () => true;
+
+const codexUnitLines = [
+  "# Written by `lazurio install`; rewritten by it, so edit a drop-in instead.",
+  "[Unit]",
+  "Description=Codex app-server daemon (operator's Codex)",
+  // No Codex, no start and no failure.
+  "ConditionFileIsExecutable=%h/.local/bin/codex",
+  "",
+  "[Service]",
+  "Type=oneshot",
+  "RemainAfterExit=yes",
+  // The daemon's processes are Codex's to stop.
+  "KillMode=process",
+  "Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin",
+  "ExecStart=%h/.local/bin/codex app-server daemon start",
+  "ExecStop=-%h/.local/bin/codex app-server daemon stop",
+  "TimeoutStartSec=60",
+  "",
+  "[Install]",
+  "WantedBy=default.target",
+  "",
+];
+
+test("install --service on a hosted Machine also writes, enables and starts the Codex app-server unit; repeated or as the offline update it writes nothing and never restarts or stops it", async () => {
+  const { input, commands } = await scene();
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  const units = join(root, "config/systemd/user");
+  expect(
+    await performInstall({
+      ...input,
+      service: { folder },
+      hosted: hostedOperator,
+    }),
+  ).toMatchObject({
+    kind: "installed",
+    serviceInstalled: true,
+    codexAppServer: { state: "enabled" },
+  });
+  const text = await readFile(join(units, codexAppServerUnit), "utf8");
+  expect(text).toBe(renderCodexAppServerUnit());
+  expect(text.split("\n")).toEqual(codexUnitLines);
+  // Nothing orders it against the Launchpad, and no private /tmp hides the
+  // daemon's socket from a client session.
+  expect(text).not.toMatch(
+    /After=|Before=|Requires=|Wants=|PrivateTmp|Restart=/,
+  );
+  expect((await readdir(units)).sort()).toEqual(
+    [codexAppServerUnit, launchpadUnit].sort(),
+  );
+  // After the Launchpad's unit, and never a restart or a stop.
+  expect(commands).toEqual([
+    ["systemctl", "--user", "daemon-reload"],
+    ["systemctl", "--user", "enable", "--now", launchpadUnit],
+    ["systemctl", "--user", "daemon-reload"],
+    ["systemctl", "--user", "enable", codexAppServerUnit],
+    ["systemctl", "--user", "start", codexAppServerUnit],
+  ]);
+  const written = await stat(join(units, codexAppServerUnit));
+
+  // Repeated: the same bytes are not rewritten and not reloaded for it;
+  // `start` of an active unit changes nothing.
+  commands.length = 0;
+  expect(
+    await performInstall({
+      ...input,
+      service: { folder },
+      hosted: hostedOperator,
+    }),
+  ).toMatchObject({ kind: "installed", codexAppServer: { state: "enabled" } });
+  expect((await stat(join(units, codexAppServerUnit))).mtimeMs).toBe(
+    written.mtimeMs,
+  );
+  expect(commands).toEqual([
+    ["systemctl", "--user", "daemon-reload"],
+    ["systemctl", "--user", "enable", "--now", launchpadUnit],
+    ["systemctl", "--user", "enable", codexAppServerUnit],
+    ["systemctl", "--user", "start", codexAppServerUnit],
+  ]);
+
+  // The offline update restarts the Launchpad (its own unit) and nothing of
+  // Codex's.
+  const file = join(root, "Downloads", "lazurio-1.1.0");
+  await writeFile(file, executable("1.1.0"), { mode: 0o755 });
+  commands.length = 0;
+  await performInstall({
+    ...input,
+    executable: file,
+    identity: { version: "1.1.0", commit: commitOf("1.1.0"), target },
+    service: { folder },
+    hosted: hostedOperator,
+    healthDeadlineMs: 200,
+  });
+  expect(await readSelector(input.base)).toBe("1.1.0");
+  expect(
+    commands.filter(
+      (command) =>
+        command.includes(codexAppServerUnit) &&
+        !["enable", "start"].includes(command[2] ?? ""),
+    ),
+  ).toEqual([]);
+  expect(commands.filter((command) => command[2] === "restart")).toEqual([
+    ["systemctl", "--user", "restart", launchpadUnit],
+  ]);
+
+  // The migration of the former rollback deletes its own unit by name and
+  // leaves this one.
+  await writeFile(
+    join(units, "lazurio-rollback.service"),
+    `${unitMarker}\n[Service]\nType=oneshot\nExecStart=${input.base}/previous/lazurio update rollback --auto --base ${input.base}\n`,
+  );
+  await performInstall({
+    ...input,
+    executable: file,
+    identity: { version: "1.1.0", commit: commitOf("1.1.0"), target },
+  });
+  expect((await readdir(units)).sort()).toEqual(
+    [codexAppServerUnit, launchpadUnit].sort(),
+  );
+  expect(await readFile(join(units, codexAppServerUnit), "utf8")).toBe(text);
+});
+
+test("the Codex app-server unit is converged on a supervised base of a hosted Machine, with or without --service; an unsupervised base is left alone", async () => {
+  const { input, commands } = await scene();
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  const units = join(root, "config/systemd/user");
+  let asked = 0;
+  const counted = async () => {
+    asked++;
+    return true;
+  };
+  // Unsupervised (no Launchpad unit of this base): nothing is written, the
+  // hosted context is not asked and the result has no such key.
+  const unsupervised = await performInstall({ ...input, hosted: counted });
+  expect(unsupervised.kind).toBe("installed");
+  expect(Object.keys(unsupervised)).not.toContain("codexAppServer");
+  expect(asked).toBe(0);
+  expect(commands).toEqual([]);
+  // A workstation (or an unreadable hosted context): the Launchpad only.
+  expect(await performInstall({ ...input, service: { folder } })).toMatchObject(
+    {
+      kind: "installed",
+      serviceInstalled: true,
+      codexAppServer: { state: "skipped-not-hosted" },
+    },
+  );
+  expect(await readdir(units)).toEqual([launchpadUnit]);
+  expect(commands.some((command) => command.includes(codexAppServerUnit))).toBe(
+    false,
+  );
+  // An Environment switched before this release: the Machines apply raises
+  // the pin with `install --base` and no --service. The supervised base
+  // gets the unit; serviceInstalled stays false.
+  commands.length = 0;
+  const converged = await performInstall({ ...input, hosted: counted });
+  expect(converged).toMatchObject({
+    kind: "installed",
+    serviceInstalled: false,
+    codexAppServer: { state: "enabled" },
+  });
+  expect(asked).toBe(1);
+  expect(await readFile(join(units, codexAppServerUnit), "utf8")).toBe(
+    renderCodexAppServerUnit(),
+  );
+  expect(commands).toEqual([
+    ["systemctl", "--user", "daemon-reload"],
+    ["systemctl", "--user", "enable", codexAppServerUnit],
+    ["systemctl", "--user", "start", codexAppServerUnit],
+  ]);
+  // Another base of this account is not supervised by that unit: untouched.
+  commands.length = 0;
+  const other = await performInstall({
+    ...input,
+    base: join(root, "data", "other"),
+    hosted: counted,
+  });
+  expect(Object.keys(other)).not.toContain("codexAppServer");
+  expect(commands).toEqual([]);
+});
+
+test.skipIf(process.platform === "win32")(
+  "the offline update without --service on a supervised hosted base converges the Codex unit and restarts only the Launchpad",
+  async () => {
+    const { input, commands } = await scene();
+    const folder = join(root, "Lazurio");
+    await mkdir(folder);
+    const units = join(root, "config/systemd/user");
+    // Switched before this release: the Launchpad unit only.
+    await performInstall({ ...input, service: { folder } });
+    expect(await readdir(units)).toEqual([launchpadUnit]);
+    // The restarted Launchpad reports the new version on its health socket.
+    const health = Bun.serve({
+      unix: layout(input.base).healthSocket,
+      fetch: () => Response.json({ version: "1.1.0" }),
+    });
+    try {
+      const file = join(root, "Downloads", "lazurio-1.1.0");
+      await writeFile(file, executable("1.1.0"), { mode: 0o755 });
+      commands.length = 0;
+      expect(
+        await performInstall({
+          ...input,
+          executable: file,
+          identity: { version: "1.1.0", commit: commitOf("1.1.0"), target },
+          hosted: hostedOperator,
+        }),
+      ).toMatchObject({
+        kind: "updated",
+        from: "1.0.0",
+        to: "1.1.0",
+        restartRequired: false,
+        serviceInstalled: false,
+        codexAppServer: { state: "enabled" },
+      });
+    } finally {
+      health.stop(true);
+    }
+    expect(await readFile(join(units, codexAppServerUnit), "utf8")).toBe(
+      renderCodexAppServerUnit(),
+    );
+    expect(commands).toEqual([
+      ["systemctl", "--user", "reset-failed", launchpadUnit],
+      ["systemctl", "--user", "restart", launchpadUnit],
+      ["systemctl", "--user", "daemon-reload"],
+      ["systemctl", "--user", "enable", codexAppServerUnit],
+      ["systemctl", "--user", "start", codexAppServerUnit],
+    ]);
+  },
+);
+
+test("a Codex app-server unit the installer did not write is left unchanged and the installation still succeeds", async () => {
+  const { input, commands } = await scene();
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  const units = join(root, "config/systemd/user");
+  await mkdir(units, { recursive: true });
+  const own = "[Service]\nExecStart=/usr/bin/true\n";
+  await writeFile(join(units, codexAppServerUnit), own);
+  expect(
+    await performInstall({
+      ...input,
+      service: { folder },
+      hosted: hostedOperator,
+    }),
+  ).toMatchObject({
+    kind: "installed",
+    serviceInstalled: true,
+    codexAppServer: {
+      state: "foreign-unit",
+      next: expect.stringContaining(codexAppServerUnit),
+    },
+  });
+  expect(await readFile(join(units, codexAppServerUnit), "utf8")).toBe(own);
+  expect(commands.some((command) => command.includes(codexAppServerUnit))).toBe(
+    false,
+  );
+  // A masked unit is a person's decision too.
+  await rm(join(units, codexAppServerUnit));
+  await symlink("/dev/null", join(units, codexAppServerUnit));
+  expect(
+    await performInstall({
+      ...input,
+      service: { folder },
+      hosted: hostedOperator,
+    }),
+  ).toMatchObject({ codexAppServer: { state: "foreign-unit" } });
+  expect(await readlink(join(units, codexAppServerUnit))).toBe("/dev/null");
+});
+
+test("a failing enable or start of the Codex app-server unit is reported and never fails the installation or the Launchpad", async () => {
+  const { input } = await scene();
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  const units = join(root, "config/systemd/user");
+  for (const [refused, step] of [
+    ["enable", "enable"],
+    ["start", "start"],
+    ["timeout", "start"],
+  ] as const) {
+    const commands: string[][] = [];
+    const run: ProcessRunner = async (command, timeoutMs, env) => {
+      if (command[0] !== "systemctl")
+        return runProcess(command, timeoutMs, env);
+      commands.push([...command]);
+      if (command.at(-1) === codexAppServerUnit) {
+        if (refused === "timeout" && command[2] === "start") return "timeout";
+        if (command[2] === refused) return { exitCode: 1, stdout: "" };
+      }
+      return { exitCode: 0, stdout: "" };
+    };
+    expect(
+      await performInstall({
+        ...input,
+        service: { folder },
+        hosted: hostedOperator,
+        run,
+      }),
+    ).toMatchObject({
+      kind: "installed",
+      active: "1.0.0",
+      serviceInstalled: true,
+      codexAppServer: { state: "failed", step, next: expect.any(String) },
+    });
+    // The Launchpad's unit was enabled and started first.
+    expect(commands[1]).toEqual([
+      "systemctl",
+      "--user",
+      "enable",
+      "--now",
+      launchpadUnit,
+    ]);
+    expect(await readFile(join(units, codexAppServerUnit), "utf8")).toBe(
+      renderCodexAppServerUnit(),
+    );
+  }
+  // An unwritable unit directory for it: failed at the unit, installed.
+  await rm(join(units, codexAppServerUnit));
+  await mkdir(join(units, codexAppServerUnit));
+  await writeFile(join(units, codexAppServerUnit, "x"), "");
+  expect(
+    await performInstall({
+      ...input,
+      service: { folder },
+      hosted: hostedOperator,
+    }),
+  ).toMatchObject({
+    kind: "installed",
+    codexAppServer: { state: "failed", step: "unit" },
+  });
+});
+
+test("lazurio install asks the hosted context and says what became of the Codex app-server unit", async () => {
+  const { input } = await scene();
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  let asked = 0;
+  const cli = (hostedFolder: () => Promise<string | undefined>) => ({
+    identity: input.identity,
+    platform: "linux",
+    env: input.env,
+    executable: input.executable,
+    run: input.run,
+    hostedFolder: () => {
+      asked++;
+      return hostedFolder();
+    },
+  });
+  const service = ["--service", "systemd-user", "--folder", folder];
+  const hosted = await runInstallCommand(
+    ["--base", input.base, ...service, "--json"],
+    cli(async () => folder),
+  );
+  expect(JSON.parse(hosted.stdout ?? "")).toMatchObject({
+    kind: "installed",
+    serviceInstalled: true,
+    codexAppServer: { state: "enabled" },
+  });
+  const human = await runInstallCommand(
+    ["--base", input.base, ...service],
+    cli(async () => folder),
+  );
+  expect(human.stdout).toContain(
+    "The Codex app-server daemon starts with this Environment (lazurio-codex-app-server.service).",
+  );
+  // No declared operator, or a context that cannot be read: not hosted.
+  for (const hostedFolder of [
+    async () => undefined,
+    async () => {
+      throw new Error("handover unreadable");
+    },
+  ])
+    expect(
+      JSON.parse(
+        (
+          await runInstallCommand(
+            ["--base", input.base, ...service, "--json"],
+            cli(hostedFolder),
+          )
+        ).stdout ?? "",
+      ),
+    ).toMatchObject({ codexAppServer: { state: "skipped-not-hosted" } });
+  // Without the service on a base its Launchpad unit does not supervise, it
+  // is not asked at all.
+  asked = 0;
+  await runInstallCommand(
+    ["--base", join(root, "data", "other"), "--json"],
+    cli(async () => folder),
+  );
+  expect(asked).toBe(0);
 });

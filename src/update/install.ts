@@ -2,6 +2,11 @@ import { copyFile, lstat, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
+import {
+  type CodexAppServer,
+  codexAppServerFailed,
+  convergeEntryUnits,
+} from "./codex-app-server";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
@@ -35,6 +40,7 @@ import {
   systemdQuote,
   unitBelongsToBase,
   unitMarker,
+  unitPath,
   userUnitDirectory,
 } from "./service-control";
 import {
@@ -65,17 +71,14 @@ import { compareVersions } from "./version";
  * activation and floor as `lazurio update`, with the bytes coming from the
  * staged file instead of the network. It never goes below the floor.
  * Either way it ends by creating the standard entry `~/.local/bin/lazurio`
- * when it is missing or Lazurio's own (`path-entry.ts`).
+ * when it is missing or Lazurio's own (`path-entry.ts`). On a supervised base
+ * of a hosted Machine — with or without `--service` — it also converges the
+ * unit that starts the operator's Codex app-server daemon at boot
+ * (`codex-app-server.ts`, decision F29), which never fails the installation.
  */
 
-export { launchpadExecStart, systemdQuote, unitMarker };
-
-/** The PATH of the Launchpad and of everything it starts: the operator's
- * standard tool path first (decision F17 addendum 2026-09-28, docs/
- * environment-tools.md "The standard path"), then the system directories.
- * `%h` is the home directory of the user running the service manager
- * (systemd.unit(5), "Specifiers"). */
-export const unitPath = "%h/.local/bin:/usr/local/bin:/usr/bin:/bin";
+/** The PATH of the Launchpad and of everything it starts (`unitPath`). */
+export { launchpadExecStart, systemdQuote, unitMarker, unitPath };
 
 /** `ExecStart` is the SELECTOR, so a restart runs whatever version is active.
  * The Launchpad must always run (docs/update.md "Recovery mode"), so the unit
@@ -135,6 +138,11 @@ export type InstallInput = Readonly<{
   env: Readonly<Record<string, string | undefined>>;
   /** Present: install the systemd user service for this Folder. */
   service?: Readonly<{ folder: string }> | undefined;
+  /** Whether this process is the declared operator of a Machine handover
+   * (`discoverHostedOperator` answers `hosted`); asked only when the base is
+   * supervised. Absent: not hosted. On a hosted supervised base the Codex
+   * app-server unit is converged (decision F29). */
+  hosted?: (() => Promise<boolean>) | undefined;
   run?: ProcessRunner | undefined;
   healthDeadlineMs?: number | undefined;
 }>;
@@ -151,6 +159,9 @@ export type InstallResult =
       serviceInstalled: boolean;
       /** `~/.local/bin/lazurio`; null without a home or on another OS. */
       entry: PathEntry | null;
+      /** Only on a supervised base (its Launchpad unit is this base's): what
+       * became of the Codex app-server unit. */
+      codexAppServer?: CodexAppServer;
     }>
   /** The offline update: a newer executable over an existing installation. */
   | Readonly<{
@@ -162,6 +173,7 @@ export type InstallResult =
       path: string;
       serviceInstalled: boolean;
       entry: PathEntry | null;
+      codexAppServer?: CodexAppServer;
     }>
   | ErrorResult;
 
@@ -434,6 +446,15 @@ async function install(input: InstallInput): Promise<InstallResult> {
     )
       throw new UpdateFailure("activation-failed", { stage: "service" });
   }
+  // Only after the Launchpad's unit is in place, with or without `--service`,
+  // and whatever it answers, the installation stands.
+  const codexAppServer: CodexAppServer | undefined = await convergeEntryUnits({
+    base,
+    platform: input.platform,
+    env: input.env,
+    run: input.run ?? runProcess,
+    hosted: input.hosted ?? (async () => false),
+  }).catch(() => codexAppServerFailed("unit"));
   // Last, and never a reason to fail: the product is installed whatever
   // happens to its PATH entry, and the result says what it found.
   const entry = await ensurePathEntry({
@@ -453,6 +474,7 @@ async function install(input: InstallInput): Promise<InstallResult> {
       path,
       serviceInstalled: service !== undefined,
       entry,
+      ...(codexAppServer === undefined ? {} : { codexAppServer }),
     });
   return Object.freeze({
     kind: "installed" as const,
@@ -460,5 +482,6 @@ async function install(input: InstallInput): Promise<InstallResult> {
     path,
     serviceInstalled: service !== undefined,
     entry,
+    ...(codexAppServer === undefined ? {} : { codexAppServer }),
   });
 }

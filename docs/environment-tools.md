@@ -433,6 +433,18 @@ the repair with the operator's mandate. `tools status` reports
 `standardPath` per tool; the generated Folder manual carries the rule ("Kde bydlí
 nástroje" / "Where the tools live") so agents keep the layout when they add tools.
 
+**The Codex app-server daemon at boot (F29).** In a Remote Environment whose Launchpad
+is supervised, every `lazurio install` and `lazurio update` run as the handover's
+declared operator ensures a second installer unit, `lazurio-codex-app-server.service`, runs the
+operator's own `~/.local/bin/codex app-server daemon start` at every boot, so a Codex
+client connecting over SSH finds the daemon without anyone starting it by hand. This
+is the one thing the Platform does with Codex beyond reporting it: it never installs,
+updates, downgrades or reconfigures Codex and never runs its installer; without Codex
+at its standard entry the unit's condition skips the start. Install and update never
+restart or stop the daemon, since that would end live Codex sessions. `lazurio doctor`
+reports it as `codex-app-server` (`ok`, or `warn` with the next step, never `fail`).
+The unit text is in [product update](update.md#state-on-disk).
+
 ## Ownership
 
 | Capability | Platform responsibility | Operator / external owner responsibility |
@@ -440,7 +452,7 @@ nástroje" / "Where the tools live") so agents keep the layout when they add too
 | Standalone Lazurio CLI | Verify the release, stage and activate the selected artifact; no external Bun/Node prerequisite | Approve the release (`latest` or one exact tag) and target; Machines performs its infrastructure installation handover |
 | Git and GitHub CLI (`gh`) | Diagnose availability and required capabilities; propose explicit preparation of missing tools | Authorize package/system changes; authenticate as the intended Principal and grant actual repo access |
 | Module runtime (for example Bun) | Coordinate the module's declared preparation; report missing/incompatible runtime without claiming readiness | Module owns exact dependency/runtime requirements and preparation; operator approves installation |
-| Codex / Claude harness | Diagnose the selected harness, instruction loading and required capabilities; provide one Folder-owned instruction contract | Choose the harness, accounts/model access and consent; complete provider-native sign-in |
+| Codex / Claude harness | Diagnose the selected harness, instruction loading and required capabilities; provide one Folder-owned instruction contract; in a Remote Environment start the operator's Codex app-server daemon at boot (`lazurio-codex-app-server.service`, F29) and report it in `lazurio doctor` | Choose the harness, accounts/model access and consent; complete provider-native sign-in; install, update and configure Codex itself |
 | Credentials | Use an existing approved provider/credential interface; retain only non-secret diagnostic outcomes | Existing credential owner retains custody, rotation and revocation |
 
 The table describes a private workspace or local Machine, where one Principal is the

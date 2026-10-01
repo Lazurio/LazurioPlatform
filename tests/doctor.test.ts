@@ -37,8 +37,10 @@ import { machineBinding } from "../src/machine/binding";
 import { parseMachineContext } from "../src/machine/context";
 import { exitBroken } from "../src/recover/cli";
 import type { ToolRunner } from "../src/tools/status";
-import { performInstall } from "../src/update/install";
+import { codexAppServerUnit } from "../src/update/codex-app-server";
+import { performInstall, renderLaunchpadUnit } from "../src/update/install";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
+import { launchpadUnit } from "../src/update/service-control";
 import {
   writeOrganization,
   writePersonalspaceModule,
@@ -348,6 +350,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "launchpad-unit skipped no-user-manager",
     "launchpad-health skipped not-supervised",
     "machine-entry skipped not-hosted",
+    "codex-app-server skipped no-user-manager",
   ]);
   expect(find(result.json, "tool", "gh")).toEqual({
     id: "tool",
@@ -741,3 +744,181 @@ test("lazurio doctor runs from the command line with a temporary home", async ()
   });
   expectTierOne(stdout, world);
 });
+
+// The operator's Codex app-server daemon of a hosted Machine (decision F29):
+// a supervised Linux installation whose handover declares this account the
+// operator, with Codex at its standard entry. `warn`, never `fail`.
+test.skipIf(process.platform === "win32")(
+  "the Codex app-server daemon: skipped where the unit cannot be, ok when its unit is active and Codex says running, warn otherwise",
+  async () => {
+    const world = await createWorld();
+    const units = join(world.home, ".config", "systemd", "user");
+    await mkdir(units, { recursive: true });
+    await writeFile(
+      join(units, launchpadUnit),
+      renderLaunchpadUnit(world.base, world.folder),
+    );
+    const codex = join(world.home, ".local", "bin", "codex");
+    await mkdir(join(world.home, ".local", "bin"), { recursive: true });
+    await writeFile(codex, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    const unit = (state: string, sub: string, result = "success") =>
+      `LoadState=loaded\nActiveState=${state}\nSubState=${sub}\nResult=${result}\n`;
+    const running = '{"status":"running","pid":4242}\n';
+    const calls: string[][] = [];
+    const run = (show: string | null, daemon: string | "timeout") =>
+      Object.freeze({
+        systemd: (async (command, timeoutMs, env) => {
+          if (command[0] === "systemctl") {
+            if (command.at(-1) === launchpadUnit)
+              return {
+                exitCode: 0,
+                stdout:
+                  "LoadState=loaded\nActiveState=active\nSubState=running\nResult=success\nNRestarts=0\nExecMainStatus=0\n",
+              };
+            if (command.at(-1) === codexAppServerUnit)
+              return show === null
+                ? { exitCode: 1, stdout: "" }
+                : { exitCode: 0, stdout: show };
+          }
+          if (command[0]?.startsWith(world.root))
+            return runProcess(command, timeoutMs, env);
+          throw new Error(`Unexpected command ${command[0]}`);
+        }) satisfies ProcessRunner,
+        tools: (async (command) => {
+          calls.push([...command]);
+          if (command[1] === "app-server")
+            return daemon === "timeout"
+              ? "timeout"
+              : { exitCode: 0, stdout: daemon, stderr: "" };
+          return toolRun(command, 1000, {});
+        }) satisfies ToolRunner,
+      });
+    const doctorOf = async (
+      options: Readonly<{
+        show?: string | null;
+        daemon?: string | "timeout";
+        platform?: string;
+        runtime?: boolean;
+        hosted?: (() => Promise<string | undefined>) | null;
+      }> = {},
+    ) => {
+      const runners = run(
+        options.show === undefined ? unit("active", "exited") : options.show,
+        options.daemon ?? running,
+      );
+      const output = await runDoctorCommand(
+        ["--base", world.base, "--folder", world.folder, "--json"],
+        {
+          ...context(world, {
+            health: async () => ({ kind: "version", version: "1.0.0" }),
+          }),
+          platform: options.platform ?? "linux",
+          env: {
+            HOME: world.home,
+            PATH: world.bin,
+            ...(options.runtime === false
+              ? {}
+              : { XDG_RUNTIME_DIR: "/run/user/1000" }),
+          },
+          run: runners.systemd,
+          toolRun: runners.tools,
+          ...(options.hosted === null
+            ? {}
+            : { hostedFolder: options.hosted ?? (async () => world.folder) }),
+        },
+      );
+      expectTierOne(output.stdout ?? "", world);
+      const json = JSON.parse(output.stdout ?? "");
+      return { code: output.code, json, check: find(json, "codex-app-server") };
+    };
+
+    const healthy = await doctorOf();
+    expect(healthy.check).toEqual({ id: "codex-app-server", outcome: "ok" });
+    expect(healthy.code).toBe(0);
+    // Asked with the standard entry, PATH and HOME only.
+    expect(calls.filter((command) => command[1] === "app-server")).toEqual([
+      [codex, "app-server", "daemon", "version"],
+    ]);
+
+    const warned: readonly [Parameters<typeof doctorOf>[0], unknown][] = [
+      [
+        { daemon: '{"status":"notRunning"}\n' },
+        { outcome: "warn", reason: "daemon-not-running" },
+      ],
+      [
+        { daemon: "timeout" },
+        { outcome: "warn", reason: "daemon-state-unknown" },
+      ],
+      [
+        { daemon: "codex 0.99.0\n" },
+        { outcome: "warn", reason: "daemon-state-unknown" },
+      ],
+      [
+        { show: unit("failed", "failed", "exit-code") },
+        {
+          outcome: "warn",
+          reason: "unit-failed",
+          context: {
+            activeState: "failed",
+            subState: "failed",
+            result: "exit-code",
+          },
+        },
+      ],
+      [
+        { show: unit("inactive", "dead") },
+        { outcome: "warn", reason: "unit-inactive" },
+      ],
+      [
+        { show: "LoadState=not-found\nActiveState=inactive\n" },
+        { outcome: "warn", reason: "unit-not-loaded" },
+      ],
+    ];
+    for (const [options, expected] of warned) {
+      const result = await doctorOf(options);
+      expect([options, result.check]).toEqual([
+        options,
+        expect.objectContaining(expected as object),
+      ]);
+      // Attention, never broken: the daemon is the operator's.
+      expect(result.code).toBe(exitAttention);
+      expect(result.json.verdict).toBe("attention");
+    }
+
+    const skippedCases: readonly [Parameters<typeof doctorOf>[0], string][] = [
+      [{ show: null }, "user-manager-unreachable"],
+      [{ show: unit("activating", "start") }, "unit-state-unknown"],
+      [{ platform: "darwin" }, "no-user-manager"],
+      [{ runtime: false }, "no-user-manager"],
+      [{ hosted: null }, "not-hosted"],
+      [{ hosted: async () => undefined }, "not-hosted"],
+      [
+        {
+          hosted: async () => {
+            throw new Error("handover unreadable");
+          },
+        },
+        "not-hosted",
+      ],
+    ];
+    for (const [options, reason] of skippedCases)
+      expect([options, (await doctorOf(options)).check]).toEqual([
+        options,
+        { id: "codex-app-server", outcome: "skipped", reason },
+      ]);
+    // Without Codex at its standard entry the unit's condition skips it too.
+    await rm(codex);
+    expect((await doctorOf()).check).toEqual({
+      id: "codex-app-server",
+      outcome: "skipped",
+      reason: "codex-missing",
+    });
+    // Not supervised: not this installation's unit to ask about.
+    await rm(join(units, launchpadUnit));
+    expect((await doctorOf()).check).toEqual({
+      id: "codex-app-server",
+      outcome: "skipped",
+      reason: "not-supervised",
+    });
+  },
+);

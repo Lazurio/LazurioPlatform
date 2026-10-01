@@ -29,6 +29,13 @@ export const unitMarker =
  * "Activation"). */
 export const updateUnit = "lazurio-update.service";
 
+/** The PATH of the installer's units and of everything they start: the
+ * operator's standard tool path first (decision F17 addendum 2026-09-28,
+ * docs/environment-tools.md "The standard path"), then the system
+ * directories. `%h` is the home directory of the user running the service
+ * manager (systemd.unit(5), "Specifiers"). */
+export const unitPath = "%h/.local/bin:/usr/local/bin:/usr/bin:/bin";
+
 /** Where user units live: `${XDG_CONFIG_HOME:-~/.config}/systemd/user`. */
 export function userUnitDirectory(
   env: Readonly<Record<string, string | undefined>>,

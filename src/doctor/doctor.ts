@@ -32,6 +32,10 @@ import { collectRecovery, type RecoveryEnvironment } from "../recover/recover";
 import { activatableTools, type ToolTier, toolCatalog } from "../tools/catalog";
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { type ToolSignIn, toolsSignIn, toolsStatus } from "../tools/status";
+import {
+  codexAppServerReasons,
+  observeCodexAppServer,
+} from "../update/codex-app-server";
 import type { ErrorContext } from "../update/errors";
 import { detectServiceControl } from "../update/service-control";
 import { readStatus, type UpdateStatus } from "../update/update";
@@ -44,7 +48,10 @@ import { readStatus, type UpdateStatus } from "../update/update";
  * handover binding), mapped to one shape. It reads and never writes: the
  * Folder's tool selection is read under the read lock, nothing is fetched
  * (the sign-in probes only on request), nothing restarts. `lazurio recover`
- * stays the broken-product path with its evidence and issue. */
+ * stays the broken-product path with its evidence and issue. The one answer
+ * recover does not compute, the operator's Codex app-server daemon of a
+ * hosted Machine (`observeCodexAppServer`, decision F29), is never `fail`
+ * and never reaches recover or Recovery mode. */
 
 // ---- The shape --------------------------------------------------------------
 
@@ -72,6 +79,7 @@ export const doctorCheckIds = [
   "launchpad-health",
   // Machine
   "machine-entry",
+  "codex-app-server",
 ] as const;
 export type DoctorCheckId = (typeof doctorCheckIds)[number];
 
@@ -102,6 +110,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "launchpad-unit": "launchpad",
     "launchpad-health": "launchpad",
     "machine-entry": "machine",
+    "codex-app-server": "machine",
   });
 
 export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
@@ -158,6 +167,7 @@ export const doctorReasons: readonly string[] = Object.freeze([
     ...skipReasons,
     ...ownReasons,
     ...catalogReasons,
+    ...codexAppServerReasons,
   ]),
 ]);
 
@@ -614,6 +624,17 @@ export async function collectDoctor(
     folder === undefined
       ? null
       : await readFolderCatalog(folder).catch(() => "unreadable" as const);
+  const codex = await observeCodexAppServer({
+    platform,
+    env,
+    supervised: service !== null,
+    // The same signal `lazurio install` writes the unit on.
+    hosted: async () =>
+      environment.hostedFolder !== undefined &&
+      (await environment.hostedFolder()) !== undefined,
+    run,
+    tools: environment.tools,
+  });
 
   const recovered = recovery.checks;
   const facts = observed.facts;
@@ -648,6 +669,7 @@ export async function collectDoctor(
       "launchpad-health",
       answerOf(answer),
     ),
+    check("codex-app-server", codex.outcome, codex.reason, codex.context),
   ];
   // Group order, stable within a group.
   const ordered = doctorGroups.flatMap((group) =>
