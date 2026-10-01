@@ -237,6 +237,10 @@ const workingHere: readonly Text[] = [
     "- Every change lives in a worktree under the owning repository's `.worktrees/` directory, branched from fresh `origin/main`, on a branch that carries the task code. Never in `/tmp`, next to the repository, or inside another repository.",
   ),
   t(
+    "- Do primárního checkoutu ani do `organizations/` a `personalspace/` tohoto Folderu nikdy neklonuj další repozitář a nezakládej v nich pracovní složku. Netrackovaný vnořený repozitář v checkoutu Organizace nejde bezpečně odložit, a proto zablokuje `lazurio update` celé Organizace. Klon jen ke čtení nebo k pokusu patří mimo každý checkout a mimo tyto složky; změna do repozitáře, který tu není namountovaný, patří do worktree jeho vlastního klonu.",
+    "- Never clone another repository into a primary checkout, or into this Folder's `organizations/` and `personalspace/`, and never create a scratch directory there. An untracked nested repository inside an Organization checkout cannot be set aside safely, so it blocks `lazurio update` for the whole Organization. A clone only for reading or trying something goes outside every checkout and outside these directories; a change to a repository that is not mounted here goes into a worktree of its own clone.",
+  ),
+  t(
     "- Před každým pushem preflight (čistý commit, čerstvá `origin/main` jako předek HEAD); podle potřeby rebase; přepsanou branch pushni jen s přesným `--force-with-lease`.",
     "- Before every push: preflight (clean commit, fresh `origin/main` as an ancestor of HEAD); rebase when needed; push a rewritten branch only with an exact `--force-with-lease`.",
   ),
