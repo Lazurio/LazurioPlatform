@@ -275,8 +275,17 @@ posixTest(
         "import { appendFileSync, existsSync, readFileSync } from 'node:fs'; appendFileSync('steps', 'c'); if (!existsSync('node_modules/fixture-dependency/package.json') || !existsSync('module-data') || readFileSync('module-data', 'utf8') !== 'ready') process.exit(23);",
       );
       if (options.installed) {
+        // As the Platform installs: Bun's Linux hardlink backend would link
+        // the local dependency's files into node_modules (issue #93).
         const install = Bun.spawn(
-          [process.execPath, "--no-env-file", "install", "--frozen-lockfile"],
+          [
+            process.execPath,
+            "--no-env-file",
+            "install",
+            "--frozen-lockfile",
+            "--backend",
+            "copyfile",
+          ],
           {
             cwd: f.directory,
             env: f.request.env,
