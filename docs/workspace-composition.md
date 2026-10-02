@@ -63,7 +63,9 @@ what could not be checked against code or a run.
    fallback that keeps the same wire contract (section 7). The package lives in this
    repository and the Dashboard depends on it (decided). The same package and the
    same Dashboard API carry the Environment list of the shared Lazurio shell (plan
-   DEV-6639), so there is one contract and one sign-in (section 7.5).
+   DEV-6639), so there is one contract and one issuer (section 7.5). An Environment's
+   credential answers only questions about that Environment; a person's list of
+   Environments always needs that person's own Lazurio Account.
 
 ## 1. The direction (Matěj, Organization Admin, 2026-10-02)
 
@@ -351,8 +353,7 @@ Notes:
   persona's GitHub account is linked to. Today the handover's `automation` assignment
   names the responsible Operator (F27); how it names the account such an Environment
   registers under is for the decision record (M2).
-- **A Team Environment never uses a person's account** (root 0168; F31 as proposed in
-  pull request #119). It is registered by an Owner of the Organization, who answers for it; its
+- **A Team Environment never uses a person's account** (root 0168; decision F31). It is registered by an Owner of the Organization, who answers for it; its
   rights are the Team's, not the registering person's. Any Team member connected to the
   Environment sees the Team's composition, which they can already see as members.
 - **The Team of a Team Environment is an immutable GitHub Team id**, the one the
@@ -416,7 +417,7 @@ response types from the shared contract package (section 7).
 | `GET /api/environment/v1/environments/{environment_id}/composition` | The composition, with `ETag`; `If-None-Match` answers 304. `Cache-Control: no-cache` from an explicit "Synchronizovat" asks for fresh GitHub reads, rate-limited per Environment. |
 | `POST /api/environment/v1/environments/{environment_id}/report` | Optional (O10): the composition digest the Launchpad applied and a state code per entry. No paths, branch names, commit messages or file names. |
 | `POST /api/environment/v1/environments/{environment_id}/revoke` | Self-revocation when the Operator disconnects the Environment from the Launchpad. Revocation from the Dashboard's Environment list does the same: the registration ends and the Environment's credential stops working. |
-| `GET /api/environment/v1/environments` | The Environment list of the shared shell (plan DEV-6639, its P3): the Operator's own and assigned Environments, grouped per Organization. Its shape is DEV-6639's; it lives in the same API group and contract package and uses the same authentication (section 7.5). |
+| `GET /api/environment/v1/environments` | The Environment list of the shared shell (plan DEV-6639, its P3): the Environments a person has access to (their own and assigned ones), grouped per Organization. Authenticated only by that person's own Lazurio Account (an access token of the person, from their session at the browser); an Environment credential is refused here (403) on every kind of Environment. Its shape and how the person's session reaches the shared rail are DEV-6639's (section 7.5). |
 
 **Authentication after registration (O5, open; 7.4).** Recommended: the Environment
 obtains an access token from the issuer by `client_credentials` with `private_key_jwt`
@@ -425,6 +426,11 @@ obtains an access token from the issuer by `client_credentials` with `private_ke
 token of its issuer (signature from the issuer's JWKS, exact audience, expiry) and maps
 the client to the registration. The alternative signs the Dashboard's own assertions
 with the same key (7.4).
+
+**What an Environment credential may ask.** Only questions about that Environment: its
+composition, its report, its own registration record and its revocation. It never
+answers a question about a person — in particular not the Environment list — on a
+workstation, a work Environment or a Team Environment alike (section 7.5).
 
 Access requests (M6) are made on a Dashboard page, not through this API: the Launchpad
 opens `…/access-requests/new?repository=<id>&environment=<id>` and the person signs in
@@ -665,16 +671,27 @@ Dashboard owns (its P3). Both plans need the same things, so they share them (Ma
 - **One contract package.** `@lazurio/contracts` carries both the Environment list
   (DEV-6639) and the composition (this plan), with one versioning rule and one OpenAPI
   snapshot.
-- **One API group and one sign-in.** Both live under `/api/environment/v1/` and use the
-  same registration and the same credential (7.4); a registered Environment fetches its
-  Operator's Environment list and its own composition with it.
+- **One API group, one issuer, two callers.** Both live under `/api/environment/v1/`
+  and both take tokens of the same issuer, but they are asked by different principals:
+  the composition by the Environment with its own credential (7.4); the Environment list
+  by a person with their own Lazurio Account. A registered Environment never fetches
+  anyone's Environment list with its credential.
+- **Why the safe rule holds on every kind.** On a Team Environment the credential
+  identifies the Environment and its Organization, not the person at the browser;
+  answering with the list of the Owner who registered it would show that Owner's
+  personal and other Organizations' Environments to every Team member. On a work
+  Environment or a workstation the credential is usable by everything that runs there
+  (Task Agents work with full access, root decision 0172), and on an
+  Organization-owned Machine the Organization stays a higher compromise domain; a
+  person's list names their personal Remote Environment, which the work zone must never
+  reach (root decision 0155). So the rule is the same everywhere: an Environment
+  credential gets 403 on the list.
 - **What DEV-6639 owns.** The shape of the Environment list, its offline cache and the
-  local "Tento počítač" entry, and where the sign-in sits in the Launchpad (the account
-  at the bottom of the rail). This plan provides the sign-in flow behind it.
-- **Shared open point.** A Team Environment is linked to an Organization, not to one
-  Operator, so the list it should show depends on the person at the browser; the
-  Environment's own credential cannot answer that. DEV-6639 decides whether its rail
-  there asks the Dashboard with the person's own session.
+  local "Tento počítač" entry, where the sign-in sits in the Launchpad (the account at
+  the bottom of the rail), and how the person's own session reaches the shared rail on
+  each Environment's origin (its open point). Until that is decided, the Launchpad's
+  rail shows a person's list only through that person's own session, or not at all.
+  This plan provides the Environment's sign-in flow and credential.
 
 ## 8. The Launchpad applies a composition
 
@@ -792,6 +809,9 @@ repositories remain. On Organization-owned Environments the report (O10) lets an
   Organization assigned, or an Owner for a Team Environment. The device code proves who
   sits at the Environment; the Dashboard decides from the infra roster and GitHub roles,
   never from what the Launchpad claims alone.
+- **Environment credential scope.** An Environment credential answers only about that
+  Environment (its composition, report, registration and revocation) and is refused on
+  every question about a person, including the Environment list (6.1, 7.5).
 - **Credentials.** The person's device-grant token is used once and never stored. The
   Environment's private key never leaves the Environment. Under the recommendation of
   O5 the issuer holds only the public key and issues 10-minute tokens for the
@@ -817,8 +837,10 @@ repositories remain. On Organization-owned Environments the report (O10) lets an
 5. The Dashboard invalidates the affected cache; the next composition shows `present`;
    the Launchpad clones with its own `gh` (or the broker, for a Team).
 
-For a Team Environment the broker's repository allowlist must follow the Team's grant,
-or the clone is refused by the broker even though GitHub allows it (O16).
+On a Team Environment the broker's repository allowlist is removed (O16, decided) before
+M6 reaches Team Environments: while it exists the broker refuses a clone GitHub allows,
+so its removal is a rollout prerequisite of M6 for Team Environments, not a second list
+to keep in step.
 
 ## 13. Migration from today
 
