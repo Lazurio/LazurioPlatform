@@ -797,6 +797,8 @@ recommendation of this shaping and still open.
 | O16 | The broker's repository allowlist? | **Decided:** drop it in favour of the live Team grant the broker already checks; a second list is a second ACL |
 | O17 | Manifest `teams` declarations? | **Decided:** legacy, removed after the rollout. Recommendation: together with the CLI's Teams column, by an agent-led refactor (root 0173) after M7 |
 | O18 | Production Space repositories in the composition? | **Decided (reversed):** in v1, with the same access rule, materialized into `productionspace/<repository>` as declared, shown read-only, never run or released. Recommendation: no access requests for them in v1 |
+| O19 | How is the persona of an Automated Environment bound? | Recommendation: by proof of control at registration (the operator signs in to GitHub as the persona), cross-checked against the infra roster once it declares the persona (4.2) |
+| O20 | How does "the operator owns Environments" meet the Organization as Owner of a work VM and a Team Environment without one operator? | Part of the Lazurio Account design (4.1); pending |
 
 ## 16. Not decided here
 
