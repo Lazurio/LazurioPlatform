@@ -635,7 +635,7 @@ to prove itself on each request:
 | --- | --- | --- |
 | Standard capability | A format, verifier and replay table of the Dashboard's own | Standard OAuth Client Credentials with `private_key_jwt` (RFC 7523), the workload model the maintainers' account plan already defines (per-workload key, the machine holds only the private key, 10-minute exact-audience tokens) |
 | Where identities live | A second credential registry in the Dashboard next to the issuer, against "the Dashboard is not an issuer" | One issuer for people and Environments; the Dashboard stays a relying party and resource server |
-| Other consumers | Only the Dashboard can verify | Any resource server with its own audience (the Environment list, later the broker or Lazurio MausBot) |
+| Other consumers | Only the Dashboard can verify | Any resource server with its own audience (later the broker or Lazurio MausBot), always for questions about that Environment, never about a person |
 | Revocation | Immediate, checked on every request | Disabling the client stops new tokens at once; a token already issued lives at most 10 minutes, the revocation budget the account plan accepts; enough for a read-only composition |
 | Issuer outage | Not affected | No new token; the Launchpad keeps the last composition (section 10), as for a Dashboard outage |
 | Who creates it | The Dashboard | An issuer-owned registration extension, after the Dashboard's binding check, creates a client from one fixed template: Client Credentials only, `private_key_jwt` with the registered public key, no interactive login, audience the Dashboard API. The issuer already has such an admin extension for application registration; the Dashboard never holds a broad admin credential of the issuer |
