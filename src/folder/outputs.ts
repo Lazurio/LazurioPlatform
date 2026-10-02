@@ -16,24 +16,24 @@ export const manualEntries = Object.freeze([
     path: "manual/this-machine.md",
     title: { cs: "Tenhle Environment", en: "This Environment" },
     summary: {
-      cs: "druh, Owner, preset, zóny, co kam smí, zapnuté nástroje a SSH na další Environmenty a zařízení",
-      en: "kind, Owner, preset, zones, what may reach what, enabled tools and SSH to other Environments and devices",
+      cs: "druh, Owner, preset, zóny, co kam smí, jak s tebou Operátor pracuje, zapnuté nástroje a SSH na další Environmenty a zařízení",
+      en: "kind, Owner, preset, zones, what may reach what, how the Operator works with you, enabled tools and SSH to other Environments and devices",
     },
   },
   {
     path: "manual/working-here.md",
     title: { cs: "Jak se tu pracuje", en: "Working here" },
     summary: {
-      cs: "Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky a kam patří poznatky",
-      en: "Draft, Publication, worktrees, review findings, handoff, open questions and where knowledge goes",
+      cs: "Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky, chybějící práva, kam patří poznatky, jak se v Lazuriu staví, napojené aplikace a tajné údaje",
+      en: "Draft, Publication, worktrees, review findings, handoff, open questions, missing rights, where knowledge goes, how Lazurio is built, connected applications and secrets",
     },
   },
   {
     path: "manual/roles.md",
     title: { cs: "Role", en: "Roles" },
     summary: {
-      cs: "Principál, Kolega, role v Organizaci, Owner, Buddy, Task Agent",
-      en: "Principal, Kolega, Organization roles, Owner, Buddy, Task Agent",
+      cs: "Operátor, Kolega, role v Organizaci, Owner, Buddy, Task Agent",
+      en: "Operator, Kolega, Organization roles, Owner, Buddy, Task Agent",
     },
   },
   {
@@ -46,10 +46,13 @@ export const manualEntries = Object.freeze([
   },
   {
     path: "manual/troubleshooting.md",
-    title: { cs: "Řešení problémů", en: "Troubleshooting" },
+    title: {
+      cs: "Instalace, aktualizace a řešení problémů",
+      en: "Installation, updates and troubleshooting",
+    },
     summary: {
-      cs: "aktualizace produktu a obsahu, identita Environmentu, odmítnutí a hlášení problémů",
-      en: "product and content updates, the Environment's identity, refusals and reporting",
+      cs: "jak je tu Lazurio nainstalované a jak se průběžně aktualizuje i s checkouty, identita Environmentu, odmítnutí a hlášení problémů",
+      en: "how Lazurio is installed here and kept current with the checkouts, the Environment's identity, refusals and reporting",
     },
   },
 ] as const);

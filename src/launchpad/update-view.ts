@@ -35,7 +35,7 @@ export type PillView = Readonly<{
 }>;
 
 /** Whether the pill is shown at all: as in T3 Code, only while an update is
- * available or under way (Principal 2026-09-28). A failed update (its retry
+ * available or under way (Matěj 2026-09-28). A failed update (its retry
  * is the same update) and update state that needs a person stay visible;
  * "up to date" and a running check show nothing. The Folder refresh line is
  * independent of the pill. */

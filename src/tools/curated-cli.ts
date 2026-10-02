@@ -148,7 +148,7 @@ export function installText(result: InstallResult, team = false): string {
           : [
               "~/.local/bin is not on this PATH: add it in your shell profile so the tool is found.",
             ]),
-        // A Team Environment's gh is not signed in (Principal 2026-09-28).
+        // A Team Environment's gh is not signed in (Matěj 2026-09-28).
         team && result.tool === "gh"
           ? teamGithubText.en
           : `Next: lazurio tools login ${result.tool}`,
@@ -406,7 +406,7 @@ export async function runLogin(
           },
         }),
   });
-  // gh on a Team Environment (Principal 2026-09-28): neither a person's
+  // gh on a Team Environment (Matěj 2026-09-28): neither a person's
   // sign-in nor their SSH key; the Organization's Lazurio for GitHub is the
   // way. Refused before anything runs. (Another tool on an unreadable
   // Environment runs as before: the Team rule is gh's only.)
@@ -496,7 +496,7 @@ export async function runLogout(
   let result: LogoutResult;
   try {
     // A Team Environment signs out a person's account left there, never
-    // the Organization's identity (Principal 2026-09-28).
+    // the Organization's identity (Matěj 2026-09-28).
     const refusal = await githubRefusal(
       environment.kind === "hosted" ? environment.preset : undefined,
       name,

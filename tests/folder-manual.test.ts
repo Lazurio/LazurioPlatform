@@ -24,6 +24,7 @@ import { renderOutputs } from "../src/folder/preview";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
 import { binding, bindings } from "./fixtures/machine-bindings";
+import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 import { journeys } from "./folder-render.test";
 
@@ -31,8 +32,8 @@ const os = executionOs(process.platform);
 
 // The manual follows the Folder locale under the same file names. Both
 // languages are written paragraph by paragraph side by side, so they have the
-// same lines and the same sections; only `this-machine.md` and
-// `troubleshooting.md` differ between presets. Review the snapshots when the
+// same lines and the same sections; only `this-machine.md`, `working-here.md`
+// and `troubleshooting.md` differ between presets. Review the snapshots when the
 // wording changes deliberately.
 test("the manual follows the locale with the same structure in both languages and names no legacy source", () => {
   for (const journey of journeys) {
@@ -71,7 +72,7 @@ test("the manual follows the locale with the same structure in both languages an
       });
       for (const path of outputPaths)
         expect(outputs[path]).not.toMatch(/HumanAndMachines\/Lazurio/);
-      // The pull-request lifecycle the Principal decided on 2026-09-22 (F14):
+      // The pull-request lifecycle Matěj decided on 2026-09-22 (F14):
       // Draft PR while in progress, Ready for review when finished and
       // verified, and the PR assigned to the user whose verification is asked
       // for. A snapshot alone cannot drop these sentences.
@@ -99,17 +100,17 @@ test("the manual follows the locale with the same structure in both languages an
 // The two working rules of root decision 0163, in both languages and both
 // outputs: the short form in AGENTS.md, the full form in the manual's
 // `working-here.md`. No output may still say that filing an issue needs the
-// Principal's mandate. A snapshot alone cannot drop these sentences.
+// Operator's mandate. A snapshot alone cannot drop these sentences.
 test("AGENTS.md and the manual carry the issue rule and the review rule of decision 0163", () => {
   const rules = {
     cs: {
       agents: [
         "zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře",
         "Pak pokračuj na všem, co na odpovědi nestojí",
-        "Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj",
+        "Issue bez pokynu Operátora nezavírej ani neprioritizuj a přiřazuj ho jen při eskalaci chybějících práv",
         "Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned",
         "věcnou námitkou v PR, a požádej o verdikt na nezměněném headu",
-        "Trvá-li reviewer na svém, předlož obě stanoviska Principálovi",
+        "Trvá-li reviewer na svém, předlož obě stanoviska Operátorovi",
       ],
       manual: [
         "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",
@@ -126,10 +127,10 @@ test("AGENTS.md and the manual carry the issue rule and the review rule of decis
       agents: [
         "as a GitHub Issue in the exact owning repository, without asking first",
         "Then continue with everything that does not depend on the answer",
-        "Do not close, assign or prioritize an issue without the Principal's instruction",
+        "Do not close or prioritize an issue without the Operator's instruction, and assign one only to escalate missing rights",
         "Take review findings with judgment. Fix a real defect at once",
         "with a factual objection on the PR, and ask for a verdict on the unchanged head",
-        "If the reviewer still insists, put both positions to the Principal",
+        "If the reviewer still insists, put both positions to the Operator",
       ],
       manual: [
         "## Open questions go to GitHub Issues and do not stop the work (decision 0163)",
@@ -186,8 +187,8 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
       expect(
         troubleshooting.includes(
           locale === "cs"
-            ? "Verzi Lazuria na tomhle Environmentu vlastní operátor."
-            : "The operator owns the version of Lazurio in this Environment.",
+            ? "Verzi Lazuria na tomhle Environmentu vlastní Operátor."
+            : "The Operator owns the version of Lazurio in this Environment.",
         ),
       ).toBe(hosted);
       // Only the workstation, which may run the supervised unit, names the
@@ -201,8 +202,10 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
         ),
       ).toBe(true);
       expect(
-        troubleshooting.includes(
-          locale === "cs" ? "## Obsah Organizací" : "## Organization content",
+        outputs["manual/working-here.md"].includes(
+          locale === "cs"
+            ? "## Organizace a její manifest"
+            : "## The Organization and its manifest",
         ),
       ).toBe(journey.preset !== "hosted-personal");
     }
@@ -239,10 +242,13 @@ test("no generated output mentions a rollback command or a way back to an earlie
     }
 });
 
-// The operator owns the version of Lazurio and updates it with the one
+// The Operator owns the version of Lazurio and updates it with the one
 // updater, on a hosted Machine too; the provider's pin is a minimum (decision
-// F17 addendum 2026-09-28). No generated text may still forbid the update or
-// hand the version to the pin, and every text names the refresh that follows.
+// F17 addendum 2026-09-28). Since the addendum of 2026-10-02 the agent runs the
+// update itself, in the background at the start of every piece of work, on
+// every preset. No generated text may still forbid the update, wait for the
+// Operator to ask for it or hand the version to the pin, and every text names
+// the refresh that follows.
 test("no generated output forbids lazurio update or gives the product version to the pin", () => {
   const forbidding = [
     /(do not|don't|never) run `lazurio (update|install)/i,
@@ -255,6 +261,10 @@ test("no generated output forbids lazurio update or gives the product version to
     /vybírá release produktu pin/i,
     /pin aktualizuje provozovatel Machines/i,
     /aktualizuje provozovatel Machines \(Machines operator\) přes pinnutý release/i,
+    /only when they ask for it/i,
+    /jen když o to požádá/i,
+    /not on your own initiative/i,
+    /ne z vlastní iniciativy/i,
   ];
   for (const journey of journeys)
     for (const locale of ["cs", "en"] as const) {
@@ -279,12 +289,17 @@ test("no generated output forbids lazurio update or gives the product version to
           : "`lazurio profile-update`",
       );
       expect(troubleshooting).toContain("Folder refresh needed");
+      expect(outputs["AGENTS.md"]).toContain(
+        locale === "cs"
+          ? "- Na začátku práce spusť na pozadí `lazurio update`"
+          : "- At the start of work, run `lazurio update` in the background",
+      );
+      expect(troubleshooting).toContain(
+        locale === "cs"
+          ? "sám na pozadí na začátku každé práce"
+          : "in the background at the start of every piece of work",
+      );
       if (hosted) {
-        expect(outputs["AGENTS.md"]).toContain(
-          locale === "cs"
-            ? "Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá"
-            : "The operator owns the version of Lazurio: run `lazurio update` when they ask for it",
-        );
         expect(troubleshooting).toContain(
           locale === "cs"
             ? "Pin provozovatele hostingu (Lazurio Machines) je jen minimum"
@@ -296,7 +311,7 @@ test("no generated output forbids lazurio update or gives the product version to
 
 // From a personal VM the peers are named neutrally from the record: the
 // handover says what Headscale lets this Machine reach, not whose a peer is,
-// so nothing calls a peer the owner's and every use needs the Principal's
+// so nothing calls a peer the owner's and every use needs the Operator's
 // confirmation.
 const peer = (
   name: string,
@@ -312,7 +327,7 @@ const peer = (
   ssh: { host: `${name}.tailnet.example.invalid`, user: null, direction },
   https: [],
 });
-test("a personal VM names reachable peers neutrally from the record and requires the Principal's confirmation", () => {
+test("a personal VM names reachable peers neutrally from the record and requires the Operator's confirmation", () => {
   const profile = presetProfile("hosted-personal", "linux");
   const render = (machine: typeof bindings.personal, locale = profile) =>
     renderManual({ preset: "hosted-personal", machine, profile: locale })[
@@ -334,7 +349,7 @@ test("a personal VM names reachable peers neutrally from the record and requires
     "Reachability is decided by Headscale and is neither identity nor mandate",
   );
   expect(related).toContain(
-    "confirm with the Principal that it is theirs or assigned to them",
+    "confirm with the Operator that it is theirs or assigned to them",
   );
   expect(related).toContain("Never clone an Organization repository");
   expect(related).not.toMatch(/owner's (work VM|device)/i);
@@ -342,12 +357,12 @@ test("a personal VM names reachable peers neutrally from the record and requires
 
   // No relationships in the handover: nothing is guessed.
   expect(section(render(bindings.personal))).toContain(
-    "The handover records no peer this Environment may reach over SSH; do not look for one, tell the Principal.",
+    "The handover records no peer this Environment may reach over SSH; do not look for one, tell the Operator.",
   );
 
   // A work VM of a foreign zone, peers of an unknown zone and a client device
   // outside the personal zone are listed exactly as recorded, never as the
-  // Principal's; an inbound-only peer is not reachable from here.
+  // Operator's; an inbound-only peer is not reachable from here.
   const mixed = section(
     render(
       binding({
@@ -379,7 +394,7 @@ test("a personal VM names reachable peers neutrally from the record and requires
     "- `work-laptop` (client device, work zone, Organization `other`): SSH from here to `work-laptop.tailnet.example.invalid`; no HTTPS.",
   );
   expect(mixed).toContain(
-    "confirm with the Principal that it is theirs or assigned to them",
+    "confirm with the Operator that it is theirs or assigned to them",
   );
   expect(mixed).not.toMatch(/owner's (work VM|device)/i);
 
@@ -405,7 +420,7 @@ test("a personal VM names reachable peers neutrally from the record and requires
     "Dosažitelnost rozhoduje Headscale a není to identita ani mandát",
   );
   expect(cs).toContain(
-    "potvrď s Principálem, že je jeho nebo že je přiřazený jemu",
+    "potvrď s Operátorem, že je jeho nebo že je přiřazený jemu",
   );
   expect(
     cs.slice(cs.indexOf("## Z tohohle osobního Remote Environmentu")),
@@ -510,7 +525,7 @@ test("this-machine.md renders the assignment exactly as the handover carries it"
     profile: presetProfile("hosted-organization-personal", "linux"),
   })["manual/this-machine.md"];
   expect(operator).toContain(
-    "- Assignment: assigned to operator `example` (GitHub id 12345).",
+    "- Assignment: assigned to Operator `example` (GitHub id 12345).",
   );
   expect(operator).not.toContain("sample-team");
   expect(operator).toMatchSnapshot();
@@ -640,3 +655,289 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// How the Operator sees an agent's work follows the handover, never a guess
+// (decision F14 addendum 2026-10-02). Only Codex Desktop's built-in browser
+// reaches a `localhost` port of the Environment, through a tunnel it opens
+// itself and that OpenAI does not document; T3 Code and Lazurio MausBot
+// forward nothing. Without SSH no client reaches `localhost`; without recorded
+// peers the handover's silence is said. A workstation has no such section.
+test("previews follow how the Operator connects: only Codex Desktop over SSH reaches localhost, and only through its built-in browser", () => {
+  const { team: _, ...owner } = organization.owner;
+  const gatewayOnly = binding({
+    ...organization,
+    owner,
+    relationships: {
+      zone: "work",
+      peers: [
+        {
+          name: "example-gateway",
+          kind: "conglomerate-host",
+          zone: null,
+          organization: "example",
+          ssh: null,
+          https: ["auth.example.lazurio.io"],
+        },
+      ],
+    },
+  });
+  const render = (machine: typeof bindings.related) =>
+    renderOutputs({
+      preset: "hosted-organization-personal",
+      machine,
+      profile: presetProfile("hosted-organization-personal", "linux"),
+    });
+  const overSsh = render(bindings.related);
+  expect(overSsh["AGENTS.md"]).toContain(
+    "- The Operator connects here over SSH. Only Codex Desktop's built-in browser opens `localhost` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port.",
+  );
+  const machine = overSsh["manual/this-machine.md"];
+  for (const sentence of [
+    "Per the handover, the Operator connects here over SSH.",
+    "works with you in the clients they prefer, possibly several at once: Codex Desktop over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot.",
+    "the Operator may be working in another one meanwhile.",
+    "OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
+    "When you run in T3 Code or Lazurio MausBot, no port reaches the Operator.",
+  ])
+    expect(machine).toContain(sentence);
+  // The claim the review rejected: forwarding is not a documented fact.
+  expect(machine).not.toContain(
+    "Codex forwards the port to the operator itself",
+  );
+  const browserOnly = render(gatewayOnly);
+  expect(browserOnly["AGENTS.md"]).toContain(
+    "- The Operator does not connect here over SSH: they cannot open `localhost` from here and no port is forwarded.",
+  );
+  expect(browserOnly["manual/this-machine.md"]).toContain(
+    "the Operator cannot open them and no client forwards them.",
+  );
+  expect(browserOnly["manual/this-machine.md"]).not.toContain(
+    "built-in browser",
+  );
+  const unknown = render(bindings.organization);
+  expect(unknown["AGENTS.md"]).toContain(
+    "- `localhost` exists only here. Only the built-in browser of Codex Desktop connected over SSH opens it",
+  );
+  expect(unknown["manual/this-machine.md"]).toContain(
+    "The handover does not record where the Operator connects from.",
+  );
+  for (const journey of journeys)
+    expect(
+      renderManual({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os),
+      })["manual/this-machine.md"].includes(
+        "## How the Operator works with you",
+      ),
+    ).toBe(journey.machine !== null);
+});
+
+// A work Environment belongs to the Organization and serves work only; the
+// agent says so on a personal request (decision F14 addendum 2026-10-02). A
+// personal Remote Environment has no such rule.
+test("a work Environment tells the Operator it serves work only", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const machine = renderManual({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      })["manual/this-machine.md"];
+      expect(
+        machine.includes(
+          locale === "cs" ? "- **Jen pro práci.**" : "- **Work only.**",
+        ),
+      ).toBe(journey.machine !== null && journey.preset !== "hosted-personal");
+    }
+});
+
+// A work product that belongs in no repository goes to the Operator's own
+// Documents folder of the OS, never into the Folder (Matěj 2026-10-02: a
+// standard folder, not an invented one).
+test("work products go to the Documents folder of the execution OS", () => {
+  for (const journey of journeys) {
+    const agents = renderOutputs({
+      preset: journey.preset,
+      machine: journey.machine,
+      profile: presetProfile(journey.preset, journey.os),
+    })["AGENTS.md"];
+    expect(agents).toContain(
+      journey.os === "windows"
+        ? "in the Documents folder (`[Environment]::GetFolderPath('MyDocuments')`)"
+        : "in `~/Documents/<task>/`",
+    );
+    expect(agents).toContain(
+      "never write anything at the top level of the Folder",
+    );
+  }
+});
+
+// How Lazurio is built is rendered wherever Organizations are mounted; a
+// personal Remote Environment mounts none. Connected applications, secrets and
+// the guard against installing from source are on every preset.
+test("the building rules follow the Organizations; applications, secrets and the installation guard are everywhere", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const workingHere = outputs["manual/working-here.md"];
+      const withOrganizations = journey.preset !== "hosted-personal";
+      for (const heading of locale === "cs"
+        ? [
+            "## Než postavíš něco nového",
+            "## Moduly a Lazurio Module Standard (decision 0171)",
+            "## Plán a testy drží záměr",
+            "## Přestavbu dělá agent (decision 0173)",
+            "## Vývoj Lazuria",
+          ]
+        : [
+            "## Before you build something new",
+            "## Modules and the Lazurio Module Standard (decision 0171)",
+            "## The plan and the tests hold the intent",
+            "## A restructuring is done by an agent (decision 0173)",
+            "## Developing Lazurio",
+          ])
+        expect(workingHere.includes(heading)).toBe(withOrganizations);
+      expect(workingHere).toContain(
+        locale === "cs"
+          ? "spusť `composio link <toolkit>`"
+          : "run `composio link <toolkit>`",
+      );
+      expect(workingHere).toContain(
+        locale === "cs"
+          ? "**Vlastní integraci nestav**"
+          : "**Do not build your own integration**",
+      );
+      expect(workingHere).toContain(
+        locale === "cs" ? "## Tajné údaje" : "## Secrets",
+      );
+      expect(outputs["manual/troubleshooting.md"]).toContain(
+        locale === "cs"
+          ? "Lazurio nikdy neinstaluj ani nestav ze zdrojů"
+          : "Never install or build Lazurio from source",
+      );
+      // Composio is part of Lazurio once enabled in the Launchpad settings.
+      expect(workingHere).toContain(
+        locale === "cs"
+          ? "Composio je součást Lazuria, jakmile ho Operátor zapne a přihlásí v Launchpadu (Nastavení → Nástroje)."
+          : "Composio is part of Lazurio once the Operator enables it and signs it in in the Launchpad (Settings → Tools).",
+      );
+      // The agent of an Operator with the rights creates a module on their
+      // explicit instruction; nothing says an agent never may.
+      expect(workingHere.includes("not an agent")).toBe(false);
+      expect(workingHere.includes("ne agent.")).toBe(false);
+      expect(
+        workingHere.includes(
+          locale === "cs"
+            ? "Agent Operátora s těmito právy to udělá na jeho výslovný pokyn"
+            : "The agent of an Operator with those rights does it on their explicit instruction",
+        ),
+      ).toBe(withOrganizations);
+      // Until content synchronization exists the agent keeps the checkouts
+      // current and resolves a diverged one without losing work.
+      expect(
+        outputs["manual/troubleshooting.md"].includes(
+          locale === "cs"
+            ? "## Aktuální checkouty Organizací a modulů"
+            : "## Current checkouts of Organizations and modules",
+        ),
+      ).toBe(withOrganizations);
+    }
+});
+
+// Decision F30: the Operator replaces the Principal. No generated output, in
+// any preset or locale, still names the Principal.
+test("no generated output says Principal", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const path of outputPaths)
+        expect([path, locale, /Princip[aá]l/.test(outputs[path])]).toEqual([
+          path,
+          locale,
+          false,
+        ]);
+      expect(outputs["manual/roles.md"]).toContain(
+        locale === "cs" ? "## Operátor" : "## Operator (Operátor)",
+      );
+    }
+});
+
+// A missing right is escalated to a named administrator on every preset, with
+// the assignment as the one exception to the issue mandate, and a refused push
+// keeps the work (decision F14 addendum 2026-10-02). Only the Team Environment
+// carries the rule of decision F31: it publishes under the Team's identity.
+test("missing rights are escalated on every preset; only the Team publishes under its identity", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const workingHere = outputs["manual/working-here.md"];
+      expect(outputs["AGENTS.md"]).toContain(
+        locale === "cs"
+          ? "- Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj."
+          : "- When you lack the rights for something or GitHub refuses a push, never discard the work.",
+      );
+      for (const sentence of locale === "cs"
+        ? [
+            "## Když na něco nemáš práva",
+            "`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`",
+            "Přiřazení je tu výslovná výjimka z pravidla o issues výše.",
+            "- **Když GitHub odmítne push,** práci nezahazuj",
+          ]
+        : [
+            "## When you lack the rights for something",
+            "`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`",
+            "Assigning is an explicit exception to the issue rule above.",
+            "- **When GitHub refuses a push,** never discard the work",
+          ])
+        expect(workingHere).toContain(sentence);
+      expect(
+        workingHere.includes(
+          locale === "cs"
+            ? "**Na týmovém Environmentu** jednáš na GitHubu jako brokerovaná identita Organizace"
+            : "**In a Team Environment** you act on GitHub as the brokered Organization identity",
+        ),
+      ).toBe(journey.preset === "hosted-organization-team");
+      expect(
+        outputs["AGENTS.md"].includes(
+          locale === "cs"
+            ? "Na týmovém Environmentu dopadne aktualizace na všechny jeho Operátory"
+            : "On a Team Environment an update affects all its Operators",
+        ),
+      ).toBe(journey.preset === "hosted-organization-team");
+    }
+});
+
+// Accumulated worktrees can be traced and cleaned up: every worktree keeps a
+// sidecar with the plan, the pull request and the agent session that made it
+// (root decision 0049).
+test("every worktree keeps a sidecar with the plan, the pull request and the session", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const workingHere = renderManual({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      })["manual/working-here.md"];
+      for (const fragment of [
+        "`<PLAN>-<slug>.worktree.json`",
+        "`companiesascode.worktree.v1`",
+        "`conversation_origin`",
+        "`CODEX_THREAD_ID`",
+        "`CLAUDE_CODE_SESSION_ID`",
+      ])
+        expect(workingHere).toContain(fragment);
+    }
+});
