@@ -6,7 +6,7 @@
   "source_commit": "e41eb68453f3f8a6568f99c523aeaaf8cfa5ea0a",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
   "source_sha256": "0313169bb859aa7ee8372a96425c44e6b113bdeb4bcbd0bd490de76630f6479a",
-  "pending_upstream": "entry.mausbot (DEV-6632): the optional member added here ahead of the Machines pull request that writes it; re-pin to the Machines commit and release carrying it, with the digest it publishes",
+  "pending_upstream": "entry.mausbot (DEV-6632): byte-for-byte the schema at the head 438e147eaf5713dc6dd2c588ef5a7ac7f145cc78 of Machines pull request #304, not yet merged; re-pin to its merge commit and the first release carrying it",
   "sha256": "b9f9a127bc50c290f99f8332120f0efe2ef42482815d1d79dda7810fb656cfd7",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
   "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/277"

@@ -4,7 +4,9 @@ import type { MachineEntry } from "../folder/machine-binding";
 // entered as Chat enters T3 Code: the Launchpad runs as the same Machine user
 // as MausBot, so it mints a one-time pairing code with MausBot's own API on
 // the recorded loopback port and hands it over in the fragment of
-// `<mausbotOrigin>/pair`. OpenMausBot treats a loopback request without
+// `<mausbotOrigin>/pair`. OpenMausBot's pairing form only prefills it from
+// there: one Connect click pairs the browser (auto-submit would be a fork
+// change, left for later). OpenMausBot treats a loopback request without
 // forwarded headers as its owner, exactly what `openmausbot pair` on the
 // Machine does; this only shortens the path for a browser the gateway already
 // admitted. The external origin is never called. Nothing is recorded; the

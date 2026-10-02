@@ -145,7 +145,7 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   compare accounts (the handover names the operator, not the persona) and grants
   nothing. Composio and wacli behave as on a Work Environment.
 - **Surfaces** `launchpad`, `hosted-entry` (which already carries T3 Code, as on every
-  hosted preset) and `openmausbot`, the Lazurio MausBot web app of the Machine (its
+  hosted preset) and `mausbot`, the Lazurio MausBot web app of the Machine (its
   link from the Launchpad is the [Lazurio MausBot entry](launchpad-development.md#lazurio-mausbot-entry),
   shown when the handover's entry records MausBot, not by this preset). **Supervision** by the OS service manager: the bots keep running
   without a session.

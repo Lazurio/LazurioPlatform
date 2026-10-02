@@ -17,7 +17,8 @@ else. No Machines release carries it yet, so the provenance names no version and
 tag; the first release that does may add them with the same digest, and a digest
 other than this one is a new re-pin. **Pending re-pin (DEV-6632):** the vendored copy
 is that pin plus one optional member, `entry.mausbot` ([below](#the-hosted-entry-decision-f16)),
-added here ahead of the Machines pull request that writes it; its digest is the one in
+added here ahead of the Machines pull request that writes it (byte for byte the schema at
+the head `438e147` of Machines #304, not yet merged); its digest is the one in
 `schema-provenance.json` (`sha256`, with the upstream pin as `source_sha256` and the
 difference named in `pending_upstream`). It is not byte-for-byte any Machines commit
 until that pull request is merged; the pin then moves to the Machines commit and

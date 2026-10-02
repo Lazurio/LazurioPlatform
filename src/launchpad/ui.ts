@@ -403,7 +403,8 @@ controls.apply.addEventListener("click", async () => {
 // (no T3 launcher, a failed call) it follows the plain origin, where T3 Code
 // itself asks an unpaired browser to pair. A modified click opens the plain
 // origin as a link does. Lazurio MausBot (DEV-6632) is entered the same way,
-// shown only when the entry records it.
+// shown only when the entry records it; its pairing link opens MausBot's form
+// with the code filled in, and one Connect click there pairs the browser.
 function renderLink(link: HTMLAnchorElement, href: string | null) {
   link.hidden = href === null;
   const item = link.closest("li");

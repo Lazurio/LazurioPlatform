@@ -682,14 +682,19 @@ no token on stderr).
 DEV-6632 (decision 0169). On a Machine that runs Lazurio MausBot, the Environment's
 bot-team app (Lazurio's fork of OpenMausBot), the sidebar shows **Lazurio MausBot** next
 to Chat and enters it the same way: the Launchpad runs as the same Machine user as
-MausBot, mints a one-time pairing code and opens MausBot already paired, so the operator
-never types a code. The old resident Launchpad has no such entry; this one replaces it
-there.
+MausBot, mints a one-time pairing code and opens MausBot's pairing form with that code
+already filled in, so the operator never types or copies a code. OpenMausBot's `/pair`
+page only prefills the code from the fragment: one **Connect** click pairs the browser
+and lands in the app. A browser that is already paired sees "This browser is already
+connected" with **Open the app** instead, and the minted code expires unused after about
+five minutes. Submitting the form by itself would be a small fork change of `/pair`,
+deliberately left for later (the Organization Admin prefers the fork changed as little
+as possible). The old resident Launchpad has no such entry; this one replaces it there.
 
 **Source.** Only the recorded entry: `mausbotOrigin` and `mausbotListenPort`, projected
 from the handover's optional `entry.mausbot`
 ([projection](machine-handover.md#the-hosted-entry-decision-f16)). Without them there is
-no MausBot on this Machine: no link and no route. The preset's `openmausbot` surface does
+no MausBot on this Machine: no link and no route. The preset's `mausbot` surface does
 not decide it; the handover does.
 
 **Pairing.** OpenMausBot's own API, unchanged: `POST
@@ -712,8 +717,8 @@ plain origin, where MausBot asks for a code.
 **Page.** `mausbotHref` and `mausbotPairLink` in `src/launchpad/chat-view.ts` accept the
 origin only in the recorded shape and a pairing link only on it, path `/pair`, no query, a
 `code` fragment. The link's `href` is `mausbotOrigin` itself; a plain click asks for a
-pairing link and follows it in this tab, or the plain origin when there is none, as Chat
-does. There is no CLI of its own yet.
+pairing link and follows it in this tab, to the pairing form with the code filled in, or
+the plain origin when there is none, as Chat does. There is no CLI of its own yet.
 
 **Verification.** `tests/launchpad-mausbot.test.ts`: the handover member on both branches
 and its refusals, the binding projection (both fields or neither, an older entry byte for
