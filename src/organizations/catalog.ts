@@ -60,7 +60,7 @@ export type OrganizationReason =
  * B11). */
 export type PersonalspaceReason =
   /** More than one directory in `personalspace/`: which one is the
-   * Principal's is not guessed, and none of them is read (decision 0091). */
+   * Operator's is not guessed, and none of them is read (decision 0091). */
   | "personalspace-ambiguous"
   /** `personalspace/` or its owner directory is not a caller-owned,
    * stable directory (decision F23), or unreadable. */

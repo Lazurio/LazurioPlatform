@@ -35,15 +35,15 @@ what could not be checked against code or a run.
    (Keycloak), with GitHub linked as an identity the issuer owns; the Dashboard is a
    relying party of it and keeps no accounts of its own. The Launchpad signs in by a
    device code against the issuer, as `gh` does; by that it represents the Environment
-   itself, which is linked to its operator (or, for a Team Environment, its Organization)
-   and gets that operator's rights. Each kind has one binding rule, so nobody can assign
+   itself, which is linked to its Operator (or, for a Team Environment, its Organization)
+   and gets that Operator's rights. Each kind has one binding rule, so nobody can assign
    themself someone else's Environment. Ownership does not change: the Organization owns
    work and Team Environments, a person owns their personal Remote Environment and
    their devices. After the sign-in the Environment proves itself with a key it
    generated, survives reboots and needs no person's session (section 4.1).
 4. **The Launchpad applies the composition with its own `gh`.** It clones what is
    missing and fast-forwards clean checkouts through the Environment's own GitHub
-   identity (the operator's sign-in, the persona's account, or the Team's brokered
+   identity (the Operator's sign-in, the persona's account, or the Team's brokered
    identity). It never infers access from a GitHub error again: a clone that fails
    while the composition says "granted" is a reported mismatch, not a guess.
 5. **Nothing is removed by an outage, and nothing with local work is ever removed.**
@@ -88,16 +88,16 @@ what could not be checked against code or a run.
 
 ### 1.1 Decisions of the evening of 2026-10-02 (Matěj)
 
-1. **The Lazurio Account is the foundation.** An operator account belongs to a person,
+1. **The Lazurio Account is the foundation.** The Operator's Lazurio Account belongs to a person,
    with GitHub linked to it. The Launchpad signs in by a device code like `gh`, and by
-   that the Launchpad represents the Environment itself, which is linked to the operator
-   and thereby gets the operator's rights (section 4.1). "The operator owns
-   Environments" in the first wording meant the Environments the operator has access to;
+   that the Launchpad represents the Environment itself, which is linked to the Operator
+   and thereby gets the Operator's rights (section 4.1). "The Operator owns
+   Environments" in the first wording meant the Environments the Operator has access to;
    ownership is unchanged (1.2).
-2. **Who registers (O4).** An operator registers their own Environment. A Team
+2. **Who registers (O4).** An Operator registers their own Environment. A Team
    Environment is registered by the Organization's Owner. An Automated Environment is
-   always an Environment under an operator: registered by and accountable to that
-   operator, with the persona's account as its GitHub identity. The late evening made
+   always an Environment under an Operator: registered by and accountable to that
+   Operator, with the persona's account as its GitHub identity. The late evening made
    this the binding rule of 4.1.
 3. **What runs without a click (O6, O7).** Clones and clean fast-forwards are
    automatic; removal only after a person confirms it; no automatic removal after a
@@ -125,18 +125,18 @@ what could not be checked against code or a run.
    issuer's page in the Lazurio design. The Dashboard is not an issuer.
 2. **Ownership is unchanged.** The Organization owns work and Team Environments (root
    0144, 0165); a person owns their personal Remote Environment and their own devices.
-   The Lazurio Account shows the operator's own and assigned Environments.
+   The Lazurio Account shows the Operator's own and assigned Environments.
 3. **Who may connect an Environment by device code.** A laptop and a personal Remote
-   Environment: the operator themself, accepted only for their own device or the
+   Environment: the Operator themself, accepted only for their own device or the
    personal Environment they own. An Organization Environment (work, Automated): the
-   device code proves which operator sits at it, accepted only when the Organization
-   assigned that operator to that Environment (`owner.assignment`). A Team Environment:
+   device code proves which Operator sits at it, accepted only when the Organization
+   assigned that Operator to that Environment (`owner.assignment`). A Team Environment:
    the Organization's Owner. Nobody can assign themself someone else's Environment.
 4. **Order.** First the one account (the issuer and the Dashboard as its relying
    party) together with the device-code sign-in; only then the composition. This work
    never builds a parallel account. A Lazurio login theme for the issuer is a separate,
    quick slice.
-5. **Automated Environment.** It is connected to an operator who has a Lazurio Account
+5. **Automated Environment.** It is connected to an Operator who has a Lazurio Account
    with GitHub linked; that linked GitHub account provides the repositories to the
    Environment (it is the composition subject), and the Environment's `gh` must work as
    the same account. No separate persona binding. Consequence: an Environment that works
@@ -265,7 +265,7 @@ the Launchpad shows them read-only. Repository-database mounts (`mission-control
 `workspace/<module>/db`) stay the Organization's own bootstrap
 ([B7](launchpad-parity.md#b7-organizations-synchronize-and-materialize)) and are not
 part of the composition. The subject is a
-GitHub principal: a user (the operator, the person at their workstation, a persona) or
+GitHub principal: a user (the Operator, the person at their workstation, a persona) or
 a GitHub Team (a Team Environment). Teams are not shown in the workspace; they only
 decide, inside GitHub, what the subject can read. Settings → Environment keeps showing
 the Environment's facts, including its assigned Team, because they help troubleshooting
@@ -291,7 +291,7 @@ plans and adds no account of its own.
   store; it is not an issuer.
 - **GitHub link.** GitHub is a linked identity owned by the issuer, keyed by the
   immutable GitHub user id. The account works without GitHub; everything that touches
-  repositories needs the link. An operator is a person whose account has GitHub linked.
+  repositories needs the link. An Operator is a person whose account has GitHub linked.
 - **Device-code registration.** The Launchpad starts the OAuth 2.0 Device Authorization
   Grant (RFC 8628) on a Launchpad client of the issuer and shows the link, the code and a
   readable QR code, as `gh` does. The person approves on the issuer's own page, in a
@@ -304,7 +304,7 @@ plans and adds no account of its own.
   | --- | --- |
   | Workstation (the person's own device) | registers their own device |
   | Personal Remote Environment | owns that Environment (the handover's `owner.github_id` is the person's linked GitHub id) |
-  | Work Environment, Automated Environment | is the operator the Organization assigned to that Environment (`owner.assignment`) |
+  | Work Environment, Automated Environment | is the Operator the Organization assigned to that Environment (`owner.assignment`) |
   | Team Environment | is an Owner of the Organization (the role the Dashboard calls Admin today) |
 
   The rule is checked by the Dashboard, which already reads the Organization's infra
@@ -313,7 +313,7 @@ plans and adds no account of its own.
   Environment.
 - **Ownership is unchanged.** The Organization owns work and Team Environments (root
   0144, 0165); a person owns their personal Remote Environment and their own devices.
-  The Lazurio Account shows the operator's own and assigned Environments (the
+  The Lazurio Account shows the Operator's own and assigned Environments (the
   Environment list of plan DEV-6639).
 - **Order.** The one account (the issuer and the Dashboard as its relying party) and
   the device-code sign-in come first; the composition follows. This plan never builds a
@@ -330,26 +330,26 @@ authorizes the Environment to ask and stays accountable for it.
 | --- | --- | --- | --- | --- | --- | --- |
 | Workstation (Local Environment, the person's own device) | `local` | The person, for their own device | The GitHub user linked to that person's Lazurio Account | Every Organization with the GitHub App installed whose root repository the user can read, minus Organizations the person excluded (O2) | The person's own `gh` sign-in | `gh`'s active account id equals the subject |
 | Personal Remote Environment | `hosted-personal` | The person who owns it | None (no Organization repositories, preset rule) | None | — | — (no composition is requested) |
-| Work Environment (one operator) | `hosted-organization-personal` | The operator the Organization assigned (`owner.assignment`) | The GitHub user linked to that operator's Lazurio Account | The owning Organization only (O3) | The operator's own `gh` sign-in | `gh`'s active account id equals the subject |
+| Work Environment (one Operator) | `hosted-organization-personal` | The Operator the Organization assigned (`owner.assignment`) | The GitHub user linked to that Operator's Lazurio Account | The owning Organization only (O3) | The Operator's own `gh` sign-in | `gh`'s active account id equals the subject |
 | Work Team Environment | `hosted-organization-team` | An Owner of the Organization | The GitHub Team the Environment is assigned to (immutable Team id) | The owning Organization | Lazurio for GitHub through the Organization's broker (0147) | `gh` resolves the brokered App identity (`ghIdentity` → `app` or `variable`) |
-| Automated Environment | `hosted-organization-steward` | The operator the Organization assigned (`owner.assignment`); always an Environment under an operator | The GitHub user linked to the Lazurio Account it is registered under | The owning Organization | That same GitHub account | `gh`'s active account id equals the subject |
+| Automated Environment | `hosted-organization-steward` | The Operator the Organization assigned (`owner.assignment`); always an Environment under an Operator | The GitHub user linked to the Lazurio Account it is registered under | The owning Organization | That same GitHub account | `gh`'s active account id equals the subject |
 
 Notes:
 
 - **Personalspace is never part of a composition.** The Launchpad never sends a
   Personalspace path, name or state to the Dashboard (root 0091).
 - **The subject of a Work Environment follows its binding.** Which GitHub account an
-  operator's Work Environment is bound to is the infra roster's `owner.assignment`
+  Operator's Work Environment is bound to is the infra roster's `owner.assignment`
   today; the Dashboard serves the merged value live, so the Launchpad follows a change
   without a Machines rollout (fulfilment of root 0159, O12). A changed binding revokes
-  the registration; the new operator registers again.
-- **An Automated Environment** (decided, 1.2) is connected to an operator whose
+  the registration; the new Operator registers again.
+- **An Automated Environment** (decided, 1.2) is connected to an Operator whose
   Lazurio Account has GitHub linked. That linked GitHub account provides the
   repositories (it is the composition subject), and the Environment's `gh` must work as
   the same account. There is no separate persona binding. Consequence: an Environment
   that works as a persona's GitHub account is registered under the Lazurio Account the
   persona's GitHub account is linked to. Today the handover's `automation` assignment
-  names the responsible operator (F27); how it names the account such an Environment
+  names the responsible Operator (F27); how it names the account such an Environment
   registers under is for the decision record (M2).
 - **A Team Environment never uses a person's account** (root 0168; F31 as proposed in
   pull request #119). It is registered by an Owner of the Organization, who answers for it; its
@@ -416,7 +416,7 @@ response types from the shared contract package (section 7).
 | `GET /api/environment/v1/environments/{environment_id}/composition` | The composition, with `ETag`; `If-None-Match` answers 304. `Cache-Control: no-cache` from an explicit "Synchronizovat" asks for fresh GitHub reads, rate-limited per Environment. |
 | `POST /api/environment/v1/environments/{environment_id}/report` | Optional (O10): the composition digest the Launchpad applied and a state code per entry. No paths, branch names, commit messages or file names. |
 | `POST /api/environment/v1/environments/{environment_id}/revoke` | Self-revocation when the Operator disconnects the Environment from the Launchpad. Revocation from the Dashboard's Environment list does the same: the registration ends and the Environment's credential stops working. |
-| `GET /api/environment/v1/environments` | The Environment list of the shared shell (plan DEV-6639, its P3): the operator's own and assigned Environments, grouped per Organization. Its shape is DEV-6639's; it lives in the same API group and contract package and uses the same authentication (section 7.5). |
+| `GET /api/environment/v1/environments` | The Environment list of the shared shell (plan DEV-6639, its P3): the Operator's own and assigned Environments, grouped per Organization. Its shape is DEV-6639's; it lives in the same API group and contract package and uses the same authentication (section 7.5). |
 
 **Authentication after registration (O5, open; 7.4).** Recommended: the Environment
 obtains an access token from the issuer by `client_credentials` with `private_key_jwt`
@@ -646,7 +646,7 @@ credential on a possibly shared Machine) and a long-lived bearer secret on disk.
 
 - **Revocation.** Disconnecting in the Dashboard's Environment list ends the
   registration and disables the Environment's client. A binding that no longer holds
-  (another operator assigned, the Owner role lost for a Team Environment's registration,
+  (another Operator assigned, the Owner role lost for a Team Environment's registration,
   a removed Machine, a deleted account) revokes it the same way. The Launchpad answers
   a refused token or client (`invalid_client`) with "odpojeno", keeps the last
   composition read-only and offers a new sign-in.
@@ -667,12 +667,12 @@ Dashboard owns (its P3). Both plans need the same things, so they share them (Ma
   snapshot.
 - **One API group and one sign-in.** Both live under `/api/environment/v1/` and use the
   same registration and the same credential (7.4); a registered Environment fetches its
-  operator's Environment list and its own composition with it.
+  Operator's Environment list and its own composition with it.
 - **What DEV-6639 owns.** The shape of the Environment list, its offline cache and the
   local "Tento počítač" entry, and where the sign-in sits in the Launchpad (the account
   at the bottom of the rail). This plan provides the sign-in flow behind it.
 - **Shared open point.** A Team Environment is linked to an Organization, not to one
-  operator, so the list it should show depends on the person at the browser; the
+  Operator, so the list it should show depends on the person at the browser; the
   Environment's own credential cannot answer that. DEV-6639 decides whether its rail
   there asks the Dashboard with the person's own session.
 
@@ -755,7 +755,7 @@ repositories remain. On Organization-owned Environments the report (O10) lets an
 | Registration revoked or unknown (`invalid_client` from the issuer, 401 from the Dashboard) | `disconnected`: last composition read-only, no automatic step, offer a new sign-in; nothing removed |
 | Issuer unreachable | No new access token; keep the last composition exactly as for a Dashboard outage; retry with backoff |
 | Device code expired or denied | Nothing registered; the Launchpad offers a new code |
-| Binding refused at registration (not the assigned operator, not the owner, not an Owner) | Nothing registered; the Launchpad names the rule and who may connect this Environment |
+| Binding refused at registration (not the assigned Operator, not the owner, not an Owner) | Nothing registered; the Launchpad names the rule and who may connect this Environment |
 | An Organization `incomplete` | Its entries are `unchanged`; other Organizations continue |
 | GitHub confirms `none` for a module | `absent` with `access-revoked`; removal proposal only |
 | Composition says granted, clone fails | `access-mismatch` with the exact error; retried at the next digest or sync |
@@ -788,7 +788,7 @@ repositories remain. On Organization-owned Environments the report (O10) lets an
   services). They arrive only where the subject can read them, a restricted one only as
   `offer`, and the Launchpad never runs them.
 - **No self-assignment.** An Environment is registered only by the person its binding
-  rule names (4.1): the owner of a device or personal Environment, the operator the
+  rule names (4.1): the owner of a device or personal Environment, the Operator the
   Organization assigned, or an Owner for a Team Environment. The device code proves who
   sits at the Environment; the Dashboard decides from the infra roster and GitHub roles,
   never from what the Launchpad claims alone.
@@ -868,7 +868,7 @@ recommendation of this shaping and still open.
 | O1 | Which repositories are modules of a workspace? | Recommendation: declared module and Production Space slots of the Organization manifest ∩ live access (5.2 A) |
 | O2 | Which Organizations go onto a workstation? | Recommendation: all Organizations of the Account where the App is installed, with a per-Environment exclusion of whole Organizations in the Dashboard (narrows, never widens) |
 | O3 | Which Organizations go onto a Work Environment? | Recommendation: only the owning Organization; other Organizations stay explicit and unmanaged |
-| O4 | Who registers which Environment? | **Decided:** the binding rule of 4.1 — the person for their own device or the personal Environment they own; the operator the Organization assigned for a work or Automated Environment; an Owner for a Team Environment. Recommendation: Machines-provisioned registration (E2) later for zero-touch fleets |
+| O4 | Who registers which Environment? | **Decided:** the binding rule of 4.1 — the person for their own device or the personal Environment they own; the Operator the Organization assigned for a work or Automated Environment; an Owner for a Team Environment. Recommendation: Machines-provisioned registration (E2) later for zero-touch fleets |
 | O5 | What credential does the Environment hold? | **Decided:** sign-in by device code against the Lazurio issuer, as `gh`; the person's token is used once and never stored. Recommendation: (b) of 7.4, the Environment as a client of the issuer with `private_key_jwt` and 10-minute tokens for the Dashboard's audience, created by an issuer-owned registration extension after the binding check |
 | O6 | What runs without a click? | **Decided:** clones of `present` entries and fast-forwards of clean, not-running checkouts; removal always confirmed |
 | O7 | Automatic removal after a revoke on Organization-owned Environments? | **Decided:** not in v1. Recommendation: `retained` and proposed removals visible to the Owner; revisit after M7 |
@@ -876,7 +876,7 @@ recommendation of this shaping and still open.
 | O9 | Who sees "další modul organizace"? | Recommendation: only declared non-restricted slots, only for members of that Organization or its own Teams, only where the Owner turned it on |
 | O10 | Does the Launchpad report back? | Recommendation: yes: applied digest and a state code per entry, nothing else |
 | O11 | Polling or push? | Recommendation: polling with `ETag` (300 s and on demand) in v1; push over an RPC stream later |
-| O12 | Where does a Work Environment's GitHub binding live? | **Decided with the binding rule:** in the Organization's assignment (`owner.assignment`), and the subject is the GitHub account linked to that operator's Lazurio Account. Recommendation: the Dashboard edits the assignment by a pull request to infra (F16) and serves it live |
+| O12 | Where does a Work Environment's GitHub binding live? | **Decided with the binding rule:** in the Organization's assignment (`owner.assignment`), and the subject is the GitHub account linked to that Operator's Lazurio Account. Recommendation: the Dashboard edits the assignment by a pull request to infra (F16) and serves it live |
 | O13 | Contract technology? | Recommendation: Effect Schema + `HttpApi` under the guardrails of 7.2, gated by a spike: the compiled Launchpad grows by less than 5 MB and its cold start by less than 50 ms; otherwise JSON Schema + ajv behind the same OpenAPI |
 | O14 | Where does the contract package live? | **Decided:** in this repository; the Dashboard takes its types from it and depends on it; one package shared with the Environment list of DEV-6639. Recommendation: `packages/contracts`, consumed as an attested release artifact with an exact pin in the Dashboard |
 | O15 | With whose authority does the Dashboard write a grant (M6)? | Recommendation: the approving Owner's GitHub user authorization at the moment of approval, not stored; not an App installation with administration write |
@@ -884,7 +884,7 @@ recommendation of this shaping and still open.
 | O17 | Manifest `teams` declarations? | **Decided:** legacy, removed after the rollout. Recommendation: together with the CLI's Teams column, by an agent-led refactor (root 0173) after M7 |
 | O18 | Production Space repositories in the composition? | **Decided (reversed):** in v1, with the same access rule, materialized into `productionspace/<repository>` as declared, shown read-only, never run or released. Recommendation: no access requests for them in v1 |
 | O19 | How is the persona of an Automated Environment bound? | **Decided:** no separate binding. The composition subject is the GitHub account linked to the Lazurio Account the Environment is registered under, and its `gh` must work as that account; an Environment working as a persona's GitHub account is registered under the Lazurio Account that persona's GitHub is linked to (4.2) |
-| O20 | Who owns Environments? | **Decided:** ownership is unchanged — the Organization owns work and Team Environments, a person owns their personal Remote Environment and their devices; the Lazurio Account shows the operator's own and assigned Environments |
+| O20 | Who owns Environments? | **Decided:** ownership is unchanged — the Organization owns work and Team Environments, a person owns their personal Remote Environment and their devices; the Lazurio Account shows the Operator's own and assigned Environments |
 
 ## 16. Not decided here
 

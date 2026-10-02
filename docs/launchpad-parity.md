@@ -2,7 +2,7 @@
 
 Status: **shaping, accepted as
 [F22](decisions.md#f22--the-platform-launchpad-reaches-parity-and-replaces-the-resident-in-one-apply)
-on 2026-09-28 (root decision 0167 with its addendum).** The Principal decided H1, H4,
+on 2026-09-28 (root decision 0167 with its addendum).** Matěj decided H1, H4,
 H6, the drops of section F and one distribution (Ubuntu 24.04) for every hosted
 Machine, reached by a rebuild with state transfer, and H3 in direction: P9 is off the
 switch line, and a preview gets a temporary Environment URL as a lease whose rules are
@@ -23,7 +23,7 @@ and keeps its facts. It depends on the Recovery mode shaping
 [F21](decisions.md#f21--recovery-mode-instead-of-rollback)) and on F20 (first
 installation, pull request #62). The
 documented first-installation one-liner is the strict form
-`curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh` (Principal,
+`curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh` (Matěj,
 2026-09-28, root decision 0168).
 
 Citations: a bare path is this repository at `0fa47cf`. `R:` is the legacy root
@@ -57,7 +57,7 @@ could not be checked against code, documentation or a native run.
 4. **No new Folder state.** Every new capability reads its truth where it already
    lives: Organizations from `organizations/*`, running applications and their source
    from the OS service manager, logs from the journal, URLs from the Machine handover.
-5. **Two existing Platform decisions must change** and are the Principal's: F12's
+5. **Two existing Platform decisions must change** and are Matěj's: F12's
    transition-only admission (canonical-only Organizations run applications; H1,
    decided 2026-09-28), and the F15 addendum's "development Application panel stays on
    the Launchpad home" (the home becomes the real application catalog, B1).
@@ -201,7 +201,7 @@ from module and Machine alone collide across Organizations
   (`docs/decisions.md:820-821`).
 - Visual design: an approved new shell of the Launchpad (row tiles, a left rail) is
   being built as a proof of concept in the **resident** Launchpad, in two phases, by
-  another plan. The Principal decided on 2026-09-28 to let that proof of concept
+  another plan. Matěj decided on 2026-09-28 to let that proof of concept
   finish in the resident and to use it afterwards as the input for the real
   implementation here. The catalog's structure and behaviour (routes, Organization
   and Team groups, module rows, status, actions) are built now in the T3 Code pattern
@@ -492,7 +492,7 @@ update of a supervised hosted base (F29).
 
 ### B14. Worktree previews under a temporary hostname (P9, proposal)
 
-**Direction accepted by the Principal on 2026-09-28 (H3), recorded as the
+**Direction accepted by Matěj on 2026-09-28 (H3), recorded as the
 addendum of root decision 0167 (HumanAndMachines/Lazurio#442):** the agent registers
 a temporary Environment URL for a worktree, the same way module applications get
 their hostnames, under rules that keep such URLs from accumulating. The rules below
@@ -583,7 +583,7 @@ file is the gateway's input, not Folder state.
 **Hosted trust.** Whoever is admitted to the Machine can open a preview, as with any
 application; on a Team Environment every admitted member can. No new admission rule.
 
-**Folder instructions (Principal, 2026-09-28).** The generated `AGENTS.md` and manual
+**Folder instructions (Matěj, 2026-09-28).** The generated `AGENTS.md` and manual
 of a hosted Machine tell agents how previews work there: the operator reaches a
 preview only through its temporary Environment URL, or through SSH forwarding the
 operator set up themselves, never through a localhost link, which cannot work from
@@ -689,7 +689,7 @@ from the operator's computer (17). Every item has one expected answer.
     starts the worktree's application on a free loopback port of the Machine,
     outside the Launchpad's lifecycle, and forwards it (`ssh -L`); the operator's
     `http://localhost:<port>` link opens it, and the `main` module on its own
-    hostname is unaffected. The Principal confirmed on 2026-09-28 that this works only
+    hostname is unaffected. Matěj confirmed on 2026-09-28 that this works only
     in that setup; from the web T3 Code on the Machine there is no such path. That
     case gets the temporary preview hostname of P9 (B14), which is not part of the
     switch and not an item of this checklist.
@@ -725,9 +725,9 @@ slice M3:
   fleet runs: Machines asserts Ubuntu noble for Organization work VMs
   (`M:workloads/workspace-vm/ansible/roles/workspace_network/tasks/install.yml:2-6`).
   Linux means Ubuntu in the first phase; other distributions are "unverified"
-  (Principal, 2026-09-28). Hosted personal VMs, Debian 13 today
+  (Matěj, 2026-09-28). Hosted personal VMs, Debian 13 today
   (`M:docs/personal-vm.md:119-120`), are rebuilt on Ubuntu 24.04 with state transfer
-  at the next Machines rollout (Principal, 2026-09-28; M6 in E), so one qualification
+  at the next Machines rollout (Matěj, 2026-09-28; M6 in E), so one qualification
   VM release covers every hosted Machine. The Platform's hosted-entry evidence already used a local
   VM (`docs/evidence/hosted-entry-linux-arm64-2026-09-26.md`). It is
   applied by the Machines playbook **with the previous Machines release first** (so the
@@ -756,7 +756,7 @@ The evidence file goes into Machines' evidence ledger and this repository's
 | The operator loses the Launchpad and T3 needs a new pairing | T3's existing sessions (365-day TTL, `M:workloads/workspace-vm/tool-services.mjs:10-30`) keep working; a new device pairs through `t3 … pairing create` over SSH | T3 baseline (F17); Recovery mode's T3 link |
 
 Nothing in this program restores the resident Launchpad, a previous Platform version or
-an earlier Folder. Machines follows the same rule (Principal, 2026-09-28; a separate
+an earlier Folder. Machines follows the same rule (Matěj, 2026-09-28; a separate
 Machines decision, [recovery mode](recovery-mode.md), G.4): an apply completes or does
 not start and never returns to an earlier release as a way of repair. What stays
 there is not rollback: the gateway configuration validated before it replaces the
@@ -806,7 +806,7 @@ Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Roug
 | P6 | Hosted `ensure` (B5) | P | P5 | S | follow a cold direct link to a module | merged: #79 |
 | P7 | `lazurio chat link` and the Chat button (B8) | P | P3; T3 launcher on PATH (M) | S | enter T3 Code from the Launchpad without pasting a token | merged: #80 |
 | P8 | `lazurio doctor` read-only; `/settings/diagnostics` (B9) | P | P4, P5 | S | get one readback of the Environment's health | merged: #77 |
-| P9 | Worktree previews: `--source worktree:<name>` (B3) under a temporary hostname registered as a lease — the direction the Principal decided (H3, 0167 addendum); the lease rules of B14 (a 24-hour time to live, ended by unit exit, free port, removed worktree or a merged or closed pull request, capped per Machine, "Stop preview") are a **proposal** awaiting the Principal's decision; the hosted Folder instructions say a preview is reached only through its URL or the operator's own SSH forwarding, never a localhost link (template revision bump); later slice, off the switch line | P | P5, P6 (catalog path proven); the B14 rules decided by the Principal | M | open a pull request's worktree on `https://<module>-<worktree>.<vm>.<org>.lazurio.io` from the web T3 Code, and on a workstation on loopback | after the switch |
+| P9 | Worktree previews: `--source worktree:<name>` (B3) under a temporary hostname registered as a lease — the direction Matěj decided (H3, 0167 addendum); the lease rules of B14 (a 24-hour time to live, ended by unit exit, free port, removed worktree or a merged or closed pull request, capped per Machine, "Stop preview") are a **proposal** awaiting Matěj's decision; the hosted Folder instructions say a preview is reached only through its URL or the Operator's own SSH forwarding, never a localhost link (template revision bump); later slice, off the switch line | P | P5, P6 (catalog path proven); the B14 rules decided by Matěj | M | open a pull request's worktree on `https://<module>-<worktree>.<vm>.<org>.lazurio.io` from the web T3 Code, and on a workstation on loopback | after the switch |
 | M2 | Switch release (C.2): resident removed, gateway snippet and `ensure` Host, entry written, `install --service`, `launchpad.gen3*` removed, F21 static page | M | P1–P8 released; M3 | M | — (qualification only) | Draft: Machines #248 |
 | M3 | Local Ubuntu VM qualification harness (C.5) | M | — | M | qualify any Machines release before a real Machine | Draft: Machines #244 |
 | O1 | One Work Machine switched; then the others | O | M2 | S each | use the Platform Launchpad only | waits for M2 and a qualified candidate |
@@ -818,17 +818,17 @@ Sizes: S = days, M = one to two weeks, L = more, for one agent with review. Roug
 | M4 | Team lane of M2 (shared account, broker unchanged) | M | M2, P12 | S | — | no pull request |
 | — | **Team Environment line: switch line + P10 + P11 + P12 + M4** | | | | | |
 | P13 | Cookie chunks in hosted admission; Personalspace modules (B11) | P | P5 | M | — | cookie chunks: merged (#85, issue #76); Personalspace half: this pull request (`claude/DEV-6628-personalspace-modules`) |
-| M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 **with state transfer** (Principal, 2026-09-28): the Machine keeps its identity, tailnet node and SSH host keys; the owner's home, sign-ins and Buddy are carried; about one hour of outage, announced to the owner beforehand; acceptance: no new sign-in or pairing (T3 Code pairing, the Buddy with its memory, SSH keys and host identity, `gh`), each proven by a readback (see below) | M | the inventory of carried state | M | run the one distribution every hosted Machine runs, with nothing to set up again | design merged: Machines #247; slices R2–R8 open |
+| M6 | Rebuild of hosted personal VMs on Ubuntu 24.04 **with state transfer** (Matěj, 2026-09-28): the Machine keeps its identity, tailnet node and SSH host keys; the owner's home, sign-ins and Buddy are carried; about one hour of outage, announced to the owner beforehand; acceptance: no new sign-in or pairing (T3 Code pairing, the Buddy with its memory, SSH keys and host identity, `gh`), each proven by a readback (see below) | M | the inventory of carried state | M | run the one distribution every hosted Machine runs, with nothing to set up again | design merged: Machines #247; slices R2–R8 open |
 | M5 | Personal lane of M2 (entry without Organization segment) | M | M2, P13, M6 | S | — | no pull request |
 | — | **Personal Machine line: switch line + P11 + P13 + M6 (rebuild with state transfer) + M5** | | | | | |
 | P14 | Workstation adoption (`folder-init --adopt`), control socket, `launchpad open`, session logs, port "Stop holder" action | P | P5; distribution slice S5 | M | run the Platform Launchpad over all Organizations on a Mac | no pull request |
 | P15 | macOS `.app` from `lazurio install` | P | P14; OS signing | M | start Lazurio from the Dock | no pull request |
 | — | **macOS workstation line: P1 (unsupervised parts), P4, P5 (session runner), P8, P9 (loopback previews), P10, P14, P15, and the migration of `docs/distribution-and-migration.md` D** | | | | | |
 
-Strictness notes: P9 is off the switch line and is not dropped (H3, Principal
+Strictness notes: P9 is off the switch line and is not dropped (H3, Matěj
 2026-09-28). SSH port forwarding to a localhost link works only when an agent on the
 operator's own computer is connected to the Environment over SSH (C.3 item 17); from
-the web T3 Code on the Machine it does not. For that case the Principal accepted the
+the web T3 Code on the Machine it does not. For that case Matěj accepted the
 direction of a temporary Environment URL registered for the worktree like a module's
 hostname (H3); B14 proposes its rules (lease, time to live, end conditions, cap). P9
 builds it after the switch, on the catalog path P6 has proven, and serves a
@@ -841,26 +841,26 @@ for existing Machines because their repositories exist and the manual already te
 agents to fast-forward. P8 is on it because the apply's preflight and readback need a
 machine-readable answer.
 
-Linux means Ubuntu in the first phase (Principal, 2026-09-28): P2, P5 and M3 are
+Linux means Ubuntu in the first phase (Matěj, 2026-09-28): P2, P5 and M3 are
 qualified on Ubuntu 24.04, the release Machines provisions for Organization work VMs
 (C.5); other distributions are "unverified" in release notes and the manual. Hosted
 personal VMs run Debian 13 today (`M:docs/personal-vm.md:119-120`), only because the
-pool host's creation script produced it. The Principal decided on 2026-09-28 that they
+pool host's creation script produced it. Matěj decided on 2026-09-28 that they
 move to Ubuntu 24.04 at the next Machines rollout, as a rebuild. **Recommended: a
 separate Machines slice M6** rather than a part of M5. The next Machines rollout may
 come before M2 and P13, and M5 waits for both; the rebuild is a per-owner operation
 with its own evidence and is independent of the Launchpad; M5 then depends on M6, so
 the personal lane of the switch is qualified on Ubuntu only.
 
-**M6 is a rebuild with state transfer** (Principal, 2026-09-28). It must be seamless
+**M6 is a rebuild with state transfer** (Matěj, 2026-09-28). It must be seamless
 for the owner: an outage of about one hour is acceptable, but SSH keys, sign-ins and
 the owner's Buddy (the resident agent of a personal VM, with its memory) must not need
 to be set up again. It also keeps Machines' own hard constraint for personal VMs:
 nothing may require re-pairing an owner's client devices, and a joined guest keeps
 its Headscale node, tailnet address and SSH host key (`M:docs/personal-vm.md:30-32`).
-The Principal announces the outage window to the owner beforehand.
+Matěj announces the outage window to the owner beforehand.
 
-**Acceptance of M6** (Principal, 2026-09-28): after the rebuild the owner neither
+**Acceptance of M6** (Matěj, 2026-09-28): after the rebuild the owner neither
 signs in nor pairs again. Each criterion has its readback, and M6 is done only when
 all four pass on the rebuilt Machine:
 
@@ -898,7 +898,7 @@ never by content, and deleted after the readback passed.
 
 ## F. What we deliberately do not carry over
 
-The Principal confirmed the first three rows on 2026-09-28 (**decided**). The other
+Matěj confirmed the first three rows on 2026-09-28 (**decided**). The other
 rows remain proposals of this shaping.
 
 | Resident capability | Why not |
@@ -917,7 +917,7 @@ rows remain proposals of this shaping.
 | `lazurio search`, plugins, local Guide application, `GET /api/guide/organization-install` | No consumer found; the manual lives in the Folder and the Guide on the documentation site |
 | gbrain note browser in the Personalspace lane | Personal memory tooling belongs to the Buddy and Personalspace, not the Launchpad |
 | Module logs of Personalspace in the browser | Kept out, as in the resident |
-| Windows Start Menu launcher | Windows comes later (Principal's order) |
+| Windows Start Menu launcher | Windows comes later (Matěj's order) |
 
 ## G. Risks and how each is caught before an operator sees it
 
@@ -940,7 +940,7 @@ rows remain proposals of this shaping.
 | The macOS control socket is reachable by another user | 0600 in a 0700 directory, owner check before use; P14 test |
 | Operators relearn commands | Command names kept from the resident (`lazurio module …`); the Folder manual gets the list at the next template revision |
 
-## H. Questions for the Principal
+## H. Questions for Matěj
 
 - **H1 — May canonical-only Organizations run applications?** (F12,
   `docs/organization-contract.md:64-83`.) **Decided 2026-09-28: yes**, F22 point 1
@@ -955,7 +955,7 @@ rows remain proposals of this shaping.
   the switch line. SSH port forwarding with a localhost link works only when an agent
   on the operator's own computer is connected to the Environment over SSH, for
   example Codex over SSH (C.3 item 17); from the web T3 Code on the Machine it does
-  not. For that case the Principal accepted that the agent registers a temporary
+  not. For that case Matěj accepted that the agent registers a temporary
   Environment URL for a worktree, the same way module applications get their
   hostnames, and asked for rules so that such URLs do not accumulate (recorded as the
   2026-09-28 addendum of root decision 0167). **Open design detail: the rules
@@ -980,18 +980,18 @@ rows remain proposals of this shaping.
   `AGENTS.md`.
 
 H2, H5 and H7 were not answered explicitly and stay open with their recommendations.
-Implementation proceeds on the recommendations: the Principal's direction (one apply,
+Implementation proceeds on the recommendations: Matěj's direction (one apply,
 no side-by-side period, no rollback) implies H2, and H5 and H7 can still be changed
 before the first release of P4 and P5 without migrating anything.
 
 Proposed decision, as shaped. **Recorded as F22 in
 [decisions](decisions.md#f22--the-platform-launchpad-reaches-parity-and-replaces-the-resident-in-one-apply)
-on 2026-09-28**, where it is corrected to what the Principal decided; the block below
+on 2026-09-28**, where it is corrected to what Matěj decided; the block below
 is kept as proposed:
 
 > ## F22 — The Platform Launchpad reaches parity by concept and replaces the resident in one apply
 >
-> **Principal's decision 2026-09-28, direction; not implemented.** "Let us give maximum
+> **Matěj's decision 2026-09-28, direction; not implemented.** "Let us give maximum
 > priority to finishing the Platform Launchpad, so that we do not have to deal with
 > this parallel run at all." (1) Canonical-only Organizations are executable; F12's
 > transition-only admission ends. (2) Organizations and modules are read from the
@@ -1005,7 +1005,7 @@ is kept as proposed:
 > Recovery mode (F21) released first; there is no transition hostname and no way back
 > to the resident, and Machines itself does not roll back. (5) The resident's Git
 > client, Mission Control plan browser, notifications, click ranking and recent
-> changes (confirmed by the Principal), takeover audit and maintenance loop have no
+> changes (confirmed by Matěj), takeover audit and maintenance loop have no
 > successor; that `launchpad.gen3*.json` and its planned slots have none either is the
 > proposal of H5, still unconfirmed (row 0167 point 9). (6) Pull-request previews on
 > hosted Work Machines are not part of the switch; a later slice (P9) gives a worktree

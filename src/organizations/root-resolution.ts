@@ -26,7 +26,7 @@ export type OrganizationRootState = (typeof organizationRootStates)[number];
 
 // Execution admission policy, the rule in ONE place. Which resolved states may
 // run applications was question H1 of the Launchpad parity shaping, decided by
-// the Principal on 2026-09-28 (decision F22 point 1): variant B.
+// Matěj on 2026-09-28 (decision F22 point 1): variant B.
 // - "transition-only" (variant A, decision F12 as accepted, kept for the
 //   record): only parity-valid `transition` executes; a canonical-only
 //   `current` root stays readable.

@@ -74,8 +74,8 @@ remain on their current implementation until then.
 - [Agent contribution contract](AGENTS.md)
 
 The target includes local and hosted human work, Buddy and AI Colleague environments.
-A hosted workspace is either private, dedicated to one Principal, or an
-Organization-owned team workspace that several Principals connect to without personal
+A hosted workspace is either private, dedicated to one person, or an
+Organization-owned team workspace that several people connect to without personal
 credentials; a personal environment is never shared ad hoc. OS/CPU, purpose and
 collaboration preferences are separate axes; they do not create product forks.
 "Update Lazurio" (product) and "Synchronize content" (Organization repositories) are

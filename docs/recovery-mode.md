@@ -2,7 +2,7 @@
 
 Status: **shaping, accepted as
 [F21](decisions.md#f21--recovery-mode-instead-of-rollback) on 2026-09-28 (root
-decision 0166).** The Principal decided Q1, Q2, Q3, Q5, Q6, the last switch-back of H
+decision 0166).** Matěj decided Q1, Q2, Q3, Q5, Q6, the last switch-back of H
 and one distribution for every hosted Machine; Q4 was decided on his delegation the
 same day. Q7 was not put to him and was implemented as recommended (the field is
 dropped). The analysis below is kept as written; what is implemented, and what is
@@ -42,18 +42,18 @@ The price: a release that passes every gate and still fails on one Machine leave
 that Machine's Launchpad in Recovery mode until a fixed release. Staged releases keep
 the number of such Machines narrow: a defect that passes the gates meets the pilot
 Organization first (G.3, G.5). T3 Code, the operator's tools, the Folder and the
-repositories keep working; none of them depends on the Launchpad process. The
-Principal chose this ("No back doors for rollback!").
+repositories keep working; none of them depends on the Launchpad process. Matěj
+chose this ("No back doors for rollback!").
 
 ## Context
 
-The Principal (2026-09-28) wants no rollback safety net: a broken Environment starts
+Matěj (2026-09-28) wants no rollback safety net: a broken Environment starts
 an agent that repairs forward, or delivers the materials for a fix to GitHub. Earlier
 (2026-09-27): Lazurio is a thin wrapper over repositories where Git holds history.
 The trigger: the Platform-written Launchpad unit restarts `on-failure` within a start
 limit that ends `failed` and starts the rollback unit (`src/update/install.ts:86-99`),
 while the resident Launchpad on hosted Machines must "always run" and never end
-`failed` (Machines `workloads/workspace-vm/README.md:862-873`, Principal 2026-09-27).
+`failed` (Machines `workloads/workspace-vm/README.md:862-873`, Matěj 2026-09-27).
 
 A fact that shapes the migration: the Machines role installs the Platform **without**
 `--service` (Machines `workloads/workspace-vm/README.md:449-451`), so no hosted
@@ -65,7 +65,7 @@ offline update or a `lazurio update`.
 
 ## A. Inventory of rollback in the product today
 
-"Rollback" below means what the Principal rejects: returning to an earlier version or
+"Rollback" below means what Matěj rejects: returning to an earlier version or
 state as a way of repair. Each row gets one disposition.
 
 ### A.1 Code
@@ -267,9 +267,9 @@ bounded to moving forward. An issue follows even a successful local repair becau
 state the product could not handle, whoever caused it, is a missing test (Q2, decided
 2026-09-28: "otherwise the repair never becomes a test").
 
-Step 7 follows Q4, decided on the Principal's delegation on 2026-09-28 (E.3): the
+Step 7 follows Q4, decided on Matěj's delegation on 2026-09-28 (E.3): the
 automatic issue is structured only; free text leaves the Machine only as the agent's
-attachment after reading, and the operator does not confirm.
+attachment after reading, and the Operator does not confirm.
 
 ## E. The evidence bundle for GitHub
 
@@ -341,11 +341,11 @@ Root decision 0163 lets the agent file an issue after a duplicate check and
 sanitization without asking (`manual/decision-register.md:99`,
 `manual/github-issues.md:55-60`). The operator sees what leaves: the page shows the
 exact sanitized bundle, and the agent shows the body in the chat in the turn it sends
-it. Closing and prioritizing stay with the Principal. The product's public repository
+it. Closing and prioritizing stay with the Operator. The product's public repository
 is `Lazurio/LazurioPlatform` (Issues enabled); the root routing table
 (`manual/github-issues.md:16`) needs a row for it.
 
-**Decision, 2026-09-28, taken on the Principal's delegation: variant (a), narrowed.**
+**Decision, 2026-09-28, taken on Matěj's delegation: variant (a), narrowed.**
 The automatic issue goes to the public product repository and carries only the
 structured, non-free-text fields of tier 1 (E.1): versions, target, platform, the ids
 of failed checks, unit state, Folder and template revisions, after the deterministic
@@ -365,7 +365,7 @@ from the structured facts; an attached tail that passes the gate and the reading
 still reaches everyone if both miss something; a Team Environment still has only the
 prefilled link (E.5).
 
-**What was considered.** The Principal had not decided whether the operator confirms
+**What was considered.** Matěj had not decided whether the Operator confirms
 before an issue leaves the Machine; he suggested "some internal agent pass that goes
 through it before it is published" and asked for a recommendation. Three variants were
 compared; the table describes (a) as first proposed, with the free-text tail in the
@@ -521,14 +521,14 @@ prerelease `vX.Y.Z-rc.N` is published, on GitHub-hosted runners (a fresh VM with
 `sudo` each run): `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-14`, through the real
 Release and Sigstore path, not the fixture origin.
 
-**Linux means Ubuntu in the first phase** (Principal, 2026-09-28). The journeys run
+**Linux means Ubuntu in the first phase** (Matěj, 2026-09-28). The journeys run
 on Ubuntu runners and on Ubuntu VMs of the release the fleet runs: Machines asserts
 Ubuntu 24.04 (noble) for Organization work VMs (Machines
 `workloads/workspace-vm/ansible/roles/workspace_network/tasks/install.yml:2-6`).
 Release notes and the manual call every other distribution "unverified"; the Linux
 executables are not refused there, only not qualified. Hosted personal VMs run
 Debian 13 today (Machines `docs/personal-vm.md:119-120`), only because the pool
-host's creation script produced it, for no technical reason. The Principal decided on
+host's creation script produced it, for no technical reason. Matěj decided on
 2026-09-28 that they move to Ubuntu 24.04 at the next Machines rollout, so every
 hosted Machine runs one distribution. It is a rebuild with state transfer, not an
 in-place upgrade: the Machine keeps its identity, tailnet node and SSH host keys, and
@@ -565,19 +565,19 @@ fixture there, so the drill grows with each field failure. The release job lists
 a broken Machine waits for a fix. The RC→final path (J1–J6 plus review) should fit in
 one working hour; the canary stage of a fix release is the same 8 hours on the same
 Machines (root decision 0166 point 6 gives no exception). A shorter canary for a
-named release exists only as the Principal's recorded decision in the register,
+named release exists only as Matěj's recorded decision in the register,
 never as a line in an evidence PR. The time a fix needs is therefore the fix lane's
 own plus 8 hours, and the Recovery mode of D is what covers the Machine meanwhile.
 
 ### G.3 Canary stage: 8 hours on every Machine of the pilot Organization
 
-Decided by the Principal on 2026-09-28 (Q5), replacing the earlier proposal of 24
+Decided by Matěj on 2026-09-28 (Q5), replacing the earlier proposal of 24
 hours on one Environment.
 
 **What "every Machine of the pilot Organization" means for the release job.** After
 `qualify.yml` passed, the candidate is rolled by its exact tag to the stage's
-Machines. **Scope confirmed by the Principal on 2026-09-28:** the work VMs of the
-pilot Organization plus the personal VMs of its operators. Each is rolled through
+Machines. **Scope confirmed by Matěj on 2026-09-28:** the work VMs of the
+pilot Organization plus the personal VMs of its Operators. Each is rolled through
 the path that pins its release: the Organization's owner overlay for work VMs, the
 personal lane's pin for personal VMs (Plan, Permit and apply per Machine, the existing
 path). Root decision 0166 point 6 requires both groups, so the rebuild of the
@@ -585,11 +585,11 @@ operators' personal VMs on Ubuntu 24.04 (G.2, parity slice M6) comes BEFORE the 
 canary stage: the stage does not start until every in-scope Machine, work VMs and the
 operators' personal VMs alike, runs the candidate, and no final release passes with a
 personal VM missing from the count. A Machine that cannot take the candidate blocks
-the stage. Narrowing the scope is a decision of the Principal recorded in the
+the stage. Narrowing the scope is Matěj's decision recorded in the
 register, never a line the `release` reviewer accepts. The 8 hours start when the
 last of these Machines runs the candidate, proven by its `lazurio update status
 --json` (`active` equals the candidate) and a healthy Launchpad. The pilot Organization is
-the Principal's choice and is named only in private owner records, never here.
+Matěj's choice and is named only in private owner records, never here.
 
 **What is observed during the 8 hours**, on every Machine:
 
@@ -629,7 +629,7 @@ moves to the remaining Organizations in steps.
 
 ### G.4 Machines without rollback
 
-Decided by the Principal on 2026-09-28 (Q6): "no rollback" binds Machines too. An
+Decided by Matěj on 2026-09-28 (Q6): "no rollback" binds Machines too. An
 apply completes or does not start; it never returns to an earlier release as a way of
 repair. Applied to Machines, this is a proposal for a **separate Machines decision**;
 nothing below exists in Machines today unless cited as such.
@@ -673,7 +673,7 @@ inside the Machine repairs only the Lazurio layer (the Platform and the Folder,
 through the Recovery mode of this document); it never edits files Machines owns
 (units, gateway, network), which the next apply would overwrite.
 
-**Pipelines instead of a way back.** The Principal (2026-09-28, translated): "We must
+**Pipelines instead of a way back.** Matěj (2026-09-28, translated): "We must
 provide pipelines that, on a failure of Machines, identify and repair the problem by
 a new release. Releases will be staged. So when something breaks, it will be on a
 narrow number of users." The pipeline is the path above: failed apply → evidence →
@@ -703,7 +703,7 @@ stay on it, with the evidence, and are not rolled back; the defect is repaired b
 new release that re-enters at ring 0 and passes every ring again up to the failing
 one. The fast lane of G.2 applies to the path, not to the ring times: a fix release
 passes ring 1 for the same 8 hours, and a shorter time for a named release exists
-only as the Principal's recorded decision, never as a line in the evidence.
+only as Matěj's recorded decision, never as a line in the evidence.
 
 ## H. Migration of existing installations
 
@@ -718,7 +718,7 @@ old updater.** It still writes `previous`, a marker, and still switches back if 
 unhealthy. That is the last rollback that can happen, it cannot be prevented without
 blocking the update, and it only happens if vN fails. vN's health socket answering
 `503` in Recovery mode (C.1) makes the old updater's decision correct. **Accepted by
-the Principal on 2026-09-28.**
+Matěj on 2026-09-28.**
 
 **vN converges the leftovers**, in a migration kept apart from current-direction code
 (`src/update/migrations/remove-rollback/` with a README, its entry points and the
@@ -783,13 +783,13 @@ static page for the Launchpad host (C.2, 2b); and its own rule without rollback
 
 Proposed wording, in the style of `docs/decisions.md`. **Recorded as F21 in
 [decisions](decisions.md#f21--recovery-mode-instead-of-rollback) on 2026-09-28**,
-where it is corrected to what the Principal decided; the block below is kept as
+where it is corrected to what Matěj decided; the block below is kept as
 proposed:
 
 > ## F21 — Recovery mode instead of rollback
 >
-> **Principal's decision 2026-09-28, direction; not implemented.** Recorded from the
-> Principal's words: rollback must not be the safety net; when something breaks, the
+> **Matěj's decision 2026-09-28, direction; not implemented.** Recorded from
+> Matěj's words: rollback must not be the safety net; when something breaks, the
 > Environment starts an agent to repair it, or delivers every material for a fix to
 > GitHub, and the pressure lands on tests and CI/CD so that releases become stable.
 > "No back doors for rollback."
@@ -839,7 +839,7 @@ proposed:
 >
 > | Alternative | Trade-off / disposition |
 > | --- | --- |
-> | Keep rollback as a safety net | Fast relief on one Machine; hides faults and keeps a second code path alive; rejected by the Principal |
+> | Keep rollback as a safety net | Fast relief on one Machine; hides faults and keeps a second code path alive; rejected by Matěj |
 > | Keep only the automatic switch-back after an unhealthy restart | Smaller, but the new version was observable and may have written state; it is rollback by the rule above; rejected |
 > | Recovery page from a separate program | Survives a broken executable; a second runtime and supervisor to build and qualify; rejected in favour of the gateway's static page |
 > | Recovery mode in the Launchpad plus `lazurio recover` | One core, no new process, reaches the operator where they already are; selected |
@@ -876,7 +876,7 @@ proposed:
    repair; probe-before-rename for release archives (B, case 5); deleting the
    migration.
 
-### J.2 Questions for the Principal
+### J.2 Questions for Matěj
 
 - **Q1 — Is the switch-back after an unhealthy restart rollback?** **Decided
   2026-09-28:** yes (B, case 2); it is removed. The alternative, keeping it as "atomic
@@ -886,7 +886,7 @@ proposed:
 - **Q3 — Workstation: is "copy the prompt into your agent app" enough?** **Decided
   2026-09-28:** yes for now; revisit when T3 Code can start a thread from outside.
 - **Q4 — Operator confirmation before an issue leaves the Machine?** **Decided
-  2026-09-28 on the Principal's delegation:** no confirmation; variant (a) narrowed
+  2026-09-28 on Matěj's delegation:** no confirmation; variant (a) narrowed
   (E.3). The automatic issue in the public repository carries only structured fields
   after the deterministic gate; the journal tail and free text stay on the Machine
   until the repair agent attaches them after reading them under the same gate. The

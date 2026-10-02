@@ -52,8 +52,8 @@ tools update <tool> [--json]
   Runs that one tool's official update path as the current user: the tool's
   own updater (claude update, bun upgrade) or the vendor's installer script
   (codex). Tools without one (gh, git, node, npm) are reported with their
-  official source and nothing runs. Run it only on the Principal's explicit
-  instruction. Never pins or downgrades; never touches another tool.
+  official source and nothing runs. Run it only with the Operator's
+  consent. Never pins or downgrades; never touches another tool.
 tools list --folder <absolute Folder> [--sign-in] [--json]
   The catalog tools agents may be told to use (gh required, composio
   recommended, wacli, gogcli and neon optional): tier, setup mode (launchpad:
@@ -168,7 +168,7 @@ export async function runToolsCommand(
      * resolves to it, to undefined where there positively is none, and
      * rejects where a hosted context is there but unreadable (#83). Absent,
      * none. `login` and `logout` read its preset: gh on a Team Environment
-     * (Principal 2026-09-28). */
+     * (Matěj 2026-09-28). */
     hostedFolder?: (() => Promise<string | undefined>) | undefined;
   }> = { env: process.env, platform: process.platform },
 ): Promise<ToolsCommandOutput> {
@@ -374,7 +374,7 @@ type ToolsOptions = {
 
 // On a Team Environment gh's line names the way the Environment works in
 // GitHub instead of inviting a person to link their SSH key, and points to
-// the sign-out of a person's account left there (Principal 2026-09-28).
+// the sign-out of a person's account left there (Matěj 2026-09-28).
 const sshText = (signIn: ToolSignIn, team: boolean): string =>
   signIn.ssh === undefined
     ? ""

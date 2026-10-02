@@ -175,7 +175,7 @@ export async function requireFolderBoundary(folder: string, claimed = false) {
 // recovery. A hosted Folder (adopted from a handover) owns exactly its claimed
 // top level, so a foreign entry fails closed by name, as in adoption and
 // initialization recovery. A workstation Folder (no binding) keeps the
-// Principal's own top-level files beside the generated ones; they are never
+// Operator's own top-level files beside the generated ones; they are never
 // read or written, and the update preserves them.
 export async function requireClaimedFolderBoundary(
   folder: string,

@@ -1,7 +1,7 @@
 # Lazurio Platform architecture
 
 Status: implementation contract aligned with decision 0144, updated 2026-09-19. Product direction is supplied
-by the Principal; this document does not claim that the target is deployed. Decision
+by Matěj; this document does not claim that the target is deployed. Decision
 amendments and rollout gates are in [decisions](docs/decisions.md).
 
 The 2026-09-19 reconciliation (decisions F2 rewritten, F8–F12 added) records accepted
@@ -26,18 +26,18 @@ private data and credentials remain in their existing custody boundaries.
 2. Lazurio Folder Factory plans, generates and reconciles only enumerated Lazurio-owned
    instructions/configuration in a non-Git Lazurio Folder.
    Organization repos, Personalspace, Git state and runtime data are never generator inputs to overwrite.
-3. Every operation identifies the actual Principal, Machine Owner and higher host/operator boundary.
+3. Every operation identifies the actual Operator, Machine Owner and higher host or hosting operator boundary.
    Owner-local work uses the existing Machine/filesystem boundary; GitHub remains
    access authority for connected provider operations. Text, local paths and profile
    labels cannot grant provider access (proposed binding distinction in decision F6).
    On a team workspace provider operations are attributed to the Team through the
-   brokered identity; a connected person is never presented as a named Principal
+   brokered identity; a connected person is never presented as a named Operator
    without an actual identity proof.
 4. CLI and UI invoke the same use cases, validation and errors. Each persistent fact has one owner.
 5. A failed operation preserves the last known usable generation or stops with recoverable evidence.
    Unknown state is a refusal to mutate, not permission to rebuild.
 6. The legacy source-working directory is an explicitly transitional path with a
-   retirement gate. A hosted workspace is either private (one Principal) or a team
+   retirement gate. A hosted workspace is either private (one person) or a team
    workspace (Organization-owned, brokered identity); both are first-class. What
    retires is ad-hoc sharing of a personal environment, not the team workspace.
 7. "Update Lazurio" (product bytes) and "Synchronize content" (Organization
@@ -97,7 +97,7 @@ the full OS/purpose/language matrix, Dashboard identity, analytics, marketplace 
 public release remain later gates, not prerequisites of this limited pilot. This does
 not waive public signing requirements or authorize infrastructure operations.
 
-Canonical-only Organizations are the normal case. Since the Principal's decision of
+Canonical-only Organizations are the normal case. Since Matěj's decision of
 2026-09-28 (F22 point 1) both a parity-valid `transition` root and a canonical-only
 `current` root execute; the earlier transition-only gate and its
 [exit criterion](docs/organization-contract.md#exit-from-transition-only-admission)
@@ -110,7 +110,7 @@ are a historical record.
 | Lazurio Folder | Supported source checkout also acts as the working directory | Installed product outside a thin generated non-Git Lazurio Folder |
 | Distribution | Legacy npm gate explicitly expects package-only Launchpad unavailable | Full CLI and Launchpad work from installed artifacts, with source absent |
 | Runtime | Existing CLI/core boundaries and extensive preservation fixtures are useful evidence | Port proven invariants into small owner-focused TypeScript modules |
-| Hosted work | Shared Hosted Team Workspace is current documented model | Two first-class kinds: a private workspace for one Principal and an Organization-owned team workspace with a brokered identity; higher provider boundary stated for both |
+| Hosted work | Shared Hosted Team Workspace is current documented model | Two first-class kinds: a private workspace for one person and an Organization-owned team workspace with a brokered identity; higher provider boundary stated for both |
 | Profile | Existing resident build profiles and locale contracts; no complete profile switch capability | Versioned preferences regenerate only owned output through one core use case |
 | Dependency repair | Current decision 0133 rebuilds derived dependencies from the lockfile | Preserve that distinction: dependencies are rebuildable; user work is not |
 
@@ -408,18 +408,18 @@ verified. They are not Machine kinds or independent distributions.
 
 A hosted human environment is one of two first-class kinds (decision F2, upstream
 decisions 0147–0149). A **private hosted workspace** is dedicated to one named
-Principal, who signs in with their own provider identity; it may be owned by an
+person, who signs in with their own provider identity; it may be owned by an
 Organization and then does not mount that human's private Personalspace. A **team
 hosted workspace** is an Organization-owned Machine with one OS account to which
-several Principals connect: it holds no personal credentials and no Personalspace, its
+several people connect: it holds no personal credentials and no Personalspace, its
 provider identity is the brokered platform App identity, its changes go through pull
 requests, and attribution and revocation run through that brokered identity. A
 personal environment is never shared ad hoc. The kinds are selected by the four
 hosted [workspace presets](docs/workspace-presets.md): `hosted-personal` (the one
-personal VM of a Principal), `hosted-organization-personal` (an Organization-owned
-work VM assigned to one operator), `hosted-organization-team` (an
+personal VM of a person), `hosted-organization-personal` (an Organization-owned
+work VM assigned to one Operator), `hosted-organization-team` (an
 Organization-owned team VM shared by a Team) and `hosted-organization-steward` (the
-Automated Environment of an Organization persona with one responsible operator,
+Automated Environment of an Organization persona with one responsible Operator,
 upstream decision 0169; proposed). `hosted-personal` follows
 `machine.kind`; between the Organization presets the handover's
 `owner.assignment` (Machines v0.12.61, copied from the reviewed owner overlay,
@@ -427,14 +427,14 @@ never inferred) is the only selector, and a handover that carries none is chosen
 explicitly. The earlier names `hosted-private` and `hosted-team` were never
 implemented and have no compatibility path. The presets configure the Environment
 and grant nothing. Buddy
-belongs to its human's private boundary and is not a new Principal. An AI Colleague
+belongs to its human's private boundary and is not a new Operator. An AI Colleague
 has its own seat, identity, dedicated environment and one human custodian; custody
-does not create access to another Principal's Personalspace. Organization-owned
+does not create access to another person's Personalspace. Organization-owned
 work assets remain Organization-owned even when used by one person.
 
 An OS account or container is not sufficient proof of isolation, and the operator
 account named in the Machine identity is an OS execution account, not necessarily a
-human Principal. The supported
+person. The supported
 hosting envelope must cover files, process control, credentials, network and
 recovery; a parent operator remains a higher compromise domain. No Machine registry
 or alternate ACL is added by this proposal.
@@ -447,7 +447,7 @@ context, follows progress, independently verifies returned artifacts and complet
 the task or names a concrete blocker. Delegation is not completion.
 
 The working profile is defined per Machine, not globally per human identity. One
-Principal may use a developer/coordinator profile on one Machine and an everyday
+person may use a developer/coordinator profile on one Machine and an everyday
 assistant profile on another. OS does not choose behavior. CLI/UI changes affect
 only the selected local installation; there is no automatic sync, global override
 engine or central Machine registry. Explicit profile import/copy may be considered
@@ -467,12 +467,12 @@ with custom instructions refining defaults. Conflicts with an invariant are surf
 for a decision, never silently resolved by last-write-wins. The generated AGENTS.md
 identifies its input revisions; custom source is the supported authoring surface.
 
-A proposed mandate is not effective authorization. The actual Principal in this
+A proposed mandate is not effective authorization. The actual Operator in this
 installation must supply explicit scope, consent provenance and revocation within
 live rights. Import cannot transfer the author's consent, credentials or active
 mandate. Mandates can concern a Machine (tools, version activation, owned processes) or
 an exact Organization (campaign, publication, merge). Each requires an authorized
-Principal and its own scope; Machine scope cannot grant Organization rights or the
+Operator and its own scope; Machine scope cannot grant Organization rights or the
 reverse. An action crossing both boundaries must satisfy both, plus live provider
 rights and higher constraints. Use the existing mandate owner/model, not profile
 metadata as a new IAM. Export
@@ -536,14 +536,14 @@ is rechecked at the operation boundary. A provider outage prevents claims of fre
 rights; safe local inspection may continue under the applicable local boundary.
 Revocation blocks unauthorized provider operations but does not delete local work.
 Wrong identity, stale path or inaccessible repo leads to explanation and a legal
-materialization route, not credential substitution or cloning another Principal's data.
+materialization route, not credential substitution or cloning another person's data.
 
 ## Profiles, evidence and assistance
 
 The same senior marketing specialist may respond to assignments and hand over drafts,
 or proactively coordinate authorized work. Expertise, collaboration/proactivity and
 explanation detail are independent. Quality requires task-specific evals. "Worker"
-is informal language for a Task Agent session, never an additional Principal persona.
+is informal language for a Task Agent session, never an additional persona.
 Persistent proactive work needs an explicitly owned runtime and triggers; instructions
 alone do not create background execution. Existing scheduler/lifecycle capabilities
 must be used with revocation and cancellation, not a new always-on profile service.
@@ -568,10 +568,10 @@ Exact packaging and profile acquisition UI remain proposals. A profile transfers
 instructions, not proven competence or identical capabilities across harnesses.
 Codex and Claude Code are the initial supported consumers; others are future extensions.
 
-First work may use the Principal's own files or personal repositories in their own
+First work may use the Operator's own files or personal repositories in their own
 Personalspace. No Organization or Open Connector is required; external integrations
 are optional through supported tools and the applicable access boundary. Company
-repositories still belong to their Organization; another Principal's Personalspace
+repositories still belong to their Organization; another person's Personalspace
 is never an onboarding fixture or import source.
 
 ## Technical founder: local preparation before GitHub
