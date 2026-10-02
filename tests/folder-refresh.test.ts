@@ -577,7 +577,7 @@ test.skipIf(process.platform === "win32")(
       });
       expect(current.machine.owner.assignment).toEqual(automationAssignment);
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
-        "responsible operator `example` (GitHub id 12345)",
+        "responsible Operator `example` (GitHub id 12345)",
       );
       // Settled: a plain refresh of the same handover changes nothing.
       expect(await refreshMachineFolder(folder, automated)).toEqual({

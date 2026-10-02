@@ -7,7 +7,7 @@ import {
 } from "./status";
 
 /** `lazurio tools update <tool>`: runs exactly one tool's official update path
- * as the operator, on the Principal's explicit instruction (decision 0161 /
+ * as the operator, with the Operator's consent (decision 0161 /
  * F17), and reports the version before and after. It never pins, never
  * downgrades on its own and never touches another tool; a tool without an
  * official self-update path is only reported with its source. */

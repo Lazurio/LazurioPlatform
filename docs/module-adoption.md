@@ -37,7 +37,7 @@ read from every directory in `<Folder>/organizations/` by `lazurio organization 
 `lazurio module list` and `POST /api/catalog`; the panel's discovery and selection form
 is gone from the page. `POST /api/apps/discover`, the application operations
 `/api/apps/*` and `app-request` described here are unchanged; the module lifecycle
-`lazurio module start|prepare|stop|status|logs` (slice P5, F30,
+`lazurio module start|prepare|stop|status|logs` (slice P5, F32,
 [launchpad development](launchpad-development.md#module-lifecycle)) runs the catalog's
 modules over the same lifecycle core beside them, and their retirement is still open;
 `scripts/smoke-application-ui.ts` drives them over the API. Which Organization states may run applications is the
@@ -143,7 +143,7 @@ is refused. Because the default has no check, **its start-time step is the froze
 install itself**, which changes nothing when `node_modules` already matches the
 lockfile and repairs it when it does not; an explicit declaration's start runs the same
 install, then its check, and only when the check fails its `prepare_script` and the check
-again (decision F30, below). A local `file:` dependency of the default preparation
+again (decision F32, below). A local `file:` dependency of the default preparation
 may lie anywhere in the same Organization directory (for a Personalspace module, its
 owner directory), also outside the module's own repository: real modules share a
 contracts package of the Organization's root repository
@@ -327,7 +327,7 @@ the module operations on a hosted and a workstation fixture Folder and compares 
 whole environment exactly.
 
 For the start-time step, `preflightDeclaredBunStart` selects the `start` operation of
-that same process owner (decision F30, issues #114 and #116). It requires check_script
+that same process owner (decision F32, issues #114 and #116). It requires check_script
 and rejects clean-install mode. It runs, in one run under the same 600-second deadline,
 the frozen install from the lockfile beside the owner's package on every start (exactly
 as the default preparation does; it changes nothing when `node_modules` already matches
@@ -719,7 +719,7 @@ What changed in the locked sections (`local-application-adapters.ts`,
   is never blocked by a crashed Launchpad or an interrupted preparation.
 - **Start**: coordination lock only. Its start-time step (the default preparation's
   install, F25, or the same install and a declared check followed by `prepare_script`
-  only when it fails, F30) leaves no retained record when interrupted: the next start's
+  only when it fails, F32) leaves no retained record when interrupted: the next start's
   step installs and decides again.
   It refuses with `preparation-recovery-required` when a retained record that this owner
   does not hold exists on its dependency tree: an application is never started on a
@@ -786,7 +786,7 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
 - **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
 - **Preparation without a Launchpad.** Since slice P5 `lazurio module start|stop|status|logs`
   work from the CLI alone for service-owned applications, with the operator's Bun from
-  `~/.local/bin/bun`; `app-request` status and stop still work as below. Since F30
+  `~/.local/bin/bun`; `app-request` status and stop still work as below. Since F32
   `lazurio module prepare` is a CLI verb too (the explicit preparation, refused while
   another application of the Organization is managed). `clean-prepare` and a one-step
   `open` are not yet CLI verbs.

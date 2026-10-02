@@ -803,6 +803,117 @@ A unit test checks key sentences of both rules in `AGENTS.md` and
 `manual/working-here.md` for every preset in both locales, and that no output still
 calls an issue a Publication.
 
+**Addendum 2026-10-02, decided by Matěj: the rest of the root rules, and how the
+Operator works with an agent.** The first transfer of F14 left out what an agent needs
+to build inside Lazurio. On hosted work Environments that gap showed:
+- agents reinstalled Lazurio from source over the Folder;
+- they saved work products at the Folder's top level, which blocks every refresh;
+- they built their own Microsoft 365 integration instead of using the Composio
+  connection;
+- work waited for "the administrator" with nobody named, and work that GitHub refused
+  to push stayed on the Environment's disk.
+
+Matěj's direction:
+- carry over everything of lasting value, but not the noise, each rule in the right
+  place, for the right reader, in the right voice;
+- keep installation off the agent's hot path, but easy to find;
+- give agents everything they need to develop Lazurio itself.
+
+What changes, still in the six files (`AGENTS.md` plus `manual/`):
+
+- **`manual/working-here.md`** becomes a function of the preset.
+  - On every preset except `hosted-personal`, which mounts no Organization, it gains:
+    - how to build: use the existing mechanism first;
+    - the Organization manifest (`lazurio.organization.json`, `modules.manifest.json`)
+      and how to create a missing checkout;
+    - the Lazurio Module Standard (root decision 0171). A new module, its slot and the
+      Teams' grants are created by whoever GitHub allows; the agent of an Operator
+      with those rights does it on their explicit instruction and confirms an access
+      change or a deletion as the exact operation. The hosting is never run from an
+      Organization's Environment; a change of the Environment goes as a PR or an issue
+      to the Organization's `infra`;
+    - module applications, moved here from troubleshooting;
+    - the test-first plan;
+    - restructuring as an agent refactor (root decision 0173);
+    - developing Lazurio itself in `Lazurio/LazurioPlatform`.
+  - On every preset it gains:
+    - **When you lack the rights for something**: find out live who may grant it (the
+      Organization's Owners and the administrator its `AGENTS.md` names), file an
+      issue in the Organization's root repository **assigned** to that administrator,
+      give the Operator a short ready text and continue with the rest. Assigning is an
+      explicit exception, decided by Matěj, to the issue mandate of root decision 0163,
+      which otherwise forbids an agent to assign. A push GitHub refuses keeps the work
+      committed in the worktree and goes into the same issue.
+    - **Connected applications**: Composio is the standard route for a missing
+      application and part of Lazurio once the Operator enables it in the Launchpad
+      (Settings → Tools): `composio search`, then `composio link <toolkit>` with the
+      link for the Operator. The IT consent of company applications, no own
+      integrations, and a write is a Publication.
+    - **Secrets**, moved here from troubleshooting.
+  - The worktree rules gain the sidecar `<PLAN>-<slug>.worktree.json` (schema
+    `companiesascode.worktree.v1`, root decision 0049) with the plan, the pull request
+    and the agent session, so accumulated worktrees can be traced and cleaned up.
+  - After a Publication the agent pulls the clean checkout the application runs from
+    and checks the change through the application's `runtime.url`.
+  - On `hosted-organization-team` the handoff carries the rule of F31.
+- **`manual/this-machine.md`** gains, on every hosted preset, "How the Operator works
+  with you". The Operator uses the clients they prefer, possibly several at once:
+  Codex Desktop over SSH, T3 Code on the web or in its desktop app, and Lazurio
+  MausBot. The agent knows the client it runs in from its harness. Whether the
+  Operator connects over SSH is read from the handover's peers: a client device or
+  personal VM whose SSH link points here.
+  - Only Codex Desktop's built-in browser reaches a `localhost` port of the
+    Environment: current versions open an SSH tunnel to a random local port
+    themselves. OpenAI does not document this. It was observed on a hosted work
+    Environment and is described in openai/codex#44385 (Codex App 26.903), while
+    older reports needed a manual `ssh -L` (openai/codex#21294). The manual therefore
+    tells the agent to check that the page loaded instead of promising the forward.
+  - T3 Code and Lazurio MausBot forward no port: T3 Code's SSH tunnel carries only its
+    own server, and its browser preview lives in the desktop app. An agent running
+    there starts a module's application and links it by its `runtime.url`, and hands
+    any other page over as a file, even when the same Operator has Codex Desktop open
+    at the same time.
+  - Without SSH no client reaches `localhost`; without recorded peers, the handover's
+    silence is said.
+  - The section also covers attachments (`~/.codex/attachments/`), work products in
+    `~/Documents/<task>/` (a standard folder of the OS, not an invented one), what
+    cannot be reached (the Operator's computer and its drives), that a work
+    Environment serves work only, and the stored chats.
+- **`manual/troubleshooting.md`** becomes "Installation, updates and troubleshooting".
+  - It opens with where Lazurio is installed and the guard against installing or
+    building it from source.
+  - It carries the continuous update of F17's addendum of 2026-10-02 and, on presets
+    with Organizations, how the checkouts are kept current.
+  - A foreign top-level entry is named among the refresh refusals.
+- **`AGENTS.md`** gains:
+  - full access (root decision 0172);
+  - where work products go, per OS;
+  - the update at the start of work (F17 addendum 2026-10-02);
+  - the escalation of a missing right;
+  - on a hosted preset, the Operator's client, fact-based like the manual section.
+
+  The long hosted update rule moves into the installation chapter (decisions 0161
+  and F17).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| New chapters (`building.md`, `apps.md`, `installation.md`) | Clearer file names, but the instruction manifest requires a digest for every output, so a new file is a manifest schema migration on every existing Folder; rejected for now. The titles and the index name the content instead |
+| One SSH rule for every hosted Environment ("never send localhost") | Wrong where Codex Desktop forwards ports; Matěj: the rule depends on whether the Operator connects over SSH; rejected |
+| State that Codex Desktop forwards the port | Undocumented by OpenAI and missing in older versions; the agent checks that the page loaded instead; rejected |
+| A Folder-owned files area | `notes/` was deferred, and any new top-level name is a boundary change; the OS Documents folder already exists and is the Operator's; rejected |
+| Escalate missing rights only to the Operator in the chat | The observed failure: the work waited without a named owner; rejected |
+
+The template revision moves to `base-instructions-17`, so every Folder re-renders on its
+next refresh or product upgrade. Unit tests check:
+- the three Operator-client variants and that the forward is never promised;
+- the per-OS Documents line;
+- that the building sections follow the Organizations, including the Admin's agent;
+- the escalation of missing rights on every preset and F31 on the Team preset only;
+- the worktree sidecar;
+- the work-only rule on work Environments;
+- the Composio route, its activation in the Launchpad and the installation guard on
+  every preset.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Principal's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -1112,6 +1223,58 @@ Root decision 0161 still lists "the installed release" among what the pin holds;
 is amended by a separate pull request in the root repository. What the Machines role
 must do differently is the contract in
 [machine handover](machine-handover.md#what-the-machines-role-does-with-the-lazurio-version-f17-addendum-2026-09-28).
+
+**Addendum 2026-10-02 (Matěj): agents keep the Environment current.** The addendum of
+2026-09-28 let an agent run `lazurio update` only when the operator asked. Hosted work
+Environments showed the cost: Folders and the checkouts of Organizations and modules
+fell behind, and published changes did not show in the running applications. Matěj's
+decision: agents update proactively and continuously, and they resolve a diverged
+checkout for the Operator without losing work.
+
+1. At the start of every piece of work an agent runs `lazurio update` in the background
+   and, when it reports "Folder refresh needed", the refresh. It tells the Operator what
+   changed. Only the Launchpad restarts ([product update](update.md)); applications,
+   T3 Code and Codex sessions keep running (F29 point 3), and a concurrent run ends
+   `busy`. The product itself still activates nothing on its own.
+2. Until content synchronization exists (F9, [content synchronization](content-sync.md),
+   not implemented), the agent pulls the clean checkouts of Organizations and modules
+   with `git pull --ff-only` and brings a diverged one back without losing work. It
+   keeps all the work first:
+   - a nested repository is saved in itself and moved out of the checkout, because a
+     stash of the outer checkout skips it;
+   - uncommitted changes go into a task worktree or a named stash;
+   - unpushed commits go onto a branch of their own, pushed with a pull request.
+
+   Only then is the checkout aligned, with `git checkout -B <branch> origin/<branch>`,
+   after the paths it changes were compared with the untracked and ignored entries.
+   That command refuses to overwrite an untracked file, and an overlap with an ignored
+   one stops the agent. `git reset --hard` is never used: in review, Pablo showed that
+   it overwrites the files of an untracked nested repository the stash skipped. A
+   merge or rebase in progress is left alone and reported. When any step cannot be
+   completed (no remote, a refused push, a missing right, a failed move), the checkout
+   is not aligned at all: it stays exactly as it is, the Operator is told what remained
+   unsaved, and a missing right is escalated. The worktree rule in `working-here.md`
+   points to this procedure, so the manual gives one rule for a nested repository.
+   Branches and stashes are never deleted, and `git clean` and force pushes are never
+   used. `productionspace/` and Personalspace stay out.
+3. The Operator's tools stay the Operator's (root decision 0161): when the agent finds a
+   newer version, it offers it and runs `lazurio tools update <tool>` only with the
+   Operator's consent in the thread.
+4. On a Team Environment an update affects all its Operators (the Launchpad restarts for
+   them; the tools and the checkouts are shared); the generated text says so.
+
+This replaces the sentence of the 2026-09-28 addendum that an agent runs `lazurio
+update` "when the operator asks (a change of the Environment, never on its own
+initiative)". Nothing else of F17 changes: the Operator owns the version, the pin is a
+minimum and never lowers it. Template revision `base-instructions-17` (F14 addendum
+2026-10-02); a unit test checks that no generated output still waits for the Operator
+to ask.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep "only when the Operator asks" | Environments drift and published changes stay invisible; rejected |
+| Let the product update itself on a timer | Activation stays an explicit step of the updater (F13); an agent runs the same updater in the open and reports what changed; rejected |
+| Report a diverged checkout and stop | The work waits for a person who may not know Git; rejected: the agent keeps the work first, then resolves |
 
 ## F18 — Enabled tools of the Environment
 
@@ -2210,7 +2373,7 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    install). The same holds for the gateway's `ensure` and the Launchpad's Start, which
    run the same core. The install runs under the start's coordination, not as a
    separate transaction: an interrupted install leaves no retained record, because the
-   next start's frozen install is its repair. *Amended by F30:* a declared preparation's
+   next start's frozen install is its repair. *Amended by F32:* a declared preparation's
    start runs the same install, then its check, and only when the check fails its
    `prepare_script` and the check again.
 3. **The toolchain.** A package that pins Bun (`packageManager: bun@x.y.z`) is
@@ -2594,7 +2757,92 @@ update does.
 | Write the unit only with `install --service` | Machines passes `--service` once, at the switch, so every Environment switched earlier would never get it; rejected for convergence on every install and update of a supervised hosted base |
 | A oneshot unit running the operator's `codex app-server daemon start`, written by `install --service` on a hosted Machine, never blocking (selected) | Uses Codex's own daemon lifecycle; one owner of the installer's units; failures are facts, not blockers |
 
-## F30 — A declared preparation's start installs, checks and prepares when the check fails; `lazurio module prepare`
+## F30 — The Operator replaces the Principal
+
+**Decided by Matěj 2026-10-02.** The Agents' principal is the **Operator** of the
+Environment: whoever controls an Environment controls the Agents they run in it. Agents
+act for the Operator, within the Operator's live rights; the Operator gives the
+instruction to Publish and has the last word. "Principal" (Principál) is deprecated
+and leaves the product's vocabulary. One role had two words, and the generated
+instructions mixed them.
+
+Who the Operator is, per preset:
+- `local`: the signed-in user, who is also the Owner;
+- `hosted-personal`: the Owner;
+- `hosted-organization-personal`: the person the Organization assigned the Environment
+  to;
+- `hosted-organization-team`: whichever Team member is connected now. The shared OS
+  account is not a person, and on GitHub the agent acts as the brokered identity (F31);
+- `hosted-organization-steward`: the responsible Owner or Admin of the Organization.
+
+Related terms:
+- **Kolega** is a person in an Organization; their roles and Teams decide what they may
+  do.
+- **Owner** stays the owner of an Environment. Personalspace and a Buddy belong to a
+  person, the Owner of the personal Environment.
+- The **hosting operator** (Lazurio Machines) stays a different role.
+- A persona is not an Operator (root decision 0156).
+
+What changes:
+- Every generated output (`AGENTS.md` and `manual/`), the tool catalog's texts, the
+  Launchpad's texts, the CLI help and the comments of this repository say Operator,
+  capitalized like Owner, as a defined role. A unit test checks that no generated
+  output, in any preset or locale, still says Principal or Principál.
+- A decision is attributed to the person who made it, Matěj, not to a role.
+
+What stays:
+- Identifiers of contracts: the handover's `owner.kind: "principal"` and the schema
+  `src/machine/lazurio-machine.v1.schema.json`, which is pinned to Lazurio Machines.
+  Renaming them is a migration of `lazurio.machine.json` with Machines, not a wording
+  change.
+- The older decision records and the documents of this repository until the follow-up
+  pull request that rewords them; the root repository's and the Organizations' texts
+  until their own migration.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep both words: Principal for the relation, Operator for the person at the Environment | One role, two words; the mix is what confused the generated text; rejected |
+| Rename the handover's `owner.kind` too | A contract change with Machines for no change of behavior; rejected for now |
+| Operator for the role (selected) | Whoever controls the Environment controls its Agents; matches the Owner and Operator of root decision 0144 |
+
+## F31 — A Team Environment publishes under the Team's identity
+
+**Decided by Matěj 2026-10-02.** On a Team Environment (`hosted-organization-team`) an
+agent acts on GitHub as the brokered Organization identity (Lazurio for GitHub through
+the Organization's broker, root decisions 0147 and 0149), never as the connected person.
+The Environment cannot tell reliably which Team member is connected, and the agent
+pretends nothing else.
+
+1. **Rights.** The live rights the handoff checks are that identity's: the Team's grants
+   and the branch rules.
+2. **Publication.** The instruction to Publish comes from the Team member connected in
+   the current thread. Whether the merge may happen is decided by the Team's rights and
+   the branch rules. When they do not allow it, the agent hands the pull request to an
+   eligible Kolega, as in any handover.
+3. **A stricter rule of the Organization wins.** An Organization that wants a person to
+   merge every pull request from a Team Environment keeps that rule in its `AGENTS.md`
+   or enforces it with branch rules; the Folder's general rule does not override it.
+4. **A refused push is escalated, not lost.** The brokered identity has narrower rights
+   than a person, for example a new repository outside the broker's scope or changes
+   under `.github/workflows/`. When GitHub refuses a push, the agent keeps the work
+   committed in the worktree, files an issue in the Organization's root repository,
+   assigned to its administrator (with the Environment, the worktree path, the branch,
+   the commit and the exact error), and continues with the rest (F14 addendum
+   2026-10-02).
+
+**Relation to root decisions.** Root decision 0148 says a person with rights reviews
+and merges every pull request from a Team Workspace. This decision changes that for the
+product: GitHub's rights decide, and point 3 keeps the stricter rule wherever an
+Organization wants it. The attribution of 0148 (committer, author, trailers) does not
+change.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A person always merges (root decision 0148 as written) | Every Team pull request waits for someone outside the conversation, even where GitHub would allow the merge; kept as an Organization's choice (point 3), rejected as the product default |
+| Identify the connected person and use their rights | The Environment cannot tell reliably who is connected; a guess is not an identity; rejected |
+| The Team's identity, its rights and the branch rules, on the instruction of the connected member (selected) | GitHub stays the only access authority, and an Organization tightens it with branch rules |
+
+## F32 — A declared preparation's start installs, checks and prepares when the check fails; `lazurio module prepare`
 
 **Decided 2026-10-02 by the owner of the Platform rollout of the Lazurio Module Standard**
 (root decision 0171, `manual/module-standard.md` ch. 3 and 10; issues #114, #116). Under the

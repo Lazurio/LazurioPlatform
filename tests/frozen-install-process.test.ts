@@ -238,7 +238,7 @@ posixTest(
   15_000,
 );
 
-// Decision F30: the start-time step of a declared preparation. The frozen
+// Decision F32: the start-time step of a declared preparation. The frozen
 // install first (a no-op when node_modules matches the lockfile), then the
 // check; a check that passes is the end of the step, one that fails is
 // followed by the preparation script and the check again, in one run. Every

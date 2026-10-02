@@ -725,7 +725,7 @@ export function createToolsPanel(
       else focusRow(target);
   });
 
-  // "Install" of gh on a Team Environment (Principal 2026-09-28): the
+  // "Install" of gh on a Team Environment (Matěj 2026-09-28): the
   // installation alone, no sign-in afterwards.
   async function installOnly(tool: ToolOverview) {
     if (busy) return;
@@ -931,7 +931,7 @@ export function createToolsPanel(
     // sign in, sign in, or sign out. A tool an agent sets up has the agent's
     // prompt as its action instead.
     // A Team Environment works in GitHub through Lazurio for GitHub, set up
-    // by the Organization (Principal 2026-09-28): its gh row offers no
+    // by the Organization (Matěj 2026-09-28): its gh row offers no
     // personal sign-in or SSH key, only "Install" when gh is missing, and
     // "Sign out" only while a person's account is signed in there; a
     // sentence says why.

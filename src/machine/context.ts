@@ -10,7 +10,7 @@ import schema from "./lazurio-machine.v1.schema.json";
 // validates it. No coercion, defaults, reference downloads or extra properties.
 // Exactly one branch applies, distinguished by machine.kind: an Organization
 // workspace VM on a virtualization host, or the one hosted personal VM of a
-// Principal on a provider estate. Owner and host kinds never mix across branches.
+// person on a provider estate. Owner and host kinds never mix across branches.
 type MachineOperator = Readonly<{
   os_user: string;
   home: string;

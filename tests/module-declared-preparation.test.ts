@@ -22,7 +22,7 @@ import {
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
 
-// Decision F30 (#114, #116) through its consumers: `lazurio module start`
+// Decision F32 (#114, #116) through its consumers: `lazurio module start`
 // and `prepare`, and the Launchpad's module routes, over modules whose app
 // declares `lazurio.preparation` as the Lazurio Module Standard requires. A
 // fresh checkout has a lockfile and no `node_modules`; its start runs the
@@ -263,7 +263,7 @@ posixTest(
         outcome: "group-stopped",
       });
 
-      // ready: the install comes first (decision F30); a check that passes
+      // ready: the install comes first (decision F32); a check that passes
       // after it means no prepare_script.
       expect((await run("start", "ready")).result).toMatchObject({
         outcome: "started",

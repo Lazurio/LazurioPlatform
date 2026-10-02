@@ -247,7 +247,7 @@ posixTest(
           return result;
         };
         // A start whose declared check fails prepares the app first and
-        // starts it once the check passes (decision F30).
+        // starts it once the check passes (decision F32).
         expect(await request("start")).toMatchObject({ kind: "started" });
         expect(await readFile(join(appDirectory, "prepared"), "utf8")).toBe(
           "fixture-ready",

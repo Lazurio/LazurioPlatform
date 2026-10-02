@@ -321,7 +321,7 @@ runners and `localApplicationAdapters`: for an app without a `lazurio.preparatio
 default preparation, the frozen install from the lockfile beside its package (decision
 F25); for an app that declares one the same frozen install on every start (a no-op when
 `node_modules` matches the lockfile), then its check, and only when the check fails the
-declared `prepare_script` and the check again (decision F30, Lazurio Module Standard
+declared `prepare_script` and the check again (decision F32, Lazurio Module Standard
 ch. 3 and 10); then the dev script, never a hostname convention. A check that passes
 after the install runs no `prepare_script`. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
 preparation (the transaction with the retained owner lock), whatever the check says now,
@@ -353,7 +353,7 @@ again. Lifecycle refusals keep their codes (`port-occupied`, `prerequisites-not-
 declared check still fails after the preparation —, `coordination-busy`,
 `service-unrecognized`, …); a failed step of a preparation is named
 (`preparation-install-failed` with the lockfile, `preparation-script-failed` with the
-owner's `package.json`, decision F30). A file or directory of the module's
+owner's `package.json`, decision F32). A file or directory of the module's
 checkout that the checkout rule refuses during the start (an install input such as a
 local dependency's file) is named by its rule (`declaration-*`, `directory-*`) with
 its module-relative `file` (decision F23); a preparation that cannot run for a known
@@ -393,7 +393,7 @@ keyboard focus returns to the action. Pure presentation in
 English.
 
 **Not in this slice.** An `open` verb, a Prepare action on the page (Start prepares
-an app whose check fails; `prepare` is the CLI's and the route's, decision F30), the
+an app whose check fails; `prepare` is the CLI's and the route's, decision F32), the
 output of a preparation's processes,
 the T3 Code chat link (P7, since in [Chat entry](#chat-entry)), worktree `--source` (P9), a logs
 tail on the page, and the retirement of `/api/apps/*`, `app-request`,
@@ -416,7 +416,7 @@ status with Open to the loopback URL, Stop, focus on the action, and no action o
 module that cannot run. A real systemd user manager and journal (Ubuntu 24.04) were
 **not** exercised by this slice; that is C.5.
 
-**Verification 2026-10-02 (F30).** `tests/module-declared-preparation.test.ts` runs the
+**Verification 2026-10-02 (F32).** `tests/module-declared-preparation.test.ts` runs the
 real Bun, the compiled process guard and the in-memory user manager over fixture modules
 with the standard declaration on a fresh checkout (a lockfile, no `node_modules`):
 `lazurio module start` installs, checks, runs `prepare_script`, checks again and starts
@@ -593,7 +593,7 @@ failed start (the browser then reloaded forever); here the ambiguous id and a re
 start are 409, so the gateway's "could not be prepared" page says so once. `ensure`
 starts through the same core as `lazurio module start`, so it installs what a start
 installs: the frozen install from the lockfile, declared preparation or not, and for a
-declared preparation whose check then fails its `prepare_script` (F25, F30); a module
+declared preparation whose check then fails its `prepare_script` (F25, F32); a module
 whose check still fails after it answers `prerequisites-not-ready`.
 
 **Verification 2026-09-28.** `tests/launchpad-ensure.test.ts` against the fixture Folder:
@@ -608,7 +608,7 @@ showing it with the entry's link), repeated requests never starting again, an ex
 stopped app starting on the next navigation, `toolchain-missing` as 409 with
 `operation: "start"`, a start still under way answering 503 `start-pending` and becoming
 204, three concurrent navigations joining one failing slow check (one run, three 409
-`prerequisites-not-ready`; since F30 after the start's install); on the session path a real synthetic app started by a
+`prerequisites-not-ready`; since F32 after the start's install); on the session path a real synthetic app started by a
 navigation, served on its declared port and ending with its Launchpad; and a
 workstation Launchpad answering 404. `tests/launchpad-hosted-trust.test.ts` covers the
 internal-namespace rule of the admission. A real gateway, Caddy and oauth2-proxy were

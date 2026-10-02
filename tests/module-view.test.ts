@@ -189,7 +189,7 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     en.moduleReasonPortOccupied,
   );
   // At a module's start the check failed after the start prepared the app
-  // (decision F30).
+  // (decision F32).
   for (const copy of [en, cs])
     expect(moduleResultMessage(refusal("prerequisites-not-ready"), copy)).toBe(
       copy.modulePrerequisitesNotReady,

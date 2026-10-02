@@ -217,7 +217,7 @@ export async function startLaunchpad(
   // completion, cancel, expiry and shutdown.
   // A running gh session asks the Team rule again, on this Folder's current
   // preset, before every step that changes the account or the Machine
-  // (Principal 2026-09-28).
+  // (Matěj 2026-09-28).
   // The start and the end of each sign-in go to this process's journal (the
   // unit's journal on a Machine): the tool and the outcome, nothing else.
   const logins = createLoginSessions({
@@ -357,7 +357,7 @@ export async function startLaunchpad(
         try {
           // A start runs the module's start-time step first, and a prepare
           // its preparation: one run bounded by the preparation budget
-          // (600 s, decision F30); the request waits for it.
+          // (600 s, decision F32); the request waits for it.
           if (moduleRequest[3] === "start" || moduleRequest[3] === "prepare")
             server.timeout(request, 660);
           const result =
@@ -565,7 +565,7 @@ export async function startLaunchpad(
               installing.delete(tool);
             }
           }
-          // gh on a Team Environment (Principal 2026-09-28): no person's
+          // gh on a Team Environment (Matěj 2026-09-28): no person's
           // sign-in or SSH key; a sign-out only of a person's account left
           // there. The preset is read per request: a profile change may
           // switch it while the Launchpad runs.

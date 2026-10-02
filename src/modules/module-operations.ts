@@ -819,7 +819,7 @@ export function createModuleOperations(input: {
 
   // Start the prepared app unless it runs: the toolchain, then the
   // lifecycle's start, whose start-time step installs from the lockfile, runs
-  // the declared check and prepares when it fails (decision F30).
+  // the declared check and prepares when it fails (decision F32).
   async function startOwned({
     target,
     runner: kind,
@@ -851,7 +851,7 @@ export function createModuleOperations(input: {
     });
   }
 
-  // Prepare the app explicitly (decision F30): the lifecycle's preparation,
+  // Prepare the app explicitly (decision F32): the lifecycle's preparation,
   // whatever the declared check says now. A frozen install from the lockfile
   // beside the package, the declared prepare_script and the check again; for
   // an app without a declaration the frozen install (F25). It never starts
@@ -901,7 +901,7 @@ export function createModuleOperations(input: {
   // Seams of later slices, deliberately not built here:
   // - B3 `open` (start, wait for health, the link) composes the start and
   //   the same `observe`; until then `ensure` starts, and a start installs
-  //   and prepares when the check fails (decisions F25, F30).
+  //   and prepares when the check fails (decisions F25, F32).
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
   return Object.freeze({
@@ -915,7 +915,7 @@ export function createModuleOperations(input: {
       return startOwned(prepared);
     },
     /** Prepare the module's app (its default, or `app`) explicitly, without
-     * starting it (decision F30). */
+     * starting it (decision F32). */
     async prepare(
       name: string,
       options: ModuleOptions = {},
