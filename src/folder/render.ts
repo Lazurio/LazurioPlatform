@@ -25,7 +25,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-16";
+export const instructionTemplateRevision = "base-instructions-17";
 
 // Template revisions are ordered by their number. A Folder rendered by an
 // older revision is re-rendered by the next change of the generated Folder
@@ -353,17 +353,40 @@ function botTeamSection(
   ];
 }
 
-// Two rules every hosted Machine needs before an agent acts: how to reach
-// another Machine, and who updates this one (its operator, decision F17). `manual/` has the details.
-function hostedLines(pick: (text: Text) => string): string[] {
+// What every hosted Machine needs before an agent acts: how to reach another
+// Machine, how the operator sees the agent's work (over SSH, Codex Desktop
+// forwards a preview's port; a browser client does not), and that the
+// operator manages the installation (decision F17). Installation and updates
+// are detailed off the hot path, in `manual/troubleshooting.md`.
+function hostedLines(
+  pick: (text: Text) => string,
+  machine: MachineBinding,
+): string[] {
+  const ssh = operatorConnectsOverSsh(machine);
   return [
     pick({
       cs: "- SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x` (`manual/this-machine.md`).",
       en: "- SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare `100.64.0.x` address (`manual/this-machine.md`).",
     }),
+    pick(
+      ssh === true
+        ? {
+            cs: "- Operátor se sem připojuje přes SSH, typicky z Codex Desktopu. Rozpracovanou aplikaci mu ukaž v integrovaném prohlížeči Codexu, který port přesměruje; běžící aplikaci modulu odkazuj jejím hostovaným jménem (`manual/this-machine.md`).",
+            en: "- The operator connects here over SSH, typically from Codex Desktop. Show work in progress in Codex's built-in browser, which forwards the port; link a running module application by its hosted name (`manual/this-machine.md`).",
+          }
+        : ssh === false
+          ? {
+              cs: "- Operátor se sem přes SSH nepřipojuje: `localhost` neotevře a nic se nepřesměruje. Posílej jen hostované jméno aplikace nebo odkaz z `lazurio chat link` (`manual/this-machine.md`).",
+              en: "- The operator does not connect here over SSH: they cannot open `localhost` and nothing is forwarded. Send only an application's hosted name or the link from `lazurio chat link` (`manual/this-machine.md`).",
+            }
+          : {
+              cs: "- `localhost` existuje jen tady. Přes SSH (Codex Desktop) ukaž rozpracovanou aplikaci v integrovaném prohlížeči Codexu, který port přesměruje; jinak posílej jen hostované jméno aplikace (`manual/this-machine.md`).",
+              en: "- `localhost` exists only here. Over SSH (Codex Desktop), show work in progress in Codex's built-in browser, which forwards the port; otherwise send only an application's hosted name (`manual/this-machine.md`).",
+            },
+    ),
     pick({
-      cs: "- Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá; `lazurio update status` smíš kdykoli. Pin provozovatele hostingu (Lazurio Machines) je jen minimum a rollout verzi nikdy nesníží. Po aktualizaci obnoví tenhle Folder `lazurio machine folder-refresh`. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun…) aktualizuj jen na výslovný pokyn Principála oficiálním instalátorem daného nástroje, jinak jen nahlas jejich verze (`manual/troubleshooting.md`, decisions 0161 a F17).",
-      en: "- The operator owns the version of Lazurio: run `lazurio update` when they ask for it; `lazurio update status` is free to use. The hosting operator's pin (Lazurio Machines) is only a minimum, and a rollout never lowers a version. After an update, `lazurio machine folder-refresh` refreshes this Folder. Update the operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun…) only on the Principal's explicit instruction with that tool's official installer, otherwise only report their versions (`manual/troubleshooting.md`, decisions 0161 and F17).",
+      cs: "- Lazurio, tenhle Folder a nástroje operátora spravuje operátor: `lazurio update` spusť, jen když o to požádá, a nástroje aktualizuj nebo přeinstaluj jen na výslovný pokyn Principála. Postupy jsou v `manual/troubleshooting.md` (decisions 0161 a F17).",
+      en: "- The operator manages Lazurio, this Folder and the operator's tools: run `lazurio update` only when they ask for it, and update or reinstall tools only on the Principal's explicit instruction. The procedures are in `manual/troubleshooting.md` (decisions 0161 and F17).",
     }),
   ];
 }
@@ -444,6 +467,38 @@ export function hostedEnvironment(preset: PresetName): boolean {
 // Whether sign-ins on this preset are shared by several operators.
 export function sharedEnvironment(preset: PresetName): boolean {
   return workspacePreset(preset).providerIdentity === "brokered-organization";
+}
+
+// Whether the operator reaches this Environment over SSH, as the handover's
+// peers record it: a client device or a personal Remote Environment whose SSH
+// link points here. Codex Desktop over SSH forwards a preview's port; a browser
+// client does not. `null` when the handover records no relationships.
+export function operatorConnectsOverSsh(
+  machine: MachineBinding | null,
+): boolean | null {
+  const relationships = machine?.relationships;
+  if (relationships === undefined) return null;
+  return relationships.peers.some(
+    (peer) =>
+      (peer.kind === "client-device" || peer.kind === "personal-vm") &&
+      peer.ssh !== null &&
+      peer.ssh.direction !== "outbound",
+  );
+}
+
+// Where an agent saves a work product that does not belong in a repository:
+// the operator's own Documents folder of the OS, never the Folder (the
+// Principal's decision 2026-10-02: a standard folder, not an invented one).
+function documentsLine(os: FolderProfile["os"]): Text {
+  return os === "windows"
+    ? {
+        cs: "- Výstup, který nepatří do repozitáře, ulož do složky Dokumenty (`[Environment]::GetFolderPath('MyDocuments')`) do podsložky úkolu a uveď celou cestu; do kořene Folderu nic neukládej.",
+        en: "- Save a work product that does not belong in a repository in the Documents folder (`[Environment]::GetFolderPath('MyDocuments')`), in a subfolder for the task, and give the full path; never write anything at the top level of the Folder.",
+      }
+    : {
+        cs: "- Výstup, který nepatří do repozitáře, ulož do `~/Documents/<úkol>/` a uveď celou cestu; do kořene Folderu nic neukládej.",
+        en: "- Save a work product that does not belong in a repository in `~/Documents/<task>/` and give the full path; never write anything at the top level of the Folder.",
+      };
 }
 
 // The tools of this Environment (decision F18): what to use and in which
@@ -531,6 +586,11 @@ export function renderInstructions(input: unknown): string {
       cs: "- Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Principálovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.",
       en: "- Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.",
     }),
+    pick({
+      cs: "- Pracuješ s plným přístupem, bez sandboxu a bez schvalování jednotlivých příkazů; hranicí je tenhle Environment (decision 0172). Je to schopnost, ne souhlas: Publikace a zápisy do napojených aplikací dál čekají na pokyn Principála.",
+      en: "- You work with full access, without a sandbox and without per-command approvals; this Environment is the boundary (decision 0172). It is a capability, not consent: Publication and writes to connected applications still wait for the Principal's instruction.",
+    }),
+    pick(documentsLine(profile.os)),
     ...workingRules.map(pick),
     pick({
       cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.",
@@ -552,7 +612,7 @@ export function renderInstructions(input: unknown): string {
       cs: "- Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.",
       en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
     }),
-    ...(machine === null ? [] : hostedLines(pick)),
+    ...(machine === null ? [] : hostedLines(pick, machine)),
     ...toolsSection(tools, notes, profile.locale, sharedEnvironment(preset)),
     ...manualSection(profile.locale),
     "",

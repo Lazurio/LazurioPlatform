@@ -803,6 +803,72 @@ A unit test checks key sentences of both rules in `AGENTS.md` and
 `manual/working-here.md` for every preset in both locales, and that no output still
 calls an issue a Publication.
 
+**Addendum 2026-10-02, decided by the Principal (Matěj): the rest of the root rules,
+and how the operator works with an agent.** The first transfer of F14 left out what an
+agent needs to build inside Lazurio. On hosted work Environments that gap showed:
+- agents reinstalled Lazurio from source over the Folder;
+- they saved work products at the Folder's top level, which blocks every refresh;
+- they built their own Microsoft 365 integration instead of using the Composio
+  connection.
+
+The Principal's direction:
+- carry over everything of lasting value, but not the noise, each rule in the right
+  place, for the right reader, in the right voice;
+- keep installation off the agent's hot path, but easy to find;
+- give agents everything they need to develop Lazurio itself.
+
+What changes, still in the six files (`AGENTS.md` plus `manual/`):
+
+- **`manual/working-here.md`** becomes a function of the preset.
+  - On every preset except `hosted-personal`, which mounts no Organization, it gains:
+    - how to build: use the existing mechanism first;
+    - the Organization manifest (`lazurio.organization.json`, `modules.manifest.json`)
+      and how to create a missing checkout;
+    - the Lazurio Module Standard (root decision 0171);
+    - module applications, moved here from troubleshooting;
+    - the test-first plan;
+    - restructuring as an agent refactor (root decision 0173);
+    - developing Lazurio itself in `Lazurio/LazurioPlatform`.
+  - On every preset it gains two sections. **Connected applications** makes Composio
+    the standard route for a missing application (`composio search`, then
+    `composio link <toolkit>` with the link for the operator), notes the IT consent of
+    company applications, forbids own integrations and treats a write as a
+    Publication. **Secrets** is moved here from troubleshooting.
+- **`manual/this-machine.md`** gains, on every hosted preset, "How the operator works
+  with you". Whether the operator connects over SSH is read from the handover's peers:
+  a client device or personal VM whose SSH link points here.
+  - Over SSH (Codex Desktop), a preview opened in Codex's built-in browser has its port
+    forwarded to the operator.
+  - Without SSH, nothing is forwarded and only hosted names are sent.
+  - Without recorded peers, both cases are stated.
+  - The section also covers attachments (`~/.codex/attachments/`), work products in
+    `~/Documents/<task>/` (a standard folder of the OS, not an invented one), what
+    cannot be reached (the operator's computer and its drives) and the stored chats.
+- **`manual/troubleshooting.md`** becomes "Installation, updates and troubleshooting".
+  - It opens with where Lazurio is installed and the guard against installing or
+    building it from source.
+  - A foreign top-level entry is named among the refresh refusals.
+- **`AGENTS.md`** gains three lines:
+  - full access (root decision 0172);
+  - where work products go, per OS;
+  - the operator's client, fact-based like the manual section.
+
+  The long hosted update rule shrinks to one line that keeps its substance and points
+  at the installation chapter (decisions 0161 and F17).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| New chapters (`building.md`, `apps.md`, `installation.md`) | Clearer file names, but the instruction manifest requires a digest for every output, so a new file is a manifest schema migration on every existing Folder; rejected for now. The titles and the index name the content instead |
+| One SSH rule for every hosted Environment ("never send localhost") | Wrong where Codex Desktop forwards ports; Principal: the rule depends on whether the operator connects over SSH; rejected |
+| A Folder-owned files area | `notes/` was deferred, and any new top-level name is a boundary change; the OS Documents folder already exists and is the operator's; rejected |
+
+The template revision moves to `base-instructions-17`, so every Folder re-renders on its
+next refresh or product upgrade. Unit tests check:
+- the three operator-client variants;
+- the per-OS Documents line;
+- that the building sections follow the Organizations;
+- the Composio route and the installation guard on every preset.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Principal's decision 2026-09-23, not implemented.** On a hosted Machine delivered

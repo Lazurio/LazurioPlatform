@@ -271,11 +271,18 @@ test("the hosted update rule in AGENTS.md agrees with the manual under decisions
         );
       }
       // Decision F17 addendum 2026-09-28: the operator owns the version of
-      // Lazurio too; the pin is a minimum.
-      expect(instructions).toMatch(
+      // Lazurio too; the pin is a minimum. Since the Principal's decision of
+      // 2026-10-02 installation details stay off the hot path: AGENTS.md keeps
+      // the short rule and points at the manual, which carries the rest.
+      expect(instructions).toContain(
         locale === "cs"
-          ? /Verzi Lazuria vlastní operátor: .*Pin provozovatele hostingu \(Lazurio Machines\) je jen minimum.*Nástroje operátora \(Codex, Claude Code, `gh`, Node, npm, Bun…\) aktualizuj jen na výslovný pokyn Principála/
-          : /The operator owns the version of Lazurio: .*The hosting operator's pin \(Lazurio Machines\) is only a minimum.*Update the operator's tools \(Codex, Claude Code, `gh`, Node, npm, Bun…\) only on the Principal's explicit instruction/,
+          ? "`lazurio update` spusť, jen když o to požádá, a nástroje aktualizuj nebo přeinstaluj jen na výslovný pokyn Principála"
+          : "run `lazurio update` only when they ask for it, and update or reinstall tools only on the Principal's explicit instruction",
+      );
+      expect(manual).toContain(
+        locale === "cs"
+          ? "Pin provozovatele hostingu (Lazurio Machines) je jen minimum"
+          : "The hosting operator's pin (Lazurio Machines) is only a minimum",
       );
     }
   }

@@ -9,6 +9,7 @@ import {
   instructionTemplateRevision,
   mcpInstruction,
   notesMeaning,
+  operatorConnectsOverSsh,
   parseInstructionSource,
   peerLine,
   personaIdentity,
@@ -25,8 +26,8 @@ import {
 // languages side by side, so the two can only change together; technical
 // identifiers (commands, codes, paths, preset names) stay in English.
 // `this-machine.md` is a projection of the preset and the recorded Machine
-// binding, `troubleshooting.md` of the preset; the rest is the same on every
-// Machine of one locale.
+// binding, `working-here.md` and `troubleshooting.md` of the preset; the rest
+// is the same on every Machine of one locale.
 
 type Locale = FolderProfile["locale"];
 const t = (cs: string, en: string): Text => ({ cs, en });
@@ -117,6 +118,10 @@ const lazurio: readonly Text[] = [
     "- **Proces místo mechanismu.** Kde hranici žádný mechanismus vynutit neumí, hranice tím nezaniká: drží ji proces a morální kontrakt. Agent ji dodrží, nejistotu přizná a bez potřebné autority nepokračuje. A obráceně: co umí zajistit mechanismus (skript, skill, doctor gate), nezůstává jen v textu; text na mechanismus jen ukazuje.",
     "- **Process over mechanism.** Where no mechanism can enforce a boundary, the boundary still stands: process and the moral contract hold it. An Agent keeps it, admits uncertainty and does not continue without the needed authority. Conversely, what a mechanism can guarantee (a script, a skill, a doctor gate) is not left to prose; prose only points to the mechanism.",
   ),
+  t(
+    "- **Plný přístup uvnitř Environmentu.** Agent tu pracuje bez sandboxu a bez schvalování jednotlivých příkazů; hranicí je Environment (decision 0172). Kdo potřebuje užší práva, dostane samostatný Environment. Plný přístup je schopnost, ne souhlas: Publikace, zápisy do napojených aplikací, Personalspace a oddělení Organizací platí dál. Oprávnění harnessu nastavuje operátor; sandbox Rezidenta (Buddyho) zůstává.",
+    "- **Full access inside the Environment.** An agent works here without a sandbox and without per-command approvals; the Environment is the boundary (decision 0172). Whoever needs narrower rights gets a separate Environment. Full access is a capability, not consent: Publication, writes to connected applications, Personalspace and the separation of Organizations still apply. The operator sets the harness's permissions; the Resident's (Buddy's) sandbox stays.",
+  ),
   blank,
   t(
     "## Přístupy drží existující provideři",
@@ -145,8 +150,8 @@ const lazurio: readonly Text[] = [
     "- **Organization**: one company = one GitHub organization = one access boundary = one git repository checked out at `organizations/<org>/`. Every Organization has its own `AGENTS.md`; load it before working inside.",
   ),
   t(
-    "- **Workspace moduly**: verzované pracovní schopnosti uvnitř Organizace, všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné jen z tailnetu; produkční aplikace mají `<app>.<org>.lazurio.io` (decision 0146).",
-    "- **Workspace modules**: versioned working capabilities inside an Organization, all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable only from the tailnet; production applications are `<app>.<org>.lazurio.io` (decision 0146).",
+    "- **Workspace moduly**: verzované pracovní schopnosti uvnitř Organizace, všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné jen z tailnetu; produkční aplikace mají `<app>.<org>.lazurio.io` (decision 0146). Dílna není produkce: produkce vzniká reprodukovatelným buildem z chráněného commitu nebo tagu.",
+    "- **Workspace modules**: versioned working capabilities inside an Organization, all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable only from the tailnet; production applications are `<app>.<org>.lazurio.io` (decision 0146). A workshop is not production: production is a reproducible build from a protected commit or tag.",
   ),
   t(
     "- **`productionspace/`**: repozitáře na úrovni Organizace mimo workspace moduly (firmware, connect, monorepo). Každý má vlastní branch model a release proces (decision 0041); bez výslovné policy Organizace je z Folderu nespouštěj ani nereleasuj.",
@@ -203,209 +208,216 @@ const lazurio: readonly Text[] = [
   ),
 ];
 
-const workingHere: readonly Text[] = [
-  t("## Draft, Publikace, Release", "## Draft, Publication, Release"),
-  t(
-    "- **Draft** je tvoje práce: vratný a hlavně editovatelný kus práce, změna ve worktree, rozepsaný email, otevřený pull request.",
-    "- **Draft** is your work: a revertible and, above all, editable piece of work, a change in a worktree, a drafted email, an open pull request.",
-  ),
-  t(
-    "- **Publikace** je akt, kterým se Draft stává těžko vratným nebo viditelným navenek: merge, odeslání, nasazení; v datových aplikacích už commit a push tlačítkem „Publikovat změny“. Publikace patří Principálovi: provedeš ji jen na jeho explicitní pokyn, který platí v aktuálním threadu a nepřenáší se dál. Jestli ji Principál smí schválit, rozhodují jeho živá práva k přesné operaci, ne to, jestli je člověk.",
-    "- **Publication** is the act that makes a Draft hard to revert or visible outside: a merge, sending, deploying; in data applications already the commit and push of the “Publish changes” button. Publication belongs to the Principal: you perform it only on their explicit instruction, which holds in the current thread and does not carry over. Whether a Principal may approve it is decided by their live rights to the exact operation, not by being human.",
-  ),
-  t(
-    "- **Release** je vydání označené verze ven přes GitHub Release. Není to Publikace; spouští ho jen ten, komu to GitHub dovolí (typicky Steward nebo Admin), a pro tebe platí stejný explicitní pokyn.",
-    "- **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Steward or an Admin) triggers it, and for you the same explicit instruction applies.",
-  ),
-  blank,
-  t("## Bez ptaní smíš", "## Without asking you may"),
-  t(
-    "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty. Práce nikdy nezůstává jen lokálně. Životní cyklus pull requestu pro agenty (rozhodnutí Principála z 2026-09-22): od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR; jakmile je hotová a ověřená, přepneš pull request na Ready for review sám; a pull request přiřadíš (GitHub assignee a k tomu žádost o review) GitHub uživateli, jehož ověření žádáš, aby věděl, že kontrola je teď na něm. Assignee vlastní další krok. Ready není Publikace, říká jen „připraveno ke kontrole“. Hotová práce nikdy nezůstává jako Draft a vzdálená branch bez pull requestu není handoff.",
-    "Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local. The pull-request lifecycle for agents (the Principal's decision of 2026-09-22): from the first push the work is visible as a GitHub Draft PR while it is in progress; once it is finished and verified, you mark the pull request Ready for review yourself; and you assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for, so that person knows the work is theirs to check. The assignee is the owner of the next step. Ready is not Publication; it only says “ready to be checked”. Finished work never stays a Draft, and a remote branch without a pull request is not a handoff.",
-  ),
-  blank,
-  t(
-    "## Worktree disciplína (decision 0049)",
-    "## Worktree discipline (decision 0049)",
-  ),
-  t(
-    "- Primární checkout zůstává na `main`. Jeho trackovaný obsah se v něm nemění a nezakládá se v něm žádná feature branch.",
-    "- The primary checkout stays on `main`. Its tracked content is not changed there and no feature branch is created there.",
-  ),
-  t(
-    "- Každá změna žije ve worktree ve složce `.worktrees/` owning repozitáře, odvětveném z čerstvé `origin/main`, na branchi s kódem úkolu. Nikdy v `/tmp`, vedle repozitáře ani uvnitř jiného repozitáře.",
-    "- Every change lives in a worktree under the owning repository's `.worktrees/` directory, branched from fresh `origin/main`, on a branch that carries the task code. Never in `/tmp`, next to the repository, or inside another repository.",
-  ),
-  t(
-    "- Do primárního checkoutu ani do `organizations/` a `personalspace/` tohoto Folderu nikdy neklonuj další repozitář a nezakládej v nich pracovní složku. Netrackovaný vnořený repozitář v checkoutu Organizace nejde bezpečně odložit, a proto zablokuje `lazurio update` celé Organizace. Klon jen ke čtení nebo k pokusu patří mimo každý checkout a mimo tyto složky; změna do repozitáře, který tu není namountovaný, patří do worktree jeho vlastního klonu.",
-    "- Never clone another repository into a primary checkout, or into this Folder's `organizations/` and `personalspace/`, and never create a scratch directory there. An untracked nested repository inside an Organization checkout cannot be set aside safely, so it blocks `lazurio update` for the whole Organization. A clone only for reading or trying something goes outside every checkout and outside these directories; a change to a repository that is not mounted here goes into a worktree of its own clone.",
-  ),
-  t(
-    "- Před každým pushem preflight (čistý commit, čerstvá `origin/main` jako předek HEAD); podle potřeby rebase; přepsanou branch pushni jen s přesným `--force-with-lease`.",
-    "- Before every push: preflight (clean commit, fresh `origin/main` as an ancestor of HEAD); rebase when needed; push a rewritten branch only with an exact `--force-with-lease`.",
-  ),
-  t(
-    "- Špinavý nebo rozjetý primární checkout nikdy neopravuj resetem ani přepsáním historie. Zachovej každý commit i stash a situaci předej.",
-    "- Never repair a dirty or diverged primary checkout by reset or history rewrite. Keep every commit and stash and hand the situation over.",
-  ),
-  t(
-    "- Worktree smaž jen tehdy, když je čistý včetně untracked souborů, nemá žádný jen lokální commit, jeho HEAD je na remote, jeho PR je mergnutý nebo výslovně opuštěný a žádný runtime ho nepoužívá.",
-    "- Remove a worktree only when it is clean including untracked files, has no local-only commit, its HEAD is on the remote, its PR is merged or explicitly abandoned and no runtime uses it.",
-  ),
-  blank,
-  t(
-    "## Architektonická odpovědnost (decision 0132)",
-    "## Architecture responsibility (decision 0132)",
-  ),
-  t(
-    "Principál určuje chtěný výsledek, priority a omezení; ty odpovídáš za elegantní a čisté řešení v návrhu i v Draftu. Odděl záměr od navrženého mechanismu, chraň jednu pravdu a jejího přirozeného ownera, dej přednost standardní schopnosti před vlastní mašinérií a nech systém konvergovat místo přidávání paralelních cest. Malá změna dostane rychlou kontrolu; nová dlouhodobá abstrakce, stav, autorita, hranice, rozhraní, závislost nebo migrace potřebuje plné vytvarování: srovnání variant, failure modes a důkaz na skutečném consumerovi. Pokud čisté řešení vyžaduje změnu cíle nebo schváleného principu, vrať volbu Principálovi s doporučením; nikdy ji potichu neimplementuj jako technický detail.",
-    "The Principal owns the desired outcome, priorities and constraints; you own an elegant and clean solution in design and Draft. Separate intent from the proposed mechanism, protect one truth and its natural owner, prefer a standard capability over own machinery, and let the system converge instead of adding parallel paths. A small change gets a quick check; a new long-lived abstraction, state, authority, boundary, interface, dependency or migration needs full shaping: variants compared, failure modes, proof on a real consumer. If the clean solution requires changing the goal or an approved principle, return the choice with a recommendation; never implement it quietly as a technical detail.",
-  ),
-  blank,
-  t(
-    "## Popis PR nese kontext k rozhodnutí",
-    "## The PR description carries the decision context",
-  ),
-  t(
-    "Kdo rozhoduje o merge, nesmí „proč“ odvozovat z diffu. Popiš motivaci, cílový stav a přínos, co se mění a co záměrně ne, jak je to ověřené a jaká zůstávají rizika, blokery a navazující kroky. Po změně scope nebo po rebase popis aktualizuj, aby odpovídal skutečnému HEADu.",
-    "Whoever decides about the merge must not derive the “why” from the diff. Describe the motivation, the target state and benefit, what changes and what deliberately does not, how it was verified, and the remaining risks, blockers and follow-ups. Update it after a scope change or a rebase so it matches the real HEAD.",
-  ),
-  blank,
-  t(
-    "## Nálezy z review přijímej s úsudkem (decision 0163)",
-    "## Take review findings with judgment (decision 0163)",
-  ),
-  t(
-    "Review ber vážně, ale ne bez výhrad. Každé další kolo oprav kvůli drobnosti zdržuje hotovou práci a nic nechrání.",
-    "Take review seriously, but not without reservation. Every further round of fixes over trivia delays finished work and protects nothing.",
-  ),
-  t(
-    "- **Skutečnou vadu oprav hned.** Skutečná vada je špatné chování, rozpor mezi texty, tvrzení bez důkazu nebo únik citlivého obsahu.",
-    "- **Fix a real defect at once.** A real defect is wrong behavior, a contradiction between texts, a claim without proof or a leak of sensitive content.",
-  ),
-  t(
-    "- **Ostatní nálezy nepřijímej mlčky.** Nález, který je drobnost bez dopadu, spekulace o budoucí změně nebo rozšiřuje záběr PR o nový mechanismus, neřeš dalším kolem oprav. Odpověz přímo v PR věcnou námitkou: co je účelem PR, proč nález nechrání před skutečnou škodou a co už je doložené. Pak požádej o verdikt na nezměněném headu.",
-    "- **Do not accept other findings silently.** A finding that is trivia without impact, speculation about a future change or widens the PR's scope with a new mechanism is not answered with another round of fixes. Reply on the PR with a factual objection: what the PR is for, why the finding protects against no real harm and what is already proven. Then ask for a verdict on the unchanged head.",
-  ),
-  t(
-    "- **Trvá-li reviewer na svém,** nepokračuj dalším kolem a předlož obě stanoviska Principálovi. Review ani branch rules nikdy neobcházej.",
-    "- **If the reviewer still insists,** do not start another round; put both positions to the Principal. Never bypass the review or the branch rules.",
-  ),
-  t(
-    "- **Nález, který má cenu, ale do PR nepatří,** zapiš jako GitHub Issue podle oddílu o otevřených otázkách níže.",
-    "- **A finding that has value but does not belong in the PR** goes into a GitHub Issue, as the section on open questions below describes.",
-  ),
-  blank,
-  same("## Handoff"),
-  t(
-    "Než se zeptáš, ověř živá GitHub práva Principála: oprávnění k repozitáři, branch protection, povolené metody merge a mergeability PR. Závěrečná zpráva pracovního chatu, ve kterém vznikl PR, začíná standardizovaným blokem (decision 0103) v jazyce Principála:",
-    "Before you ask, check the Principal's live GitHub rights: repository permissions, branch protection, allowed merge methods, PR mergeability. The final message of a working chat that produced a PR begins with the standardized block (decision 0103), in the Principal's language:",
-  ),
-  blank,
-  same("```text"),
-  same("## Handoff"),
-  t(
-    "Připravil jsem ti pull request: <URL> (base: <branch>, HEAD: <sha>)",
-    "I prepared a pull request for you: <URL> (base: <branch>, HEAD: <sha>)",
-  ),
-  t(
-    "Co Publikace zavede: <lidské a praktické shrnutí: směr, dopad, záměrné non-goals, rollout a rizika, otevřené otázky>",
-    "What Publication introduces: <human, practical summary: direction, impact, deliberate non-goals, rollout and risks, open questions>",
-  ),
-  t(
-    "Ověřeno: <kontroly a testy a jejich výsledek>",
-    "Verified: <checks and tests and their result>",
-  ),
-  t(
-    "Zkontroluj si to v aplikaci: <URL běžící z worktree, pokud existuje>",
-    "Check it in the application: <URL running from the worktree, if any>",
-  ),
-  t(
-    "Lokálně nezůstává nic mimo PR.",
-    "Nothing remains locally outside the PR.",
-  ),
-  blank,
-  t(
-    "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?",
-    "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
-  ),
-  same("```"),
-  blank,
-  t(
-    "Anglicky zní závěrečná dvojotázka: “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?” Volbu vždy nabídni; nikdy ji nerozhoduj za Principála.",
-    "In Czech the closing pair reads: „Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Principal.",
-  ),
-  blank,
-  t(
-    "- Na explicitní „Publikuj“ v threadu: mergni metodou, kterou repozitář povoluje, aktualizuj `main` a ukliď worktree.",
-    "- On an explicit “Publish” in the thread: merge with a method the repository allows, update `main` and clean up the worktree.",
-  ),
-  t(
-    "- Při předání: vyžádej review od oprávněného Principála, kterého zvolil, přiřaď mu pull request a @zmínkou mu předej odpovědnost. Žádost o review znamená „zkontroluj“; assignee vlastní další krok a upravuje PR branch přímo. Přiřazení nevytváří žádná práva a nenahrazuje pokyn k Publikaci.",
-    "- On a handover: request review from the eligible Principal they chose, assign them the pull request and hand over the responsibility with an @mention. A reviewer request means “check”; the assignee owns the next step and edits the PR branch directly. Assignment creates no rights and replaces no Publication instruction.",
-  ),
-  t(
-    "- Když GitHub Principálovi merge nedovolí, řekni to v handoffu; merge se neobchází. Bez zeleného PR se nic neděje.",
-    "- When GitHub does not allow the Principal to merge, say so in the handoff; the merge is not bypassed. Without a green PR nothing happens.",
-  ),
-  t(
-    "- Po každé Publikaci se zeptej „jaký je další krok a co dalšího můžeme dotáhnout?“ a stručně to navrhni.",
-    "- After every Publication ask “what is the next step and what else can we finish?” and propose it briefly.",
-  ),
-  blank,
-  t(
-    "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",
-    "## Open questions go to GitHub Issues and do not stop the work (decision 0163)",
-  ),
-  t(
-    "Když při práci narazíš na otevřený technický problém, nejistotu nebo nález, který nejde hned vyřešit, zapiš ho jako GitHub Issue do přesného owning repozitáře: do veřejného repozitáře produktu pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace, do repozitáře modulu pro jeden modul. Je to tvůj trvalý mandát: předem se neptáš a URL issue uvedeš v handoffu.",
-    "When your work runs into an open technical problem, an uncertainty or a finding that cannot be resolved right away, file it as a GitHub Issue in the exact owning repository: the product's public repository for Lazurio itself, the Organization's repository for Organization content, the module's repository for one module. This is your standing mandate: you do not ask first, and you give the issue's URL in the handoff.",
-  ),
-  t(
-    "- **Před zápisem** vyhledej otevřené i zavřené issue se stejným problémem; ke shodnému přidej komentář s novým důkazem místo nového issue. Odstraň secrets, tokeny, zákaznická data, Personalspace a obsah Organizace mimo její access hranici. Do veřejného repozitáře nikdy nezapisuj obsah konkrétní Organizace. Otevřenou otázku zapiš jako otázku a odděl, co je ověřené a co ne.",
-    "- **Before filing,** search open and closed issues for the same problem; add a comment with the new evidence to a matching one instead of opening another. Remove secrets, tokens, customer data, Personalspace and Organization content outside its access boundary. Never write a specific Organization's content into a public repository. File an open question as a question and separate what is verified from what is not.",
-  ),
-  t(
-    "- **Issue práci nezastavuje.** Pokračuj na všem, co na odpovědi nestojí. Zastav se jen tam, kde bez odpovědi nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi.",
-    "- **An issue does not stop the work.** Continue with everything that does not depend on the answer. Stop only where you cannot continue safely without it or where the decision belongs to the Principal.",
-  ),
-  t(
-    "- **Mandát platí jen pro zápis.** Issue bez pokynu Principála nezavíráš, nepřiřazuješ ani neprioritizuješ. Merge a nasazení zůstávají Publikací a stejně jako Release se dělají jen na jeho výslovný pokyn.",
-    "- **The mandate covers filing only.** You do not close, assign or prioritize an issue without the Principal's instruction. A merge and a deployment remain a Publication and, like a Release, happen only on their explicit instruction.",
-  ),
-  t(
-    "- **Issue není plán.** Plán, priorita a odpovědnost patří do Mission Controlu Organizace; otevřenou otázku tam místo issue nezapisuj.",
-    "- **An issue is not a plan.** Plan, priority and responsibility belong in the Organization's Mission Control; do not write an open question there instead of an issue.",
-  ),
-  t(
-    "- **Když zápis nejde** (Issues nejsou povolené, účet nemá právo, síť není dostupná nebo si nejsi jistý, že obsah do repozitáře smí), nic neobcházej a nezapisuj ho do jiné Organizace. Vrať Principálovi sanitizovaný text issue, přesný cílový repozitář a důvod, proč jsi ho nezapsal.",
-    "- **When filing is not possible** (Issues are disabled, the account lacks the right, the network is unavailable or you are not sure the content may go into that repository), bypass nothing and do not file it in another Organization. Return to the Principal the sanitized issue text, the exact target repository and the reason you did not file it.",
-  ),
-  blank,
-  t(
-    "## Poznatky patří tam, kde je najdou ostatní",
-    "## Knowledge belongs where others find it",
-  ),
-  t(
-    "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree; GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Principál do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost.",
-    "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree; a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Principal may place in that store; Personalspace and cross-Organization isolation always take precedence.",
-  ),
-  blank,
-  t("## Organizace", "## Organizations"),
-  t(
-    "Z rootu Folderu nikdy nepracuj v konkrétní Organizaci: vstup do `organizations/<org>/`, přečti její `AGENTS.md` a teprve potom měň její obsah. Mezi Organizacemi nikdy nekopíruj secrets, zákaznická data, obchodní strategii ani osobní overlaye; obecné vzory, anonymizované šablony a poučení v obecné podobě jsou v pořádku.",
-    "Never work in a specific Organization from the Folder root: enter `organizations/<org>/`, read its `AGENTS.md`, and only then change its content. Never copy secrets, customer data, business strategy or personal overlays between Organizations; general patterns, anonymized templates and lessons in general form are fine.",
-  ),
-  blank,
-  t(
-    "## Poslední slovo má vždy Principál",
-    "## The Principal has the last word",
-  ),
-  t(
-    "Odveď práci tak, aby ho měl: srozumitelně, vratně, s prostorem k úpravě. Když práci deleguješ na jiného agenta, jeho vlastní hlášení není důkaz; QA gate drží delegující Kolega. Chybějící nástroje, neověřená práva a neznámý stav přiznej; nikdy si nevymýšlej schopnosti ani dokončení.",
-    "Do the work so that they have it: understandable, reversible, with room to adjust. When delegating to another agent, a self-report is not proof; the delegating Kolega holds the QA gate. Report missing tools, unverified rights and unknown state; never invent capabilities or completion.",
-  ),
-];
+function workingHere(preset: PresetName): readonly Text[] {
+  return [
+    t("## Draft, Publikace, Release", "## Draft, Publication, Release"),
+    t(
+      "- **Draft** je tvoje práce: vratný a hlavně editovatelný kus práce, změna ve worktree, rozepsaný email, otevřený pull request.",
+      "- **Draft** is your work: a revertible and, above all, editable piece of work, a change in a worktree, a drafted email, an open pull request.",
+    ),
+    t(
+      "- **Publikace** je akt, kterým se Draft stává těžko vratným nebo viditelným navenek: merge, odeslání, nasazení; v datových aplikacích už commit a push tlačítkem „Publikovat změny“. Publikace patří Principálovi: provedeš ji jen na jeho explicitní pokyn, který platí v aktuálním threadu a nepřenáší se dál. Jestli ji Principál smí schválit, rozhodují jeho živá práva k přesné operaci, ne to, jestli je člověk.",
+      "- **Publication** is the act that makes a Draft hard to revert or visible outside: a merge, sending, deploying; in data applications already the commit and push of the “Publish changes” button. Publication belongs to the Principal: you perform it only on their explicit instruction, which holds in the current thread and does not carry over. Whether a Principal may approve it is decided by their live rights to the exact operation, not by being human.",
+    ),
+    t(
+      "- **Release** je vydání označené verze ven přes GitHub Release. Není to Publikace; spouští ho jen ten, komu to GitHub dovolí (typicky Steward nebo Admin), a pro tebe platí stejný explicitní pokyn.",
+      "- **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Steward or an Admin) triggers it, and for you the same explicit instruction applies.",
+    ),
+    blank,
+    t("## Bez ptaní smíš", "## Without asking you may"),
+    t(
+      "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty. Práce nikdy nezůstává jen lokálně. Životní cyklus pull requestu pro agenty (rozhodnutí Principála z 2026-09-22): od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR; jakmile je hotová a ověřená, přepneš pull request na Ready for review sám; a pull request přiřadíš (GitHub assignee a k tomu žádost o review) GitHub uživateli, jehož ověření žádáš, aby věděl, že kontrola je teď na něm. Assignee vlastní další krok. Ready není Publikace, říká jen „připraveno ke kontrole“. Hotová práce nikdy nezůstává jako Draft a vzdálená branch bez pull requestu není handoff.",
+      "Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local. The pull-request lifecycle for agents (the Principal's decision of 2026-09-22): from the first push the work is visible as a GitHub Draft PR while it is in progress; once it is finished and verified, you mark the pull request Ready for review yourself; and you assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for, so that person knows the work is theirs to check. The assignee is the owner of the next step. Ready is not Publication; it only says “ready to be checked”. Finished work never stays a Draft, and a remote branch without a pull request is not a handoff.",
+    ),
+    blank,
+    t(
+      "## Worktree disciplína (decision 0049)",
+      "## Worktree discipline (decision 0049)",
+    ),
+    t(
+      "- Primární checkout zůstává na `main`. Jeho trackovaný obsah se v něm nemění a nezakládá se v něm žádná feature branch.",
+      "- The primary checkout stays on `main`. Its tracked content is not changed there and no feature branch is created there.",
+    ),
+    t(
+      "- Každá změna žije ve worktree ve složce `.worktrees/` owning repozitáře, odvětveném z čerstvé `origin/main`, na branchi s kódem úkolu. Nikdy v `/tmp`, vedle repozitáře ani uvnitř jiného repozitáře.",
+      "- Every change lives in a worktree under the owning repository's `.worktrees/` directory, branched from fresh `origin/main`, on a branch that carries the task code. Never in `/tmp`, next to the repository, or inside another repository.",
+    ),
+    t(
+      "- Do primárního checkoutu ani do `organizations/` a `personalspace/` tohoto Folderu nikdy neklonuj další repozitář a nezakládej v nich pracovní složku. Netrackovaný vnořený repozitář v checkoutu Organizace nejde bezpečně odložit, a proto zablokuje `lazurio update` celé Organizace. Klon jen ke čtení nebo k pokusu patří mimo každý checkout a mimo tyto složky; změna do repozitáře, který tu není namountovaný, patří do worktree jeho vlastního klonu.",
+      "- Never clone another repository into a primary checkout, or into this Folder's `organizations/` and `personalspace/`, and never create a scratch directory there. An untracked nested repository inside an Organization checkout cannot be set aside safely, so it blocks `lazurio update` for the whole Organization. A clone only for reading or trying something goes outside every checkout and outside these directories; a change to a repository that is not mounted here goes into a worktree of its own clone.",
+    ),
+    t(
+      "- Před každým pushem preflight (čistý commit, čerstvá `origin/main` jako předek HEAD); podle potřeby rebase; přepsanou branch pushni jen s přesným `--force-with-lease`.",
+      "- Before every push: preflight (clean commit, fresh `origin/main` as an ancestor of HEAD); rebase when needed; push a rewritten branch only with an exact `--force-with-lease`.",
+    ),
+    t(
+      "- Špinavý nebo rozjetý primární checkout nikdy neopravuj resetem ani přepsáním historie. Zachovej každý commit i stash a situaci předej.",
+      "- Never repair a dirty or diverged primary checkout by reset or history rewrite. Keep every commit and stash and hand the situation over.",
+    ),
+    t(
+      "- Worktree smaž jen tehdy, když je čistý včetně untracked souborů, nemá žádný jen lokální commit, jeho HEAD je na remote, jeho PR je mergnutý nebo výslovně opuštěný a žádný runtime ho nepoužívá.",
+      "- Remove a worktree only when it is clean including untracked files, has no local-only commit, its HEAD is on the remote, its PR is merged or explicitly abandoned and no runtime uses it.",
+    ),
+    blank,
+    t(
+      "## Architektonická odpovědnost (decision 0132)",
+      "## Architecture responsibility (decision 0132)",
+    ),
+    t(
+      "Principál určuje chtěný výsledek, priority a omezení; ty odpovídáš za elegantní a čisté řešení v návrhu i v Draftu. Odděl záměr od navrženého mechanismu, chraň jednu pravdu a jejího přirozeného ownera, dej přednost standardní schopnosti před vlastní mašinérií a nech systém konvergovat místo přidávání paralelních cest. Malá změna dostane rychlou kontrolu; nová dlouhodobá abstrakce, stav, autorita, hranice, rozhraní, závislost nebo migrace potřebuje plné vytvarování: srovnání variant, failure modes a důkaz na skutečném consumerovi. Pokud čisté řešení vyžaduje změnu cíle nebo schváleného principu, vrať volbu Principálovi s doporučením; nikdy ji potichu neimplementuj jako technický detail.",
+      "The Principal owns the desired outcome, priorities and constraints; you own an elegant and clean solution in design and Draft. Separate intent from the proposed mechanism, protect one truth and its natural owner, prefer a standard capability over own machinery, and let the system converge instead of adding parallel paths. A small change gets a quick check; a new long-lived abstraction, state, authority, boundary, interface, dependency or migration needs full shaping: variants compared, failure modes, proof on a real consumer. If the clean solution requires changing the goal or an approved principle, return the choice with a recommendation; never implement it quietly as a technical detail.",
+    ),
+    blank,
+    t(
+      "## Popis PR nese kontext k rozhodnutí",
+      "## The PR description carries the decision context",
+    ),
+    t(
+      "Kdo rozhoduje o merge, nesmí „proč“ odvozovat z diffu. Popiš motivaci, cílový stav a přínos, co se mění a co záměrně ne, jak je to ověřené a jaká zůstávají rizika, blokery a navazující kroky. Po změně scope nebo po rebase popis aktualizuj, aby odpovídal skutečnému HEADu.",
+      "Whoever decides about the merge must not derive the “why” from the diff. Describe the motivation, the target state and benefit, what changes and what deliberately does not, how it was verified, and the remaining risks, blockers and follow-ups. Update it after a scope change or a rebase so it matches the real HEAD.",
+    ),
+    blank,
+    t(
+      "## Nálezy z review přijímej s úsudkem (decision 0163)",
+      "## Take review findings with judgment (decision 0163)",
+    ),
+    t(
+      "Review ber vážně, ale ne bez výhrad. Každé další kolo oprav kvůli drobnosti zdržuje hotovou práci a nic nechrání.",
+      "Take review seriously, but not without reservation. Every further round of fixes over trivia delays finished work and protects nothing.",
+    ),
+    t(
+      "- **Skutečnou vadu oprav hned.** Skutečná vada je špatné chování, rozpor mezi texty, tvrzení bez důkazu nebo únik citlivého obsahu.",
+      "- **Fix a real defect at once.** A real defect is wrong behavior, a contradiction between texts, a claim without proof or a leak of sensitive content.",
+    ),
+    t(
+      "- **Ostatní nálezy nepřijímej mlčky.** Nález, který je drobnost bez dopadu, spekulace o budoucí změně nebo rozšiřuje záběr PR o nový mechanismus, neřeš dalším kolem oprav. Odpověz přímo v PR věcnou námitkou: co je účelem PR, proč nález nechrání před skutečnou škodou a co už je doložené. Pak požádej o verdikt na nezměněném headu.",
+      "- **Do not accept other findings silently.** A finding that is trivia without impact, speculation about a future change or widens the PR's scope with a new mechanism is not answered with another round of fixes. Reply on the PR with a factual objection: what the PR is for, why the finding protects against no real harm and what is already proven. Then ask for a verdict on the unchanged head.",
+    ),
+    t(
+      "- **Trvá-li reviewer na svém,** nepokračuj dalším kolem a předlož obě stanoviska Principálovi. Review ani branch rules nikdy neobcházej.",
+      "- **If the reviewer still insists,** do not start another round; put both positions to the Principal. Never bypass the review or the branch rules.",
+    ),
+    t(
+      "- **Nález, který má cenu, ale do PR nepatří,** zapiš jako GitHub Issue podle oddílu o otevřených otázkách níže.",
+      "- **A finding that has value but does not belong in the PR** goes into a GitHub Issue, as the section on open questions below describes.",
+    ),
+    blank,
+    same("## Handoff"),
+    t(
+      "Než se zeptáš, ověř živá GitHub práva Principála: oprávnění k repozitáři, branch protection, povolené metody merge a mergeability PR. Závěrečná zpráva pracovního chatu, ve kterém vznikl PR, začíná standardizovaným blokem (decision 0103) v jazyce Principála:",
+      "Before you ask, check the Principal's live GitHub rights: repository permissions, branch protection, allowed merge methods, PR mergeability. The final message of a working chat that produced a PR begins with the standardized block (decision 0103), in the Principal's language:",
+    ),
+    blank,
+    same("```text"),
+    same("## Handoff"),
+    t(
+      "Připravil jsem ti pull request: <URL> (base: <branch>, HEAD: <sha>)",
+      "I prepared a pull request for you: <URL> (base: <branch>, HEAD: <sha>)",
+    ),
+    t(
+      "Co Publikace zavede: <lidské a praktické shrnutí: směr, dopad, záměrné non-goals, rollout a rizika, otevřené otázky>",
+      "What Publication introduces: <human, practical summary: direction, impact, deliberate non-goals, rollout and risks, open questions>",
+    ),
+    t(
+      "Ověřeno: <kontroly a testy a jejich výsledek>",
+      "Verified: <checks and tests and their result>",
+    ),
+    t(
+      "Zkontroluj si to v aplikaci: <URL běžící z worktree, pokud existuje>",
+      "Check it in the application: <URL running from the worktree, if any>",
+    ),
+    t(
+      "Lokálně nezůstává nic mimo PR.",
+      "Nothing remains locally outside the PR.",
+    ),
+    blank,
+    t(
+      "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?",
+      "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
+    ),
+    same("```"),
+    blank,
+    t(
+      "Anglicky zní závěrečná dvojotázka: “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?” Volbu vždy nabídni; nikdy ji nerozhoduj za Principála.",
+      "In Czech the closing pair reads: „Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Principal.",
+    ),
+    blank,
+    t(
+      "- Na explicitní „Publikuj“ v threadu: mergni metodou, kterou repozitář povoluje, aktualizuj `main` a ukliď worktree.",
+      "- On an explicit “Publish” in the thread: merge with a method the repository allows, update `main` and clean up the worktree.",
+    ),
+    t(
+      "- Při předání: vyžádej review od oprávněného Principála, kterého zvolil, přiřaď mu pull request a @zmínkou mu předej odpovědnost. Žádost o review znamená „zkontroluj“; assignee vlastní další krok a upravuje PR branch přímo. Přiřazení nevytváří žádná práva a nenahrazuje pokyn k Publikaci.",
+      "- On a handover: request review from the eligible Principal they chose, assign them the pull request and hand over the responsibility with an @mention. A reviewer request means “check”; the assignee owns the next step and edits the PR branch directly. Assignment creates no rights and replaces no Publication instruction.",
+    ),
+    t(
+      "- Když GitHub Principálovi merge nedovolí, řekni to v handoffu; merge se neobchází. Bez zeleného PR se nic neděje.",
+      "- When GitHub does not allow the Principal to merge, say so in the handoff; the merge is not bypassed. Without a green PR nothing happens.",
+    ),
+    t(
+      "- Po každé Publikaci se zeptej „jaký je další krok a co dalšího můžeme dotáhnout?“ a stručně to navrhni.",
+      "- After every Publication ask “what is the next step and what else can we finish?” and propose it briefly.",
+    ),
+    blank,
+    t(
+      "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",
+      "## Open questions go to GitHub Issues and do not stop the work (decision 0163)",
+    ),
+    t(
+      "Když při práci narazíš na otevřený technický problém, nejistotu nebo nález, který nejde hned vyřešit, zapiš ho jako GitHub Issue do přesného owning repozitáře: do veřejného repozitáře produktu `Lazurio/LazurioPlatform` pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace, do repozitáře modulu pro jeden modul. Je to tvůj trvalý mandát: předem se neptáš a URL issue uvedeš v handoffu.",
+      "When your work runs into an open technical problem, an uncertainty or a finding that cannot be resolved right away, file it as a GitHub Issue in the exact owning repository: the product's public repository `Lazurio/LazurioPlatform` for Lazurio itself, the Organization's repository for Organization content, the module's repository for one module. This is your standing mandate: you do not ask first, and you give the issue's URL in the handoff.",
+    ),
+    t(
+      "- **Před zápisem** vyhledej otevřené i zavřené issue se stejným problémem; ke shodnému přidej komentář s novým důkazem místo nového issue. Odstraň secrets, tokeny, zákaznická data, Personalspace a obsah Organizace mimo její access hranici. Do veřejného repozitáře nikdy nezapisuj obsah konkrétní Organizace. Otevřenou otázku zapiš jako otázku a odděl, co je ověřené a co ne.",
+      "- **Before filing,** search open and closed issues for the same problem; add a comment with the new evidence to a matching one instead of opening another. Remove secrets, tokens, customer data, Personalspace and Organization content outside its access boundary. Never write a specific Organization's content into a public repository. File an open question as a question and separate what is verified from what is not.",
+    ),
+    t(
+      "- **Issue práci nezastavuje.** Pokračuj na všem, co na odpovědi nestojí. Zastav se jen tam, kde bez odpovědi nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi.",
+      "- **An issue does not stop the work.** Continue with everything that does not depend on the answer. Stop only where you cannot continue safely without it or where the decision belongs to the Principal.",
+    ),
+    t(
+      "- **Mandát platí jen pro zápis.** Issue bez pokynu Principála nezavíráš, nepřiřazuješ ani neprioritizuješ. Merge a nasazení zůstávají Publikací a stejně jako Release se dělají jen na jeho výslovný pokyn.",
+      "- **The mandate covers filing only.** You do not close, assign or prioritize an issue without the Principal's instruction. A merge and a deployment remain a Publication and, like a Release, happen only on their explicit instruction.",
+    ),
+    t(
+      "- **Issue není plán.** Plán, priorita a odpovědnost patří do Mission Controlu Organizace; otevřenou otázku tam místo issue nezapisuj.",
+      "- **An issue is not a plan.** Plan, priority and responsibility belong in the Organization's Mission Control; do not write an open question there instead of an issue.",
+    ),
+    t(
+      "- **Když zápis nejde** (Issues nejsou povolené, účet nemá právo, síť není dostupná nebo si nejsi jistý, že obsah do repozitáře smí), nic neobcházej a nezapisuj ho do jiné Organizace. Vrať Principálovi sanitizovaný text issue, přesný cílový repozitář a důvod, proč jsi ho nezapsal.",
+      "- **When filing is not possible** (Issues are disabled, the account lacks the right, the network is unavailable or you are not sure the content may go into that repository), bypass nothing and do not file it in another Organization. Return to the Principal the sanitized issue text, the exact target repository and the reason you did not file it.",
+    ),
+    blank,
+    t(
+      "## Poznatky patří tam, kde je najdou ostatní",
+      "## Knowledge belongs where others find it",
+    ),
+    t(
+      "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree; GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Principál do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost.",
+      "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree; a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Principal may place in that store; Personalspace and cross-Organization isolation always take precedence.",
+    ),
+    blank,
+    t("## Organizace", "## Organizations"),
+    t(
+      "Z rootu Folderu nikdy nepracuj v konkrétní Organizaci: vstup do `organizations/<org>/`, přečti její `AGENTS.md` a teprve potom měň její obsah. Mezi Organizacemi nikdy nekopíruj secrets, zákaznická data, obchodní strategii ani osobní overlaye; obecné vzory, anonymizované šablony a poučení v obecné podobě jsou v pořádku.",
+      "Never work in a specific Organization from the Folder root: enter `organizations/<org>/`, read its `AGENTS.md`, and only then change its content. Never copy secrets, customer data, business strategy or personal overlays between Organizations; general patterns, anonymized templates and lessons in general form are fine.",
+    ),
+    ...(preset === "hosted-personal" ? [] : [blank, ...building(preset)]),
+    blank,
+    ...connectedApplications,
+    blank,
+    ...secrets,
+    blank,
+    t(
+      "## Poslední slovo má vždy Principál",
+      "## The Principal has the last word",
+    ),
+    t(
+      "Odveď práci tak, aby ho měl: srozumitelně, vratně, s prostorem k úpravě. Když práci deleguješ na jiného agenta, jeho vlastní hlášení není důkaz; QA gate drží delegující Kolega. Chybějící nástroje, neověřená práva a neznámý stav přiznej; nikdy si nevymýšlej schopnosti ani dokončení.",
+      "Do the work so that they have it: understandable, reversible, with room to adjust. When delegating to another agent, a self-report is not proof; the delegating Kolega holds the QA gate. Report missing tools, unverified rights and unknown state; never invent capabilities or completion.",
+    ),
+  ];
+}
 
 const roles: readonly Text[] = [
   t(
@@ -807,16 +819,6 @@ function productUpdate(hosted: boolean): readonly Text[] {
   ];
 }
 
-// Organization content is not synchronized by the product yet; the text says
-// so and names only what exists. A personal VM has no Organizations.
-const organizationContent: readonly Text[] = [
-  t("## Obsah Organizací", "## Organization content"),
-  t(
-    "Synchronizaci repozitářů Organizací produkt Lazurio zatím neumí. Je-li checkout čistý a na své výchozí branchi, aktualizuj ho obyčejným `git pull --ff-only`. Cizí práci nikdy neodkládej do stashe, nepřepínej branch ani nedělej reset; checkout, který čistý není, je rozjetý nebo stojí na jiné branchi, nahlas Principálovi.",
-    "Synchronizing Organization repositories is not implemented in the Lazurio product yet. When a checkout is clean and on its default branch, update it with plain `git pull --ff-only`. Never stash, switch or reset someone's work; a checkout that is not clean, has diverged or is on another branch is reported to the Principal.",
-  ),
-];
-
 // Module applications through `lazurio module` (root decision 0167, command
 // names kept from the resident; launchpad-parity B3). No state: what runs is
 // what the OS service manager or the Launchpad session reports.
@@ -846,8 +848,8 @@ function moduleApplications(hosted: boolean): readonly Text[] {
     ),
     hosted
       ? t(
-          "- Na tomhle Remote Environmentu je aplikace přechodná systemd user služba: běží dál i po restartu Launchpadu, restart Environmentu ji ukončí a její výstup jde do journalu. Odkaz pro Operátora je jen `runtime.url` (viz níže).",
-          "- In this Remote Environment an application is a transient systemd user service: it keeps running when the Launchpad restarts, ends with a reboot, and its output goes to the journal. The link for the operator is only `runtime.url` (see below).",
+          "- Na tomhle Remote Environmentu je aplikace přechodná systemd user služba: běží dál i po restartu Launchpadu, restart Environmentu ji ukončí a její výstup jde do journalu. Odkaz pro Operátora je jen `runtime.url` (`manual/this-machine.md`).",
+          "- In this Remote Environment an application is a transient systemd user service: it keeps running when the Launchpad restarts, ends with a reboot, and its output goes to the journal. The link for the operator is only `runtime.url` (`manual/this-machine.md`).",
         )
       : t(
           "- Na Linuxu s uživatelským správcem služeb je aplikace přechodná systemd user služba (přežije restart Launchpadu, výstup jde do journalu). Na macOS je aplikace potomkem relace Launchpadu: spouštěj, zastavuj a otevírej ji v Launchpadu; CLI odpoví `launchpad-required` a výstup se neuchovává.",
@@ -856,32 +858,177 @@ function moduleApplications(hosted: boolean): readonly Text[] {
   ];
 }
 
+// How Lazurio is built, for every preset that carries Organizations (decision
+// F14 addendum 2026-10-02): the agent first uses what exists, then the
+// Organization's declarations, the Module Standard (root decision 0171), the
+// test-first plan, the agent refactor (root decision 0173) and the product's
+// own repository. A personal Remote Environment mounts no Organization.
+function building(preset: PresetName): readonly Text[] {
+  return [
+    t("## Než postavíš něco nového", "## Before you build something new"),
+    t(
+      "Nejdřív najdi mechanismus Lazuria, který věc už řeší: manifest Organizace, Module Standard, `lazurio module`, nástroje Environmentu, Composio, Mission Control nebo Knowledgebase. Paralelní řešení vedle nich nestav: vlastní instalaci Lazuria, vlastní integraci, spouštěč, registr ani druhý zdroj pravdy. Když mechanismus chybí nebo nestačí, zapiš issue do repozitáře, který ho vlastní, a navrhni Principálovi řešení.",
+      "First find the Lazurio mechanism that already covers it: the Organization manifest, the Module Standard, `lazurio module`, the Environment's tools, Composio, Mission Control or the Knowledgebase. Do not build a parallel solution next to them: your own installation of Lazurio, your own integration, launcher, registry or second source of truth. When a mechanism is missing or falls short, file an issue in the repository that owns it and propose a solution to the Principal.",
+    ),
+    blank,
+    t("## Organizace a její manifest", "## The Organization and its manifest"),
+    t(
+      "- Organizaci popisuje `lazurio.organization.json` (Teams, moduly, sloty) spolu s `modules.manifest.json`. `company.gen3.json` je jen generovaná projekce; ručně ji needituj. Deklarace měníš PR do kořene Organizace.",
+      "- An Organization is described by `lazurio.organization.json` (Teams, modules, slots) together with `modules.manifest.json`. `company.gen3.json` is only a generated projection; never edit it by hand. Change the declarations by a PR to the Organization root.",
+    ),
+    t(
+      "- Deklarace nic neopravňuje; rozhodují živé GitHub granty. Slot s omezeným přístupem (například `infra`) patří Adminovi; když na Environmentu Buildera chybí, je to záměr.",
+      "- A declaration authorizes nothing; live GitHub grants decide. A restricted slot (`infra`, for example) belongs to the Admin; when it is missing on a Builder's Environment, that is intended.",
+    ),
+    t(
+      "- Synchronizaci repozitářů Organizací produkt zatím neumí. Chybějící checkout založ ručně: nejdřív kořen Organizace do `organizations/<org>/`, pak podle jeho manifestu deklarované moduly přesně do jejich cest (`workspace/<module>/`). Obsazenou cestu nepřepisuj.",
+      "- The product does not synchronize Organization repositories yet. Create a missing checkout by hand: first the Organization root into `organizations/<org>/`, then, following its manifest, the declared modules into their exact paths (`workspace/<module>/`). Never overwrite an occupied path.",
+    ),
+    t(
+      "- Čistý checkout na výchozí branchi aktualizuj obyčejným `git pull --ff-only`. Cizí práci nikdy neodkládej do stashe, nepřepínej branch ani nedělej reset; checkout, který není čistý, je rozjetý nebo stojí na jiné branchi, nahlas Principálovi.",
+      "- Update a clean checkout on its default branch with plain `git pull --ff-only`. Never stash, switch or reset someone's work; report a checkout that is not clean, has diverged or is on another branch to the Principal.",
+    ),
+    blank,
+    t(
+      "## Moduly a Lazurio Module Standard (decision 0171)",
+      "## Modules and the Lazurio Module Standard (decision 0171)",
+    ),
+    t(
+      "- Workspace modul je samostatný repozitář v `workspace/<module>/` s vlastním `AGENTS.md`; aplikace na úrovni Organizace (Mission Control, design system) jsou také moduly. Jeden modul = jeden worktree = jeden PR. Repozitář a slot nového modulu zakládá Admin nebo Dashboard, ne agent.",
+      "- A workspace module is a repository of its own at `workspace/<module>/` with its own `AGENTS.md`; Organization-level applications (Mission Control, the design system) are modules too. One module = one worktree = one PR. The Admin or the Dashboard creates a new module's repository and slot, not an agent.",
+    ),
+    t(
+      "- Modul deklaruje `lazurio.module.json`: `id` shodné se slotem, lease v poolu portů Organizace, `apps` a `default_app`. Aplikace žije v `app/v<N>/` a má přesný `packageManager` (Bun), commitnutý lockfile, strict TypeScript, Biome a skripty `dev`, `check` a `test`.",
+      "- A module declares `lazurio.module.json`: an `id` equal to its slot, a lease in the Organization's port pool, `apps` and `default_app`. Its application lives in `app/v<N>/` with an exact `packageManager` (Bun), a committed lockfile, strict TypeScript, Biome and the scripts `dev`, `check` and `test`.",
+    ),
+    t(
+      "- `dev` spustí právě jeden dlouhoběžící server. Build, data a migrace patří do deklarované přípravy (`lazurio.preparation`), ne do npm lifecycle skriptů.",
+      "- `dev` starts exactly one long-running server. Build, data and migrations belong in the declared preparation (`lazurio.preparation`), not in npm lifecycle scripts.",
+    ),
+    t(
+      "- Host a port bere aplikace jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`: žádné `.env`, `PORT` ani pevně zapsaný port. Health odpovídá 200 přímo, na SIGTERM proces skončí do deseti sekund a loguje na stdout.",
+      "- The application takes its host and port only from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`: no `.env`, no `PORT`, no hard-coded port. Health answers 200 directly, the process exits within ten seconds of SIGTERM and logs to stdout.",
+    ),
+    t(
+      "- Modul nic neimportuje mimo svůj repozitář; sdílený kód bere jako verzovanou závislost.",
+      "- A module imports nothing from outside its repository; shared code comes as a versioned dependency.",
+    ),
+    t(
+      "- Odchylku modulu opravuješ v modulu, nikdy obcházením Launchpadu nebo Platformy; skutečnou mezeru produktu zapiš jako issue. Konformanci zatím žádný příkaz Platformy neověří: projdi pravidla sám a co ověřit nejde, uveď v handoffu.",
+      "- Fix a module's deviation in the module, never by working around the Launchpad or the Platform; file a real product gap as an issue. No Platform command checks conformance yet: go through the rules yourself and name in the handoff what could not be verified.",
+    ),
+    blank,
+    ...moduleApplications(preset !== "local"),
+    blank,
+    t(
+      "## Plán a testy drží záměr",
+      "## The plan and the tests hold the intent",
+    ),
+    t(
+      "Plán v Mission Controlu Organizace drží obrys výsledku, milníky, pevné hranice a prostor pro změnu. Před změnou chování, rozhraní nebo architektury napiš v owning repozitáři test na skutečném consumerovi, který selže ze správného důvodu, včetně důležitých selhání. Když se změní směr, změň nejdřív záměr a test; interní refactor jimi nesvazuj. Výjimkou je dokumentace, kosmetika a ohraničený průzkum. Branch nese kód plánu nebo úkolu a PR na plán odkazuje.",
+      "The plan in the Organization's Mission Control holds the outline of the outcome, the milestones, the fixed boundaries and room for change. Before a change of behavior, interface or architecture, write a test on the real consumer in the owning repository that fails for the right reason, including the failures that matter. When the direction changes, change the intent and the test first; do not tie an internal refactor to them. Documentation, cosmetics and bounded exploration are exceptions. The branch carries the plan or task code, and the PR links the plan.",
+    ),
+    blank,
+    t(
+      "## Přestavbu dělá agent (decision 0173)",
+      "## A restructuring is done by an agent (decision 0173)",
+    ),
+    t(
+      "Když se stará struktura zahazuje nebo přestavuje, převod udělá agent jako reviewovaný refactor podle návodu, který nese motivaci, cílový stav, postup a ověření. Automatický migrátor, automatickou opravu ani codemod pro přestavbu existující struktury nestav; nástroje měří a hlásí nález s dalším krokem. Jednorázový skript pro hromadný převod dat, doložený kontrolou parity ve tvém PR, je v pořádku.",
+      "When an old structure is discarded or rebuilt, an agent does the conversion as a reviewed refactor, following instructions that carry the motivation, the target state, the steps and the verification. Do not build an automatic migrator, auto-fix or codemod to restructure existing code or data; tools measure and report a finding with the next step. A one-off script for a bulk data conversion, proven by a parity check in your PR, is fine.",
+    ),
+    blank,
+    t("## Vývoj Lazuria", "## Developing Lazurio"),
+    t(
+      "Lazurio je otevřený produkt: jeho zdroj je ve veřejném repozitáři `Lazurio/LazurioPlatform` a vyvíjí se jako každý jiný repozitář, podle jeho `AGENTS.md`, ve worktree a přes PR. Klon zdroje není nainstalovaný produkt: patří mimo Folder (viz pravidlo o klonech výše) a instalaci tohohle Environmentu nikdy nenahrazuje; nová verze se sem dostane jen vydáním a aktualizací. Do veřejného repozitáře nepatří data, jména ani provoz konkrétní Organizace.",
+      "Lazurio is an open product: its source is the public repository `Lazurio/LazurioPlatform`, developed like any other repository, under its `AGENTS.md`, in a worktree and through PRs. A clone of the source is not the installed product: it lives outside the Folder (see the rule on clones above) and never replaces this Environment's installation; a new version arrives here only through a release and an update. A specific Organization's data, names or operations do not belong in the public repository.",
+    ),
+  ];
+}
+
+// Connected applications on every preset (decision F14 addendum 2026-10-02,
+// root decision 0162): what is here first, Composio as the standard route for
+// a missing application, no own integrations, a write is a Publication.
+const connectedApplications: readonly Text[] = [
+  t("## Napojené aplikace", "## Connected applications"),
+  t(
+    "Než cokoli napojíš, zjisti, co tu je: zapnuté nástroje (`manual/this-machine.md`), napojené aplikace v Composiu (`composio whoami`) a MCP servery tvého harnessu. Přednost má zapnutý nástroj CLI, potom MCP.",
+    "Before connecting anything, find out what is here: the enabled tools (`manual/this-machine.md`), the applications connected in Composio (`composio whoami`) and your harness's MCP servers. An enabled CLI tool comes first, MCP after it.",
+  ),
+  blank,
+  t(
+    "- **Chybějící aplikaci napoj přes Composio.** Najdi její toolkit (`composio search <aplikace>`) a spusť `composio link <toolkit>`. Odkaz, který příkaz vrátí, pošli operátorovi; otevře ho ve svém prohlížeči a přihlásí se vlastním účtem. Pak napojení ověř čtením, třeba vyhledáním známé zprávy.",
+    "- **Connect a missing application through Composio.** Find its toolkit (`composio search <application>`) and run `composio link <toolkit>`. Send the link the command returns to the operator; they open it in their browser and sign in with their own account. Then verify the connection by reading, for example by finding a known message.",
+  ),
+  t(
+    "- **Firemní aplikace může čekat na souhlas správce.** Když přihlášení hlásí, že je potřeba schválení správcem (typicky Microsoft 365), řekni to operátorovi: aplikaci schválí jejich IT a operátor potom napojení spustí znovu. Souhlas pro jednu aplikaci (Outlook) nepokrývá jinou (Teams).",
+    "- **A company application may wait for an administrator's consent.** When the sign-in says administrator approval is required (typically Microsoft 365), tell the operator: their IT approves the application and the operator then starts the connection again. Consent for one application (Outlook) does not cover another (Teams).",
+  ),
+  t(
+    "- **Bez Composia** nabídni operátorovi přihlášení v Launchpadu (Nastavení → Nástroje). Jinou cestu, například jiný nástroj z katalogu nebo oficiální MCP server poskytovatele, volí on.",
+    "- **Without Composio**, offer the operator the sign-in in the Launchpad (Settings → Tools). Another route, such as another catalog tool or the provider's official MCP server, is their choice.",
+  ),
+  t(
+    "- **Vlastní integraci nestav** (vlastní OAuth aplikaci, spouštěč, MCP server, API klienta ani scraper) bez výslovného rozhodnutí operátora. Jiné cloudové konektory než Composio nezřizuj; scraping a servery postavené na cookies přihlášené relace nikdy.",
+    "- **Do not build your own integration** (your own OAuth app, launcher, MCP server, API client or scraper) without the operator's explicit decision. Set up no cloud connector other than Composio; never scraping or servers built on a signed-in session's cookies.",
+  ),
+  t(
+    "- **Zápis je Publikace.** Napojená aplikace umí číst, zapisovat i mazat, ale schopnost není souhlas. Odeslání, zveřejnění, smazání nebo sdílení mimo Organizaci proveď jen na výslovný pokyn Principála k té operaci; do té doby připrav koncept. Zkoušky dělej na pojmenovaném testovacím cíli.",
+    "- **A write is a Publication.** A connected application can read, write and delete, but capability is not consent. Send, publish, delete or share outside the Organization only on the Principal's explicit instruction for that operation; until then, prepare a draft. Test against a named test target.",
+  ),
+  t(
+    "- **Každá Organizace zvlášť.** Pracuješ-li pro víc Organizací, používej nástroje té, pro kterou právě pracuješ, a data mezi nimi nepřenášej. Na týmovém Environmentu se přihlašují jen týmové účty, nikdy osobní. Integrace sdílené celou Organizací popisuje její vlastní katalog a mění se PR do Organizace; do Folderu se MCP servery nezapisují.",
+    "- **Each Organization on its own.** When you work for several Organizations, use the tools of the one you are working for and move no data between them. On a Team Environment only Team accounts sign in, never personal ones. Integrations shared by a whole Organization are described in its own catalog and change by a PR to the Organization; MCP servers are never written into the Folder.",
+  ),
+];
+
+// Secrets on every preset; moved here from the troubleshooting chapter so the
+// rule sits with the connections that need it.
+const secrets: readonly Text[] = [
+  t("## Tajné údaje", "## Secrets"),
+  t(
+    "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Environmentu, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
+    "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Environment's identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
+  ),
+  blank,
+  t(
+    "- Přihlášení a souhlasy dělá člověk ve svém prohlížeči; předtím mu řekni, jaký účet a jaký rozsah připojuje. Hesla od lidí nepřebírej.",
+    "- Sign-ins and consents are done by a person in their own browser; tell them first which account and which scope is being connected. Do not take passwords from people.",
+  ),
+  t(
+    "- Aplikace berou tajné údaje od člověka nebo z úložiště, které určí Principál, nikdy z `.env` ani z repozitáře. Vlastní úložiště tajemství nevymýšlej a přihlášení nepřenášej mezi Environmenty; každý má vlastní souhlas.",
+    "- Applications take secrets from a person or from the store the Principal names, never from `.env` or a repository. Do not invent your own secret store, and do not carry sign-ins between Environments; each has its own consent.",
+  ),
+];
+
 function troubleshooting(preset: PresetName): readonly Text[] {
   const hosted = preset !== "local";
   return [
-    t("## Nikdy nevypisuj secrets", "## Never print secrets"),
-    t(
-      "Tokeny, privátní klíče, session URL, device kódy ani obsah `personalspace/` nikdy nepatří do výstupu, issues, commitů ani logů. Identita Environmentu, kterou vypíše `lazurio machine inspect`, je soukromý kontext: drž ji v rámci Ownera.",
-      "Tokens, private keys, session URLs, device codes and the contents of `personalspace/` never go into output, issues, commits or logs. The Environment's identity printed by `lazurio machine inspect` is private context: keep it in the Owner's scope.",
-    ),
-    ...(hosted
-      ? [
-          blank,
-          t(
-            "## Odkazy na aplikace z tohohle Remote Environmentu",
-            "## Application links from this Remote Environment",
-          ),
-          t(
-            "Tenhle Environment je Remote Environment: `localhost` a `127.0.0.1` existují jen uvnitř něj a Operátor je ve svém prohlížeči neotevře. Localhost link funguje jen pro proces na tomhle Environmentu; nikdy ho Operátorovi neposílej. Odkaz na aplikaci je její hostované jméno přes gateway tohohle Environmentu (decision 0146) přesně tak, jak ho vrací `lazurio module status <Org>/<modul> --json` v `runtime.url` nebo jak ho ukazuje Launchpad: skládá se jen ze zaznamenaného vstupu tohohle Environmentu, nikdy z odhadnuté konvence jmen. Když je `runtime` `null`, aplikace tu hostované jméno nemá; napiš to v handoffu místo odkazu. `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu; předej ho Operátorovi, nikdy ne localhost link.",
-            "This is a Remote Environment: `localhost` and `127.0.0.1` exist only inside it and the operator cannot open them in their browser. A localhost link works only for a process in this Environment; never send it to the operator. The link to an application is its hosted name through this Environment's gateway (decision 0146), exactly as `lazurio module status <Org>/<module> --json` reports it in `runtime.url` or as the Launchpad shows it: it is composed only from this Environment's recorded entry, never guessed from a naming convention. When `runtime` is `null`, the application has no hosted name here; say so in the handoff instead of a link. `lazurio chat link` prints the link into T3 Code of this Environment; hand it to the operator, never a localhost link.",
-          ),
-        ]
-      : []),
+    t("## Lazurio na tomhle Environmentu", "## Lazurio in this Environment"),
+    hosted
+      ? t(
+          "Lazurio je tu nainstalované a spravované: produkt v `~/.local/share/lazurio/` s příkazem `~/.local/bin/lazurio` a tenhle Folder s generovanými soubory `AGENTS.md`, `manual/` a `.lazurio/`. Když tě operátor požádá „nainstaluj Lazurio“, ověř stav (`lazurio doctor`) a doplň jen to, co chybí, postupy níže.",
+          "Lazurio is installed and managed here: the product in `~/.local/share/lazurio/` with the command `~/.local/bin/lazurio`, and this Folder with its generated files `AGENTS.md`, `manual/` and `.lazurio/`. When the operator asks you to “install Lazurio”, check the state (`lazurio doctor`) and complete only what is missing, with the procedures below.",
+        )
+      : t(
+          "Lazurio je tu nainstalované: produkt v `~/.local/share/lazurio/` s příkazem `lazurio` a tenhle Folder s generovanými soubory `AGENTS.md`, `manual/` a `.lazurio/`. Instaluje se jen svým instalátorem a aktualizuje příkazem `lazurio update`.",
+          "Lazurio is installed here: the product in `~/.local/share/lazurio/` with the command `lazurio`, and this Folder with its generated files `AGENTS.md`, `manual/` and `.lazurio/`. It is installed only by its installer and updated with `lazurio update`.",
+        ),
     blank,
-    ...productUpdate(hosted),
+    t(
+      "- Lazurio nikdy neinstaluj ani nestav ze zdrojů: neklonuj jeho repozitář do Folderu ani přes něj, nespouštěj instalační postup jiné instalace a nezakládej druhou instalaci.",
+      "- Never install or build Lazurio from source: do not clone its repository into or over the Folder, do not run another installation's procedure and do not create a second installation.",
+    ),
     ...(preset === "hosted-personal"
       ? []
-      : [blank, ...organizationContent, blank, ...moduleApplications(hosted)]),
+      : [
+          t(
+            "- Vývoj samotného Lazuria popisuje `manual/working-here.md`.",
+            "- `manual/working-here.md` describes developing Lazurio itself.",
+          ),
+        ]),
+    blank,
+    ...productUpdate(hosted),
     blank,
     t("## Identita Environmentu", "## The Environment's identity"),
     t(
@@ -939,6 +1086,10 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "- `stale-revision`: the Folder changed since the panel loaded; reload.",
     ),
     t(
+      "- `folder-foreign-entry`: na nejvyšší úrovni Folderu leží položka, kterou Folder nevlastní, například tam uložený výstup. Na Remote Environmentu blokuje každou změnu i refresh; přesuň ji pryč, výstupy patří do `~/Documents/`.",
+      "- `folder-foreign-entry`: the Folder's top level holds an entry the Folder does not own, for example a work product saved there. In a Remote Environment it blocks every change and every refresh; move it out, work products belong in `~/Documents/`.",
+    ),
+    t(
       "- `preset-not-allowed`, `preset-composition`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.",
       "- `preset-not-allowed`, `preset-composition`: the preset is outside what the handover allows, or the fixed axes disagree with it.",
     ),
@@ -968,8 +1119,8 @@ function troubleshooting(preset: PresetName): readonly Text[] {
     blank,
     t("## Hlášení problémů", "## Reporting problems"),
     t(
-      "Otevřený technický problém patří do GitHub Issue v přesném owning repozitáři: do veřejného repozitáře produktu pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace. Zapisuješ ho bez ptaní, po kontrole duplicit a odstranění secrets, Personalspace a obsahu Organizace mimo její access hranici; bez bezpečného repozitáře vrať Principálovi sanitizovaný text. Celý postup popisuje `manual/working-here.md` (decision 0163).",
-      "An open technical problem belongs in a GitHub Issue of the exact owning repository: the product's public repository for Lazurio itself, the Organization's repository for Organization content. You file it without asking, after a duplicate check and after removing secrets, Personalspace and Organization content outside its access boundary; without a safe repository, return the sanitized text to the Principal. `manual/working-here.md` describes the whole procedure (decision 0163).",
+      "Otevřený technický problém patří do GitHub Issue v přesném owning repozitáři: do veřejného repozitáře produktu `Lazurio/LazurioPlatform` pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace. Zapisuješ ho bez ptaní, po kontrole duplicit a odstranění secrets, Personalspace a obsahu Organizace mimo její access hranici; bez bezpečného repozitáře vrať Principálovi sanitizovaný text. Celý postup popisuje `manual/working-here.md` (decision 0163).",
+      "An open technical problem belongs in a GitHub Issue of the exact owning repository: the product's public repository `Lazurio/LazurioPlatform` for Lazurio itself, the Organization's repository for Organization content. You file it without asking, after a duplicate check and after removing secrets, Personalspace and Organization content outside its access boundary; without a safe repository, return the sanitized text to the Principal. `manual/working-here.md` describes the whole procedure (decision 0163).",
     ),
   ];
 }
@@ -1321,6 +1472,106 @@ function enabledToolsSection(
   ];
 }
 
+// How the operator works with an agent on a hosted Environment (decision F14
+// addendum 2026-10-02). Whether they connect over SSH is a fact of the
+// handover's peers, never a guess: over SSH (Codex Desktop) a preview opened
+// in Codex's built-in browser has its port forwarded to the operator; a
+// browser client forwards nothing. Without recorded peers both cases are
+// stated. Work products go to the operator's Documents folder.
+function operatorClient(
+  preset: PresetName,
+  machine: MachineBinding,
+): readonly Text[] {
+  const ssh = operatorConnectsOverSsh(machine);
+  const organization = preset !== "hosted-personal";
+  const intro =
+    ssh === true
+      ? t(
+          "Operátor sedí u svého počítače a podle handoveru se sem připojuje přes SSH, typicky z Codex Desktopu; v prohlížeči může mít i T3 Code. Tvůj shell, soubory a procesy jsou tady, ne u něj.",
+          "The operator sits at their own computer and, per the handover, connects here over SSH, typically from Codex Desktop; they may also have T3 Code in the browser. Your shell, files and processes are here, not on their computer.",
+        )
+      : ssh === false
+        ? t(
+            "Operátor sedí u svého počítače a podle handoveru se sem přes SSH nepřipojuje; pracuje s tebou v prohlížeči (T3 Code, Launchpad). Tvůj shell, soubory a procesy jsou tady, ne u něj.",
+            "The operator sits at their own computer and, per the handover, does not connect here over SSH; they work with you in the browser (T3 Code, Launchpad). Your shell, files and processes are here, not on their computer.",
+          )
+        : t(
+            "Operátor sedí u svého počítače; handover nezaznamenává, odkud se sem připojuje. Podle klienta, ve kterém běžíš, je to SSH (Codex Desktop), nebo prohlížeč (T3 Code). Tvůj shell, soubory a procesy jsou tady, ne u něj.",
+            "The operator sits at their own computer; the handover does not record where they connect from. Depending on the client you run in, that is SSH (Codex Desktop) or the browser (T3 Code). Your shell, files and processes are here, not on their computer.",
+          );
+  const previews =
+    ssh === true
+      ? t(
+          "- **Náhledy.** `localhost` a `127.0.0.1` existují jen tady. Rozpracovanou aplikaci nebo stránku otevři v integrovaném prohlížeči Codex Desktopu: Codex sám přesměruje port k operátorovi. Holý odkaz na `localhost` do chatu nepiš; v operátorově vlastním prohlížeči nefunguje.",
+          "- **Previews.** `localhost` and `127.0.0.1` exist only here. Open work in progress in Codex Desktop's built-in browser: Codex forwards the port to the operator itself. Do not write a bare `localhost` link into the chat; it does not work in the operator's own browser.",
+        )
+      : ssh === false
+        ? t(
+            "- **Náhledy.** `localhost` a `127.0.0.1` existují jen tady; operátor je neotevře a nic se nepřesměruje. Lokální náhled mu neposílej.",
+            "- **Previews.** `localhost` and `127.0.0.1` exist only here; the operator cannot open them and nothing is forwarded. Do not send them a local preview.",
+          )
+        : t(
+            "- **Náhledy.** `localhost` a `127.0.0.1` existují jen tady. V Codex Desktopu přes SSH otevři rozpracovanou aplikaci v jeho integrovaném prohlížeči, který port přesměruje k operátorovi; v prohlížečovém klientovi se nic nepřesměruje. Holý odkaz na `localhost` do chatu nikdy nepiš.",
+            "- **Previews.** `localhost` and `127.0.0.1` exist only here. In Codex Desktop over SSH, open work in progress in its built-in browser, which forwards the port to the operator; in a browser client nothing is forwarded. Never write a bare `localhost` link into the chat.",
+          );
+  const links = organization
+    ? t(
+        "- **Odkazy na aplikace.** Aplikace modulu má hostované jméno přes bránu tohohle Environmentu (decision 0146), které funguje v operátorově běžném prohlížeči v síti Organizace. Ber ho přesně z `runtime.url` v `lazurio module status <Org>/<modul> --json` nebo z Launchpadu, nikdy ho neskládej podle konvence; je-li `runtime` `null`, aplikace hostované jméno nemá a napiš to místo odkazu. `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu.",
+        "- **Application links.** A module's application has a hosted name through this Environment's gateway (decision 0146) that works in the operator's normal browser on the Organization's network. Take it exactly from `runtime.url` in `lazurio module status <Org>/<module> --json` or from the Launchpad, never compose it from a naming convention; when `runtime` is `null`, the application has no hosted name, so say that instead of a link. `lazurio chat link` prints the link into this Environment's T3 Code.",
+      )
+    : t(
+        "- **Odkazy.** `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu.",
+        "- **Links.** `lazurio chat link` prints the link into this Environment's T3 Code.",
+      );
+  const filesIn =
+    ssh === false
+      ? t(
+          "- **Soubory od operátora.** Operátor ti soubor nahraje do chatu. Co budeš potřebovat i později, ulož do `~/Documents/<úkol>/`.",
+          "- **Files from the operator.** The operator uploads a file into the chat. Save what you will need later in `~/Documents/<task>/`.",
+        )
+      : t(
+          "- **Soubory od operátora.** Soubor přetažený do chatu Codex Desktopu dorazí do `~/.codex/attachments/`; v T3 Code ho operátor nahraje do chatu. Co budeš potřebovat i později, ulož do `~/Documents/<úkol>/`.",
+          "- **Files from the operator.** A file dragged into the Codex Desktop chat arrives in `~/.codex/attachments/`; in T3 Code the operator uploads it into the chat. Save what you will need later in `~/Documents/<task>/`.",
+        );
+  const filesOut =
+    ssh === false
+      ? t(
+          "- **Soubory pro operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře; předej mu výsledek tím, co jeho klient umí, a řekni, kde soubor leží.",
+          "- **Files for the operator.** Save finished files in `~/Documents/<task>/`. The operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer; hand over the result the way their client can and say where the file lies.",
+        )
+      : t(
+          "- **Soubory pro operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře, proto mu výsledek předej tím, co jeho klient umí: obrázek ukaž v chatu, dokument otevři v náhledu Codex Desktopu. Velký soubor (desítky MB) náhled spolehlivě nepřenese; řekni to a nabídni menší nebo rozdělenou verzi.",
+          "- **Files for the operator.** Save finished files in `~/Documents/<task>/`. The operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer, so hand over the result the way their client can: show an image in the chat, open a document in Codex Desktop's preview. A large file (tens of MB) does not reliably pass through the preview; say so and offer a smaller or split version.",
+        );
+  const chats = organization
+    ? t(
+        `- **Chaty.** Konverzace z Codex Desktopu i T3 Code se ukládají sem, na Environment, který patří Organizaci; jsou pracovní.${preset === "hosted-organization-team" ? " Na týmovém Environmentu je vidí celý Team." : ""} Vzdálený chat zatím nejde v Codex Desktopu smazat ani najít v archivu; když o to operátor požádá, řekni mu to a soubory relací sám nemaž.`,
+        `- **Chats.** Conversations from Codex Desktop and T3 Code are stored here, in an Environment the Organization owns; they are work conversations.${preset === "hosted-organization-team" ? " In a Team Environment the whole Team sees them." : ""} A remote chat cannot be deleted or found in the archive in Codex Desktop yet; when the operator asks for that, tell them and do not delete session files yourself.`,
+      )
+    : t(
+        "- **Chaty.** Konverzace z Codex Desktopu i T3 Code se ukládají sem. Vzdálený chat zatím nejde v Codex Desktopu smazat ani najít v archivu; když o to operátor požádá, řekni mu to a soubory relací sám nemaž.",
+        "- **Chats.** Conversations from Codex Desktop and T3 Code are stored here. A remote chat cannot be deleted or found in the archive in Codex Desktop yet; when the operator asks for that, tell them and do not delete session files yourself.",
+      );
+  return [
+    t("## Jak s tebou operátor pracuje", "## How the operator works with you"),
+    intro,
+    blank,
+    previews,
+    links,
+    filesIn,
+    filesOut,
+    ...(organization
+      ? [
+          t(
+            "- **Kam nedosáhneš.** Na operátorův počítač, jeho složky ani na síťové disky namapované na jeho počítači odsud nedosáhneš: pracovní Environment nemá grant na klienty. Potřebuješ-li soubor odtamtud, požádej o jeho přetažení do chatu; o hesla ani přihlašovací údaje nežádej.",
+            "- **What you cannot reach.** You cannot reach the operator's computer, its folders or the network drives mapped on it from here: a work Environment has no grant to clients. If you need a file from there, ask for it to be dragged into the chat; never ask for passwords or credentials.",
+          ),
+        ]
+      : []),
+    chats,
+  ];
+}
+
 function thisMachine(source: InstructionSource): string {
   const { preset, machine } = source;
   const { locale } = source.profile;
@@ -1401,6 +1652,7 @@ function thisMachine(source: InstructionSource): string {
       ),
       ...boundaries(preset),
       ...botTeam(preset, machine),
+      ...(machine === null ? [] : [blank, ...operatorClient(preset, machine)]),
       blank,
       ...enabledToolsSection(
         source.tools,
@@ -1446,12 +1698,15 @@ export function renderManual(
     "manual/this-machine.md": thisMachine(source),
     "manual/working-here.md": titled(
       t("Jak se tu pracuje", "Working here"),
-      workingHere,
+      workingHere(source.preset),
     ),
     "manual/roles.md": titled(t("Role", "Roles"), roles),
     "manual/glossary.md": titled(t("Slovník", "Glossary"), glossary),
     "manual/troubleshooting.md": titled(
-      t("Řešení problémů", "Troubleshooting"),
+      t(
+        "Instalace, aktualizace a řešení problémů",
+        "Installation, updates and troubleshooting",
+      ),
       troubleshooting(source.preset),
     ),
   });

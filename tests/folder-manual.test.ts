@@ -24,6 +24,7 @@ import { renderOutputs } from "../src/folder/preview";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
 import { binding, bindings } from "./fixtures/machine-bindings";
+import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 import { journeys } from "./folder-render.test";
 
@@ -31,8 +32,8 @@ const os = executionOs(process.platform);
 
 // The manual follows the Folder locale under the same file names. Both
 // languages are written paragraph by paragraph side by side, so they have the
-// same lines and the same sections; only `this-machine.md` and
-// `troubleshooting.md` differ between presets. Review the snapshots when the
+// same lines and the same sections; only `this-machine.md`, `working-here.md`
+// and `troubleshooting.md` differ between presets. Review the snapshots when the
 // wording changes deliberately.
 test("the manual follows the locale with the same structure in both languages and names no legacy source", () => {
   for (const journey of journeys) {
@@ -201,8 +202,10 @@ test("hosted presets carry the SSH and update rules; a workstation keeps its own
         ),
       ).toBe(true);
       expect(
-        troubleshooting.includes(
-          locale === "cs" ? "## Obsah Organizací" : "## Organization content",
+        outputs["manual/working-here.md"].includes(
+          locale === "cs"
+            ? "## Organizace a její manifest"
+            : "## The Organization and its manifest",
         ),
       ).toBe(journey.preset !== "hosted-personal");
     }
@@ -282,8 +285,8 @@ test("no generated output forbids lazurio update or gives the product version to
       if (hosted) {
         expect(outputs["AGENTS.md"]).toContain(
           locale === "cs"
-            ? "Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá"
-            : "The operator owns the version of Lazurio: run `lazurio update` when they ask for it",
+            ? "spravuje operátor: `lazurio update` spusť, jen když o to požádá"
+            : "run `lazurio update` only when they ask for it",
         );
         expect(troubleshooting).toContain(
           locale === "cs"
@@ -640,3 +643,140 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// How the operator sees an agent's work follows the handover, never a guess
+// (decision F14 addendum 2026-10-02). Over SSH (Codex Desktop) a preview opened
+// in Codex's built-in browser has its port forwarded; a browser client
+// forwards nothing; without recorded peers both cases are stated. A
+// workstation has no such section.
+test("previews follow how the operator connects: over SSH the port is forwarded, without SSH only hosted names", () => {
+  const { team: _, ...owner } = organization.owner;
+  const gatewayOnly = binding({
+    ...organization,
+    owner,
+    relationships: {
+      zone: "work",
+      peers: [
+        {
+          name: "example-gateway",
+          kind: "conglomerate-host",
+          zone: null,
+          organization: "example",
+          ssh: null,
+          https: ["auth.example.lazurio.io"],
+        },
+      ],
+    },
+  });
+  const render = (machine: typeof bindings.related) =>
+    renderOutputs({
+      preset: "hosted-organization-personal",
+      machine,
+      profile: presetProfile("hosted-organization-personal", "linux"),
+    });
+  const overSsh = render(bindings.related);
+  expect(overSsh["AGENTS.md"]).toContain(
+    "- The operator connects here over SSH, typically from Codex Desktop.",
+  );
+  expect(overSsh["manual/this-machine.md"]).toContain(
+    "Open work in progress in Codex Desktop's built-in browser: Codex forwards the port to the operator itself.",
+  );
+  expect(overSsh["manual/this-machine.md"]).not.toContain(
+    "nothing is forwarded",
+  );
+  const browserOnly = render(gatewayOnly);
+  expect(browserOnly["AGENTS.md"]).toContain(
+    "- The operator does not connect here over SSH: they cannot open `localhost` and nothing is forwarded.",
+  );
+  expect(browserOnly["manual/this-machine.md"]).toContain(
+    "the operator cannot open them and nothing is forwarded. Do not send them a local preview.",
+  );
+  expect(browserOnly["manual/this-machine.md"]).not.toContain(
+    "built-in browser",
+  );
+  const unknown = render(bindings.organization);
+  expect(unknown["AGENTS.md"]).toContain(
+    "Over SSH (Codex Desktop), show work in progress in Codex's built-in browser, which forwards the port; otherwise send only an application's hosted name",
+  );
+  for (const journey of journeys)
+    expect(
+      renderManual({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os),
+      })["manual/this-machine.md"].includes(
+        "## How the operator works with you",
+      ),
+    ).toBe(journey.machine !== null);
+});
+
+// A work product that belongs in no repository goes to the operator's own
+// Documents folder of the OS, never into the Folder (Principal 2026-10-02: a
+// standard folder, not an invented one).
+test("work products go to the Documents folder of the execution OS", () => {
+  for (const journey of journeys) {
+    const agents = renderOutputs({
+      preset: journey.preset,
+      machine: journey.machine,
+      profile: presetProfile(journey.preset, journey.os),
+    })["AGENTS.md"];
+    expect(agents).toContain(
+      journey.os === "windows"
+        ? "in the Documents folder (`[Environment]::GetFolderPath('MyDocuments')`)"
+        : "in `~/Documents/<task>/`",
+    );
+    expect(agents).toContain(
+      "never write anything at the top level of the Folder",
+    );
+  }
+});
+
+// How Lazurio is built is rendered wherever Organizations are mounted; a
+// personal Remote Environment mounts none. Connected applications, secrets and
+// the guard against installing from source are on every preset.
+test("the building rules follow the Organizations; applications, secrets and the installation guard are everywhere", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const workingHere = outputs["manual/working-here.md"];
+      const withOrganizations = journey.preset !== "hosted-personal";
+      for (const heading of locale === "cs"
+        ? [
+            "## Než postavíš něco nového",
+            "## Moduly a Lazurio Module Standard (decision 0171)",
+            "## Plán a testy drží záměr",
+            "## Přestavbu dělá agent (decision 0173)",
+            "## Vývoj Lazuria",
+          ]
+        : [
+            "## Before you build something new",
+            "## Modules and the Lazurio Module Standard (decision 0171)",
+            "## The plan and the tests hold the intent",
+            "## A restructuring is done by an agent (decision 0173)",
+            "## Developing Lazurio",
+          ])
+        expect(workingHere.includes(heading)).toBe(withOrganizations);
+      expect(workingHere).toContain(
+        locale === "cs"
+          ? "spusť `composio link <toolkit>`"
+          : "run `composio link <toolkit>`",
+      );
+      expect(workingHere).toContain(
+        locale === "cs"
+          ? "**Vlastní integraci nestav**"
+          : "**Do not build your own integration**",
+      );
+      expect(workingHere).toContain(
+        locale === "cs" ? "## Tajné údaje" : "## Secrets",
+      );
+      expect(outputs["manual/troubleshooting.md"]).toContain(
+        locale === "cs"
+          ? "Lazurio nikdy neinstaluj ani nestav ze zdrojů"
+          : "Never install or build Lazurio from source",
+      );
+    }
+});
