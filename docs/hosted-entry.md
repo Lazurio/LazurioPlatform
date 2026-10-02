@@ -116,6 +116,7 @@ Machine binding in the Folder, shown and never edited in the Launchpad.
 |---|---|---|
 | Launchpad origin, auth endpoint, cookie name, loopback port | `entry.launchpad.*` | `entry.externalOrigin`, `authCheckUrl`, `authCookieName`, `listenPort` |
 | T3 Code origin | `entry.t3code.external_origin` | `entry.t3codeOrigin` |
+| Lazurio MausBot origin and loopback port (optional) | `entry.mausbot.*` | `entry.mausbotOrigin`, `mausbotListenPort` |
 | A module's origin | `entry.modules.origin_template` | `entry.moduleOriginTemplate`, filled by `moduleOrigin(template, moduleId)` |
 
 The Platform composes nothing but this one substitution: `moduleOrigin` fills the one
@@ -204,6 +205,10 @@ T3's own CLI (the launcher `t3` on its PATH) for a one-time pairing token and an
 fragment of that navigation. The pairing route is a state-changing request under the
 same-origin rule above; a Launchpad without an entry has neither the link nor the
 route. T3 Code's own admission behind the gateway is unchanged (not in scope below).
+Lazurio MausBot is entered the same way when the entry records it
+([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin` is in the
+public parts, the loopback port is not, and the code rides only in the fragment of
+`<mausbotOrigin>/pair`.
 
 ### The adapter
 

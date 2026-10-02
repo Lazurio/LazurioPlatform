@@ -8,14 +8,17 @@ does not authorize deployment, restart, access changes or resident removal.
 
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
-JSON Schema is vendored byte-for-byte in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#277** into `main` (commit
-`e41eb68453f3f8a6568f99c523aeaaf8cfa5ea0a`, SHA-256
-`0313169bb859aa7ee8372a96425c44e6b113bdeb4bcbd0bd490de76630f6479a`), which adds the
-third `owner.assignment` kind `automation` to the v0.12.93 schema and changes nothing
+JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
+from the merge of Machines pull request **#304** into `main` (commit
+`3d49ac09dd01868805bfb44bc1d99f8140d3bfe9`, SHA-256
+`b9f9a127bc50c290f99f8332120f0efe2ef42482815d1d79dda7810fb656cfd7`), which adds the
+optional `entry.mausbot` ([below](#the-hosted-entry-decision-f16)) and changes nothing
 else. No Machines release carries it yet, so the provenance names no version and no
 tag; the first release that does may add them with the same digest, and a digest
-other than this one is a new re-pin. The previous pin was
+other than this one is a new re-pin. Before it, the pin was the merge of Machines
+pull request **#277** (commit `e41eb68453f3f8a6568f99c523aeaaf8cfa5ea0a`, SHA-256
+`0313169bb859aa7ee8372a96425c44e6b113bdeb4bcbd0bd490de76630f6479a`), which added the
+third `owner.assignment` kind `automation` to the v0.12.93 schema. The previous pin was
 Machines **v0.12.93** (tag commit `ab84f387f517dd6bd06b2af2939a9a746a02533b`, the
 merge of pull request #243; SHA-256
 `1ccce08bd774aea62367085b13bb4afcc8c443f07a4b645f0ae7ebcd16aaf09d`), which added the
@@ -323,9 +326,16 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
                  "auth_cookie_name": "__Secure-lazurio-workspace",
                  "listen_port": 20000 },
   "t3code":    { "external_origin": "https://t3code.<vm>.<org>.lazurio.io" },
-  "modules":   { "origin_template": "https://{module}.<vm>.<org>.lazurio.io" }
+  "modules":   { "origin_template": "https://{module}.<vm>.<org>.lazurio.io" },
+  "mausbot":   { "external_origin": "https://mausbot.<vm>.<org>.lazurio.io",
+                 "listen_port": 4102 }
 }
 ```
+
+`mausbot` is optional and present only on a Machine that runs Lazurio MausBot
+(DEV-6632, decision 0169; pending the Machines pull request that writes it, see
+[the pin](#one-upstream-contract)). Absent, the Machine has no MausBot and the
+Launchpad shows nothing for it.
 
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
@@ -340,6 +350,13 @@ The binding records it one member to one, as `entry` next to the relationships:
 | `launchpad.listen_port` | `listenPort` | integer 1024–65535, never 0 |
 | `t3code.external_origin` | `t3codeOrigin` | as `externalOrigin` |
 | `modules.origin_template` | `moduleOriginTemplate` | `{module}` exactly once, as the whole first label; https, no port, path or query |
+| `mausbot.external_origin` | `mausbotOrigin` (optional) | as `externalOrigin` |
+| `mausbot.listen_port` | `mausbotListenPort` (optional) | as `listenPort` |
+
+The two MausBot fields are recorded both or neither, and absent (never `null`) when the
+handover has no `mausbot`, so an entry recorded from an older handover is unchanged
+byte for byte. A present but invalid `mausbot` refuses the whole handover
+(`machine-context-invalid`), as every other entry value does.
 
 The entry's values are kept exactly as written; nothing is normalized. The projection checks every
 value by the same rules the schema imposes and refuses the handover
@@ -361,7 +378,9 @@ a personal VM).
 ([hosted entry](hosted-entry.md)); it reads them when it starts, so a changed entry
 takes effect at its next start. `moduleOriginTemplate` gives the module links;
 `t3codeOrigin` is the Chat entry's link to T3 Code
-([Chat entry](launchpad-development.md#chat-entry)), used as recorded. The Platform composes
+([Chat entry](launchpad-development.md#chat-entry)), used as recorded; `mausbotOrigin`
+is the Lazurio MausBot entry's link and `mausbotListenPort` the loopback port its
+pairing code is minted on ([Lazurio MausBot entry](launchpad-development.md#lazurio-mausbot-entry)). The Platform composes
 nothing but one substitution: `moduleOrigin` (`src/launchpad/hosted-entry.ts`) fills
 the one `{module}` slot with `moduleLabel(id)`, the label the gateway serves the module
 at. That rule is the gateway's, not the Platform's, and textually the same as

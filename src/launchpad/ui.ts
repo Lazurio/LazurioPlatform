@@ -1,6 +1,12 @@
 import { createCatalogPanel } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
-import { chatHref, chatPairLink, parseEntryAnswer } from "./chat-view";
+import {
+  chatHref,
+  chatPairLink,
+  mausbotHref,
+  mausbotPairLink,
+  parseEntryAnswer,
+} from "./chat-view";
 import { type AssignmentView, assignmentText } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
@@ -47,12 +53,13 @@ let copy = messages(locale);
 // The recorded entry's public parts (`GET /api/entry`); null on a workstation
 // and until read. The Chat link and the Recovery page's T3 Code link.
 let entry: PublicEntry | null = null;
-const [chatMenu, chat] = ((menu, link) => {
-  if (!menu || !link) throw new Error("Missing chat UI");
-  return [menu, link] as const;
+const [chatMenu, chat, mausbot] = ((menu, link, bot) => {
+  if (!menu || !link || !bot) throw new Error("Missing chat UI");
+  return [menu, link, bot] as const;
 })(
   document.querySelector<HTMLUListElement>("#chat-menu"),
   document.querySelector<HTMLAnchorElement>("#chat"),
+  document.querySelector<HTMLAnchorElement>("#mausbot"),
 );
 // The Launchpad home: the catalog of this Folder's Organizations and modules
 // (launchpad-parity B1), drawn for the route the frame shows.
@@ -395,41 +402,69 @@ controls.apply.addEventListener("click", async () => {
 // resident did (`R:launchpad/public/app.js:2257-2281`); when there is none
 // (no T3 launcher, a failed call) it follows the plain origin, where T3 Code
 // itself asks an unpaired browser to pair. A modified click opens the plain
-// origin as a link does.
+// origin as a link does. Lazurio MausBot (DEV-6632) is entered the same way,
+// shown only when the entry records it; its pairing link opens MausBot's form
+// with the code filled in, and one Connect click there pairs the browser.
+function renderLink(link: HTMLAnchorElement, href: string | null) {
+  link.hidden = href === null;
+  const item = link.closest("li");
+  if (item) item.hidden = href === null;
+  if (href === null) link.removeAttribute("href");
+  else link.href = href;
+}
 function renderChat() {
   const href = chatHref(entry);
   chatMenu.hidden = href === null;
-  chat.hidden = href === null;
-  if (href === null) chat.removeAttribute("href");
-  else chat.href = href;
+  renderLink(chat, href);
   chat.title = copy.chatTitle;
+  renderLink(mausbot, mausbotHref(entry));
+  mausbot.title = copy.mausbotTitle;
 }
-chat.addEventListener("click", async (event) => {
-  const current = entry;
-  if (
-    current === null ||
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey
-  )
-    return;
-  event.preventDefault();
-  if (chat.getAttribute("aria-disabled") === "true") return;
-  chat.setAttribute("aria-disabled", "true");
-  let target = current.t3codeOrigin;
-  try {
-    const { value, ok } = await post("/api/chat/pair", {});
-    target = (ok && chatPairLink(value, current.t3codeOrigin)) || target;
-  } catch {}
-  location.assign(target);
-});
-// Back from T3 Code restores this page from the bfcache with the link still
-// held by the click that navigated away.
-window.addEventListener("pageshow", () =>
-  chat.removeAttribute("aria-disabled"),
+function followPaired(
+  link: HTMLAnchorElement,
+  path: string,
+  origin: (entry: PublicEntry) => string | undefined,
+  accept: (value: unknown, origin: string) => string | null,
+) {
+  link.addEventListener("click", async (event) => {
+    const plain = entry === null ? undefined : origin(entry);
+    if (
+      plain === undefined ||
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    if (link.getAttribute("aria-disabled") === "true") return;
+    link.setAttribute("aria-disabled", "true");
+    let target = plain;
+    try {
+      const { value, ok } = await post(path, {});
+      target = (ok && accept(value, plain)) || target;
+    } catch {}
+    location.assign(target);
+  });
+  // Back from the app restores this page from the bfcache with the link
+  // still held by the click that navigated away.
+  window.addEventListener("pageshow", () =>
+    link.removeAttribute("aria-disabled"),
+  );
+}
+followPaired(
+  chat,
+  "/api/chat/pair",
+  (current) => current.t3codeOrigin,
+  chatPairLink,
+);
+followPaired(
+  mausbot,
+  "/api/mausbot/pair",
+  (current) => current.mausbotOrigin,
+  mausbotPairLink,
 );
 async function readEntry() {
   try {

@@ -301,10 +301,10 @@ test("the Steward preset composes the Automated Environment of decision 0169", (
     defaults: { locale: "en", detail: "concise", coordination: "direct" },
     personalspace: "never",
     providerIdentity: "persona-account",
-    surfaces: ["launchpad", "hosted-entry", "openmausbot"],
+    surfaces: ["launchpad", "hosted-entry", "mausbot"],
     supervision: "os-service-manager",
     botTeam: {
-      runtime: "openmausbot",
+      runtime: "mausbot",
       workingFolder: "lazurio-folder",
       team: "lazurio/teams/steward.openmaus.json",
       githubIntake: {

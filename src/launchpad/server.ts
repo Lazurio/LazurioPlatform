@@ -46,6 +46,7 @@ import type { GithubAction } from "../tools/team-github";
 import { issueChatLink, publicEntry } from "./chat";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
+import { issueMausbotLink } from "./mausbot";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import {
   checkBundledPage,
@@ -390,6 +391,17 @@ export async function startLaunchpad(
           if (entry === null) return response({ error: "not-found" }, 404);
           server.timeout(request, 30);
           const result = await issueChatLink(entry, toolsEnvironment);
+          return response(result, result.kind === "blocked" ? 409 : 200);
+        }
+        if (url.pathname === "/api/mausbot/pair") {
+          // Lazurio MausBot (DEV-6632): a one-time pairing link, minted by
+          // MausBot's own API on its recorded loopback port. Only on a
+          // Machine whose entry records MausBot.
+          stateFields(input, []);
+          if (entry?.mausbotOrigin === undefined)
+            return response({ error: "not-found" }, 404);
+          server.timeout(request, 30);
+          const result = await issueMausbotLink(entry);
           return response(result, result.kind === "blocked" ? 409 : 200);
         }
         if (url.pathname === "/api/apps/discover") {

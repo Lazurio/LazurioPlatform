@@ -26,7 +26,7 @@ type MachineKind = "workstation" | MachineBinding["kind"];
 // may change them in Lazurio MausBot. None of it grants access: the persona
 // account's live GitHub rights are the limit.
 export type BotTeam = Readonly<{
-  runtime: "openmausbot";
+  runtime: "mausbot";
   /** `OMB_DEFAULT_BOT_CWD`: every new bot starts in the Lazurio Folder. */
   workingFolder: "lazurio-folder";
   /** The team imported from the installed Lazurio MausBot release, by its
@@ -63,7 +63,7 @@ export type WorkspacePreset = Readonly<{
   // `persona-account`: the persona's own machine GitHub user account, signed
   // in by the Environment's responsible operator (decision 0169).
   providerIdentity: "own-sign-in" | "brokered-organization" | "persona-account";
-  surfaces: readonly ("launchpad" | "hosted-entry" | "openmausbot")[];
+  surfaces: readonly ("launchpad" | "hosted-entry" | "mausbot")[];
   supervision: "session" | "os-service-manager";
   botTeam: BotTeam | null;
 }>;
@@ -138,14 +138,10 @@ const presets: Readonly<Record<PresetName, WorkspacePreset>> = Object.freeze({
     defaults,
     personalspace: "never",
     providerIdentity: "persona-account",
-    surfaces: Object.freeze([
-      "launchpad",
-      "hosted-entry",
-      "openmausbot",
-    ] as const),
+    surfaces: Object.freeze(["launchpad", "hosted-entry", "mausbot"] as const),
     supervision: "os-service-manager",
     botTeam: Object.freeze({
-      runtime: "openmausbot",
+      runtime: "mausbot",
       workingFolder: "lazurio-folder",
       team: "lazurio/teams/steward.openmaus.json",
       githubIntake: Object.freeze({

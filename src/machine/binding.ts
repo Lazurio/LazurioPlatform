@@ -73,6 +73,12 @@ function entry(input: HandoverEntry): MachineEntry {
       listenPort: input.launchpad.listen_port,
       t3codeOrigin: input.t3code.external_origin,
       moduleOriginTemplate: input.modules.origin_template,
+      ...(input.mausbot === undefined
+        ? {}
+        : {
+            mausbotOrigin: input.mausbot.external_origin,
+            mausbotListenPort: input.mausbot.listen_port,
+          }),
     });
   } catch {
     throw new MachineContextError("machine-context-invalid");
