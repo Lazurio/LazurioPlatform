@@ -1,12 +1,12 @@
 # Product update
 
-Status: **accepted direction of the Principal (2026-09-19, simplified the same
+Status: **accepted direction of Matěj (2026-09-19, simplified the same
 day), implementation in progress.** This document is the single contract for how
 an installed Lazurio learns about, obtains and activates a new product version.
 It replaces the earlier TUF-based contract and the pilot installer documents
 (decision [F13](decisions.md#f13--release-trust-is-github-artifact-attestation)).
 
-**Change of 2026-09-28: no program rollback.** The Principal decided that rollback
+**Change of 2026-09-28: no program rollback.** Matěj decided that rollback
 is not the safety net ("No back doors for rollback!"); it is decision
 [F21](decisions.md#f21--recovery-mode-instead-of-rollback), accepted the same day
 (root decision 0166). This contract describes the implementation: there is no
@@ -19,7 +19,7 @@ Nothing is deployed to real clients on this codebase yet, so it is written
 without a compatibility burden. After the first client deployment every change
 to it must be compatible.
 
-## What the Principal asked for
+## What Matěj asked for
 
 1. Update is a **conscious step**. Lazurio never activates a new version behind
    the user's back.
@@ -666,7 +666,7 @@ release runs, the migration removes all of it.
   is shown; it changes no state. `state-invalid` is shown with its path and offers no action. The page
   shows the pill only while an update is available or under way, after a failed
   update and with `state-invalid`; "up to date" and a running check show nothing
-  (Principal 2026-09-28, as in T3 Code). The Folder refresh line below is
+  (Matěj 2026-09-28, as in T3 Code). The Folder refresh line below is
   independent of the pill.
 - **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
   [--json]`, `--folder <Folder>` on `update` and `update status`,

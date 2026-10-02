@@ -493,7 +493,7 @@ contacting a running legacy Server or controlling a customer's module.
 
 ## Application lifetime — implemented for Linux, session-scoped on macOS
 
-Accepted by the Principal on 2026-09-19 ([decision F8](decisions.md#f8--the-os-service-manager-owns-long-running-applications)).
+Accepted by Matěj on 2026-09-19 ([decision F8](decisions.md#f8--the-os-service-manager-owns-long-running-applications)).
 Implemented for Linux as systemd user services on 2026-09-19; macOS keeps
 session-scoped applications. What is **not** done is listed at the end of this section.
 
@@ -878,7 +878,7 @@ qualification and installed CLI/Launchpad acceptance remain incomplete.
 `src/providers/github-repository.ts` performs a fixed read-only GraphQL query through
 an explicitly selected GitHub CLI executable and the caller's existing credential
 context. Viewer node ID and exact repository facts come from the same response.
-The expected viewer ID must come from the selected Principal context, not a profile
+The expected viewer ID must come from the selected Operator context, not a profile
 or repository name. Wrong viewer/repository, partial GraphQL errors, malformed
 fields, warnings, timeout and oversized output never produce positive evidence.
 Successful observations carry request start/completion times; they are not cached.

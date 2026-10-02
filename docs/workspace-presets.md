@@ -1,7 +1,7 @@
 # Workspace presets
 
 Status: **local preset model implemented (2026-09-22, names, derivation and
-adoption accepted by the Principal); typed owner requests remain accepted direction.
+adoption accepted by Matěj); typed owner requests remain accepted direction.
 The Steward preset (decision 0169, 2026-09-30) is proposed and implemented locally
 and derived from the handover value `automation` (Machines #277, pinned to its pull
 request head until it merges). New preset choices are narrowed to the stated
@@ -22,9 +22,9 @@ A named, versioned, declarative composition, shipped as data in
 | --- | --- |
 | Machine kinds | Which handover kinds the preset is allowed on (`workstation`, `personal-vm`, `workspace-vm`) |
 | Composition | The fixed profile axes the preset pins: `access` and `purpose` |
-| Defaults | Initial `locale`, `detail` and `coordination`; the Principal may change them |
-| Personalspace policy | `present` (intimate, one Principal) or `never` (Organization-owned Machine) |
-| Provider identity | The Principal's own sign-in, the brokered Organization identity, or the persona's own account |
+| Defaults | Initial `locale`, `detail` and `coordination`; the Operator may change them |
+| Personalspace policy | `present` (intimate, one person) or `never` (Organization-owned Machine) |
+| Provider identity | The Operator's own sign-in, the brokered Organization identity, or the persona's own account |
 | Enabled surfaces | Which installed surfaces are offered, for example Launchpad, hosted entry and Lazurio MausBot |
 | Supervision policy | Session-scoped applications or the OS service manager |
 | Bot team | `null`, or the defaults Lazurio MausBot starts the persona's bot team with ([Steward preset](#the-steward-preset-automated-environment)) |
@@ -46,12 +46,12 @@ Folder; Platform applies none of it.
 
 ## The presets
 
-| Preset | Machine | Principal here | Provider identity | Personalspace | Organization repositories |
+| Preset | Machine | Operator here | Provider identity | Personalspace | Organization repositories |
 | --- | --- | --- | --- | --- | --- |
-| `local` | The Principal's own workstation, no handover | The signed-in user | Own sign-in | Present | `organizations/<org>/` |
-| `hosted-personal` | A Principal's ONE personal VM (`machine.kind: personal-vm`) | The Machine's Owner; a Buddy is an optional resident of the same Machine | Own sign-in | Present and intimate | None mounted |
+| `local` | The Operator's own workstation, no handover | The signed-in user | Own sign-in | Present | `organizations/<org>/` |
+| `hosted-personal` | A person's ONE personal VM (`machine.kind: personal-vm`) | The Machine's Owner; a Buddy is an optional resident of the same Machine | Own sign-in | Present and intimate | None mounted |
 | `hosted-organization-personal` | An Organization-owned work VM assigned to ONE operator (`workspace-vm`) | The assigned operator | Own sign-in | Never present | `organizations/<org>/` |
-| `hosted-organization-team` | An Organization-owned team VM, one OS account, several Principals (`workspace-vm`) | The connected Team member; the OS account is not a person | Brokered Organization identity; no personal credentials | Never present | `organizations/<org>/` |
+| `hosted-organization-team` | An Organization-owned team VM, one OS account, several people (`workspace-vm`) | The connected Team member; the OS account is not a person | Brokered Organization identity; no personal credentials | Never present | `organizations/<org>/` |
 | `hosted-organization-steward` | The Automated Environment of an Organization persona (`workspace-vm`), decision 0169 | The one responsible operator, an Owner or Admin of the Organization; the persona's bot team works here | The persona's own GitHub user account (a bot account), signed in by the operator | Never present | `organizations/<org>/` |
 
 The earlier names `hosted-private` and `hosted-team` were never implemented and were
@@ -196,10 +196,10 @@ that recorded the Steward preset explicitly (Platform #106, before #277) keeps i
 
 | | Where it comes from | Launchpad |
 | --- | --- | --- |
-| Machine identity: kind, name, Owner (Principal or Organization + Team), tailnet node, host | The handover, recorded at adoption as part of the **Machine binding**; immutable | Shown only |
+| Machine identity: kind, name, Owner (a person or Organization + Team), tailnet node, host | The handover, recorded at adoption as part of the **Machine binding**; immutable | Shown only |
 | Assignment and relationships when the handover carries them, handover digest | The current handover; `machine folder-refresh` re-records them in the binding | Shown only |
 | Preset | Derived, confirmed or explicitly chosen among the selectable presets; a recorded one stays valid within the allow-list | Changeable through the ordinary preview → apply profile change, to the recorded preset or a selectable one |
-| Communication axes `locale`, `detail`, `coordination` | Preset defaults, then the Principal | Changeable through the same flow |
+| Communication axes `locale`, `detail`, `coordination` | Preset defaults, then the Operator | Changeable through the same flow |
 | Fixed axes `access`, `purpose` | The preset's composition | Not controls; a request whose fixed axes disagree with the preset is a blocked plan |
 
 There is one change path. CLI (`profile-preview`/`profile-update --preset`), Launchpad
@@ -320,7 +320,7 @@ a re-pin and conformance test here.
 - `hosted-personal`: the private canary journey in
   [acceptance](acceptance.md#nearest-pilot-sequence) on a real personal VM.
 - `hosted-organization-personal`: the same journey on a real work VM.
-- `hosted-organization-team`: shared use by several Principals, conflict handling,
+- `hosted-organization-team`: shared use by several people, conflict handling,
   attribution of every change to the Team through the brokered identity, and
   revocation on GitHub blocking the next provider operation. Live Team-grant
   verification in the broker is an external dependency under upstream decisions 0147
