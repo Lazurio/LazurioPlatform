@@ -1238,12 +1238,21 @@ checkout for the Operator without losing work.
    `busy`. The product itself still activates nothing on its own.
 2. Until content synchronization exists (F9, [content synchronization](content-sync.md),
    not implemented), the agent pulls the clean checkouts of Organizations and modules
-   with `git pull --ff-only` and brings a diverged one back without losing work:
-   uncommitted changes into a task worktree or a named stash, unpushed commits onto a
-   branch of their own that is pushed with a pull request, and only then the default
-   branch back to `origin`. A merge or rebase in progress is left alone and reported.
-   Branches and stashes are never deleted, and `git clean` and force pushes are never
-   used. `productionspace/` and Personalspace stay out.
+   with `git pull --ff-only` and brings a diverged one back without losing work. It
+   keeps all the work first:
+   - a nested repository is saved in itself and moved out of the checkout, because a
+     stash of the outer checkout skips it;
+   - uncommitted changes go into a task worktree or a named stash;
+   - unpushed commits go onto a branch of their own, pushed with a pull request.
+
+   Only then is the checkout aligned, with `git checkout -B <branch> origin/<branch>`,
+   after the paths it changes were compared with the untracked and ignored entries.
+   That command refuses to overwrite an untracked file, and an overlap with an ignored
+   one stops the agent. `git reset --hard` is never used: in review, Pablo showed that
+   it overwrites the files of an untracked nested repository the stash skipped. A
+   merge or rebase in progress is left alone and reported. Branches and stashes are
+   never deleted, and `git clean` and force pushes are never used. `productionspace/`
+   and Personalspace stay out.
 3. The Operator's tools stay the Operator's (root decision 0161): when the agent finds a
    newer version, it offers it and runs `lazurio tools update <tool>` only with the
    Operator's consent in the thread.

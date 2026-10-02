@@ -1111,11 +1111,13 @@ Every failure before the switch leaves the installed product as it was and the s
 The product does not synchronize content yet (decision F9), so keep the checkouts of Organizations and modules current yourself, right after \`lazurio update\`. \`productionspace/\` has rules of its own; leave it out.
 
 - Update a clean checkout on its default branch with \`git pull --ff-only\`.
-- Bring a diverged checkout back so that no work is lost: keep the work first, and only then return the checkout to its default branch and pull it.
+- Bring a diverged checkout back so that no work is lost. Keep all the work first:
+  - A stash of the outer checkout skips a nested repository (a subdirectory with its own \`.git\`). Save its work in it, with a commit on a branch of its own and a push, and move the whole repository out of the checkout, where the rule on clones puts it.
   - Move uncommitted changes into a worktree with a branch of its own when they belong to work in progress; otherwise save them in a named stash (\`git stash push --include-untracked -m 'lazurio update <date>'\`).
-  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it. Only then align the default branch with \`origin\` (\`git reset --hard origin/<branch>\`).
+  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it.
   - Leave a merge or rebase in progress alone and tell the Operator; someone may be working on it right now.
-- Never delete branches or stashes, never run \`git clean\` and never push with \`--force\`.
+- Only then align the checkout with the remote: \`git checkout -B <branch> origin/<branch>\`. It refuses to overwrite an untracked file but overwrites an ignored one, so first compare the paths that will change (\`git diff --name-only HEAD origin/<branch>\`) with the untracked and ignored entries (\`git status --porcelain --ignored\`). When any path overlaps, or Git refuses, stop and tell the Operator.
+- Never use \`git reset --hard\` or \`git clean\`, never push with \`--force\`, and never delete branches or stashes.
 - Tell the Operator what you moved where.
 
 ## The Environment's identity
@@ -1184,11 +1186,13 @@ Každé selhání před přepnutím nechá nainstalovaný produkt, jak byl, a st
 Synchronizaci obsahu produkt zatím neumí (decision F9), proto checkouty Organizací a modulů drž aktuální sám, hned po \`lazurio update\`. \`productionspace/\` má vlastní pravidla a do toho nesahej.
 
 - Čistý checkout na výchozí branchi aktualizuj \`git pull --ff-only\`.
-- Rozjetý checkout srovnej tak, aby se žádná práce neztratila: nejdřív ji zachovej, teprve potom checkout vrať na výchozí branch a stáhni ji.
+- Rozjetý checkout srovnej tak, aby se žádná práce neztratila. Nejdřív všechnu práci zachovej:
+  - Vnořený repozitář (podsložka s vlastním \`.git\`) stash nadřazeného checkoutu přeskočí. Jeho práci ulož v něm samém, commitem na vlastní branch a pushem, a celý ho přesuň mimo checkout, kam patří podle pravidla o klonech.
   - Necommitnuté změny přesuň do worktree s vlastní branchí, patří-li k rozpracované práci; jinak je ulož do pojmenovaného stashe (\`git stash push --include-untracked -m 'lazurio update <datum>'\`).
-  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request. Výchozí branch srovnej s \`origin\` (\`git reset --hard origin/<branch>\`) teprve potom.
+  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request.
   - Nedokončený merge nebo rebase nech být a řekni o něm Operátorovi; může na něm někdo právě pracovat.
-- Nikdy nemaž branche ani stashe, nespouštěj \`git clean\` a nepushuj s \`--force\`.
+- Teprve potom checkout srovnej s remote příkazem \`git checkout -B <branch> origin/<branch>\`. Netrackovaný soubor odmítne přepsat, ignorovaný ale přepíše. Proto nejdřív porovnej cesty, které se změní (\`git diff --name-only HEAD origin/<branch>\`), s netrackovanými a ignorovanými položkami (\`git status --porcelain --ignored\`). Když se jakákoli cesta kryje nebo Git srovnání odmítne, zastav se a řekni to Operátorovi.
+- Nikdy nepoužívej \`git reset --hard\` ani \`git clean\`, nepushuj s \`--force\` a nemaž branche ani stashe.
 - Operátorovi řekni, co jsi kam přesunul.
 
 ## Identita Environmentu
@@ -1379,11 +1383,13 @@ Nástroj Operátora je první spustitelný soubor svého jména v \`~/.local/bin
 Synchronizaci obsahu produkt zatím neumí (decision F9), proto checkouty Organizací a modulů drž aktuální sám, hned po \`lazurio update\`. \`productionspace/\` má vlastní pravidla a do toho nesahej.
 
 - Čistý checkout na výchozí branchi aktualizuj \`git pull --ff-only\`.
-- Rozjetý checkout srovnej tak, aby se žádná práce neztratila: nejdřív ji zachovej, teprve potom checkout vrať na výchozí branch a stáhni ji.
+- Rozjetý checkout srovnej tak, aby se žádná práce neztratila. Nejdřív všechnu práci zachovej:
+  - Vnořený repozitář (podsložka s vlastním \`.git\`) stash nadřazeného checkoutu přeskočí. Jeho práci ulož v něm samém, commitem na vlastní branch a pushem, a celý ho přesuň mimo checkout, kam patří podle pravidla o klonech.
   - Necommitnuté změny přesuň do worktree s vlastní branchí, patří-li k rozpracované práci; jinak je ulož do pojmenovaného stashe (\`git stash push --include-untracked -m 'lazurio update <datum>'\`).
-  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request. Výchozí branch srovnej s \`origin\` (\`git reset --hard origin/<branch>\`) teprve potom.
+  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request.
   - Nedokončený merge nebo rebase nech být a řekni o něm Operátorovi; může na něm někdo právě pracovat.
-- Nikdy nemaž branche ani stashe, nespouštěj \`git clean\` a nepushuj s \`--force\`.
+- Teprve potom checkout srovnej s remote příkazem \`git checkout -B <branch> origin/<branch>\`. Netrackovaný soubor odmítne přepsat, ignorovaný ale přepíše. Proto nejdřív porovnej cesty, které se změní (\`git diff --name-only HEAD origin/<branch>\`), s netrackovanými a ignorovanými položkami (\`git status --porcelain --ignored\`). Když se jakákoli cesta kryje nebo Git srovnání odmítne, zastav se a řekni to Operátorovi.
+- Nikdy nepoužívej \`git reset --hard\` ani \`git clean\`, nepushuj s \`--force\` a nemaž branche ani stashe.
 - Operátorovi řekni, co jsi kam přesunul.
 
 ## Identita Environmentu
@@ -1452,11 +1458,13 @@ An Operator tool is the first executable of its name in \`~/.local/bin\` on the 
 The product does not synchronize content yet (decision F9), so keep the checkouts of Organizations and modules current yourself, right after \`lazurio update\`. \`productionspace/\` has rules of its own; leave it out.
 
 - Update a clean checkout on its default branch with \`git pull --ff-only\`.
-- Bring a diverged checkout back so that no work is lost: keep the work first, and only then return the checkout to its default branch and pull it.
+- Bring a diverged checkout back so that no work is lost. Keep all the work first:
+  - A stash of the outer checkout skips a nested repository (a subdirectory with its own \`.git\`). Save its work in it, with a commit on a branch of its own and a push, and move the whole repository out of the checkout, where the rule on clones puts it.
   - Move uncommitted changes into a worktree with a branch of its own when they belong to work in progress; otherwise save them in a named stash (\`git stash push --include-untracked -m 'lazurio update <date>'\`).
-  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it. Only then align the default branch with \`origin\` (\`git reset --hard origin/<branch>\`).
+  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it.
   - Leave a merge or rebase in progress alone and tell the Operator; someone may be working on it right now.
-- Never delete branches or stashes, never run \`git clean\` and never push with \`--force\`.
+- Only then align the checkout with the remote: \`git checkout -B <branch> origin/<branch>\`. It refuses to overwrite an untracked file but overwrites an ignored one, so first compare the paths that will change (\`git diff --name-only HEAD origin/<branch>\`) with the untracked and ignored entries (\`git status --porcelain --ignored\`). When any path overlaps, or Git refuses, stop and tell the Operator.
+- Never use \`git reset --hard\` or \`git clean\`, never push with \`--force\`, and never delete branches or stashes.
 - Tell the Operator what you moved where.
 
 ## The Environment's identity
@@ -1526,11 +1534,13 @@ Nástroj Operátora je první spustitelný soubor svého jména v \`~/.local/bin
 Synchronizaci obsahu produkt zatím neumí (decision F9), proto checkouty Organizací a modulů drž aktuální sám, hned po \`lazurio update\`. \`productionspace/\` má vlastní pravidla a do toho nesahej.
 
 - Čistý checkout na výchozí branchi aktualizuj \`git pull --ff-only\`.
-- Rozjetý checkout srovnej tak, aby se žádná práce neztratila: nejdřív ji zachovej, teprve potom checkout vrať na výchozí branch a stáhni ji.
+- Rozjetý checkout srovnej tak, aby se žádná práce neztratila. Nejdřív všechnu práci zachovej:
+  - Vnořený repozitář (podsložka s vlastním \`.git\`) stash nadřazeného checkoutu přeskočí. Jeho práci ulož v něm samém, commitem na vlastní branch a pushem, a celý ho přesuň mimo checkout, kam patří podle pravidla o klonech.
   - Necommitnuté změny přesuň do worktree s vlastní branchí, patří-li k rozpracované práci; jinak je ulož do pojmenovaného stashe (\`git stash push --include-untracked -m 'lazurio update <datum>'\`).
-  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request. Výchozí branch srovnej s \`origin\` (\`git reset --hard origin/<branch>\`) teprve potom.
+  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request.
   - Nedokončený merge nebo rebase nech být a řekni o něm Operátorovi; může na něm někdo právě pracovat.
-- Nikdy nemaž branche ani stashe, nespouštěj \`git clean\` a nepushuj s \`--force\`.
+- Teprve potom checkout srovnej s remote příkazem \`git checkout -B <branch> origin/<branch>\`. Netrackovaný soubor odmítne přepsat, ignorovaný ale přepíše. Proto nejdřív porovnej cesty, které se změní (\`git diff --name-only HEAD origin/<branch>\`), s netrackovanými a ignorovanými položkami (\`git status --porcelain --ignored\`). Když se jakákoli cesta kryje nebo Git srovnání odmítne, zastav se a řekni to Operátorovi.
+- Nikdy nepoužívej \`git reset --hard\` ani \`git clean\`, nepushuj s \`--force\` a nemaž branche ani stashe.
 - Operátorovi řekni, co jsi kam přesunul.
 
 ## Identita Environmentu
@@ -1600,11 +1610,13 @@ An Operator tool is the first executable of its name in \`~/.local/bin\` on the 
 The product does not synchronize content yet (decision F9), so keep the checkouts of Organizations and modules current yourself, right after \`lazurio update\`. \`productionspace/\` has rules of its own; leave it out.
 
 - Update a clean checkout on its default branch with \`git pull --ff-only\`.
-- Bring a diverged checkout back so that no work is lost: keep the work first, and only then return the checkout to its default branch and pull it.
+- Bring a diverged checkout back so that no work is lost. Keep all the work first:
+  - A stash of the outer checkout skips a nested repository (a subdirectory with its own \`.git\`). Save its work in it, with a commit on a branch of its own and a push, and move the whole repository out of the checkout, where the rule on clones puts it.
   - Move uncommitted changes into a worktree with a branch of its own when they belong to work in progress; otherwise save them in a named stash (\`git stash push --include-untracked -m 'lazurio update <date>'\`).
-  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it. Only then align the default branch with \`origin\` (\`git reset --hard origin/<branch>\`).
+  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it.
   - Leave a merge or rebase in progress alone and tell the Operator; someone may be working on it right now.
-- Never delete branches or stashes, never run \`git clean\` and never push with \`--force\`.
+- Only then align the checkout with the remote: \`git checkout -B <branch> origin/<branch>\`. It refuses to overwrite an untracked file but overwrites an ignored one, so first compare the paths that will change (\`git diff --name-only HEAD origin/<branch>\`) with the untracked and ignored entries (\`git status --porcelain --ignored\`). When any path overlaps, or Git refuses, stop and tell the Operator.
+- Never use \`git reset --hard\` or \`git clean\`, never push with \`--force\`, and never delete branches or stashes.
 - Tell the Operator what you moved where.
 
 ## The Environment's identity
@@ -1673,11 +1685,13 @@ Nástroj Operátora je první spustitelný soubor svého jména v \`~/.local/bin
 Synchronizaci obsahu produkt zatím neumí (decision F9), proto checkouty Organizací a modulů drž aktuální sám, hned po \`lazurio update\`. \`productionspace/\` má vlastní pravidla a do toho nesahej.
 
 - Čistý checkout na výchozí branchi aktualizuj \`git pull --ff-only\`.
-- Rozjetý checkout srovnej tak, aby se žádná práce neztratila: nejdřív ji zachovej, teprve potom checkout vrať na výchozí branch a stáhni ji.
+- Rozjetý checkout srovnej tak, aby se žádná práce neztratila. Nejdřív všechnu práci zachovej:
+  - Vnořený repozitář (podsložka s vlastním \`.git\`) stash nadřazeného checkoutu přeskočí. Jeho práci ulož v něm samém, commitem na vlastní branch a pushem, a celý ho přesuň mimo checkout, kam patří podle pravidla o klonech.
   - Necommitnuté změny přesuň do worktree s vlastní branchí, patří-li k rozpracované práci; jinak je ulož do pojmenovaného stashe (\`git stash push --include-untracked -m 'lazurio update <datum>'\`).
-  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request. Výchozí branch srovnej s \`origin\` (\`git reset --hard origin/<branch>\`) teprve potom.
+  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request.
   - Nedokončený merge nebo rebase nech být a řekni o něm Operátorovi; může na něm někdo právě pracovat.
-- Nikdy nemaž branche ani stashe, nespouštěj \`git clean\` a nepushuj s \`--force\`.
+- Teprve potom checkout srovnej s remote příkazem \`git checkout -B <branch> origin/<branch>\`. Netrackovaný soubor odmítne přepsat, ignorovaný ale přepíše. Proto nejdřív porovnej cesty, které se změní (\`git diff --name-only HEAD origin/<branch>\`), s netrackovanými a ignorovanými položkami (\`git status --porcelain --ignored\`). Když se jakákoli cesta kryje nebo Git srovnání odmítne, zastav se a řekni to Operátorovi.
+- Nikdy nepoužívej \`git reset --hard\` ani \`git clean\`, nepushuj s \`--force\` a nemaž branche ani stashe.
 - Operátorovi řekni, co jsi kam přesunul.
 
 ## Identita Environmentu
@@ -1746,11 +1760,13 @@ An Operator tool is the first executable of its name in \`~/.local/bin\` on the 
 The product does not synchronize content yet (decision F9), so keep the checkouts of Organizations and modules current yourself, right after \`lazurio update\`. \`productionspace/\` has rules of its own; leave it out.
 
 - Update a clean checkout on its default branch with \`git pull --ff-only\`.
-- Bring a diverged checkout back so that no work is lost: keep the work first, and only then return the checkout to its default branch and pull it.
+- Bring a diverged checkout back so that no work is lost. Keep all the work first:
+  - A stash of the outer checkout skips a nested repository (a subdirectory with its own \`.git\`). Save its work in it, with a commit on a branch of its own and a push, and move the whole repository out of the checkout, where the rule on clones puts it.
   - Move uncommitted changes into a worktree with a branch of its own when they belong to work in progress; otherwise save them in a named stash (\`git stash push --include-untracked -m 'lazurio update <date>'\`).
-  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it. Only then align the default branch with \`origin\` (\`git reset --hard origin/<branch>\`).
+  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it.
   - Leave a merge or rebase in progress alone and tell the Operator; someone may be working on it right now.
-- Never delete branches or stashes, never run \`git clean\` and never push with \`--force\`.
+- Only then align the checkout with the remote: \`git checkout -B <branch> origin/<branch>\`. It refuses to overwrite an untracked file but overwrites an ignored one, so first compare the paths that will change (\`git diff --name-only HEAD origin/<branch>\`) with the untracked and ignored entries (\`git status --porcelain --ignored\`). When any path overlaps, or Git refuses, stop and tell the Operator.
+- Never use \`git reset --hard\` or \`git clean\`, never push with \`--force\`, and never delete branches or stashes.
 - Tell the Operator what you moved where.
 
 ## The Environment's identity

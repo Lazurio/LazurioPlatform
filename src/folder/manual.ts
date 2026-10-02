@@ -792,24 +792,32 @@ const checkouts: readonly Text[] = [
     "- Update a clean checkout on its default branch with `git pull --ff-only`.",
   ),
   t(
-    "- Rozjetý checkout srovnej tak, aby se žádná práce neztratila: nejdřív ji zachovej, teprve potom checkout vrať na výchozí branch a stáhni ji.",
-    "- Bring a diverged checkout back so that no work is lost: keep the work first, and only then return the checkout to its default branch and pull it.",
+    "- Rozjetý checkout srovnej tak, aby se žádná práce neztratila. Nejdřív všechnu práci zachovej:",
+    "- Bring a diverged checkout back so that no work is lost. Keep all the work first:",
+  ),
+  t(
+    "  - Vnořený repozitář (podsložka s vlastním `.git`) stash nadřazeného checkoutu přeskočí. Jeho práci ulož v něm samém, commitem na vlastní branch a pushem, a celý ho přesuň mimo checkout, kam patří podle pravidla o klonech.",
+    "  - A stash of the outer checkout skips a nested repository (a subdirectory with its own `.git`). Save its work in it, with a commit on a branch of its own and a push, and move the whole repository out of the checkout, where the rule on clones puts it.",
   ),
   t(
     "  - Necommitnuté změny přesuň do worktree s vlastní branchí, patří-li k rozpracované práci; jinak je ulož do pojmenovaného stashe (`git stash push --include-untracked -m 'lazurio update <datum>'`).",
     "  - Move uncommitted changes into a worktree with a branch of its own when they belong to work in progress; otherwise save them in a named stash (`git stash push --include-untracked -m 'lazurio update <date>'`).",
   ),
   t(
-    "  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request. Výchozí branch srovnej s `origin` (`git reset --hard origin/<branch>`) teprve potom.",
-    "  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it. Only then align the default branch with `origin` (`git reset --hard origin/<branch>`).",
+    "  - Commity, které nejsou na remote (na výchozí branchi i jinde), dej na vlastní branch, pushni ji a otevři k ní pull request.",
+    "  - Put commits that are not on the remote (on the default branch or elsewhere) on a branch of their own, push it and open a pull request for it.",
   ),
   t(
     "  - Nedokončený merge nebo rebase nech být a řekni o něm Operátorovi; může na něm někdo právě pracovat.",
     "  - Leave a merge or rebase in progress alone and tell the Operator; someone may be working on it right now.",
   ),
   t(
-    "- Nikdy nemaž branche ani stashe, nespouštěj `git clean` a nepushuj s `--force`.",
-    "- Never delete branches or stashes, never run `git clean` and never push with `--force`.",
+    "- Teprve potom checkout srovnej s remote příkazem `git checkout -B <branch> origin/<branch>`. Netrackovaný soubor odmítne přepsat, ignorovaný ale přepíše. Proto nejdřív porovnej cesty, které se změní (`git diff --name-only HEAD origin/<branch>`), s netrackovanými a ignorovanými položkami (`git status --porcelain --ignored`). Když se jakákoli cesta kryje nebo Git srovnání odmítne, zastav se a řekni to Operátorovi.",
+    "- Only then align the checkout with the remote: `git checkout -B <branch> origin/<branch>`. It refuses to overwrite an untracked file but overwrites an ignored one, so first compare the paths that will change (`git diff --name-only HEAD origin/<branch>`) with the untracked and ignored entries (`git status --porcelain --ignored`). When any path overlaps, or Git refuses, stop and tell the Operator.",
+  ),
+  t(
+    "- Nikdy nepoužívej `git reset --hard` ani `git clean`, nepushuj s `--force` a nemaž branche ani stashe.",
+    "- Never use `git reset --hard` or `git clean`, never push with `--force`, and never delete branches or stashes.",
   ),
   t(
     "- Operátorovi řekni, co jsi kam přesunul.",
