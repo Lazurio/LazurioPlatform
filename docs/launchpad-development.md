@@ -59,8 +59,8 @@ The Launchpad is one page with two views (decision F15 addendum 2026-09-28): the
 Launchpad home and Settings. Since slice P4 of the Launchpad parity the home is the
 catalog of the Folder's Organizations and modules
 ([below](#launchpad-home-the-catalog)); the addendum's sentence that the development
-Application panel stays on the home needs the Principal's amendment. Settings follows
-the settings UX of T3 Code, as the Principal asked, in plain CSS inside
+Application panel stays on the home needs Matěj's amendment. Settings follows
+the settings UX of T3 Code, as Matěj asked, in plain CSS inside
 `src/launchpad/index.html` and without a framework or a new dependency.
 
 **Routes.** `/settings/general`, `/settings/machine`, `/settings/tools` and
@@ -86,7 +86,7 @@ the frame.
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
 | This Environment (read-only handover) | Settings → This Environment, one row per recorded fact |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
-| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Principal 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
+| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
@@ -121,7 +121,7 @@ the frame.
   through `prefers-color-scheme`; the system font stack.
 
 **Deliberate differences.** Moving between sections adds a history entry (T3 Code
-replaces it), so back and forward move between sections as the Principal asked.
+replaces it), so back and forward move between sections as Matěj asked.
 Choosing a section keeps the focus on the navigation item as in T3 Code, but every
 other move (Settings, Back, the breadcrumb, back/forward, a section chosen in the
 narrow sheet) focuses the heading of the new view and the document title names it.
@@ -134,7 +134,7 @@ T3 Code's immediate apply. Icons are Lucide (ISC), inlined as SVG symbols.
 ## Launchpad home: the catalog
 
 Slice P4 of the Launchpad parity (shaping `docs/launchpad-parity.md` B1 on its review
-branch; decision F22, whose points the Principal decided on 2026-09-28). The home shows the
+branch; decision F22, whose points Matěj decided on 2026-09-28). The home shows the
 Organizations and modules of the Folder the Launchpad serves; the developer form and
 its "Development fixture only" banner are gone.
 
@@ -239,9 +239,9 @@ own `personalspace` field, not in `organizations`, so no reader of Organizations
 Doctor's checks, the table of `organization list`) lists it by accident; `module
 list`, the selection rule (`catalogGroups` in `catalog-selection.ts`) and the page add
 it after the Organizations. Exactly one owner directory is expected (hidden entries
-are skipped): with two or more, which one is the Principal's is not guessed, none is
+are skipped): with two or more, which one is the Operator's is not guessed, none is
 read, and the group is listed with `personalspace-ambiguous` and no modules (decision
-0091); an owner directory or `workspace/` that is not the operator's own is
+0091); an owner directory or `workspace/` that is not the Operator's own is
 `personalspace-unavailable`. An Organization whose slug is `personalspace` is
 ambiguous with the group under the selection rule. The resident addressed these apps
 as `<owner login>/<module>` (its `company` was the owner,
@@ -739,7 +739,7 @@ status" (with them again), and shows:
 
 - a short introduction: what tools are, that "Used by agents" guides the agents on this
   Environment to use a tool, and that installing, uninstalling, signing in and signing
-  out are separate acts (the Principal's wording, 2026-09-28; said once per page, not
+  out are separate acts (Matěj's wording, 2026-09-28; said once per page, not
   on every row);
 - on a shared Environment (the Team preset) the warning that signed-in accounts are
   shared by all operators; it is repeated in the confirmation of an enable;
@@ -759,7 +759,7 @@ status" (with them again), and shows:
   of "Install and sign in" while gh is missing (its notice ends with the Team
   sentence); a subdued sentence says that this Team Environment works in GitHub through
   Lazurio for GitHub, set up by the Organization, and that personal GitHub accounts are
-  not signed in here (Principal 2026-09-28). Its sign-in line stays, in the neutral
+  not signed in here (Matěj 2026-09-28). Its sign-in line stays, in the neutral
   colour, reads "Works as lazurio-for-github[bot]" when gh works as the Organization's
   App identity (the brokered gh), and goes on with "· Uses Lazurio for GitHub" instead
   of the state of an SSH key. The agent fallback in Details hands gh's Team prompt,

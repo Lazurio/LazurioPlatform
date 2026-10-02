@@ -50,7 +50,7 @@ interim implementation of the same compatibility-state table, not a second schem
   **transition-only** (variant A, F12 as accepted: only parity-valid `transition`
   executes, a canonical-only `current` root is observable and inspection-only) and
   **transition-and-current** (variant B: `current` executes as well). The default is
-  **variant B, decided by the Principal on 2026-09-28** (question H1 of the
+  **variant B, decided by Matěj on 2026-09-28** (question H1 of the
   Launchpad parity shaping, decision F22 point 1): the checkout exists because
   GitHub allowed the clone, and the projection gate was migration machinery.
   Variant A stays one line away for the record and tests cover both variants. Under either variant `legacy`, `projection_drift`,
@@ -81,7 +81,7 @@ interim implementation of the same compatibility-state table, not a second schem
 
 ## Exit from transition-only admission
 
-**Decided 2026-09-28 by the Principal (question H1 of the Launchpad parity shaping,
+**Decided 2026-09-28 by Matěj (question H1 of the Launchpad parity shaping,
 decision F22 point 1): the transition-only gate is retired and this section is a
 historical record.** Admission runs variant B (see the execution admission bullet
 above): a parity-valid `transition` root and a canonical-only `current` root both

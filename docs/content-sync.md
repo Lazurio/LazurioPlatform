@@ -1,6 +1,6 @@
 # Content synchronization
 
-Status: **accepted direction of the Principal (2026-09-19); not implemented.** No
+Status: **accepted direction of Matěj (2026-09-19); not implemented.** No
 Platform command clones, fetches or fast-forwards an Organization repository today.
 This document is the contract for that future operation and for its separation from
 product update. See [decision F9](decisions.md#f9--update-lazurio-and-synchronize-content-are-separate-operations).
@@ -22,7 +22,7 @@ must never select, download or activate a product version.
 
 ## Explicit only
 
-Synchronization runs only when a Principal or an authorized Task Agent invokes it for a
+Synchronization runs only when an Operator or an authorized Task Agent invokes it for a
 selected Organization. No first render, status request, health check, login, product
 update or Launchpad start synchronizes anything. Read-only inspection may report that
 content is behind; it fetches nothing.
@@ -82,7 +82,7 @@ Following the exclusions of upstream decision 0129, these are never synchronized
 materialized or inspected for cleanliness by this operation:
 
 - Production Space repositories, which keep their own branch and release models;
-- Personalspace, which is private to its Principal and absent from
+- Personalspace, which is private to its Owner and absent from
   Organization-owned Machines;
 - worktrees, including task and pull-request worktrees of any repository;
 - repository databases, which publish through their own application contract.
@@ -92,7 +92,7 @@ materialized or inspected for cleanliness by this operation:
 Rights are checked at the operation boundary through the identity the workspace is
 meant to use, as selected by its [workspace preset](workspace-presets.md):
 
-- private workspace or local Machine: the Principal's own provider sign-in;
+- private workspace or local Machine: the Operator's own provider sign-in;
 - team workspace: the brokered Organization identity, one short-lived
   repository-scoped token per operation.
 

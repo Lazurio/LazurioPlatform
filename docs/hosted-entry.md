@@ -1,6 +1,6 @@
 # Hosted entry: admission versus identity
 
-Status: **accepted direction of the Principal (2026-09-19); the adapter for the hosted
+Status: **accepted direction of Matěj (2026-09-19); the adapter for the hosted
 VM path is implemented (`src/launchpad/hosted-trust.ts`, the entry recorded on the
 Machine binding from the handover), verified by unit tests against a fake auth endpoint
 and by a [native run behind a stand-in gateway](evidence/hosted-entry-linux-arm64-2026-09-26.md);
@@ -33,7 +33,7 @@ uses; Platform preserves it rather than inventing a header contract.
 
 Admission failure, an unreachable auth endpoint, a redirect to an unexpected origin or
 a malformed answer all deny. Admission answers "this session may enter this
-workspace"; it names no Principal for provider operations and grants no repository
+workspace"; it names no Operator for provider operations and grants no repository
 right.
 
 ## Lazurio Account
