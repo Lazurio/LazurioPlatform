@@ -196,8 +196,9 @@ compatibility with older manifests, the legacy alias, the `workspaces` list and 
 singular `workspace`; blank entries and `productionspace` are dropped; nothing left means
 the default Team `workspace` (decision 0041, as the resident's Launchpad README says).
 `teamsSource` is `teams`, `legacy-alias` or `default`. An Organization with any
-`legacy-alias` module is named once, never per module: a note under the CLI tables and a
-"Team membership" fact on its page, so its manifest can be migrated to `teams`.
+`legacy-alias` module is named once, never per module, in a note under the CLI tables,
+so its manifest can be migrated to `teams`. Teams are for the CLI and the catalog's
+JSON: the Launchpad shows none (decision F32, an Environment is one workspace).
 
 **CLI first.** `lazurio organization list [--folder <F>] [--json]` prints the catalog
 (`--json`: exactly the object below), `lazurio module list [<Org>] [--folder <F>]
@@ -253,9 +254,9 @@ transient unit's readable name (`applicationUnitName`), as it was in the residen
 inventory.
 
 **Routes.** `/` is every Organization's modules with their default app; `/o/<org>` one
-Organization (directory, resolution state, Teams, issues, then its modules per Team);
-`/o/<org>/<module>` one module (Organization, Teams, apps with the default marked,
-path, resolution state, whether it can run). `<org>` is selected by the CLI's rule
+Organization (directory, resolution state, issues, then its modules);
+`/o/<org>/<module>` one module (Organization, apps with the default marked,
+path, resolution state, whether it can run). No route shows Teams (F32). `<org>` is selected by the CLI's rule
 above and each segment is URL-encoded. A candidate's own route uses the name that
 selects exactly it: its slug, otherwise its directory name (an Organization that
 could not be read, or one of two candidates of a slug whose directory is not a slug);
@@ -270,18 +271,31 @@ focus on the heading, the breadcrumb "Organization / module", the document title
 **Sidebar in T3 Code's pattern.** On the home frame the sidebar lists "All
 Organizations", then each Organization as a group (T3's projects) with its modules as
 rows (T3's threads) and a status dot (green: can run; grey: cannot, with the reason
-in the row's accessible name), under a subheader per Team: the declared Teams in
-their order, Teams a module names without a declaration, then "Other modules"; a
-module of two Teams is a row under both, and without any Team there is no subheader.
+in the row's accessible name). Each module is one row, in the catalog's order (the
+declaration order of `module_slots`), whatever Teams declare it, and there is no Team
+subheader (decision F32; until then a subheader per Team listed a module of two Teams
+twice).
 The current Organization or module is `aria-current="page"`. "Refresh" is the page
 action in the header. Below 768 px the sidebar is the same off-canvas sheet as in
 Settings, and choosing a row closes it.
 
-**What a module row shows.** Name, Teams, default app, and "Can run" or the reason in
-words with its code. Rows carry no action; the module's page carries its lifecycle
+**What a module row shows.** Name, default app, and "Can run" or the reason in
+words with its code; no Team badge (F32). Rows carry no action; the module's page carries its lifecycle
 ([below](#module-lifecycle)). `src/launchpad/catalog-view.ts` holds the pure
 presentation (tested in `tests/catalog-view.test.ts`), `src/launchpad/catalog-panel.ts`
 the DOM, drawn with `textContent` only.
+
+**Verification 2026-10-02 (F32).** `tests/catalog-view.test.ts` checks the pure view
+the sidebar, the overview and both pages draw (`catalogTree`, `organizationFacts`,
+`moduleFacts`): a module of two declared Teams, one of an undeclared Team and one of
+none are each listed once in declaration order, the Personalspace group stays last,
+and no drawn text names a Team, its membership source or `teams-invalid`, in both
+languages. The CLI's Teams column and legacy-alias note keep their tests in
+`tests/organization-catalog.test.ts`. The home, the sidebar, an Organization page and a
+module page were driven in headless Chrome (Playwright) against a temporary
+workstation Folder with two Organizations, three Teams sharing modules and a
+Personalspace module: every module once, no Team subheader, heading or badge, no page
+errors.
 
 **Verification 2026-09-28.** Unit and HTTP tests (`tests/organization-catalog.test.ts`,
 `tests/catalog-view.test.ts`, `tests/launchpad-routes.test.ts`, the hosted test) use a
