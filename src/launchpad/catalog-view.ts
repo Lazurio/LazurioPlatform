@@ -53,6 +53,7 @@ const reasonKeys: Readonly<
   "preparation-dependency-missing": "preparationReasonDependencyMissing",
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
+  "preparation-script-failed": "preparationReasonScriptFailed",
 };
 
 /** A reason's sentence with the refused file in it (decision F23), when the

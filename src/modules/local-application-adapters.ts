@@ -6,8 +6,8 @@ import { applicationEnvironment } from "./application-environment";
 import type { ApplicationRunner } from "./application-runner";
 import { inspectBunToolchain, requireBunToolchain } from "./bun-toolchain";
 import {
-  preflightDeclaredBunCheck,
   preflightDeclaredBunPreparation,
+  preflightDeclaredBunStart,
 } from "./declared-bun-preparation";
 import { verifyInstallAuthority } from "./install-authority";
 import type { createApplicationLifecycle } from "./lifecycle";
@@ -101,7 +101,7 @@ export function localApplicationAdapters(input: {
         ) => !signal.aborted && (await verifyInstallAuthority(authority)),
       };
       return check
-        ? preflightDeclaredBunCheck(options)
+        ? preflightDeclaredBunStart(options)
         : preflightDeclaredBunPreparation({ ...options, cleanInstall });
     };
   return {

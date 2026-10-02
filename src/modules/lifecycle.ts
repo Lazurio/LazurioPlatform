@@ -61,8 +61,11 @@ export function createApplicationLifecycle(adapters: {
   // dependency owner before any app stop. The effect owns bounded subprocess
   // cleanup; close remains retained if cleanup cannot be confirmed.
   preflightPreparation?: PreparationFactory;
-  // Optional start-time check, without install/repair. Its subprocess ownership
-  // is retained in the same set and drained by the same shutdown as preparation.
+  // Optional start-time step: the declared check, which the adapter may follow
+  // by its preparation when the check fails (decision F30), or the default
+  // preparation's install (F25). It is never a clean install. Its subprocess
+  // ownership is retained in the same set and drained by the same shutdown as
+  // preparation; a failure without a reason is `prerequisites-not-ready`.
   preflightStartCheck?: PreparationFactory;
   // Separate explicit capability: never substitute ordinary preparation when
   // the caller asks to discard and regenerate derived dependencies.
@@ -253,7 +256,10 @@ export function createApplicationLifecycle(adapters: {
               plan,
               applicationDirectory(value, directory),
             );
-          } catch {
+          } catch (error) {
+            // A preparation refused for a known reason is named by its
+            // caller (decision F25), as at the start; nothing was stopped.
+            if (error instanceof PreparationRefused) throw error;
             return Object.freeze({
               kind: "preparation-preflight-failed" as const,
             });
@@ -374,9 +380,9 @@ export function createApplicationLifecycle(adapters: {
                     kind: "preparation-cleanup-required" as const,
                   });
                 preparations.delete(check);
-                // A failure with a known reason keeps it (the default
-                // preparation's install, decision F25); a declared check
-                // that failed is `prerequisites-not-ready`.
+                // A failure with a known reason keeps it (an install, a
+                // preparation script, decisions F25 and F30); a declared
+                // check that still fails is `prerequisites-not-ready`.
                 if (result.kind !== "prepared")
                   return Object.freeze(
                     result.reason === undefined

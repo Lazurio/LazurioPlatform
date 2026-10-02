@@ -68,7 +68,8 @@ export type HostedOptions = Readonly<{
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
-const moduleRoute = /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|stop|status)$/;
+const moduleRoute =
+  /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|prepare|stop|status)$/;
 
 // The gateway's `ensure` (launchpad-parity B5), the path the Machines gateway
 // rewrites a module hostname's readiness subrequest to
@@ -354,15 +355,19 @@ export async function startLaunchpad(
         }
         const options = app === undefined ? {} : { app };
         try {
-          // A start runs the module's declared check first (bounded by
-          // the preparation budget); the request waits for it.
-          if (moduleRequest[3] === "start") server.timeout(request, 660);
+          // A start runs the module's start-time step first, and a prepare
+          // its preparation: one run bounded by the preparation budget
+          // (600 s, decision F30); the request waits for it.
+          if (moduleRequest[3] === "start" || moduleRequest[3] === "prepare")
+            server.timeout(request, 660);
           const result =
             moduleRequest[3] === "start"
               ? await modules.start(name, options)
-              : moduleRequest[3] === "stop"
-                ? await modules.stop(name, options)
-                : await modules.status(name, options);
+              : moduleRequest[3] === "prepare"
+                ? await modules.prepare(name, options)
+                : moduleRequest[3] === "stop"
+                  ? await modules.stop(name, options)
+                  : await modules.status(name, options);
           return response(result, result.kind === "blocked" ? 409 : 200);
         } catch {
           return response({ error: "operation-failed" }, 500);

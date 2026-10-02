@@ -73,7 +73,7 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "port-occupied": "moduleReasonPortOccupied",
   "port-managed": "moduleReasonPortOccupied",
   "operation-failed": "moduleReasonFailed",
-  "prerequisites-not-ready": "appPrerequisitesNotReady",
+  "prerequisites-not-ready": "modulePrerequisitesNotReady",
   "coordination-busy": "appCoordinationBusy",
   "service-unrecognized": "appServiceUnrecognized",
   "preparation-recovery-required": "appPreparationRecoveryRequired",
@@ -101,6 +101,7 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-dependency-missing": "preparationReasonDependencyMissing",
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
+  "preparation-script-failed": "preparationReasonScriptFailed",
 };
 
 /** A refusal or a missing link in words; an unknown code is named by its

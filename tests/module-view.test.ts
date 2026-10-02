@@ -188,9 +188,12 @@ test("the sentence after Start or Stop names what happened or why not", () => {
   expect(moduleResultMessage(refusal("port-occupied"), en)).toBe(
     en.moduleReasonPortOccupied,
   );
-  expect(moduleResultMessage(refusal("prerequisites-not-ready"), en)).toBe(
-    en.appPrerequisitesNotReady,
-  );
+  // At a module's start the check failed after the start prepared the app
+  // (decision F30).
+  for (const copy of [en, cs])
+    expect(moduleResultMessage(refusal("prerequisites-not-ready"), copy)).toBe(
+      copy.modulePrerequisitesNotReady,
+    );
   // A refused file of the module's checkout is named (decision F23), and a
   // refusal whose file is not text is not read at all.
   const refused: ModuleBlocked = {
@@ -212,6 +215,7 @@ test("the sentence after Start or Stop names what happened or why not", () => {
   for (const [reason, file] of [
     ["preparation-lockfile-missing", "app/package.json"],
     ["preparation-install-failed", "app/bun.lock"],
+    ["preparation-script-failed", "app/package.json"],
     ["preparation-toolchain-mismatch", "app/package.json"],
   ] as const)
     for (const copy of [en, cs]) {
