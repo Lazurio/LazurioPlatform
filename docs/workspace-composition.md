@@ -1,14 +1,15 @@
 # Workspace composition: the Lazurio Account in the Launchpad and the workspace composed by the Dashboard
 
-Status: **shaping, proposal [F32](decisions.md#f32--the-workspace-of-an-environment-is-composed-by-the-dashboard-from-live-github-rights-proposal);
+Status: **shaping, proposal [F33](decisions.md#f33--the-workspace-of-an-environment-is-composed-by-the-dashboard-from-live-github-rights-proposal);
 not decided, not implemented.** Plan DEV-6638 of the maintainers' Mission Control.
 Nothing in this document changes behaviour, grants access or authorizes cloning a real
 Organization. It records Matěj's direction of 2026-10-02, compares variants,
 names failure modes and lists the decisions that are still open (section 15).
 
 Step 1 of the direction — the flat workspace without Team sections and Team badges in
-the Launchpad — is a presentation change done in parallel (branch
-`claude/DEV-6638-flat-workspace`); this document builds on it and does not repeat it.
+the Launchpad — is decision F32, done in parallel in pull request #122, which leaves the
+composition to "a later decision of DEV-6638"; this document is that proposal and does
+not repeat step 1.
 
 Citations: a bare path is this repository at `df5eb26`. `D:` is the maintainers'
 private Dashboard repository at `c0d43e8`, `M:` the Machines repository at `0570a30`,
@@ -620,7 +621,7 @@ or the clone is refused by the broker even though GitHub allows it (O16).
 
 ## 13. Migration from today
 
-1. **Step 1 (in flight):** flat workspace; nothing else changes.
+1. **Step 1 (F32, pull request #122):** flat workspace; nothing else changes.
 2. **Unenrolled Launchpads keep working** in the unmanaged mode (section 10, last row).
 3. **Enrolled Launchpads** show the composition over the Folder catalog: "k přidání"
    for entries not on disk, "mimo složení" for checkouts the composition does not name.
@@ -632,7 +633,8 @@ or the clone is refused by the broker even though GitHub allows it (O16).
    (H4): the composition does it.
 6. **The Dashboard's own module view** moves from manifest Team names to the live
    repository permission the composition uses (M4).
-7. **Manifest `teams`** stop being read by the Launchpad with step 1; whether the field
+7. **Manifest `teams`** stop being shown by the Launchpad with step 1 (F32 keeps them in
+   the catalog for the Teams column of `lazurio module list`); whether the field
    is removed is O17.
 8. **Root-repository installations** (root decision 0164) are out of scope; they move to
    a Folder first.
@@ -673,7 +675,7 @@ Each with the recommendation of this shaping.
 | O14 | Where does the contract package live? | `packages/contracts` here, attested release artifact, exact pin in the Dashboard |
 | O15 | With whose authority does the Dashboard write a grant (M6)? | The approving Owner's GitHub user authorization at the moment of approval, not stored; not an App installation with administration write |
 | O16 | The broker's repository allowlist? | Drop it in favour of the live Team grant the broker already checks; a second list is a second ACL |
-| O17 | Manifest `teams` declarations? | Legacy after step 1; removed by an agent-led refactor (root 0173) after M7, unless the Dashboard needs them |
+| O17 | Manifest `teams` declarations? | Legacy after step 1; removed with the CLI's Teams column by an agent-led refactor (root 0173) after M7, unless the Dashboard needs them |
 | O18 | Production Space repositories in the composition? | Not in v1; shown read-only if present, materialized only explicitly |
 
 ## 16. Not decided here

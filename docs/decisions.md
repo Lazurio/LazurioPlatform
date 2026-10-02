@@ -2592,10 +2592,11 @@ update does.
 | Write the unit only with `install --service` | Machines passes `--service` once, at the switch, so every Environment switched earlier would never get it; rejected for convergence on every install and update of a supervised hosted base |
 | A oneshot unit running the operator's `codex app-server daemon start`, written by `install --service` on a hosted Machine, never blocking (selected) | Uses Codex's own daemon lifecycle; one owner of the installer's units; failures are facts, not blockers |
 
-## F32 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal)
+## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal)
 
 **Proposal of 2026-10-02 (plan DEV-6638); not decided, not implemented.** Numbered after
-F30 and F31, which pull request #119 proposes. Matěj, an Organization Admin, gave the
+F30 and F31 (pull request #119) and F32 (pull request #122, step 1 of the same
+direction: Teams are not a presentation axis of the Launchpad). Matěj, an Organization Admin, gave the
 direction on 2026-10-02:
 one Environment is one workspace; its modules are the repositories the Environment can
 reach by GitHub; the Launchpad shows them flat and has nothing to do with Teams; the
