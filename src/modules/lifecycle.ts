@@ -61,11 +61,12 @@ export function createApplicationLifecycle(adapters: {
   // dependency owner before any app stop. The effect owns bounded subprocess
   // cleanup; close remains retained if cleanup cannot be confirmed.
   preflightPreparation?: PreparationFactory;
-  // Optional start-time step: the declared check, which the adapter may follow
-  // by its preparation when the check fails (decision F30), or the default
-  // preparation's install (F25). It is never a clean install. Its subprocess
-  // ownership is retained in the same set and drained by the same shutdown as
-  // preparation; a failure without a reason is `prerequisites-not-ready`.
+  // Optional start-time step: the frozen install and the declared check, which
+  // the adapter follows by the preparation script when the check fails
+  // (decision F30), or the default preparation's install (F25). It is never a
+  // clean install. Its subprocess ownership is retained in the same set and
+  // drained by the same shutdown as preparation; a failure without a reason
+  // is `prerequisites-not-ready`.
   preflightStartCheck?: PreparationFactory;
   // Separate explicit capability: never substitute ordinary preparation when
   // the caller asks to discard and regenerate derived dependencies.

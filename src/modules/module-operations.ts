@@ -818,8 +818,8 @@ export function createModuleOperations(input: {
   }
 
   // Start the prepared app unless it runs: the toolchain, then the
-  // lifecycle's start, whose start-time step prepares an app whose declared
-  // check fails (decision F30).
+  // lifecycle's start, whose start-time step installs from the lockfile, runs
+  // the declared check and prepares when it fails (decision F30).
   async function startOwned({
     target,
     runner: kind,
@@ -900,8 +900,8 @@ export function createModuleOperations(input: {
 
   // Seams of later slices, deliberately not built here:
   // - B3 `open` (start, wait for health, the link) composes the start and
-  //   the same `observe`; until then `ensure` starts, and a start prepares
-  //   when the check fails (decisions F25, F30).
+  //   the same `observe`; until then `ensure` starts, and a start installs
+  //   and prepares when the check fails (decisions F25, F30).
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
   return Object.freeze({

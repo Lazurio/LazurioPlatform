@@ -319,11 +319,11 @@ read.
 its own declaration through the existing lifecycle (`src/modules/lifecycle.ts`), the
 runners and `localApplicationAdapters`: for an app without a `lazurio.preparation` its
 default preparation, the frozen install from the lockfile beside its package (decision
-F25); for an app that declares one its check, and only when the check fails the
-preparation the Platform owns, the frozen install from the lockfile beside its package,
-the declared `prepare_script` and the check again (decision F30, Lazurio Module Standard
+F25); for an app that declares one the same frozen install on every start (a no-op when
+`node_modules` matches the lockfile), then its check, and only when the check fails the
+declared `prepare_script` and the check again (decision F30, Lazurio Module Standard
 ch. 3 and 10); then the dev script, never a hostname convention. A check that passes
-changes nothing. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
+after the install runs no `prepare_script`. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
 preparation (the transaction with the retained owner lock), whatever the check says now,
 and starts nothing: for a declared preparation the install, `prepare_script` and check,
 for the default its install. It never prepares beneath a running app: a service-owned
@@ -419,11 +419,14 @@ module that cannot run. A real systemd user manager and journal (Ubuntu 24.04) w
 **Verification 2026-10-02 (F30).** `tests/module-declared-preparation.test.ts` runs the
 real Bun, the compiled process guard and the in-memory user manager over fixture modules
 with the standard declaration on a fresh checkout (a lockfile, no `node_modules`):
-`lazurio module start` checks, installs, runs `prepare_script`, checks again and starts
-(package and lockfile unchanged); a prepared tree's next start checks once and touches
-nothing; a check that passes installs nothing; a failing `prepare_script`, a lockfile the
-package no longer matches and a check that still fails are each named and start nothing;
-a nested application only checks. `lazurio module prepare` prepares without starting,
+`lazurio module start` installs, checks, runs `prepare_script`, checks again and starts
+(package and lockfile unchanged); a prepared tree's next start checks once and runs no
+`prepare_script`; a check that passes after the install runs no `prepare_script`; a
+failing `prepare_script`, a lockfile the package no longer matches (no check runs) and a
+check that still fails are each named and start nothing; a nested application only
+checks. A tree installed for an earlier lockfile whose check passes (#114's last
+comment) is installed by a start through a session Launchpad, and the real app serves
+the dependency version the lockfile pins. `lazurio module prepare` prepares without starting,
 for a declared and an undeclared app, names the same failures, is refused beneath its
 running app and while another app runs, answers like `POST …/prepare`, and is
 `launchpad-required` where apps are session-owned. `tests/frozen-install-process.test.ts`
@@ -589,9 +592,9 @@ answer has no body. The resident answered 404 for an ambiguous id and 503 for ev
 failed start (the browser then reloaded forever); here the ambiguous id and a refused
 start are 409, so the gateway's "could not be prepared" page says so once. `ensure`
 starts through the same core as `lazurio module start`, so it installs what a start
-installs: the default preparation's frozen install (F25), and for a declared preparation
-whose check fails the preparation before the start (F30); a module whose check still
-fails after it answers `prerequisites-not-ready`.
+installs: the frozen install from the lockfile, declared preparation or not, and for a
+declared preparation whose check then fails its `prepare_script` (F25, F30); a module
+whose check still fails after it answers `prerequisites-not-ready`.
 
 **Verification 2026-09-28.** `tests/launchpad-ensure.test.ts` against the fixture Folder:
 the gateway's exact subrequest (headers from `ingress.ts:124-138`, the M2 `Host`), each
@@ -605,8 +608,7 @@ showing it with the entry's link), repeated requests never starting again, an ex
 stopped app starting on the next navigation, `toolchain-missing` as 409 with
 `operation: "start"`, a start still under way answering 503 `start-pending` and becoming
 204, three concurrent navigations joining one failing slow check (one run, three 409
-`prerequisites-not-ready`; since F30 that check runs twice in the one start, before
-and after its preparation); on the session path a real synthetic app started by a
+`prerequisites-not-ready`; since F30 after the start's install); on the session path a real synthetic app started by a
 navigation, served on its declared port and ending with its Launchpad; and a
 workstation Launchpad answering 404. `tests/launchpad-hosted-trust.test.ts` covers the
 internal-namespace rule of the admission. A real gateway, Caddy and oauth2-proxy were

@@ -60,10 +60,11 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   // The default preparation (decision F25) has no check: its start-time
   // step is its preparation, the frozen install, which changes nothing when
   // the installed tree already matches the lockfile. A declared preparation's
-  // start-time step runs its check and prepares only when it fails (decision
-  // F30), unless the app's directory overlaps another app of its module: its
-  // install could change that app's files beneath it, so its start only
-  // checks, and only an explicit preparation installs (F25 point 6).
+  // start-time step is the same install, then its check, and only when the
+  // check fails its prepare_script and the check again (decision F30), unless
+  // the app's directory overlaps another app of its module: its install could
+  // change that app's files beneath it, so its start only checks, and only an
+  // explicit preparation installs (F25 point 6).
   const byDefault = declaration.kind === "default";
   const startOnlyChecks =
     !byDefault &&
@@ -162,12 +163,12 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   });
 }
 
-// The start-time step (decision F30). For a declared preparation: its check,
-// and only when the check fails the preparation (frozen install, the declared
-// prepare_script, the check again), all in one run under one deadline; a
-// check that passes changes nothing. For the default preparation (decision
-// F25), which has no check, it is the frozen install. The lifecycle must
-// retain run/close ownership just as it does for preparation.
+// The start-time step (decision F30). For a declared preparation: the frozen
+// install (nothing changes when node_modules already matches the lockfile),
+// its check, and only when the check fails the declared prepare_script and the
+// check again, all in one run under one deadline. For the default preparation
+// (decision F25), which has no check, it is the frozen install. The lifecycle
+// must retain run/close ownership just as it does for preparation.
 export function preflightDeclaredBunStart(
   input: Omit<Input, "operation" | "cleanInstall">,
 ) {

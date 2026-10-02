@@ -556,11 +556,11 @@ posixTest(
     } finally {
       expect(await app.close()).toEqual({ kind: "closed" });
     }
-    // A slow declared check that fails, also after the start prepared the
-    // app (decision F30): navigations that arrive while it runs join that one
-    // start and share its refusal, 409 with the start's reason (the gateway
-    // shows "could not be prepared"); the check ran twice, before and after
-    // the preparation of that one start, not once per queued request.
+    // A slow declared check that fails after the start's install, with no
+    // prepare_script to run (decision F30): navigations that arrive while it
+    // runs join that one start and share its refusal, 409 with the start's
+    // reason (the gateway shows "could not be prepared"); the check ran once,
+    // not once per queued request.
     const ran = join(parent, "check-runs");
     await runnable(
       folder,
@@ -585,7 +585,7 @@ posixTest(
             module: "notes",
           },
         });
-      expect(await readFile(ran, "utf8")).toBe("xx");
+      expect(await readFile(ran, "utf8")).toBe("x");
       expect(manager.commands("systemd-run")).toHaveLength(1);
     } finally {
       expect(await waiting.close()).toEqual({ kind: "closed" });

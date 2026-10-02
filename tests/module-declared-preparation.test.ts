@@ -26,11 +26,11 @@ import {
 // and `prepare`, and the Launchpad's module routes, over modules whose app
 // declares `lazurio.preparation` as the Lazurio Module Standard requires. A
 // fresh checkout has a lockfile and no `node_modules`; its start runs the
-// declared check, and only when the check fails the Platform's preparation:
-// the frozen install from the lockfile beside the package, the declared
-// prepare_script, the check again. The real Bun, the compiled process guard
-// and the in-memory user manager; the only dependency is a local `file:`
-// package, so nothing needs the network.
+// frozen install from the lockfile beside the package (a no-op when
+// node_modules matches it), the declared check, and only when the check fails
+// the declared prepare_script and the check again. The real Bun, the compiled
+// process guard, the in-memory user manager and a session Launchpad; the only
+// dependency is a local `file:` package, so nothing needs the network.
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
 let root = "";
@@ -57,6 +57,8 @@ const prepare =
 // - fresh: the standard declaration, a fresh checkout;
 // - ready: a check that always passes and a prepare_script that leaves a
 //   trace;
+// - stale: node_modules installed for an earlier lockfile (as after a pull
+//   that added or bumped a dependency) and a check that passes anyway;
 // - broken: a prepare_script that fails;
 // - unlocked: a package that no longer matches its lockfile;
 // - stubborn: a check that still fails after the preparation;
@@ -64,6 +66,7 @@ const prepare =
 const ids = [
   "fresh",
   "ready",
+  "stale",
   "broken",
   "unlocked",
   "stubborn",
@@ -131,7 +134,27 @@ async function world(
         join(organization, "workspace", "plain"),
         home,
       ),
+      stale: await undeclaredModule(
+        join(organization, "workspace", "stale"),
+        home,
+        { stale: true },
+      ),
     };
+    // stale: the standard declaration over the earlier install, with a check
+    // that passes on it and a prepare_script that leaves a trace.
+    const stale = JSON.parse(
+      await readFile(join(app("stale"), "package.json"), "utf8"),
+    );
+    stale.scripts.check = `"${process.execPath}" --no-env-file -e "process.exit(0)"`;
+    stale.scripts["prepare:app"] =
+      `"${process.execPath}" --no-env-file -e "require('node:fs').writeFileSync('prepared', 'yes')"`;
+    stale.lazurio.preparation = {
+      schema_version: "lazurio.preparation.v1",
+      owner_package: "app/package.json",
+      check_script: "check",
+      prepare_script: "prepare:app",
+    };
+    await writeFile(join(app("stale"), "package.json"), JSON.stringify(stale));
     // unlocked: a second local dependency the lockfile does not know.
     const unlocked = JSON.parse(
       await readFile(join(app("unlocked"), "package.json"), "utf8"),
@@ -193,13 +216,13 @@ const traces = async (app: string, file: string) =>
     : "";
 
 posixTest(
-  "a declared preparation's start checks, prepares only when the check fails, and names the step that failed",
+  "a declared preparation's start installs, checks, runs prepare_script only when the check fails, and names the step that failed",
   async () => {
     await world(async ({ app, manager, run }) => {
       const where = (module: Id) => ({ organization: "delta", module });
       const units = () => manager.commands("systemd-run").length;
 
-      // fresh: check fails, install, prepare_script, check passes, start.
+      // fresh: install, check fails, prepare_script, check passes, start.
       const fresh = app("fresh");
       const pkg = await readFile(join(fresh, "package.json"), "utf8");
       const lock = await readFile(join(fresh, "bun.lock"), "utf8");
@@ -224,7 +247,8 @@ posixTest(
       expect(await readFile(join(fresh, "package.json"), "utf8")).toBe(pkg);
       expect(await readFile(join(fresh, "bun.lock"), "utf8")).toBe(lock);
       expect(units()).toBe(1);
-      // Prepared: the next start checks once and touches nothing.
+      // Prepared: the next start's install changes nothing, one check, no
+      // prepare_script.
       expect((await run("stop", "fresh")).result).toMatchObject({
         outcome: "group-stopped",
       });
@@ -239,12 +263,15 @@ posixTest(
         outcome: "group-stopped",
       });
 
-      // ready: a passing check means no install and no prepare_script.
+      // ready: the install comes first (decision F30); a check that passes
+      // after it means no prepare_script.
       expect((await run("start", "ready")).result).toMatchObject({
         outcome: "started",
         healthy: true,
       });
-      expect(await exists(join(app("ready"), "node_modules"))).toBe(false);
+      expect(
+        await exists(join(app("ready"), "node_modules/fixture-dependency")),
+      ).toBe(true);
       expect(await exists(join(app("ready"), "prepared"))).toBe(false);
       expect((await run("stop", "ready")).result).toMatchObject({
         outcome: "group-stopped",
@@ -268,7 +295,8 @@ posixTest(
       ).toBe(true);
       expect(await traces(app("broken"), "checks")).toBe("c");
 
-      // unlocked: the frozen install failed; prepare_script never ran.
+      // unlocked: the frozen install failed; neither the check nor
+      // prepare_script ran.
       expect(await run("start", "unlocked")).toEqual({
         code: 2,
         result: {
@@ -281,7 +309,7 @@ posixTest(
         },
       });
       expect(await exists(join(app("unlocked"), "prepared"))).toBe(false);
-      expect(await traces(app("unlocked"), "checks")).toBe("c");
+      expect(await traces(app("unlocked"), "checks")).toBe("");
 
       // stubborn: prepared, yet its check still fails.
       expect(await run("start", "stubborn")).toEqual({
@@ -471,6 +499,96 @@ posixTest(
         "delta/broken: preparation-script-failed (app/package.json)",
       );
       expect(text[1]).toContain("prepare_script");
+    });
+  },
+  120_000,
+);
+
+const servedDependency = async (app: string) =>
+  JSON.parse(
+    await readFile(
+      join(app, "node_modules/fixture-dependency/package.json"),
+      "utf8",
+    ),
+  ).version;
+
+// The failure of #114's last comment: a check that passes on a tree installed
+// for an earlier lockfile. The start's install repairs it before the check,
+// so the real app (a child of the Launchpad session) serves the dependency
+// the lockfile pins, and prepare_script does not run.
+posixTest(
+  "a stale tree whose check passes is installed by the start and the app serves the current dependency",
+  async () => {
+    await world(async ({ folder, app, host }) => {
+      expect(await servedDependency(app("stale"))).toBe("1.0.0");
+      const session: ModuleHost = {
+        ...host("stale"),
+        platform: "darwin",
+        runtimeDirectory: undefined,
+        runnerKind: async () => "session",
+        createRunner: () => createSessionRunner(binary),
+        readJournal: async () => {
+          throw new Error("A session app has no journal");
+        },
+      };
+      const launchpad = await startLaunchpad(
+        folder,
+        undefined,
+        undefined,
+        undefined,
+        {},
+        undefined,
+        {},
+        undefined,
+        session,
+      );
+      try {
+        const url = new URL(launchpad.url);
+        const headers = {
+          Origin: url.origin,
+          Authorization: `Bearer ${url.hash.slice(1)}`,
+        };
+        const route = (verb: string) =>
+          `${url.origin}/api/modules/delta/stale/${verb}`;
+        const started = await fetch(route("start"), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(started.status).toBe(200);
+        expect(await started.json()).toMatchObject({
+          outcome: "started",
+          runner: "session",
+        });
+        let status: Record<string, unknown> = {};
+        for (let attempt = 0; attempt < 100 && !status.healthy; attempt++) {
+          status = await (
+            await fetch(route("status"), {
+              headers: { Authorization: headers.Authorization },
+            })
+          ).json();
+          if (!status.healthy) await Bun.sleep(100);
+        }
+        expect(status).toMatchObject({ state: "running", healthy: true });
+        const port = JSON.parse(
+          await readFile(join(app("stale"), "../lazurio.module.json"), "utf8"),
+        ).port_leases[0].port;
+        expect(await (await fetch(`http://127.0.0.1:${port}/`)).text()).toBe(
+          "current",
+        );
+        expect(await servedDependency(app("stale"))).toBe("2.0.0");
+        expect(await exists(join(app("stale"), "prepared"))).toBe(false);
+        const stopped = await fetch(route("stop"), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(await stopped.json()).toMatchObject({
+          outcome: "group-stopped",
+        });
+      } finally {
+        expect(await launchpad.close()).toEqual({ kind: "closed" });
+      }
     });
   },
   120_000,

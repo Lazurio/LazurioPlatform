@@ -39,10 +39,11 @@ type PreparationResult = Readonly<{
 // the script, but does not discover or implement application-specific data setup.
 //
 // Operations: `prepare` installs, runs the optional preparation script, then
-// the optional check; `check` runs only the check; `start` (decision F30) runs
-// the check and, only when it exits non-zero, continues as `prepare` (install,
-// preparation script, check again). A check that passes leaves the
-// dependency tree untouched. Every operation is one run under one deadline.
+// the optional check; `check` runs only the check; `start` (decision F30)
+// installs, runs the check and, only when it exits non-zero, the preparation
+// script and the check again. The frozen install changes nothing when the
+// installed tree already matches the lockfile. Every operation is one run
+// under one deadline.
 export async function preflightBunPreparation(input: {
   checkout: string;
   owner: string;
@@ -166,16 +167,10 @@ export async function preflightBunPreparation(input: {
             if (cleanup.kind === "authority-changed" || combined.aborted)
               return failed();
           }
-          // `start`: a check that passes is the whole step; one that fails
-          // means "prepare", never "start anyway".
-          let prepare = operation === "prepare";
-          if (operation === "start") {
-            firstCheck = await check();
-            const first = outcome(firstCheck, "check");
-            if (first === "failed") return failed();
-            prepare = first !== "passed";
-          }
-          if (prepare) {
+          // Every operation but `check` begins with the frozen install,
+          // which changes nothing when node_modules already matches the
+          // lockfile (decision F30: the install is the Platform's).
+          if (operation !== "check") {
             install = await runFrozenInstallProcess({
               authority,
               executable: launch.executable,
@@ -187,24 +182,36 @@ export async function preflightBunPreparation(input: {
             const installed = outcome(install, "install");
             if (installed === "failed") return failed();
             if (installed !== "passed") return failed(installed);
-            if (modulePreparationScript !== undefined) {
-              modulePreparation = await runModulePreparationProcess({
-                authority,
-                executable: launch.executable,
-                platformExecutable,
-                env: launch.env,
-                timeoutMs,
-                signal: combined,
-                script: modulePreparationScript,
-              });
-              const prepared = outcome(modulePreparation, "prepare-script");
-              if (prepared === "failed") return failed();
-              if (prepared !== "passed") return failed(prepared);
-            }
+          }
+          // `start`: a check that passes after the install is the whole
+          // step; one that fails means "run the preparation script and check
+          // again", never "start anyway".
+          let script = operation === "prepare";
+          if (operation === "start") {
+            firstCheck = await check();
+            const first = outcome(firstCheck, "check");
+            if (first === "failed") return failed();
+            if (first !== "passed" && modulePreparationScript === undefined)
+              return failed(first);
+            script = first !== "passed";
+          }
+          if (script && modulePreparationScript !== undefined) {
+            modulePreparation = await runModulePreparationProcess({
+              authority,
+              executable: launch.executable,
+              platformExecutable,
+              env: launch.env,
+              timeoutMs,
+              signal: combined,
+              script: modulePreparationScript,
+            });
+            const prepared = outcome(modulePreparation, "prepare-script");
+            if (prepared === "failed") return failed();
+            if (prepared !== "passed") return failed(prepared);
           }
           if (
             moduleCheckScript !== undefined &&
-            (operation !== "start" || prepare)
+            (operation !== "start" || script)
           ) {
             moduleCheck = await check();
             const checked = outcome(moduleCheck, "check");

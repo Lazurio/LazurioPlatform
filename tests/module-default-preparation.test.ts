@@ -40,8 +40,8 @@ import {
 // package of the replaced Launchpad, starts after a frozen install from the
 // lockfile beside its package; what cannot start for a reason known without
 // running anything is not executable in the list, with the same typed reason
-// the start answers. The explicit declaration keeps its meaning: the start
-// runs its declared check and installs nothing. HOME is a temporary
+// the start answers. Since decision F30 an explicit declaration's start runs
+// the same install, then its declared check. HOME is a temporary
 // directory; the only dependencies are local `file:` packages, so nothing
 // needs the network.
 const supported = ["darwin", "linux"].includes(process.platform);
@@ -199,7 +199,7 @@ const installed = async (app: string) =>
   ).version;
 
 posixTest(
-  "an undeclared module is executable and its start repairs a stale install from its lockfile; one without a lockfile is not executable and every operation names why; the explicit declaration is unchanged",
+  "an undeclared module is executable and its start repairs a stale install from its lockfile; one without a lockfile is not executable and every operation names why; the explicit declaration installs too, then checks",
   async () => {
     await world("journey", [], async (world) => {
       const where = (module: string) => ({ organization: "delta", module });
@@ -291,16 +291,16 @@ posixTest(
       );
       expect(explanation).toContain("bun.lock");
 
-      // notes: the explicit declaration's start runs its check and installs
-      // nothing.
+      // notes: the explicit declaration's start installs from its lockfile,
+      // then runs its check, which passes (decision F30).
       expect(await world.run("start", "notes")).toMatchObject({
         kind: "module",
         outcome: "started",
         healthy: true,
       });
-      await expect(
-        lstat(join(world.app("notes"), "node_modules")),
-      ).rejects.toThrow();
+      expect(
+        (await lstat(join(world.app("notes"), "node_modules"))).isDirectory(),
+      ).toBe(true);
       expect(await world.run("stop", "notes")).toMatchObject({
         outcome: "group-stopped",
       });

@@ -1,2 +1,5 @@
 node_modules/
 dist/
+
+# Temporary output of an interrupted `bun build --compile`.
+*.bun-build

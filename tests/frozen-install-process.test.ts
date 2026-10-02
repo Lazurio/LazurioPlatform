@@ -238,23 +238,27 @@ posixTest(
   15_000,
 );
 
-// Decision F30: the start-time step of a declared preparation. A check that
-// passes is the whole step and installs nothing; a check that fails is
-// followed by the install (whose postinstall hook writes `marker`), the
-// preparation script and the check again, in one run. A step that exits
-// non-zero is named; nothing after it runs.
+// Decision F30: the start-time step of a declared preparation. The frozen
+// install first (a no-op when node_modules matches the lockfile), then the
+// check; a check that passes is the end of the step, one that fails is
+// followed by the preparation script and the check again, in one run. Every
+// step appends its letter to `steps` (the install through the package's
+// postinstall hook), so their order is observable. A step that exits non-zero
+// is named; nothing after it runs.
 posixTest(
-  "start operation: a passing check installs nothing; a failing one prepares and checks again; a failing step is named",
+  "start operation: install, then check; the preparation script only when the check fails; a failing step is named",
   async () => {
+    const trace = "require('node:fs').appendFileSync('steps', 'i');";
     const scenario = async (
       name: string,
       options: {
         hook?: string;
         prepare?: string;
-        ready?: boolean;
+        installed?: boolean;
+        data?: boolean;
       },
     ) => {
-      const f = await fixture(name, options.hook);
+      const f = await fixture(name, options.hook ?? trace);
       const pkg = await Bun.file(join(f.directory, "package.json")).json();
       pkg.scripts["prepare:data"] =
         `"${process.execPath}" --no-env-file prepare.ts`;
@@ -263,15 +267,14 @@ posixTest(
       await writeFile(join(f.directory, "package.json"), JSON.stringify(pkg));
       await writeFile(
         join(f.directory, "prepare.ts"),
-        options.prepare ?? "await Bun.write('module-data', 'ready');",
+        `require('node:fs').appendFileSync('steps', 'p'); ${options.prepare ?? "await Bun.write('module-data', 'ready');"}`,
       );
-      // Ready: the installed dependency and the prepared data. Every run
-      // leaves a trace, so the order of the steps is observable.
+      // Ready: the installed dependency and the prepared data.
       await writeFile(
         join(f.directory, "check.ts"),
-        "import { appendFileSync, existsSync, readFileSync } from 'node:fs'; appendFileSync('checks', 'c'); if (!existsSync('node_modules/fixture-dependency/package.json') || !existsSync('module-data') || readFileSync('module-data', 'utf8') !== 'ready') process.exit(23);",
+        "import { appendFileSync, existsSync, readFileSync } from 'node:fs'; appendFileSync('steps', 'c'); if (!existsSync('node_modules/fixture-dependency/package.json') || !existsSync('module-data') || readFileSync('module-data', 'utf8') !== 'ready') process.exit(23);",
       );
-      if (options.ready) {
+      if (options.installed) {
         const install = Bun.spawn(
           [process.execPath, "--no-env-file", "install", "--frozen-lockfile"],
           {
@@ -282,9 +285,10 @@ posixTest(
           },
         );
         expect(await install.exited).toBe(0);
-        await rm(join(f.directory, "marker"));
-        await writeFile(join(f.directory, "module-data"), "ready");
+        await rm(join(f.directory, "steps"));
       }
+      if (options.data)
+        await writeFile(join(f.directory, "module-data"), "ready");
       const preparation = await preflightBunPreparation({
         checkout: f.directory,
         owner: f.directory,
@@ -299,53 +303,66 @@ posixTest(
       });
       try {
         const result = await preparation.run(new AbortController().signal);
-        const trace = async (file: string) =>
+        const read = async (file: string) =>
           (await Bun.file(join(f.directory, file)).exists())
             ? await readFile(join(f.directory, file), "utf8")
             : null;
         return {
           result,
-          installed: (await trace("marker")) !== null,
-          data: await trace("module-data"),
-          checks: (await trace("checks"))?.length ?? 0,
+          steps: await read("steps"),
+          dependency: await Bun.file(
+            join(f.directory, "node_modules/fixture-dependency/package.json"),
+          ).exists(),
+          data: await read("module-data"),
         };
       } finally {
         expect(await preparation.close()).toEqual({ kind: "closed" });
       }
     };
-    // Ready: one check, nothing installed or prepared.
-    expect(await scenario("start-ready", { ready: true })).toEqual({
+    // Ready: the install changes nothing, one check, no preparation script.
+    expect(
+      await scenario("start-ready", { installed: true, data: true }),
+    ).toEqual({
       result: { kind: "prepared" },
-      installed: false,
+      steps: "ic",
+      dependency: true,
       data: "ready",
-      checks: 1,
     });
-    // A fresh checkout: check, install, preparation, check.
+    // Prepared data, dependencies missing (a dependency added by an update):
+    // the install repairs it and the passing check starts without the script.
+    expect(await scenario("start-stale", { data: true })).toEqual({
+      result: { kind: "prepared" },
+      steps: "ic",
+      dependency: true,
+      data: "ready",
+    });
+    // A fresh checkout: install, check, preparation, check.
     expect(await scenario("start-fresh", {})).toEqual({
       result: { kind: "prepared" },
-      installed: true,
+      steps: "icpc",
+      dependency: true,
       data: "ready",
-      checks: 2,
     });
-    // The install fails: no preparation script, no second check.
+    // The install fails: no check, no preparation script.
     expect(
       await scenario("start-install-fails", {
-        hook: "await Bun.write('marker', 'ran'); process.exit(7);",
+        hook: `${trace} process.exit(7);`,
       }),
     ).toEqual({
       result: { kind: "preparation-failed", stage: "install" },
-      installed: true,
+      steps: "i",
+      // The failing postinstall hook runs after the dependency is in place.
+      dependency: true,
       data: null,
-      checks: 1,
     });
     // The preparation script fails: no second check.
     expect(
       await scenario("start-prepare-fails", { prepare: "process.exit(9);" }),
     ).toEqual({
       result: { kind: "preparation-failed", stage: "prepare-script" },
-      installed: true,
+      steps: "icp",
+      dependency: true,
       data: null,
-      checks: 1,
     });
     // Prepared, yet the check still fails.
     expect(
@@ -354,9 +371,9 @@ posixTest(
       }),
     ).toEqual({
       result: { kind: "preparation-failed", stage: "check" },
-      installed: true,
+      steps: "icpc",
+      dependency: true,
       data: "partial",
-      checks: 2,
     });
   },
   60_000,

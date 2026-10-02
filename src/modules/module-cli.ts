@@ -34,13 +34,12 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   tools status). An app whose package declares no lazurio.preparation is
   prepared by default first: bun install --frozen-lockfile from the bun.lock
   beside its package.json, which changes nothing when node_modules already
-  matches it (preparation-install-failed otherwise). For an app that
-  declares one, start runs its declared check first: when the check passes
-  nothing is installed; when it fails, start prepares the app (bun install
-  --frozen-lockfile from the bun.lock beside its package.json, then its
-  prepare_script, then the check again) and starts it only when the check
-  then passes (preparation-install-failed, preparation-script-failed, or
-  prerequisites-not-ready when the check still fails). A preparation that
+  matches it (preparation-install-failed otherwise). An app that declares
+  one gets the same install first, then its declared check: when the check
+  passes the app starts; when it fails, start runs its prepare_script and
+  the check again and starts the app only when the check then passes
+  (preparation-script-failed, or prerequisites-not-ready when the check
+  still fails). A preparation that
   cannot run answers its reason (preparation-lockfile-missing,
   preparation-toolchain-mismatch, …) with the file it concerns; status, stop
   and logs still operate a module refused only by its preparation.
@@ -48,8 +47,8 @@ module prepare <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Prepares the app without starting it, whatever its declared check says
   now: bun install --frozen-lockfile from the bun.lock beside its
   package.json, then its declared prepare_script and check (only the install
-  for an app without lazurio.preparation). Use it after an update that
-  changed the app's dependencies while its check still passes. It never
+  for an app without lazurio.preparation). Use it to rerun a module's
+  preparation whose check passes, for example after its data changed. It never
   installs beneath a running app: stop the app first (application-running);
   while another app of the same Organization runs it is refused
   (other-app-managed). Outcomes as for start, and prepared when done.
@@ -100,7 +99,7 @@ const explanations: Readonly<Record<string, string>> = {
   "application-running":
     "The app is running; its dependencies are never changed beneath it. Stop it (lazurio module stop) and prepare again.",
   "other-app-managed":
-    "Another app of this Organization is running or has a failed record; an explicit preparation waits until it is stopped (lazurio module stop). A start prepares an app whose check fails without this restriction.",
+    "Another app of this Organization is running or has a failed record; an explicit preparation waits until it is stopped (lazurio module stop). A start installs and prepares its own app without this restriction.",
   "preparation-preflight-failed":
     "The preparation could not be set up before anything was changed; see lazurio doctor.",
   "preparation-cleanup-required":
