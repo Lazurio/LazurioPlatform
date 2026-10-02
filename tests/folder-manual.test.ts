@@ -694,9 +694,10 @@ test("previews follow how the Operator connects: only Codex Desktop over SSH rea
   const machine = overSsh["manual/this-machine.md"];
   for (const sentence of [
     "Per the handover, the Operator connects here over SSH.",
-    "Codex Desktop over SSH, T3 Code on the web or in its desktop app, or Lazurio MausBot",
+    "works with you in the clients they prefer, possibly several at once: Codex Desktop over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot.",
+    "the Operator may be working in another one meanwhile.",
     "OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
-    "T3 Code and Lazurio MausBot forward no port.",
+    "When you run in T3 Code or Lazurio MausBot, no port reaches the Operator.",
   ])
     expect(machine).toContain(sentence);
   // The claim the review rejected: forwarding is not a documented fact.

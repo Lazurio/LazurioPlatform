@@ -1588,8 +1588,9 @@ function enabledToolsSection(
 }
 
 // How the Operator works with an agent on a hosted Environment (decision F14
-// addendum 2026-10-02). The client is the Operator's preference: Codex Desktop
-// over SSH, T3 Code on the web or in its desktop app, or Lazurio MausBot.
+// addendum 2026-10-02). The Operator uses the clients they prefer, possibly
+// several at once: Codex Desktop over SSH, T3 Code on the web or in its
+// desktop app, and Lazurio MausBot.
 // Whether they connect over SSH is a fact of the handover's peers, never a
 // guess. Only Codex Desktop's built-in browser reaches a `localhost` port of
 // this Environment, through an SSH tunnel it opens itself (undocumented by
@@ -1618,8 +1619,8 @@ function operatorClient(
             "The handover does not record where the Operator connects from.",
           );
   const intro = t(
-    `Operátor sedí u svého počítače a pracuje s tebou v klientovi, který mu vyhovuje: v Codex Desktopu přes SSH, v T3 Code na webu nebo v desktopové aplikaci, nebo v Lazurio MausBotu. ${fact.cs} Ve kterém klientovi běžíš, poznáš podle svého harnessu. Tvůj shell, soubory a procesy jsou tady, ne u Operátora.`,
-    `The Operator sits at their own computer and works with you in the client they prefer: Codex Desktop over SSH, T3 Code on the web or in its desktop app, or Lazurio MausBot. ${fact.en} Your harness tells you which client you run in. Your shell, files and processes are here, not on the Operator's computer.`,
+    `Operátor sedí u svého počítače a pracuje s tebou v klientech, které mu vyhovují, klidně ve více zároveň: v Codex Desktopu přes SSH, v T3 Code na webu nebo v desktopové aplikaci a v Lazurio MausBotu. ${fact.cs} Ve kterém klientovi právě běžíš ty, poznáš podle svého harnessu; Operátor mezitím může pracovat i v jiném. Tvůj shell, soubory a procesy jsou tady, ne u Operátora.`,
+    `The Operator sits at their own computer and works with you in the clients they prefer, possibly several at once: Codex Desktop over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot. ${fact.en} Your harness tells you which client you run in; the Operator may be working in another one meanwhile. Your shell, files and processes are here, not on the Operator's computer.`,
   );
   const previews: readonly Text[] =
     ssh === false
@@ -1635,12 +1636,12 @@ function operatorClient(
             "- **Previews.** `localhost` and `127.0.0.1` exist only here; never write a bare link to them into the chat.",
           ),
           t(
-            "  - V Codex Desktopu přes SSH otevři rozpracovanou stránku v jeho integrovaném prohlížeči. Aktuální verze si k portu samy otevřou SSH tunel na náhodný port Operátorova počítače. OpenAI to nedokumentuje a starší verze to neumí, proto ověř, že se stránka opravdu načetla.",
-            "  - In Codex Desktop over SSH, open work in progress in its built-in browser. Current versions open an SSH tunnel to the port themselves, on a random port of the Operator's computer. OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
+            "  - Běžíš-li v Codex Desktopu přes SSH, otevři rozpracovanou stránku v jeho integrovaném prohlížeči. Aktuální verze si k portu samy otevřou SSH tunel na náhodný port Operátorova počítače. OpenAI to nedokumentuje a starší verze to neumí, proto ověř, že se stránka opravdu načetla.",
+            "  - When you run in Codex Desktop over SSH, open work in progress in its built-in browser. Current versions open an SSH tunnel to the port themselves, on a random port of the Operator's computer. OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
           ),
           t(
-            "  - T3 Code ani Lazurio MausBot port nepřesměrují. Rozpracovanou aplikaci modulu spusť (`lazurio module start`) a pošli její `runtime.url`; jinou stránku předej jako soubor.",
-            "  - T3 Code and Lazurio MausBot forward no port. Start a module's application in progress (`lazurio module start`) and send its `runtime.url`; hand over any other page as a file.",
+            "  - Běžíš-li v T3 Code nebo Lazurio MausBotu, port se k Operátorovi nepřesměruje. Rozpracovanou aplikaci modulu spusť (`lazurio module start`) a pošli její `runtime.url`; jinou stránku předej jako soubor.",
+            "  - When you run in T3 Code or Lazurio MausBot, no port reaches the Operator. Start a module's application in progress (`lazurio module start`) and send its `runtime.url`; hand over any other page as a file.",
           ),
         ];
   const links = organization

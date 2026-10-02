@@ -857,10 +857,11 @@ What changes, still in the six files (`AGENTS.md` plus `manual/`):
     and checks the change through the application's `runtime.url`.
   - On `hosted-organization-team` the handoff carries the rule of F31.
 - **`manual/this-machine.md`** gains, on every hosted preset, "How the Operator works
-  with you". The Operator's client is their preference: Codex Desktop over SSH, T3
-  Code on the web or in its desktop app, or Lazurio MausBot. Whether they connect over
-  SSH is read from the handover's peers: a client device or personal VM whose SSH link
-  points here.
+  with you". The Operator uses the clients they prefer, possibly several at once:
+  Codex Desktop over SSH, T3 Code on the web or in its desktop app, and Lazurio
+  MausBot. The agent knows the client it runs in from its harness. Whether the
+  Operator connects over SSH is read from the handover's peers: a client device or
+  personal VM whose SSH link points here.
   - Only Codex Desktop's built-in browser reaches a `localhost` port of the
     Environment: current versions open an SSH tunnel to a random local port
     themselves. OpenAI does not document this. It was observed on a hosted work
@@ -868,9 +869,10 @@ What changes, still in the six files (`AGENTS.md` plus `manual/`):
     older reports needed a manual `ssh -L` (openai/codex#21294). The manual therefore
     tells the agent to check that the page loaded instead of promising the forward.
   - T3 Code and Lazurio MausBot forward no port: T3 Code's SSH tunnel carries only its
-    own server, and its browser preview lives in the desktop app. There, a module's
-    application is started and linked by its `runtime.url`, and any other page is
-    handed over as a file.
+    own server, and its browser preview lives in the desktop app. An agent running
+    there starts a module's application and links it by its `runtime.url`, and hands
+    any other page over as a file, even when the same Operator has Codex Desktop open
+    at the same time.
   - Without SSH no client reaches `localhost`; without recorded peers, the handover's
     silence is said.
   - The section also covers attachments (`~/.codex/attachments/`), work products in
