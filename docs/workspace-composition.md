@@ -458,7 +458,15 @@ Launchpad release switches to N.
   Auth installation ships it (`device-authorization` plugin). It binds an Environment
   key to the approval of a signed-in person; it issues that person nothing. The
   Launchpad shows the link, the code and a readable QR code exactly as for the curated
-  tool sign-ins (F19); the CLI has `lazurio account login` with the same output.
+  tool sign-ins (F19); the CLI has `lazurio account login` with the same output. On the
+  Launchpad page "Přihlásit" opens `verification_uri_complete` in a new tab, so a person
+  at a browser gets the one-click feel of a redirect without typing the code.
+- **Why not a browser redirect (authorization code with PKCE).** It needs a redirect
+  URI registered for every Environment's origin (one per hosted Environment, a loopback
+  listener for the CLI and for a workstation), and it hands the Environment a token of
+  the person, which then has to be exchanged for the Environment's own credential. The
+  device grant works the same from the CLI, a headless hosted Environment and the
+  Launchpad page, and never puts a person's token on the Environment.
 - **The Lazurio Account.** The maintainers plan to move the Dashboard's own sign-in to
   one Lazurio Account issuer, with the Dashboard as its relying party and not an issuer
   of human accounts (plan DEV-6552). The enrollment does not depend on that: the
