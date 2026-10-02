@@ -2611,39 +2611,45 @@ failure modes and the decided and open questions, is
 
 **Decided by Matěj on 2026-10-02:**
 
-1. **The Lazurio Account is the foundation.** An operator account belongs to a person,
-   with GitHub linked to it; the operator owns Environments (laptops, VMs). The
-   Launchpad signs in by a device code, as `gh` does, and by that represents the
-   Environment itself, which is linked to the operator and gets the operator's rights.
-   The design of the account is pending (section 4.1 of the shaping).
-2. **Who registers.** An operator registers their own Environment; an Owner (or Admin)
-   of the Organization registers a Team Environment; an Automated Environment is always
-   an Environment under an operator, registered by and accountable to that operator,
-   with the persona's account as its GitHub identity.
-3. **Clones and clean fast-forwards are automatic; removal only after a person
+1. **The Lazurio Account is the foundation**, as the maintainers' account plans define
+   it: one subject per person at the Lazurio issuer (Keycloak), GitHub a linked identity
+   the issuer owns, the Dashboard a relying party without accounts of its own. The
+   Launchpad signs in by the OAuth 2.0 Device Authorization Grant against the issuer, as
+   `gh` does, and by that represents the Environment itself, which is linked to its
+   operator and gets the operator's rights. The account and the device-code sign-in come
+   first; the composition follows.
+2. **Who may connect an Environment.** The person for their own device or the personal
+   Remote Environment they own; the operator the Organization assigned
+   (`owner.assignment`) for a work or Automated Environment; an Owner of the Organization
+   for a Team Environment. Nobody can assign themself someone else's Environment.
+   Ownership is unchanged (root 0144, 0165).
+3. **An Automated Environment** works as the GitHub account linked to the Lazurio Account
+   it is registered under; there is no separate persona binding.
+4. **Clones and clean fast-forwards are automatic; removal only after a person
    confirms it**, and no automatic removal after a revoke in v1.
-4. **The Production Space is in v1.** Declared Production Space repositories follow the
+5. **The Production Space is in v1.** Declared Production Space repositories follow the
    same access rule and are materialized into `productionspace/<repository>` as the
    manifest declares; they are never run or released and the Launchpad shows them
    read-only.
-5. **The broker's repository allowlist goes; manifest `teams` become legacy** and are
-   removed after the rollout.
-6. **The contract package lives in this repository and the Dashboard takes its types
+6. **The broker's repository allowlist goes; manifest `teams` become legacy** and are
+   removed after the rollout. Settings → Environment keeps showing the Environment's
+   assigned Team; Teams leave the workspace presentation only.
+7. **The contract package lives in this repository and the Dashboard takes its types
    from it.** The same package and API carry the Environment list of the shared
    Lazurio shell (plan DEV-6639), which also owns where the sign-in sits.
 
 **Proposed, still open:**
 
 1. **Four questions, four owners.** Admission stays the gateway's (F11). The Lazurio
-   Account sign-in **registers the Environment**: the Environment registers a key it
-   generated and from then on signs its requests as the Environment. The
-   **composition** is the Dashboard's live projection of GitHub. **Access** stays
-   GitHub's, checked at the operation through the Environment's own identity.
+   Account sign-in **registers the Environment** with a key it generated; recommended,
+   the Environment becomes a client of the issuer and authenticates with
+   `private_key_jwt` for 10-minute tokens. The **composition** is the Dashboard's live
+   projection of GitHub. **Access** stays GitHub's, checked at the operation through the
+   Environment's own identity.
 2. **The subject is the Environment's GitHub principal**, never the person signed in:
    the person's account on a workstation, the operator's on a Work Environment, the
-   Team on a Team Environment, the persona's account on an Automated Environment
-   (linked by proof of control, never by a typed name); a personal Remote Environment
-   has no composition.
+   Team on a Team Environment, the linked account on an Automated Environment; a
+   personal Remote Environment has no composition.
 3. **Repositories stay declared.** The composition selects among the module and
    Production Space slots the Organization manifest declares; destination paths come
    only from that manifest. An unavailable or partial answer keeps the last known
@@ -2657,8 +2663,8 @@ additions and fast-forwards and takes the Production Space out of what content s
 touches, refines F11 (the Account sign-in is the Environment's registration;
 self-hosted stays unmanaged), keeps B1's execution admission and moves materialization
 to the composition, and needs a root decision record that confirms and extends root
-0149, fulfils root 0159 and reconciles "the operator owns Environments" with the
-Organization as Owner of a work VM (section 14 of the shaping).
+0149 and fulfils root 0159; root 0144 and 0165 stay as they are (section 14 of the
+shaping).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
