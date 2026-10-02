@@ -1,4 +1,5 @@
 import {
+  isEntryPort,
   isHttpsOrigin,
   isModuleOriginTemplate,
 } from "../launchpad/hosted-entry";
@@ -64,9 +65,17 @@ export type MachineRelationships = Readonly<{
 // values that hosted admission reads (`entry.launchpad`), T3 Code's origin
 // (`entry.t3code.external_origin`) and the module origin rule
 // (`entry.modules.origin_template`). Finished values from the same rendering as
-// the gateway; declaration, not identity.
+// the gateway; declaration, not identity. Lazurio MausBot's origin and loopback
+// port (`entry.mausbot`, DEV-6632) are recorded only when the handover carries
+// them, both or neither, so an entry recorded from an older handover is
+// unchanged byte for byte.
 export type MachineEntry = HostedEntry &
-  Readonly<{ t3codeOrigin: string; moduleOriginTemplate: string }>;
+  Readonly<{
+    t3codeOrigin: string;
+    moduleOriginTemplate: string;
+    mausbotOrigin?: string;
+    mausbotListenPort?: number;
+  }>;
 
 export type MachineBinding = Readonly<{
   contextDigest: string;
@@ -255,11 +264,15 @@ function relationships(input: unknown): MachineRelationships {
   });
 }
 
-// All six members or none, each by the rule of the wire schema, as written.
+// All six members or none, each by the rule of the wire schema, as written;
+// Lazurio MausBot's two members are optional, but only together.
 export function parseMachineEntry(input: unknown): MachineEntry {
+  const withMausbot = ownDataValue(input, "mausbotOrigin") !== undefined;
   const {
     t3codeOrigin,
     moduleOriginTemplate,
+    mausbotOrigin,
+    mausbotListenPort,
     ...launchpad
   }: Record<string, unknown> = stateFields(input, [
     "externalOrigin",
@@ -268,13 +281,20 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     "listenPort",
     "t3codeOrigin",
     "moduleOriginTemplate",
+    ...(withMausbot ? ["mausbotOrigin", "mausbotListenPort"] : []),
   ]);
   const hosted = parseHostedEntry(launchpad);
   if (!isHttpsOrigin(t3codeOrigin))
     throw new Error("Invalid hosted entry T3 Code origin");
   if (!isModuleOriginTemplate(moduleOriginTemplate))
     throw new Error("Invalid hosted entry module origin template");
-  return Object.freeze({ ...hosted, t3codeOrigin, moduleOriginTemplate });
+  const entry = { ...hosted, t3codeOrigin, moduleOriginTemplate };
+  if (!withMausbot) return Object.freeze(entry);
+  if (!isHttpsOrigin(mausbotOrigin))
+    throw new Error("Invalid hosted entry Lazurio MausBot origin");
+  if (!isEntryPort(mausbotListenPort))
+    throw new Error("Invalid hosted entry Lazurio MausBot port");
+  return Object.freeze({ ...entry, mausbotOrigin, mausbotListenPort });
 }
 
 export function parseMachineBinding(input: unknown): MachineBinding | null {

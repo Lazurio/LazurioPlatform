@@ -606,7 +606,7 @@ hosted, the fragment token locally):
 
 | Route | Answer |
 |---|---|
-| `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate} \| null}`: the recorded entry's public parts, read-only; the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
+| `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate, mausbotOrigin?} \| null}`: the recorded entry's public parts, read-only; the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
 | `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON or a credential of another shape); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
 
 **CLI.** `lazurio chat link [--folder <absolute Folder>] [--plain] [--json]`
@@ -676,6 +676,53 @@ neither stream), `--plain` (nothing run), a workstation Folder and no Folder (ex
 `not-hosted`), usage and an unreadable Folder, and the real command line in a child
 process with `HOME`, `PATH` and XDG in temporary directories (the link alone on stdout,
 no token on stderr).
+
+## Lazurio MausBot entry
+
+DEV-6632 (decision 0169). On a Machine that runs Lazurio MausBot, the Environment's
+bot-team app (Lazurio's fork of OpenMausBot), the sidebar shows **Lazurio MausBot** next
+to Chat and enters it the same way: the Launchpad runs as the same Machine user as
+MausBot, mints a one-time pairing code and opens MausBot already paired, so the operator
+never types a code. The old resident Launchpad has no such entry; this one replaces it
+there.
+
+**Source.** Only the recorded entry: `mausbotOrigin` and `mausbotListenPort`, projected
+from the handover's optional `entry.mausbot`
+([projection](machine-handover.md#the-hosted-entry-decision-f16)). Without them there is
+no MausBot on this Machine: no link and no route. The preset's `openmausbot` surface does
+not decide it; the handover does.
+
+**Pairing.** OpenMausBot's own API, unchanged: `POST
+http://127.0.0.1:<mausbotListenPort>/api/auth/pairing` with `{"label": "launchpad"}`.
+A loopback request without forwarded headers or `Origin` is OpenMausBot's owner, exactly
+what `openmausbot pair` on the Machine does; the external origin is never called. A 200
+with `code` of the pairing shape (`XXXX-XXXX-XXXX`, single use, about five minutes) answers
+`<mausbotOrigin>/pair#code=<code>`, OpenMausBot's own pairing link. The code is never
+logged, never in an error and never in a query; the other values of OpenMausBot's answer
+(its credential, invite) are not read or passed on, and nothing is recorded. A server
+that treats loopback as a service (`OMB_LOOPBACK_TRUST=service`, a hosted OpenMausBot
+workspace) refuses with 403; that is `mausbot-pairing-failed`, and the page opens the
+plain origin, where MausBot asks for a code.
+
+| Route | Answer |
+|---|---|
+| `GET /api/entry` | as for Chat, plus `mausbotOrigin` only when recorded; the loopback port stays on the server |
+| `POST /api/mausbot/pair` (body `{}`) | `{kind: "mausbot-link", url}` with `url` = `<mausbotOrigin>/pair#code=…`; `409 {kind: "blocked", reason}` with `mausbot-unreachable` (no answer on the loopback port within 10 s) or `mausbot-pairing-failed` (any status but 200, a redirect, an answer that is not JSON or a code of another shape); `404` without a recorded MausBot (a workstation, or a Machine without it). Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
+
+**Page.** `mausbotHref` and `mausbotPairLink` in `src/launchpad/chat-view.ts` accept the
+origin only in the recorded shape and a pairing link only on it, path `/pair`, no query, a
+`code` fragment. The link's `href` is `mausbotOrigin` itself; a plain click asks for a
+pairing link and follows it in this tab, or the plain origin when there is none, as Chat
+does. There is no CLI of its own yet.
+
+**Verification.** `tests/launchpad-mausbot.test.ts`: the handover member on both branches
+and its refusals, the binding projection (both fields or neither, an older entry byte for
+byte), the pairing call against a fake OpenMausBot on loopback (the exact request, loopback
+`Host`, no `Origin` or forwarded headers; 403, 500, a redirect, non-JSON, `null`, no
+code, a code of another shape, a slow answer, nothing listening; the code absent from
+every refusal), the hosted routes behind the admission, and the page's parsers and markup.
+A real gateway and a real Lazurio MausBot were **not** exercised: the handover member
+waits for the Machines release that writes it.
 
 ## Tools section
 

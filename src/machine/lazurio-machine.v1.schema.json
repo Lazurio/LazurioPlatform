@@ -248,6 +248,16 @@
           "properties": {
             "origin_template": { "description": "Origin of a module: {module} is the whole first label and occurs exactly once; https, no port, path, query or trailing slash. The reader substitutes the gateway label of a module id (gateway-catalog.py label: dashes collapsed and stripped, at most 63 characters, reserved names served nowhere), never the id itself.", "type": "string", "maxLength": 270, "pattern": "^https://\\{module\\}(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" }
           }
+        },
+        "mausbot": {
+          "description": "Lazurio MausBot of this Machine (decision 0169), present only on a Machine that runs it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "listen_port"],
+          "properties": {
+            "external_origin": { "description": "Origin of Lazurio MausBot on the gateway.", "$ref": "#/$defs/https_origin" },
+            "listen_port": { "description": "Loopback port Lazurio MausBot listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
+          }
         }
       }
     },

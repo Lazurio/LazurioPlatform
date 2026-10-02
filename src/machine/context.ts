@@ -51,6 +51,7 @@ export type OrganizationAssignment =
 // How the Machine is entered through its workspace gateway, rendered by
 // Machines from the same route catalog as the gateway (Machines 0.12.93).
 // Optional and closed on both branches; finished values, never a convention.
+// `mausbot` (DEV-6632) is present only on a Machine that runs Lazurio MausBot.
 export type MachineEntry = Readonly<{
   launchpad: Readonly<{
     external_origin: string;
@@ -60,6 +61,7 @@ export type MachineEntry = Readonly<{
   }>;
   t3code: Readonly<{ external_origin: string }>;
   modules: Readonly<{ origin_template: string }>;
+  mausbot?: Readonly<{ external_origin: string; listen_port: number }>;
 }>;
 type MachineInstalled = Readonly<{
   machines_release: Readonly<{

@@ -14,11 +14,13 @@ import { resolveOnPath } from "../tools/status";
 
 /** The public parts of the recorded entry (`GET /api/entry`): the origins the
  * page links to, so the page composes none. The admission values (auth
- * endpoint, cookie name, port) stay on the server. */
+ * endpoint, cookie name, ports) stay on the server. `mausbotOrigin` only on a
+ * Machine that runs Lazurio MausBot. */
 export type PublicEntry = Readonly<{
   launchpadOrigin: string;
   t3codeOrigin: string;
   moduleOriginTemplate: string;
+  mausbotOrigin?: string;
 }>;
 
 export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
@@ -27,6 +29,9 @@ export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
     launchpadOrigin: entry.externalOrigin,
     t3codeOrigin: entry.t3codeOrigin,
     moduleOriginTemplate: entry.moduleOriginTemplate,
+    ...(entry.mausbotOrigin === undefined
+      ? {}
+      : { mausbotOrigin: entry.mausbotOrigin }),
   });
 }
 
