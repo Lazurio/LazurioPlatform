@@ -2592,13 +2592,13 @@ update does.
 | Write the unit only with `install --service` | Machines passes `--service` once, at the switch, so every Environment switched earlier would never get it; rejected for convergence on every install and update of a supervised hosted base |
 | A oneshot unit running the operator's `codex app-server daemon start`, written by `install --service` on a hosted Machine, never blocking (selected) | Uses Codex's own daemon lifecycle; one owner of the installer's units; failures are facts, not blockers |
 
-## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal)
+## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
-**Proposal of 2026-10-02 (plan DEV-6638); not decided, not implemented.** Numbered after
-F30 and F31 (pull request #119) and F32 (pull request #122, step 1 of the same
-direction: Teams are not a presentation axis of the Launchpad). Matěj, an Organization Admin, gave the
-direction on 2026-10-02:
-one Environment is one workspace; its modules are the repositories the Environment can
+**Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not
+implemented.** Numbered after F30 and F31 (pull request #119) and F32 (pull request
+#122, step 1 of the same direction: Teams are not a presentation axis of the
+Launchpad). Matěj, an Organization Admin, gave the direction on 2026-10-02: one
+Environment is one workspace; its modules are the repositories the Environment can
 reach by GitHub; the Launchpad shows them flat and has nothing to do with Teams; the
 Launchpad signs in with the Lazurio Account and asks the Dashboard what belongs there;
 the Dashboard reads access live from GitHub and projects it; the Launchpad reaches the
@@ -2606,33 +2606,59 @@ repositories with its own `gh`; later, modules outside the Environment's access 
 requested and an Owner's approval in the Dashboard writes the grant to GitHub.
 
 The shaping, with variants, the API, the technology comparison, removal semantics,
-failure modes and eighteen open decisions, is
-[workspace composition](workspace-composition.md). In short:
+failure modes and the decided and open questions, is
+[workspace composition](workspace-composition.md).
+
+**Decided by Matěj on 2026-10-02:**
+
+1. **The Lazurio Account is the foundation.** An operator account belongs to a person,
+   with GitHub linked to it; the operator owns Environments (laptops, VMs). The
+   Launchpad signs in by a device code, as `gh` does, and by that represents the
+   Environment itself, which is linked to the operator and gets the operator's rights.
+   The design of the account is pending (section 4.1 of the shaping).
+2. **Who registers.** An operator registers their own Environment; an Owner (or Admin)
+   of the Organization registers a Team Environment; an Automated Environment is always
+   an Environment under an operator, registered by and accountable to that operator,
+   with the persona's account as its GitHub identity.
+3. **Clones and clean fast-forwards are automatic; removal only after a person
+   confirms it**, and no automatic removal after a revoke in v1.
+4. **The Production Space is in v1.** Declared Production Space repositories follow the
+   same access rule and are materialized into `productionspace/<repository>` as the
+   manifest declares; they are never run or released and the Launchpad shows them
+   read-only.
+5. **The broker's repository allowlist goes; manifest `teams` become legacy** and are
+   removed after the rollout.
+6. **The contract package lives in this repository and the Dashboard takes its types
+   from it.** The same package and API carry the Environment list of the shared
+   Lazurio shell (plan DEV-6639), which also owns where the sign-in sits.
+
+**Proposed, still open:**
 
 1. **Four questions, four owners.** Admission stays the gateway's (F11). The Lazurio
-   Account sign-in **enrolls the Environment**: a person with the right approves a
-   device code, the Environment registers a key it generated, and asks from then on as
-   the Environment. The **composition** is the Dashboard's live projection of GitHub.
-   **Access** stays GitHub's, checked at the operation through the Environment's own
-   identity.
+   Account sign-in **registers the Environment**: the Environment registers a key it
+   generated and from then on signs its requests as the Environment. The
+   **composition** is the Dashboard's live projection of GitHub. **Access** stays
+   GitHub's, checked at the operation through the Environment's own identity.
 2. **The subject is the Environment's GitHub principal**, never the person signed in:
    the person's account on a workstation, the operator's on a Work Environment, the
-   Team on a Team Environment, the persona's account on an Automated Environment; a
-   personal Remote Environment has no composition.
-3. **Modules stay declared.** The composition selects among the slots the Organization
-   manifest declares; destination paths come only from that manifest.
-4. **Additions and clean fast-forwards follow the composition without a click; removal
-   is always a confirmed proposal**, only for a clean checkout whose every commit is on
-   the remote. An unavailable or partial answer keeps the last known composition.
-5. **A typed contract package** `@lazurio/contracts` in this repository, Effect Schema
-   and `HttpApi` as in the T3 Code fork, behind a committed OpenAPI snapshot and a
-   measured spike, JSON Schema with ajv as the fallback behind the same wire contract.
+   Team on a Team Environment, the persona's account on an Automated Environment
+   (linked by proof of control, never by a typed name); a personal Remote Environment
+   has no composition.
+3. **Repositories stay declared.** The composition selects among the module and
+   Production Space slots the Organization manifest declares; destination paths come
+   only from that manifest. An unavailable or partial answer keeps the last known
+   composition.
+4. **A typed contract** written with Effect Schema and `HttpApi` as in the T3 Code fork,
+   behind a committed OpenAPI snapshot and a measured spike, JSON Schema with ajv as the
+   fallback behind the same wire contract.
 
 **Relation to other decisions.** It changes F9's "explicit only" for composition-driven
-additions and fast-forwards, refines F11 (the Account sign-in is the Environment's
-enrollment; self-hosted stays unmanaged), keeps B1's execution admission and moves
-materialization to the composition, and needs a root decision record that confirms and
-extends root 0149 and fulfils root 0159 (section 14 of the shaping).
+additions and fast-forwards and takes the Production Space out of what content sync never
+touches, refines F11 (the Account sign-in is the Environment's registration;
+self-hosted stays unmanaged), keeps B1's execution admission and moves materialization
+to the composition, and needs a root decision record that confirms and extends root
+0149, fulfils root 0159 and reconciles "the operator owns Environments" with the
+Organization as Owner of a work VM (section 14 of the shaping).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -2640,4 +2666,4 @@ extends root 0149 and fulfils root 0159 (section 14 of the shaping).
 | A snapshot in the handover | Needs a Machines apply per grant change; rejected by the direction |
 | The Dashboard keeps grants in its database | A second copy of access; rejected |
 | Each person signs in and the composition follows the person | Wrong subject on Team and Automated Environments; nothing works while nobody is signed in; rejected |
-| The Dashboard's live projection, Environment enrollment, local application with the Environment's own identity (proposed) | One projection for every kind of Environment; GitHub stays the authority; nothing destructive without a person |
+| The Dashboard's live projection, Environment registration, local application with the Environment's own identity (proposed) | One projection for every kind of Environment; GitHub stays the authority; nothing destructive without a person |
