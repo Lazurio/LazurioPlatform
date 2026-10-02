@@ -252,7 +252,7 @@ Notes:
 
 | Variant | Assessment |
 | --- | --- |
-| E1. Device-code enrollment approved by a person with the right; the Environment generates a key pair and registers the public key; it then authenticates as the Environment (selected, O4/O5) | One flow for every kind, headless and behind the gateway; the private key never leaves the Environment; no person's session is needed after enrollment; revocable per Environment |
+| E1. Device-code enrollment approved by a person with the right; the Environment generates a key pair and registers the public key; it then signs its requests as the Environment (selected, O4/O5) | One flow for every kind, headless and behind the gateway; the private key never leaves the Environment; no person's session is needed after enrollment; revocable per Environment |
 | E2. Machines provisions the identity at apply and writes it into the handover (`account`, `lazurio.machine.v2`) | Zero-touch for hosted Environments; but Machines gets a Dashboard credential and a secret travels in custody; no answer for workstations; a later improvement on top of E1, not a replacement |
 | E3. Reuse the gateway's session (Keycloak) | Admission is not identity (F11); the Launchpad never sees an identity from the gateway; per-VM clients have no client credentials; rejected |
 | E4. Every person signs in, each with their own session | No composition while nobody is signed in; a person's session on a shared Team Environment; the subject would be the person, which is wrong for Team and Automated Environments; rejected |
@@ -276,11 +276,19 @@ response types come from the shared contract package (section 7).
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /api/environment/v1/device` | RFC 8628 device authorization. The Launchpad sends `client_id: lazurio-launchpad`, its public key (JWK, ES256) and the facts it claims (kind, Machine name and Organization from the handover, or `workstation`). Answers `device_code`, `user_code`, `verification_uri`, `verification_uri_complete`, `interval`, `expires_in`. |
-| Dashboard page `/device` | The person signs in with GitHub as today, sees the claimed facts next to what the Dashboard knows (the infra roster for a hosted Environment), and approves only what the rules of section 4 allow. |
-| `POST /api/environment/v1/token` | `grant_type=urn:ietf:params:oauth:grant-type:device_code` completes enrollment and returns the `environment_id`; afterwards `grant_type=client_credentials` with a `client_assertion` signed by the Environment key (RFC 7523) returns a short-lived access token (O5). |
+| Dashboard page `/device` | The person signs in to the Dashboard (with GitHub today, with the Lazurio Account issuer once the Dashboard moves to it, plan DEV-6552), sees the claimed facts next to what the Dashboard knows (the infra roster for a hosted Environment), and approves only what the rules of section 4 allow. No token of that person ever reaches the Environment. |
+| `POST /api/environment/v1/device/token` | Polled with `grant_type=urn:ietf:params:oauth:grant-type:device_code` as RFC 8628 says; on approval it answers the `environment_id` instead of an access token: the enrollment is complete and the registered key is the credential. |
 | `GET /api/environment/v1/environments/{environment_id}/composition` | The composition, with `ETag`; `If-None-Match` answers 304. `Cache-Control: no-cache` from an explicit "Synchronizovat" asks for fresh GitHub reads, rate-limited per Environment. |
 | `POST /api/environment/v1/environments/{environment_id}/report` | Optional (O10): the composition digest the Launchpad applied and a state code per entry. No paths, branch names, commit messages or file names. |
-| `POST /api/environment/v1/revoke` | RFC 7009-style self-revocation when the Operator disconnects the Environment from the Launchpad. Revocation from the Dashboard's Environment list deletes the key. |
+| `POST /api/environment/v1/environments/{environment_id}/revoke` | Self-revocation when the Operator disconnects the Environment from the Launchpad. Revocation from the Dashboard's Environment list deletes the key. |
+
+**Authentication after enrollment (O5).** Every request carries
+`Authorization: Bearer <assertion>`, a JWT the Environment signs with its key (ES256):
+`iss` and `sub` the `environment_id`, `aud` the Dashboard's API origin, `iat`, `exp` at
+most five minutes later, a unique `jti` the Dashboard refuses to see twice. It is the
+pattern of a GitHub App calling GitHub with its own JWT: no token endpoint, no issued
+secret on disk, nothing to refresh; the Dashboard verifies the signature against the
+registered public key and the enrollment's state on every request.
 
 Access requests (M6) are made on a Dashboard page, not through this API: the Launchpad
 opens `…/access-requests/new?repository=<id>&environment=<id>` and the person signs in
@@ -446,23 +454,31 @@ Launchpad release switches to N.
 
 ### 7.4 The sign-in flow (O5)
 
-- **Device authorization grant (RFC 8628)** against the Dashboard, whose Better Auth
-  installation provides it (`device-authorization` plugin) — not against the workspace
-  Keycloak realm, which serves gateway admission and must not become identity (F11).
-  The Launchpad shows the link, the code and a readable QR code exactly as for the
-  curated tool sign-ins (F19); the CLI has `lazurio account login` with the same output.
+- **Device authorization grant (RFC 8628), served by the Dashboard**, whose Better
+  Auth installation ships it (`device-authorization` plugin). It binds an Environment
+  key to the approval of a signed-in person; it issues that person nothing. The
+  Launchpad shows the link, the code and a readable QR code exactly as for the curated
+  tool sign-ins (F19); the CLI has `lazurio account login` with the same output.
+- **The Lazurio Account.** The maintainers plan to move the Dashboard's own sign-in to
+  one Lazurio Account issuer, with the Dashboard as its relying party and not an issuer
+  of human accounts (plan DEV-6552). The enrollment does not depend on that: the
+  approving person is the one the Dashboard has signed in, before and after the move,
+  and section 4 decides whether that person may approve.
+  An Environment key is not a human account, so registering one does not make the
+  Dashboard a second account issuer; the decision record says so explicitly.
 - **The Environment key.** ES256, generated by the Launchpad with WebCrypto at
   enrollment; the private key stays in the Folder's product state (mode 0600, the
   operator account) and is never printed, exported or sent. On a Team Environment it is
   shared by everyone on that Environment by design: it represents the Environment.
-- **Access tokens.** Recommended: `client_credentials` with a `private_key_jwt`
-  assertion (RFC 7523), access tokens of 10 minutes, audience the composition API — no
-  long-lived bearer secret on disk. Alternative: a refresh token bound by DPoP (RFC 9449)
-  as in the fork's relay. Rejected: the Better Auth device plugin's default bearer
-  session as a long-lived secret on the Environment.
+- **Requests** carry a short-lived assertion signed by that key (6.1): variant (a),
+  recommended. Alternatives: (b) the Environment as an OAuth client of the Lazurio Account issuer with
+  `private_key_jwt` client credentials (RFC 7523), which needs a client per Environment
+  in the issuer, a second registry next to infra; (c) a refresh token bound by DPoP
+  (RFC 9449) as in the fork's relay; (d) the Better Auth device plugin's default, a
+  long-lived bearer session on disk, rejected.
 - **Revocation.** Disconnecting in the Dashboard's Environment list deletes the key;
   a changed Work Environment binding, a deleted Account (workstation) or a removed
-  Machine (hosted) revokes it automatically. The Launchpad answers a refused token with
+  Machine (hosted) revokes it automatically. The Launchpad answers a refused assertion with
   "odpojeno", keeps the last composition read-only and offers a new sign-in.
 - **Nothing is copied.** `gh`'s token never leaves `gh`'s store; the Dashboard never
   receives it and never hands the Launchpad a GitHub token; the App's installation
@@ -631,7 +647,7 @@ Each with the recommendation of this shaping.
 | O2 | Which Organizations go onto a workstation? | All Organizations of the Account where the App is installed, with a per-Environment exclusion of whole Organizations in the Dashboard (narrows, never widens) |
 | O3 | Which Organizations go onto a Work Environment? | Only the owning Organization; other Organizations stay explicit and unmanaged |
 | O4 | Who enrolls a Team or Automated Environment, and how? | An Owner or Admin (Team) and the responsible operator (Automated), once, by device code from that Environment's Launchpad (E1); Machines-provisioned enrollment (E2) later for zero-touch fleets |
-| O5 | What credential does the Environment hold? | A key pair; short-lived tokens by `private_key_jwt` (RFC 7523); DPoP only if the fork's relay code is reused as is |
+| O5 | What credential does the Environment hold, and who approves it? | A key pair generated on the Environment, registered by a device code a signed-in person approves in the Dashboard; every request a short-lived assertion signed by the key (GitHub App pattern); no human token on the Environment |
 | O6 | What runs without a click? | Clones of `present` entries and fast-forwards of clean, not-running checkouts; removal always confirmed |
 | O7 | Automatic removal after a revoke on Organization-owned Environments? | Not in v1; `retained` and proposed removals visible to the Owner; revisit after M7 |
 | O8 | Without a Lazurio Account? | Keep an unmanaged mode (Folder catalog, explicit add and sync), as F11 promises self-hosters |
