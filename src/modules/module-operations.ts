@@ -870,13 +870,14 @@ export function createModuleOperations(input: {
       if (prepared.kind !== "prepared")
         return blocked(
           "prepare",
-          // A failure without a reason is the declared check that still
-          // fails, as at the start.
-          prepared.kind === "preparation-failed"
-            ? "reason" in prepared && typeof prepared.reason === "string"
-              ? prepared.reason
-              : "prerequisites-not-ready"
-            : prepared.kind,
+          // A known reason is kept (a step that failed, a refused preflight);
+          // a failure without one is the declared check that still fails, as
+          // at the start.
+          "reason" in prepared && typeof prepared.reason === "string"
+            ? prepared.reason
+            : prepared.kind === "preparation-failed"
+              ? "prerequisites-not-ready"
+              : prepared.kind,
           {
             organization: target.organization,
             module: target.module,

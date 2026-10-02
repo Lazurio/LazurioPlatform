@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import type { ApplicationRunner } from "./application-runner";
 import { object, text } from "./manifest";
-import { PreparationRefused } from "./preparation-refusal";
+import { PreparationRefused, preparationRefusal } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
 
@@ -257,11 +257,13 @@ export function createApplicationLifecycle(adapters: {
               applicationDirectory(value, directory),
             );
           } catch (error) {
-            // A preparation refused for a known reason is named by its
-            // caller (decision F25), as at the start; nothing was stopped.
-            if (error instanceof PreparationRefused) throw error;
+            // A preparation refused for a known reason keeps it, with its
+            // file relative to the module (decision F25); nothing was
+            // stopped. An answer, not a throw: a throw would leave the
+            // transaction's retained record behind.
             return Object.freeze({
               kind: "preparation-preflight-failed" as const,
+              ...preparationRefusal(error, directory),
             });
           }
           preparations.add(preparation);

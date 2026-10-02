@@ -2210,7 +2210,8 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    install). The same holds for the gateway's `ensure` and the Launchpad's Start, which
    run the same core. The install runs under the start's coordination, not as a
    separate transaction: an interrupted install leaves no retained record, because the
-   next start's frozen install is its repair.
+   next start's frozen install is its repair. *Amended by F30:* a declared preparation's
+   start runs its check and, only when the check fails, its preparation.
 3. **The toolchain.** A package that pins Bun (`packageManager: bun@x.y.z`) is
    installed and run with exactly that Bun, as before; a mismatch with the operator's
    Bun is `preparation-toolchain-mismatch`. **A package that pins none is installed and
@@ -2591,3 +2592,67 @@ update does.
 | An explicit opt-in flag on `install` | The handover already declares a hosted operator; a flag is a second source for the same fact; rejected |
 | Write the unit only with `install --service` | Machines passes `--service` once, at the switch, so every Environment switched earlier would never get it; rejected for convergence on every install and update of a supervised hosted base |
 | A oneshot unit running the operator's `codex app-server daemon start`, written by `install --service` on a hosted Machine, never blocking (selected) | Uses Codex's own daemon lifecycle; one owner of the installer's units; failures are facts, not blockers |
+
+## F30 — A declared preparation's start prepares when its check fails; `lazurio module prepare`
+
+**Direction from the Lazurio Module Standard (root decision 0171, `manual/module-standard.md`
+ch. 3 and 10), requested by the Principal 2026-10-02; the details proposed for review**
+(issues #114, #116). Under the standard every application declares `lazurio.preparation`,
+and the Launchpad holds one policy for every module: installing the dependencies (`bun
+install --frozen-lockfile` from the lockfile beside the application's `package.json`) is
+part of the preparation the Platform owns, and the module's `prepare_script` never repeats
+it; before a start the Launchpad runs `check_script` and, when it fails, `prepare_script`,
+then the check again. Observed on `0.1.8-rc.11` and `rc.12`: the Platform installed only
+for an application **without** a declaration (F25), so a converted module on a fresh
+checkout answered `prerequisites-not-ready` and nothing on the operator's side could
+prepare it, while the catalog called it executable.
+
+1. **The start-time step.** For a declared preparation the start runs its check. A check
+   that passes is the whole step: nothing is installed or run (unchanged). A check that
+   fails is followed by the preparation: the frozen install from the lockfile beside the
+   owner's package (under the existing install authority, checkout rule and guarded
+   process), the declared `prepare_script` when there is one, and the check again; the
+   application starts only when that check passes. The default preparation (F25) is
+   unchanged. The gateway's `ensure` and the Launchpad's Start run the same core.
+2. **One run, one deadline.** The check, the install, the script and the second check are
+   one run of the existing Bun preparation under its one 600-second budget, so a start
+   fits the Launchpad's 660-second transport wait; cancellation, timeout, unconfirmed
+   cleanup and changed inputs never become prepared.
+3. **Exclusion as F25 point 2.** The start-time preparation runs under the start's
+   coordination, not as a retained transaction: an interrupted install or script leaves
+   no retained record, and the next start's check decides again, preparing again when it
+   fails. A check that passes on a half-written tree is the module's check to fix
+   (ch. 3: "prepared" includes the installed dependencies).
+4. **Nested applications.** A declared preparation keeps application packages nested in
+   one another possible (F25 point 6). For such an application the start never installs:
+   its check runs, and a check that fails answers `preparation-applications-overlap`; only
+   an explicit preparation installs.
+5. **The failed step is named.** `preparation-install-failed` with the lockfile (now also
+   for a declared preparation), the new `preparation-script-failed` with the owner's
+   `package.json`, and `prerequisites-not-ready` when the check still fails after the
+   preparation. The CLI and the page explain each (English and Czech).
+6. **`lazurio module prepare <Org>/<module> [--app] [--json]`** and `POST
+   /api/modules/<org>/<module>/prepare`: the existing explicit preparation of the
+   lifecycle (the transaction with the retained owner lock), whatever the check says now;
+   it never starts anything. It keeps that path's guards: `application-running` beneath a
+   service-owned application, `other-app-managed` while another application of the same
+   Organization is managed, and a session application is stopped for its own
+   preparation, as before. A known preflight refusal is named by its `preparation-*`
+   reason instead of `preparation-preflight-failed`. Where applications are
+   session-owned, the CLI answers `launchpad-required`, as for start.
+
+**Not decided here.** Whether a start should run the frozen install before every check
+(as the default does), so that a check passing on stale dependencies cannot start an
+application that misses a dependency added by an update; this decision keeps "a check that
+passes changes nothing", and such a module needs a check that verifies its dependencies
+or an explicit `lazurio module prepare`. Narrowing `other-app-managed` to applications
+that can share the dependency tree, which needs the runner to report their directories.
+Keeping the output of the preparation's processes.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the start as it is and ship only `prepare` (#114 option 1) | Every converted module needs an operator step on every Environment after every materialization; contradicts ch. 10's one policy; rejected |
+| The standard says "declare only from the release with `prepare`" (#114 option 3) | Leaves conforming modules worse off than non-conforming ones; rejected |
+| Always install before the check, as the default does (#116's proposal) | Repairs a stale tree whose check passes, at the cost of an install on every start; not chosen here, kept open for the Principal |
+| Check, then the preparation and the check again in one run, only when the check fails; `prepare` as the explicit transaction (selected) | Ch. 3 and 10 as written; a passing check still changes nothing; one budget; typed failures |
+
