@@ -203,7 +203,7 @@ authorizes the Environment to ask.
 | Personal Remote Environment | `hosted-personal` | The Owner | None (no Organization repositories, preset rule) | None | — | — (no composition is requested) |
 | Work Environment (one operator) | `hosted-organization-personal` | Only the assigned operator (`owner.assignment.github_id`) | The operator's GitHub user | The owning Organization only (O3) | The operator's own `gh` sign-in | `gh`'s active account id equals the subject |
 | Work Team Environment | `hosted-organization-team` | An Owner or Admin of the Organization (O4) | The GitHub Team the Environment is assigned to (immutable Team id) | The owning Organization | Lazurio for GitHub through the Organization's broker (0147) | `gh` resolves the brokered App identity (`ghIdentity` → `app` or `variable`) |
-| Automated Environment | `hosted-organization-steward` | The responsible operator (`owner.assignment` `automation`) | The persona's GitHub user, confirmed by that operator at enrollment | The owning Organization | The persona's account, signed in by the operator | `gh`'s active account id equals the subject |
+| Automated Environment | `hosted-organization-steward` | The responsible operator (`owner.assignment` `automation`) | The persona's GitHub user, as declared in the infra roster | The owning Organization | The persona's account, signed in by the operator | `gh`'s active account id equals the subject |
 
 Notes:
 
@@ -214,10 +214,13 @@ Notes:
   today; the Dashboard serves the merged value live, so the Launchpad follows a change
   without a Machines rollout (fulfilment of root 0159, O12). A changed binding revokes
   the enrollment; the new operator enrolls again.
-- **The persona of an Automated Environment is not in the handover** (it names the
-  responsible operator, never the persona). The operator names the persona's GitHub
-  account when enrolling; the Dashboard stores that as part of the enrollment; the local
-  check refuses to apply under any other account.
+- **The persona of an Automated Environment must be declared, not named at
+  enrollment.** The handover names the responsible operator, never the persona. A
+  composition reveals what its subject can read, so the subject is bound by an
+  authority: the infra roster declares the persona's immutable GitHub user id next to
+  the `automation` assignment (a Machines change), and the enrollment accepts only that
+  id. Until the roster carries it, an Automated Environment gets no composition. The
+  local check then refuses to apply under any other account.
 - **A Team Environment never uses a person's account** (root 0168; F31 as proposed in
   pull request #119).
 - **The Team of a Team Environment is an immutable GitHub Team id**, the one the
@@ -349,7 +352,10 @@ Semantics:
   action from the local state it alone knows (section 8). The Dashboard never learns or
   decides local state.
 - **`requestable`** (M6) marks a declared, non-restricted slot the subject cannot read
-  and may ask for. Restricted slots are never requestable.
+  and may ask for. Restricted slots are never requestable. A user subject is eligible
+  when it is a member of that Organization; a Team subject belongs to the Organization
+  by construction, and the person who files a request for it must be a live member of
+  that Team.
 - **An `incomplete` Organization** carries every entry as `unchanged`.
 - **Unknown members are ignored** by a client of the same major version; an unknown
   enum value is treated as `unchanged` (for `desired`) or `unknown` (for `access`).
@@ -586,8 +592,8 @@ remain. On Organization-owned Environments the report (O10) lets an Owner see
   Organization materializes only under its own root and fails alone.
 - **Information exposure.** A composition names repositories. `requestable` entries
   reveal names of repositories the subject cannot read; they are limited to declared,
-  non-restricted slots, to members of that Organization and to Organizations whose
-  Owner turned it on (O9).
+  non-restricted slots, to eligible subjects (members of that Organization, or its own
+  Teams) and to Organizations whose Owner turned it on (O9).
 - **Personalspace and personal Environments** never appear in a composition or a report.
 - **Audit.** Enrollment, revocation, every access request, its approval and the GitHub
   write are audit events in the Dashboard; the Dashboard has no audit table today and
@@ -659,7 +665,7 @@ Each with the recommendation of this shaping.
 | O6 | What runs without a click? | Clones of `present` entries and fast-forwards of clean, not-running checkouts; removal always confirmed |
 | O7 | Automatic removal after a revoke on Organization-owned Environments? | Not in v1; `retained` and proposed removals visible to the Owner; revisit after M7 |
 | O8 | Without a Lazurio Account? | Keep an unmanaged mode (Folder catalog, explicit add and sync), as F11 promises self-hosters |
-| O9 | Who sees "další modul organizace"? | Only declared non-restricted slots, only members of that Organization, only where the Owner turned it on |
+| O9 | Who sees "další modul organizace"? | Only declared non-restricted slots, only for members of that Organization or its own Teams, only where the Owner turned it on |
 | O10 | Does the Launchpad report back? | Yes: applied digest and a state code per entry, nothing else |
 | O11 | Polling or push? | Polling with `ETag` (300 s and on demand) in v1; push over an RPC stream later |
 | O12 | Where does a Work Environment's GitHub binding live? | The infra roster (`owner.assignment`), edited from the Dashboard by a pull request to infra (F16), served live by the Dashboard |
