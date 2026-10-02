@@ -2591,3 +2591,52 @@ update does.
 | An explicit opt-in flag on `install` | The handover already declares a hosted operator; a flag is a second source for the same fact; rejected |
 | Write the unit only with `install --service` | Machines passes `--service` once, at the switch, so every Environment switched earlier would never get it; rejected for convergence on every install and update of a supervised hosted base |
 | A oneshot unit running the operator's `codex app-server daemon start`, written by `install --service` on a hosted Machine, never blocking (selected) | Uses Codex's own daemon lifecycle; one owner of the installer's units; failures are facts, not blockers |
+
+## F32 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal)
+
+**Proposal of 2026-10-02 (plan DEV-6638); not decided, not implemented.** Numbered after
+F30 and F31, which pull request #119 proposes. Matěj, an Organization Admin, gave the
+direction on 2026-10-02:
+one Environment is one workspace; its modules are the repositories the Environment can
+reach by GitHub; the Launchpad shows them flat and has nothing to do with Teams; the
+Launchpad signs in with the Lazurio Account and asks the Dashboard what belongs there;
+the Dashboard reads access live from GitHub and projects it; the Launchpad reaches the
+repositories with its own `gh`; later, modules outside the Environment's access can be
+requested and an Owner's approval in the Dashboard writes the grant to GitHub.
+
+The shaping, with variants, the API, the technology comparison, removal semantics,
+failure modes and eighteen open decisions, is
+[workspace composition](workspace-composition.md). In short:
+
+1. **Four questions, four owners.** Admission stays the gateway's (F11). The Lazurio
+   Account sign-in **enrolls the Environment**: a person with the right approves a
+   device code, the Environment registers a key it generated, and asks from then on as
+   the Environment. The **composition** is the Dashboard's live projection of GitHub.
+   **Access** stays GitHub's, checked at the operation through the Environment's own
+   identity.
+2. **The subject is the Environment's GitHub principal**, never the person signed in:
+   the person's account on a workstation, the operator's on a Work Environment, the
+   Team on a Team Environment, the persona's account on an Automated Environment; a
+   personal Remote Environment has no composition.
+3. **Modules stay declared.** The composition selects among the slots the Organization
+   manifest declares; destination paths come only from that manifest.
+4. **Additions and clean fast-forwards follow the composition without a click; removal
+   is always a confirmed proposal**, only for a clean checkout whose every commit is on
+   the remote. An unavailable or partial answer keeps the last known composition.
+5. **A typed contract package** `@lazurio/contracts` in this repository, Effect Schema
+   and `HttpApi` as in the T3 Code fork, behind a committed OpenAPI snapshot and a
+   measured spike, JSON Schema with ajv as the fallback behind the same wire contract.
+
+**Relation to other decisions.** It changes F9's "explicit only" for composition-driven
+additions and fast-forwards, refines F11 (the Account sign-in is the Environment's
+enrollment; self-hosted stays unmanaged), keeps B1's execution admission and moves
+materialization to the composition, and needs a root decision record that confirms and
+extends root 0149 and fulfils root 0159 (section 14 of the shaping).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The Launchpad decides presence from `gh` and provider errors (today's direction of P10, the legacy heuristics) | A Team Environment cannot list what it could read; "absent" and "denied" look alike; rejected by the direction |
+| A snapshot in the handover | Needs a Machines apply per grant change; rejected by the direction |
+| The Dashboard keeps grants in its database | A second copy of access; rejected |
+| Each person signs in and the composition follows the person | Wrong subject on Team and Automated Environments; nothing works while nobody is signed in; rejected |
+| The Dashboard's live projection, Environment enrollment, local application with the Environment's own identity (proposed) | One projection for every kind of Environment; GitHub stays the authority; nothing destructive without a person |
