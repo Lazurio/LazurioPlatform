@@ -16,7 +16,7 @@ import { observeModuleDirectory } from "./read-applications";
 // is a module, its id is its directory name. The Personalspace is private
 // (decision 0091): nothing here reads more than the owner directory's module
 // declarations, and exactly one owner directory is read; with more than one,
-// none is, because which one is the Principal's is not guessed.
+// none is, because which one is the Operator's is not guessed.
 
 /** The name the Personalspace group is addressed by: `personalspace/<module>`
  * in `lazurio module …`, `/o/personalspace` on the page, the `organization`

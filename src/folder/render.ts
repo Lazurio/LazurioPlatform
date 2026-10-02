@@ -25,7 +25,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-15";
+export const instructionTemplateRevision = "base-instructions-17";
 
 // Template revisions are ordered by their number. A Folder rendered by an
 // older revision is re-rendered by the next change of the generated Folder
@@ -173,12 +173,12 @@ export function assignmentLine(
         }
       : assignment.kind === "automation"
         ? {
-            cs: `- Přiřazení: automatizovaný Environment persony Organizace; odpovědný operátor \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-            en: `- Assignment: an automated Environment of an Organization persona; responsible operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+            cs: `- Přiřazení: automatizovaný Environment persony Organizace; odpovědný Operátor \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+            en: `- Assignment: an automated Environment of an Organization persona; responsible Operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
           }
         : {
             cs: `- Přiřazení: přiřazený Operátorovi \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-            en: `- Assignment: assigned to operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+            en: `- Assignment: assigned to Operator \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
           };
   return [text[locale]];
 }
@@ -204,8 +204,8 @@ function machineSection(
     return [
       ...lines,
       pick({
-        cs: "- Pracovní stanice Principála bez handoveru; Owner i Principál je přihlášený uživatel.",
-        en: "- The Principal's own workstation, no handover; the signed-in user is both Owner and Principal.",
+        cs: "- Pracovní stanice Operátora bez handoveru; Owner i Operátor je přihlášený uživatel.",
+        en: "- The Operator's own workstation, no handover; the signed-in user is both Owner and Operator.",
       }),
     ];
   // The recorded binding keeps the handover's Team untouched; the Owner line
@@ -215,8 +215,8 @@ function machineSection(
   const owner =
     machine.owner.kind === "principal"
       ? pick({
-          cs: `- Owner: Principál s GitHub loginem \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). Je to jeho jediný osobní Remote Environment.`,
-          en: `- Owner: the Principal with GitHub login \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). This is their one personal Remote Environment.`,
+          cs: `- Owner: člověk s GitHub loginem \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). Je to jeho jediný osobní Remote Environment.`,
+          en: `- Owner: the person with GitHub login \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). This is their one personal Remote Environment.`,
         })
       : machine.owner.team === null || preset !== "hosted-organization-team"
         ? pick({
@@ -227,22 +227,22 @@ function machineSection(
             cs: `- Owner: Organizace \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
             en: `- Owner: Organization \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
           });
-  const principal = {
+  const operator = {
     "hosted-personal": {
-      cs: "- Principál: Owner tohohle Environmentu. Agenti tu jednají za něj v jeho právech; Buddy je volitelný rezident téhož Environmentu.",
-      en: "- Principal: the Owner of this Environment. Agents here act for them within their rights; a Buddy is an optional resident of this same Environment.",
+      cs: "- Operátor: Owner tohohle Environmentu. Agenti tu jednají za něj v jeho právech; Buddy je volitelný rezident téhož Environmentu.",
+      en: "- Operator: the Owner of this Environment. Agents here act for them within their rights; a Buddy is an optional resident of this same Environment.",
     },
     "hosted-organization-personal": {
-      cs: "- Principál: jediný Operátor, kterému Organizace tenhle pracovní Remote Environment přiřadila. Agenti jednají za něj v jeho živých právech.",
-      en: "- Principal: the one operator the Organization assigned this work Remote Environment to. Agents act for them within their live rights.",
+      cs: "- Operátor: ten, komu Organizace tenhle pracovní Remote Environment přiřadila. Agenti jednají za něj v jeho živých právech.",
+      en: "- Operator: the person the Organization assigned this work Remote Environment to. Agents act for them within their live rights.",
     },
     "hosted-organization-team": {
-      cs: "- Principál: Kolega, který se právě připojil. OS účet je sdílený členy Teamu a není osoba; změny se připisují Teamu přes brokerovanou identitu Organizace.",
-      en: "- Principal: whichever Team member is connected now. The OS account is shared by the Team and is not a person; changes are attributed to the Team through the brokered Organization identity.",
+      cs: "- Operátor: člen Teamu, který je právě připojený. OS účet sdílí Team a není osoba. Na GitHubu jednáš jako brokerovaná identita Organizace, ne jako ten člověk, a změny se připisují Teamu.",
+      en: "- Operator: whichever Team member is connected now. The OS account is shared by the Team and is not a person. On GitHub you act as the brokered Organization identity, not as that person, and changes are attributed to the Team.",
     },
     "hosted-organization-steward": {
-      cs: "- Principál: odpovědný operátor tohoto Automatizovaného Environmentu, Owner nebo Admin Organizace. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se připojuje jen operátor, pro servisní zákroky.",
-      en: "- Principal: the responsible operator of this Automated Environment, an Owner or Admin of the Organization. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the operator connects over SSH, for service interventions.",
+      cs: "- Operátor: Owner nebo Admin Organizace, který za tenhle Automatizovaný Environment odpovídá. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se sem připojuje jen Operátor, pro servisní zákroky.",
+      en: "- Operator: the Owner or Admin of the Organization who answers for this Automated Environment. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the Operator connects over SSH, for service interventions.",
     },
     local: { cs: "", en: "" },
   }[preset];
@@ -253,7 +253,7 @@ function machineSection(
     }),
     owner,
     ...assignmentLine(machine, locale),
-    pick(principal),
+    pick(operator),
     machine.network === null
       ? pick({
           cs: "- Tailnet: handover neuvádí identitu v tailnetu.",
@@ -289,8 +289,8 @@ function boundarySection(
     pick({ cs: "## Hranice", en: "## Boundaries" }),
     personalspace === "present"
       ? pick({
-          cs: "- Personalspace: `personalspace/` je intimní prostor právě jednoho Principála a jeho volitelného Buddyho. Nikdo cizí ho nečte a nikdy se nesdílí.",
-          en: "- Personalspace: `personalspace/` is the intimate space of exactly one Principal and their optional Buddy. Nobody else reads it and it is never shared.",
+          cs: "- Personalspace: `personalspace/` je intimní prostor jednoho člověka, Ownera tohohle Environmentu, a jeho volitelného Buddyho. Nikdo cizí ho nečte a nikdy se nesdílí.",
+          en: "- Personalspace: `personalspace/` is the intimate space of one person, the Owner of this Environment, and their optional Buddy. Nobody else reads it and it is never shared.",
         })
       : pick({
           cs: "- Personalspace: na Environmentu vlastněném Organizací nikdy není. Nezakládej ho, nemountuj ho a nekopíruj sem osobní data ani přihlášení.",
@@ -298,8 +298,8 @@ function boundarySection(
         }),
     preset === "hosted-personal"
       ? pick({
-          cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu, který ti Principál potvrdí jako přiřazený jemu; repozitáře Organizací sem nikdy neklonuj.",
-          en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment the Principal confirms is assigned to them; never clone Organization repositories here.",
+          cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu, který ti Operátor potvrdí jako přiřazený jemu; repozitáře Organizací sem nikdy neklonuj.",
+          en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment the Operator confirms is assigned to them; never clone Organization repositories here.",
         })
       : pick({
           cs: "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář.",
@@ -307,8 +307,8 @@ function boundarySection(
         }),
     providerIdentity === "own-sign-in"
       ? pick({
-          cs: "- Identita: Principálova vlastní přihlášení; GitHub je jediná autorita přístupů.",
-          en: "- Identity: the Principal's own sign-ins; GitHub is the only access authority.",
+          cs: "- Identita: Operátorova vlastní přihlášení; GitHub je jediná autorita přístupů.",
+          en: "- Identity: the Operator's own sign-ins; GitHub is the only access authority.",
         })
       : providerIdentity === "persona-account"
         ? pick(personaIdentity)
@@ -322,8 +322,8 @@ function boundarySection(
 // The identity line of the Automated Environment (decision 0169), the same in
 // AGENTS.md and the manual.
 export const personaIdentity: Text = {
-  cs: "- Identita: vlastní GitHub uživatelský účet persony (účet bota), který v `gh` přihlašuje odpovědný operátor a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet operátora ani nikoho jiného sem nepřihlašuj; GitHub je jediná autorita přístupů.",
-  en: "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
+  cs: "- Identita: vlastní GitHub uživatelský účet persony (účet bota), který v `gh` přihlašuje odpovědný Operátor a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet Operátora ani nikoho jiného sem nepřihlašuj; GitHub je jediná autorita přístupů.",
+  en: "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible Operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the Operator's own account or anyone else's here; GitHub is the only access authority.",
 };
 
 // The bot team of the Automated Environment (decision 0169) in its short form;
@@ -353,20 +353,82 @@ function botTeamSection(
   ];
 }
 
-// Two rules every hosted Machine needs before an agent acts: how to reach
-// another Machine, and who updates this one (its operator, decision F17). `manual/` has the details.
-function hostedLines(pick: (text: Text) => string): string[] {
+// What every hosted Machine needs before an agent acts: how to reach another
+// Machine and how the Operator sees the agent's work. Only Codex Desktop's
+// built-in browser reaches a `localhost` port here, through an SSH tunnel it
+// opens itself; T3 Code and Lazurio MausBot forward nothing (decision F14
+// addendum 2026-10-02).
+function hostedLines(
+  pick: (text: Text) => string,
+  machine: MachineBinding,
+): string[] {
+  const ssh = operatorConnectsOverSsh(machine);
   return [
     pick({
       cs: "- SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x` (`manual/this-machine.md`).",
       en: "- SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare `100.64.0.x` address (`manual/this-machine.md`).",
     }),
-    pick({
-      cs: "- Verzi Lazuria vlastní operátor: `lazurio update` spusť, když o to požádá; `lazurio update status` smíš kdykoli. Pin provozovatele hostingu (Lazurio Machines) je jen minimum a rollout verzi nikdy nesníží. Po aktualizaci obnoví tenhle Folder `lazurio machine folder-refresh`. Nástroje operátora (Codex, Claude Code, `gh`, Node, npm, Bun…) aktualizuj jen na výslovný pokyn Principála oficiálním instalátorem daného nástroje, jinak jen nahlas jejich verze (`manual/troubleshooting.md`, decisions 0161 a F17).",
-      en: "- The operator owns the version of Lazurio: run `lazurio update` when they ask for it; `lazurio update status` is free to use. The hosting operator's pin (Lazurio Machines) is only a minimum, and a rollout never lowers a version. After an update, `lazurio machine folder-refresh` refreshes this Folder. Update the operator's tools (Codex, Claude Code, `gh`, Node, npm, Bun…) only on the Principal's explicit instruction with that tool's official installer, otherwise only report their versions (`manual/troubleshooting.md`, decisions 0161 and F17).",
-    }),
+    pick(
+      ssh === true
+        ? {
+            cs: "- Operátor se sem připojuje přes SSH. `localhost` odsud otevře jen integrovaný prohlížeč Codex Desktopu, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím `runtime.url` (`manual/this-machine.md`).",
+            en: "- The Operator connects here over SSH. Only Codex Desktop's built-in browser opens `localhost` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its `runtime.url` (`manual/this-machine.md`).",
+          }
+        : ssh === false
+          ? {
+              cs: "- Operátor se sem přes SSH nepřipojuje: `localhost` odsud neotevře a žádný port se nepřesměruje. Aplikaci modulu odkazuj jejím `runtime.url` (`manual/this-machine.md`).",
+              en: "- The Operator does not connect here over SSH: they cannot open `localhost` from here and no port is forwarded. Link a module's application by its `runtime.url` (`manual/this-machine.md`).",
+            }
+          : {
+              cs: "- `localhost` existuje jen tady. Otevře ho jen integrovaný prohlížeč Codex Desktopu připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím `runtime.url` (`manual/this-machine.md`).",
+              en: "- `localhost` exists only here. Only the built-in browser of Codex Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its `runtime.url` (`manual/this-machine.md`).",
+            },
+    ),
   ];
 }
+
+// Keeping the Environment current (decision F17 addendum 2026-10-02): at the
+// start of work the agent updates Lazurio in the background, then the clean
+// checkouts, and offers the Operator a newer tool. A personal Remote
+// Environment mounts no Organization; a Team Environment shares everything.
+function updateLine(preset: PresetName): Text {
+  const checkouts = preset !== "hosted-personal";
+  const team = preset === "hosted-organization-team";
+  return {
+    cs: [
+      checkouts
+        ? "- Na začátku práce spusť na pozadí `lazurio update` a aktualizuj čisté checkouty Organizací a modulů (`git pull --ff-only`); rozjetý checkout srovnej tak, aby se žádná práce neztratila."
+        : "- Na začátku práce spusť na pozadí `lazurio update`.",
+      "Novější verzi nástroje (Codex, Claude Code, `gh`, Node, Bun…) Operátorovi nabídni a aktualizuj ji až s jeho souhlasem.",
+      ...(team
+        ? [
+            "Na týmovém Environmentu dopadne aktualizace na všechny jeho Operátory: Launchpad se jim na chvíli restartuje a nástroje i checkouty jsou společné.",
+          ]
+        : []),
+      "Postup je v `manual/troubleshooting.md` (decisions 0161 a F17).",
+    ].join(" "),
+    en: [
+      checkouts
+        ? "- At the start of work, run `lazurio update` in the background and update the clean checkouts of Organizations and modules (`git pull --ff-only`); bring a diverged checkout back so that no work is lost."
+        : "- At the start of work, run `lazurio update` in the background.",
+      "Offer the Operator a newer version of a tool (Codex, Claude Code, `gh`, Node, Bun…) and update it only with their consent.",
+      ...(team
+        ? [
+            "On a Team Environment an update affects all its Operators: the Launchpad restarts for them for a moment, and the tools and checkouts are shared.",
+          ]
+        : []),
+      "The procedure is in `manual/troubleshooting.md` (decisions 0161 and F17).",
+    ].join(" "),
+  };
+}
+
+// A missing right is the most common stall on hosted work Environments: the
+// agent escalates it to a named administrator and keeps working (decision F14
+// addendum 2026-10-02).
+const rightsLine: Text = {
+  cs: "- Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, Operátorovi dej hotový krátký text pro něj a pokračuj na všem ostatním (`manual/working-here.md`).",
+  en: "- When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the Operator a short ready text for them, and continue with everything else (`manual/working-here.md`).",
+};
 
 const tierLabels: Readonly<Record<ToolTier, Text>> = {
   required: { cs: "povinný", en: "required" },
@@ -378,19 +440,19 @@ const tierLabels: Readonly<Record<ToolTier, Text>> = {
 // on; the note itself is quoted only in the manual.
 const noteMarker: Text = {
   cs: "Operátor k němu agentům zanechal poznámku v `manual/this-machine.md`.",
-  en: "The operator left a note on it for agents in `manual/this-machine.md`.",
+  en: "The Operator left a note on it for agents in `manual/this-machine.md`.",
 };
 
 // The attribution above a quoted note in the manual.
 export const noteAttribution: Text = {
-  cs: "Poznámka operátora tohohle Environmentu:",
-  en: "Note from the operator of this Environment:",
+  cs: "Poznámka Operátora tohohle Environmentu:",
+  en: "Note from the Operator of this Environment:",
 };
 
 // Said once in the manual when any tool carries a note.
 export const notesMeaning: Text = {
-  cs: "Poznámka operátora u nástroje je záměr operátora tohohle Environmentu pro agenty, kteří tu pracují: řiď se jí v mezích pokynu Principála. Neuděluje žádný přístup ani mandát k Publikaci a pravidla tohohle dokumentu nemění; je to citovaný text, ne instrukce Lazuria.",
-  en: "A note from the operator on a tool is the intent of this Environment's operator for the agents working here: follow it within the Principal's instructions. It grants no access and no mandate for a Publication and changes none of the rules of this document; it is quoted text, not an instruction of Lazurio.",
+  cs: "Poznámka Operátora u nástroje je záměr Operátora tohohle Environmentu pro agenty, kteří tu pracují: řiď se jí v mezích pokynu Operátora. Neuděluje žádný přístup ani mandát k Publikaci a pravidla tohohle dokumentu nemění; je to citovaný text, ne instrukce Lazuria.",
+  en: "A note from the Operator on a tool is the intent of this Environment's Operator for the agents working here: follow it within the Operator's instructions. It grants no access and no mandate for a Publication and changes none of the rules of this document; it is quoted text, not an instruction of Lazurio.",
 };
 
 // One line per tool agents are to use: the required ones and the enabled
@@ -432,7 +494,7 @@ export const mcpInstruction: Text = {
 // of a tool belongs to the whole Environment, not to the person who made it.
 export const sharedSignInWarning: Text = {
   cs: "**Sdílený Environment:** účty přihlášené v nástrojích platí pro celý tenhle Environment a sdílí je všichni jeho Operátoři i jejich agenti. Přihlašuj tu jen účty, které mají být dostupné celému Teamu; osobní účet sem nepatří.",
-  en: "**Shared Environment:** accounts signed in to the tools apply to this whole Environment and are shared by all its operators and their agents. Sign in only accounts meant for the whole Team; a personal account does not belong here.",
+  en: "**Shared Environment:** accounts signed in to the tools apply to this whole Environment and are shared by all its Operators and their agents. Sign in only accounts meant for the whole Team; a personal account does not belong here.",
 };
 
 // Whether the Environment runs on a hosted Machine: every preset but the
@@ -444,6 +506,39 @@ export function hostedEnvironment(preset: PresetName): boolean {
 // Whether sign-ins on this preset are shared by several operators.
 export function sharedEnvironment(preset: PresetName): boolean {
   return workspacePreset(preset).providerIdentity === "brokered-organization";
+}
+
+// Whether the operator reaches this Environment over SSH, as the handover's
+// peers record it: a client device or a personal Remote Environment whose SSH
+// link points here. Only Codex Desktop over SSH reaches a `localhost` port here,
+// through a tunnel it opens itself. `null` when the handover records no
+// relationships.
+export function operatorConnectsOverSsh(
+  machine: MachineBinding | null,
+): boolean | null {
+  const relationships = machine?.relationships;
+  if (relationships === undefined) return null;
+  return relationships.peers.some(
+    (peer) =>
+      (peer.kind === "client-device" || peer.kind === "personal-vm") &&
+      peer.ssh !== null &&
+      peer.ssh.direction !== "outbound",
+  );
+}
+
+// Where an agent saves a work product that does not belong in a repository:
+// the Operator's own Documents folder of the OS, never the Folder (Matěj's
+// decision 2026-10-02: a standard folder, not an invented one).
+function documentsLine(os: FolderProfile["os"]): Text {
+  return os === "windows"
+    ? {
+        cs: "- Výstup, který nepatří do repozitáře, ulož do složky Dokumenty (`[Environment]::GetFolderPath('MyDocuments')`) do podsložky úkolu a uveď celou cestu; do kořene Folderu nic neukládej.",
+        en: "- Save a work product that does not belong in a repository in the Documents folder (`[Environment]::GetFolderPath('MyDocuments')`), in a subfolder for the task, and give the full path; never write anything at the top level of the Folder.",
+      }
+    : {
+        cs: "- Výstup, který nepatří do repozitáře, ulož do `~/Documents/<úkol>/` a uveď celou cestu; do kořene Folderu nic neukládej.",
+        en: "- Save a work product that does not belong in a repository in `~/Documents/<task>/` and give the full path; never write anything at the top level of the Folder.",
+      };
 }
 
 // The tools of this Environment (decision F18): what to use and in which
@@ -479,12 +574,12 @@ export const environmentWording: Text = {
 // full form is in `manual/working-here.md`.
 const workingRules: readonly Text[] = [
   {
-    cs: "- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu. Předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah Organizace, který do toho repozitáře nepatří. Pak pokračuj na všem, co na odpovědi nestojí; zastav se jen tam, kde bez ní nejde pokračovat bezpečně nebo kde rozhodnutí patří Principálovi. Issue bez pokynu Principála nezavírej, nepřiřazuj ani neprioritizuj; plán, priorita a odpovědnost patří do Mission Controlu Organizace (`manual/working-here.md`).",
-    en: "- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Principal. Do not close, assign or prioritize an issue without the Principal's instruction; plan, priority and responsibility belong in the Organization's Mission Control (`manual/working-here.md`).",
+    cs: "- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu. Předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah Organizace, který do toho repozitáře nepatří. Pak pokračuj na všem, co na odpovědi nestojí; zastav se jen tam, kde bez ní nejde pokračovat bezpečně nebo kde rozhodnutí patří Operátorovi. Issue bez pokynu Operátora nezavírej ani neprioritizuj a přiřazuj ho jen při eskalaci chybějících práv; plán, priorita a odpovědnost patří do Mission Controlu Organizace (`manual/working-here.md`).",
+    en: "- File an open question, uncertainty or finding that cannot be resolved right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff. Before that, check for duplicates and remove secrets, Personalspace and Organization content that does not belong in that repository. Then continue with everything that does not depend on the answer; stop only where you cannot continue safely without it or where the decision belongs to the Operator. Do not close or prioritize an issue without the Operator's instruction, and assign one only to escalate missing rights; plan, priority and responsibility belong in the Organization's Mission Control (`manual/working-here.md`).",
   },
   {
-    cs: "- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a požádej o verdikt na nezměněném headu. Trvá-li reviewer na svém, předlož obě stanoviska Principálovi; review ani branch rules nikdy neobcházej.",
-    en: "- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Principal; never bypass the review or the branch rules.",
+    cs: "- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a požádej o verdikt na nezměněném headu. Trvá-li reviewer na svém, předlož obě stanoviska Operátorovi; review ani branch rules nikdy neobcházej.",
+    en: "- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or a widening of the PR's scope not with another round of fixes but with a factual objection on the PR, and ask for a verdict on the unchanged head. If the reviewer still insists, put both positions to the Operator; never bypass the review or the branch rules.",
   },
 ];
 
@@ -527,11 +622,18 @@ export function renderInstructions(input: unknown): string {
           cs: "- Pracuj přímo v rozsahu zadání a dostupných nástrojů.",
           en: "- Work directly within task scope and available tools.",
         }),
+    pick(updateLine(preset)),
     pick({
-      cs: "- Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Principálovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.",
-      en: "- Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Principal and needs their explicit instruction in the current thread.",
+      cs: "- Tvoje práce je Draft ve worktree a pull requestu; Publikace (merge, nasazení, odeslání) patří Operátorovi a vyžaduje jeho explicitní pokyn v aktuálním threadu.",
+      en: "- Your work is a Draft in a worktree and a pull request; Publication (merge, deploy, send) belongs to the Operator and needs their explicit instruction in the current thread.",
     }),
+    pick({
+      cs: "- Pracuješ s plným přístupem, bez sandboxu a bez schvalování jednotlivých příkazů; hranicí je tenhle Environment (decision 0172). Je to schopnost, ne souhlas: Publikace a zápisy do napojených aplikací dál čekají na pokyn Operátora.",
+      en: "- You work with full access, without a sandbox and without per-command approvals; this Environment is the boundary (decision 0172). It is a capability, not consent: Publication and writes to connected applications still wait for the Operator's instruction.",
+    }),
+    pick(documentsLine(profile.os)),
     ...workingRules.map(pick),
+    pick(rightsLine),
     pick({
       cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.",
       en: "- Before Organization work, load its current AGENTS.md under `organizations/<org>/`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.",
@@ -542,7 +644,7 @@ export function renderInstructions(input: unknown): string {
     }),
     pick({
       cs: "- Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.",
-      en: "- A profile grants no access, publication mandate or background-work authority. Do not read another Principal's Personalspace or copy credentials.",
+      en: "- A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.",
     }),
     pick({
       cs: "- Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.",
@@ -552,7 +654,7 @@ export function renderInstructions(input: unknown): string {
       cs: "- Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.",
       en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
     }),
-    ...(machine === null ? [] : hostedLines(pick)),
+    ...(machine === null ? [] : hostedLines(pick, machine)),
     ...toolsSection(tools, notes, profile.locale, sharedEnvironment(preset)),
     ...manualSection(profile.locale),
     "",

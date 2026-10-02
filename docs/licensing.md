@@ -1,6 +1,6 @@
 # Elastic License 2.0
 
-The Principal selected **Elastic License 2.0**, SPDX `Elastic-2.0`, for newly
+Matěj selected **Elastic License 2.0**, SPDX `Elastic-2.0`, for newly
 owned Platform code, documentation, supplied first-party runtime and embedded
 first-party templates on 2026-09-08. The [LICENSE](../LICENSE) is the unmodified
 [official Elastic text](https://github.com/elastic/elasticsearch/blob/a92a647b9f17d1bddf5c707490a19482c273eda3/licenses/ELASTIC-LICENSE-2.0.txt).
@@ -40,7 +40,7 @@ optional company services, not required dependencies of a self-hosted Lazurio En
 
 ## Provenance and audit
 
-The current proof was newly authored in this task at the Principal's direction;
+The current proof was newly authored in this task at Matěj's direction;
 no legacy implementation was imported. The organization legal-identity record
 verifies the exact company name used in NOTICE. This is a scoped first-party
 grant, not an assertion of ownership over other contributors' or users' work.

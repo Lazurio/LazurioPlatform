@@ -1,6 +1,6 @@
 # Selective adoption of existing behavior
 
-The Principal delegated the Launchpad implementation judgment: preserve verified
+Matěj delegated the Launchpad implementation judgment: preserve verified
 necessary user flows and replace coherent parts progressively in TypeScript. This
 does not authorize a blind 1:1 rewrite, wholesale source copy or permanent JavaScript
 fork. Reuse requires license/provenance review. Current maintenance remains with its
@@ -34,7 +34,7 @@ no longer uses it. Do not retain all legacy JavaScript behind a generic bridge.
 
 ## Doctor — accepted design direction, not implemented
 
-The Principal accepted a small TypeScript diagnostic orchestrator for installed Lazurio Environments,
+Matěj accepted a small TypeScript diagnostic orchestrator for installed Lazurio Environments,
 with reusable probes judged individually. Installer, runtime and Doctor share the same
 validators; CLI and Launchpad consume the same typed,
 locale-neutral results and severity/policy decisions. Check is read-only; repair is

@@ -52,7 +52,7 @@ starting an older binary on them ([migration and recovery](migration-and-recover
 Native distribution signatures stay separate from build provenance:
 [Apple Developer ID and notarization](https://developer.apple.com/developer-id/)
 are the macOS route to qualify, and a Windows public-trust signing provider requires
-eligibility and identity validation. The Principal permits a controlled internal
+eligibility and identity validation. Matěj permits a controlled internal
 pilot before them; public release still requires them and tests of the final signed
 bytes. No OS protections are disabled.
 
@@ -137,8 +137,8 @@ private failure evidence and removes only that run's own resources.
 **Integrated personal acceptance:** selected worktree changes are integrated at one
 reviewed source ref and built through the same packaging path as CI. Run the combined
 candidate tests before activation; no worktree build independently replaces daily
-Lazurio. The Principal deliberately activates that exact candidate for the whole
-single-Principal Machine: ordinary CLI launches and Launchpad use it with the selected
+Lazurio. The Operator deliberately activates that exact candidate for the whole
+single-person Machine: ordinary CLI launches and Launchpad use it with the selected
 real Lazurio Environment and real Organizations. This is stronger than a temporary shell PATH override.
 If the current Lazurio Folder needs migration, the migration rehearsal and separately authorized
 apply must finish first. Design agreement here is not an instruction to act on a host.
@@ -296,8 +296,8 @@ correction of the record is a new pull request, and the record then names that o
 **The fast lane is the path, not the canary.** A fix goes through the same steps:
 a new candidate, the journeys (in parallel, one runner each), the review,
 and the same 8 hours on the same Machines. The canary is never shortened by a line in
-a record or by the reviewer: a shorter canary for a named release exists only as the
-Principal's recorded decision in the register, carried out by a reviewed change of
+a record or by the reviewer: a shorter canary for a named release exists only as
+Matěj's recorded decision in the register, carried out by a reviewed change of
 `check-canary.ts` that names it. Meanwhile the Machine that is broken is covered by
 its Recovery mode.
 

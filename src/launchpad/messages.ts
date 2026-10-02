@@ -411,7 +411,7 @@ const en = {
   catalogReasonDuplicate:
     "Another directory in this Folder declares the same Organization.",
   catalogReasonPersonalspaceAmbiguous:
-    "personalspace/ holds more than one directory; only the Principal's own may be there, and none is read until it is the only one.",
+    "personalspace/ holds more than one directory; only the Operator's own may be there, and none is read until it is the only one.",
   catalogReasonPersonalspaceUnavailable:
     "The Personalspace cannot be read: its directories must be real directories owned by you.",
   catalogReasonDeclaration:
@@ -565,7 +565,7 @@ const en = {
   machineTitle: "This Environment",
   machineNotice:
     "Recorded when this Remote Environment was handed over; shown here, changed only by the operator who hosts it.",
-  machineWorkstation: "Workstation of the signed-in Principal (no handover)",
+  machineWorkstation: "Workstation of the signed-in Operator (no handover)",
   machineKind: "Kind",
   machineName: "Name",
   machineOwner: "Owner",
@@ -1006,7 +1006,7 @@ const cs: Record<MessageKey, string> = {
   catalogReasonDuplicate:
     "Jiná složka v tomhle Folderu deklaruje stejnou Organizaci.",
   catalogReasonPersonalspaceAmbiguous:
-    "V personalspace/ je víc než jedna složka; smí tam být jen ta Principálova a žádná se nečte, dokud nezůstane jediná.",
+    "V personalspace/ je víc než jedna složka; smí tam být jen ta Operátorova a žádná se nečte, dokud nezůstane jediná.",
   catalogReasonPersonalspaceUnavailable:
     "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte.",
   catalogReasonDeclaration:
@@ -1161,8 +1161,7 @@ const cs: Record<MessageKey, string> = {
   machineTitle: "Tenhle Environment",
   machineNotice:
     "Zaznamenáno při předání tohohle Remote Environmentu; tady se jen zobrazuje, mění ho jen provozovatel, který ho hostuje.",
-  machineWorkstation:
-    "Pracovní stanice přihlášeného Principála (bez handoveru)",
+  machineWorkstation: "Pracovní stanice přihlášeného Operátora (bez handoveru)",
   machineKind: "Druh",
   machineName: "Název",
   machineOwner: "Owner",

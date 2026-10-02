@@ -20,7 +20,7 @@ preferences, upgrades tools or runs data migrations; content synchronization its
 never stashes, switches branches or resets.
 
 A working profile belongs to the individual Machine installation. Changing it here
-does not update any other Machine used by the same Principal. Profile transport or
+does not update any other Machine used by the same person. Profile transport or
 copy is outside this first capability; no automatic sync is part of upgrade.
 
 ## Shared local migration use case
@@ -90,7 +90,7 @@ still reference them.
 
 ## Common mutation discipline
 
-1. Identify Principal, Machine Owner and parent provider/operator boundary. Check
+1. Identify Operator, Machine Owner and parent provider or hosting operator boundary. Check
    exact filesystem/remote identity, platform capability and necessary live rights.
 2. Acquire one owner-controlled operation lock and capture expected current revision.
    A stale lock is not deleted on age alone; verify owner process and recovery state.
@@ -500,7 +500,7 @@ proof on a faithful fixture; never rewrite arbitrary `.git` pointer text blindly
 
 ## Confirmed one-way, in-place conversion
 
-The Principal selected in-place conversion, not a supported return to the old
+Matěj selected in-place conversion, not a supported return to the old
 source-working installation. Keep the Lazurio Folder, Organization repositories,
 Personalspace and their worktrees at their existing paths. The separate compatibility
 alias procedure above is not part of this conversion when paths are already correct.
@@ -573,13 +573,13 @@ or ambiguous credentials and unattributed work.
 For each legacy shared workshop the owner chooses the target kind explicitly: a
 delivered team workspace (one OS account, brokered identity, no personal credentials,
 no Personalspace, changes through pull requests) or private workspaces, one per
-Principal. Inventory sessions, working copies, dirty branches, stashes, jobs,
+person. Inventory sessions, working copies, dirty branches, stashes, jobs,
 credentials and Organization-owned data with the authorized owner; do not inspect
 foreign Personalspace. Attribute work to its owner or Team instead of copying the
 shared directory to every seat.
 
 Provision targets using the existing infrastructure owner. On a private target,
-re-establish the Principal's identity through its provider flow; on a team target,
+re-establish the Operator's identity through its provider flow; on a team target,
 establish only the brokered identity. Never clone another person's credentials, and
 remove personal credentials and sessions found on a shared Machine through their
 owner rather than carrying them over. Preserve attributable drafts through authorized

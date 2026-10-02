@@ -744,11 +744,11 @@ test.skipIf(process.platform === "win32")(
         ["neon", undefined],
       ]);
       expect(await agents()).toContain(
-        "The operator left a note on it for agents in `manual/this-machine.md`.",
+        "The Operator left a note on it for agents in `manual/this-machine.md`.",
       );
       expect(await agents()).not.toContain("ClickUp");
       expect(await manual()).toContain(
-        "  Note from the operator of this Environment:\n  > Use it for ClickUp and Gmail of Spectoda.\n  > Send nothing without my instruction.",
+        "  Note from the Operator of this Environment:\n  > Use it for ClickUp and Gmail of Spectoda.\n  > Send nothing without my instruction.",
       );
 
       // A change of the selection alone keeps the notes of the tools that

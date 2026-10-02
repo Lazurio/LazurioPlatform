@@ -4,7 +4,7 @@ import { stateFields } from "./state-fields";
 
 // Workspace presets are data shipped with a release: no scripts, infrastructure
 // or authority. A preset composes the fixed profile axes (access, purpose),
-// defaults for the communication axes the Principal may change, the
+// defaults for the communication axes the Operator may change, the
 // Personalspace policy, the provider identity mode, the offered surfaces and
 // the supervision policy. Only whole presets are supported; editing a field
 // does not create a new supported composition.
@@ -154,7 +154,7 @@ const presets: Readonly<Record<PresetName, WorkspacePreset>> = Object.freeze({
   }),
 });
 
-// The stored reference. `selection` records whether the Principal chose a
+// The stored reference. `selection` records whether the Operator chose a
 // preset other than the one derived from the handover at the time of choice;
 // on a handover that derives none, every choice is `explicit`.
 export type PresetReference = Readonly<{
@@ -302,7 +302,7 @@ export function validatePresetComposition(
   return preset;
 }
 
-// Profile defaults a preset supplies for initialization; the Principal may
+// Profile defaults a preset supplies for initialization; the Operator may
 // change the communication axes afterwards through the ordinary profile change.
 export function presetProfile(
   name: PresetName,
