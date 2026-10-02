@@ -1250,9 +1250,13 @@ checkout for the Operator without losing work.
    That command refuses to overwrite an untracked file, and an overlap with an ignored
    one stops the agent. `git reset --hard` is never used: in review, Pablo showed that
    it overwrites the files of an untracked nested repository the stash skipped. A
-   merge or rebase in progress is left alone and reported. Branches and stashes are
-   never deleted, and `git clean` and force pushes are never used. `productionspace/`
-   and Personalspace stay out.
+   merge or rebase in progress is left alone and reported. When any step cannot be
+   completed (no remote, a refused push, a missing right, a failed move), the checkout
+   is not aligned at all: it stays exactly as it is, the Operator is told what remained
+   unsaved, and a missing right is escalated. The worktree rule in `working-here.md`
+   points to this procedure, so the manual gives one rule for a nested repository.
+   Branches and stashes are never deleted, and `git clean` and force pushes are never
+   used. `productionspace/` and Personalspace stay out.
 3. The Operator's tools stay the Operator's (root decision 0161): when the agent finds a
    newer version, it offers it and runs `lazurio tools update <tool>` only with the
    Operator's consent in the thread.

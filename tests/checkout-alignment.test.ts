@@ -149,3 +149,52 @@ test("the generated checkout procedure never prescribes reset --hard", () => {
         expect(troubleshooting.includes(fragment)).toBe(withOrganizations);
     }
 });
+
+// One rule for a nested repository (review of #119): the worktree rule names
+// the hazard and points to the checkout procedure, the procedure saves the
+// work or stops without aligning, and no text still declares the case
+// unsolvable. A personal Remote Environment has no checkout procedure, so it
+// leaves the repository alone and tells the Operator.
+test("the worktree rule and the checkout procedure give one fail-closed rule for a nested repository", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const path of outputPaths)
+        expect(outputs[path]).not.toMatch(
+          /nejde bezpečně odložit|cannot be set aside safely|zablokuje `lazurio update`|blocks `lazurio update`/,
+        );
+      const workingHere = outputs["manual/working-here.md"];
+      const troubleshooting = outputs["manual/troubleshooting.md"];
+      const withOrganizations = journey.preset !== "hosted-personal";
+      expect(workingHere).toContain(
+        locale === "cs"
+          ? "stash nadřazeného checkoutu takový vnořený repozitář přeskočí"
+          : "a stash of the outer checkout skips such a nested repository",
+      );
+      expect(
+        workingHere.includes(
+          locale === "cs"
+            ? "řeš podle oddílu o aktuálních checkoutech v `manual/troubleshooting.md`"
+            : "as the section on current checkouts in `manual/troubleshooting.md` describes",
+        ),
+      ).toBe(withOrganizations);
+      expect(
+        workingHere.includes(
+          locale === "cs"
+            ? "Vnořený repozitář, který už tu leží, nech být a řekni o něm Operátorovi."
+            : "Leave a nested repository you find here alone and tell the Operator about it.",
+        ),
+      ).toBe(!withOrganizations);
+      expect(
+        troubleshooting.includes(
+          locale === "cs"
+            ? "Když kterýkoli z těchto kroků nejde dokončit (vnořený repozitář nemá remote, GitHub push odmítne, chybí právo nebo přesun selže), checkout nesrovnávej."
+            : "When any of these steps cannot be completed (the nested repository has no remote, GitHub refuses the push, a right is missing or the move fails), do not align the checkout.",
+        ),
+      ).toBe(withOrganizations);
+    }
+});
