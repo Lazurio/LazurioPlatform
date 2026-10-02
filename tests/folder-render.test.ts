@@ -162,7 +162,7 @@ test("the Assignment line renders the handover's owner.assignment and nothing el
     profile: presetProfile("hosted-organization-personal", "linux"),
   });
   expect(operator).toContain(
-    "- Assignment: assigned to operator `example` (GitHub id 12345).",
+    "- Assignment: assigned to Operator `example` (GitHub id 12345).",
   );
   expect(operator).toContain("- Owner: Organization `example`.\n");
   expect(operator).not.toContain("sample-team");
@@ -241,11 +241,12 @@ test("the Owner line names the Team only under hosted-organization-team", () => 
   ).toMatchSnapshot();
 });
 
-// Decision 0161 / F17: the generated AGENTS.md rule and the manual section it
-// points at say the same thing on every hosted preset — the pin owns the
-// product and the Folder, the operator owns the tools, an agent updates a
-// tool only on explicit instruction — and the old "no self-update of any
-// tool" wording is gone from both.
+// Decisions 0161 and F17: the generated AGENTS.md rule and the manual section
+// it points at say the same thing on every hosted preset. The Operator owns
+// the version of Lazurio and the pin is a minimum (addendum 2026-09-28); the
+// agent runs `lazurio update` itself, in the background at the start of every
+// piece of work, and updates a tool only with the Operator's consent (addendum
+// 2026-10-02). The old "no self-update of any tool" wording is gone from both.
 test("the hosted update rule in AGENTS.md agrees with the manual under decisions 0161 and F17", () => {
   for (const journey of journeys) {
     if (journey.machine === null) continue;
@@ -265,19 +266,14 @@ test("the hosted update rule in AGENTS.md agrees with the manual under decisions
         expect(text).toMatch(/decisions? 0161/);
         expect(text).not.toMatch(/žádný self-update|any self-update/);
         expect(text).toMatch(
-          locale === "cs"
-            ? /výslovný pokyn Principála/
-            : /Principal's explicit instruction/,
+          locale === "cs" ? /až s jeho souhlasem/ : /only with their consent/,
         );
+        expect(text).toMatch(/na pozadí|in the background/);
       }
-      // Decision F17 addendum 2026-09-28: the operator owns the version of
-      // Lazurio too; the pin is a minimum. Since the Principal's decision of
-      // 2026-10-02 installation details stay off the hot path: AGENTS.md keeps
-      // the short rule and points at the manual, which carries the rest.
       expect(instructions).toContain(
         locale === "cs"
-          ? "`lazurio update` spusť, jen když o to požádá, a nástroje aktualizuj nebo přeinstaluj jen na výslovný pokyn Principála"
-          : "run `lazurio update` only when they ask for it, and update or reinstall tools only on the Principal's explicit instruction",
+          ? "- Na začátku práce spusť na pozadí `lazurio update`"
+          : "- At the start of work, run `lazurio update` in the background",
       );
       expect(manual).toContain(
         locale === "cs"
@@ -304,8 +300,8 @@ test("the Steward preset renders the persona, its bot team and the publication r
     });
   const en = steward("en");
   for (const line of [
-    "- Assignment: an automated Environment of an Organization persona; responsible operator `example` (GitHub id 12345).",
-    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the operator's own account or anyone else's here; GitHub is the only access authority.",
+    "- Assignment: an automated Environment of an Organization persona; responsible Operator `example` (GitHub id 12345).",
+    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible Operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the Operator's own account or anyone else's here; GitHub is the only access authority.",
     "## Persona bot team",
     "`/lazurio publish`",
     "Organization `example`",
@@ -339,7 +335,7 @@ test("the Steward preset renders the persona, its bot team and the publication r
   for (const document of [en, cs])
     for (const line of document.split("\n"))
       if (
-        /^- (Assignment|Přiřazení|Principal|Principál|Identity|Identita):/.test(
+        /^- (Assignment|Přiřazení|Operator|Operátor|Identity|Identita):/.test(
           line,
         )
       )
@@ -353,7 +349,13 @@ test("the Steward preset renders the persona, its bot team and the publication r
         machine: journey.machine,
         profile: presetProfile(journey.preset, journey.os, { locale }),
       });
-      for (const marker of ["MausBot", "/lazurio publish"])
+      // Lazurio MausBot is also an Operator client on every hosted preset;
+      // the persona's bot team and its publication rule are the Steward's.
+      for (const marker of [
+        "## Persona bot team",
+        "## Tým botů persony",
+        "/lazurio publish",
+      ])
         expect(output).not.toContain(marker);
       expect(output).not.toMatch(/\bperson(a|y|ou)\b/);
     }

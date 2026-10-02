@@ -1,4 +1,4 @@
-// GitHub on a Team Environment (Principal 2026-09-28, decision F19 addendum
+// GitHub on a Team Environment (Matěj 2026-09-28, decision F19 addendum
 // of the same day): a Team Environment works in GitHub through the GitHub App
 // "Lazurio for GitHub" that the Organization sets up, never through a
 // person's account. The curated sign-in of gh and the linking of a person's

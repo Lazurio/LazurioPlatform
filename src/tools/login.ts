@@ -71,7 +71,7 @@ export type LoginState =
       already?: true;
     }>
   | Readonly<{ kind: "failed"; tool: string; reason: LoginFailure }>
-  /** gh on a Team Environment (Principal 2026-09-28): the Environment became
+  /** gh on a Team Environment (Matěj 2026-09-28): the Environment became
    * a Team one while the session ran, so it stopped before the next step
    * that changes the account or the Machine. */
   | Readonly<{

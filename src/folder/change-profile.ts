@@ -200,7 +200,7 @@ export async function planFolderChange(
     return { kind: "blocked", reason: "preset-composition" } as const;
   // An unchanged preset keeps its recorded reference: the choice was not made
   // again. A preset recorded as derived that the handover no longer derives
-  // (the assignment changed) is not carried forward silently; the Principal
+  // (the assignment changed) is not carried forward silently; the Operator
   // chooses it again through a profile change.
   if (
     presetName === current.preset.name &&

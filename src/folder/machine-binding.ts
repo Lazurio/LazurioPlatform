@@ -8,7 +8,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // The handover part of a hosted Folder: a projection of the root-issued
 // handover recorded at initialization. It is shown, never edited by the
-// Principal; the profile change flow carries it forward unchanged. Its
+// Operator; the profile change flow carries it forward unchanged. Its
 // identity (machineIdentity) is immutable; the rest follows the current
 // handover through `machine folder-refresh`. A workstation Folder has none.
 // Nothing here is a grant: owner, assignment, host and peers describe context
@@ -322,7 +322,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   )
     throw new Error("Invalid Machine binding");
   const bound = owner(value.owner);
-  // The two upstream branches never mix: a personal VM belongs to a Principal on
+  // The two upstream branches never mix: a personal VM belongs to a person on
   // a provider estate; a workspace VM to an Organization on a virtualization host.
   const personalVm = value.kind === "personal-vm";
   if (
@@ -356,7 +356,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
 }
 
 // The part of a binding that names the Machine: kind, name, Owner (Organization
-// and Team, or Principal), tailnet node and host. Machines rewrites the handover
+// and Team, or a person), tailnet node and host. Machines rewrites the handover
 // on every apply (`installed`, and since v0.12.61 the declared assignment and the
 // derived relationships), so the document digest is not identity; a re-apply of
 // the same Machine must not turn an adopted Folder into a blocked one. Everything

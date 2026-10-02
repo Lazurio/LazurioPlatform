@@ -318,7 +318,7 @@ export type CuratedActions = Readonly<{
  * to be signed in, "Sign out" when it is signed in. An `agent` tool has none;
  * its prepared prompt is the way. On a Team Environment (`brokered`: the
  * preset's brokered Organization identity, which the status answers as
- * `sharedEnvironment`) gh follows the server's rule (Principal 2026-09-28):
+ * `sharedEnvironment`) gh follows the server's rule (Matěj 2026-09-28):
  * no sign-in and no SSH key, and "Sign out" only while a person's account is
  * signed in there, never for the Organization's identity. */
 export function curatedActions(
@@ -657,7 +657,7 @@ export function parseLoginState(input: unknown): LoginView | null {
     case "expired":
     case "cancelled":
       return { kind: value.kind, tool };
-    // The Team rule stopped the session (Principal 2026-09-28).
+    // The Team rule stopped the session (Matěj 2026-09-28).
     case "blocked":
       return value.reason === "team-environment" &&
         (value.action === "login" || value.action === "ssh-key")
