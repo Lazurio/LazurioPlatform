@@ -1106,6 +1106,12 @@ adjective; the internal term stays Machine; addresses do not change. Recorded in
 generated glossary (template revision `base-instructions-5`, so every Folder re-renders
 on its next refresh).
 
+*Superseded 2026-10-03 (Matěj, the Lazurio shell decisions):* there is no "Prostředí /
+Environments" axis and no switcher in a header. Environments are on the rail, personal
+ones first and then a folder per Organization, with the jump switcher ⌘⇧E; see the
+[target shell](launchpad-development.md#target-shell). The names Remote Environment and
+Local Environment above stand.
+
 **Not decided here:** the Dashboard API for the Assignment and the Keycloak account
 consolidation (owned by the Dashboard thread), the Machines record for a workstation,
 the preset of an Organization-owned workstation and the gateway routes on the
@@ -2681,7 +2687,10 @@ defined architectural term.
    (tenhle) Environment*, *na tomto (tomhle) Environmentu*, *Remote Environment*
    (*osobní Remote Environment*, *pracovní Remote Environment*, *týmový Remote
    Environment*). Texts that already treated it as neuter (*tohle Environment je
-   sdílené*) follow the masculine form.
+   sdílené*) follow the masculine form. *Addendum 2026-10-03 (Matěj, the Lazurio shell
+   decisions):* as a name, the Settings section is only *Tento Environment*, never
+   *Tenhle* or *Toto*; whether running text keeps *tenhle* and *tomhle* is open in
+   issue #130.
 2. **Where it applies.** Every user-facing string of the Launchpad in both locales
    (`src/launchpad/messages.ts` and the page's own fallback text), the human output and
    help text of the CLI, the prompts a person copies for an agent, and the instructions
@@ -2912,6 +2921,13 @@ and does not act on its Team structure there.
    B1 says: every declared module of every Organization in the Folder, and the
    Personalspace group on a preset that has one. Nothing is filtered by Team or by the
    Environment's handover. A later decision of DEV-6638 redefines the composition.
+
+*Superseded in part 2026-10-03 (Matěj, the Lazurio shell decisions):* the one flat list
+of point 1 gives way to the three-section home of the
+[target shell](launchpad-development.md#target-shell): Organizace, Workspace and
+Productionspace. Nothing is grouped by Team; point 2 stands, and the sections serve the
+same aim, an Environment that does not show Teams. Not implemented: today's build is the
+flat list above.
 
 **Supersedes** in [Launchpad parity](launchpad-parity.md) the "subheader per Team" of
 B1's surface, the "Team groups" of its visual-design note, its test "Team grouping
