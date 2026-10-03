@@ -95,10 +95,10 @@ sections are Obecné / Tento Environment / Nástroje / Obnova (General / This En
 with several Organizations) and the modules in three sections (Matěj, evening of
 2026-10-03): **Organizace**, the Organization's own applications and repositories
 (Mission Control, the design system, infra); **Workspace**, the workspace modules of
-this Environment, with a "Přístup Teamu" link to manage the Team's access; and
+this Environment, only those its GitHub identity can access (no Team link, no
+request-access tiles); and
 **Productionspace**, the Organization's productionspace repositories. The sections replace the one flat list of decision F32, and nothing is
-grouped or labelled by Team: the point is that an Environment does not show Teams
-(the access link is not a grouping). A module tile
+grouped or labelled by Team: the point is that an Environment does not show Teams. A module tile
 opens the module's app in a new tab on its own origin; selecting the module in the left
 column opens its overview: open the app, its lifecycle, branches and worktrees, its
 log.
