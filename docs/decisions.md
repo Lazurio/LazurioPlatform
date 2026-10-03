@@ -2841,6 +2841,62 @@ change.
 | Identify the connected person and use their rights | The Environment cannot tell reliably who is connected; a guess is not an identity; rejected |
 | The Team's identity, its rights and the branch rules, on the instruction of the connected member (selected) | GitHub stays the only access authority, and an Organization tightens it with branch rules |
 
+## F32 — Teams are not a presentation axis of the Launchpad: an Environment is one workspace
+
+**Decided by Matěj 2026-10-02 (plan DEV-6638, issue #120); implemented in this
+revision.** "One Environment = one workspace." Observed on the catalog of
+[Launchpad parity](launchpad-parity.md) B1 as built: the sidebar put a subheader per
+Team under each Organization, the overview (`/`) and the Organization page
+(`/o/<org>`) a heading and a card per Team, so a module declared in N Teams was listed
+N times, each time with its own status dot and link; every module row carried Team
+badges, the module page listed the module's Teams and the Organization page the
+Organization's Teams and where their membership was read from. Teams and access are
+managed in the Dashboard; a person working in an Environment works in one workspace
+and does not act on its Team structure there.
+
+1. **One flat list per Organization.** The sidebar, the overview and the Organization
+   page list an Organization's modules in one list, each module exactly once. The
+   order is the catalog's, the declaration order of `module_slots` with root-level
+   applications where they are declared (F24): the order `lazurio module list` and
+   `POST /api/catalog` already give, set by the Organization in its manifest. The
+   catalog carries no display name of a module to sort by, only its id.
+2. **No Team in the Launchpad.** No Team subheader or heading, no Team badge on a
+   module row, no Teams on the module page, no Teams and no Team membership note on
+   the Organization page. The module's `issues`, whose one code is `teams-invalid`, is
+   not drawn either. The strings and styles of the Team presentation are removed;
+   there is no hidden Team mode.
+3. **The levels stay.** The Organization level stays, because a workstation's Folder
+   can hold several Organizations (a hosted work Environment has one). The
+   Personalspace group stays its own group after the Organizations (B11); it is not a
+   Team. Root-level applications stay ordinary modules of the list.
+4. **The catalog keeps Teams for the CLI.** `readFolderCatalog` still resolves
+   `teams` and `teamsSource` per module and `teams` per Organization, and
+   `POST /api/catalog` still answers exactly what `lazurio organization list --json`
+   prints (one core, tested equal). `lazurio module list` keeps its Teams column and
+   its once-per-Organization note on the legacy alias, which helps migrate a
+   manifest to `module_slots[].teams`. The page reads none of it; its check of the
+   answer's shape still covers these fields, because the page and the server ship in
+   one executable. No other consumer of `/api/catalog` exists.
+5. **The composition does not change.** Which modules an Environment shows stays as
+   B1 says: every declared module of every Organization in the Folder, and the
+   Personalspace group on a preset that has one. Nothing is filtered by Team or by the
+   Environment's handover. A later decision of DEV-6638 redefines the composition.
+
+**Supersedes** in [Launchpad parity](launchpad-parity.md) the "subheader per Team" of
+B1's surface, the "Team groups" of its visual-design note, its test "Team grouping
+N:M", row 18 "Teams grouping" (the switch's "yes (display only)") and the Team group of
+the switch acceptance item C.3 11. B1's workspace composition is unchanged by this
+decision.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the Team subheaders and list a shared module once, under its first Team | Still presents the Organization's structure, and "first" is an arbitrary rule; rejected |
+| Keep Team badges on rows as information | Teams and access belong to the Dashboard; rejected by Matěj |
+| A Team filter, or a switch back to the grouped view | A second presentation to keep consistent; rejected: no hidden Team mode |
+| Sort the list alphabetically | A new ordering rule that differs from the CLI's and the API's; F24 already declined to invent one; not chosen |
+| Remove Teams from the catalog and `/api/catalog` too | Breaks the Teams column and the legacy-alias note of `module list`; the API answers what the CLI prints; not chosen: the composition decision of DEV-6638 owns the catalog's contract |
+| One flat list per Organization in declaration order, no Team anywhere on the page, the catalog unchanged (selected) | Each module once; one order on every surface; no contract change |
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not

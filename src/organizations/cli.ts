@@ -1,6 +1,5 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { usesLegacyTeamAlias } from "../launchpad/catalog-view";
 import { type CliContext, operatorFolder } from "../update/cli";
 import {
   type Catalog,
@@ -95,6 +94,13 @@ const status = (entry: {
   entry.executable
     ? "executable"
     : `${entry.reason ?? "not-executable"}${entry.file === undefined ? "" : ` (${entry.file})`}`;
+
+// Whether any module of the Organization takes its Teams from the legacy
+// alias (`workspaces` or `workspace`). The CLI says it once per Organization,
+// never per module, to help migrate its manifest to the canonical
+// `module_slots[].teams`; the Launchpad shows no Teams (decision F32).
+const usesLegacyTeamAlias = (organization: CatalogOrganization) =>
+  organization.modules.some((module) => module.teamsSource === "legacy-alias");
 
 // One line per Organization whose manifest still uses the legacy Team alias,
 // under the table: said once, never per module.
