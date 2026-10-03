@@ -79,8 +79,8 @@ a.menu-item:hover { background: var(--hover); }
 .menu-item .icon { width: 17px; height: 17px; }
 .column-top .menu-item { font-weight: var(--lz-weight-akce); }
 .menu-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.menu-mark { display: grid; flex: none; width: 20px; height: 20px; place-items: center; border-radius: 6px; background: var(--lz-blue-50); color: var(--lz-accent-strong); font-size: 9.5px; font-weight: 700; letter-spacing: 0.02em; }
-.menu-mark[data-kind="repository"] { background: transparent; color: var(--muted-fg); }
+.menu-stone { display: block; flex: none; width: 20px; height: 20px; }
+.menu-mark { display: grid; flex: none; width: 20px; height: 20px; place-items: center; color: var(--muted-fg); }
 .menu-mark .icon { width: 15px; height: 15px; }
 .menu-tail { margin-left: auto; }
 .sidebar-notice, .update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
@@ -136,9 +136,9 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .section-subtitle { margin-top: 0; font-size: 15px; font-weight: var(--lz-weight-akce); }
 .tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 16px; }
 .tile { position: relative; display: flex; align-items: center; gap: 16px; min-width: 0; min-height: 88px; padding: 16px 18px; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); text-decoration: none; transition: border-color 120ms ease, box-shadow 120ms ease; }
-a.tile:hover { border-color: var(--lz-line); box-shadow: 0 6px 18px -12px rgb(0 0 0 / 35%); }
-.tile-mark { display: grid; flex: none; width: 44px; height: 44px; place-items: center; border-radius: 12px; background: var(--lz-blue-50); color: var(--lz-accent-strong); font-size: 16px; font-weight: 700; letter-spacing: 0.02em; }
-.tile-mark[data-kind="repository"] { background: transparent; color: var(--muted-fg); }
+a.tile:hover, a.tile:focus-visible { border-color: color-mix(in srgb, var(--stone-accent, var(--lz-ink-faint)) 60%, var(--lz-line)); box-shadow: 0 6px 18px -12px rgb(0 0 0 / 35%); }
+.tile-stone { display: block; flex: none; width: 48px; height: 48px; }
+.tile-mark { display: grid; flex: none; width: 48px; height: 48px; place-items: center; color: var(--muted-fg); }
 .tile-mark .icon { width: 22px; height: 22px; }
 .tile-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .tile-name { overflow: hidden; font-size: 16px; font-weight: var(--lz-weight-akce); text-overflow: ellipsis; white-space: nowrap; }
@@ -152,7 +152,7 @@ a.tile:hover .tile-open { color: var(--fg); }
 .back { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-bottom: -12px; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .back:hover { color: var(--fg); }
 .module-head { display: flex; align-items: center; gap: 16px; }
-.module-head .tile-mark { width: 64px; height: 64px; font-size: 22px; border-radius: 16px; }
+.module-stone { display: block; flex: none; width: 64px; height: 64px; }
 .module-head-text { display: grid; gap: 2px; min-width: 0; }
 .module-meta { color: var(--muted-fg); font-size: 14px; }
 .module-open { margin-left: auto; height: 30px; padding: 0 12px; }

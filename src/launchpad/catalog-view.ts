@@ -357,7 +357,25 @@ function isModule(value: unknown): value is CatalogModule {
     (entry.reason === undefined || text(entry.reason)) &&
     (entry.file === undefined || text(entry.file)) &&
     (entry.preparationRefused === undefined ||
-      entry.preparationRefused === true)
+      entry.preparationRefused === true) &&
+    (entry.display === undefined || isDisplay(entry.display))
+  );
+}
+// The default app's display text (decision F36): bounded strings only.
+function isDisplay(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  const bounded = (item: unknown, max: number) =>
+    text(item) && item.length > 0 && [...item].length <= max;
+  return (
+    bounded(entry.id, 128) &&
+    bounded(entry.title, 120) &&
+    (entry.description === undefined || bounded(entry.description, 240)) &&
+    (entry.icon === undefined ||
+      (text(entry.icon) && /^[a-z0-9][a-z0-9-]{0,39}$/.test(entry.icon))) &&
+    texts(entry.tags) &&
+    entry.tags.length <= 20 &&
+    entry.tags.every((tag) => bounded(tag, 128))
   );
 }
 function isRepository(value: unknown): value is CatalogRepository {

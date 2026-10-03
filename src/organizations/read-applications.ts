@@ -294,6 +294,43 @@ const declaresModule = (manifest: string) =>
       error.code !== "ENOENT" && error.code !== "ENOTDIR",
   );
 
+/** What a module's app says of itself for a page to show (decision F36):
+ * display-only text from its `lazurio.runtime` declaration, bounded, never
+ * raw file content, a path or a grant. The Module's manifest stays the
+ * authority; the Launchpad only draws it. */
+export type AppDisplay = Readonly<{
+  /** The app's id in its declaration. */
+  id: string;
+  /** Its title, at most 120 characters. */
+  title: string;
+  /** Its one-line description, at most 240 characters (the parser's bound). */
+  description?: string;
+  /** Its semantic icon key, when it is one (lowercase words and dashes). */
+  icon?: string;
+  /** Its tags, at most 20. */
+  tags: readonly string[];
+}>;
+
+function appDisplay(
+  runtime: Readonly<{
+    id: string;
+    title: string;
+    tags: readonly string[];
+    optional: Readonly<Record<string, string | readonly string[]>>;
+  }>,
+): AppDisplay {
+  const { description, icon } = runtime.optional;
+  return Object.freeze({
+    id: runtime.id,
+    title: [...runtime.title].slice(0, 120).join(""),
+    ...(typeof description === "string" ? { description } : {}),
+    ...(typeof icon === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(icon)
+      ? { icon }
+      : {}),
+    tags: Object.freeze(runtime.tags.slice(0, 20)),
+  });
+}
+
 /** One module directory's declaration, the reader Organization slots and the
  * Personalspace share (launchpad-parity B1, B11): `lazurio.module.json`, and
  * for each declared app whether its runtime declaration names this module,
@@ -327,6 +364,7 @@ export async function observeModuleDirectory(
     kind: "runtime-declared" | "invalid-runtime";
     reason?: CheckoutReason;
     file?: string;
+    display?: AppDisplay;
   }>[] = [];
   for (const pkg of module.apps) {
     try {
@@ -338,7 +376,11 @@ export async function observeModuleDirectory(
       )
         throw new Error("Application declaration unavailable");
       apps.push(
-        Object.freeze({ package: pkg, kind: "runtime-declared" as const }),
+        Object.freeze({
+          package: pkg,
+          kind: "runtime-declared" as const,
+          display: appDisplay(app.runtime),
+        }),
       );
     } catch (error) {
       const refused = checkoutRefusal(error, path);

@@ -5,7 +5,12 @@ import type {
   CatalogRepository,
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
-import { initialsOf } from "../shell/view";
+import {
+  appBaseTitle,
+  type StoneKey,
+  semanticAppIconKey,
+  stoneOf,
+} from "../shell/stones";
 import {
   type CatalogGroupEntry,
   type CatalogModuleEntry,
@@ -104,10 +109,59 @@ export function tileTarget(
   };
 }
 
-/** The directory of an app, as its package names it (`app/v1/package.json`
- * is `app/v1`); the module's own directory is `.`. */
-export const appDirectory = (app: string): string =>
-  app.replace(/(^|\/)package\.json$/, "") || ".";
+/** The name a module is shown under: its default app's title without a
+ * trailing version (the root Launchpad's `appBaseTitle`), otherwise its id. */
+export const moduleName = (module: CatalogModule): string =>
+  module.display === undefined
+    ? module.module
+    : appBaseTitle(module.display.title);
+
+/** A module's stone, by the generic semantic key of its default app (its
+ * declared `icon`, else the org-agnostic fallback from the module id, the
+ * app id and the tags); never by an Organization or a module's name. */
+export const moduleStone = (module: CatalogModule) =>
+  stoneOf(
+    semanticAppIconKey({
+      module: module.module,
+      id: module.display?.id ?? null,
+      tags: module.display?.tags ?? [],
+      icon: module.display?.icon ?? null,
+    }),
+  );
+
+const descriptionKeys: Readonly<Record<StoneKey, MessageKey>> = {
+  control: "appsDescriptionControl",
+  book: "appsDescriptionBook",
+  pen: "appsDescriptionPen",
+  palette: "appsDescriptionPalette",
+  deal: "appsDescriptionDeal",
+  warehouse: "appsDescriptionWarehouse",
+  product: "appsDescriptionProduct",
+  datasheet: "appsDescriptionDatasheet",
+  pricebook: "appsDescriptionPricebook",
+  invoice: "appsDescriptionInvoice",
+  installation: "appsDescriptionInstallation",
+  dashboard: "appsDescriptionDashboard",
+  profitability: "appsDescriptionProfitability",
+  marketing: "appsDescriptionMarketing",
+  website: "appsDescriptionWebsite",
+  examples: "appsDescriptionExamples",
+  database: "appsDescriptionDatabase",
+  app: "appsDescriptionApp",
+  system: "appsDescriptionSystem",
+};
+
+/** A module's one line: its app's declared description, otherwise the
+ * org-agnostic sentence of its stone's key; "No app" without an app. */
+export function moduleDescription(module: CatalogModule, copy: Copy): string {
+  if (module.defaultApp === null) return copy.appsNoApp;
+  const declared = module.display?.description?.trim();
+  if (declared) return declared;
+  const key = descriptionKeys[moduleStone(module).key];
+  return key === undefined
+    ? copy.appsDescriptionDefault.replace("{module}", moduleName(module))
+    : copy[key];
+}
 
 /** The Czech plural of a count (1, 2–4, 5 and more); English has two. */
 export function pluralKey(
@@ -125,7 +179,8 @@ export type AppsTile =
       entry: CatalogModuleEntry;
       name: string;
       description: string;
-      mark: string;
+      /** Its Lazurio stone (decision F36). */
+      stone: Readonly<{ key: StoneKey; src: string; accent: string }>;
       /** The exception the tile reports, or null: status only by
        * exception (the design system's `lz-status--plain`). */
       note: Readonly<{ tone: "warn"; text: string; title: string }> | null;
@@ -136,7 +191,6 @@ export type AppsTile =
       repository: CatalogRepository;
       name: string;
       description: string;
-      mark: string;
       note: Readonly<{ tone: "muted"; text: string; title: string }> | null;
       /** Its GitHub page, in a new tab, or null. */
       href: string | null;
@@ -174,12 +228,9 @@ export function appsSections(
   const moduleTile = (item: CatalogModuleEntry): AppsTile => ({
     kind: "module",
     entry: item,
-    name: item.module.module,
-    description:
-      item.module.defaultApp === null
-        ? copy.appsNoApp
-        : appDirectory(item.module.defaultApp),
-    mark: initialsOf(item.module.module).slice(0, 2),
+    name: moduleName(item.module),
+    description: moduleDescription(item.module, copy),
+    stone: moduleStone(item.module),
     // A module without an app is not one that cannot start: its tile says
     // "No app" and nothing more.
     note:
@@ -211,7 +262,6 @@ export function appsSections(
           repository,
           name: repository.slug,
           description: repository.path,
-          mark: initialsOf(repository.slug).slice(0, 2),
           note: repository.checkedOut
             ? null
             : { tone: "muted", text: checkout, title: checkout },

@@ -3,10 +3,12 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  appDirectory,
   appsMatch,
   appsScope,
   appsSections,
+  moduleDescription,
+  moduleName,
+  moduleStone,
   pluralKey,
   tileTarget,
 } from "../src/launchpad/apps-view";
@@ -59,14 +61,24 @@ const organization = (
   repositories: [],
   ...extra,
 });
+const display = (
+  id: string,
+  title: string,
+  extra: Partial<NonNullable<CatalogModule["display"]>> = {},
+): NonNullable<CatalogModule["display"]> => ({ id, title, tags: [], ...extra });
 const example = organization(
   "example",
   [
     module("mission-control", {
       path: "mission-control",
       layout: "organization",
+      display: display("mission-control", "Mission Control v3"),
     }),
-    module("knowledgebase"),
+    module("knowledgebase", {
+      display: display("kb", "Knowledgebase", {
+        description: "Znalosti, rozhodnutí a dokumentace",
+      }),
+    }),
     module("deals"),
     module("website", {
       executable: false,
@@ -151,14 +163,14 @@ test("three sections in order with Czech counts; status only by exception; a mod
       "Organizace",
       "2 moduly",
       null,
-      ["mission-control", "infra"],
+      ["Mission Control", "infra"],
     ],
     [
       "workspace",
       "Workspace",
       "4 moduly",
       "Example Company Workspace",
-      ["knowledgebase", "deals", "website", "notes"],
+      ["Knowledgebase", "deals", "website", "notes"],
     ],
     [
       "productionspace",
@@ -175,13 +187,39 @@ test("three sections in order with Czech counts; status only by exception; a mod
     "Nelze spustit",
     null,
   ]);
-  expect(workspace.map((tile) => tile.description)).toEqual([
-    "app/v1",
-    "app/v1",
-    "app/v1",
-    "Bez aplikace",
+  // The declared description first, otherwise the org-agnostic sentence of
+  // the stone's key; "No app" without an app.
+  expect(
+    workspace.map((tile) => [
+      tile.name,
+      tile.description,
+      tile.kind === "module" ? tile.stone.src : null,
+    ]),
+  ).toEqual([
+    [
+      "Knowledgebase",
+      "Znalosti, rozhodnutí a dokumentace",
+      "/.lazurio/stones/guide-96.png",
+    ],
+    [
+      "deals",
+      "Obchodní případy, nabídky a práce se zákazníky.",
+      "/.lazurio/stones/deals-96.png",
+    ],
+    [
+      "website",
+      "Webový obsah, stránky a veřejná prezentace.",
+      "/.lazurio/stones/website-lazurio-96.png",
+    ],
+    ["notes", "Bez aplikace", "/.lazurio/stones/clients-96.png"],
   ]);
-  expect(workspace[0]?.mark).toBe("KN");
+  const [mission] = sections[0]?.tiles ?? [];
+  expect(mission?.name).toBe("Mission Control");
+  expect(mission?.kind === "module" && mission.stone).toEqual({
+    key: "control",
+    src: "/.lazurio/stones/mission-control-96.png",
+    accent: "var(--lz-blue-500)",
+  });
   const firmware = sections[2]?.tiles[0];
   expect(firmware?.kind === "repository" && firmware.href).toBe(null);
   expect(firmware?.note?.text).toBe("Nenaklonovaný");
@@ -262,8 +300,21 @@ test("Czech plural forms, app directories and the column's search", () => {
     "11 modulů",
   ]);
   expect(en[pluralKey(1, keys)]).toBe("{count} module");
-  expect(appDirectory("app/v1/package.json")).toBe("app/v1");
-  expect(appDirectory("package.json")).toBe(".");
+  expect(moduleName(module("crm"))).toBe("crm");
+  expect(
+    moduleName(module("crm", { display: display("crm", "CRM v12") })),
+  ).toBe("CRM");
+  // A title that is only a version keeps itself.
+  expect(moduleName(module("x", { display: display("x", "v2") }))).toBe("v2");
+  expect(
+    moduleDescription(
+      module("ledger", {
+        display: display("ledger", "Ledger", { description: "  " }),
+      }),
+      en,
+    ),
+  ).toBe("Data, records, and their safe management.");
+  expect(moduleStone(module("ledger")).key).toBe("database");
   expect(appsMatch("knowledgebase", " KNOW ")).toBe(true);
   expect(appsMatch("deals", "know")).toBe(false);
 });
@@ -275,7 +326,7 @@ test("every vendored file has the hash its README records", async () => {
   const rows = [
     ...readme.matchAll(/\| `([^`]+)` \|(?: `[^`]+` \|)? `([0-9a-f]{64})` \|/g),
   ];
-  expect(rows.length).toBe(8);
+  expect(rows.length).toBe(21);
   for (const [, file, hash] of rows) {
     const bytes = await readFile(join(directory, file ?? ""));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(hash ?? "");

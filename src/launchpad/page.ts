@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shellScript } from "../shell/bundle" with { type: "macro" };
 import { shellFontPaths } from "../shell/font-files";
+import { stoneFilePaths } from "../shell/stone-files";
 import index from "./index.html";
 import { pagePaths } from "./routes";
 
@@ -16,7 +17,7 @@ const assetHeaders = {
 };
 
 // The Lazurio shell's static assets (decision F36): the script with the
-// elements and the brand fonts, on every origin of the Environment the
+// elements, the brand fonts and the module stones, on every origin of the Environment the
 // Launchpad answers. Like the page's own assets they carry nothing of the
 // Folder and no credential: locally they are served without the token, as
 // the page is; hosted only after the gateway's admission, through the same
@@ -45,6 +46,20 @@ export const shellRoutes = {
         },
       },
     );
+  },
+  "/.lazurio/stones/:file": (
+    request: Request & { params: { file: string } },
+  ) => {
+    const file = request.params.file;
+    if (!Object.hasOwn(stoneFilePaths, file))
+      return new Response("not-found", { status: 404 });
+    return new Response(Bun.file(stoneFilePaths[file] as string), {
+      headers: {
+        ...assetHeaders,
+        "Cache-Control": "public, max-age=604800, immutable",
+        "Content-Type": "image/png",
+      },
+    });
   },
 };
 

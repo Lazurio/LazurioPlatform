@@ -21,7 +21,10 @@ import {
   personalspaceModuleIds,
   personalspaceName,
 } from "./personalspace";
-import { observeOrganizationApplications } from "./read-applications";
+import {
+  type AppDisplay,
+  observeOrganizationApplications,
+} from "./read-applications";
 import { classifyRepositorySlotPath } from "./repository-slots";
 import type { OrganizationRootState } from "./root-resolution";
 
@@ -81,6 +84,11 @@ export type ModuleReason =
    * running anything (decision F25); `file` names the package it concerns. */
   | PreparationReason;
 
+/** What the default app of a module says of itself for a page (decision
+ * F36): its id, title, description, semantic icon key and tags, bounded and
+ * display-only. The Module's own manifest stays the authority. */
+export type { AppDisplay } from "./read-applications";
+
 export type CatalogApp = Readonly<{
   package: string;
   kind: "runtime-declared" | "invalid-runtime";
@@ -118,6 +126,9 @@ export type CatalogModule = Readonly<{
   teamsSource: TeamsSource;
   apps: readonly CatalogApp[];
   defaultApp: string | null;
+  /** What the default app's declaration says of it for a page: present only
+   * when that declaration was read (decision F36). */
+  display?: AppDisplay;
   /** The Organization root's state; null for a Personalspace module, which
    * has no Organization documents. */
   state: OrganizationRootState | null;
@@ -320,6 +331,20 @@ async function moduleReason(
     : { reason: "default-app-invalid" };
 }
 
+// The display of a module's default app, when its declaration was read.
+function defaultDisplay(
+  observed: object,
+  defaultApp: string | null,
+): Readonly<{ display?: AppDisplay }> {
+  const apps = "apps" in observed ? observed.apps : undefined;
+  const display = Array.isArray(apps)
+    ? (
+        apps as readonly Readonly<{ package: string; display?: AppDisplay }>[]
+      ).find((app) => app.package === defaultApp)?.display
+    : undefined;
+  return display === undefined ? {} : { display };
+}
+
 // An app of the catalog: its package, its kind and, when its declaration was
 // refused, the rule and file (decision F23).
 const catalogApp = (app: CatalogApp): CatalogApp =>
@@ -483,6 +508,7 @@ export async function readCatalogOrganization(
             teamsSource: source,
             apps: Object.freeze(apps),
             defaultApp,
+            ...defaultDisplay(entry, defaultApp),
             state,
             executable: reason === undefined,
             ...(reason === undefined ? {} : { reason }),
@@ -632,6 +658,7 @@ async function readCatalogPersonalspace(
         teamsSource: "none",
         apps: Object.freeze(apps),
         defaultApp,
+        ...defaultDisplay(observed, defaultApp),
         state: null,
         executable: reason === undefined,
         ...(reason === undefined ? {} : { reason }),

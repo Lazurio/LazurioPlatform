@@ -4,3 +4,8 @@ declare module "*.woff2" {
   const value: string;
   export default value;
 }
+// A stone imported with `{ type: "file" }`: its path, as above.
+declare module "*.png" {
+  const value: string;
+  export default value;
+}

@@ -9,11 +9,13 @@ import { initialsOf } from "../shell/view";
 import {
   type AppsSection,
   type AppsTile,
-  appDirectory,
   appsMatch,
   appsScope,
   appsScopes,
   appsSections,
+  moduleDescription,
+  moduleName,
+  moduleStone,
   type TileTarget,
   tileTarget,
 } from "./apps-view";
@@ -169,11 +171,22 @@ export function createCatalogPanel(
     mark.append(image);
     return mark;
   };
-  const tileMark = (text: string, kind: "module" | "repository") => {
+  // A module's Lazurio stone (decision F36), or a repository's folder.
+  const stoneImage = (src: string, size: number, className: string) => {
+    const image = element("img", className);
+    image.src = src;
+    image.alt = "";
+    image.width = size;
+    image.height = size;
+    image.decoding = "async";
+    image.setAttribute("aria-hidden", "true");
+    return image;
+  };
+  const tileMark = (stone: Readonly<{ src: string }> | null) => {
+    if (stone !== null) return stoneImage(stone.src, 48, "tile-stone");
     const mark = element("span", "tile-mark");
-    mark.dataset.kind = kind;
-    if (kind === "repository") mark.append(svg("folder"));
-    else mark.textContent = text;
+    mark.dataset.kind = "repository";
+    mark.append(svg("folder"));
     mark.setAttribute("aria-hidden", "true");
     return mark;
   };
@@ -297,7 +310,9 @@ export function createCatalogPanel(
       note.prepend(dot(item.note.tone === "warn" ? "blocked-warn" : "stopped"));
       text.append(note);
     }
-    node.append(tileMark(item.mark, item.kind), text);
+    node.append(tileMark(item.kind === "module" ? item.stone : null), text);
+    if (item.kind === "module")
+      node.style.setProperty("--stone-accent", item.stone.accent);
     const opensTab =
       (item.kind === "module" &&
         (item.target.kind === "hosted" || item.target.kind === "start")) ||
@@ -452,26 +467,20 @@ export function createCatalogPanel(
     const back = routeLink(scopeRoute(value, scope), "back");
     back.append(svg("chevron-left"), copy.appsAll);
     const top = element("div", "module-head");
-    const heading = element("h1", "module-title", module.module);
+    const heading = element("h1", "module-title", moduleName(module));
     heading.tabIndex = -1;
     heading.dataset.pageHeading = "";
     const text = element("div", "module-head-text");
     text.append(
       heading,
-      element(
-        "p",
-        "module-meta",
-        module.defaultApp === null
-          ? copy.appsNoApp
-          : appDirectory(module.defaultApp),
-      ),
+      element("p", "module-meta", moduleDescription(module, copy)),
     );
-    top.append(tileMark(initialsOf(module.module).slice(0, 2), "module"), text);
+    top.append(stoneImage(moduleStone(module).src, 64, "module-stone"), text);
     const target = tileTarget(value, organization, module, options.entry());
     if (target.kind === "hosted" || target.kind === "start") {
       const open = targetLink(
         target,
-        module.module,
+        moduleName(module),
         "button primary module-open",
       );
       open.append(svg("external"), copy.appsOpenApp);
@@ -635,7 +644,7 @@ export function createCatalogPanel(
       open.rel = "noopener noreferrer";
       open.setAttribute(
         "aria-label",
-        copy.moduleOpenNamed.replace("{name}", module.module),
+        copy.moduleOpenNamed.replace("{name}", moduleName(module)),
       );
       control.append(open);
     }
@@ -700,10 +709,14 @@ export function createCatalogPanel(
             );
             link = anchor;
           } else link = element("span", "menu-item");
-          const mark = element("span", "menu-mark");
-          mark.dataset.kind = item.kind;
-          if (item.kind === "repository") mark.append(svg("folder"));
-          else mark.textContent = item.mark;
+          let mark: HTMLElement;
+          if (item.kind === "module")
+            mark = stoneImage(item.stone.src, 20, "menu-stone");
+          else {
+            mark = element("span", "menu-mark");
+            mark.dataset.kind = "repository";
+            mark.append(svg("folder"));
+          }
           link.append(mark, element("span", "menu-name", item.name));
           if (item.note !== null) {
             const tail = dot(
