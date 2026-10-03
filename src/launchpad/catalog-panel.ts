@@ -396,7 +396,7 @@ export function createCatalogPanel(
     star.setAttribute("role", "menuitem");
     if (item.favorite) star.classList.add("is-favorite");
     star.append(
-      svg("star"),
+      svg(item.favorite ? "star-filled" : "star"),
       item.favorite ? copy.appsFavoriteRemove : copy.appsFavoriteAdd,
     );
     star.addEventListener("click", () => {
