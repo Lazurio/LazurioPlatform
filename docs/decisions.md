@@ -3404,8 +3404,11 @@ each of its origins.
    the owner of a personal one, the assigned or responsible operator of a work or
    Automated one. A Team Environment and a workstation name nobody. The Organizations
    come from the Folder's catalog, once per slug, no template, none for a personal
-   Environment. Their avatar is the GitHub Organization's, by the slug, until the
-   Dashboard caches the avatar it syncs. The accent is null: no source records one, and
+   Environment. Their avatar is the GitHub Organization's of the login the canonical
+   manifest binds (`forge_binding.locator`, carried on the catalog as `forgeLogin`),
+   never derived from the slug, which may differ; without a bound login there is none
+   and the rail shows initials. The Dashboard will later cache the avatar it syncs.
+   The accent is null: no source records one, and
    the design system has not decided the token (prvky "Rail Environmentů"), so a folder
    uses the design system's accent. The apps are the recorded entry's origins; on a
    workstation Apps is `/` and there is no Chat or Automate. The Dashboard is
@@ -3452,7 +3455,19 @@ each of its origins.
    origin, where the gateway starts it on open; locally through the lifecycle, which
    starts the app and then opens the link it reports. A module without an app, one that
    cannot start, and one refused by its preparation open their overview instead. A
-   read-only repository's tile is its GitHub page. Status shows only by exception. The
+   read-only repository's tile is its GitHub page. Status shows only by exception.
+   A module's name, line and stone come from its default app's own declaration
+   (`package.json#lazurio.runtime`), which the catalog now carries as bounded,
+   display-only `display` (id, title of at most 120 characters, description of at most
+   240, icon key, tags), and the Module's manifest stays the authority. The name is
+   the title without a trailing ` vN`, the root Launchpad's `appBaseTitle`; without a
+   title it is the module id. The line is the declared description, otherwise the
+   org-agnostic sentence of the stone's key; without an app it is "No app". The stone
+   is one of the design system's 13 Lazurio stones, chosen only by a generic semantic
+   key: the declared `icon`, otherwise the root Launchpad's org-agnostic fallback from
+   the module id, the app id and the tags (`semanticAppIconKey`, ported with its keys
+   and order to `src/shell/stones.ts`). It is never chosen by an Organization or a
+   module's name. The stones are served at `/.lazurio/stones/<file>` like the fonts. The
    overview (from the column) shows the head with "Open app", the existing lifecycle
    card, the module's facts, and how to read its log on the command line, because the
    Launchpad has no log route. In Settings the column becomes their navigation with
@@ -3469,9 +3484,8 @@ tiles that open apps, the module overview with its lifecycle, Settings and Files
 frame, both routes and their admission. **Facade until its source exists:** other
 Environments in the rail and their folders (the Dashboard fills them through the
 Lazurio account); Organization accents (no source, no token); avatars beyond the
-GitHub URL by slug; the Operator's real initials (the login stands in); the module's
-display name, description and icon (the catalog has none, so the tile shows the id, the
-app directory and a generated mark); a module's running state in the column and on
+GitHub URL of the bound login; the Operator's real initials (the login stands in); a
+module's running state in the column and on
 tiles (the catalog does not know it; the overview reads it); the log in the page.
 **Later:** Buddy's bubble (0180), the Dashboard's Environment list, the forks' slot and
 the gateway routes of `/.lazurio/*` on their origins, Keycloak (0179 point 7), the
@@ -3489,12 +3503,15 @@ log streaming (B6).
 Verified by unit and HTTP tests: the contract's parser (valid documents; refused schema,
 locale, `current`, non-https or credentialed URLs, `//` paths, CSS as an accent,
 dangling Organization references, duplicate ids, markup in initials, an unknown kind),
-the producer for a workstation with two Organizations and for hosted personal, work,
+the producer for a workstation with two Organizations (one bound to another GitHub
+login than its slug, one bound to none) and for hosted personal, work,
 Team and Automated Environments, the rail (personal first, folders, six and "+N", the
 active one always shown, "less") and the switch, the jump list, the admission of both
 routes locally and behind a gateway (no token, a foreign Origin or Host, a forged
 cookie), the fonts byte for byte, the bundle check, the Apps sections with Czech plural
-counts, the tile targets hosted, local and overview, the vendored hashes, and the
+counts, the tile targets hosted, local and overview, names, lines and stones (a declared icon
+wins, the fallback order, unknown is `app`, a trailing version stripped), the vendored
+hashes, and the
 wording rule on the elements' text. The page was checked in Chrome against temporary
 fixture Folders, local and with a recorded entry, in both languages at 1440×900,
 1470×956 and 390×844. These are no rendered-page CI gates (root decision 0178).

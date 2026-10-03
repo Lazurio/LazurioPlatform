@@ -183,7 +183,11 @@ records what is functional and what is a facade until its source exists.
 - **Page.** `index.html` is rail | column | main. The Apps column and home are
   `catalog-panel.ts` over `apps-view.ts`, the frame is `shell.ts` and the switch's
   pairing is in `ui.ts`. Settings, Tools, Recovery and Files keep their panels in the
-  new frame and look. The sections below that speak of the sidebar, its footer, the
+  new frame and look. A module's name, line and stone come from its default app's
+  declaration (title, description, `icon`, tags), carried by the catalog as display-only
+  `display`; the stone falls back by the root Launchpad's org-agnostic semantic key
+  (`src/shell/stones.ts`), and the Module's own manifest stays the authority. The
+  sections below that speak of the sidebar, its footer, the
   top bar, T3 Code's colours or Chat and MausBot as sidebar links describe the build
   before F36.
 - **Preview.** A temporary fixture Folder, never a live one: `bun

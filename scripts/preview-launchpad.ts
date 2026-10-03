@@ -6,7 +6,13 @@
 // (local: with the fragment token) and, hosted, `proxy`: a loopback listener
 // that adds the gateway's Host and cookie, which a browser automation routes
 // the entry's origin through. Synthetic names only; stop it with Ctrl-C.
-import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -81,6 +87,39 @@ const root = await writeOrganization(folder, "example_GEN3", {
     },
   ],
 });
+// What each example app declares of itself (decision F36): a title, and for
+// some a description and a semantic icon; the others show the org-agnostic
+// sentence of their stone. The website stays broken: it cannot start.
+const declared: Record<
+  string,
+  { title: string; description?: string; icon?: string; tags?: string[] }
+> = {
+  "mission-control": {
+    title: "Mission Control v3",
+    description: "Plány, úkoly a koordinace práce",
+  },
+  "design-system": { title: "Design system v1" },
+  knowledgebase: {
+    title: "Knowledgebase",
+    description: "Znalosti, rozhodnutí a dokumentace",
+  },
+  deals: { title: "Deals v2", tags: ["sales"] },
+};
+for (const [id, display] of Object.entries(declared)) {
+  const file = join(
+    root,
+    ["mission-control", "design-system"].includes(id) ? id : `workspace/${id}`,
+    "app/package.json",
+  );
+  const pkg = JSON.parse(await readFile(file, "utf8"));
+  Object.assign(pkg.lazurio.runtime, {
+    title: display.title,
+    ...(display.description ? { description: display.description } : {}),
+    ...(display.icon ? { icon: display.icon } : {}),
+    tags: display.tags ?? [],
+  });
+  await writeFile(file, JSON.stringify(pkg));
+}
 for (const path of ["infra/.git", "productionspace/firmware/.git"])
   await mkdir(join(root, path), { recursive: true });
 await writeModule(join(root, "infra"), "example", { id: "infra", apps: false });
