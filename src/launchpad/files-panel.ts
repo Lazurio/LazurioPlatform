@@ -74,12 +74,13 @@ export function createFilesPanel(
   const refreshButton = find<HTMLButtonElement>("#files-refresh");
 
   // The route the page shows (`show` is called on every move, also while
-  // the frame is still being built), the folder shown, what its listing
-  // said, and a counter that drops the answer of a listing the operator
-  // already moved away from.
+  // the frame is still being built), the folder shown, the last answer with
+  // the folder it is for, whether a read is under way, and a counter that
+  // drops the answer of a read the operator already moved away from.
   let route: PageRoute = { view: "home" };
   let path: readonly string[] | null = null;
-  let state: FilesState | "loading" = "loading";
+  let answer: Readonly<{ folder: string; state: FilesState }> | null = null;
+  let loading = false;
   let reads = 0;
   let note = "";
   const uploads: Upload[] = [];
@@ -107,6 +108,14 @@ export function createFilesPanel(
     return svg;
   };
   const active = () => route.view === "files";
+  const folderKey = (folder: readonly string[]) => folder.join("/");
+  // The answer for the folder shown; null until its first read is in. A
+  // later read of the same folder (after an upload, Refresh) keeps showing
+  // it, so nothing flickers.
+  const shown = (): FilesState | null =>
+    path !== null && answer !== null && answer.folder === folderKey(path)
+      ? answer.state
+      : null;
   // A sentence that stays visible (a download under way or failed, folders
   // left out of a drop) and one only read out (an upload done, which its row
   // already shows).
@@ -272,7 +281,7 @@ export function createFilesPanel(
     const copy = options.copy();
     if (active()) navLink.setAttribute("aria-current", "page");
     else navLink.removeAttribute("aria-current");
-    refreshButton.disabled = state === "loading";
+    refreshButton.disabled = loading;
     if (path === null) return;
     const folder = path;
     crumbs.replaceChildren(
@@ -286,10 +295,14 @@ export function createFilesPanel(
         return item;
       }),
     );
-    toolbar.hidden = state === "loading" || state.kind !== "loaded";
+    const state = shown();
+    toolbar.hidden = state?.kind !== "loaded";
     zip.href = options.linkDownloads() ? zipPath(folder) : filesHref(folder);
-    status.textContent = state === "loading" ? copy.filesLoading : note;
-    if (state === "loading") return;
+    status.textContent = state === null && loading ? copy.filesLoading : note;
+    if (state === null) {
+      body.replaceChildren();
+      return;
+    }
     if (state.kind === "loaded")
       body.replaceChildren(...listView(state.listing.entries, folder));
     else if (state.kind === "file") {
@@ -332,7 +345,7 @@ export function createFilesPanel(
     const folder = path;
     reads += 1;
     const read = reads;
-    state = "loading";
+    loading = true;
     render();
     let next: FilesState;
     try {
@@ -342,7 +355,8 @@ export function createFilesPanel(
       next = { kind: "failed" };
     }
     if (read !== reads) return;
-    state = next;
+    answer = { folder: folderKey(folder), state: next };
+    loading = false;
     render();
   }
 
@@ -544,8 +558,7 @@ export function createFilesPanel(
   // the drop is skipped and said so.
   const carriesFiles = (event: DragEvent) =>
     event.dataTransfer?.types.includes("Files") === true;
-  const droppable = () =>
-    active() && state !== "loading" && state.kind === "loaded";
+  const droppable = () => active() && shown()?.kind === "loaded";
   window.addEventListener("dragenter", (event) => {
     if (!droppable() || !carriesFiles(event)) return;
     dragging += 1;
