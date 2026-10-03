@@ -135,7 +135,9 @@ if (mode === "local")
 // and the Tools page reads no real tool or sign-in.
 const home = join(parent, "home");
 await mkdir(join(home, "bin"), { recursive: true });
-await writeFile(join(home, "bin", "gh"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+await writeFile(join(home, "bin", "gh"), "#!/bin/sh\nexit 1\n", {
+  mode: 0o755,
+});
 await mkdir(join(home, "Documents", "Nabídky"), { recursive: true });
 await mkdir(join(home, "Documents", "Smlouvy"), { recursive: true });
 await writeFile(

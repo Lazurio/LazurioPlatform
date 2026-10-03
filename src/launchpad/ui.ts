@@ -536,7 +536,7 @@ async function pairedHref(app: string): Promise<string | null> {
 // "+ Nový modul" (decision F36 addendum of 2026-10-04): the prepared prompt
 // goes to the clipboard and this Environment's Chat opens in a new tab, where
 // the person pastes it into a new chat. The T3 Code fork cannot take a
-// prompt draft by link yet (Lazurio/t3code#35); once it can, Chat opens with
+// prompt draft by link yet (Lazurio/t3code#35, issue #153); once it can, Chat opens with
 // the prompt in its composer instead. A workstation has no Chat origin: the
 // prompt is copied all the same.
 async function handOver(prompt: string): Promise<boolean> {

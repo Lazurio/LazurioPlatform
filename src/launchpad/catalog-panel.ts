@@ -463,7 +463,7 @@ export function createCatalogPanel(
   // "+ Nový modul" (2026-10-04): the last tile of Workspace, only where this
   // Environment's GitHub identity is an Owner of the Organization. It hands
   // the wireframe's prompt to Chat: until the T3 Code fork takes a prompt
-  // draft by link (Lazurio/t3code#35) the prompt goes to the clipboard and
+  // draft by link (Lazurio/t3code#35, issue #153) the prompt goes to the clipboard and
   // Chat opens, where the person pastes it into a new chat.
   function newModuleTile(group: CatalogGroupEntry): HTMLElement {
     const copy = options.copy();
