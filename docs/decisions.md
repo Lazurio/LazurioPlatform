@@ -3619,7 +3619,10 @@ and their new-tab arrows, and the Organization picker in the home's head.
    Organization loses `accent` and gains `dashboard`
    (`https://dashboard.lazurio.ai/orgs/<slug>`, the Dashboard's canonical
    Organization slug); the operator gains `avatar`; the document gains
-   `addOrganization` (`https://dashboard.lazurio.ai/add-organization`).
+   `addOrganization` (`https://dashboard.lazurio.ai/add-organization`). An
+   Organization's slug is its manifest's (any nonblank text, here at most 128 characters
+   without control characters), never held to the GitHub login's rule, which applies
+   only to `forgeLogin`.
 5. **Apps column:** "Všechny moduly", "Soubory", the favourites ("Oblíbené"; a hint
    while there are none) and, at the foot, "Marketplace" marked "již brzy", whose page
    says it is coming. No search and no module list; a module's overview is reached from

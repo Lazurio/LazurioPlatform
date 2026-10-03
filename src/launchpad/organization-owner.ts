@@ -1,6 +1,7 @@
 import type { PresetName } from "../folder/presets";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
+import { ownerAnswerMs } from "./owner-answer";
 
 // Whether this Environment's GitHub identity is an Owner of an Organization
 // (decision F36 addendum of 2026-10-04): GitHub's own, live answer, read
@@ -15,7 +16,7 @@ import { resolveOnPath } from "../tools/status";
 
 export const ownerCheck = Object.freeze({
   timeoutMs: 10_000,
-  cacheMs: 5 * 60_000,
+  cacheMs: ownerAnswerMs,
 });
 
 const login = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;

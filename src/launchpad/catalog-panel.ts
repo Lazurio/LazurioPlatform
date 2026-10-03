@@ -42,6 +42,7 @@ import {
   moduleStatusView,
   parseModuleResult,
 } from "./module-view";
+import { createOwnerAnswers } from "./owner-answer";
 import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -120,7 +121,9 @@ export function createCatalogPanel(
   let notice: string | null = null;
   // Whether this Environment's GitHub identity is an Owner of an
   // Organization, by its route key: read once per page, never assumed.
-  const owners = new Map<string, boolean | "reading">();
+  // The Owner answers this page holds (owner-answer.ts); a catalog read
+  // drops them all.
+  const owners = createOwnerAnswers();
   // The lifecycle of the module the page shows: its last status, the
   // sentence after the last action, and whether a request is under way.
   // Nothing of it is kept beyond the page; the service manager is the truth.
@@ -488,32 +491,31 @@ export function createCatalogPanel(
     return button;
   }
 
-  // Reads once whether this Environment may found modules in an
-  // Organization: GitHub's own answer through the Launchpad, fail closed.
+  // Whether this Environment may found modules in an Organization: GitHub's
+  // own answer through the Launchpad, fail closed, asked again once it is
+  // older than the server's cache or the bound login changed.
   function ownerOf(value: Catalog, group: CatalogGroupEntry): boolean {
-    if (group.sections === null || group.organization.forgeLogin === undefined)
-      return false;
-    const key = catalogOrganizationKey(value, group.organization);
-    if (key === null) return false;
-    const known = owners.get(key);
-    if (known === true || known === false) return known;
-    if (known === undefined) {
-      owners.set(key, "reading");
+    const login = group.organization.forgeLogin;
+    if (group.sections === null || login === undefined) return false;
+    const organization = catalogOrganizationKey(value, group.organization);
+    if (organization === null) return false;
+    const { owner, ask } = owners.read(organization, login);
+    if (ask)
       void options
-        .get(`/api/organizations/${encodeURIComponent(key)}/owner`)
-        .then(({ value: answer, ok }) => {
-          owners.set(
-            key,
+        .get(`/api/organizations/${encodeURIComponent(organization)}/owner`)
+        .then(({ value: answer, ok }) =>
+          owners.settle(
+            organization,
+            login,
             ok &&
               !!answer &&
               typeof answer === "object" &&
               (answer as { owner?: unknown }).owner === true,
-          );
-        })
-        .catch(() => owners.set(key, false))
+          ),
+        )
+        .catch(() => owners.settle(organization, login, false))
         .finally(() => render());
-    }
-    return false;
+    return owner;
   }
 
   function section(
@@ -965,6 +967,7 @@ export function createCatalogPanel(
   /** Reads the catalog again (on load, on the way back to "Všechny moduly"
    * and on a language change). */
   async function refresh() {
+    owners.clear();
     state = catalog === null ? "loading" : state;
     render();
     try {

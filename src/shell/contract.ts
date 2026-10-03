@@ -128,7 +128,12 @@ const isAppsUrl = (value: unknown): value is string =>
     /^\/(?!\/)[^\s\\]*$/.test(value) &&
     !value.includes("#"));
 
-const slug = /^[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,98}[A-Za-z0-9])?$/;
+/** An Organization's slug as its canonical manifest admits it (any
+ * nonblank text without surrounding space), bounded here at 128 and without
+ * control characters. The elements only compare slugs and encode them into
+ * URLs, so no character set narrower than the manifest's is needed. */
+export const isShellSlug = (value: unknown): value is string =>
+  text(value, 128) && value.trim() === value;
 const initials = /^[\p{Lu}\p{N}]{1,3}$/u;
 const login = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 const isLogin = (value: unknown): value is string =>
@@ -179,7 +184,7 @@ function organization(value: unknown): ShellOrganization | null {
   const { avatar, name, dashboard } = value;
   if (
     typeof value.slug !== "string" ||
-    !slug.test(value.slug) ||
+    !isShellSlug(value.slug) ||
     !text(name, 128) ||
     !(avatar === null || isShellUrl(avatar)) ||
     !isShellUrl(dashboard)

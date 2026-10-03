@@ -2,6 +2,7 @@ import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import type { Catalog } from "../organizations/catalog";
 import {
+  isShellSlug,
   parseShell,
   type Shell,
   type ShellEnvironmentKind,
@@ -69,7 +70,9 @@ export function shellOrganizations(
       organization.reason === "template-not-runtime" ||
       organization.reason === "organization-duplicate" ||
       seen.has(slug.toLowerCase()) ||
-      !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(slug)
+      // The slug by its own rule, never the GitHub login's: the two may
+      // differ, and only `forgeLogin` is a login.
+      !isShellSlug(slug)
     )
       return [];
     seen.add(slug.toLowerCase());

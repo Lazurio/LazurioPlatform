@@ -568,3 +568,45 @@ test.skipIf(process.platform === "win32")(
   },
   30_000,
 );
+
+test.skipIf(process.platform === "win32")(
+  "an Organization whose slug is not a GitHub login keeps its place in the rail and the picker, read from a real Folder",
+  async () => {
+    await folderFixture(async (folder) => {
+      // A canonical slug the manifest admits but a login never could
+      // (underscore, dot), bound to a different GitHub login.
+      await writeOrganization(folder, "alpha_internal_GEN3", {
+        slug: "alpha_internal.v2",
+        forge: "alpha-forge",
+        state: "current",
+        modules: [{ id: "orders" }],
+      });
+      const read = await readFolderCatalog(folder);
+      const entry = read.organizations.find(
+        (candidate) => candidate.organization === "alpha_internal.v2",
+      );
+      expect(entry?.executable).toBe(true);
+      const shell = shellDocument({
+        preset: "local",
+        machine: null,
+        locale: "en",
+        catalog: read,
+      });
+      const organization = shell.organizations.find(
+        (candidate) => candidate.slug === "alpha_internal.v2",
+      );
+      expect(organization?.avatar).toBe(
+        "https://github.com/alpha-forge.png?size=96",
+      );
+      expect(organization?.dashboard).toBe(
+        "https://dashboard.lazurio.ai/orgs/alpha_internal.v2",
+      );
+      // The workstation holds it, so the picker of its space lists it.
+      expect(shell.environments[0]?.organizations).toContain(
+        "alpha_internal.v2",
+      );
+      expect(parseShell(JSON.parse(JSON.stringify(shell)))).not.toBeNull();
+    });
+  },
+  30_000,
+);
