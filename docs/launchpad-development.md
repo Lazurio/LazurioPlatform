@@ -989,3 +989,67 @@ links, back/forward, Escape, focus after navigation, the narrow sheet, the gh di
 round trip, light and dark, without page errors; the update pill and the shared
 Environment were shown by intercepting their answers in the browser. Screen-reader
 output and the clipboard path have not been qualified by a recorded manual run.
+
+## Files page
+
+The page has a section "Files" / "Soubory" (decision
+[F35](decisions.md#f35--files-the-operators-documents-through-the-launchpad)): the
+Documents folder of the account the Launchpad runs as. Its routes are `/files` (the
+folder itself) and `/files/<name>/<name>` (a folder below it), each name
+percent-encoded; they are page routes like the catalog's, served by the same bundled
+page locally (`pagePaths` holds `/files` and `/files/*`) and, behind a gateway, after the
+admission, where a path that names a regular file is its download instead
+([hosted entry](hosted-entry.md#files-links-decision-f34)). The page reads its route
+with the same path rules as the server (`src/files/rules.ts`); a path they refuse opens
+the Documents folder itself, and the server checks every path again on its platform.
+
+The Files entry stands in the sidebar on every route, below Chat and outside the view
+navigations; on the Files page the sidebar keeps the catalog's Organizations
+(`data-view="catalog files"`), and the header's page action is "Refresh". The view
+shows:
+
+- the introduction (what the folder is) and, on a Team Environment, the note that the
+  whole Team sees and changes the same folder;
+- the path as links, "Documents" / "Dokumenty" first, the current folder last
+  (`aria-current="page"`);
+- "Upload files" (a file picker, several at once) and "Download folder (ZIP)";
+- the list, folders first, then names as people read them: an icon, the name (a folder
+  is a route, a file its download), the size in decimal units or "Folder", the
+  modification time in the reader's language and time zone, and "Download" (named
+  "Download <name>" for assistive technology). Below 36 rem of the list's width a row
+  stacks its size and date under its name and the column names are hidden;
+- an empty folder says so; the empty Documents folder says what it is for; a missing or
+  refused path says the folder or file does not exist and links to Documents; a file
+  path (locally) says it is a file, with Download and a link to its folder.
+
+**Downloads.** Behind a gateway every download is a plain link (`/files/<path>`, the
+link `lazurio files link` prints, and `/api/files/zip?path=`) that the session cookie
+admits and the browser saves itself, resumable and of any size. Locally a link cannot
+carry the session token, so a plain click fetches `/api/files/download` or
+`/api/files/zip` with it and saves the result through an object URL; a modified click
+opens the address as a link does.
+
+**Uploads.** A drop anywhere on the page, or the picker, queues the files for the folder
+shown; a dropped folder is skipped and said so. One file at a time goes to
+`POST /api/files/upload` (XMLHttpRequest for its upload progress, the session token
+locally, the same origin and cookie behind a gateway), each with its row: name, a
+progress bar, the state ("Waiting", "Uploading, 45%", "Uploaded", "Uploaded as
+report (2).docx", or why not) and Cancel while it waits or runs. The folder shown is read
+again after each upload into it; a finished upload is read out once in a screen-reader-only
+live region. A 401 behind a gateway re-enters through the sign-in.
+
+**CLI.** `lazurio files link <path> [--folder <absolute Folder>] [--json]` prints the
+link of a file or folder in `~/Documents` with the same rules and Documents adapter:
+`<Launchpad origin>/files/<path>` where the Folder records an entry, the absolute path
+otherwise; a path outside `~/Documents`, hidden or missing is refused with exit 2
+(`tests/files-link-cli.test.ts`). Agents hand that link over (F35 point 8).
+
+Pure view logic lives in `src/launchpad/files-view.ts` and is tested without a DOM
+(`tests/files-view.test.ts`); `src/launchpad/files-panel.ts` holds the DOM and renders
+every server value with `textContent`. HTTP behavior is tested in
+`tests/launchpad-files.test.ts` against a temporary home, locally and behind a fake auth
+endpoint. On 2026-10-03 the page was driven in headless Chrome (Playwright, the installed
+Chrome) against a temporary Folder and home: the Documents folder, a task folder, an
+upload with its progress and a taken name, the drop overlay, an empty and a missing
+folder, light and dark, a 390 px wide screen with its sheet, and Czech, without page
+errors.

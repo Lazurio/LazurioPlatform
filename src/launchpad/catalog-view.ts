@@ -145,7 +145,11 @@ export function catalogSelection(
       candidates: readonly CatalogOrganization[];
     }>
   | Readonly<{ kind: "missing" }> {
-  if (route.view === "home" || route.view === "settings")
+  if (
+    route.view === "home" ||
+    route.view === "settings" ||
+    route.view === "files"
+  )
     return { kind: "overview" };
   const selection = selectCatalogOrganization(catalog, route.organization);
   if (selection.kind !== "found") return selection;

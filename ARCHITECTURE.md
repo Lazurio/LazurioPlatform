@@ -222,6 +222,17 @@ No owner gets a competing recovery lock. Acquiring
 exclusion never clears a pending transaction. Unknown/legacy lock protocols remain
 refused; see the [lock and recovery contract](docs/migration-and-recovery.md).
 
+### The Operator's files
+
+The Launchpad's Files page ([decision F35](docs/decisions.md#f35--files-the-operators-documents-through-the-launchpad))
+serves exactly the Documents folder of the account the Launchpad runs as,
+`<home>/Documents`, behind the admission every route already has: the gateway session on
+a Remote Environment, the session token locally. The folder is the Operator's own data,
+owned neither by the Folder nor by an Organization; the product writes there only what the
+Operator uploads, never replacing a file. One set of path rules in the shared core and one
+Documents adapter serve the routes and `lazurio files link`, which prints the link agents
+hand over. Nothing about it grants access or creates a public link.
+
 ## Workspace module contract and first usable milestone
 
 **Confirmed direction:** Platform standardizes how module operations are invoked,

@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { doctorHelp, runDoctorCommand } from "./doctor/cli";
+import { filesHelp, runFilesCommand } from "./files/cli";
 import { FolderAdoptionError } from "./folder/handover-layout";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
@@ -196,6 +197,14 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // The link alone on stdout; the notice follows on stderr.
   if (args[0] === "chat")
     return emit(await runChatCommand(args.slice(1), processContext()));
+  // The link or path alone on stdout; the note follows on stderr.
+  if (args[0] === "files")
+    return emit(
+      await runFilesCommand(args.slice(1), {
+        ...processContext(),
+        cwd: process.cwd(),
+      }),
+    );
   if (args[0] === "machine") {
     try {
       const { code, result } = await runMachineCommand(args.slice(1));
@@ -416,6 +425,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(recoverHelp);
     console.log(doctorHelp);
     console.log(chatHelp);
+    console.log(filesHelp);
     console.log(machineHelp);
     return 0;
   }

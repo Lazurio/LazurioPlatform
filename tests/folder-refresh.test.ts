@@ -32,6 +32,7 @@ import {
   assignments,
   automationAssignment,
   binding,
+  handoverEntry,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
@@ -921,3 +922,89 @@ for (const stop of ["prepared", "applied"] as const)
       }
     },
   );
+
+// Decision F35 on a Folder an older product rendered. A work Environment with a
+// hosted entry, recorded at base-instructions-17 (rc.13 and rc.14) or -18
+// (#134), still carries the output rule without the Files link. Its next
+// refresh re-renders it, and from then on the agent hands files over with
+// `lazurio files link` and points to the Files page. The older line is the
+// exact text those revisions rendered for a Linux preset.
+const beforeFiles = {
+  cs: "- Výstup, který nepatří do repozitáře, ulož do `~/Documents/<úkol>/` a uveď celou cestu; do kořene Folderu nic neukládej.",
+  en: "- Save a work product that does not belong in a repository in `~/Documents/<task>/` and give the full path; never write anything at the top level of the Folder.",
+} as const;
+const filesLine =
+  /^- (Výstup, který nepatří do repozitáře|Save a work product that does not belong in a repository).*lazurio files link.*$/m;
+
+async function renderedBefore(
+  folder: string,
+  locale: "cs" | "en",
+  revision: string,
+) {
+  const path = join(folder, ".lazurio", "instructions.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  const outputs: Record<string, string> = {};
+  let replaced = 0;
+  for (const output of outputPaths) {
+    const current = await readFile(join(folder, output), "utf8");
+    const content = current
+      .replaceAll(instructionTemplateRevision, revision)
+      .replace(filesLine, () => {
+        replaced++;
+        return beforeFiles[locale];
+      });
+    await writeFile(join(folder, output), content);
+    outputs[output] = createHash("sha256").update(content).digest("hex");
+  }
+  // The output rule is in AGENTS.md of every hosted work Environment.
+  expect(replaced).toBe(1);
+  await writeFile(
+    path,
+    JSON.stringify({ ...manifest, templateRevision: revision, outputs }),
+  );
+}
+
+for (const revision of ["base-instructions-17", "base-instructions-18"])
+  for (const locale of ["cs", "en"] as const)
+    test.skipIf(process.platform === "win32")(
+      `a work Environment with a hosted entry recorded at ${revision} in ${locale} is re-rendered with the Files handover`,
+      async () => {
+        const { parent, folder } = await setup();
+        try {
+          await rm(join(folder, "personalspace"), { recursive: true });
+          const work = binding({
+            ...organization,
+            owner: { ...organization.owner, assignment: assignments.operator },
+            entry: handoverEntry("workspace.example.lazurio.io"),
+          });
+          await initializeMachineFolder(folder, work, { ...noChoices, locale });
+          await renderedBefore(folder, locale, revision);
+          expect(
+            await readFile(join(folder, "AGENTS.md"), "utf8"),
+          ).not.toContain("lazurio files link");
+          expect(await refreshMachineFolder(folder, work)).toEqual({
+            code: 0,
+            result: { kind: "refreshed", revision: 2 },
+          });
+          const agents = await readFile(join(folder, "AGENTS.md"), "utf8");
+          expect(agents).toContain("`lazurio files link <");
+          expect(agents).toContain(
+            "https://launchpad.workspace.example.lazurio.io/files",
+          );
+          expect(agents).not.toContain(beforeFiles[locale]);
+          const manifest = JSON.parse(
+            await readFile(
+              join(folder, ".lazurio", "instructions.json"),
+              "utf8",
+            ),
+          );
+          expect(manifest.templateRevision).toBe(instructionTemplateRevision);
+          expect(await refreshMachineFolder(folder, work)).toEqual({
+            code: 0,
+            result: { kind: "unchanged" },
+          });
+        } finally {
+          await rm(parent, { recursive: true, force: true });
+        }
+      },
+    );

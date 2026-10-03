@@ -210,6 +210,20 @@ Lazurio MausBot is entered the same way when the entry records it
 public parts, the loopback port is not, and the code rides only in the fragment of
 `<mausbotOrigin>/pair`.
 
+### Files links (decision F35)
+
+`<Launchpad origin>/files/<path>`, the link `lazurio files link` prints, is an ordinary
+Launchpad route behind this admission
+([F35](decisions.md#f35--files-the-operators-documents-through-the-launchpad)). A `GET`
+that carries the gateway's session cookie downloads the file; without the session it is
+refused like any other request, and the gateway sends a browser to its sign-in first, so
+a link opened from a chat signs in and then downloads. The link carries no token: there
+is no public, anonymous or time-limited link, and it opens only for someone who may sign
+in to the Environment. An upload (`POST /api/files/upload`) is a state-changing request
+under the same-origin rule above. The routes read and write only the Documents folder of
+the account the Launchpad runs as; a Launchpad without an entry serves the same page
+locally, and its downloads ride the session token instead.
+
 ### The adapter
 
 - **Listener.** Loopback always; additionally the Machine's tailnet address when the
