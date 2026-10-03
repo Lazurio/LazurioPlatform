@@ -165,6 +165,34 @@ repositories, which decision F24 never treats as modules; and `infra`: it is an
 Organization-level repository shown in the Organizace section, while whether it is a
 module of the catalog stays as decision F24 has it.
 
+## The shell as built (decision F36)
+
+The first cut of the [target shell](#target-shell), DEV-6639; [decision
+F36](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)
+records what is functional and what is a facade until its source exists.
+
+- **Library.** `src/shell/`: `contract.ts` (`lazurio.shell.v1` and its parser),
+  `view.ts` (the rail, the switch and the jump list as pure functions), `elements.ts`
+  (`<lazurio-rail>`, `<lazurio-column-head>`), `styles.ts` (the vendored tokens on
+  `:host`), `fonts.ts`, `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
+  (tokens, logo and fonts with their hashes). Tests: `tests/shell.test.ts`,
+  `tests/launchpad-shell-routes.test.ts`, `tests/apps-view.test.ts`.
+- **Routes.** `/.lazurio/shell.js` and `/.lazurio/fonts/<file>` beside the page's
+  routes (`src/launchpad/page.ts`); `/.lazurio/shell.json` in the server after
+  admission (`src/launchpad/server.ts`, producer `shell-document.ts`).
+- **Page.** `index.html` is rail | column | main. The Apps column and home are
+  `catalog-panel.ts` over `apps-view.ts`, the frame is `shell.ts` and the switch's
+  pairing is in `ui.ts`. Settings, Tools, Recovery and Files keep their panels in the
+  new frame and look. The sections below that speak of the sidebar, its footer, the
+  top bar, T3 Code's colours or Chat and MausBot as sidebar links describe the build
+  before F36.
+- **Preview.** A temporary fixture Folder, never a live one: `bun
+  scripts/preview-launchpad.ts local|hosted cs|en <port>` writes an Organization with modules in all three sections, a synthetic home for Files
+  and Tools, and with `hosted` a recorded entry plus a loopback proxy that adds the
+  gateway's Host and cookie. Screenshots come from Chrome through playwright-core.
+- **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
+  and `/.lazurio/`".
+
 ## Settings: structure, routes and the T3 Code pattern
 
 The Launchpad is one page with two views (decision F15 addendum 2026-09-28): the

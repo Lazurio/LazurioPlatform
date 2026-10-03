@@ -3363,3 +3363,138 @@ limits), the 16 KiB JSON bound, the hosted admission (no session, forged headers
 host, a foreign origin), `lazurio files link` inside and outside `~/Documents` with and
 without an entry and from the real command line, and the Folder render on every preset in
 both locales.
+
+## F36 — The Lazurio shell: one library in the Platform, served at `/.lazurio/shell.js` with `/.lazurio/shell.json`; the Launchpad is its first consumer
+
+**Decided by Matěj 2026-10-03 (plan DEV-6639, the Lazurio shell decisions, root
+decisions 0179–0180); implemented in this revision as a first cut.** It implements the
+[target shell](launchpad-development.md#target-shell) recorded in PR #138 and the
+three-section Apps home of root decision 0179 point 5. The same left rail and app switch,
+and later Buddy's bubble, appear in the Launchpad, the Dashboard, the T3 Code fork and
+the MausBot fork. Copies would drift, and each fork would carry Lazurio's data model. So
+there is one library, in this repository, served by the Launchpad of each Environment on
+each of its origins.
+
+1. **The library** (`src/shell/`): framework-free custom elements, each drawing into its
+   own shadow root, so the host's CSS never reaches in and theirs never reaches out.
+   `<lazurio-rail>`: the Lazurio logo (the Dashboard), the jump to an Environment (also
+   ⌘⇧E / Ctrl+Shift+E, a list of the document's Environments), the personal
+   Environments, one folder per Organization (six Environments, then "+N", "less" folds
+   them again), the gear (the Settings of where the person is; in Apps the Environment's
+   `/settings/general`) and the account (the Dashboard's account settings). Labels show
+   at once, on two lines. The active Environment is filled with its Organization's
+   accent and ringed. The rail is fixed on the left and sets `--lazurio-rail-width`
+   on the document. `<lazurio-column-head active="chat|apps|automate">`: the switch
+   Chat · Apps · Automate, plain links to the current Environment's origins, a missing
+   app shown disabled with the reason. `<lazurio-buddy>` is reserved in the contract
+   (decision 0180) and not defined. No runtime dependency, no React.
+2. **The contract** `lazurio.shell.v1` (`src/shell/contract.ts`, one parser shared by
+   the producer, the page and the elements): `locale`, `current`, `operator` (initials,
+   login), `environments` (id, label, kind `personal | work | team | automated |
+   workstation`, its Organizations' slugs, its apps `{ apps, chat, automate }`),
+   `organizations` (slug, name, accent `#rrggbb` or null, avatar https URL or null),
+   `dashboard` and `account`. Only https URLs, or for Apps a path on the document's own
+   origin; an accent is a colour, never CSS; references must resolve. Members the
+   parser does not know are ignored, so the Dashboard can add to the document; it fills
+   other Environments in this same shape, and the elements do not change.
+3. **The producer** (`src/launchpad/shell-document.ts`) states what this Environment
+   knows today: one Environment, its own. Its id and label are the Machine name; a
+   workstation is `local` and the elements name it "This computer". The kind comes from
+   the preset. The Operator's initials come from the GitHub login the binding records:
+   the owner of a personal one, the assigned or responsible operator of a work or
+   Automated one. A Team Environment and a workstation name nobody. The Organizations
+   come from the Folder's catalog, once per slug, no template, none for a personal
+   Environment. Their avatar is the GitHub Organization's, by the slug, until the
+   Dashboard caches the avatar it syncs. The accent is null: no source records one, and
+   the design system has not decided the token (prvky "Rail Environmentů"), so a folder
+   uses the design system's accent. The apps are the recorded entry's origins; on a
+   workstation Apps is `/` and there is no Chat or Automate. The Dashboard is
+   `https://dashboard.lazurio.ai/`, the account settings its `/settings`.
+4. **Serving.** `/.lazurio/shell.js` is `src/shell/index.ts` built by the same Bun when
+   the product is bundled (a Bun macro, `src/shell/bundle.ts`), so the compiled
+   executable carries it as it carries the page's assets. `/.lazurio/fonts/<file>`
+   serves the brand fonts, embedded the same way. Both are static assets: locally
+   they are served without the token, as the page is; behind a gateway only after its
+   admission, through the inner listener of the page. `/.lazurio/shell.json` is data,
+   behind the same admission as every read: the token locally, the gateway's session
+   hosted. It is read-only and recomputed on every read. The candidate's page check
+   (`checkBundledPage`) also asks for the script, so a bundle without it does not start.
+   The Launchpad page bundles the same elements itself, reads the document with its own
+   credential and hands it over (`<html data-lazurio-shell="host">`). Gateway routing of
+   `/.lazurio/*` on the other origins (`t3code.…`, `mausbot.…`) is not part of this
+   decision.
+5. **The fork snippet** (see [the target shell](launchpad-development.md#target-shell)
+   for the slot rule): in `index.html` `<script type="module" src="/.lazurio/shell.js">`,
+   `<lazurio-rail></lazurio-rail>` beside the app's root, `<lazurio-column-head
+   active="chat"></lazurio-column-head>` at the top of its sidebar, and `#root {
+   box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }`. Without
+   the script the elements stay undefined and the width is 0. A host can take a click
+   over: the elements send the cancelable, composed events `lazurio-navigate` (a link on
+   the document's own origin) and `lazurio-app` (a switch tab). The Launchpad uses them
+   to move without a reload and to pair the browser with T3 Code and MausBot on the way,
+   as its Chat and MausBot entries did.
+6. **Vendoring.** The design system's `tokens.css` and the logo symbol are byte-for-byte
+   copies at a pinned commit of `HumanAndMachine-ai/design-system-lazurio`. The brand
+   fonts (Inter Tight, Geist Mono; Latin and Latin Extended; SIL OFL 1.1) are copies
+   from pinned Fontsource npm tarballs. `src/shell/vendor/README.md` names each source
+   and SHA-256, and a test checks every file against it. A change is a new copy with
+   new hashes, reviewed like code; nothing is edited in place. Inside a shadow root
+   the same text applies to `:host`. Matěj allowed publishing these brand assets in this
+   public repository. The rail, the switch and the Launchpad page take every colour,
+   type and radius from these tokens. The page is light only: the design system has no
+   dark mode yet.
+7. **The Launchpad on the shell** (`src/launchpad/`): rail | left column | main, no top
+   bar. In Apps the column holds the switch, the search, "All modules", "Files" (F35)
+   and one Organization's modules and read-only repositories under Organizace,
+   Workspace and Productionspace (F32 addendum). The home shows the Organization's name,
+   a picker when the Folder holds several, and the same sections as pills with counts
+   over tiles. A tile opens the module's app in a new tab: hosted on the module's own
+   origin, where the gateway starts it on open; locally through the lifecycle, which
+   starts the app and then opens the link it reports. A module without an app, one that
+   cannot start, and one refused by its preparation open their overview instead. A
+   read-only repository's tile is its GitHub page. Status shows only by exception. The
+   overview (from the column) shows the head with "Open app", the existing lifecycle
+   card, the module's facts, and how to read its log on the command line, because the
+   Launchpad has no log route. In Settings the column becomes their navigation with
+   Back at its foot, and the main view keeps T3 Code's header with the breadcrumb.
+   Files keeps its page in the same frame. The update pill and the "Folder refresh
+   needed" line stand at the foot of the column on every route (the open question of
+   the target shell, answered here). Below 768 px the column is a sheet beside the
+   rail, opened from a button at the top of the page; how the shell collapses stays
+   open in the target shell.
+
+**Functional now:** the rail of this Environment, the Dashboard and account links, the
+gear into Settings, the jump list, the switch with pairing, the Apps home and column,
+tiles that open apps, the module overview with its lifecycle, Settings and Files in the
+frame, both routes and their admission. **Facade until its source exists:** other
+Environments in the rail and their folders (the Dashboard fills them through the
+Lazurio account); Organization accents (no source, no token); avatars beyond the
+GitHub URL by slug; the Operator's real initials (the login stands in); the module's
+display name, description and icon (the catalog has none, so the tile shows the id, the
+app directory and a generated mark); a module's running state in the column and on
+tiles (the catalog does not know it; the overview reads it); the log in the page.
+**Later:** Buddy's bubble (0180), the Dashboard's Environment list, the forks' slot and
+the gateway routes of `/.lazurio/*` on their origins, Keycloak (0179 point 7), the
+Dashboard on the same shell, branches and worktree runs on the overview (parity B14),
+log streaming (B6).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A React component package shared by the apps | Every fork would take a dependency and a build step on Lazurio's code and data; rejected |
+| Copies of the rail per app | Four rails that drift, and a fork release for every change; rejected |
+| An iframe for the rail | A frame on every screen, focus and size coupled across documents, no same-origin data; rejected |
+| A design-system package from npm | The design system publishes none, and the tokens are all the shell needs; rejected for now |
+| Custom elements with Shadow DOM, one script and one document per Environment origin, built into the Launchpad (selected) | The forks add about 20 lines and never change for a new rail; the Launchpad's version decides what each Environment shows |
+
+Verified by unit and HTTP tests: the contract's parser (valid documents; refused schema,
+locale, `current`, non-https or credentialed URLs, `//` paths, CSS as an accent,
+dangling Organization references, duplicate ids, markup in initials, an unknown kind),
+the producer for a workstation with two Organizations and for hosted personal, work,
+Team and Automated Environments, the rail (personal first, folders, six and "+N", the
+active one always shown, "less") and the switch, the jump list, the admission of both
+routes locally and behind a gateway (no token, a foreign Origin or Host, a forged
+cookie), the fonts byte for byte, the bundle check, the Apps sections with Czech plural
+counts, the tile targets hosted, local and overview, the vendored hashes, and the
+wording rule on the elements' text. The page was checked in Chrome against temporary
+fixture Folders, local and with a recorded entry, in both languages at 1440×900,
+1470×956 and 390×844. These are no rendered-page CI gates (root decision 0178).
