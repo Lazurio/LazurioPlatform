@@ -2,12 +2,12 @@ import type {
   Catalog,
   CatalogModule,
   CatalogOrganization,
-  CatalogTeam,
   ModuleReason,
   OrganizationReason,
   PersonalspaceReason,
 } from "../organizations/catalog";
 import {
+  catalogGroups,
   catalogOrganizationKey,
   selectCatalogOrganization,
 } from "../organizations/catalog-selection";
@@ -18,7 +18,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 
 // Pure presentation of the Folder catalog (launchpad-parity B1) for the
 // Launchpad home; the DOM lives in catalog-panel.ts. Every value from the
-// server is shown as text, never as markup.
+// server is shown as text, never as markup. Teams are not shown at all
+// (decision F32): the catalog still carries them for the CLI.
 
 const reasonKeys: Readonly<
   Record<OrganizationReason | PersonalspaceReason | ModuleReason, MessageKey>
@@ -88,66 +89,6 @@ export function catalogStatus(
     text: key === undefined ? reason : withFile(copy[key], entry.file),
     code: reason,
   };
-}
-
-export type TeamGroup = Readonly<{
-  /** The Team, or null for the modules of no Team. */
-  team: CatalogTeam | null;
-  modules: readonly CatalogModule[];
-}>;
-
-/** The modules of an Organization under a subheader per Team (T3 Code's
- * project groups): the declared Teams in declaration order, then Teams a
- * module names without a declaration, then the modules of no Team. A module
- * of two Teams is listed under both. Empty Teams are left out. */
-export function teamGroups(
-  organization: CatalogOrganization,
-  copy: Copy,
-): readonly TeamGroup[] {
-  const declared = new Map(
-    organization.teams.map((team) => [team.slug, team] as const),
-  );
-  const named = [
-    ...new Set(organization.modules.flatMap((module) => module.teams)),
-  ]
-    .filter((slug) => !declared.has(slug))
-    .sort();
-  const teams = [
-    ...organization.teams,
-    ...named.map((slug) => ({ slug, displayName: slug })),
-  ];
-  const groups: TeamGroup[] = teams
-    .map((team) => ({
-      team,
-      modules: organization.modules.filter((module) =>
-        module.teams.includes(team.slug),
-      ),
-    }))
-    .filter((group) => group.modules.length > 0);
-  const other = organization.modules.filter(
-    (module) => module.teams.length === 0,
-  );
-  if (other.length > 0) {
-    // Without any Team there is nothing to group: no subheader at all.
-    if (groups.length === 0) return [{ team: null, modules: other }];
-    groups.push({
-      team: { slug: "", displayName: copy.catalogOtherModules },
-      modules: other,
-    });
-  }
-  return groups;
-}
-
-/** Whether any module of the Organization takes its Teams from the legacy
- * alias (`workspaces` or `workspace`): the page and the CLI say it once per
- * Organization, never per module, to help migrate its manifest to the
- * canonical `module_slots[].teams`. */
-export function usesLegacyTeamAlias(
-  organization: Pick<CatalogOrganization, "modules">,
-): boolean {
-  return organization.modules.some(
-    (module) => module.teamsSource === "legacy-alias",
-  );
 }
 
 /** The Organization a route names, under the CLI's rule
@@ -221,6 +162,105 @@ export const organizationName = (organization: CatalogOrganization): string =>
   organization.displayName ??
   organization.organization ??
   organization.directory;
+
+/** One module as the sidebar and the overview list it. */
+export type CatalogModuleEntry = Readonly<{
+  module: CatalogModule;
+  /** Its route, or null where no name selects its candidate. */
+  href: string | null;
+  status: CatalogStatus;
+}>;
+
+/** One group as the sidebar and the overview list it: an Organization, or
+ * the Personalspace group after the Organizations (B11). */
+export type CatalogGroupEntry = Readonly<{
+  organization: CatalogOrganization;
+  name: string;
+  href: string | null;
+  status: CatalogStatus;
+  /** Every module of the group exactly once, in the catalog's order (the
+   * declaration order of `module_slots`), whatever Teams declare it: an
+   * Environment is one workspace, and Teams are no presentation axis of the
+   * Launchpad (decision F32). */
+  modules: readonly CatalogModuleEntry[];
+}>;
+
+/** One group of the catalog with its modules, as the page lists it. */
+export function catalogGroupEntry(
+  catalog: Catalog,
+  organization: CatalogOrganization,
+  copy: Copy,
+): CatalogGroupEntry {
+  return {
+    organization,
+    name: organizationName(organization),
+    href: organizationRoute(catalog, organization),
+    status: catalogStatus(organization, copy),
+    modules: organization.modules.map((module) => ({
+      module,
+      href: moduleRoute(catalog, organization, module),
+      status: catalogStatus(module, copy),
+    })),
+  };
+}
+
+/** The groups the sidebar and the overview list, in the catalog's order. */
+export function catalogTree(
+  catalog: Catalog,
+  copy: Copy,
+): readonly CatalogGroupEntry[] {
+  return catalogGroups(catalog).map((organization) =>
+    catalogGroupEntry(catalog, organization, copy),
+  );
+}
+
+/** One fact of an Organization's or a module's page: its label and a line
+ * or a list. */
+export type CatalogFact = readonly [
+  label: string,
+  value: string | readonly string[],
+];
+
+/** What the Organization page says of it. Its Teams are not among them:
+ * Teams and access are managed in the Dashboard (decision F32). */
+export function organizationFacts(
+  organization: CatalogOrganization,
+  copy: Copy,
+): readonly CatalogFact[] {
+  return [
+    [copy.catalogDirectory, organization.directory],
+    [copy.catalogState, organization.state ?? copy.catalogNone],
+    [
+      copy.catalogIssues,
+      organization.issues.length === 0 ? copy.catalogNone : organization.issues,
+    ],
+  ];
+}
+
+/** What the module page says of it, its Teams not among them (F32), nor
+ * the module's `issues`, whose one code is `teams-invalid`: a defect of the
+ * Team membership the CLI's JSON still carries. */
+export function moduleFacts(
+  organization: CatalogOrganization,
+  module: CatalogModule,
+  copy: Copy,
+): readonly CatalogFact[] {
+  return [
+    [copy.catalogOrganization, organizationName(organization)],
+    [
+      copy.catalogApps,
+      module.apps.length === 0
+        ? copy.catalogNone
+        : module.apps.map((app) =>
+            app.package === module.defaultApp
+              ? `${app.package} (${copy.catalogDefaultMark})`
+              : app.package,
+          ),
+    ],
+    [copy.catalogPath, module.path],
+    [copy.catalogState, module.state ?? copy.catalogNone],
+  ];
+}
 
 // The exact shape of the server's answer, before anything is drawn from it.
 const text = (value: unknown): value is string => typeof value === "string";

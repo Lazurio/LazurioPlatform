@@ -2,13 +2,14 @@ import { expect, test } from "bun:test";
 import {
   catalogSelection,
   catalogStatus,
+  catalogTree,
+  moduleFacts,
   moduleRoute,
+  organizationFacts,
   organizationName,
   organizationRoute,
   parseCatalog,
   routeOrganization,
-  teamGroups,
-  usesLegacyTeamAlias,
 } from "../src/launchpad/catalog-view";
 import { messages } from "../src/launchpad/messages";
 import {
@@ -140,42 +141,143 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
   );
 });
 
-test("modules are grouped by Team N:M: declared order, undeclared Teams, then the rest", () => {
-  const copy = messages("en");
-  expect(
-    teamGroups(alpha, copy).map((group) => [
-      group.team?.displayName ?? null,
-      group.modules.map((entry) => entry.module),
-    ]),
-  ).toEqual([
-    ["Core", ["web", "docs"]],
-    ["Sales", ["web"]],
-    ["research", ["lab"]],
-    ["Other modules", ["misc"]],
-  ]);
-  // Without any Team there is no subheader at all.
-  expect(teamGroups({ ...alpha, modules: [module("misc", [])] }, copy)).toEqual(
-    [{ team: null, modules: [module("misc", [])] }],
-  );
-  expect(teamGroups(broken, copy)).toEqual([]);
+// The Personalspace group in the shape the core gives it (B11): not a Team,
+// no Teams of its own, after the Organizations.
+const personalspace: CatalogOrganization = {
+  directory: "personalspace",
+  organization: "personalspace",
+  displayName: "Personalspace",
+  state: null,
+  issues: [],
+  executable: true,
+  teams: [],
+  modules: [
+    module("notes", [], {
+      organization: "personalspace",
+      teamsSource: "none",
+      state: null,
+    }),
+  ],
+};
+const workstation: Catalog = { ...catalog, personalspace };
+
+test("each module is listed once, in the catalog's order, whatever Teams declare it; the Personalspace group stays (F32)", () => {
+  for (const locale of ["cs", "en"]) {
+    const copy = messages(locale);
+    const tree = catalogTree(workstation, copy);
+    // web is in two declared Teams, lab in a Team nobody declares, misc in
+    // none: one flat list, each module once, in declaration order.
+    expect(
+      tree.map((group) => [
+        group.name,
+        group.href,
+        group.status.state,
+        group.modules.map((entry) => [
+          entry.module.module,
+          entry.href,
+          entry.status.state,
+        ]),
+      ]),
+    ).toEqual([
+      [
+        "Alpha Company",
+        "/o/alpha",
+        "ready",
+        [
+          ["web", "/o/alpha/web", "ready"],
+          ["docs", "/o/alpha/docs", "ready"],
+          ["lab", "/o/alpha/lab", "ready"],
+          ["misc", "/o/alpha/misc", "ready"],
+        ],
+      ],
+      ["broken", "/o/broken", "blocked", []],
+      [
+        "Personalspace",
+        "/o/personalspace",
+        "ready",
+        [["notes", "/o/personalspace/notes", "ready"]],
+      ],
+    ]);
+    // The entries are the catalog's own modules, so a selected module is
+    // found among them by identity, exactly once.
+    const web = alpha.modules[0];
+    expect(
+      tree.flatMap((group) => group.modules).filter((e) => e.module === web),
+    ).toHaveLength(1);
+    // Without a Personalspace there is no such group.
+    expect(catalogTree(catalog, copy).map((group) => group.name)).toEqual([
+      "Alpha Company",
+      "broken",
+    ]);
+  }
 });
 
-test("the legacy Team alias is named once per Organization, from any of its modules", () => {
-  expect(usesLegacyTeamAlias(alpha)).toBe(false);
-  expect(
-    usesLegacyTeamAlias({
-      modules: [
-        module("web", ["core"]),
-        module("crm", ["sales"], { teamsSource: "legacy-alias" }),
-        module("misc", ["workspace"], { teamsSource: "default" }),
-      ],
-    }),
-  ).toBe(true);
-  expect(
-    usesLegacyTeamAlias({
-      modules: [module("misc", ["workspace"], { teamsSource: "default" })],
-    }),
-  ).toBe(false);
+test("no Team is drawn: no subheader, no badge, no Teams or Team membership on the Organization or module page (F32)", () => {
+  // delta's manifest uses the legacy Team alias: the CLI still names it
+  // (tests/organization-catalog.test.ts), the page does not.
+  const delta: CatalogOrganization = {
+    ...alpha,
+    directory: "delta",
+    organization: "delta",
+    displayName: "Delta Company",
+    modules: [
+      module("crm", ["sales", "core"], {
+        organization: "delta",
+        teamsSource: "legacy-alias",
+      }),
+      module("wiki", ["workspace"], {
+        organization: "delta",
+        teamsSource: "default",
+        issues: ["teams-invalid"],
+      }),
+    ],
+  };
+  const value: Catalog = { ...workstation, organizations: [alpha, delta] };
+  const teamWords = [
+    ...[alpha, delta].flatMap((organization) =>
+      organization.teams.flatMap((team) => [team.slug, team.displayName]),
+    ),
+    "research",
+    "workspace/workspace",
+    "Team",
+  ].map((word) => word.toLowerCase());
+  for (const locale of ["cs", "en"]) {
+    const copy = messages(locale);
+    // Every text the sidebar, the overview, the Organization pages and the
+    // module pages draw from the catalog.
+    const facts = (entries: readonly (readonly [string, unknown])[]) =>
+      entries.flatMap(([label, fact]) => [label, ...[fact].flat()]);
+    const drawn = catalogTree(value, copy).flatMap((group) => [
+      group.name,
+      group.status.text,
+      ...facts(organizationFacts(group.organization, copy)),
+      ...group.modules.flatMap((entry) => [
+        entry.module.module,
+        entry.module.defaultApp ?? copy.catalogNone,
+        entry.status.text,
+        ...facts(moduleFacts(group.organization, entry.module, copy)),
+      ]),
+    ]);
+    expect(drawn.length).toBeGreaterThan(40);
+    for (const text of drawn)
+      for (const word of teamWords)
+        expect(String(text).toLowerCase()).not.toContain(word);
+    // The module page keeps what it had besides its Teams and their one
+    // issue code, teams-invalid.
+    const wiki = delta.modules[1];
+    if (wiki === undefined) throw new Error("No module");
+    expect(moduleFacts(delta, wiki, copy).map(([label]) => label)).toEqual([
+      copy.catalogOrganization,
+      copy.catalogApps,
+      copy.catalogPath,
+      copy.catalogState,
+    ]);
+    expect(organizationFacts(delta, copy).map(([label]) => label)).toEqual([
+      copy.catalogDirectory,
+      copy.catalogState,
+      copy.catalogIssues,
+    ]);
+  }
 });
 
 test("a route selects an Organization or a module of the catalog, or says it is missing", () => {

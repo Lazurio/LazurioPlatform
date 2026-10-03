@@ -62,7 +62,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   // registry dependencies as they are (Bun still copies local `file:`
   // dependencies and runs the package's own lifecycle scripts). A declared preparation's
   // start-time step is the same install, then its check, and only when the
-  // check fails its prepare_script and the check again (decision F32), unless
+  // check fails its prepare_script and the check again (decision F34), unless
   // the app's directory overlaps another app of its module: its install could
   // change that app's files beneath it, so its start only checks, and only an
   // explicit preparation installs (F25 point 6).
@@ -149,7 +149,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
         return Object.freeze(result);
       // A failed default preparation is its install: it has nothing else.
       if (byDefault) return failed("preparation-install-failed", lockfile);
-      // A declared preparation names the step that failed (decision F32). A
+      // A declared preparation names the step that failed (decision F34). A
       // check that still fails is no refusal of the Platform's: the start
       // answers `prerequisites-not-ready`.
       if (stage === "install")
@@ -164,7 +164,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   });
 }
 
-// The start-time step (decision F32). For a declared preparation: the frozen
+// The start-time step (decision F34). For a declared preparation: the frozen
 // install (matching registry dependencies are left as they are; local
 // `file:` dependencies are copied and lifecycle scripts run every time),
 // its check, and only when the check fails the declared prepare_script and the

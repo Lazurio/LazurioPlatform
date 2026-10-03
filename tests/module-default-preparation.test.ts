@@ -40,7 +40,7 @@ import {
 // package of the replaced Launchpad, starts after a frozen install from the
 // lockfile beside its package; what cannot start for a reason known without
 // running anything is not executable in the list, with the same typed reason
-// the start answers. Since decision F32 an explicit declaration's start runs
+// the start answers. Since decision F34 an explicit declaration's start runs
 // the same install, then its declared check. HOME is a temporary
 // directory; the only dependencies are local `file:` packages, so nothing
 // needs the network.
@@ -292,7 +292,7 @@ posixTest(
       expect(explanation).toContain("bun.lock");
 
       // notes: the explicit declaration's start installs from its lockfile,
-      // then runs its check, which passes (decision F32).
+      // then runs its check, which passes (decision F34).
       expect(await world.run("start", "notes")).toMatchObject({
         kind: "module",
         outcome: "started",

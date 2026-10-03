@@ -480,7 +480,7 @@ try {
   await rm(join(owner, "slow"));
   await rm(join(owner, "preparing"));
   // The interrupted tree's declared check fails, so the start prepares it
-  // again before it starts (decision F32), under the start's coordination:
+  // again before it starts (decision F34), under the start's coordination:
   // no retained record.
   const unprepared = await fifth.operation("start");
   assert.equal(unprepared.kind, "started");

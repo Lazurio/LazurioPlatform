@@ -621,7 +621,7 @@ posixTest(
   },
 );
 
-// Decision F32 at the core: the adapter's start-time step decides whether to
+// Decision F34 at the core: the adapter's start-time step decides whether to
 // prepare; the core starts only on `prepared`, keeps a named failure with its
 // file, calls a failure without a reason `prerequisites-not-ready`, and
 // launches nothing otherwise. An explicit preparation names a known refusal

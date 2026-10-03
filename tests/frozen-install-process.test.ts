@@ -238,7 +238,7 @@ posixTest(
   15_000,
 );
 
-// Decision F32: the start-time step of a declared preparation. The frozen
+// Decision F34: the start-time step of a declared preparation. The frozen
 // install first (a no-op when node_modules matches the lockfile), then the
 // check; a check that passes is the end of the step, one that fails is
 // followed by the preparation script and the check again, in one run. Every
@@ -346,7 +346,7 @@ posixTest(
       }
     };
     // Ready: one check and no preparation script, but the install is not
-    // free of effects (decision F32 point 1, accepted): Bun runs the
+    // free of effects (decision F34 point 1, accepted): Bun runs the
     // package's own postinstall hook ('i') and copies a local `file:`
     // dependency into node_modules again on every install, satisfied or not.
     // A registry dependency that matches is left as it is (Bun reports "no

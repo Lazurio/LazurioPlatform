@@ -39,7 +39,7 @@ type PreparationResult = Readonly<{
 // the script, but does not discover or implement application-specific data setup.
 //
 // Operations: `prepare` installs, runs the optional preparation script, then
-// the optional check; `check` runs only the check; `start` (decision F32)
+// the optional check; `check` runs only the check; `start` (decision F34)
 // installs, runs the check and, only when it exits non-zero, the preparation
 // script and the check again. On a tree that already matches the lockfile
 // Bun leaves registry dependencies as they are, but copies local `file:`
@@ -170,7 +170,7 @@ export async function preflightBunPreparation(input: {
           }
           // Every operation but `check` begins with the frozen install,
           // which leaves matching registry dependencies as they are (decision
-          // F32: the install is the Platform's; not free of effects, point 1).
+          // F34: the install is the Platform's; not free of effects, point 1).
           if (operation !== "check") {
             install = await runFrozenInstallProcess({
               authority,

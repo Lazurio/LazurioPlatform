@@ -68,7 +68,7 @@ function dependencyBoundary(
 // overlap; a local package inside the application's directory is a
 // dependency, not an application.
 // A declared preparation keeps nested application packages possible, so the
-// same rule decides whether its start may install (decision F32).
+// same rule decides whether its start may install (decision F34).
 export async function applicationsOverlap(
   moduleDirectory: string,
   applicationPackage: string,

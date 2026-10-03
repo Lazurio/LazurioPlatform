@@ -254,7 +254,7 @@ export const ensurePollMsDefault = 250;
 
 /** How long the Launchpad's module routes wait for a start or a preparation
  * before they answer that it is still running: below the routes' 660-second
- * idle timeout, so the answer always arrives (decision F32). The bound covers
+ * idle timeout, so the answer always arrives (decision F34). The bound covers
  * everything after the module is named: the toolchain check, the queue
  * behind other operations of the Organization, the coordination lock, the
  * preflight and the preparation's own 600-second run. */
@@ -831,7 +831,7 @@ export function createModuleOperations(input: {
 
   // Start the prepared app unless it runs: the toolchain, then the
   // lifecycle's start, whose start-time step installs from the lockfile, runs
-  // the declared check and prepares when it fails (decision F32).
+  // the declared check and prepares when it fails (decision F34).
   async function startOwned({
     target,
     runner: kind,
@@ -863,7 +863,7 @@ export function createModuleOperations(input: {
     });
   }
 
-  // Prepare the app explicitly (decision F32): the lifecycle's preparation,
+  // Prepare the app explicitly (decision F34): the lifecycle's preparation,
   // whatever the declared check says now. A frozen install from the lockfile
   // beside the package, the declared prepare_script and the check again; for
   // an app without a declaration the frozen install (F25). It never starts
@@ -910,7 +910,7 @@ export function createModuleOperations(input: {
     });
   }
 
-  // A start or preparation answered within a deadline (decision F32): when
+  // A start or preparation answered within a deadline (decision F34): when
   // it has not finished by then, the owner's view of the app now, with the
   // outcome `start-pending` or `prepare-pending`; the operation goes on in
   // this owner, and its result is the app's later status. Without a
@@ -950,7 +950,7 @@ export function createModuleOperations(input: {
   // Seams of later slices, deliberately not built here:
   // - B3 `open` (start, wait for health, the link) composes the start and
   //   the same `observe`; until then `ensure` starts, and a start installs
-  //   and prepares when the check fails (decisions F25, F32).
+  //   and prepares when the check fails (decisions F25, F34).
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
   return Object.freeze({
@@ -965,7 +965,7 @@ export function createModuleOperations(input: {
       return answerWithin("start", prepared, startOwned, answer);
     },
     /** Prepare the module's app (its default, or `app`) explicitly, without
-     * starting it (decision F32). */
+     * starting it (decision F34). */
     async prepare(
       name: string,
       options: ModuleOptions = {},

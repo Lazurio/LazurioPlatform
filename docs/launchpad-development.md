@@ -196,8 +196,9 @@ compatibility with older manifests, the legacy alias, the `workspaces` list and 
 singular `workspace`; blank entries and `productionspace` are dropped; nothing left means
 the default Team `workspace` (decision 0041, as the resident's Launchpad README says).
 `teamsSource` is `teams`, `legacy-alias` or `default`. An Organization with any
-`legacy-alias` module is named once, never per module: a note under the CLI tables and a
-"Team membership" fact on its page, so its manifest can be migrated to `teams`.
+`legacy-alias` module is named once, never per module, in a note under the CLI tables,
+so its manifest can be migrated to `teams`. Teams are for the CLI and the catalog's
+JSON: the Launchpad shows none (decision F32, an Environment is one workspace).
 
 **CLI first.** `lazurio organization list [--folder <F>] [--json]` prints the catalog
 (`--json`: exactly the object below), `lazurio module list [<Org>] [--folder <F>]
@@ -253,9 +254,9 @@ transient unit's readable name (`applicationUnitName`), as it was in the residen
 inventory.
 
 **Routes.** `/` is every Organization's modules with their default app; `/o/<org>` one
-Organization (directory, resolution state, Teams, issues, then its modules per Team);
-`/o/<org>/<module>` one module (Organization, Teams, apps with the default marked,
-path, resolution state, whether it can run). `<org>` is selected by the CLI's rule
+Organization (directory, resolution state, issues, then its modules);
+`/o/<org>/<module>` one module (Organization, apps with the default marked,
+path, resolution state, whether it can run). No route shows Teams (F32). `<org>` is selected by the CLI's rule
 above and each segment is URL-encoded. A candidate's own route uses the name that
 selects exactly it: its slug, otherwise its directory name (an Organization that
 could not be read, or one of two candidates of a slug whose directory is not a slug);
@@ -270,18 +271,31 @@ focus on the heading, the breadcrumb "Organization / module", the document title
 **Sidebar in T3 Code's pattern.** On the home frame the sidebar lists "All
 Organizations", then each Organization as a group (T3's projects) with its modules as
 rows (T3's threads) and a status dot (green: can run; grey: cannot, with the reason
-in the row's accessible name), under a subheader per Team: the declared Teams in
-their order, Teams a module names without a declaration, then "Other modules"; a
-module of two Teams is a row under both, and without any Team there is no subheader.
+in the row's accessible name). Each module is one row, in the catalog's order (the
+declaration order of `module_slots`), whatever Teams declare it, and there is no Team
+subheader (decision F32; until then a subheader per Team listed a module of two Teams
+twice).
 The current Organization or module is `aria-current="page"`. "Refresh" is the page
 action in the header. Below 768 px the sidebar is the same off-canvas sheet as in
 Settings, and choosing a row closes it.
 
-**What a module row shows.** Name, Teams, default app, and "Can run" or the reason in
-words with its code. Rows carry no action; the module's page carries its lifecycle
+**What a module row shows.** Name, default app, and "Can run" or the reason in
+words with its code; no Team badge (F32). Rows carry no action; the module's page carries its lifecycle
 ([below](#module-lifecycle)). `src/launchpad/catalog-view.ts` holds the pure
 presentation (tested in `tests/catalog-view.test.ts`), `src/launchpad/catalog-panel.ts`
 the DOM, drawn with `textContent` only.
+
+**Verification 2026-10-02 (F32).** `tests/catalog-view.test.ts` checks the pure view
+the sidebar, the overview and both pages draw (`catalogTree`, `organizationFacts`,
+`moduleFacts`): a module of two declared Teams, one of an undeclared Team and one of
+none are each listed once in declaration order, the Personalspace group stays last,
+and no drawn text names a Team, its membership source or `teams-invalid`, in both
+languages. The CLI's Teams column and legacy-alias note keep their tests in
+`tests/organization-catalog.test.ts`. The home, the sidebar, an Organization page and a
+module page were driven in headless Chrome (Playwright) against a temporary
+workstation Folder with two Organizations, three Teams sharing modules and a
+Personalspace module: every module once, no Team subheader, heading or badge, no page
+errors.
 
 **Verification 2026-09-28.** Unit and HTTP tests (`tests/organization-catalog.test.ts`,
 `tests/catalog-view.test.ts`, `tests/launchpad-routes.test.ts`, the hosted test) use a
@@ -323,7 +337,7 @@ F25); for an app that declares one the same frozen install on every start (when
 `node_modules` matches the lockfile Bun leaves registry dependencies as they are, but
 copies local `file:` dependencies again and runs the app package's own lifecycle scripts
 such as `postinstall`), then its check, and only when the check fails the
-declared `prepare_script` and the check again (decision F32, Lazurio Module Standard
+declared `prepare_script` and the check again (decision F34, Lazurio Module Standard
 ch. 3 and 10); then the dev script, never a hostname convention. A check that passes
 after the install runs no `prepare_script`. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
 preparation (the transaction with the retained owner lock), whatever the check says now,
@@ -355,7 +369,7 @@ again. Lifecycle refusals keep their codes (`port-occupied`, `prerequisites-not-
 declared check still fails after the preparation —, `coordination-busy`,
 `service-unrecognized`, …); a failed step of a preparation is named
 (`preparation-install-failed` with the lockfile, `preparation-script-failed` with the
-owner's `package.json`, decision F32). A file or directory of the module's
+owner's `package.json`, decision F34). A file or directory of the module's
 checkout that the checkout rule refuses during the start (an install input such as a
 local dependency's file) is named by its rule (`declaration-*`, `directory-*`) with
 its module-relative `file` (decision F23); a preparation that cannot run for a known
@@ -381,7 +395,7 @@ Refusals are `{kind: "blocked", operation, reason, …}`.
 each segment URL-encoded, behind the existing admission (the fragment token locally,
 the gateway's cookie hosted; `POST` also same-origin). The body is the CLI's `--json`
 object: 200 when done, 409 when refused. Start and prepare answer within 630 seconds
-counted from naming the module, below their 660-second idle timeout (decision F32): one
+counted from naming the module, below their 660-second idle timeout (decision F34): one
 still running then (queued behind another app's start of the Organization, waiting for a
 lock, or installing) answers 202 with the app's status and the outcome `start-pending` or
 `prepare-pending`, goes on in the Launchpad, and the page says so.
@@ -399,7 +413,7 @@ keyboard focus returns to the action. Pure presentation in
 English.
 
 **Not in this slice.** An `open` verb, a Prepare action on the page (Start prepares
-an app whose check fails; `prepare` is the CLI's and the route's, decision F32), the
+an app whose check fails; `prepare` is the CLI's and the route's, decision F34), the
 output of a preparation's processes,
 the T3 Code chat link (P7, since in [Chat entry](#chat-entry)), worktree `--source` (P9), a logs
 tail on the page, and the retirement of `/api/apps/*`, `app-request`,
@@ -422,7 +436,7 @@ status with Open to the loopback URL, Stop, focus on the action, and no action o
 module that cannot run. A real systemd user manager and journal (Ubuntu 24.04) were
 **not** exercised by this slice; that is C.5.
 
-**Verification 2026-10-02 (F32).** `tests/module-declared-preparation.test.ts` runs the
+**Verification 2026-10-02 (F34).** `tests/module-declared-preparation.test.ts` runs the
 real Bun, the compiled process guard and the in-memory user manager over fixture modules
 with the standard declaration on a fresh checkout (a lockfile, no `node_modules`):
 `lazurio module start` installs, checks, runs `prepare_script`, checks again and starts
@@ -599,7 +613,7 @@ failed start (the browser then reloaded forever); here the ambiguous id and a re
 start are 409, so the gateway's "could not be prepared" page says so once. `ensure`
 starts through the same core as `lazurio module start`, so it installs what a start
 installs: the frozen install from the lockfile, declared preparation or not, and for a
-declared preparation whose check then fails its `prepare_script` (F25, F32); a module
+declared preparation whose check then fails its `prepare_script` (F25, F34); a module
 whose check still fails after it answers `prerequisites-not-ready`.
 
 **Verification 2026-09-28.** `tests/launchpad-ensure.test.ts` against the fixture Folder:
@@ -614,7 +628,7 @@ showing it with the entry's link), repeated requests never starting again, an ex
 stopped app starting on the next navigation, `toolchain-missing` as 409 with
 `operation: "start"`, a start still under way answering 503 `start-pending` and becoming
 204, three concurrent navigations joining one failing slow check (one run, three 409
-`prerequisites-not-ready`; since F32 after the start's install); on the session path a real synthetic app started by a
+`prerequisites-not-ready`; since F34 after the start's install); on the session path a real synthetic app started by a
 navigation, served on its declared port and ending with its Launchpad; and a
 workstation Launchpad answering 404. `tests/launchpad-hosted-trust.test.ts` covers the
 internal-namespace rule of the admission. A real gateway, Caddy and oauth2-proxy were

@@ -63,7 +63,7 @@ export function createApplicationLifecycle(adapters: {
   preflightPreparation?: PreparationFactory;
   // Optional start-time step: the frozen install and the declared check, which
   // the adapter follows by the preparation script when the check fails
-  // (decision F32), or the default preparation's install (F25). It is never a
+  // (decision F34), or the default preparation's install (F25). It is never a
   // clean install. Its subprocess ownership is retained in the same set and
   // drained by the same shutdown as preparation; a failure without a reason
   // is `prerequisites-not-ready`.
@@ -384,7 +384,7 @@ export function createApplicationLifecycle(adapters: {
                   });
                 preparations.delete(check);
                 // A failure with a known reason keeps it (an install, a
-                // preparation script, decisions F25 and F32); a declared
+                // preparation script, decisions F25 and F34); a declared
                 // check that still fails is `prerequisites-not-ready`.
                 if (result.kind !== "prepared")
                   return Object.freeze(

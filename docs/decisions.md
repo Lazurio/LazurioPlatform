@@ -2373,7 +2373,7 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    install). The same holds for the gateway's `ensure` and the Launchpad's Start, which
    run the same core. The install runs under the start's coordination, not as a
    separate transaction: an interrupted install leaves no retained record, because the
-   next start's frozen install is its repair. *Amended by F32:* a declared preparation's
+   next start's frozen install is its repair. *Amended by F34:* a declared preparation's
    start runs the same install, then its check, and only when the check fails its
    `prepare_script` and the check again.
 3. **The toolchain.** A package that pins Bun (`packageManager: bun@x.y.z`) is
@@ -2843,7 +2843,145 @@ change.
 | Identify the connected person and use their rights | The Environment cannot tell reliably who is connected; a guess is not an identity; rejected |
 | The Team's identity, its rights and the branch rules, on the instruction of the connected member (selected) | GitHub stays the only access authority, and an Organization tightens it with branch rules |
 
-## F32 — A declared preparation's start installs, checks and prepares when the check fails; `lazurio module prepare`
+## F32 — Teams are not a presentation axis of the Launchpad: an Environment is one workspace
+
+**Decided by Matěj 2026-10-02 (plan DEV-6638, issue #120); implemented in this
+revision.** "One Environment = one workspace." Observed on the catalog of
+[Launchpad parity](launchpad-parity.md) B1 as built: the sidebar put a subheader per
+Team under each Organization, the overview (`/`) and the Organization page
+(`/o/<org>`) a heading and a card per Team, so a module declared in N Teams was listed
+N times, each time with its own status dot and link; every module row carried Team
+badges, the module page listed the module's Teams and the Organization page the
+Organization's Teams and where their membership was read from. Teams and access are
+managed in the Dashboard; a person working in an Environment works in one workspace
+and does not act on its Team structure there.
+
+1. **One flat list per Organization.** The sidebar, the overview and the Organization
+   page list an Organization's modules in one list, each module exactly once. The
+   order is the catalog's, the declaration order of `module_slots` with root-level
+   applications where they are declared (F24): the order `lazurio module list` and
+   `POST /api/catalog` already give, set by the Organization in its manifest. The
+   catalog carries no display name of a module to sort by, only its id.
+2. **No Team in the Launchpad.** No Team subheader or heading, no Team badge on a
+   module row, no Teams on the module page, no Teams and no Team membership note on
+   the Organization page. The module's `issues`, whose one code is `teams-invalid`, is
+   not drawn either. The strings and styles of the Team presentation are removed;
+   there is no hidden Team mode.
+3. **The levels stay.** The Organization level stays, because a workstation's Folder
+   can hold several Organizations (a hosted work Environment has one). The
+   Personalspace group stays its own group after the Organizations (B11); it is not a
+   Team. Root-level applications stay ordinary modules of the list.
+4. **The catalog keeps Teams for the CLI.** `readFolderCatalog` still resolves
+   `teams` and `teamsSource` per module and `teams` per Organization, and
+   `POST /api/catalog` still answers exactly what `lazurio organization list --json`
+   prints (one core, tested equal). `lazurio module list` keeps its Teams column and
+   its once-per-Organization note on the legacy alias, which helps migrate a
+   manifest to `module_slots[].teams`. The page reads none of it; its check of the
+   answer's shape still covers these fields, because the page and the server ship in
+   one executable. No other consumer of `/api/catalog` exists.
+5. **The composition does not change.** Which modules an Environment shows stays as
+   B1 says: every declared module of every Organization in the Folder, and the
+   Personalspace group on a preset that has one. Nothing is filtered by Team or by the
+   Environment's handover. A later decision of DEV-6638 redefines the composition.
+
+**Supersedes** in [Launchpad parity](launchpad-parity.md) the "subheader per Team" of
+B1's surface, the "Team groups" of its visual-design note, its test "Team grouping
+N:M", row 18 "Teams grouping" (the switch's "yes (display only)") and the Team group of
+the switch acceptance item C.3 11. B1's workspace composition is unchanged by this
+decision.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the Team subheaders and list a shared module once, under its first Team | Still presents the Organization's structure, and "first" is an arbitrary rule; rejected |
+| Keep Team badges on rows as information | Teams and access belong to the Dashboard; rejected by Matěj |
+| A Team filter, or a switch back to the grouped view | A second presentation to keep consistent; rejected: no hidden Team mode |
+| Sort the list alphabetically | A new ordering rule that differs from the CLI's and the API's; F24 already declined to invent one; not chosen |
+| Remove Teams from the catalog and `/api/catalog` too | Breaks the Teams column and the legacy-alias note of `module list`; the API answers what the CLI prints; not chosen: the composition decision of DEV-6638 owns the catalog's contract |
+| One flat list per Organization in declaration order, no Team anywhere on the page, the catalog unchanged (selected) | Each module once; one order on every surface; no contract change |
+
+## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
+
+**Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not
+implemented.** Numbered after F30 and F31 (pull requests #119 and #126) and F32 (pull request
+#122, step 1 of the same direction: Teams are not a presentation axis of the
+Launchpad). Matěj, an Organization Admin, gave the direction on 2026-10-02: one
+Environment is one workspace; its modules are the repositories the Environment can
+reach by GitHub; the Launchpad shows them flat and has nothing to do with Teams; the
+Launchpad signs in with the Lazurio Account and asks the Dashboard what belongs there;
+the Dashboard reads access live from GitHub and projects it; the Launchpad reaches the
+repositories with its own `gh`; later, modules outside the Environment's access can be
+requested and an Owner's approval in the Dashboard writes the grant to GitHub.
+
+The shaping, with variants, the API, the technology comparison, removal semantics,
+failure modes and the decided and open questions, is
+[workspace composition](workspace-composition.md).
+
+**Decided by Matěj on 2026-10-02:**
+
+1. **The Lazurio Account is the foundation**, as the maintainers' account plans define
+   it: one subject per person at the Lazurio issuer (Keycloak), GitHub a linked identity
+   the issuer owns, the Dashboard a relying party without accounts of its own. The
+   Launchpad signs in by the OAuth 2.0 Device Authorization Grant against the issuer, as
+   `gh` does, and by that represents the Environment itself, which is linked to its
+   Operator and gets the Operator's rights. The account and the device-code sign-in come
+   first; the composition follows.
+2. **Who may connect an Environment.** The person for their own device or the personal
+   Remote Environment they own; the Operator the Organization assigned
+   (`owner.assignment`) for a work or Automated Environment; an Owner of the Organization
+   for a Team Environment. Nobody can assign themself someone else's Environment.
+   Ownership is unchanged (root 0144, 0165).
+3. **An Automated Environment** works as the GitHub account linked to the Lazurio Account
+   it is registered under; there is no separate persona binding.
+4. **Clones and clean fast-forwards are automatic; removal only after a person
+   confirms it**, and no automatic removal after a revoke in v1.
+5. **The Production Space is in v1.** Declared Production Space repositories follow the
+   same access rule and are materialized into `productionspace/<repository>` as the
+   manifest declares; they are never run or released and the Launchpad shows them
+   read-only.
+6. **The broker's repository allowlist goes; manifest `teams` become legacy** and are
+   removed after the rollout. Settings → Environment keeps showing the Environment's
+   assigned Team; Teams leave the workspace presentation only.
+7. **The contract package lives in this repository and the Dashboard takes its types
+   from it.** The same package and API carry the Environment list of the shared
+   Lazurio shell (plan DEV-6639), which also owns where the sign-in sits.
+
+**Proposed, still open:**
+
+1. **Four questions, four owners.** Admission stays the gateway's (F11). The Lazurio
+   Account sign-in **registers the Environment** with a key it generated; recommended,
+   the Environment becomes a client of the issuer and authenticates with
+   `private_key_jwt` for 10-minute tokens. The **composition** is the Dashboard's live
+   projection of GitHub. **Access** stays GitHub's, checked at the operation through the
+   Environment's own identity.
+2. **The subject is the Environment's GitHub principal**, never the person signed in:
+   the person's account on a workstation, the Operator's on a Work Environment, the
+   Team on a Team Environment, the linked account on an Automated Environment; a
+   personal Remote Environment has no composition.
+3. **Repositories stay declared.** The composition selects among the module and
+   Production Space slots the Organization manifest declares; destination paths come
+   only from that manifest. An unavailable or partial answer keeps the last known
+   composition.
+4. **A typed contract** written with Effect Schema and `HttpApi` as in the T3 Code fork,
+   behind a committed OpenAPI snapshot and a measured spike, JSON Schema with ajv as the
+   fallback behind the same wire contract.
+
+**Relation to other decisions.** It changes F9's "explicit only" for composition-driven
+additions and fast-forwards and takes the Production Space out of what content sync never
+touches, refines F11 (the Account sign-in is the Environment's registration;
+self-hosted stays unmanaged), keeps B1's execution admission and moves materialization
+to the composition, and needs a root decision record that confirms and extends root
+0149 and fulfils root 0159; root 0144 and 0165 stay as they are (section 14 of the
+shaping).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The Launchpad decides presence from `gh` and provider errors (today's direction of P10, the legacy heuristics) | A Team Environment cannot list what it could read; "absent" and "denied" look alike; rejected by the direction |
+| A snapshot in the handover | Needs a Machines apply per grant change; rejected by the direction |
+| The Dashboard keeps grants in its database | A second copy of access; rejected |
+| Each person signs in and the composition follows the person | Wrong subject on Team and Automated Environments; nothing works while nobody is signed in; rejected |
+| The Dashboard's live projection, Environment registration, local application with the Environment's own identity (proposed) | One projection for every kind of Environment; GitHub stays the authority; nothing destructive without a person |
+
+## F34 — A declared preparation's start installs, checks and prepares when the check fails; `lazurio module prepare`
 
 **Decided 2026-10-02 by the owner of the Platform rollout of the Lazurio Module Standard**
 (root decision 0171, `manual/module-standard.md` ch. 3 and 10; issues #114, #116). Under the

@@ -152,8 +152,8 @@ pre { max-height: 20rem; overflow: auto; margin: 0; padding: 0.625rem 0.75rem; b
 pre:empty { display: none; }
 
 /* The catalog (launchpad-parity B1): Organizations as sidebar groups, modules
-   as rows with a status dot, a subheader per Team (T3 Code's projects and
-   threads). */
+   as rows with a status dot, each module once and no Teams (decision F32)
+   (T3 Code's projects and threads). */
 .dot { display: inline-block; flex: none; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--success); }
 .dot[data-state="blocked"], .dot[data-state="stopped"], .dot[data-state="unknown"] { background: color-mix(in srgb, var(--muted-fg) 55%, transparent); }
 /* The module lifecycle (slice P5): a starting app amber, an ended one red. */
@@ -167,11 +167,9 @@ span.catalog-org:hover { background: transparent; }
 .catalog-org, .catalog-module { min-width: 0; }
 .catalog-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .catalog-module { padding-left: 1rem; font-weight: 400; }
-.catalog-sub { padding: 0.35rem 0.625rem 0.15rem; color: color-mix(in srgb, var(--muted-fg) 75%, transparent); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
 .catalog-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
 .catalog-status[data-state="ready"] { color: var(--success-fg); }
 .catalog-status code { color: var(--muted-fg); font-size: 11px; }
-.catalog-team { padding: 0 1rem; color: var(--muted-fg); font-size: 12px; font-weight: 500; }
 .group-head h2 a, .row-title a { color: inherit; text-decoration: none; }
 .group-head h2 a:hover, .row-title a:hover { text-decoration: underline; }
 #catalog-status:empty { display: none; }

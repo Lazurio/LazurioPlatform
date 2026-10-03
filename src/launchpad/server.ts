@@ -67,7 +67,7 @@ export type HostedOptions = Readonly<{
   ensureWaitMs?: number;
   /** How long the module routes wait for a start or a preparation before
    * they answer that it is still running (default
-   * `moduleAnswerWithinMsDefault`, decision F32); also on a workstation. */
+   * `moduleAnswerWithinMsDefault`, decision F34); also on a workstation. */
   moduleAnswerWithinMs?: number;
 }>;
 
@@ -362,7 +362,7 @@ export async function startLaunchpad(
         try {
           // A start runs the module's start-time step first, and a prepare
           // its preparation. The request waits at most until the answer
-          // deadline (below this idle timeout, decision F32), which includes
+          // deadline (below this idle timeout, decision F34), which includes
           // the queue, the locks and the preflight; a start or preparation
           // still running then is answered 202 with its pending outcome and
           // goes on.

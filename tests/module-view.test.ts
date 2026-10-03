@@ -182,7 +182,7 @@ test("the sentence after Start or Stop names what happened or why not", () => {
   expect(moduleResultMessage(answer({ outcome: "not-managed" }), en)).toBe(
     en.moduleNotRunning,
   );
-  // A start or preparation still running at the route's deadline (F32).
+  // A start or preparation still running at the route's deadline (F34).
   for (const copy of [en, cs]) {
     expect(
       moduleResultMessage(
@@ -209,7 +209,7 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     en.moduleReasonPortOccupied,
   );
   // At a module's start the check failed after the start prepared the app
-  // (decision F32).
+  // (decision F34).
   for (const copy of [en, cs])
     expect(moduleResultMessage(refusal("prerequisites-not-ready"), copy)).toBe(
       copy.modulePrerequisitesNotReady,
