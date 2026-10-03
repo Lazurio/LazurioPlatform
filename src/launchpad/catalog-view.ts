@@ -2,6 +2,7 @@ import type {
   Catalog,
   CatalogModule,
   CatalogOrganization,
+  CatalogRepository,
   ModuleReason,
   OrganizationReason,
   PersonalspaceReason,
@@ -19,7 +20,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Pure presentation of the Folder catalog (launchpad-parity B1) for the
 // Launchpad home; the DOM lives in catalog-panel.ts. Every value from the
 // server is shown as text, never as markup. Teams are not shown at all
-// (decision F32): the catalog still carries them for the CLI.
+// (decision F32): the catalog still carries them for the CLI. An
+// Organization's modules and read-only repositories are grouped by where they
+// live in its layout (F32 addendum of 2026-10-03).
 
 const reasonKeys: Readonly<
   Record<OrganizationReason | PersonalspaceReason | ModuleReason, MessageKey>
@@ -171,6 +174,38 @@ export type CatalogModuleEntry = Readonly<{
   status: CatalogStatus;
 }>;
 
+/** One read-only repository as the page lists it: no status dot, no action,
+ * no page (F32 addendum of 2026-10-03). */
+export type CatalogRepositoryEntry = Readonly<{
+  repository: CatalogRepository;
+  /** "Checked out" or "Not checked out", in words. */
+  checkout: string;
+}>;
+
+/** The layout groups of an Organization, in this order (F32 addendum of
+ * 2026-10-03, root decision 0179 point 5). */
+export const catalogLayouts = [
+  "organization",
+  "workspace",
+  "productionspace",
+] as const;
+export type CatalogSectionLayout = (typeof catalogLayouts)[number];
+
+/** One layout group of an Organization: its heading, its modules in the
+ * catalog's order, then its read-only repositories in declaration order. */
+export type CatalogSection = Readonly<{
+  layout: CatalogSectionLayout;
+  title: string;
+  modules: readonly CatalogModuleEntry[];
+  repositories: readonly CatalogRepositoryEntry[];
+}>;
+
+const layoutTitles: Readonly<Record<CatalogSectionLayout, MessageKey>> = {
+  organization: "catalogLayoutOrganization",
+  workspace: "catalogLayoutWorkspace",
+  productionspace: "catalogLayoutProductionspace",
+};
+
 /** One group as the sidebar and the overview list it: an Organization, or
  * the Personalspace group after the Organizations (B11). */
 export type CatalogGroupEntry = Readonly<{
@@ -183,6 +218,10 @@ export type CatalogGroupEntry = Readonly<{
    * Environment is one workspace, and Teams are no presentation axis of the
    * Launchpad (decision F32). */
   modules: readonly CatalogModuleEntry[];
+  /** An Organization's layout groups that have something in them, in the
+   * order of `catalogLayouts`: every module and read-only repository in
+   * exactly one. Null for the Personalspace group, which stays one list. */
+  sections: readonly CatalogSection[] | null;
 }>;
 
 /** One group of the catalog with its modules, as the page lists it. */
@@ -191,16 +230,39 @@ export function catalogGroupEntry(
   organization: CatalogOrganization,
   copy: Copy,
 ): CatalogGroupEntry {
+  const modules = organization.modules.map((module) => ({
+    module,
+    href: moduleRoute(catalog, organization, module),
+    status: catalogStatus(module, copy),
+  }));
+  const sections =
+    organization === catalog.personalspace
+      ? null
+      : catalogLayouts.flatMap((layout): CatalogSection[] => {
+          const own = {
+            layout,
+            title: copy[layoutTitles[layout]],
+            modules: modules.filter((entry) => entry.module.layout === layout),
+            repositories: organization.repositories
+              .filter((repository) => repository.layout === layout)
+              .map((repository) => ({
+                repository,
+                checkout: repository.checkedOut
+                  ? copy.catalogCheckedOut
+                  : copy.catalogNotCheckedOut,
+              })),
+          };
+          return own.modules.length + own.repositories.length === 0
+            ? []
+            : [own];
+        });
   return {
     organization,
     name: organizationName(organization),
     href: organizationRoute(catalog, organization),
     status: catalogStatus(organization, copy),
-    modules: organization.modules.map((module) => ({
-      module,
-      href: moduleRoute(catalog, organization, module),
-      status: catalogStatus(module, copy),
-    })),
+    modules,
+    sections,
   };
 }
 
@@ -274,6 +336,7 @@ function isModule(value: unknown): value is CatalogModule {
     text(entry.organization) &&
     text(entry.module) &&
     text(entry.path) &&
+    (entry.layout === "organization" || entry.layout === "workspace") &&
     texts(entry.teams) &&
     text(entry.teamsSource) &&
     Array.isArray(entry.apps) &&
@@ -291,6 +354,18 @@ function isModule(value: unknown): value is CatalogModule {
     (entry.file === undefined || text(entry.file)) &&
     (entry.preparationRefused === undefined ||
       entry.preparationRefused === true)
+  );
+}
+function isRepository(value: unknown): value is CatalogRepository {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    text(entry.slug) &&
+    (entry.layout === "organization" || entry.layout === "productionspace") &&
+    text(entry.path) &&
+    typeof entry.checkedOut === "boolean" &&
+    (entry.url === null ||
+      (text(entry.url) && entry.url.startsWith("https://github.com/")))
   );
 }
 function isOrganization(value: unknown): value is CatalogOrganization {
@@ -314,7 +389,9 @@ function isOrganization(value: unknown): value is CatalogOrganization {
         text((team as Record<string, unknown>).displayName),
     ) &&
     Array.isArray(entry.modules) &&
-    entry.modules.every(isModule)
+    entry.modules.every(isModule) &&
+    Array.isArray(entry.repositories) &&
+    entry.repositories.every(isRepository)
   );
 }
 

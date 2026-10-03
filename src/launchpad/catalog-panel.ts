@@ -9,6 +9,8 @@ import {
   type CatalogFact,
   type CatalogGroupEntry,
   type CatalogModuleEntry,
+  type CatalogRepositoryEntry,
+  type CatalogSection,
   type CatalogStatus,
   catalogGroupEntry,
   catalogSelection,
@@ -35,14 +37,18 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // The Launchpad home (launchpad-parity B1) in T3 Code's sidebar pattern: the
 // Organizations are the sidebar's groups (T3's projects), their modules its
 // rows with a status dot (T3's threads), each module once and no Teams
-// (decision F32: an Environment is one workspace); the main view shows every
+// (decision F32: an Environment is one workspace), grouped by where they live
+// in the Organization's layout: Organization, Workspace and the read-only
+// Productionspace (F32 addendum of 2026-10-03); the main view shows every
 // module (`/`), one Organization (`/o/<org>`) or one module
 // (`/o/<org>/<module>`). On a preset with a Personalspace its modules are one
 // more group, `personalspace`, after the Organizations (B11). Every value from the server is drawn with
 // textContent. The module page carries the module lifecycle (slice P5): the
 // status of its app with a dot, the one primary action (Start or Stop) and
 // Open while the app reports a link, over `/api/modules/<org>/<module>/…`,
-// the same core as `lazurio module`. Rows elsewhere carry no action.
+// the same core as `lazurio module`. Rows elsewhere carry no action; a
+// read-only repository (`infra`, productionspace) has no dot, no action and
+// no page, only its checkout state and its GitHub link.
 export function createCatalogPanel(
   options: Readonly<{
     post: (
@@ -179,15 +185,69 @@ export function createCatalogPanel(
     return item;
   }
 
-  // The modules of one group as one card, each module once (F32).
-  function groupModules(entry: CatalogGroupEntry): Node[] {
-    if (entry.modules.length === 0)
+  // One read-only repository as a row of a card: name, path, whether it is
+  // checked out, and its GitHub page as a plain link. No dot, no action.
+  function repositoryRow({
+    repository,
+    checkout,
+  }: CatalogRepositoryEntry): HTMLElement {
+    const copy = options.copy();
+    const item = row(
+      repository.slug,
+      element("p", "row-desc", repository.path),
+      element("p", "row-status", checkout),
+    );
+    item.dataset.repository = repository.layout;
+    if (repository.url !== null) {
+      const control = element("div", "row-control");
+      const link = element("a", "", copy.catalogRepositoryOpen);
+      link.href = repository.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.setAttribute(
+        "aria-label",
+        copy.catalogRepositoryOpenNamed.replace("{name}", repository.slug),
+      );
+      control.append(link);
+      item.querySelector(".row-main")?.append(control);
+    }
+    return item;
+  }
+
+  // One layout group's rows as one card: its modules, then its repositories.
+  const sectionCard = (section: CatalogSection) => {
+    const card = element("div", "card");
+    card.append(
+      ...section.modules.map(moduleRow),
+      ...section.repositories.map(repositoryRow),
+    );
+    return card;
+  };
+
+  // The modules of one group, each once (F32): an Organization's in its
+  // layout groups, each a heading of `level` and a card; the Personalspace
+  // group's as one card.
+  function groupModules(entry: CatalogGroupEntry, level: "h2" | "h3"): Node[] {
+    if (
+      entry.sections === null
+        ? entry.modules.length === 0
+        : entry.sections.length === 0
+    )
       return entry.organization.reason === undefined
         ? [element("p", "intro", options.copy().catalogNoModules)]
         : [];
-    const card = element("div", "card");
-    card.append(...entry.modules.map(moduleRow));
-    return [card];
+    if (entry.sections === null) {
+      const card = element("div", "card");
+      card.append(...entry.modules.map(moduleRow));
+      return [card];
+    }
+    return entry.sections.map((section) => {
+      if (level === "h2") return group(section.title, sectionCard(section));
+      const part = element("section", "catalog-layout");
+      part.dataset.layout = section.layout;
+      part.append(element("h3", "", section.title), sectionCard(section));
+      return part;
+    });
   }
 
   function overview(value: Catalog): Node[] {
@@ -203,7 +263,7 @@ export function createCatalogPanel(
       const section = group(heading);
       if (!entry.organization.executable || entry.modules.length === 0)
         section.querySelector(".group-head")?.append(statusLine(entry.status));
-      section.append(...groupModules(entry));
+      section.append(...groupModules(entry, "h3"));
       return section;
     });
   }
@@ -217,7 +277,9 @@ export function createCatalogPanel(
     return [
       statusLine(entry.status),
       facts(organizationFacts(organization, copy)),
-      group(copy.catalogModules, ...groupModules(entry)),
+      ...(entry.sections === null
+        ? [group(copy.catalogModules, ...groupModules(entry, "h2"))]
+        : groupModules(entry, "h2")),
     ];
   }
 
@@ -407,8 +469,40 @@ export function createCatalogPanel(
     return card;
   }
 
+  // One module of the sidebar: a row with its status dot.
+  function moduleItem(
+    { module, href, status: view }: CatalogModuleEntry,
+    selection: ReturnType<typeof catalogSelection>,
+  ) {
+    const item = element("li");
+    const link = maybeLink(href, "menu-item catalog-module");
+    link.append(
+      dot(view.state === "ready"),
+      element("span", "catalog-name", module.module),
+      element("span", "sr-only", `, ${view.text}`),
+    );
+    if (selection.kind === "module" && selection.module === module)
+      link.setAttribute("aria-current", "page");
+    item.append(link);
+    return item;
+  }
+
+  // One read-only repository of the sidebar: its name, no dot, no link.
+  function repositoryItem({ repository, checkout }: CatalogRepositoryEntry) {
+    const item = element("li");
+    const name = element("span", "menu-item catalog-module catalog-repository");
+    name.append(
+      element("span", "catalog-name", repository.slug),
+      element("span", "sr-only", `, ${checkout}`),
+    );
+    item.append(name);
+    return item;
+  }
+
   // The sidebar: every Organization as a group, its modules as rows with a
-  // status dot, each module once and no Team subheader (decision F32). A
+  // status dot, each module once and no Team subheader (decision F32), under
+  // a small heading per layout group with something in it (F32 addendum of
+  // 2026-10-03); the Personalspace group stays one list. A
   // candidate links to the route that selects exactly it (its slug,
   // otherwise its directory name); one that no name selects, such as one of
   // two candidates of a slug, is a group without a link, named with its
@@ -431,24 +525,27 @@ export function createCatalogPanel(
           head.append(element("span", "sr-only", `, ${entry.status.text}`));
         }
         section.append(head);
-        if (entry.modules.length === 0) return section;
-        const list = element("ul", "menu");
-        list.append(
-          ...entry.modules.map(({ module, href, status: view }) => {
-            const item = element("li");
-            const link = maybeLink(href, "menu-item catalog-module");
-            link.append(
-              dot(view.state === "ready"),
-              element("span", "catalog-name", module.module),
-              element("span", "sr-only", `, ${view.text}`),
-            );
-            if (selection.kind === "module" && selection.module === module)
-              link.setAttribute("aria-current", "page");
-            item.append(link);
-            return item;
-          }),
-        );
-        section.append(list);
+        if (entry.sections === null) {
+          if (entry.modules.length === 0) return section;
+          const list = element("ul", "menu");
+          list.append(
+            ...entry.modules.map((module) => moduleItem(module, selection)),
+          );
+          section.append(list);
+          return section;
+        }
+        for (const part of entry.sections) {
+          const title = element("div", "catalog-sub", part.title);
+          title.setAttribute("aria-hidden", "true");
+          const list = element("ul", "menu");
+          list.dataset.layout = part.layout;
+          list.setAttribute("aria-label", part.title);
+          list.append(
+            ...part.modules.map((module) => moduleItem(module, selection)),
+            ...part.repositories.map(repositoryItem),
+          );
+          section.append(title, list);
+        }
         return section;
       }),
     );

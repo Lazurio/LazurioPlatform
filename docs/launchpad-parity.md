@@ -105,8 +105,8 @@ the gap blocks the switch of one hosted Work Environment (`hosted-organization-p
 | 15 | Organization install | `lazurio organization install <login> [--role builder|steward]`, Admin = no role, restricted slots excluded for roles, repository-db bootstrap (`R:lazurio/organization-install-lib.mjs:62-78`, `:875-877`, `:440`); root path hard-coded `organizations/<login>_GEN3` (`:139-141`); in-app from the GitHub setup step (`R:launchpad/src/setup-github-lib.mjs:803-805`) | None; F9 not implemented (`docs/content-sync.md:3-6`) | Materialization | new Machines |
 | 16 | Synchronize / update | `lazurio update`: root → Organization roots → children, recovery stash, ff-only (`R:lazurio/runtime/lazurio-update-lib.mjs:122-358`, `:742-758`); `POST /api/update`, `/api/sync`; legacy `pull`, `pull-autostash`, `pull-all` routes run the full update (`R:launchpad/src/server.mjs:1466-1483`) | None; the manual tells agents `git pull --ff-only` on a clean default branch (`docs/decisions.md:729-731`) | Explicit sync | after switch |
 | 17 | Roles builder/steward/admin | Scope filter on restricted slots (root decision 0143) | None | See B7: no role flag | new Machines |
-| 18 | Teams grouping | `module_slots[].teams` N:M, legacy fallbacks (`R:…/discovery-lib.mjs:910`; `R:launchpad/public/app.js:2509`) | Team only as manual text and binding fields (`src/folder/machine-binding.ts:16-30`) | None: superseded by decision F32, Teams are not a presentation axis of the Launchpad; the catalog keeps them for `lazurio module list` | no (F32) |
-| 19 | Productionspace | Read-only cards (`R:launchpad/public/app.js:2914-3056`) | None | Not carried (F) | no |
+| 18 | Teams grouping | `module_slots[].teams` N:M, legacy fallbacks (`R:…/discovery-lib.mjs:910`; `R:launchpad/public/app.js:2509`) | Team only as manual text and binding fields (`src/folder/machine-binding.ts:16-30`) | None: superseded by decision F32, Teams are not a presentation axis of the Launchpad; the catalog keeps them for `lazurio module list`. Since F32's addendum of 2026-10-03 an Organization's modules are grouped by layout instead (Organization, Workspace, Productionspace), never by Team | no (F32) |
+| 19 | Productionspace | Read-only cards (`R:launchpad/public/app.js:2914-3056`) | Read-only rows in the Organization's Productionspace group: name, path, checked out or not, the GitHub link; the Organization's `infra` likewise in its Organization group (catalog `repositories`; F32 addendum of 2026-10-03, root decision 0179 point 5) | None: carried as a read-only listing without an action or a page; no longer "not carried" | no |
 | 20 | Template Organizations | Excluded from runtime (`R:…/discovery-lib.mjs:1937-1952`) | Refused fail-closed (`src/organizations/read-applications.ts:13-17`) | None | no |
 | 21 | Logo and theme | `GET /api/organizations/:slug/logo` (`R:launchpad/src/server.mjs:281-288`) | None | Later, display only | no |
 
@@ -189,14 +189,20 @@ from module and Machine alone collide across Organizations
   not modules (decision F24, issue #95).
 - Output per module: Organization slug, module id, default app, Teams, root state,
   `executable` with a reason, and on hosted the external origin (B4). The Teams are
-  for the CLI; the Launchpad does not show them (decision F32).
+  for the CLI; the Launchpad does not show them (decision F32). Since F32's addendum
+  of 2026-10-03 each module also carries its layout group (`organization` or
+  `workspace`) and each Organization its read-only repositories (`infra`,
+  `productionspace/*`) with their checkout state and GitHub link.
 - **State: none.** The list is recomputed on every read, as the resident does after
   Sync.
 - Surface: the Launchpad home becomes the catalog in T3 Code's sidebar pattern. The
   sidebar lists Organizations as groups (T3's projects), modules as rows with a status
   dot (T3's threads), each module once in one list per Organization; the subheader per
   Team first proposed here is superseded by decision F32 (an Environment is one
-  workspace, Teams are not a presentation axis of the Launchpad). `/` is an overview of every module's
+  workspace, Teams are not a presentation axis of the Launchpad). Inside an
+  Organization the rows sit under three small headings by layout, Organization,
+  Workspace and Productionspace, the last read-only (F32 addendum of 2026-10-03).
+  `/` is an overview of every module's
   default app; `/o/<org>` and `/o/<org>/<module>` are routes like `/settings/<section>`
   (`src/launchpad/routes.ts`). The developer form and its "Development fixture only"
   banner (`src/launchpad/messages.ts:367`) go away. This changes the F15 addendum
@@ -681,7 +687,8 @@ from the operator's computer (17). Every item has one expected answer.
    → the same module running with the same invocation.
 10. `lazurio chat link --json` → a `…/pair#token=` URL on the T3 origin.
 11. `https://launchpad.<vm>.<org>.lazurio.io/` after sign-in → the catalog with every
-    Organization, each module once and no Team group (F32).
+    Organization, each module once and no Team group (F32), under the layout groups
+    Organization, Workspace and Productionspace (F32 addendum of 2026-10-03).
 12. Open a module from the catalog → it opens healthy on its own hostname.
 13. `lazurio module stop …`, then open the module's hostname cold → the starting page,
     then the module (`ensure`); a reload of a background tab does not start it.
@@ -915,7 +922,7 @@ rows remain proposals of this shaping.
 | `launchpad.gen3.json`, `launchpad.gen3.local.json`, planned slots, `personalspace_owner` | F15 point 2 gave them a successor in Folder preferences; no consumer needs planned slots, and the Personalspace owner is the one Personalspace present or the handover's Owner. Proposed: no successor at all (H5) |
 | Legacy personal-entry trust profile (`R:launchpad/src/personal-entry-lib.mjs`) | Marked historical by root decision 0157 |
 | Laptop network join and peer connections (`R:launchpad/src/laptop-network-lib.mjs`) | F16: the Organization's infra repository and the Dashboard own the graph; a join that files an issue was a bridge (root issue #416) |
-| Productionspace cards | Read-only listing without an action; each repository has its own release process (root decision 0041) |
+| Productionspace cards | **Carried back as a read-only listing (F32 addendum of 2026-10-03):** rows with name, path, checkout state and GitHub link, without an action or a page; each repository has its own release process (root decision 0041) |
 | Organization install role flag | GitHub rights decide; restricted slots need an explicit name (B7) |
 | Recovery stash in sync | F9 blocks on dirty checkouts instead (`docs/content-sync.md:63-73`) |
 | `lazurio search`, plugins, local Guide application, `GET /api/guide/organization-install` | No consumer found; the manual lives in the Folder and the Guide on the documentation site |

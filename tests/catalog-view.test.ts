@@ -16,6 +16,7 @@ import {
   type Catalog,
   type CatalogModule,
   type CatalogOrganization,
+  type CatalogRepository,
   findCatalogOrganization,
 } from "../src/organizations/catalog";
 
@@ -26,7 +27,8 @@ const module = (
 ): CatalogModule => ({
   organization: "alpha",
   module: name,
-  path: `workspace/${name}`,
+  path: extra.layout === "organization" ? name : `workspace/${name}`,
+  layout: "workspace",
   teams,
   teamsSource: "teams",
   apps: [{ package: "app/package.json", kind: "runtime-declared" }],
@@ -54,6 +56,7 @@ const alpha: CatalogOrganization = {
     module("lab", ["research"]),
     module("misc", []),
   ],
+  repositories: [],
 };
 const broken: CatalogOrganization = {
   directory: "broken",
@@ -65,6 +68,7 @@ const broken: CatalogOrganization = {
   reason: "organization-conflict",
   teams: [],
   modules: [],
+  repositories: [],
 };
 const catalog: Catalog = { kind: "catalog", organizations: [alpha, broken] };
 
@@ -158,6 +162,7 @@ const personalspace: CatalogOrganization = {
       state: null,
     }),
   ],
+  repositories: [],
 };
 const workstation: Catalog = { ...catalog, personalspace };
 
@@ -208,6 +213,137 @@ test("each module is listed once, in the catalog's order, whatever Teams declare
     expect(catalogTree(catalog, copy).map((group) => group.name)).toEqual([
       "Alpha Company",
       "broken",
+    ]);
+  }
+});
+
+const repository = (
+  slug: string,
+  layout: CatalogRepository["layout"],
+  checkedOut: boolean,
+): CatalogRepository => ({
+  slug,
+  layout,
+  path: layout === "organization" ? slug : `productionspace/${slug}`,
+  checkedOut,
+  url: checkedOut ? `https://github.com/omega/${slug}` : null,
+});
+
+test("an Organization's modules and read-only repositories are grouped by layout: Organization, Workspace, Productionspace; an empty group is not drawn; the Personalspace group stays one list (F32 addendum, 0179 point 5)", () => {
+  // omega in a manifest's order: a workspace module, the root-level
+  // application, another workspace module; infra and two productionspace
+  // repositories, one checked out and one not.
+  const omega: CatalogOrganization = {
+    ...alpha,
+    directory: "omega",
+    organization: "omega",
+    displayName: "Omega Company",
+    modules: [
+      module("web", [], { organization: "omega" }),
+      module("mission-control", [], {
+        organization: "omega",
+        layout: "organization",
+      }),
+      module("docs", [], { organization: "omega" }),
+    ],
+    repositories: [
+      repository("infra", "organization", true),
+      repository("firmware", "productionspace", true),
+      repository("connect", "productionspace", false),
+    ],
+  };
+  // Only workspace modules: one group. Nothing at all: no group.
+  const sigma: CatalogOrganization = {
+    ...alpha,
+    directory: "sigma",
+    organization: "sigma",
+    displayName: "Sigma Company",
+    modules: [module("api", [], { organization: "sigma" })],
+  };
+  const empty: CatalogOrganization = {
+    ...alpha,
+    directory: "empty",
+    organization: "empty",
+    displayName: "Empty Company",
+    modules: [],
+  };
+  const value: Catalog = {
+    kind: "catalog",
+    organizations: [omega, sigma, empty],
+    personalspace,
+  };
+  for (const [locale, titles] of [
+    ["cs", ["Organizace", "Workspace", "Productionspace"]],
+    ["en", ["Organization", "Workspace", "Productionspace"]],
+  ] as const) {
+    const copy = messages(locale);
+    const tree = catalogTree(value, copy);
+    expect(
+      tree.map((group) =>
+        group.sections === null
+          ? [group.name, null]
+          : [
+              group.name,
+              group.sections.map((section) => [
+                section.layout,
+                section.title,
+                section.modules.map((entry) => entry.module.module),
+                section.repositories.map((entry) => [
+                  entry.repository.slug,
+                  entry.checkout,
+                  entry.repository.url,
+                ]),
+              ]),
+            ],
+      ),
+    ).toEqual([
+      [
+        "Omega Company",
+        [
+          [
+            "organization",
+            titles[0],
+            ["mission-control"],
+            [
+              [
+                "infra",
+                copy.catalogCheckedOut,
+                "https://github.com/omega/infra",
+              ],
+            ],
+          ],
+          ["workspace", titles[1], ["web", "docs"], []],
+          [
+            "productionspace",
+            titles[2],
+            [],
+            [
+              [
+                "firmware",
+                copy.catalogCheckedOut,
+                "https://github.com/omega/firmware",
+              ],
+              ["connect", copy.catalogNotCheckedOut, null],
+            ],
+          ],
+        ],
+      ],
+      ["Sigma Company", [["workspace", titles[1], ["api"], []]]],
+      ["Empty Company", []],
+      ["Personalspace", null],
+    ]);
+    expect(copy.catalogCheckedOut).not.toBe(copy.catalogNotCheckedOut);
+    // Every module is in exactly one group, the very entry of the flat list:
+    // a module's route and status stay what they were.
+    const [first] = tree;
+    if (first?.sections == null) throw new Error("No sections");
+    const grouped = first.sections.flatMap((section) => section.modules);
+    expect(grouped).toHaveLength(first.modules.length);
+    for (const entry of first.modules)
+      expect(grouped.filter((other) => other === entry)).toHaveLength(1);
+    // The Personalspace group keeps its one list (B11).
+    expect(tree[3]?.modules.map((entry) => entry.module.module)).toEqual([
+      "notes",
     ]);
   }
 });
@@ -374,6 +510,57 @@ test("only an answer in the catalog's exact shape is drawn", () => {
     {
       kind: "catalog",
       organizations: [{ ...alpha, teams: [{ slug: "core" }] }],
+    },
+    // The layout group of a module and the read-only repositories
+    // (F32 addendum of 2026-10-03).
+    {
+      kind: "catalog",
+      organizations: [
+        { ...alpha, modules: [{ ...module("x", []), layout: "team" }] },
+      ],
+    },
+    {
+      kind: "catalog",
+      organizations: [
+        { ...alpha, modules: [{ ...module("x", []), layout: undefined }] },
+      ],
+    },
+    { kind: "catalog", organizations: [{ ...alpha, repositories: undefined }] },
+    {
+      kind: "catalog",
+      organizations: [
+        {
+          ...alpha,
+          repositories: [
+            { ...repository("x", "productionspace", true), checkedOut: "yes" },
+          ],
+        },
+      ],
+    },
+    {
+      kind: "catalog",
+      organizations: [
+        {
+          ...alpha,
+          repositories: [
+            { ...repository("x", "workspace" as "organization", true) },
+          ],
+        },
+      ],
+    },
+    {
+      kind: "catalog",
+      organizations: [
+        {
+          ...alpha,
+          repositories: [
+            {
+              ...repository("x", "productionspace", true),
+              url: "javascript:alert(1)",
+            },
+          ],
+        },
+      ],
     },
   ])
     expect(parseCatalog(input)).toBeNull();
