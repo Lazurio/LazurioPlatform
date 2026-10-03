@@ -1607,7 +1607,9 @@ function enabledToolsSection(
 // guess. Only Codex Desktop's built-in browser reaches a `localhost` port of
 // this Environment, through an SSH tunnel it opens itself (undocumented by
 // OpenAI, see openai/codex#44385); T3 Code and Lazurio MausBot forward
-// nothing. Work products go to the Operator's Documents folder.
+// nothing. Work products go to the Operator's Documents folder, and where the
+// Folder records a hosted entry they travel through the Launchpad's Files
+// page (decision F34).
 function operatorClient(
   preset: PresetName,
   machine: MachineBinding,
@@ -1665,26 +1667,41 @@ function operatorClient(
         "- **Odkazy.** `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu.",
         "- **Links.** `lazurio chat link` prints the link into this Environment's T3 Code.",
       );
+  // The Files page of the Launchpad (decision F34): where the Folder records
+  // a hosted entry, files travel through it in both directions.
+  const origin = machine.entry?.externalOrigin;
+  const filesPage =
+    origin === undefined
+      ? null
+      : t(
+          ` Větší soubor nebo několik souborů nahraje na stránce Soubory Launchpadu (\`${origin}/files\`), která je uloží do \`~/Documents/\`, do složky, kterou měl otevřenou.`,
+          ` A larger file, or several, the Operator uploads on the Launchpad's Files page (\`${origin}/files\`), which saves them into \`~/Documents/\`, into the folder they had open.`,
+        );
   const filesIn =
     ssh === false
       ? t(
-          "- **Soubory od Operátora.** Operátor ti soubor nahraje do chatu T3 Code nebo Lazurio MausBotu. Co budeš potřebovat i později, ulož do `~/Documents/<úkol>/`.",
-          "- **Files from the Operator.** The Operator uploads a file into the T3 Code or Lazurio MausBot chat. Save what you will need later in `~/Documents/<task>/`.",
+          `- **Soubory od Operátora.** Operátor ti soubor nahraje do chatu T3 Code nebo Lazurio MausBotu.${filesPage?.cs ?? ""} Co budeš potřebovat i později, ulož do \`~/Documents/<úkol>/\`.`,
+          `- **Files from the Operator.** The Operator uploads a file into the T3 Code or Lazurio MausBot chat.${filesPage?.en ?? ""} Save what you will need later in \`~/Documents/<task>/\`.`,
         )
       : t(
-          "- **Soubory od Operátora.** Soubor přetažený do chatu Codex Desktopu dorazí do `~/.codex/attachments/`; do T3 Code a Lazurio MausBotu ho Operátor nahraje v chatu. Co budeš potřebovat i později, ulož do `~/Documents/<úkol>/`.",
-          "- **Files from the Operator.** A file dragged into the Codex Desktop chat arrives in `~/.codex/attachments/`; into T3 Code and Lazurio MausBot the Operator uploads it in the chat. Save what you will need later in `~/Documents/<task>/`.",
+          `- **Soubory od Operátora.** Soubor přetažený do chatu Codex Desktopu dorazí do \`~/.codex/attachments/\`; do T3 Code a Lazurio MausBotu ho Operátor nahraje v chatu.${filesPage?.cs ?? ""} Co budeš potřebovat i později, ulož do \`~/Documents/<úkol>/\`.`,
+          `- **Files from the Operator.** A file dragged into the Codex Desktop chat arrives in \`~/.codex/attachments/\`; into T3 Code and Lazurio MausBot the Operator uploads it in the chat.${filesPage?.en ?? ""} Save what you will need later in \`~/Documents/<task>/\`.`,
         );
   const filesOut =
-    ssh === false
+    origin !== undefined
       ? t(
-          "- **Soubory pro Operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře; předej mu výsledek tím, co jeho klient umí, a řekni, kde soubor leží.",
-          "- **Files for the Operator.** Save finished files in `~/Documents/<task>/`. The Operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer; hand over the result the way their client can and say where the file lies.",
+          `- **Soubory pro Operátora.** Hotové soubory ukládej do \`~/Documents/<úkol>/\` a Operátorovi předej odkaz, který vypíše \`lazurio files link <cesta>\`, nikdy cestu \`/home/…\`: otevře se mu ve vlastním prohlížeči za přihlášením tohohle Environmentu a soubor stáhne, i velký; odkaz složky ji otevře na stránce Soubory. Na \`${origin}/files\` Operátor vidí celou složku Dokumenty tohohle Environmentu, stahuje soubory i celou složku jako ZIP a nahrává soubory ze svého počítače přetažením.${team ? " Na týmovém Environmentu je ta složka společná celému Teamu." : ""} Odkaz není veřejný: otevře ho jen ten, kdo se na tenhle Environment smí přihlásit. Soubor mimo \`~/Documents\` nebo se jménem začínajícím tečkou odkaz nemá: nejdřív ho zkopíruj do \`~/Documents/<úkol>/\`. Obrázek můžeš ukázat i v chatu.`,
+          `- **Files for the Operator.** Save finished files in \`~/Documents/<task>/\` and hand the Operator the link \`lazurio files link <path>\` prints, never a \`/home/…\` path: it opens in their own browser, behind this Environment's sign-in, and downloads the file, also a large one; the link of a folder opens it on the Files page. On \`${origin}/files\` the Operator sees the whole Documents folder of this Environment, downloads files or a whole folder as a ZIP and uploads files from their computer by drag and drop.${team ? " On a Team Environment that folder is shared by the whole Team." : ""} The link is not public: only someone who may sign in to this Environment opens it. A file outside \`~/Documents\`, or with a name that starts with a dot, has no link: copy it into \`~/Documents/<task>/\` first. An image can also be shown in the chat.`,
         )
-      : t(
-          "- **Soubory pro Operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře, proto mu výsledek předej tím, co jeho klient umí: obrázek ukaž v chatu, dokument otevři v náhledu Codex Desktopu. Velký soubor (desítky MB) náhled spolehlivě nepřenese; řekni to a nabídni menší nebo rozdělenou verzi.",
-          "- **Files for the Operator.** Save finished files in `~/Documents/<task>/`. The Operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer, so hand over the result the way their client can: show an image in the chat, open a document in Codex Desktop's preview. A large file (tens of MB) does not reliably pass through the preview; say so and offer a smaller or split version.",
-        );
+      : ssh === false
+        ? t(
+            "- **Soubory pro Operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře; předej mu výsledek tím, co jeho klient umí, a řekni, kde soubor leží.",
+            "- **Files for the Operator.** Save finished files in `~/Documents/<task>/`. The Operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer; hand over the result the way their client can and say where the file lies.",
+          )
+        : t(
+            "- **Soubory pro Operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře, proto mu výsledek předej tím, co jeho klient umí: obrázek ukaž v chatu, dokument otevři v náhledu Codex Desktopu. Velký soubor (desítky MB) náhled spolehlivě nepřenese; řekni to a nabídni menší nebo rozdělenou verzi.",
+            "- **Files for the Operator.** Save finished files in `~/Documents/<task>/`. The Operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer, so hand over the result the way their client can: show an image in the chat, open a document in Codex Desktop's preview. A large file (tens of MB) does not reliably pass through the preview; say so and offer a smaller or split version.",
+          );
   const workOnly: readonly Text[] = organization
     ? [
         t(

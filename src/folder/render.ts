@@ -25,7 +25,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // Version the template set (AGENTS.md and the manual) independently from
 // future persisted preference schemas.
-export const instructionTemplateRevision = "base-instructions-17";
+export const instructionTemplateRevision = "base-instructions-18";
 
 // Template revisions are ordered by their number. A Folder rendered by an
 // older revision is re-rendered by the next change of the generated Folder
@@ -528,8 +528,20 @@ export function operatorConnectsOverSsh(
 
 // Where an agent saves a work product that does not belong in a repository:
 // the Operator's own Documents folder of the OS, never the Folder (Matěj's
-// decision 2026-10-02: a standard folder, not an invented one).
-function documentsLine(os: FolderProfile["os"]): Text {
+// decision 2026-10-02: a standard folder, not an invented one). Where the
+// Folder records a hosted entry, the Operator reaches that folder through
+// the Launchpad's Files page, so the agent hands over its link, never a path
+// (decision F34); without an entry no browser reaches the page.
+function documentsLine(
+  os: FolderProfile["os"],
+  machine: MachineBinding | null,
+): Text {
+  const origin = machine?.entry?.externalOrigin;
+  if (origin !== undefined)
+    return {
+      cs: `- Výstup, který nepatří do repozitáře, ulož do \`~/Documents/<úkol>/\`; do kořene Folderu nic neukládej. Operátorovi místo cesty předej odkaz, který vypíše \`lazurio files link <cesta>\`: otevře se mu v prohlížeči a soubor stáhne. Na \`${origin}/files\` Operátor nahrává soubory a stahuje celou složku jako ZIP (\`manual/this-machine.md\`).`,
+      en: `- Save a work product that does not belong in a repository in \`~/Documents/<task>/\` and never write anything at the top level of the Folder. Hand the Operator the link \`lazurio files link <path>\` prints instead of the path: it opens in their browser and downloads the file. On \`${origin}/files\` the Operator uploads files and downloads a whole folder as a ZIP (\`manual/this-machine.md\`).`,
+    };
   return os === "windows"
     ? {
         cs: "- Výstup, který nepatří do repozitáře, ulož do složky Dokumenty (`[Environment]::GetFolderPath('MyDocuments')`) do podsložky úkolu a uveď celou cestu; do kořene Folderu nic neukládej.",
@@ -631,7 +643,7 @@ export function renderInstructions(input: unknown): string {
       cs: "- Pracuješ s plným přístupem, bez sandboxu a bez schvalování jednotlivých příkazů; hranicí je tenhle Environment (decision 0172). Je to schopnost, ne souhlas: Publikace a zápisy do napojených aplikací dál čekají na pokyn Operátora.",
       en: "- You work with full access, without a sandbox and without per-command approvals; this Environment is the boundary (decision 0172). It is a capability, not consent: Publication and writes to connected applications still wait for the Operator's instruction.",
     }),
-    pick(documentsLine(profile.os)),
+    pick(documentsLine(profile.os, machine)),
     ...workingRules.map(pick),
     pick(rightsLine),
     pick({
