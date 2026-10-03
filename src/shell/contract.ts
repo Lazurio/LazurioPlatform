@@ -1,11 +1,14 @@
-// The data contract of the Lazurio shell (decision F36): `lazurio.shell.v1`,
-// the document the Launchpad serves at `/.lazurio/shell.json` on the
-// Environment's origin and the elements of `/.lazurio/shell.js` draw. It names
-// the Environment the page is served from, the other Environments the rail may
-// show, their Organizations and the addresses of the apps. Today the Launchpad
-// knows one Environment, its own; the Dashboard fills the others later through
-// the Lazurio account, in this same shape, so the elements do not change.
-// Pure: no DOM and no I/O, shared by the producer, the page and the elements.
+// The data contract of the Lazurio shell (decision F36 and its addendum of
+// 2026-10-04): `lazurio.shell.v1`, the document the Launchpad serves at
+// `/.lazurio/shell.json` on the Environment's origin and the elements of
+// `/.lazurio/shell.js` draw. It names the Environment the page is served
+// from, the other Environments the person may enter, their Organizations
+// with their Dashboards, and the addresses of the apps. Today the Launchpad
+// knows one Environment, its own; the Dashboard fills the others later
+// through the Lazurio account, in this same shape, so the elements do not
+// change. Pure: no DOM and no I/O, shared by the producer, the page and the
+// elements. The producer and the elements ship in one binary and no fork
+// reads it yet, so the shape changes in place, without a compatibility layer.
 
 export const shellSchema = "lazurio.shell.v1";
 
@@ -35,13 +38,17 @@ export type ShellApps = Readonly<{
 export type ShellEnvironment = Readonly<{
   /** Stable within the document; `current` names one of them. */
   id: string;
-  /** The name the rail shows; null for the workstation, which the elements
-   * name in the person's language. */
+  /** Its own name when it has one: a Team Environment's Team, an Automated
+   * Environment's persona. Null: the elements name it by its kind
+   * (Pracovní, Osobní, Tento počítač). Never the machine's technical name. */
   label: string | null;
   kind: ShellEnvironmentKind;
   /** The slugs of `organizations` it holds, in order; empty for a personal
-   * one. An Organization's Environment sits in that Organization's folder. */
+   * one. A workstation may hold several. */
   organizations: readonly string[];
+  /** The GitHub login of the one person a work Environment is assigned to,
+   * for its "who" line; null otherwise. */
+  assignee: string | null;
   apps: ShellApps;
 }>;
 
@@ -49,20 +56,21 @@ export type ShellOrganization = Readonly<{
   /** The Organization slug, as the catalog names it. */
   slug: string;
   name: string;
-  /** The Organization's accent colour (`#rrggbb`), from data, never from the
-   * design system; null until a source records it, and the elements then use
-   * the design system's accent. */
-  accent: string | null;
   /** An https URL of the GitHub Organization's avatar; null shows its
    * initials. */
   avatar: string | null;
+  /** The Organization's page in the Dashboard (the head of the picker). */
+  dashboard: string;
 }>;
 
 export type ShellOperator = Readonly<{
-  /** Up to three letters for the account mark; null shows a person icon. */
+  /** Up to three letters for the personal space; null shows a person icon. */
   initials: string | null;
   /** The GitHub login, when the Environment knows whose it is. */
   login: string | null;
+  /** An https URL of the person's GitHub photo, for the account; null shows
+   * the initials. */
+  avatar: string | null;
 }>;
 
 export type Shell = Readonly<{
@@ -74,10 +82,13 @@ export type Shell = Readonly<{
   operator: ShellOperator;
   environments: readonly ShellEnvironment[];
   organizations: readonly ShellOrganization[];
-  /** The Lazurio Dashboard (the logo at the top of the rail). */
+  /** The personal Dashboard (the logo at the top of the rail). */
   dashboard: string;
   /** The account settings in the Dashboard (the account at the bottom). */
   account: string;
+  /** Where an Organization is added (the "+" under the Organizations); null
+   * hides it. */
+  addOrganization: string | null;
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -120,6 +131,8 @@ const isAppsUrl = (value: unknown): value is string =>
 const slug = /^[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,98}[A-Za-z0-9])?$/;
 const initials = /^[\p{Lu}\p{N}]{1,3}$/u;
 const login = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+const isLogin = (value: unknown): value is string =>
+  typeof value === "string" && login.test(value);
 
 function apps(value: unknown): ShellApps | null {
   if (!isRecord(value)) return null;
@@ -139,7 +152,7 @@ function apps(value: unknown): ShellApps | null {
 
 function environment(value: unknown): ShellEnvironment | null {
   if (!isRecord(value)) return null;
-  const { id, label, kind, organizations } = value;
+  const { id, label, kind, organizations, assignee } = value;
   const own = apps(value.apps);
   if (
     !text(id, 128) ||
@@ -147,6 +160,7 @@ function environment(value: unknown): ShellEnvironment | null {
     !(shellEnvironmentKinds as readonly unknown[]).includes(kind) ||
     !Array.isArray(organizations) ||
     !organizations.every((entry) => typeof entry === "string") ||
+    !(assignee === null || isLogin(assignee)) ||
     own === null
   )
     return null;
@@ -155,29 +169,27 @@ function environment(value: unknown): ShellEnvironment | null {
     label: label as string | null,
     kind: kind as ShellEnvironmentKind,
     organizations: Object.freeze([...(organizations as string[])]),
+    assignee: assignee as string | null,
     apps: own,
   });
 }
 
 function organization(value: unknown): ShellOrganization | null {
   if (!isRecord(value)) return null;
-  const { accent, avatar, name } = value;
+  const { avatar, name, dashboard } = value;
   if (
     typeof value.slug !== "string" ||
     !slug.test(value.slug) ||
     !text(name, 128) ||
-    !(
-      accent === null ||
-      (typeof accent === "string" && /^#[0-9a-f]{6}$/i.test(accent))
-    ) ||
-    !(avatar === null || isShellUrl(avatar))
+    !(avatar === null || isShellUrl(avatar)) ||
+    !isShellUrl(dashboard)
   )
     return null;
   return Object.freeze({
     slug: value.slug,
     name,
-    accent: accent as string | null,
     avatar: avatar as string | null,
+    dashboard,
   });
 }
 
@@ -190,6 +202,8 @@ export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (input.locale !== "cs" && input.locale !== "en") return null;
   if (!isShellUrl(input.dashboard) || !isShellUrl(input.account)) return null;
+  if (!(input.addOrganization === null || isShellUrl(input.addOrganization)))
+    return null;
   const operator = input.operator;
   if (
     !isRecord(operator) ||
@@ -198,10 +212,8 @@ export function parseShell(input: unknown): Shell | null {
       (typeof operator.initials === "string" &&
         initials.test(operator.initials))
     ) ||
-    !(
-      operator.login === null ||
-      (typeof operator.login === "string" && login.test(operator.login))
-    )
+    !(operator.login === null || isLogin(operator.login)) ||
+    !(operator.avatar === null || isShellUrl(operator.avatar))
   )
     return null;
   if (!Array.isArray(input.environments) || !Array.isArray(input.organizations))
@@ -229,11 +241,13 @@ export function parseShell(input: unknown): Shell | null {
     operator: Object.freeze({
       initials: operator.initials as string | null,
       login: operator.login as string | null,
+      avatar: operator.avatar as string | null,
     }),
     environments: Object.freeze(envs),
     organizations: Object.freeze(orgs),
     dashboard: input.dashboard,
     account: input.account,
+    addOrganization: input.addOrganization as string | null,
   });
 }
 

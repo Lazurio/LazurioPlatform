@@ -10,16 +10,23 @@ import {
 } from "../shell/contract";
 import { initialsOf } from "../shell/view";
 
-// The producer of `/.lazurio/shell.json` (decision F36): what this
-// Environment knows about itself today, in the shape of `lazurio.shell.v1`.
-// One Environment, its own; its Organizations from the catalog of this
-// Folder; its apps from the recorded hosted entry. Nothing here is a grant:
-// the document names places, and every place admits by its own rules. The
+// The producer of `/.lazurio/shell.json` (decision F36 and its addendum of
+// 2026-10-04): what this Environment knows about itself today, in the shape
+// of `lazurio.shell.v1`. One Environment, its own, named by what it is for
+// (its Team, its persona, or its kind) and never by the machine's name; its
+// Organizations from the catalog of this Folder, each with its Dashboard;
+// its apps from the recorded hosted entry. Nothing here is a grant: the
+// document names places, and every place admits by its own rules. The
 // Dashboard fills the other Environments later through the Lazurio account.
 
-/** The Lazurio Dashboard and its account settings (root decision 0179). */
+/** The Lazurio Dashboard: the personal one, the account settings, adding an
+ * Organization, and an Organization's page `/orgs/<slug>` (by the
+ * Organization's slug, the Dashboard's canonical `org_slug`). */
 export const dashboardUrl = "https://dashboard.lazurio.ai/";
 export const accountUrl = "https://dashboard.lazurio.ai/settings";
+export const addOrganizationUrl = "https://dashboard.lazurio.ai/add-organization";
+export const organizationDashboardUrl = (slug: string): string =>
+  `https://dashboard.lazurio.ai/orgs/${encodeURIComponent(slug)}`;
 
 /** The kind of Environment a preset sets up (decisions 0165, 0169). */
 export const presetKinds: Readonly<Record<PresetName, ShellEnvironmentKind>> = {
@@ -69,7 +76,7 @@ export function shellOrganizations(
       Object.freeze({
         slug,
         name: shellName(organization.displayName, slug),
-        accent: null,
+        dashboard: organizationDashboardUrl(slug),
         avatar:
           organization.forgeLogin === undefined
             ? null
@@ -101,6 +108,49 @@ export function shellName(name: string | null, slug: string): string {
 }
 
 const origin = (value: string) => `${value}/`;
+const githubPhoto = (login: string) =>
+  `https://github.com/${encodeURIComponent(login)}.png?size=96`;
+
+/** The name of a Team-bound Environment: a Team Environment is its Team's
+ * ("Team Sales"), an Automated Environment its persona's Team ("Steward"),
+ * by the Team's display name in the catalog of the Organization that owns
+ * the Environment. Null when the binding names no Team or the catalog does
+ * not know it: the elements then name it by its kind. */
+export function teamLabel(
+  machine: MachineBinding | null,
+  kind: ShellEnvironmentKind,
+  catalog: Catalog,
+): string | null {
+  if (machine === null || machine.owner.kind !== "organization") return null;
+  const { organization, team } = machine.owner;
+  if (team === null || (kind !== "team" && kind !== "automated")) return null;
+  const same = (left: string | null | undefined, right: string) =>
+    typeof left === "string" && left.toLowerCase() === right.toLowerCase();
+  const owner = catalog.organizations.find(
+    (entry) =>
+      same(entry.forgeLogin, organization) ||
+      same(entry.organization, organization),
+  );
+  const declared = owner?.teams.find((entry) => same(entry.slug, team));
+  if (declared === undefined) return null;
+  const name = shellName(declared.displayName, declared.slug);
+  return kind === "team" && !/^team\b/i.test(name)
+    ? shellName(`Team ${name}`, declared.slug)
+    : name;
+}
+
+/** The person a work Environment is assigned to, for its "who" line. */
+export function assigneeLogin(
+  machine: MachineBinding | null,
+  kind: ShellEnvironmentKind,
+): string | null {
+  if (kind !== "work" || machine === null) return null;
+  if (machine.owner.kind !== "organization") return null;
+  const assignment = machine.owner.assignment;
+  return assignment !== undefined && assignment.kind === "operator"
+    ? assignment.githubLogin
+    : null;
+}
 
 /** This Environment's shell document. */
 export function shellDocument(
@@ -124,11 +174,12 @@ export function shellDocument(
     operator: {
       initials: login === null ? null : initialsOf(login).slice(0, 2) || null,
       login,
+      avatar: login === null ? null : githubPhoto(login),
     },
     environments: [
       {
         id,
-        label: machine?.name ?? null,
+        label: teamLabel(machine, kind, input.catalog),
         kind,
         // A personal Environment belongs to no Organization, whatever its
         // Folder holds.
@@ -136,6 +187,7 @@ export function shellDocument(
           kind === "personal"
             ? []
             : organizations.map((organization) => organization.slug),
+        assignee: assigneeLogin(machine, kind),
         apps:
           entry === undefined
             ? { apps: "/", chat: null, automate: null }
@@ -152,6 +204,7 @@ export function shellDocument(
     organizations,
     dashboard: dashboardUrl,
     account: accountUrl,
+    addOrganization: addOrganizationUrl,
   };
   // The producer's own output passes the same parser as every consumer's.
   const parsed = parseShell(document);
