@@ -5,6 +5,7 @@ import { renderManual } from "../src/folder/manual";
 import { presetNames, presetProfile } from "../src/folder/presets";
 import { environmentWording, renderInstructions } from "../src/folder/render";
 import { messages } from "../src/launchpad/messages";
+import { shellMessages } from "../src/shell/messages";
 import {
   activatableTools,
   mcpServerPrompt,
@@ -78,6 +79,18 @@ test("the Launchpad's message catalog says Environment in both locales", () => {
   const found = (["en", "cs"] as const).flatMap((locale) =>
     Object.entries(messages(locale)).flatMap(([key, value]) =>
       findings(`messages.${locale}.${key}`, value),
+    ),
+  );
+  expect(found).toEqual([]);
+});
+
+test("the shell elements say Environment in both locales (decision F36)", () => {
+  const found = (["en", "cs"] as const).flatMap((locale) =>
+    Object.entries(shellMessages(locale)).flatMap(([key, value]) =>
+      findings(
+        `shell.${locale}.${key}`,
+        typeof value === "string" ? value : Object.values(value).join("\n"),
+      ),
     ),
   );
   expect(found).toEqual([]);
