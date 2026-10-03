@@ -82,7 +82,11 @@ function client(app: Awaited<ReturnType<typeof startLaunchpad>>) {
       );
       return { code: response.status, body: await response.json() };
     },
-    async post(name: string, verb: "start" | "stop", body: unknown = {}) {
+    async post(
+      name: string,
+      verb: "start" | "prepare" | "stop",
+      body: unknown = {},
+    ) {
       const response = await fetch(path(name, verb), {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
@@ -161,7 +165,7 @@ posixTest(
           ],
         ];
         for (const [name, extra, expected] of cases)
-          for (const verb of ["start", "stop", "status"] as const) {
+          for (const verb of ["start", "prepare", "stop", "status"] as const) {
             const fromCli = await cli(verb, name, ...extra);
             expect(fromCli.code, `${verb} ${name}`).toBe(2);
             expect(fromCli.body, `${verb} ${name}`).toMatchObject({

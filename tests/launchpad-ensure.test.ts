@@ -556,7 +556,8 @@ posixTest(
     } finally {
       expect(await app.close()).toEqual({ kind: "closed" });
     }
-    // A slow declared check that fails: navigations that arrive while it
+    // A slow declared check that fails after the start's install, with no
+    // prepare_script to run (decision F34): navigations that arrive while it
     // runs join that one start and share its refusal, 409 with the start's
     // reason (the gateway shows "could not be prepared"); the check ran once,
     // not once per queued request.

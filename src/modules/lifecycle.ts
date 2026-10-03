@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import type { ApplicationRunner } from "./application-runner";
 import { object, text } from "./manifest";
-import { PreparationRefused } from "./preparation-refusal";
+import { PreparationRefused, preparationRefusal } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 import { readModuleApplication } from "./read-application";
 
@@ -61,8 +61,12 @@ export function createApplicationLifecycle(adapters: {
   // dependency owner before any app stop. The effect owns bounded subprocess
   // cleanup; close remains retained if cleanup cannot be confirmed.
   preflightPreparation?: PreparationFactory;
-  // Optional start-time check, without install/repair. Its subprocess ownership
-  // is retained in the same set and drained by the same shutdown as preparation.
+  // Optional start-time step: the frozen install and the declared check, which
+  // the adapter follows by the preparation script when the check fails
+  // (decision F34), or the default preparation's install (F25). It is never a
+  // clean install. Its subprocess ownership is retained in the same set and
+  // drained by the same shutdown as preparation; a failure without a reason
+  // is `prerequisites-not-ready`.
   preflightStartCheck?: PreparationFactory;
   // Separate explicit capability: never substitute ordinary preparation when
   // the caller asks to discard and regenerate derived dependencies.
@@ -253,9 +257,14 @@ export function createApplicationLifecycle(adapters: {
               plan,
               applicationDirectory(value, directory),
             );
-          } catch {
+          } catch (error) {
+            // A preparation refused for a known reason keeps it, with its
+            // file relative to the module (decision F25); nothing was
+            // stopped. An answer, not a throw: a throw would leave the
+            // transaction's retained record behind.
             return Object.freeze({
               kind: "preparation-preflight-failed" as const,
+              ...preparationRefusal(error, directory),
             });
           }
           preparations.add(preparation);
@@ -374,9 +383,9 @@ export function createApplicationLifecycle(adapters: {
                     kind: "preparation-cleanup-required" as const,
                   });
                 preparations.delete(check);
-                // A failure with a known reason keeps it (the default
-                // preparation's install, decision F25); a declared check
-                // that failed is `prerequisites-not-ready`.
+                // A failure with a known reason keeps it (an install, a
+                // preparation script, decisions F25 and F34); a declared
+                // check that still fails is `prerequisites-not-ready`.
                 if (result.kind !== "prepared")
                   return Object.freeze(
                     result.reason === undefined

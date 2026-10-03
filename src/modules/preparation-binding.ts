@@ -67,7 +67,9 @@ function dependencyBoundary(
 // lies inside it (decision F25). Siblings (`app/v1`, `app/v2`) never
 // overlap; a local package inside the application's directory is a
 // dependency, not an application.
-async function requireSeparateApplications(
+// A declared preparation keeps nested application packages possible, so the
+// same rule decides whether its start may install (decision F34).
+export async function applicationsOverlap(
   moduleDirectory: string,
   applicationPackage: string,
 ) {
@@ -77,20 +79,27 @@ async function requireSeparateApplications(
   const directory = posix.dirname(applicationPackage);
   const contains = (outer: string, inner: string) =>
     outer === "." || inner.startsWith(`${outer}/`);
-  for (const other of apps ?? []) {
-    if (other === applicationPackage) continue;
+  return (apps ?? []).some((other) => {
+    if (other === applicationPackage) return false;
     const otherDirectory = posix.dirname(other);
-    if (
+    return (
       otherDirectory === directory ||
       contains(directory, otherDirectory) ||
       contains(otherDirectory, directory)
-    )
-      throw new PreparationRefused(
-        "preparation-applications-overlap",
-        join(moduleDirectory, applicationPackage),
-        "Application packages overlap",
-      );
-  }
+    );
+  });
+}
+
+async function requireSeparateApplications(
+  moduleDirectory: string,
+  applicationPackage: string,
+) {
+  if (await applicationsOverlap(moduleDirectory, applicationPackage))
+    throw new PreparationRefused(
+      "preparation-applications-overlap",
+      join(moduleDirectory, applicationPackage),
+      "Application packages overlap",
+    );
 }
 
 async function declaredPlan(

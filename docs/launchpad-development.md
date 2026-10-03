@@ -317,7 +317,7 @@ decision 0167 points 1–2, command names kept from the resident). One core,
 `createModuleOperations` in `src/modules/module-operations.ts`, answers the CLI and the
 Launchpad; tests compare their outputs.
 
-**CLI first.** `lazurio module start|stop|status <Org>/<module> [--app <package>]
+**CLI first.** `lazurio module start|prepare|stop|status <Org>/<module> [--app <package>]
 [--folder <F>] [--json]` and `lazurio module logs <Org>/<module> [--lines N]` (default
 100, at most 1000). `<Org>` is selected by the catalog's one rule
 (`selectCatalogOrganization`): a slug that two directories declare is refused as
@@ -331,9 +331,20 @@ read.
 
 **What runs, and who owns it.** Start runs the module's default app (or `--app`) from
 its own declaration through the existing lifecycle (`src/modules/lifecycle.ts`), the
-runners and `localApplicationAdapters`: the declared start check, or for an app without
-a `lazurio.preparation` its default preparation, the frozen install from the lockfile
-beside its package (decision F25), then the dev script, never a hostname convention. The toolchain is the operator's Bun at
+runners and `localApplicationAdapters`: for an app without a `lazurio.preparation` its
+default preparation, the frozen install from the lockfile beside its package (decision
+F25); for an app that declares one the same frozen install on every start (when
+`node_modules` matches the lockfile Bun leaves registry dependencies as they are, but
+copies local `file:` dependencies again and runs the app package's own lifecycle scripts
+such as `postinstall`), then its check, and only when the check fails the
+declared `prepare_script` and the check again (decision F34, Lazurio Module Standard
+ch. 3 and 10); then the dev script, never a hostname convention. A check that passes
+after the install runs no `prepare_script`. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
+preparation (the transaction with the retained owner lock), whatever the check says now,
+and starts nothing: for a declared preparation the install, `prepare_script` and check,
+for the default its install. It never prepares beneath a running app: a service-owned
+app is `application-running`, another managed app of the Organization
+`other-app-managed`, and a session app is stopped for its own preparation, as before. The toolchain is the operator's Bun at
 `<home>/.local/bin/bun` (B2); missing, start is refused as `toolchain-missing` before any
 effect (`--bun-executable` stays a development flag of the old panel only). On Linux with
 a reachable user manager the app is a transient systemd user unit (`systemd-user`
@@ -354,8 +365,11 @@ runner), as before: the Launchpad holds one lifecycle per Organization and its a
 with it; the CLI, another process, answers `launchpad-required`, and `logs`
 `logs-unavailable` (session logs are the macOS line, P14). **No Folder state:** the
 running state is the service manager's or the session's; every call reads the catalog
-again. Lifecycle refusals keep their codes (`port-occupied`, `prerequisites-not-ready`,
-`coordination-busy`, `service-unrecognized`, …). A file or directory of the module's
+again. Lifecycle refusals keep their codes (`port-occupied`, `prerequisites-not-ready` — the
+declared check still fails after the preparation —, `coordination-busy`,
+`service-unrecognized`, …); a failed step of a preparation is named
+(`preparation-install-failed` with the lockfile, `preparation-script-failed` with the
+owner's `package.json`, decision F34). A file or directory of the module's
 checkout that the checkout rule refuses during the start (an install input such as a
 local dependency's file) is named by its rule (`declaration-*`, `directory-*`) with
 its module-relative `file` (decision F23); a preparation that cannot run for a known
@@ -365,8 +379,8 @@ F25, `src/modules/preparation-refusal.ts`); any other throw inside the lifecycle
 
 **Answer.** `{kind: "module", operation, organization, module, app, runner,
 survivesLaunchpadRestart, outcome, state, healthy, service, runtime, runtimeReason?}`;
-`outcome` is the lifecycle's own result (`started`, `already-managed`, `group-stopped`,
-`status`, `not-managed`), `state` one of `running`, `starting`, `stopping`, `ended`,
+`outcome` is the lifecycle's own result (`started`, `already-managed`, `prepared`,
+`group-stopped`, `status`, `not-managed`), `state` one of `running`, `starting`, `stopping`, `ended`,
 `stopped`, `service` the unit and invocation (null for a session app). `runtime.url`,
 the name root `AGENTS.md` uses, is present only while the app reports healthy: locally
 the loopback address its owner observed; on a hosted Machine only
@@ -377,10 +391,19 @@ a non-default app on a hosted Machine has none either (`hosted-app-not-default`)
 Refusals are `{kind: "blocked", operation, reason, …}`.
 
 **HTTP.** `GET /api/modules/<org>/<module>/status[?app=<package>]`, `POST
-/api/modules/<org>/<module>/start` and `…/stop` with `{}` or `{"app": "<package>"}`,
+/api/modules/<org>/<module>/start`, `…/prepare` and `…/stop` with `{}` or `{"app": "<package>"}`,
 each segment URL-encoded, behind the existing admission (the fragment token locally,
 the gateway's cookie hosted; `POST` also same-origin). The body is the CLI's `--json`
-object: 200 when done, 409 when refused.
+object: 200 when done, 409 when refused. Start and prepare answer within 630 seconds
+counted from naming the module, below their 660-second idle timeout (decision F34); the
+deadline covers the module's resolution and the status read of the answer as well. One
+still running when only the status read's share is left (half the deadline, at most 5 s;
+queued behind another app's start of the Organization, waiting for a lock, or installing)
+answers 202 with the app's status and the outcome `start-pending` or `prepare-pending`,
+goes on in the Launchpad, and the page says so; a status read that does not finish in
+the rest leaves that answer unobserved (not healthy, `starting` for a start, `stopped`
+for a preparation), and a module not resolved in time is not operated on
+(`operation-failed`).
 
 **Page.** The route `/o/<org>/<module>` of an executable module shows an "Application"
 card in the settings-row pattern: a status dot (green running and healthy, amber
@@ -394,10 +417,9 @@ keyboard focus returns to the action. Pure presentation in
 `src/launchpad/module-view.ts` (tested in `tests/module-view.test.ts`), Czech and
 English.
 
-**Not in this slice.** `prepare` and `open` verbs (for an app with a declared
-preparation, dependency installation stays with the module's own `bun install
---frozen-lockfile` and `prerequisites-not-ready` says so; an app without one is
-installed by its start, decision F25),
+**Not in this slice.** An `open` verb, a Prepare action on the page (Start prepares
+an app whose check fails; `prepare` is the CLI's and the route's, decision F34), the
+output of a preparation's processes,
 the T3 Code chat link (P7, since in [Chat entry](#chat-entry)), worktree `--source` (P9), a logs
 tail on the page, and the retirement of `/api/apps/*`, `app-request`,
 `--organization-directory` and `--bun-executable`: they keep working unchanged for their
@@ -418,6 +440,31 @@ compiled executable on macOS with a temporary home and Folder: Start, the health
 status with Open to the loopback URL, Stop, focus on the action, and no action on a
 module that cannot run. A real systemd user manager and journal (Ubuntu 24.04) were
 **not** exercised by this slice; that is C.5.
+
+**Verification 2026-10-02 (F34).** `tests/module-declared-preparation.test.ts` runs the
+real Bun, the compiled process guard and the in-memory user manager over fixture modules
+with the standard declaration on a fresh checkout (a lockfile, no `node_modules`):
+`lazurio module start` installs, checks, runs `prepare_script`, checks again and starts
+(package and lockfile unchanged); a prepared tree's next start checks once and runs no
+`prepare_script`; a check that passes after the install runs no `prepare_script`; a
+failing `prepare_script`, a lockfile the package no longer matches (no check runs) and a
+check that still fails are each named and start nothing; a nested application only
+checks. A tree installed for an earlier lockfile whose check passes (#114's last
+comment) is installed by a start through a session Launchpad, and the real app serves
+the dependency version the lockfile pins. `lazurio module prepare` prepares without starting,
+for a declared and an undeclared app, names the same failures, is refused beneath its
+running app and while another app runs, answers like `POST …/prepare`, and is
+`launchpad-required` where apps are session-owned. Under shortened deadlines the routes
+answer in time: a start queued behind a preparation answers `start-pending` (202 over
+HTTP) and goes on, a runner selection slower than the deadline answers
+`operation-failed` and starts nothing, and a status read that does not finish answers an
+unobserved `start-pending` while the start goes on. `tests/frozen-install-process.test.ts`
+covers the steps' order and failures in the Bun preparation itself,
+`tests/module-lifecycle.test.ts` the core's decisions with fake adapters, and
+`tests/organization-applications.test.ts` a fresh declared module started through the
+compiled Launchpad's session. A real systemd user manager and a real Remote Environment
+were **not** exercised; `scripts/smoke-application-service.ts` was updated for the new
+start and not run.
 
 ## Doctor
 
@@ -572,9 +619,11 @@ duration of one start, not state.
 Bodies carry no address: `runtime` is null unless the app is healthy, and a healthy
 answer has no body. The resident answered 404 for an ambiguous id and 503 for every
 failed start (the browser then reloaded forever); here the ambiguous id and a refused
-start are 409, so the gateway's "could not be prepared" page says so once. Dependencies
-are not installed by `ensure` (the resident installed them): a module whose declared
-check fails answers `prerequisites-not-ready` until B3's `prepare` exists.
+start are 409, so the gateway's "could not be prepared" page says so once. `ensure`
+starts through the same core as `lazurio module start`, so it installs what a start
+installs: the frozen install from the lockfile, declared preparation or not, and for a
+declared preparation whose check then fails its `prepare_script` (F25, F34); a module
+whose check still fails after it answers `prerequisites-not-ready`.
 
 **Verification 2026-09-28.** `tests/launchpad-ensure.test.ts` against the fixture Folder:
 the gateway's exact subrequest (headers from `ingress.ts:124-138`, the M2 `Host`), each
@@ -588,7 +637,7 @@ showing it with the entry's link), repeated requests never starting again, an ex
 stopped app starting on the next navigation, `toolchain-missing` as 409 with
 `operation: "start"`, a start still under way answering 503 `start-pending` and becoming
 204, three concurrent navigations joining one failing slow check (one run, three 409
-`prerequisites-not-ready`); on the session path a real synthetic app started by a
+`prerequisites-not-ready`; since F34 after the start's install); on the session path a real synthetic app started by a
 navigation, served on its declared port and ending with its Launchpad; and a
 workstation Launchpad answering 404. `tests/launchpad-hosted-trust.test.ts` covers the
 internal-namespace rule of the admission. A real gateway, Caddy and oauth2-proxy were

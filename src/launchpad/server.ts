@@ -19,6 +19,7 @@ import {
   type ModuleAnswer,
   type ModuleBlocked,
   type ModuleHost,
+  moduleAnswerWithinMsDefault,
   processModuleHost,
 } from "../modules/module-operations";
 import { readFolderCatalog } from "../organizations/catalog";
@@ -64,11 +65,16 @@ export type HostedOptions = Readonly<{
   /** How long the gateway's `ensure` waits for a started app to report
    * healthy (default `ensureWaitMsDefault`). */
   ensureWaitMs?: number;
+  /** How long the module routes wait for a start or a preparation before
+   * they answer that it is still running (default
+   * `moduleAnswerWithinMsDefault`, decision F34); also on a workstation. */
+  moduleAnswerWithinMs?: number;
 }>;
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
-const moduleRoute = /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|stop|status)$/;
+const moduleRoute =
+  /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|prepare|stop|status)$/;
 
 // The gateway's `ensure` (launchpad-parity B5), the path the Machines gateway
 // rewrites a module hostname's readiness subrequest to
@@ -354,16 +360,34 @@ export async function startLaunchpad(
         }
         const options = app === undefined ? {} : { app };
         try {
-          // A start runs the module's declared check first (bounded by
-          // the preparation budget); the request waits for it.
-          if (moduleRequest[3] === "start") server.timeout(request, 660);
+          // A start runs the module's start-time step first, and a prepare
+          // its preparation. The request waits at most until the answer
+          // deadline (below this idle timeout, decision F34), which includes
+          // the queue, the locks and the preflight; a start or preparation
+          // still running then is answered 202 with its pending outcome and
+          // goes on.
+          const answer = {
+            answerWithinMs:
+              hostedOptions.moduleAnswerWithinMs ?? moduleAnswerWithinMsDefault,
+          };
+          if (moduleRequest[3] === "start" || moduleRequest[3] === "prepare")
+            server.timeout(request, 660);
           const result =
             moduleRequest[3] === "start"
-              ? await modules.start(name, options)
-              : moduleRequest[3] === "stop"
-                ? await modules.stop(name, options)
-                : await modules.status(name, options);
-          return response(result, result.kind === "blocked" ? 409 : 200);
+              ? await modules.start(name, options, answer)
+              : moduleRequest[3] === "prepare"
+                ? await modules.prepare(name, options, answer)
+                : moduleRequest[3] === "stop"
+                  ? await modules.stop(name, options)
+                  : await modules.status(name, options);
+          return response(
+            result,
+            result.kind === "blocked"
+              ? 409
+              : result.kind === "module" && result.outcome.endsWith("-pending")
+                ? 202
+                : 200,
+          );
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

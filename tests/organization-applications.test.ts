@@ -246,10 +246,15 @@ posixTest(
           await child.exited;
           return result;
         };
-        expect(await request("start")).toEqual({
-          kind: "prerequisites-not-ready",
-        });
+        // A start whose declared check fails prepares the app first and
+        // starts it once the check passes (decision F34).
+        expect(await request("start")).toMatchObject({ kind: "started" });
+        expect(await readFile(join(appDirectory, "prepared"), "utf8")).toBe(
+          "fixture-ready",
+        );
+        // An explicit preparation stops only its own session app first.
         expect(await request("prepare")).toEqual({ kind: "prepared" });
+        expect(await request("status")).toEqual({ kind: "not-managed" });
         expect(await request("start")).toMatchObject({ kind: "started" });
         expect(await request("status")).toMatchObject({
           kind: "status",
@@ -306,7 +311,7 @@ posixTest(
       }
     });
   },
-  30_000,
+  60_000,
 );
 
 posixTest(

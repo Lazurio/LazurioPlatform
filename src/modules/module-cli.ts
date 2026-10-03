@@ -14,7 +14,7 @@ import {
   standardBun,
 } from "./module-operations";
 
-/** `lazurio module start|stop|status|logs`: the terminal surface of the
+/** `lazurio module start|prepare|stop|status|logs`: the terminal surface of the
  * module lifecycle (launchpad-parity B3). The Launchpad's
  * `/api/modules/<org>/<module>/…` answers with the same objects from the same
  * core; command names are the resident's (root decision 0167). */
@@ -33,13 +33,27 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   operator's Bun at ${standardBun} (toolchain-missing otherwise; see lazurio
   tools status). An app whose package declares no lazurio.preparation is
   prepared by default first: bun install --frozen-lockfile from the bun.lock
-  beside its package.json, which changes nothing when node_modules already
-  matches it (preparation-install-failed otherwise). An app that declares
-  one is not installed by start: its declared check runs, and a failed check
-  answers prerequisites-not-ready. A preparation that cannot run answers its
-  reason (preparation-lockfile-missing, preparation-toolchain-mismatch, …)
-  with the file it concerns; status, stop and logs still operate a module
-  refused only by its preparation.
+  beside its package.json, which leaves registry dependencies as they are
+  when node_modules already matches it (local file: dependencies are copied
+  again and the package's own lifecycle scripts such as postinstall run on
+  every install; preparation-install-failed when it fails). An app that declares
+  one gets the same install first, then its declared check: when the check
+  passes the app starts; when it fails, start runs its prepare_script and
+  the check again and starts the app only when the check then passes
+  (preparation-script-failed, or prerequisites-not-ready when the check
+  still fails). A preparation that
+  cannot run answers its reason (preparation-lockfile-missing,
+  preparation-toolchain-mismatch, …) with the file it concerns; status, stop
+  and logs still operate a module refused only by its preparation.
+module prepare <Organization>/<module> [--app <package>] [--folder <F>] [--json]
+  Prepares the app without starting it, whatever its declared check says
+  now: bun install --frozen-lockfile from the bun.lock beside its
+  package.json, then its declared prepare_script and check (only the install
+  for an app without lazurio.preparation). Use it to rerun a module's
+  preparation whose check passes, for example after its data changed. It never
+  installs beneath a running app: stop the app first (application-running);
+  while another app of the same Organization runs it is refused
+  (other-app-managed). Outcomes as for start, and prepared when done.
 module stop <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Stops the app and confirms its whole process group ended; stopping an app
   that does not run answers not-managed.
@@ -60,7 +74,7 @@ answer object), 1 the Folder could not be read.`;
 export class ModuleUsageError extends Error {}
 
 const usage =
-  "Usage: module start|stop|status <Organization>/<module> [--app <package>] [--folder <Folder>] [--json] | module logs <Organization>/<module> [--lines N] …";
+  "Usage: module start|prepare|stop|status <Organization>/<module> [--app <package>] [--folder <Folder>] [--json] | module logs <Organization>/<module> [--lines N] …";
 
 const explanations: Readonly<Record<string, string>> = {
   "module-name-invalid": "Name the module as <Organization>/<module>.",
@@ -81,7 +95,17 @@ const explanations: Readonly<Record<string, string>> = {
   "toolchain-missing": `Bun is not at ${standardBun}; see lazurio tools status.`,
   "home-unknown": "The account's home directory is not known (HOME).",
   "prerequisites-not-ready":
-    "The module's declared check failed: install its dependencies (bun install --frozen-lockfile in the module) and start again.",
+    "The module's declared check still fails after its dependencies were installed and its prepare_script ran: fix the module's preparation or its check, then start (or lazurio module prepare) again.",
+  "preparation-script-failed":
+    "The prepare_script this package declares failed after the dependencies were installed; nothing was started. Fix the module's preparation and start (or lazurio module prepare) again.",
+  "application-running":
+    "The app is running; its dependencies are never changed beneath it. Stop it (lazurio module stop) and prepare again.",
+  "other-app-managed":
+    "Another app of this Organization is running or has a failed record; an explicit preparation waits until it is stopped (lazurio module stop). A start installs and prepares its own app without this restriction.",
+  "preparation-preflight-failed":
+    "The preparation could not be set up before anything was changed; see lazurio doctor.",
+  "preparation-cleanup-required":
+    "The processes of an earlier preparation could not be confirmed gone, so nothing was changed; retry when they have ended, or see lazurio doctor.",
   "port-occupied":
     "Another process listens on the module's declared port; stop it first.",
   "port-managed": "Another app of this Organization holds the declared port.",
@@ -102,7 +126,7 @@ const explanations: Readonly<Record<string, string>> = {
   "preparation-package-manager-unsupported":
     "This package's packageManager is not an exact Bun version (bun@x.y.z); modules are installed and run with Bun.",
   "preparation-applications-overlap":
-    "This app's directory contains, or lies inside, another app of this module, whose running app its install could change; declare lazurio.preparation or keep the apps in sibling directories.",
+    "This app's directory contains, or lies inside, another app of this module, whose running app its install could change, so start does not install it. Keep the module's apps in sibling directories (app/v1, app/v2); an app that declares lazurio.preparation can be prepared with lazurio module prepare while the module's other apps are stopped.",
   "preparation-workspace-unqualified":
     "This package is a workspace owner or member; installing a workspace is not supported yet.",
   "preparation-dependency-outside-owner":

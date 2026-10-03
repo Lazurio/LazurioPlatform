@@ -47,7 +47,7 @@ import {
 } from "./systemd-user-runner";
 
 // The module lifecycle of a Folder (launchpad-parity B3, root decision 0167):
-// `lazurio module start|stop|status|logs <Org>/<module>` and the Launchpad's
+// `lazurio module start|prepare|stop|status|logs <Org>/<module>` and the Launchpad's
 // `/api/modules/<org>/<module>/…` answer from this one core, and so does the
 // gateway's `ensure` on a hosted Machine (B5), by module id. A module of the
 // Personalspace (B11) is `personalspace/<module>`, and its lifecycle is keyed
@@ -57,9 +57,10 @@ import {
 // runs is what the OS service manager (Linux) or the Launchpad's session
 // (macOS) reports, and every call reads the catalog again.
 
-export type ModuleVerb = "start" | "stop" | "status" | "logs";
+export type ModuleVerb = "start" | "prepare" | "stop" | "status" | "logs";
 export const moduleVerbs: readonly ModuleVerb[] = [
   "start",
+  "prepare",
   "stop",
   "status",
   "logs",
@@ -200,7 +201,7 @@ export type ModuleAnswer = Readonly<{
   runner: RunnerKind;
   /** True under the service manager: the app outlives a Launchpad restart. */
   survivesLaunchpadRestart: boolean;
-  /** The lifecycle's own result: `started`, `already-managed`,
+  /** The lifecycle's own result: `started`, `already-managed`, `prepared`,
    * `group-stopped`, `status`, `not-managed`; for `ensure` also
    * `start-pending`, a start still running when the answer was due. */
   outcome: string;
@@ -250,6 +251,23 @@ export const ensureWaitMsDefault = 20_000;
 /** How often `ensure` reads the status while it waits (the resident's
  * `openHealthyPollMs`, `R:lazurio/runtime/runtime-lib.mjs:45`). */
 export const ensurePollMsDefault = 250;
+
+/** How long the Launchpad's module routes wait for a start or a preparation
+ * before they answer that it is still running: below the routes' 660-second
+ * idle timeout, so the answer always arrives (decision F34). The bound covers
+ * everything after the module is named: the module's resolution (the catalog
+ * and the runner), the toolchain check, the queue behind other operations of
+ * the Organization, the coordination lock, the preflight, the preparation's
+ * own 600-second run and the status read of a pending answer. */
+export const moduleAnswerWithinMsDefault = 630_000;
+
+/** The end of the answer deadline kept for the status read of a pending
+ * answer: half the deadline, at most this (decision F34 point 2). */
+const pendingObservationMs = 5_000;
+
+/** A caller that must answer within a deadline (the Launchpad's routes). The
+ * operation goes on after a `start-pending` or `prepare-pending` answer. */
+export type AnswerOptions = Readonly<{ answerWithinMs?: number | undefined }>;
 
 export type EnsureOptions = Readonly<{
   /** Whether this request may start a stopped app: a top-level navigation
@@ -342,6 +360,18 @@ async function launchOrigin(folder: string, module: string) {
   if (origin.kind === "none" && origin.reason === "folder-state-unreadable")
     throw new Error("Folder state unreadable");
   return origin.kind === "origin" ? origin.origin : null;
+}
+
+// The value of `work` if it settles within `ms`, otherwise undefined; `work`
+// goes on either way.
+async function within<T>(work: Promise<T>, ms: number): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work,
+    new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), Math.max(0, ms));
+    }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 /** The module operations of one Folder. `owner` is who holds a lifecycle:
@@ -519,10 +549,11 @@ export function createModuleOperations(input: {
             ...(module.file === undefined ? {} : { file: module.file }),
           })
         : undefined;
+    const needsPreparation = operation === "start" || operation === "prepare";
     if (
       !module.executable &&
       !(namedApp && defaultAppFault) &&
-      !(preparationFault !== undefined && operation !== "start")
+      !(preparationFault !== undefined && !needsPreparation)
     )
       return blocked(operation, module.reason ?? "not-executable", {
         ...where,
@@ -790,13 +821,11 @@ export function createModuleOperations(input: {
     });
   }
 
-  // Start the prepared app unless it runs: the toolchain from the standard
-  // path, checked before any effect, then the lifecycle's start.
-  async function startOwned({
-    target,
-    runner: kind,
-    selection,
-  }: Prepared): Promise<ModuleAnswer | ModuleBlocked> {
+  // The toolchain from the standard path, checked before any effect.
+  async function toolchainMissing(
+    operation: "start" | "prepare",
+    target: Target,
+  ): Promise<ModuleBlocked | null> {
     const bun =
       host.bunExecutable ?? join(host.home as string, ".local/bin/bun");
     const present = await stat(bun)
@@ -806,14 +835,27 @@ export function createModuleOperations(input: {
         return true;
       })
       .catch(() => false);
-    if (!present)
-      return blocked("start", "toolchain-missing", {
-        organization: target.organization,
-        module: target.module,
-        app: target.app,
-        tool: "bun",
-        expected: host.bunExecutable === undefined ? standardBun : bun,
-      });
+    return present
+      ? null
+      : blocked(operation, "toolchain-missing", {
+          organization: target.organization,
+          module: target.module,
+          app: target.app,
+          tool: "bun",
+          expected: host.bunExecutable === undefined ? standardBun : bun,
+        });
+  }
+
+  // Start the prepared app unless it runs: the toolchain, then the
+  // lifecycle's start, whose start-time step installs from the lockfile, runs
+  // the declared check and prepares when it fails (decision F34).
+  async function startOwned({
+    target,
+    runner: kind,
+    selection,
+  }: Prepared): Promise<ModuleAnswer | ModuleBlocked> {
+    const missing = await toolchainMissing("start", target);
+    if (missing !== null) return missing;
     // Whether the app is told a hosted origin must be known before any
     // effect: an unreadable Folder state is not a workstation (decision F26).
     if ((await folderPlace(folder)).kind === "unknown")
@@ -838,11 +880,137 @@ export function createModuleOperations(input: {
     });
   }
 
+  // Prepare the app explicitly (decision F34): the lifecycle's preparation,
+  // whatever the declared check says now. A frozen install from the lockfile
+  // beside the package, the declared prepare_script and the check again; for
+  // an app without a declaration the frozen install (F25). It never starts
+  // anything, and never prepares beneath a running app: a service-owned one
+  // is `application-running`, another app of the Organization
+  // `other-app-managed`, and a session app is stopped for it, as before.
+  async function prepareOwned({
+    target,
+    runner: kind,
+    selection,
+  }: Prepared): Promise<ModuleAnswer | ModuleBlocked> {
+    const missing = await toolchainMissing("prepare", target);
+    if (missing !== null) return missing;
+    return operate("prepare", kind, target, async (lifecycle) => {
+      const prepared = await lifecycle.prepare(selection);
+      if (prepared.kind !== "prepared")
+        return blocked(
+          "prepare",
+          // A known reason is kept (a step that failed, a refused preflight);
+          // a failure without one is the declared check that still fails, as
+          // at the start.
+          "reason" in prepared && typeof prepared.reason === "string"
+            ? prepared.reason
+            : prepared.kind === "preparation-failed"
+              ? "prerequisites-not-ready"
+              : prepared.kind,
+          {
+            organization: target.organization,
+            module: target.module,
+            app: target.app,
+            ...("file" in prepared && typeof prepared.file === "string"
+              ? { file: prepared.file }
+              : {}),
+          },
+        );
+      return observe(
+        "prepare",
+        prepared.kind,
+        kind,
+        target,
+        selection,
+        lifecycle,
+      );
+    });
+  }
+
+  // A start or preparation answered within a deadline (decision F34): the
+  // deadline counts from the moment the module is named and bounds its
+  // resolution, the operation and the status read of the answer. When the
+  // operation has not finished by the deadline less the status read's share,
+  // the answer is the owner's view of the app read within the rest, with the
+  // outcome `start-pending` or `prepare-pending`; the operation goes on in
+  // this owner, and its result is the app's later status. A status read that
+  // does not finish in time leaves the pending answer without an observation:
+  // not healthy, no service, no link, and the state the operation under way
+  // gives (`starting` for a start; a preparation never starts the app). A
+  // module not resolved by then is never operated on: `operation-failed`,
+  // nothing changed. Without a deadline (the CLI) the operation's own result.
+  async function answerWithin(
+    operation: "start" | "prepare",
+    name: string,
+    options: ModuleOptions,
+    run: (prepared: Prepared) => Promise<ModuleAnswer | ModuleBlocked>,
+    { answerWithinMs }: AnswerOptions,
+  ): Promise<ModuleAnswer | ModuleBlocked> {
+    if (answerWithinMs === undefined) {
+      const prepared = await prepare(operation, name, options);
+      return "kind" in prepared ? prepared : run(prepared);
+    }
+    const deadline = performance.now() + answerWithinMs;
+    let resolved: Prepared | undefined;
+    let late = false;
+    const running = prepare(operation, name, options).then((prepared) => {
+      if ("kind" in prepared) return prepared;
+      if (late) return blocked(operation, "operation-failed");
+      resolved = prepared;
+      return run(prepared).catch((error: unknown) =>
+        moduleFailure(operation, prepared.target, error),
+      );
+    });
+    const result = await within(
+      running,
+      deadline -
+        Math.min(answerWithinMs / 2, pendingObservationMs) -
+        performance.now(),
+    );
+    if (result !== undefined) return result;
+    if (resolved === undefined) {
+      late = true;
+      return blocked(operation, "operation-failed");
+    }
+    const { target, runner: kind, selection } = resolved;
+    const outcome = `${operation}-pending`;
+    const observed = await within(
+      operate("status", kind, target, (lifecycle) =>
+        observe(
+          operation,
+          outcome,
+          kind,
+          target,
+          selection,
+          lifecycle,
+          "status",
+        ),
+      ),
+      deadline - performance.now(),
+    );
+    return (
+      observed ??
+      Object.freeze({
+        kind: "module" as const,
+        operation,
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
+        runner: kind,
+        survivesLaunchpadRestart: kind === "systemd-user",
+        outcome,
+        state: operation === "start" ? "starting" : "stopped",
+        healthy: false,
+        service: null,
+        runtime: null,
+      })
+    );
+  }
+
   // Seams of later slices, deliberately not built here:
-  // - B3 `prepare` and `open` (prepare when needed, start, wait for health,
-  //   the link) compose `lifecycle.prepare` and the same `observe`; until
-  //   then `ensure` starts, which for a module without a declared
-  //   preparation includes its default frozen install (decision F25).
+  // - B3 `open` (start, wait for health, the link) composes the start and
+  //   the same `observe`; until then `ensure` starts, and a start installs
+  //   and prepares when the check fails (decisions F25, F34).
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
   return Object.freeze({
@@ -850,10 +1018,18 @@ export function createModuleOperations(input: {
     async start(
       name: string,
       options: ModuleOptions = {},
+      answer: AnswerOptions = {},
     ): Promise<ModuleAnswer | ModuleBlocked> {
-      const prepared = await prepare("start", name, options);
-      if ("kind" in prepared) return prepared;
-      return startOwned(prepared);
+      return answerWithin("start", name, options, startOwned, answer);
+    },
+    /** Prepare the module's app (its default, or `app`) explicitly, without
+     * starting it (decision F34). */
+    async prepare(
+      name: string,
+      options: ModuleOptions = {},
+      answer: AnswerOptions = {},
+    ): Promise<ModuleAnswer | ModuleBlocked> {
+      return answerWithin("prepare", name, options, prepareOwned, answer);
     },
     /** The gateway's `ensure` (launchpad-parity B5): make the default app of
      * the module with this exact lazurio.module.v1 id run. Healthy now: the

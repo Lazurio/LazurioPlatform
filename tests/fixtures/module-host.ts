@@ -40,18 +40,22 @@ export async function compilePlatform(binary: string) {
 }
 
 /** A module of the fixture Folder made runnable: an exact Bun, a declared
- * start check (`check`, a script body, passing by default), a lockfile and a
- * dev script serving the declared port. Returns the declared port. */
+ * start check (`check`, a script body, passing by default), optionally a
+ * declared prepare script (`prepare`, a script body, as `prepare:app`), a
+ * lockfile without an install and a dev script serving the declared port.
+ * Returns the declared port. */
 export async function runnable(
   folder: string,
   directory: string,
   id: string,
   check = "process.exit(0);",
+  prepare?: string,
 ) {
   return runnableModule(
     join(folder, "organizations", directory, "workspace", id),
     join(folder, ".."),
     check,
+    prepare,
   );
 }
 
@@ -61,6 +65,7 @@ export async function runnableModule(
   moduleDirectory: string,
   home: string,
   check = "process.exit(0);",
+  prepare?: string,
 ) {
   const manifest = JSON.parse(
     await readFile(join(moduleDirectory, "lazurio.module.json"), "utf8"),
@@ -79,14 +84,19 @@ export async function runnableModule(
   pkg.scripts = {
     dev: `"${process.execPath}" --no-env-file server.ts`,
     check: `"${process.execPath}" --no-env-file check.ts`,
+    ...(prepare === undefined
+      ? {}
+      : { "prepare:app": `"${process.execPath}" --no-env-file prepare.ts` }),
   };
   pkg.lazurio.preparation = {
     schema_version: "lazurio.preparation.v1",
     owner_package: "app/package.json",
     check_script: "check",
+    ...(prepare === undefined ? {} : { prepare_script: "prepare:app" }),
   };
   await writeFile(join(app, "package.json"), JSON.stringify(pkg));
   await writeFile(join(app, "check.ts"), check);
+  if (prepare !== undefined) await writeFile(join(app, "prepare.ts"), prepare);
   await writeFile(
     join(app, "server.ts"),
     'console.log("synthetic module listening"); Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch: () => new Response("synthetic module") });',
