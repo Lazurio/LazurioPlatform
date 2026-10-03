@@ -2999,8 +2999,8 @@ download, a ZIP of a whole folder, and from the chat a link that opens in the br
    not followed. The folder itself, and nothing else, is created when the Operator lists
    or uploads and it is missing. A Documents folder that is a link is followed to its
    target (macOS iCloud Desktop & Documents works that way), but a target that holds the
-   home folder (`~`, `/`) or overlaps the Lazurio Folder serves nothing
-   (`documents-unavailable`). On a Team Environment every member sees the same folder;
+   home folder (`~`, `/`), overlaps the Lazurio Folder or lies on a hidden path of the
+   home (`~/.ssh`) serves nothing (`documents-unavailable`). On a Team Environment every member sees the same folder;
    that is intended, and the page says so.
 2. **One set of path rules** (`src/files/rules.ts`), applied by the routes, the page's
    route and `lazurio files link`. A path is names inside the folder. Refused before
@@ -3023,8 +3023,10 @@ download, a ZIP of a whole folder, and from the chat a link that opens in the br
    - `GET /api/files/list?path=<folder>` answers `{ path, entries: [{ name, kind, size,
      modifiedAt }] }`, folders first, then names as people read them (numbers by value,
      case and accents ignored); `size` is `null` for a folder.
-   - A download (`GET|HEAD /api/files/download?path=<file>` and the file case above) is
-     an attachment with an ASCII fallback name and the exact UTF-8 name (RFC 6266 and
+   - A download (`GET|HEAD /api/files/download?path=<file>` and the file case above;
+     locally a `HEAD` needs the page's `Origin`, as every request but a `GET` does) is
+     an attachment under the name it was asked for (through a link the link's name, as
+     the list shows it), with an ASCII fallback and the exact UTF-8 name (RFC 6266 and
      5987, Czech diacritics intact), the content type by extension (never HTML, SVG, XML
      or a script: those are `application/octet-stream`), `Content-Length`,
      `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`,
@@ -3036,14 +3038,16 @@ download, a ZIP of a whole folder, and from the chat a link that opens in the br
      session token, so one route serves both.
    - `POST /api/files/upload?path=<folder>&name=<name>`: the raw body, with a required
      `Content-Length` (411 without), streamed into a hidden temporary file in the target
-     folder, synced, then linked under the first free name (`name`, `name (2).ext`,
-     `name (3).ext`, …), so nothing is ever replaced; it answers `201 { name, path,
+     folder, synced, then published under the first free name (`name`, `name (2).ext`,
+     `name (3).ext`, …), so nothing is ever replaced: by a hard link, or on a filesystem
+     without hard links (exFAT, some network and synced folders) by reserving the name
+     exclusively and moving the file over the reservation; it answers `201 { name, path,
      size }` (the brief's `{ name, size }` plus the path). The name is stored in NFC.
      A short or broken body (`upload-incomplete`), too little free space (`disk-full`,
      checked before the first byte) and every other failure remove the temporary file.
      The next upload into a folder removes a temporary file older than an hour that a
-     killed process left there, and the Launchpad's close waits until a cut-off upload
-     has cleaned up.
+     killed process left there, and the Launchpad's close waits until every upload under
+     way, also one still finding its folder, has finished or cleaned up.
 4. **Request bodies.** The Launchpad had set Bun's `maxRequestBodySize` to 16 KiB (Bun's
    own default is 128 MiB). It is now 1 TiB, because uploads stream to disk, and every
    JSON route reads its body through `readJsonBody`, bounded at 16 KiB whether the length
@@ -3063,10 +3067,15 @@ download, a ZIP of a whole folder, and from the chat a link that opens in the br
    since office files, images and video are compressed already; CRC-32 comes from
    `node:zlib`; data descriptors mean nothing is read twice; names are UTF-8 (bit 11);
    each entry carries the extended timestamp; ZIP64 is written only where a value needs
-   it (a file of 4 GiB or more, an entry starting past 4 GiB, 65,535 entries or more). A
-   file that cannot be opened is left out whole; one that breaks mid-way breaks the
-   archive rather than hiding the damage. `unzip -t`, Python's `zipfile` and macOS
-   `ditto` (the engine of Archive Utility) read its archives, ZIP64 included.
+   it (a file of 4 GiB or more, an entry starting past 4 GiB, 65,535 entries or more).
+   The archive holds what the listing shows: a folder reached by a link and by its own
+   name is in it twice, a link back to a folder on the way down is left out (it would
+   never end), and a folder that cannot be read is left out with its contents. A file
+   that cannot be opened is left out whole; one that breaks mid-way breaks the archive
+   rather than hiding the damage. `unzip -t`, Python's `zipfile` and macOS `ditto` (the
+   engine of Archive Utility) read its archives, ZIP64 included; a real archive of a
+   4.4 GiB file (4,718,592,610 bytes, its central directory past 4 GiB) passed
+   `unzip -t` and `zipfile`.
 7. **`lazurio files link <path> [--folder <F>] [--json]`** resolves the path (absolute or
    relative to the current directory) with the same rules and adapter. With a recorded
    entry (F16) it prints `<entry.externalOrigin>/files/<percent-encoded path>`; without
@@ -3130,7 +3139,8 @@ Environment's agents get the link rule follows whether its handover records the 
 Verified by unit and HTTP tests: the path rules (traversal, percent-encoded `%2e%2e` and
 `%2f`, absolute paths, hidden names, Windows names, lengths), the adapter against a
 temporary home (links that stay or leave, links into hidden folders, FIFOs, the Documents
-folder as a link to the home, `/` or the Folder), listing order and fields, download
+folder as a link to the home, `/`, `~/.ssh` or the Folder, a folder reached twice, an
+unreadable folder, a filesystem without hard links), listing order and fields, download
 headers with a Czech name, ranges with `If-Range` and `HEAD`, a 200 MiB file uploaded past
 Bun's 128 MiB default and downloaded back by sha256, uploads that never replace, refused
 uploads that write nothing, an abandoned upload and one cut off by the Launchpad's close

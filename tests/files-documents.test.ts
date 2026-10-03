@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readdir,
@@ -145,6 +146,26 @@ test.skipIf(!posix)(
         refusal: "documents-unavailable",
       });
     }
+    // A hidden folder of the home, or one on a hidden path, is no Documents
+    // folder either.
+    for (const target of [
+      join(account, ".ssh"),
+      join(account, ".config", "docs"),
+    ]) {
+      await mkdir(target, { recursive: true });
+      await rm(documents, { force: true });
+      await symlink(target, documents);
+      expect([target, await openDocuments(host, { create: true })]).toEqual([
+        target,
+        { refusal: "documents-unavailable" },
+      ]);
+    }
+    // A visible folder of the home is fine.
+    const visible = join(account, "Sdílené", "Dokumenty");
+    await mkdir(visible, { recursive: true });
+    await rm(documents, { force: true });
+    await symlink(visible, documents);
+    expect((await opened(host)).real).toBe(visible);
     // A link to an ordinary folder elsewhere is the Operator's choice.
     const elsewhere = join(base, "cloud", "Documents");
     await mkdir(elsewhere, { recursive: true });
@@ -243,6 +264,57 @@ test.skipIf(!posix)(
     expect(listed.find((item) => item.name === "file9.txt")?.modifiedAt).toBe(
       "2026-10-02T08:30:00.000Z",
     );
+  },
+);
+
+test.skipIf(!posix)(
+  "the tree holds a folder reached by a link and by its own name, as the listing does, and a link loop ends",
+  async () => {
+    const { host, documents } = await home();
+    const docs = await opened(host);
+    await mkdir(join(documents, "zpráva"));
+    await writeFile(join(documents, "zpráva", "final.docx"), "final");
+    // The link sorts before its target.
+    await symlink(join(documents, "zpráva"), join(documents, "a-odkaz"));
+    await symlink(documents, join(documents, "zpráva", "nahoru"));
+    const tree = [];
+    for await (const item of documentTree(docs, await entry(docs, [])))
+      tree.push([item.kind, item.path.join("/")]);
+    expect(tree).toEqual([
+      ["directory", ""],
+      ["directory", "a-odkaz"],
+      ["file", "a-odkaz/final.docx"],
+      ["directory", "zpráva"],
+      ["file", "zpráva/final.docx"],
+    ]);
+    expect(
+      (await listDocuments(docs, await entry(docs, []))).map(
+        (item) => item.name,
+      ),
+    ).toEqual(["a-odkaz", "zpráva"]);
+  },
+);
+
+test.skipIf(!posix || process.getuid?.() === 0)(
+  "a folder that cannot be read is left out of the tree with its contents",
+  async () => {
+    const { host, documents } = await home();
+    const docs = await opened(host);
+    await mkdir(join(documents, "locked"));
+    await writeFile(join(documents, "locked", "secret.txt"), "x");
+    await writeFile(join(documents, "open.txt"), "y");
+    await chmod(join(documents, "locked"), 0o000);
+    try {
+      const tree = [];
+      for await (const item of documentTree(docs, await entry(docs, [])))
+        tree.push([item.kind, item.path.join("/")]);
+      expect(tree).toEqual([
+        ["directory", ""],
+        ["file", "open.txt"],
+      ]);
+    } finally {
+      await chmod(join(documents, "locked"), 0o700);
+    }
   },
 );
 
@@ -408,6 +480,52 @@ test.skipIf(!posix)(
         10,
       ),
     ).toEqual({ refusal: "not-directory" });
+  },
+);
+
+test.skipIf(!posix)(
+  "without hard links an upload reserves its name exclusively and moves in, still never replacing an entry",
+  async () => {
+    const { host, documents } = await home();
+    const noLinks: DocumentsHost = {
+      ...host,
+      link: async () => {
+        throw Object.assign(new Error("Operation not permitted"), {
+          code: "EPERM",
+        });
+      },
+    };
+    const docs = await opened(noLinks);
+    const folder = await entry(docs, []);
+    await writeFile(join(documents, "report.docx"), "existing");
+    const bytes = new TextEncoder().encode("uploaded");
+    expect(
+      await upload(noLinks, docs, folder, "report.docx", bodyOf(bytes), 8),
+    ).toEqual({ name: "report (2).docx", size: 8 });
+    expect(await readFile(join(documents, "report.docx"), "utf8")).toBe(
+      "existing",
+    );
+    expect(await readFile(join(documents, "report (2).docx"), "utf8")).toBe(
+      "uploaded",
+    );
+    expect((await readdir(documents)).sort()).toEqual([
+      "report (2).docx",
+      "report.docx",
+    ]);
+    // Any other failure of the link is not taken for a missing feature.
+    const broken: DocumentsHost = {
+      ...host,
+      link: async () => {
+        throw Object.assign(new Error("I/O error"), { code: "EIO" });
+      },
+    };
+    await expect(
+      upload(broken, docs, folder, "other.docx", bodyOf(bytes), 8),
+    ).rejects.toThrow("I/O error");
+    expect((await readdir(documents)).sort()).toEqual([
+      "report (2).docx",
+      "report.docx",
+    ]);
   },
 );
 

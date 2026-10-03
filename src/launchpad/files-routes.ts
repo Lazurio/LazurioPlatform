@@ -157,12 +157,15 @@ export function createFilesRoutes(
     return { documents, entry };
   }
 
+  // A download and an archive carry the name they were asked for, the name
+  // the list shows; through a link that is the link's, not its target's.
   function download(
     request: Request,
     server: RequestTimeout,
     entry: Extract<DocumentEntry, { kind: "file" }>,
+    requested: readonly string[],
   ): Response {
-    const name = entry.segments.at(-1) ?? "download";
+    const name = requested.at(-1) ?? entry.segments.at(-1) ?? "download";
     const etag = `"${entry.size.toString(16)}-${entry.modified.getTime().toString(16)}"`;
     const lastModified = entry.modified.toUTCString();
     const common = {
@@ -226,8 +229,9 @@ export function createFilesRoutes(
     server: RequestTimeout,
     documents: Documents,
     entry: Extract<DocumentEntry, { kind: "directory" }>,
+    requested: readonly string[],
   ): Response {
-    const name = archiveName(entry.segments);
+    const name = archiveName(requested);
     async function* inputs(): AsyncGenerator<ZipInput> {
       for await (const item of documentTree(documents, entry)) {
         const path = [name, ...item.path].join("/");
@@ -279,7 +283,7 @@ export function createFilesRoutes(
     if (isRefused(found)) return refusal(found.refusal);
     if (found.entry.kind !== "directory") return refusal("not-directory");
     server.timeout(request, transferIdleSeconds);
-    const work = uploadDocument(
+    const result = await uploadDocument(
       host,
       found.documents,
       found.entry,
@@ -287,13 +291,6 @@ export function createFilesRoutes(
       request.body,
       length,
     );
-    uploads.add(work);
-    let result: Awaited<typeof work>;
-    try {
-      result = await work;
-    } finally {
-      uploads.delete(work);
-    }
     if (isRefused(result)) return refusal(result.refusal);
     return json(
       {
@@ -324,7 +321,7 @@ export function createFilesRoutes(
       const found = await locate(parsed.segments, false);
       if (isRefused(found)) return { status: 404 };
       return found.entry.kind === "file"
-        ? download(request, server, found.entry)
+        ? download(request, server, found.entry, parsed.segments)
         : { status: 200 };
     },
     /** A route under `/api/files/`; 404 for any other name. */
@@ -337,7 +334,15 @@ export function createFilesRoutes(
       if (route === "upload") {
         if (request.method !== "POST")
           return json({ error: "method-not-allowed" }, 405);
-        return upload(request, server, url);
+        // Tracked from its first step, so the Launchpad's close also waits
+        // for an upload that was still finding its folder.
+        const work = upload(request, server, url);
+        uploads.add(work);
+        try {
+          return await work;
+        } finally {
+          uploads.delete(work);
+        }
       }
       if (!["list", "download", "zip"].includes(route))
         return json({ error: "not-found" }, 404);
@@ -357,10 +362,11 @@ export function createFilesRoutes(
       const { documents, entry } = found;
       if (route === "download")
         return entry.kind === "file"
-          ? download(request, server, entry)
+          ? download(request, server, entry, parsed.segments)
           : refusal("not-file");
       if (entry.kind !== "directory") return refusal("not-directory");
-      if (route === "zip") return archive(request, server, documents, entry);
+      if (route === "zip")
+        return archive(request, server, documents, entry, parsed.segments);
       return json({
         path: parsed.segments.join("/"),
         entries: await listDocuments(documents, entry),

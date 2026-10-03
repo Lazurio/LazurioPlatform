@@ -371,9 +371,13 @@ test.skipIf(!posix)(
       head.headers.get("content-disposition"),
       await head.text(),
     ]).toEqual([200, "10", disposition, ""]);
-    // Through a link that stays inside: the target's name.
+    // Through a link that stays inside: the target's bytes under the name
+    // asked for, the name the list shows.
     const linked = await call(`/api/files/download?path=${q("poslední.docx")}`);
-    expect(linked.headers.get("content-disposition")).toBe(disposition);
+    expect(linked.headers.get("content-disposition")).toBe(
+      "attachment; filename=\"posledni.docx\"; filename*=UTF-8''posledn%C3%AD.docx",
+    );
+    expect(await linked.text()).toBe("0123456789");
     for (const [target, status, error] of [
       ["Úkol", 409, "not-file"],
       ["", 409, "not-file"],

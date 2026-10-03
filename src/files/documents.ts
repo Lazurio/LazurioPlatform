@@ -7,6 +7,7 @@ import {
   open,
   readdir,
   realpath,
+  rename,
   rm,
   stat,
   statfs,
@@ -75,6 +76,9 @@ export type DocumentsHost = Readonly<{
   /** Free bytes on the filesystem of `directory`; null when unknown. A seam
    * for tests; the default asks `statfs`. */
   freeBytes?: (directory: string) => Promise<number | null>;
+  /** The hard link an upload is published by. A seam for tests of a
+   * filesystem without hard links; the default is `link`. */
+  link?: (existing: string, created: string) => Promise<void>;
 }>;
 
 /** The home whose Documents folder is served, as `os.homedir()` reads it:
@@ -150,8 +154,9 @@ function contains(parent: string, child: string): boolean {
 /** The Documents folder of `host.home`, by its realpath. `create` makes the
  * folder itself, and nothing else, when it is missing: listing and uploading
  * do, a download or a link does not. The folder must be a directory that
- * neither holds the home folder nor overlaps the Lazurio Folder, so a
- * Documents link to `~` or `/` serves nothing. */
+ * neither holds the home folder nor overlaps the Lazurio Folder, and inside
+ * the home it must lie on a visible path, so a Documents link to `~`, `/` or
+ * `~/.ssh` serves nothing. */
 export async function openDocuments(
   host: DocumentsHost,
   options: Readonly<{ create: boolean }>,
@@ -188,6 +193,13 @@ export async function openDocuments(
   }
   const homeReal = await realpath(home).catch(() => home);
   if (contains(real, homeReal)) return refused("documents-unavailable");
+  if (
+    contains(homeReal, real) &&
+    relative(homeReal, real)
+      .split(sep)
+      .some((segment) => segmentRefusal(segment, host.platform) !== null)
+  )
+    return refused("documents-unavailable");
   if (host.folder !== undefined) {
     const folder = host.folder;
     const folderReal = await realpath(folder).catch(() => folder);
@@ -362,33 +374,29 @@ export type TreeEntry =
 
 /** Every visible entry under a directory, the directory itself first (path
  * `[]`), depth first, in listing order: what its ZIP holds. Links are
- * followed while they stay inside the folder, and every real directory is
- * entered once, so a link loop ends. A directory that cannot be read is left
- * out with its contents. */
+ * followed while they stay inside the folder, as the listing shows them, so
+ * a folder reached by a link and by its own name is in it twice; a link back
+ * to a folder on the way down would never end and is left out. A folder that
+ * cannot be read is left out with its contents; the folder asked for itself
+ * must be readable. */
 export async function* documentTree(
   documents: Documents,
   directory: DocumentEntry,
 ): AsyncGenerator<TreeEntry> {
-  const visited = new Set<string>([directory.real]);
+  const top = await children(documents, directory);
   yield Object.freeze({
     kind: "directory",
     path: Object.freeze([]),
     modified: directory.modified,
   });
   async function* below(
-    parent: DocumentEntry,
+    found: Awaited<ReturnType<typeof children>>,
     prefix: readonly string[],
+    ancestors: ReadonlySet<string>,
   ): AsyncGenerator<TreeEntry> {
-    let found: Awaited<ReturnType<typeof children>>;
-    try {
-      found = await children(documents, parent);
-    } catch (error) {
-      if (missing(error)) return;
-      throw error;
-    }
     for (const { name, entry } of found) {
       const path = Object.freeze([...prefix, name]);
-      if (entry.kind === "file")
+      if (entry.kind === "file") {
         yield Object.freeze({
           kind: "file",
           path,
@@ -396,18 +404,25 @@ export async function* documentTree(
           size: entry.size,
           real: entry.real,
         });
-      else if (!visited.has(entry.real)) {
-        visited.add(entry.real);
-        yield Object.freeze({
-          kind: "directory",
-          path,
-          modified: entry.modified,
-        });
-        yield* below(entry, path);
+        continue;
       }
+      if (ancestors.has(entry.real)) continue;
+      let inner: Awaited<ReturnType<typeof children>>;
+      try {
+        inner = await children(documents, entry);
+      } catch (error) {
+        if (missing(error)) continue;
+        throw error;
+      }
+      yield Object.freeze({
+        kind: "directory",
+        path,
+        modified: entry.modified,
+      });
+      yield* below(inner, path, new Set([...ancestors, entry.real]));
     }
   }
-  yield* below(directory, []);
+  yield* below(top, [], new Set([directory.real]));
 }
 
 const readChunkBytes = 256 * 1024;
@@ -493,12 +508,49 @@ async function syncDirectory(directory: string, platform: string) {
 
 class IncompleteUpload extends Error {}
 
+// A filesystem without hard links (exFAT, FAT, some network and synced
+// folders) answers `link` with one of these.
+const linkUnsupported = new Set(["EPERM", "ENOTSUP", "EOPNOTSUPP", "ENOSYS"]);
+
+/** Publishes `temporary` under `target` only when no entry of that name
+ * exists: true when published, false when the name is taken. A hard link
+ * makes the name appear complete at once; without hard links the name is
+ * first reserved exclusively and the file is then moved over the empty
+ * reservation, which the publisher alone holds. */
+async function publish(
+  host: DocumentsHost,
+  temporary: string,
+  target: string,
+): Promise<boolean> {
+  try {
+    await (host.link ?? link)(temporary, target);
+    return true;
+  } catch (error) {
+    const code = errorCode(error);
+    if (code === "EEXIST") return false;
+    if (!linkUnsupported.has(code ?? "")) throw error;
+  }
+  try {
+    await (await open(target, "wx", 0o666)).close();
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return false;
+    throw error;
+  }
+  try {
+    await rename(temporary, target);
+  } catch (error) {
+    await rm(target, { force: true });
+    throw error;
+  }
+  return true;
+}
+
 /** Streams an upload of exactly `length` bytes into `directory` under
  * `name`: written to a hidden temporary file in the same directory, synced,
- * then linked under the first free name (`name`, `name (2).ext`, …), which
- * never replaces an existing entry. The temporary file is removed on every
- * failure, a client that goes away included. The name is stored in NFC, the
- * form people type. */
+ * then published under the first free name (`name`, `name (2).ext`, …),
+ * which never replaces an existing entry. The temporary file is removed on
+ * every failure, a client that goes away included. The name is stored in
+ * NFC, the form people type. */
 export async function uploadDocument(
   host: DocumentsHost,
   documents: Documents,
@@ -567,14 +619,11 @@ export async function uploadDocument(
   try {
     for (const candidate of uploadNames(normalized)) {
       if (utf8Bytes(candidate) > maxNameBytes) break;
-      try {
-        await link(temporary, join(directory.real, candidate));
-      } catch (error) {
-        if (errorCode(error) === "EEXIST") continue;
-        throw error;
-      }
+      if (!(await publish(host, temporary, join(directory.real, candidate))))
+        continue;
       // Published: the name is in place. What follows is cleanup and
-      // durability of the name; neither undoes the upload.
+      // durability of the name; neither undoes the upload. After a move
+      // there is no temporary file left to remove.
       await unlink(temporary).catch(() => undefined);
       await syncDirectory(directory.real, documents.platform).catch(
         () => undefined,
