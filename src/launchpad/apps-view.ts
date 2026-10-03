@@ -14,7 +14,7 @@ import {
 import {
   type CatalogGroupEntry,
   type CatalogModuleEntry,
-  type CatalogSectionLayout,
+  type CatalogSectionKind,
   catalogSelection,
   catalogTree,
   moduleRoute,
@@ -28,11 +28,13 @@ type Copy = Readonly<Record<MessageKey, string>>;
 
 // Pure presentation of the Apps home and its left column (decision F36, the
 // target shell's "Apps home"): one Organization at a time, its name on top
-// (a picker when the Folder holds several), its modules and read-only
-// repositories in the sections Organizace, Workspace and Productionspace of
-// decision F32's addendum, each a pill with a count over a grid of tiles. A
-// tile opens the module's app in a new tab; a module that has no app or
-// cannot start opens its overview. The DOM lives in catalog-panel.ts.
+// (a picker when the Folder holds several), its modules in the section
+// Workspace and its production repositories, read-only, in the section
+// Productionspace (decision F32's addendum of 2026-10-03, final), each a pill
+// with a count over a grid of tiles. A tile opens the module's app in a new
+// tab; a module that has no app or cannot start opens its overview; a
+// production repository's tile is at most its GitHub page. The DOM lives in
+// catalog-panel.ts.
 
 /** The groups the Apps home offers (Organizations, then the Personalspace
  * group), in the catalog's order. */
@@ -186,18 +188,21 @@ export type AppsTile =
       note: Readonly<{ tone: "warn"; text: string; title: string }> | null;
       target: TileTarget;
     }>
+  /** A production repository: read-only, no status dot, no action, no
+   * page (F32 addendum of 2026-10-03). */
   | Readonly<{
       kind: "repository";
       repository: CatalogRepository;
       name: string;
       description: string;
+      /** "Not checked out" as plain text, or null when it is. */
       note: Readonly<{ tone: "muted"; text: string; title: string }> | null;
       /** Its GitHub page, in a new tab, or null. */
       href: string | null;
     }>;
 
 export type AppsSection = Readonly<{
-  layout: CatalogSectionLayout | "personal";
+  kind: CatalogSectionKind | "personal";
   title: string;
   count: string;
   subtitle: string | null;
@@ -246,17 +251,28 @@ export function appsSections(
       ? []
       : [
           {
-            layout: "personal",
+            kind: "personal",
             title: copy.appsPersonal,
             count: count(group.modules.length, "modules"),
             subtitle: null,
             tiles: group.modules.map(moduleTile),
           },
         ];
-  return group.sections.map((section) => {
-    const tiles: AppsTile[] = [
-      ...section.modules.map(moduleTile),
-      ...section.repositories.map(
+  return group.sections.map((section): AppsSection => {
+    if (section.kind === "workspace")
+      return {
+        kind: section.kind,
+        title: section.title,
+        count: count(section.modules.length, "modules"),
+        subtitle: copy.appsWorkspaceSubtitle.replace("{name}", group.name),
+        tiles: section.modules.map(moduleTile),
+      };
+    return {
+      kind: section.kind,
+      title: section.title,
+      count: count(section.repositories.length, "repositories"),
+      subtitle: copy.appsProductionspaceSubtitle,
+      tiles: section.repositories.map(
         ({ repository, checkout }): AppsTile => ({
           kind: "repository",
           repository,
@@ -268,21 +284,6 @@ export function appsSections(
           href: repository.url,
         }),
       ),
-    ];
-    return {
-      layout: section.layout,
-      title: section.title,
-      count: count(
-        tiles.length,
-        section.layout === "productionspace" ? "repositories" : "modules",
-      ),
-      subtitle:
-        section.layout === "workspace"
-          ? copy.appsWorkspaceSubtitle.replace("{name}", group.name)
-          : section.layout === "productionspace"
-            ? copy.appsProductionspaceSubtitle
-            : null,
-      tiles,
     };
   });
 }

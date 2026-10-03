@@ -110,7 +110,6 @@ posixTest(
       const module = {
         organization: "personalspace",
         path: "workspace/diary",
-        layout: "workspace" as const,
         teams: [],
         teamsSource: "none" as const,
         apps: [

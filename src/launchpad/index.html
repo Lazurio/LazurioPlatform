@@ -110,10 +110,11 @@ a.menu-item:hover { background: var(--hover); }
 main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
 .section-head-text { display: grid; gap: 0.75rem; }
 
-/* The Apps home (decision F36): the Organization on top, then the sections
-   Organizace, Workspace and Productionspace as blue pills with a rule and a
-   count, each over a grid of tiles (Anička's sections, wireframe
-   LaunchpadHome.tsx). */
+/* The Apps home (decision F36): the Organization on top, then the two
+   sections Workspace (every module) and Productionspace (production
+   repositories, read-only; F32 addendum of 2026-10-03, final) as blue pills
+   with a rule and a count, each over a grid of tiles (Anička's sections,
+   wireframe LaunchpadHome.tsx). */
 .apps-head { display: flex; align-items: center; gap: 12px; min-height: 34px; margin: 4px 0 -4px; }
 .apps-head-name { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .apps-title, .module-title { font-size: 28px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.2; }
@@ -452,9 +453,10 @@ a.files-name:hover { text-decoration: underline; }
 </div>
 </header>
 
-<!-- The Apps home (decision F36): one Organization's modules in the
-     sections Organizace, Workspace and Productionspace, `/`, `/o/<org>`, and
-     a module's overview `/o/<org>/<module>`; drawn by catalog-panel.ts. -->
+<!-- The Apps home (decision F36): one Organization's modules in the section
+     Workspace and its production repositories in Productionspace, `/`,
+     `/o/<org>`, and a module's overview `/o/<org>/<module>`; drawn by
+     catalog-panel.ts. -->
 <main id="view-catalog" class="container wide" data-view="catalog">
 <header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"></div><button type="button" class="ghost" id="catalog-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="catalogRefresh">Refresh</span></button></header>
 <p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>

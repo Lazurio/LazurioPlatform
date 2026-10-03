@@ -1,7 +1,9 @@
 // A preview of the Launchpad (decision F36) against a temporary fixture
 // Folder, never a live one: `bun scripts/preview-launchpad.ts local|hosted
-// cs|en [port]`. One Organization with modules in Organizace, Workspace and
-// Productionspace (and a second Organization locally, for the picker), a
+// cs|en [port]`. One Organization with root-level and workspace modules in
+// Workspace, production repositories in Productionspace and an `infra` the
+// Launchpad does not list (and a second Organization locally, for the
+// picker), a
 // synthetic home for Files and Tools. Prints one JSON line: `url` to open
 // (local: with the fragment token) and, hosted, `proxy`: a loopback listener
 // that adds the gateway's Host and cookie, which a browser automation routes

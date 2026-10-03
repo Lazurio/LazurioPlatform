@@ -227,9 +227,10 @@ export async function writeOrganization(
 // candidates. Beside its root-level application `mission-control`, alpha
 // declares `design-system` without a module manifest and the repository
 // slots `infra` and `mission-control/db`, which carry one: none of the three
-// is a module. alpha's `infra` (checked out, with its GitHub remote) and its
-// two productionspace repositories, `firmware` checked out and `connect`
-// not, are its read-only repositories (F32 addendum of 2026-10-03).
+// is a module. alpha's two productionspace repositories, `firmware` checked
+// out and `connect` not, are its read-only repositories; its `infra`, checked
+// out and with its GitHub remote, is neither a module nor a production
+// repository and is not listed (F32 addendum of 2026-10-03, final).
 export async function folderFixture(run: (folder: string) => Promise<void>) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "catalog-")));
   const folder = join(parent, "Lazurio");

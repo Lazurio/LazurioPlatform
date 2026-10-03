@@ -59,7 +59,6 @@ posixTest(
                 organization: "alpha",
                 module: "web",
                 path: "workspace/web",
-                layout: "workspace",
                 teams: ["core", "sales"],
                 teamsSource: "teams",
                 apps: [
@@ -74,7 +73,6 @@ posixTest(
                 organization: "alpha",
                 module: "docs",
                 path: "workspace/docs",
-                layout: "workspace",
                 teams: ["core"],
                 teamsSource: "teams",
                 apps: [],
@@ -87,7 +85,6 @@ posixTest(
                 organization: "alpha",
                 module: "shop",
                 path: "workspace/shop",
-                layout: "workspace",
                 teams: ["workspace"],
                 teamsSource: "default",
                 apps: [
@@ -100,13 +97,13 @@ posixTest(
                 issues: ["teams-invalid"],
               },
               // A root-level application: a module like any other, at its
-              // slot path. design-system (no module manifest), infra and
+              // slot path, in the same one list in catalog order.
+              // design-system (no module manifest), infra and
               // mission-control/db (repository slots) are not modules.
               {
                 organization: "alpha",
                 module: "mission-control",
                 path: "mission-control",
-                layout: "organization",
                 teams: ["core"],
                 teamsSource: "teams",
                 apps: [
@@ -122,27 +119,19 @@ posixTest(
                 executable: true,
               },
             ],
-            // Read-only repositories, never modules: infra in the
-            // Organization group, the productionspace ones in theirs, each
-            // with whether it is checked out and its GitHub page.
+            // Read-only production repositories, never modules, each with
+            // whether it is checked out and its GitHub page. alpha's infra,
+            // though declared, checked out and on GitHub, is neither a module
+            // nor a production repository: it is not listed.
             repositories: [
               {
-                slug: "infra",
-                layout: "organization",
-                path: "infra",
-                checkedOut: true,
-                url: "https://github.com/alpha/infra",
-              },
-              {
                 slug: "firmware",
-                layout: "productionspace",
                 path: "productionspace/firmware",
                 checkedOut: true,
                 url: "https://github.com/alpha/firmware",
               },
               {
                 slug: "connect",
-                layout: "productionspace",
                 path: "productionspace/connect",
                 checkedOut: false,
                 url: null,
@@ -164,7 +153,6 @@ posixTest(
                 organization: "beta",
                 module: "api",
                 path: "workspace/api",
-                layout: "workspace",
                 teams: ["workspace"],
                 teamsSource: "default",
                 apps: [
@@ -214,7 +202,6 @@ posixTest(
               organization: "delta",
               module,
               path: `workspace/${module}`,
-              layout: "workspace",
               teams,
               teamsSource,
               apps: [],
@@ -452,17 +439,16 @@ posixTest(
       expect(findCatalogOrganization(catalog, "zeta")?.issues).toEqual([
         "repository-id-collision",
       ]);
-      // The layout group comes from the slot path, not from the id: the
-      // root-level slot is the Organization's, the other a workspace module.
+      // A workspace slot and a root-level slot of the same id are both
+      // modules of the one list, at their own slot paths, in catalog order.
       expect(
-        findCatalogOrganization(catalog, "zeta")?.modules.map((module) => [
-          module.path,
-          module.layout,
-        ]),
+        findCatalogOrganization(catalog, "zeta")?.modules.map(
+          (module) => module.path,
+        ),
       ).toEqual([
-        ["workspace/mission-control", "workspace"],
-        ["mission-control", "organization"],
-        ["design-system", "organization"],
+        "workspace/mission-control",
+        "mission-control",
+        "design-system",
       ]);
       // gamma's productionspace repository carries a module manifest and is
       // still only a read-only repository; a directory without `.git` is
@@ -470,7 +456,6 @@ posixTest(
       expect(findCatalogOrganization(catalog, "gamma")?.repositories).toEqual([
         {
           slug: "firmware",
-          layout: "productionspace",
           path: "productionspace/firmware",
           checkedOut: false,
           url: null,
@@ -804,12 +789,13 @@ posixTest(
         const value = await answer.json();
         expect(value).toEqual(JSON.parse(cli.text));
         // The page draws exactly this answer: its shape check admits it,
-        // with the layout of every module and the read-only repositories.
+        // with the read-only production repositories; infra is not one.
         const parsed = parseCatalog(value);
         expect(parsed).not.toBeNull();
         expect(
           parsed?.organizations[0]?.repositories.map((entry) => entry.slug),
-        ).toEqual(["infra", "firmware", "connect"]);
+        ).toEqual(["firmware", "connect"]);
+        expect(JSON.stringify(value)).not.toContain('"layout"');
         // The same admission as every other route; no path from the browser.
         expect((await call({}, { Authorization: "" })).status).toBe(403);
         expect(

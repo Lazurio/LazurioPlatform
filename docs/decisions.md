@@ -2927,7 +2927,8 @@ of point 1 gives way to the three-section home of the
 [target shell](launchpad-development.md#target-shell): Organizace, Workspace and
 Productionspace. Nothing is grouped by Team; point 2 stands, and the sections serve the
 same aim, an Environment that does not show Teams. Not implemented: today's build is the
-flat list above.
+flat list above. *(The three sections were themselves replaced the same evening by two,
+Workspace and Productionspace: see the final addendum below.)*
 
 **Supersedes** in [Launchpad parity](launchpad-parity.md) the "subheader per Team" of
 B1's surface, the "Team groups" of its visual-design note, its test "Team grouping
@@ -2945,7 +2946,10 @@ decision.
 | One flat list per Organization in declaration order, no Team anywhere on the page, the catalog unchanged (selected) | Each module once; one order on every surface; no contract change |
 
 **Addendum 2026-10-03, decided by Matěj (plan DEV-6638), aligned with root decision
-0179 point 5: an Organization is grouped by its layout, not by people.** Teams stay
+0179 point 5: an Organization is grouped by its layout, not by people.**
+*Superseded the same evening by the final addendum below (two sections, Workspace and
+Productionspace); kept as history. It was implemented in PR #139 and released in
+v0.1.8-rc.17.* Teams stay
 out of the Launchpad, and points 2 to 5 stand: no Team section, heading or badge, each
 module exactly once, no section for another person in the Operator's Environment,
 nothing filtered by Team or by the handover, Teams kept in the catalog for the CLI. But
@@ -3010,6 +3014,63 @@ row of its section F.
 | List productionspace and `infra` with the resident's actions | Each has its own release process (0041); rejected: read-only rows |
 | A separate endpoint for the read-only repositories | A second read of the same documents; rejected: the one reader returns the declared slots |
 | A `layout` per module and `repositories` per Organization in the one catalog, three groups on the page (selected) | Additive; one rule for the page and the CLI; nothing Team-shaped comes back |
+
+**Final addendum 2026-10-03 evening, decided by Matěj and agreed in the team (plan
+DEV-6638): two sections, Workspace and Productionspace.** It supersedes the addendum
+above and point 5 of root decision 0179 (two sections "Organizace" and "Workspace" for
+an Organization's modules). In substance, Matěj's final position: splitting an
+Organization's modules into "Organizace" and "Workspace" makes no sense. All modules are
+Workspace; production repositories are Productionspace. Only those two groups remain.
+
+Why. One person, one workspace: an Environment is one workspace (points 1 and 2 above,
+F33), and every module the Operator works with is part of it, whether its repository
+sits at the Organization root (`mission-control`, `design-system`, F24) or under
+`workspace/`. Where a module's repository sits in the Organization is not something the
+Operator acts on: every module is started, opened and changed the same way. Production
+repositories are different: the Launchpad never starts them, each has its own branch
+and release process (root decision 0041), and the Operator sees them only to know they
+are there.
+
+What changes:
+
+1. **Workspace**: every module of the Organization, root-level applications included,
+   in one list in the catalog's order (the declaration order of `module_slots`, F24).
+   Nothing is listed first or apart.
+2. **Productionspace**: the Organization's declared `productionspace/*` repositories,
+   read-only, in declaration order. A row shows the name and the path, says "not
+   checked out" in words when it is not, and links to its GitHub page when the slot
+   declares a github.com remote. No status dot, no Start, Stop or Open, no page.
+3. **`infra` is not listed.** It is neither a module nor a production repository (F24
+   point 1 already calls it a repository, never a module); the Operator does not act on
+   it from the Launchpad. `mission-control/db` stays unlisted too.
+4. An empty section is not drawn. The Personalspace group (B11) stays one list. The
+   section headings are "Workspace" and "Productionspace" in both languages; the
+   Organization group's string ("Organizace" / "Organization") is gone from the page.
+   The rail's and the column's name of the Organization level is a different thing and
+   stays.
+
+The catalog's shape follows, with no compatibility field: a module no longer carries
+`layout`, and `repositories` per Organization lists only the declared
+`productionspace/*` slots, each `{ slug, path, checkedOut, url }` (the rules for
+`checkedOut` and `url` stay as above). `lazurio organization list --json` and
+`POST /api/catalog` still answer the same catalog from the one core, and the page's
+shape check follows it. The human tables of `organization list` and `module list` are
+unchanged, and so is the on-disk layout of an Organization: `mission-control/` and
+`design-system/` stay root-level slots; only the presentation and the catalog's shape
+change. Points 2 to 5 of F32 hold: Teams stay out of the Launchpad, no Team section,
+heading or badge, every module exactly once.
+
+*Restores* F24's "not chosen" disposition of "List root-level applications first, or in
+a group of their own": declaration order holds across all modules again. Launchpad
+parity row 19 stays carried as read-only rows, now without `infra`.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep three groups (the addendum above) | Shows where a repository sits, which the Operator does not act on, and splits one workspace in two; superseded |
+| One flat list with the production repositories mixed in | Production repositories are not started from the Launchpad; mixing them with modules invites an action that does not exist; rejected |
+| Keep `layout` on modules as information, unused by the page | A field nobody reads drifts; the product has no back-compat duty yet; removed |
+| Keep `infra` as a read-only row (in Productionspace or alone) | It is neither a module nor a production repository; rejected |
+| Two sections, Workspace (every module, catalog order) and Productionspace (read-only), `infra` not listed (selected) | One workspace, one order; production repositories visible and inert |
 
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
@@ -3369,7 +3430,8 @@ both locales.
 **Decided by Matěj 2026-10-03 (plan DEV-6639, the Lazurio shell decisions, root
 decisions 0179–0180); implemented in this revision as a first cut.** It implements the
 [target shell](launchpad-development.md#target-shell) recorded in PR #138 and the
-three-section Apps home of root decision 0179 point 5. The same left rail and app switch,
+Apps home of root decision 0179 point 5 (its sections since F32's final addendum of
+2026-10-03: Workspace and Productionspace). The same left rail and app switch,
 and later Buddy's bubble, appear in the Launchpad, the Dashboard, the T3 Code fork and
 the MausBot fork. Copies would drift, and each fork would carry Lazurio's data model. So
 there is one library, in this repository, served by the Launchpad of each Environment on
@@ -3448,14 +3510,14 @@ each of its origins.
    dark mode yet.
 7. **The Launchpad on the shell** (`src/launchpad/`): rail | left column | main, no top
    bar. In Apps the column holds the switch, the search, "All modules", "Files" (F35)
-   and one Organization's modules and read-only repositories under Organizace,
-   Workspace and Productionspace (F32 addendum). The home shows the Organization's name,
+   and one Organization's modules under Workspace and its production repositories,
+   read-only, under Productionspace (F32 final addendum). The home shows the Organization's name,
    a picker when the Folder holds several, and the same sections as pills with counts
    over tiles. A tile opens the module's app in a new tab: hosted on the module's own
    origin, where the gateway starts it on open; locally through the lifecycle, which
    starts the app and then opens the link it reports. A module without an app, one that
    cannot start, and one refused by its preparation open their overview instead. A
-   read-only repository's tile is its GitHub page. Status shows only by exception.
+   production repository's tile is its GitHub page, without a status dot. Status shows only by exception.
    A module's name, line and stone come from its default app's own declaration
    (`package.json#lazurio.runtime`), which the catalog now carries as bounded,
    display-only `display` (id, title of at most 120 characters, description of at most
