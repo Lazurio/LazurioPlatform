@@ -211,8 +211,9 @@ from module and Machine alone collide across Organizations
   (`docs/decisions.md:820-821`).
 - Visual design. **Superseded 2026-10-03 (the Lazurio shell decisions):** the target
   shell is the one recorded in
-  [launchpad-development.md](launchpad-development.md#target-shell) (a rail of
-  Environments, the switch Chat · Apps · Automate at the top of the left column, Settings
+  [launchpad-development.md](launchpad-development.md#target-shell) (since its second
+  iteration of 2026-10-04 a rail of spaces, the Environment picker with the Settings
+  gear over the switch Chat · Apps · Automate at the top of the left column, Settings
   in T3 Code's shape and the Lazurio design-system look, the Buddy bubble); the
   resident's proof of concept is no longer the input. *Historical text of 2026-09-28:*
   an approved new shell of the Launchpad (row tiles, a left rail) is

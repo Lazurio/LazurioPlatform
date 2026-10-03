@@ -55,41 +55,96 @@ of them. The original bounded proof is unchanged and is not relabelled as a full
 
 ## Target shell
 
-**Decided by Matěj on 2026-10-03 (the Lazurio shell decisions); not implemented.** This
-section records the target that the Launchpad, the Dashboard and the two forks converge
-on. The sections below describe what is built today; where they differ, a note points
-here. Nothing in this section is executable evidence.
+**Decided by Matěj on 2026-10-03 (the Lazurio shell decisions); second iteration decided
+on 2026-10-04; the second iteration is not implemented.** This section records the
+target that the Launchpad, the Dashboard and the two forks converge on. The second
+iteration was proposed and decided by Anička, the owner of the design system and of the
+shell's UX, after reviewing the shell wireframe (HumanAndMachine-ai/prototypes-lazurio#4),
+and Matěj confirmed it as a whole on 2026-10-04. It replaces the first target's rail of
+Environments in Organization folders, its gear in the rail and its accent fill (root
+decision 0179 points 2 and 3 in part), and the Apps column's module list and search; the
+root records it as decision 0185 (HumanAndMachines/Lazurio#487). A
+first cut of the first target is built ([decision F36](#the-shell-as-built-decision-f36));
+the record of the second iteration is
+[F36's addendum of 2026-10-04](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer).
+The sections below describe what is built today; where they differ, a note points here.
+Nothing in this section is executable evidence.
 
-**Layout.** There is no top bar. Level 1 is a rail of Environments on the far left, and
-the app's left column runs full height next to it. The app switch **Chat · Apps ·
-Automate** sits at the top of the left column: Chat is T3 Code (`t3code.…`), Apps is
-this Launchpad (`launchpad.…`) and Automate is MausBot (`mausbot.…`). Each is its own
-origin of the Environment, so the switch and the rail are plain links that load a full
-page. The Dashboard is not in the switch; the Lazurio logo at the top of the rail opens
-it.
+**Layout.** There is no top bar. Level 1 is a rail of spaces on the far left (the
+personal space and one per Organization), and the app's left column runs full height
+next to it. At the top of the left column sits the column head: the Environment picker
+with the Settings gear beside it, and under them the app switch **Chat · Apps ·
+Automate**. Chat is T3 Code (`t3code.…`), Apps is this Launchpad (`launchpad.…`) and
+Automate is MausBot (`mausbot.…`). Each is its own origin of the Environment, so the
+switch, the picker's entries and the rail are plain links that load a full page. The
+Dashboard is not in the switch; the Lazurio logo at the top of the rail opens it.
 
-**Rail.** First the operator's personal Environments, then one folder per Organization
-(the Discord model). A folder first shows six Environments; "+N" unfolds the rest right
-in the rail and "méně" (less) folds them back, so every Environment the person may enter
-is reachable from the rail. Labels appear instantly, on two lines: the name, then
-Organization · kind · state. The active Environment is loud: filled with its
-Organization's accent and ringed; there is no "you are working on" badge. A personal
-Environment's mark is its Owner's initials; an Organization's mark is the GitHub
-Organization's avatar, cached by the Dashboard on each GitHub sync and changed only on
-GitHub. The jump switcher is **⌘⇧E** (Ctrl+Shift+E on Windows and Linux), not ⌘K, which
-T3 Code uses for its own command palette. Dedicated servers are never Environments and
-never appear in the rail; they belong to the Organization Settings (Owner only).
+**Rail.** The rail switches spaces, not Environments. From the top: the Lazurio logo
+(the Dashboard), the search button that opens the jump dialog (**⌘⇧E**, Ctrl+Shift+E on
+Windows and Linux; not ⌘K, which T3 Code uses for its own command palette), the personal
+space (its Owner's initials), one GitHub avatar per Organization, and "+" to add an
+Organization. At the bottom there is only the account, shown as the person's GitHub
+photo. There are no Environment icons, no Organization folders and no "+N"/"méně": a
+kind icon looks the same in every Organization and a wrong click is easy, while an
+Organization's avatar is recognised at a glance. The avatar is the GitHub
+Organization's, cached by the Dashboard on each GitHub sync and changed only on GitHub.
+The active space has an ink ring around its avatar: no pill on the edge and no fill in
+the Organization's colour. The tooltip shows the space's name, the number of its
+Environments and the last one used. Clicking an Organization returns to the Environment
+last used in it, in the same app (Chat stays Chat); without a remembered one it opens the
+Organization's first Environment, and with no Environment at all the Organization's
+Dashboard. The personal space opens the personal Remote Environment, or the last
+personal Environment used. Dedicated servers are never Environments and appear neither
+in the rail nor in the picker; they belong to the Organization Settings (Owner only).
 
-**Settings and the gear.** The rail's gear opens the Settings of wherever the person is.
-In an Environment (Apps, Chat, Automate or a module app) that is the Environment's
-Settings under this Launchpad (`/settings/<section>`); in the Dashboard it is the
-account Settings, the same place as "Nastavení účtu" (account settings) in the account
-menu. Organization Settings are an item of the Organization panel in the Dashboard.
+**Column head: the Environment picker.** Above Chat · Apps · Automate the picker names
+the Environment: its name, below it whom it serves, and the Organization's avatar as its
+glyph. Its dropdown lists the Environments of the current space by name. The
+Organization stands above its Environments as a head row that opens the Organization's
+Dashboard; the Dashboard is never one more row beside the Environments. "This computer",
+a workstation that carries several Organizations, appears in every Organization it
+carries and opens for that Organization, so the Organization is part of the address of
+every app (in the wireframe `#/e/<env>/<app>/o-<org>`). "Všechny Organizace" (all
+Organizations) widens the list; search, ↑↓ and Enter work in it. The dropdown overlays
+the column only while it is open, so a fork's sidebar keeps its content. ⌘⇧E stays the
+global jump dialog. On an Organization's Dashboard the picker names the Organization,
+and the column has no second Organization block under it.
+
+**Environment names say what the Environment is for.** A Team Environment is
+"Team <name>", a work Environment "Pracovní", an Automated Environment the persona's
+name, a local one the computer's name and the personal Remote Environment "Osobní". No
+name carries "VM" (root decision 0170). The default name comes from the Team, the
+assignment or the persona in the Dashboard; whether a Team with several Environments may
+rename them is open. The picker's second line says whom the Environment serves (sdílený
+Teamem / jen tvůj / @kolega / automatizace / předplatná Organizace), and its state only
+when it is not running ("offline"). The Machine's technical name (`vm-01`) appears only
+in Environment Settings → Tento Environment ("Technický název (pro podporu)"), in
+Diagnostics, in Servers and in the address. The address bar keeps it (root decision
+0146); changing that would be a separate infrastructure decision.
+
+**Selection is the quiet surface** (the design system's variant A,
+HumanAndMachine-ai/design-system-lazurio#54). A selected row, menu item or navigation
+item and the picker take a surface one step darker (`gray-100`) and semibold type, and
+in a list a check with a word ("tady jsi", you are here). The picker has no frame until
+it is hovered or open. Nothing is selected by an edge on the left: in the design system
+that is `lz-edge`, "something to resolve". The Organization's colour stays in its avatar
+and never marks the active element; there are no drop shadows and no all-caps labels.
+This replaces the first target's active Environment filled with the Organization's
+accent and ringed, and closes the question of an Organization accent token without a
+new token.
+
+**Settings and the gear.** The gear is a square button beside the picker, not in the
+rail: at the bottom of the rail, under the Organizations, it read as global Settings. It
+opens the Settings of exactly what the picker names. In an Environment (Apps, Chat,
+Automate or a module app) that is the Environment's Settings under this Launchpad
+(`/settings/<section>`); on an Organization's Dashboard it is the Organization Settings.
+Account Settings stay in the account menu ("Nastavení účtu", account settings).
 Settings in every scope share one kit in T3 Code's shape (the patterns
 [below](#settings-structure-routes-and-the-t3-code-pattern)) and the Lazurio
 design-system look: its tokens, type and colour, not T3 Code's. The Environment's
 sections are Obecné / Tento Environment / Nástroje / Obnova (General / This Environment
 / Tools / Recovery); the Czech name is "Tento Environment", never "Toto" or "Tenhle".
+Whether Diagnostika and Přístup belong under Tento Environment is open (plan DEV-6628).
 
 **Apps home.** The home shows the Organization's name on top (a picker on a computer
 with several Organizations) and two sections (Matěj's final position, evening of
@@ -106,6 +161,70 @@ that an Environment does not show Teams. A module tile
 opens the module's app in a new tab on its own origin; selecting the module in the left
 column opens its overview: open the app, its lifecycle, branches and worktrees, its
 log.
+
+**Apps in the second iteration (2026-10-04).** The two sections stay as above
+(Workspace and Productionspace; Productionspace holds repositories, counted as
+"repozitáře", not modules, and counts use the Czech plural: 1 modul, 3 moduly, 6
+modulů). The rest of the Apps paragraph above is refined as follows; where they differ,
+this paragraph wins: a module is no longer selected in the left column, and its
+information page is reached only from its tile's menu.
+
+- **Landing.** After sign-in, and when Lazurio is opened without an address, the person
+  lands in Apps of the Environment they had open last, in its Organization; the first
+  time, in the first Environment of the first Organization. The Lazurio logo still
+  opens the Dashboard. The Dashboard account remembers the last Environment, because
+  every Environment has its own address.
+- **Header.** The Organization's name, and under it the Environment's name with its
+  kind icon. It never says "sdílený Teamem"; it says "offline" only when the
+  Environment is not running. The Guide is only the link at the top right; there is no
+  Guide tile. On a computer with several Organizations the Organization comes from the
+  address, chosen in the rail or the column head's picker, so the home needs no
+  Organization picker of its own.
+- **Column.** Under the column head the Apps column holds only Všechny moduly (all
+  modules), Soubory (Files, decision F35), Oblíbené (the favourites, pinned) and, at
+  its bottom, the Marketplace. There is no module list (its rows led to technical
+  details and confused people) and no search.
+- **Marketplace.** The entry is in the Apps column of every Environment. For now it
+  says "již brzy" (coming soon) and opens a placeholder page; it is not the
+  [future marketplace](marketplace.md).
+- **Favourites.** Set from a module's "⋯" menu ("Přidat do oblíbených" / "Odebrat z
+  oblíbených"). They are pinned in the column, where a favourite opens its app
+  directly. On the home a starred module comes first in its section, in the column's
+  order, with a small filled star by its name. Favourites belong to the person and the
+  Organization (the Dashboard account), so they follow the person to every Environment
+  of that Organization; an Environment shows only those its GitHub identity can reach.
+- **A clean tile.** Icon, name, short description, the favourite star and "⋯", which
+  sits top right, always visible but quiet. No state line (Běží / Skončila sama / Nelze
+  spustit), no running dot, no new-tab arrow, no explanatory tail ("otevře složku
+  Modulu", "vlastní release, jen pro čtení") and no Productionspace subtitle. A work
+  branch on a tile stays.
+- **A tile's click.** A module with an app opens it, today in a new tab (Matěj,
+  2026-10-03); whether module apps should open in the same window is open. A tile
+  without an app opens nothing, not even the folder, and shows a short message: "Modul
+  <název> zatím nemá aplikaci.", "Repozitář <název> nemá aplikaci.", or for an app that
+  cannot start "Aplikace modulu <název> teď nejde spustit."
+- **The tile's "⋯" menu.** "Přidat do oblíbených" / "Odebrat z oblíbených";
+  "Informace o modulu" ("Informace o repozitáři" in Productionspace), the only entry to
+  the module's information page (the application's lifecycle, its folder, branches and
+  worktrees, its log); and for the Organization's Admin and Steward "Přístup k modulu".
+  That opens the module in the Organization's Dashboard (Nastavení Organizace → Moduly
+  → the module) in the same window. There a switch per Team decides whether the Team
+  reaches the module, other roles see it read-only, and the page lists the people who
+  reach it. GitHub stays the only authority: the Dashboard grants the Team access to the
+  module's repository with the rights of whoever changes it, and the module then shows
+  in Apps of the Environments whose GitHub identity reaches it.
+- **"+ Nový modul"** (new module) is the last tile of Workspace. It opens Chat of the
+  same Environment with a prepared prompt in the composer, not sent. The prompt has the
+  agent first ask what the module is for, its name, whether it has an app (and which
+  stack) and which Teams reach it; then found it with `lazurio module create
+  <org>/<slug> --stack … --teams …` by the Lazurio Module Standard, `--dry-run` first
+  and never by hand; check the GitHub repository and its Teams; and prepare a PR,
+  asking before Publication. The tile shows only where the Environment's GitHub
+  identity can create a repository and grant it to Teams: on the Organization Owner's
+  own work Environment or computer. Team and Automated Environments act under the
+  Team's identity, and the personal Environment has no Organization repositories. The
+  T3 Code fork must accept the prompt by link, from the Environment's own origin only
+  and never sent without the person (Lazurio/t3code#35).
 
 **Buddy.** Buddy is Buddy: he coordinates Agents on behalf of his person (the Operator)
 and holds the same authority over Agents as the Operator; he is neither an Agent nor an
@@ -126,20 +245,25 @@ without a Buddy sees no bubble.
 **The forks and `/.lazurio/`.** Chat (`Lazurio/t3code`) and Automate
 (`Lazurio/OpenMausBot`) keep their upstream look and branding until upstream's stable
 releases, and we keep calling them T3 Code and MausBot. A fork adds only the rail, the
-app switch in its own sidebar and the Buddy bubble, and knows nothing of Lazurio's data:
+column head at the top of its own sidebar (the only slot it adds to that sidebar) and
+the Buddy bubble, and knows nothing of Lazurio's data:
 
 - Behind the Environment's gateway every app hostname of the Environment
   (`launchpad.…`, `t3code.…`, `mausbot.…`) serves the path `/.lazurio/`, answered by
   this Launchpad. `/.lazurio/shell.js` is the script with the elements, in the version of
-  the Launchpad on that Environment; `/.lazurio/shell.json` holds the signed-in person,
-  the Environments and Organizations (the Launchpad takes them from the Dashboard), the
-  current Environment, the addresses of its apps and the Organization's accent. Same
-  origin: no CORS and no cookie of another site.
+  the Launchpad on that Environment; `/.lazurio/shell.json` holds the signed-in person
+  with their GitHub photo, the spaces (the personal space and the Organizations with
+  their avatars), their Environments with their names and whom they serve, the last
+  Environment used in each space (the Dashboard account remembers it; the Launchpad
+  takes all of this from the Dashboard), the current Environment and the addresses of
+  its apps. The second iteration needs no Organization accent: the Organization's colour
+  stays in its avatar. Same origin: no CORS and no cookie of another site.
 - `shell.js` defines three Web Components with Shadow DOM, so neither side's CSS reaches
-  the other: `<lazurio-rail>` (the logo to the Dashboard, the ⌘⇧E jump, personal
-  Environments, Organization folders, the gear, the account), `<lazurio-column-head>`
-  (the app switch, in place of the fork's logo at the top of its sidebar) and
-  `<lazurio-buddy>` (the bubble).
+  the other: `<lazurio-rail>` (the logo to the Dashboard, the search for the ⌘⇧E jump,
+  the personal space, one avatar per Organization, "+", the account),
+  `<lazurio-column-head>` (the Environment picker with the Settings gear, over the app
+  switch, in place of the fork's logo at the top of its sidebar) and `<lazurio-buddy>`
+  (the bubble).
 - The patch in each fork is about 20 lines in about three files: the
   `<script type="module" src="/.lazurio/shell.js">` in `index.html`, the three elements,
   and a fixed rail with `#root { box-sizing: border-box; padding-left:
@@ -158,7 +282,11 @@ sidebar footer and T3 Code's colour tokens
 Organization groups on the home ([catalog](#launchpad-home-the-catalog)), and Chat and
 Lazurio MausBot as links in the sidebar ([Chat entry](#chat-entry),
 [MausBot entry](#lazurio-mausbot-entry)); the target replaces these. The routes, the
-catalog's core and the module lifecycle are not affected.
+catalog's core and the module lifecycle are not affected. The shell built under decision
+F36 is a cut of the first target: its rail has Organization folders, the gear and the
+accent fill; its Apps column has the search and the module list; its tiles show state
+by exception, and a module without an app opens its overview. The second iteration
+replaces these.
 
 **Open.** The narrow display (how the rail and a fork's sidebar collapse; upstream T3
 Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
@@ -198,6 +326,13 @@ records what is functional and what is a facade until its source exists.
   gateway's Host and cookie. Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`".
+- **Against the second iteration (2026-10-04).** The build follows the first target:
+  `<lazurio-rail>` draws the Environment folders, the gear and the accent fill, and
+  `<lazurio-column-head>` only the switch; the Apps column has the search and the module
+  list; a tile shows state by exception and a module without an app opens its overview;
+  an Environment's label is the Machine name. The [target shell](#target-shell) and
+  [F36's addendum of 2026-10-04](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)
+  record what replaces these; none of it is built.
 
 ## Settings: structure, routes and the T3 Code pattern
 
@@ -209,7 +344,8 @@ Application panel stays on the home needs Matěj's amendment. Settings follows
 the settings UX of T3 Code, as Matěj asked, in plain CSS inside
 `src/launchpad/index.html` and without a framework or a new dependency. In the
 [target shell](#target-shell) Settings keep that shape in the Lazurio design-system
-look and open from the rail's gear.
+look and open from the gear beside the column head's Environment picker (second
+iteration, 2026-10-04; the first target had the gear in the rail).
 
 **Routes.** `/settings/general`, `/settings/machine`, `/settings/tools` and
 `/settings/recovery` (the read-only [Recovery page](recovery.md#the-recovery-page)); `/settings`
@@ -247,8 +383,8 @@ the frame.
 - the sidebar footer has "Settings" on the Launchpad home and "Back" inside Settings;
   Back goes to the Launchpad home, not through the browser history, and the update
   pill sits in the same footer (`sidebar/SidebarChrome.tsx`, `mainAppLocation.ts`);
-  in the [target shell](#target-shell) Settings open from the rail's gear instead,
-  scoped to where the person is;
+  in the [target shell](#target-shell) Settings open from the gear beside the
+  Environment picker instead, scoped to what the picker names;
 - Escape leaves Settings unless something else took it (`hooks/useNavigateBack.ts`);
 - a 52 px header with the breadcrumb "Settings / Tools", the current item
   `aria-current="page"`, and page-level actions on its right (`SettingsBreadcrumb.tsx`,
