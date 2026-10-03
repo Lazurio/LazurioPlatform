@@ -21,7 +21,10 @@ import {
   personalspaceModuleIds,
   personalspaceName,
 } from "./personalspace";
-import { observeOrganizationApplications } from "./read-applications";
+import {
+  type AppDisplay,
+  observeOrganizationApplications,
+} from "./read-applications";
 import { classifyRepositorySlotPath } from "./repository-slots";
 import type { OrganizationRootState } from "./root-resolution";
 
@@ -81,6 +84,11 @@ export type ModuleReason =
    * running anything (decision F25); `file` names the package it concerns. */
   | PreparationReason;
 
+/** What the default app of a module says of itself for a page (decision
+ * F36): its id, title, description, semantic icon key and tags, bounded and
+ * display-only. The Module's own manifest stays the authority. */
+export type { AppDisplay } from "./read-applications";
+
 export type CatalogApp = Readonly<{
   package: string;
   kind: "runtime-declared" | "invalid-runtime";
@@ -118,6 +126,9 @@ export type CatalogModule = Readonly<{
   teamsSource: TeamsSource;
   apps: readonly CatalogApp[];
   defaultApp: string | null;
+  /** What the default app's declaration says of it for a page: present only
+   * when that declaration was read (decision F36). */
+  display?: AppDisplay;
   /** The Organization root's state; null for a Personalspace module, which
    * has no Organization documents. */
   state: OrganizationRootState | null;
@@ -167,6 +178,10 @@ export type CatalogOrganization = Readonly<{
   /** The canonical slug; null when the root could not be read. */
   organization: string | null;
   displayName: string | null;
+  /** The GitHub login the canonical manifest binds the Organization to
+   * (`organization.forge_binding.locator` with `forge: "github"`), present
+   * only when it is one. Never the slug: the two may differ. */
+  forgeLogin?: string;
   state: OrganizationRootState | null;
   issues: readonly string[];
   executable: boolean;
@@ -318,6 +333,32 @@ async function moduleReason(
   return app?.reason !== undefined && app.file !== undefined
     ? { reason: app.reason, file: app.file }
     : { reason: "default-app-invalid" };
+}
+
+// The GitHub login of the canonical manifest's forge binding, when it is
+// one; the same field the legacy projection and the inventory read.
+function forgeLogin(organization: Data): Readonly<{ forgeLogin?: string }> {
+  const binding = organization.forge_binding;
+  if (!isRecord(binding) || binding.forge !== "github") return {};
+  const locator = binding.locator;
+  return typeof locator === "string" &&
+    /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(locator)
+    ? { forgeLogin: locator }
+    : {};
+}
+
+// The display of a module's default app, when its declaration was read.
+function defaultDisplay(
+  observed: object,
+  defaultApp: string | null,
+): Readonly<{ display?: AppDisplay }> {
+  const apps = "apps" in observed ? observed.apps : undefined;
+  const display = Array.isArray(apps)
+    ? (
+        apps as readonly Readonly<{ package: string; display?: AppDisplay }>[]
+      ).find((app) => app.package === defaultApp)?.display
+    : undefined;
+  return display === undefined ? {} : { display };
 }
 
 // An app of the catalog: its package, its kind and, when its declaration was
@@ -483,6 +524,7 @@ export async function readCatalogOrganization(
             teamsSource: source,
             apps: Object.freeze(apps),
             defaultApp,
+            ...defaultDisplay(entry, defaultApp),
             state,
             executable: reason === undefined,
             ...(reason === undefined ? {} : { reason }),
@@ -513,6 +555,7 @@ export async function readCatalogOrganization(
       typeof organization.display_name === "string"
         ? organization.display_name
         : result.company,
+    ...forgeLogin(organization),
     state,
     // The root's issues, then the inventory's (a slot without a usable id is
     // not a module row, but its conflict stays visible here).
@@ -632,6 +675,7 @@ async function readCatalogPersonalspace(
         teamsSource: "none",
         apps: Object.freeze(apps),
         defaultApp,
+        ...defaultDisplay(observed, defaultApp),
         state: null,
         executable: reason === undefined,
         ...(reason === undefined ? {} : { reason }),

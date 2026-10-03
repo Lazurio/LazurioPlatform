@@ -144,6 +144,7 @@ posixTest(
                 kind: "runtime-declared" as const,
               },
             ],
+            display: { id: "notes", title: "notes", tags: [] },
             executable: true,
           },
         ],

@@ -19,11 +19,14 @@ import {
   mausbotPairUrl,
 } from "../src/launchpad/mausbot";
 import { startLaunchpad } from "../src/launchpad/server";
+import { shellDocument } from "../src/launchpad/shell-document";
 import { machineBinding } from "../src/machine/binding";
 import {
   type MachineContext,
   parseMachineContext,
 } from "../src/machine/context";
+import { shellMessages } from "../src/shell/messages";
+import { switchTabs } from "../src/shell/view";
 import {
   binding,
   bindings,
@@ -472,17 +475,30 @@ test("the page shows MausBot only for a recorded origin, and accepts a pairing l
   expect(publicEntry(bindings.organizationEntry.entry ?? null)).toEqual(entry);
 });
 
-test("the page's MausBot entry stands next to Chat, hidden and without a link in the markup", async () => {
+test("the page's MausBot entry is Automate in the switch next to Chat (decision F36), with no link in the markup", async () => {
   const html = await readFile(
     join(import.meta.dir, "..", "src", "launchpad", "index.html"),
     "utf8",
   );
-  const menu =
-    /<ul class="menu chat-menu" id="chat-menu" hidden>(.*?)<\/ul>/.exec(html);
-  const items = menu?.[1] ?? "";
-  expect(items).toContain('id="mausbot" rel="noreferrer" hidden');
-  expect(items.indexOf('id="chat"')).toBeLessThan(
-    items.indexOf('id="mausbot"'),
+  expect(html).toContain(
+    '<lazurio-column-head id="column-head" active="apps">',
   );
-  expect(items).not.toContain('href="http');
+  expect(html).not.toContain('id="mausbot"');
+  expect(html).not.toContain('href="http');
+  const shell = shellDocument({
+    preset: "hosted-organization-personal",
+    machine: binding(handover()),
+    locale: "en",
+    catalog: { kind: "catalog", organizations: [] },
+  });
+  expect(
+    switchTabs(shell, shellMessages("en"), "apps").map((tab) => [
+      tab.app,
+      tab.href,
+    ]),
+  ).toEqual([
+    ["chat", `https://t3code.${host}/`],
+    ["apps", `https://launchpad.${host}/`],
+    ["automate", `${mausbotOrigin}/`],
+  ]);
 });
