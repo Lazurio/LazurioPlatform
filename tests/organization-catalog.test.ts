@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   catalogSelection,
   organizationRoute,
+  parseCatalog,
   routeOrganization,
 } from "../src/launchpad/catalog-view";
 import { startLaunchpad } from "../src/launchpad/server";
@@ -13,6 +14,7 @@ import {
   catalogModules,
   findCatalogOrganization,
   readFolderCatalog,
+  repositoryPage,
 } from "../src/organizations/catalog";
 import { runCatalogCommand } from "../src/organizations/cli";
 import { isExecutableOrganizationState } from "../src/organizations/root-resolution";
@@ -56,6 +58,7 @@ posixTest(
                 organization: "alpha",
                 module: "web",
                 path: "workspace/web",
+                layout: "workspace",
                 teams: ["core", "sales"],
                 teamsSource: "teams",
                 apps: [
@@ -69,6 +72,7 @@ posixTest(
                 organization: "alpha",
                 module: "docs",
                 path: "workspace/docs",
+                layout: "workspace",
                 teams: ["core"],
                 teamsSource: "teams",
                 apps: [],
@@ -81,6 +85,7 @@ posixTest(
                 organization: "alpha",
                 module: "shop",
                 path: "workspace/shop",
+                layout: "workspace",
                 teams: ["workspace"],
                 teamsSource: "default",
                 apps: [
@@ -99,6 +104,7 @@ posixTest(
                 organization: "alpha",
                 module: "mission-control",
                 path: "mission-control",
+                layout: "organization",
                 teams: ["core"],
                 teamsSource: "teams",
                 apps: [
@@ -107,6 +113,32 @@ posixTest(
                 defaultApp: "app/package.json",
                 state: "transition",
                 executable: true,
+              },
+            ],
+            // Read-only repositories, never modules: infra in the
+            // Organization group, the productionspace ones in theirs, each
+            // with whether it is checked out and its GitHub page.
+            repositories: [
+              {
+                slug: "infra",
+                layout: "organization",
+                path: "infra",
+                checkedOut: true,
+                url: "https://github.com/alpha/infra",
+              },
+              {
+                slug: "firmware",
+                layout: "productionspace",
+                path: "productionspace/firmware",
+                checkedOut: true,
+                url: "https://github.com/alpha/firmware",
+              },
+              {
+                slug: "connect",
+                layout: "productionspace",
+                path: "productionspace/connect",
+                checkedOut: false,
+                url: null,
               },
             ],
           },
@@ -124,6 +156,7 @@ posixTest(
                 organization: "beta",
                 module: "api",
                 path: "workspace/api",
+                layout: "workspace",
                 teams: ["workspace"],
                 teamsSource: "default",
                 apps: [
@@ -135,6 +168,7 @@ posixTest(
                 ...(current ? {} : { reason: "organization-not-executable" }),
               },
             ],
+            repositories: [],
           },
           {
             directory: "broken",
@@ -146,6 +180,7 @@ posixTest(
             reason: "organization-conflict",
             teams: [],
             modules: [],
+            repositories: [],
           },
           {
             directory: "delta",
@@ -169,6 +204,7 @@ posixTest(
               organization: "delta",
               module,
               path: `workspace/${module}`,
+              layout: "workspace",
               teams,
               teamsSource,
               apps: [],
@@ -177,6 +213,7 @@ posixTest(
               executable: false,
               reason: "no-app",
             })),
+            repositories: [],
           },
           {
             directory: "starter",
@@ -188,6 +225,7 @@ posixTest(
             reason: "template-not-runtime",
             teams: [],
             modules: [],
+            repositories: [],
           },
         ],
       });
@@ -404,6 +442,30 @@ posixTest(
       expect(findCatalogOrganization(catalog, "zeta")?.issues).toEqual([
         "repository-id-collision",
       ]);
+      // The layout group comes from the slot path, not from the id: the
+      // root-level slot is the Organization's, the other a workspace module.
+      expect(
+        findCatalogOrganization(catalog, "zeta")?.modules.map((module) => [
+          module.path,
+          module.layout,
+        ]),
+      ).toEqual([
+        ["workspace/mission-control", "workspace"],
+        ["mission-control", "organization"],
+        ["design-system", "organization"],
+      ]);
+      // gamma's productionspace repository carries a module manifest and is
+      // still only a read-only repository; a directory without `.git` is
+      // not checked out.
+      expect(findCatalogOrganization(catalog, "gamma")?.repositories).toEqual([
+        {
+          slug: "firmware",
+          layout: "productionspace",
+          path: "productionspace/firmware",
+          checkedOut: false,
+          url: null,
+        },
+      ]);
       expect(rows("eta")).toEqual([
         [
           "mission-control",
@@ -440,6 +502,23 @@ posixTest(
   },
   30_000,
 );
+
+test("a repository's GitHub page is read from its declared remote, only for github.com", () => {
+  for (const [remote, page] of [
+    ["git@github.com:Owner/repo.git", "https://github.com/Owner/repo"],
+    ["ssh://git@github.com/owner/repo", "https://github.com/owner/repo"],
+    ["https://github.com/owner/re.po.git", "https://github.com/owner/re.po"],
+    ["https://github.com/owner/repo/", "https://github.com/owner/repo"],
+    ["https://gitlab.com/owner/repo.git", null],
+    ["https://github.com/owner/repo/tree/main", null],
+    ["https://github.com/owner/..", null],
+    ["javascript:alert(1)", null],
+    ["", null],
+    [42, null],
+    [undefined, null],
+  ] as const)
+    expect(repositoryPage(remote)).toBe(page);
+});
 
 posixTest(
   "a Folder without organizations/ has an empty catalog; an unowned Folder is refused",
@@ -712,7 +791,15 @@ posixTest(
         );
         const answer = await call({});
         expect(answer.status).toBe(200);
-        expect(await answer.json()).toEqual(JSON.parse(cli.text));
+        const value = await answer.json();
+        expect(value).toEqual(JSON.parse(cli.text));
+        // The page draws exactly this answer: its shape check admits it,
+        // with the layout of every module and the read-only repositories.
+        const parsed = parseCatalog(value);
+        expect(parsed).not.toBeNull();
+        expect(
+          parsed?.organizations[0]?.repositories.map((entry) => entry.slug),
+        ).toEqual(["infra", "firmware", "connect"]);
         // The same admission as every other route; no path from the browser.
         expect((await call({}, { Authorization: "" })).status).toBe(403);
         expect(

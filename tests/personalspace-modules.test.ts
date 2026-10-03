@@ -110,6 +110,7 @@ posixTest(
       const module = {
         organization: "personalspace",
         path: "workspace/diary",
+        layout: "workspace" as const,
         teams: [],
         teamsSource: "none" as const,
         apps: [
@@ -146,6 +147,7 @@ posixTest(
             executable: true,
           },
         ],
+        repositories: [],
       });
       privateNames(JSON.stringify(catalog));
 
@@ -254,6 +256,7 @@ posixTest(
         reason: "personalspace-ambiguous",
         teams: [],
         modules: [],
+        repositories: [],
       });
       const listed = await runCatalogCommand(
         ["module", "list", "personalspace", "--folder", folder],

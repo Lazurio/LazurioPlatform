@@ -10,9 +10,16 @@ export const rootApplicationPaths: ReadonlySet<string> = new Set([
   "design-system",
   "mission-control",
 ]);
+/** The root-level repository slot of an Organization that the Launchpad
+ * lists read-only in its Organization group (root decision 0179 point 5):
+ * a repository, never a module (decision F24). `mission-control/db` is the
+ * data of Mission Control, not listed. */
+export const organizationRepositoryPaths: ReadonlySet<string> = new Set([
+  "infra",
+]);
 const rootPaths = new Set([
   ...rootApplicationPaths,
-  "infra",
+  ...organizationRepositoryPaths,
   "mission-control/db",
 ]);
 const mount = "[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?";
