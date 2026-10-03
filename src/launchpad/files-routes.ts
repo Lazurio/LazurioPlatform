@@ -268,9 +268,13 @@ export function createFilesRoutes(
     if (nameRefusal !== null) return refusal(nameRefusal);
     // The declared length is what proves the file arrived whole.
     const declared = request.headers.get("content-length");
-    if (declared === null || !/^\d{1,16}$/.test(declared))
-      return refusal("length-required");
     const length = Number(declared);
+    if (
+      declared === null ||
+      !/^\d+$/.test(declared) ||
+      !Number.isSafeInteger(length)
+    )
+      return refusal("length-required");
     const found = await locate(parsed.segments, true);
     if (isRefused(found)) return refusal(found.refusal);
     if (found.entry.kind !== "directory") return refusal("not-directory");
