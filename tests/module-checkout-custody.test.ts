@@ -132,7 +132,9 @@ async function world(name: string, body: (world: World) => Promise<void>) {
         try {
           return (await operations.ensure("notes", {
             mayStart: true,
-            waitMs: 2_000,
+            // A declared start installs from the lockfile first (decision
+            // F34), about a second more than its check alone here.
+            waitMs: 10_000,
             pollMs: 10,
           })) as Record<string, unknown>;
         } finally {
@@ -532,7 +534,9 @@ async function cloned(name: string, body: (clone: Clone) => Promise<void>) {
         try {
           return (await operations.ensure(id, {
             mayStart: true,
-            waitMs: 2_000,
+            // A declared start installs from the lockfile first (decision
+            // F34), about a second more than its check alone here.
+            waitMs: 10_000,
             pollMs: 10,
           })) as Record<string, unknown>;
         } finally {

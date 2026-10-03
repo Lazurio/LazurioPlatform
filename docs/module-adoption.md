@@ -37,7 +37,7 @@ read from every directory in `<Folder>/organizations/` by `lazurio organization 
 `lazurio module list` and `POST /api/catalog`; the panel's discovery and selection form
 is gone from the page. `POST /api/apps/discover`, the application operations
 `/api/apps/*` and `app-request` described here are unchanged; the module lifecycle
-`lazurio module start|stop|status|logs` (slice P5,
+`lazurio module start|prepare|stop|status|logs` (slice P5, F34,
 [launchpad development](launchpad-development.md#module-lifecycle)) runs the catalog's
 modules over the same lifecycle core beside them, and their retirement is still open;
 `scripts/smoke-application-ui.ts` drives them over the API. Which Organization states may run applications is the
@@ -56,7 +56,11 @@ Authenticated preparation requests use a 660-second transport wait rather than t
 ordinary CLI request's 30 seconds, allowing the Bun preparation effect's maximum
 600-second budget and cleanup. Launchpad extends that request's idle timeout only
 after authentication and body parsing. A real 31-second shared-owner test covers
-the CLI/server path. These deadlines do not cancel an operation, prove rollback,
+the CLI/server path. Since F34 the module routes `POST /api/modules/…/start` and
+`…/prepare` answer within 630 seconds counted from naming the module (resolution, queue,
+locks, preflight and the answer's status read included): a start or preparation still
+running then answers `202` with
+`start-pending` or `prepare-pending` and goes on. These deadlines do not cancel an operation, prove rollback,
 or solve queue admission, reconnect/status tracking and uncooperative adapter
 timeouts; those remain integration work, not reasons to automatically retry a write.
 
@@ -141,8 +145,9 @@ and runs with the operator's Bun (`~/.local/bin/bun`), whichever version it is; 
 that pins `bun@x.y.z` still requires exactly that Bun, and any other `packageManager`
 is refused. Because the default has no check, **its start-time step is the frozen
 install itself**, which changes nothing when `node_modules` already matches the
-lockfile and repairs it when it does not; an explicit declaration's start still runs
-only its check and installs nothing. A local `file:` dependency of the default preparation
+lockfile and repairs it when it does not; an explicit declaration's start runs the same
+install, then its check, and only when the check fails its `prepare_script` and the check
+again (decision F34, below). A local `file:` dependency of the default preparation
 may lie anywhere in the same Organization directory (for a Personalspace module, its
 owner directory), also outside the module's own repository: real modules share a
 contracts package of the Organization's root repository
@@ -325,18 +330,40 @@ starts a fixture application that allows only its external origin's hostname thr
 the module operations on a hosted and a workstation fixture Folder and compares the
 whole environment exactly.
 
-For start-time prerequisites, `preflightDeclaredBunCheck` selects the explicit check
-operation of that same process owner. It skips frozen installation and prepare_script,
-requires check_script, and rejects clean-install mode. The default preparation (F25)
-has no check script: for it the start-time step is its frozen install, and a failed
-install answers `preparation-install-failed` with the lockfile instead of
-`prerequisites-not-ready`. Module check code is expected
-not to provision or repair; that is a module contract, not an OS sandbox guarantee.
-The lifecycle's optional `preflightStartCheck` retains this operation through run/close
-and shutdown before preparing an application launch. Failed prerequisites return
-`prerequisites-not-ready`; unconfirmed cleanup stays owned and prevents another start.
-Status inspection does not invoke this operation. Synthetic tests distinguish a missing
-dependency from permission to install it and cover shutdown during the start check.
+For the start-time step, `preflightDeclaredBunStart` selects the `start` operation of
+that same process owner (decision F34, issues #114 and #116). It requires check_script
+and rejects clean-install mode. It runs, in one run under the same 600-second deadline,
+the frozen install from the lockfile beside the owner's package on every start (exactly
+as the default preparation does; when `node_modules` already matches the lockfile Bun
+leaves registry and Git dependencies as they are, but copies local `file:` dependencies
+again and runs the app package's own lifecycle scripts such as `postinstall`, so such a
+hook runs on every start), then the check. A check that passes ends the step: the application starts
+and prepare_script does not run. A check that exits non-zero is followed by the declared
+prepare_script and the check again, as the Lazurio Module Standard (root
+`manual/module-standard.md` ch. 3 and 10) requires; the application starts only when that
+check passes. The install comes first because the check verifies the module's own
+preparation, while whether the installed tree matches the lockfile is the Platform's
+question: a check that passed on a tree installed for an earlier lockfile started an
+application that crashed on a dependency an update had added. The step that failed is
+named: `preparation-install-failed` with the lockfile (no check runs),
+`preparation-script-failed` with the owner's `package.json`, and
+`prerequisites-not-ready` when the check still fails after the preparation (or after the
+install when there is no prepare_script). An application whose directory contains, or
+lies inside, another application of its module only checks at start (an install could
+change that application's files beneath it), and a check that fails answers
+`preparation-applications-overlap`. The default preparation (F25) has no check script:
+for it the start-time step is its frozen install, and a failed install answers
+`preparation-install-failed` with the lockfile. Module check code is expected
+not to provision or repair; that is a module contract, not an OS sandbox guarantee. The
+start-time preparation runs under the start's coordination like the default's install
+(F25 point 2): an interrupted one leaves no retained record, and the next start installs
+and checks again. The lifecycle's optional `preflightStartCheck` retains this operation
+through run/close and shutdown before preparing an application launch; unconfirmed
+cleanup stays owned and prevents another start. Status inspection does not invoke this
+operation. Synthetic tests cover the order of the steps, each step's failure, a passing
+check that runs no prepare_script, a stale tree repaired by the start, and shutdown during
+the start check (`tests/frozen-install-process.test.ts`,
+`tests/module-declared-preparation.test.ts`).
 
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
@@ -696,11 +723,13 @@ What changed in the locked sections (`local-application-adapters.ts`,
 
 - **Stop**: coordination lock only. It does not resolve the preparation binding and
   is never blocked by a crashed Launchpad or an interrupted preparation.
-- **Start**: coordination lock only. Start contains no install or repair — only the
-  declared check and the runner operation — so nothing had to be split out of it. It
-  refuses with `preparation-recovery-required` when a retained record that this owner
+- **Start**: coordination lock only. Its start-time step (the default preparation's
+  install, F25, or the same install and a declared check followed by `prepare_script`
+  only when it fails, F34) leaves no retained record when interrupted: the next start's
+  step installs and decides again.
+  It refuses with `preparation-recovery-required` when a retained record that this owner
   does not hold exists on its dependency tree: an application is never started on a
-  tree whose preparation died.
+  tree whose explicit preparation died.
 - **Prepare / clean-prepare**: the coordination lock around the whole operation, so
   "no active unit" stays true for its duration and `application-running` is decided
   under it; inside it, the retained lock around the transaction. The record is now
@@ -763,8 +792,10 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
 - **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
 - **Preparation without a Launchpad.** Since slice P5 `lazurio module start|stop|status|logs`
   work from the CLI alone for service-owned applications, with the operator's Bun from
-  `~/.local/bin/bun`; `app-request` status and stop still work as below. Preparation
-  (`prepare`, `clean-prepare`) and a one-step `open` are not yet CLI verbs.
+  `~/.local/bin/bun`; `app-request` status and stop still work as below. Since F34
+  `lazurio module prepare` is a CLI verb too (the explicit preparation, refused while
+  another application of the Organization is managed). `clean-prepare` and a one-step
+  `open` are not yet CLI verbs.
 - **Survival across a product activation** is not yet exercised (there is no activation
   of a running Launchpad yet); a graceful and a killed Launchpad are.
 - **Operator recovery of an interrupted preparation** stays explicit and unqualified:

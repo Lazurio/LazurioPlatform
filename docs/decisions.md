@@ -2373,7 +2373,9 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    install). The same holds for the gateway's `ensure` and the Launchpad's Start, which
    run the same core. The install runs under the start's coordination, not as a
    separate transaction: an interrupted install leaves no retained record, because the
-   next start's frozen install is its repair.
+   next start's frozen install is its repair. *Amended by F34:* a declared preparation's
+   start runs the same install, then its check, and only when the check fails its
+   `prepare_script` and the check again.
 3. **The toolchain.** A package that pins Bun (`packageManager: bun@x.y.z`) is
    installed and run with exactly that Bun, as before; a mismatch with the operator's
    Bun is `preparation-toolchain-mismatch`. **A package that pins none is installed and
@@ -2979,7 +2981,103 @@ shaping).
 | Each person signs in and the composition follows the person | Wrong subject on Team and Automated Environments; nothing works while nobody is signed in; rejected |
 | The Dashboard's live projection, Environment registration, local application with the Environment's own identity (proposed) | One projection for every kind of Environment; GitHub stays the authority; nothing destructive without a person |
 
-## F34 — Files: the Operator's Documents through the Launchpad
+## F34 — A declared preparation's start installs, checks and prepares when the check fails; `lazurio module prepare`
+
+**Decided 2026-10-02 by the owner of the Platform rollout of the Lazurio Module Standard**
+(root decision 0171, `manual/module-standard.md` ch. 3 and 10; issues #114, #116). Under the
+standard every application declares `lazurio.preparation`, and the Launchpad holds one
+policy for every module: installing the dependencies (`bun install --frozen-lockfile` from
+the lockfile beside the application's `package.json`) is part of the preparation the
+Platform owns, and the module's `prepare_script` never repeats it; before a start the
+Launchpad runs `check_script` and, when it fails, `prepare_script`, then the check again.
+Observed on `0.1.8-rc.11` and `rc.12`: the Platform installed only for an application
+**without** a declaration (F25), so a converted module on a fresh checkout answered
+`prerequisites-not-ready` and nothing on the operator's side could prepare it; and a
+converted module whose check passed on a tree installed for an earlier lockfile started
+and crashed at once on a dependency an update had added (`Cannot find module`).
+
+1. **The start-time step.** For a declared preparation the start runs the frozen install
+   from the lockfile beside the owner's package **first, on every start**, exactly as the
+   default preparation does (F25 point 2), under the existing install authority, checkout
+   rule and guarded process; then its check. A check that passes is the end of the step:
+   the application starts and `prepare_script` does not run. A check that fails is followed
+   by the declared `prepare_script` and the check again; the application starts only when
+   that check passes. The gateway's `ensure` and the Launchpad's Start run the same core.
+   **Why the install comes first:** the check verifies the module's own preparation (its
+   data, its build); whether the installed tree matches the lockfile is the Platform's
+   question, and the frozen install is the Platform's answer to it. A module check cannot
+   reliably tell whether `node_modules` matches its lockfile, and one that passes on a
+   stale tree started an application that crashed. **What a satisfied install still
+   does:** when `node_modules` already matches the lockfile, Bun leaves registry and Git
+   dependencies as they are ("no changes"), but it copies local `file:` dependencies into
+   `node_modules` again and runs the application package's own lifecycle scripts
+   (`preinstall`, `install`, `postinstall`, `prepare`) on every install. So such a hook runs
+   on every start before the check, as it already does for every application without a
+   declaration (F25); it is not a side-effect-free no-op. The Platform does not suppress
+   this: skipping a satisfied install
+   would need a second record of the installed state beside Bun's, and `--ignore-scripts`
+   would also skip them on a real install. Under the standard a module's own preparation
+   belongs in `prepare_script`; a module that keeps a root lifecycle hook keeps it
+   idempotent and cheap. The cost is the one every application without a declaration
+   already pays: Bun's own frozen install of a satisfied tree took about 10 ms here, and
+   the guarded process, toolchain and input checks around it made a declared start of the
+   fixture module about 1.1 s slower on macOS ARM64 (1.2 s to 2.3 s, start to healthy
+   against the in-memory user manager).
+2. **One run, one deadline; the routes answer in time.** The install, the check, the
+   script and the second check are one run of the existing Bun preparation under its one
+   600-second budget; cancellation, timeout, unconfirmed cleanup and changed inputs never
+   become prepared. That budget starts only once the run starts: before it, a start can
+   wait in the Organization's queue behind another application's start, for the
+   coordination lock and for the preflight. The Launchpad's module routes (`POST
+   …/start`, `…/prepare`) therefore bound the whole request, not the run: they answer
+   within `moduleAnswerWithinMsDefault` (630 s, below their 660-second idle timeout),
+   counted from when the module is named, so the bound covers the module's resolution
+   (the catalog and the runner selection, which on Linux may wait 5 s for `systemctl`)
+   and the status read of the answer too. A start or preparation not finished when only
+   the read's share is left (half the deadline, at most 5 s) answers `202` with the app's
+   status, read within that share, and the outcome `start-pending` or `prepare-pending`,
+   and goes on in the Launchpad; its result is the app's later status. A status read
+   that does not finish in time leaves the pending answer unobserved: not healthy, no
+   service, no link, and the state the operation under way gives (`starting` for a
+   start, `stopped` for a preparation, which never starts the app); the page then reads
+   the status itself. A module not resolved by then is never operated on and answers
+   `operation-failed` (nothing changed). The CLI has no transport and waits for the
+   result; the gateway's `ensure` keeps its own 20-second answer.
+3. **Exclusion as F25 point 2.** The start-time preparation runs under the start's
+   coordination, not as a retained transaction: an interrupted install or script leaves
+   no retained record, and the next start installs and checks again.
+4. **Nested applications.** A declared preparation keeps application packages nested in
+   one another possible (F25 point 6). For such an application the start never installs:
+   its check runs, and a check that fails answers `preparation-applications-overlap`; only
+   an explicit preparation installs.
+5. **The failed step is named.** `preparation-install-failed` with the lockfile (now also
+   for a declared preparation), the new `preparation-script-failed` with the owner's
+   `package.json`, and `prerequisites-not-ready` when the check still fails after the
+   preparation (or fails after the install when there is no `prepare_script`). The CLI and
+   the page explain each (English and Czech).
+6. **`lazurio module prepare <Org>/<module> [--app] [--json]`** and `POST
+   /api/modules/<org>/<module>/prepare`: the existing explicit preparation of the
+   lifecycle (the transaction with the retained owner lock), whatever the check says now:
+   install, `prepare_script`, check; it never starts anything. It keeps that path's guards:
+   `application-running` beneath a service-owned application, `other-app-managed` while
+   another application of the same Organization is managed (#124), and a session
+   application is stopped for its own preparation, as before. A known preflight refusal is
+   answered with its `preparation-*` reason and module-relative file, so the transaction
+   completes and leaves no retained record. Where applications are session-owned, the CLI
+   answers `launchpad-required`, as for start. No operator step is needed after an update
+   that adds a dependency: the next start installs it.
+
+**Not decided here.** Narrowing `other-app-managed` to applications that can share the
+dependency tree (#124). Keeping the output of the preparation's processes (#125).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the start as it is and ship only `prepare` (#114 option 1) | Every converted module needs an operator step on every Environment after every materialization; contradicts ch. 10's one policy; rejected |
+| The standard says "declare only from the release with `prepare`" (#114 option 3) | Leaves conforming modules worse off than non-conforming ones; rejected |
+| Check first, install only when the check fails | A check that passes on a stale tree starts an application that misses a dependency added by an update (#114's last comment), unless every module's check inspects its `node_modules`; rejected |
+| Install on every start, then check, then `prepare_script` and the check again only when it fails; `prepare` as the explicit transaction (selected, #116's proposal) | One install policy for every module, declared or not; the stale-tree failure repaired without an operator step; about a second per start in the fixture when nothing changes, as for an undeclared module |
+
+## F35 — Files: the Operator's Documents through the Launchpad
 
 **Decided by Matěj 2026-10-02 for milestone M3 of plan DEV-6637; implemented in this
 revision.** Operators of a Remote Environment who are not developers could not get

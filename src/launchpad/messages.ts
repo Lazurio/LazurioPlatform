@@ -445,7 +445,7 @@ const en = {
   preparationReasonWorkspace:
     "{file} is a workspace; installing a workspace is not supported yet.",
   preparationReasonApplicationsOverlap:
-    "{file} lies inside, or contains, the directory of another app of this module, whose running app its install could change. Declare the module's preparation (lazurio.preparation) or keep its apps in sibling directories.",
+    "{file} lies inside, or contains, the directory of another app of this module, whose running app its install could change, so a start does not install it. Keep the module's apps in sibling directories (app/v1, app/v2); an app that declares its preparation (lazurio.preparation) can be prepared explicitly (lazurio module prepare) while the module's other apps are stopped.",
   preparationReasonDependencyOutside:
     "{file} depends on a local package (file:…) outside its Organization's checkout; a local dependency must lie in the same Organization.",
   preparationReasonDependencyMissing:
@@ -454,6 +454,10 @@ const en = {
     "{file} pins a Bun version (packageManager) that the Bun in ~/.local/bin is not.",
   preparationReasonInstallFailed:
     "Installing the dependencies from {file} failed (bun install --frozen-lockfile): the lockfile may not match the package, or a dependency could not be fetched.",
+  preparationReasonScriptFailed:
+    "The module's preparation script declared in {file} failed after its dependencies were installed, so the app was not started. Fix the module's preparation and start again.",
+  modulePrerequisitesNotReady:
+    "The module's declared check still fails after its dependencies were installed and its preparation ran, so the app was not started. Fix the module's preparation or its check and start again.",
   moduleApplication: "Application",
   moduleStart: "Start",
   moduleStop: "Stop",
@@ -475,6 +479,10 @@ const en = {
   moduleStartedHealthy: "Started and healthy.",
   moduleAlreadyRunning: "It was already running.",
   moduleStoppedDone: "Stopped; its processes ended.",
+  moduleStartPending:
+    "The start is still running (Lazurio is installing or preparing the app); it goes on, and the status shows the app once it runs.",
+  modulePreparePending:
+    "The preparation is still running; it goes on without starting the app.",
   moduleNotRunning: "It was not running.",
   moduleRefused: "Refused: {reason}.",
   moduleReasonToolchain:
@@ -1088,7 +1096,7 @@ const cs: Record<MessageKey, string> = {
   preparationReasonWorkspace:
     "{file} je workspace; instalace workspace zatím není podporovaná.",
   preparationReasonApplicationsOverlap:
-    "{file} leží ve složce jiné aplikace tohoto modulu, nebo ji obsahuje, a jeho instalace by mohla změnit soubory, které ta běžící aplikace používá. Deklarujte přípravu modulu (lazurio.preparation), nebo mějte aplikace v sourozeneckých složkách.",
+    "{file} leží ve složce jiné aplikace tohoto modulu, nebo ji obsahuje, a jeho instalace by mohla změnit soubory, které ta běžící aplikace používá, proto ho start neinstaluje. Mějte aplikace modulu v sourozeneckých složkách (app/v1, app/v2); aplikaci s deklarovanou přípravou (lazurio.preparation) lze připravit výslovně (lazurio module prepare), když ostatní aplikace modulu neběží.",
   preparationReasonDependencyOutside:
     "{file} závisí na lokálním balíčku (file:…) mimo checkout své Organizace; lokální závislost musí být ve stejné Organizaci.",
   preparationReasonDependencyMissing:
@@ -1097,6 +1105,10 @@ const cs: Record<MessageKey, string> = {
     "{file} vyžaduje verzi Bunu (packageManager), kterou Bun v ~/.local/bin nemá.",
   preparationReasonInstallFailed:
     "Instalace závislostí z {file} selhala (bun install --frozen-lockfile): lockfile možná neodpovídá balíčku, nebo nešlo stáhnout některou závislost.",
+  preparationReasonScriptFailed:
+    "Přípravný skript modulu deklarovaný v {file} po instalaci závislostí selhal, proto aplikace nebyla spuštěna. Opravte přípravu modulu a spusťte ji znovu.",
+  modulePrerequisitesNotReady:
+    "Deklarovaná kontrola modulu neprošla ani po instalaci závislostí a jeho přípravě, proto aplikace nebyla spuštěna. Opravte přípravu nebo kontrolu modulu a spusťte ji znovu.",
   moduleApplication: "Aplikace",
   moduleStart: "Spustit",
   moduleStop: "Zastavit",
@@ -1118,6 +1130,10 @@ const cs: Record<MessageKey, string> = {
   moduleStartedHealthy: "Spuštěno a zdravé.",
   moduleAlreadyRunning: "Už běžela.",
   moduleStoppedDone: "Zastaveno; její procesy skončily.",
+  moduleStartPending:
+    "Spouštění ještě běží (Lazurio aplikaci instaluje nebo připravuje); pokračuje dál a stav aplikaci ukáže, až poběží.",
+  modulePreparePending:
+    "Příprava ještě běží; pokračuje dál a aplikaci nespustí.",
   moduleNotRunning: "Neběžela.",
   moduleRefused: "Odmítnuto: {reason}.",
   moduleReasonToolchain:
