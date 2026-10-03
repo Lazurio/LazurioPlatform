@@ -24,7 +24,7 @@ Readback reports their versions as facts, not drift. A rollout is only a repair 
 one installation (the exact scope is in "The standard path" below); the Machines apply
 starts no agent and returns the `lazurio doctor` and `lazurio tools status` readback,
 and the rolling-out Task Agent starts the repair of the rest with the operator's
-mandate per the Folder manuals. Agents update operator tools only on the Principal's
+mandate per the Folder manuals. Agents update Operator tools only on the Operator's
 explicit instruction. The Platform's part is the generated manual rule and section
 "Where the tools live" (template revision `base-instructions-7`) and
 `lazurio tools status|update`, a thin orchestration of the official installers that
@@ -48,7 +48,7 @@ The Platform's surface for the operator's tools, implemented in `src/tools/`:
   runs (`tool-not-self-updating`, exit 1). Unknown names exit 2. It never pins,
   never downgrades on its own, never touches another tool and is not run by
   `lazurio update`, the Launchpad or a Machines apply. An agent runs it only on the
-  Principal's explicit instruction (F17).
+  Operator's explicit instruction (F17).
 
 ### Enabled tools of a Folder (decision 0162, F18)
 
@@ -87,8 +87,8 @@ below). `agent`: the Launchpad only shows status, and "Set up with an agent" han
 prepared prompt to an agent who installs the tool and guides the sign-in. Each tool's
 `installation` text describes the target state and is the agent's manual in both
 modes (for a `launchpad` tool it is what a fallback agent follows when the curated
-installer fails). The Principal's reason: many tools can be offered cheaply through the
-agent mode, and later usage analytics of which tools operators try to install with an
+installer fails). Matěj's reason: many tools can be offered cheaply through the
+agent mode, and later usage analytics of which tools Operators try to install with an
 agent shows where a curated flow is worth building. The analytics are not
 implemented.
 
@@ -314,9 +314,9 @@ rendered Folder states this rule; the gate does not compare accounts
 
 #### gh on a Team Environment
 
-Principal's decision 2026-09-28 ([F19 addendum](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
-there are three kinds of Environment, Personal, Work (one operator) and Work Team
-(`hosted-organization-team`, shared by several operators). A Team Environment works in
+Matěj's decision 2026-09-28 ([F19 addendum](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
+there are three kinds of Environment, Personal, Work (one Operator) and Work Team
+(`hosted-organization-team`, shared by several Operators). A Team Environment works in
 GitHub through the GitHub App "Lazurio for GitHub" installed under the Organization;
 a person's account is not signed in there and a person's SSH key is not linked. The
 earlier temporary exception that let any account sign in on a Team VM has ended.
@@ -450,17 +450,17 @@ The unit text is in [product update](update.md#state-on-disk).
 | Capability | Platform responsibility | Operator / external owner responsibility |
 | --- | --- | --- |
 | Standalone Lazurio CLI | Verify the release, stage and activate the selected artifact; no external Bun/Node prerequisite | Approve the release (`latest` or one exact tag) and target; Machines performs its infrastructure installation handover |
-| Git and GitHub CLI (`gh`) | Diagnose availability and required capabilities; propose explicit preparation of missing tools | Authorize package/system changes; authenticate as the intended Principal and grant actual repo access |
+| Git and GitHub CLI (`gh`) | Diagnose availability and required capabilities; propose explicit preparation of missing tools | Authorize package/system changes; authenticate as the intended Operator and grant actual repo access |
 | Module runtime (for example Bun) | Coordinate the module's declared preparation; report missing/incompatible runtime without claiming readiness | Module owns exact dependency/runtime requirements and preparation; operator approves installation |
 | Codex / Claude harness | Diagnose the selected harness, instruction loading and required capabilities; provide one Folder-owned instruction contract; in a Remote Environment start the operator's Codex app-server daemon at boot (`lazurio-codex-app-server.service`, F29) and report it in `lazurio doctor` | Choose the harness, accounts/model access and consent; complete provider-native sign-in; install, update and configure Codex itself |
 | Credentials | Use an existing approved provider/credential interface; retain only non-secret diagnostic outcomes | Existing credential owner retains custody, rotation and revocation |
 
-The table describes a private workspace or local Machine, where one Principal is the
-operator. The team case differs and is described [below](#team-workspace).
+The table describes a private workspace or local Machine, where one person is the
+Operator. The team case differs and is described [below](#team-workspace).
 
 Do not install both harnesses merely because they are supported consumers. The pilot
 must select and qualify an actual agent, not infer success from an executable's presence.
-Do not copy sessions, tokens or another Principal's Personalspace from a workstation.
+Do not copy sessions, tokens or another person's Personalspace from a workstation.
 An operator identity in `lazurio.machine.json` does not authorize GitHub, model access,
 package installation, a paid subscription or a Machine-wide system change.
 
@@ -498,7 +498,7 @@ sign-in column above changes:
 - **No personal sign-ins.** Nobody runs a personal `gh auth login`, stores a personal
   token or SSH key, or copies a session onto the shared account. The curated gh
   sign-in and SSH key linking are refused there, and a personal account left signed in
-  can be signed out ([gh on a Team Environment](#gh-on-a-team-environment), Principal
+  can be signed out ([gh on a Team Environment](#gh-on-a-team-environment), Matěj
   2026-09-28). Tools that serve the whole Team (composio, wacli) may be signed in for
   the whole Environment with the shared sign-ins warning (F18 addendum). Diagnosis
   that finds a personal provider credential there reports it as a defect to be removed

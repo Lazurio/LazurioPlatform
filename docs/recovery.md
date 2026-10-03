@@ -32,7 +32,7 @@ base or the Folder. When something is broken it prints
 **Filing is not this command's act.** It is the repair agent's, under the standing
 mandate for issues (root decision 0163): after a duplicate search, with a body that
 passed the gate below, and shown to the operator in the chat. Closing and
-prioritizing stay with the Principal.
+prioritizing stay with the Operator.
 
 **Exit status:** `0` healthy or nothing installed, `3` broken, `2` usage, `1` the
 command itself failed (no reason printed: it could quote a private path). `3` is new

@@ -6,16 +6,16 @@ legacy runtime contracts until the owning decision is amended and consumers migr
 Canonical decision 0144 has now accepted the Machines/Environment handover boundary
 and the Conglomerate graph meaning; those two points are no longer pending amendments.
 
-The 2026-09-19 reconciliation rewrote F2 and added F8–F12 from the Principal's
+The 2026-09-19 reconciliation rewrote F2 and added F8–F12 from Matěj's
 direction and an architecture review. Where a canonical upstream decision contradicts
-a Platform proposal, upstream wins and the proposal is rewritten; where the Principal's
+a Platform proposal, upstream wins and the proposal is rewritten; where Matěj's
 direction changes upstream behaviour, the change is listed as a required upstream
 amendment below. F8–F12 are accepted direction; F8 is implemented for Linux (see F8),
 F9–F12 are not implemented.
 
 ## F0 — Confirmed vocabulary and responsibility split
 
-**Direction confirmed by the Principal:** the product is **Lazurio Platform**. Its public,
+**Direction confirmed by Matěj:** the product is **Lazurio Platform**. Its public,
 source-available codebase is `Lazurio/LazurioPlatform`; the repository was renamed from
 `Lazurio/LazurioFactory` on 2026-09-13 without replacing its GitHub identity or history.
 Legacy local checkout paths migrate separately and may temporarily retain the old basename.
@@ -27,7 +27,7 @@ selected profile. CLI and Launchpad invoke the same local application core; that
 owns local application through platform adapters. Neither UI is an independent writer,
 and no remote source repository mutates a Machine.
 
-**Migration entrypoints confirmed by the Principal:** the official installed CLI must
+**Migration entrypoints confirmed by Matěj:** the official installed CLI must
 complete migration without running Launchpad or separately installing Folder Factory.
 The release includes the required shared core and Folder Factory capability. Launchpad
 invokes the same migration use case, rather than requiring a shell invocation of CLI.
@@ -114,22 +114,22 @@ must remain independently buildable and usable without the private composition.
 This prerequisite is not a requirement to finish Dashboard/Auth or deploy hosted services.
 
 **Rewritten 2026-09-19.** The earlier text of this decision retired the shared
-multi-Principal workshop as a target topology. That conflicts with canonical upstream
+multi-person workshop as a target topology. That conflicts with canonical upstream
 decisions 0147–0149, which define the Hosted Team Workspace as an Organization-owned
 Machine without an assigned operator. Upstream wins. Both hosted kinds are first-class:
 
 | | Private hosted workspace | Team hosted workspace |
 | --- | --- | --- |
-| Used by | One named Principal | Several Principals of one Team connect |
-| Machine Owner | The Organization, or the Principal under upstream rules | The Organization |
-| OS account | One | One, shared; not a human Principal |
-| Provider identity | The Principal's own sign-in | Brokered platform App identity; short-lived repository-scoped tokens |
-| Personal credentials | The Principal's own, in their custody | None, ever |
+| Used by | One named person | Several members of one Team connect |
+| Machine Owner | The Organization, or the person under upstream rules | The Organization |
+| OS account | One | One, shared; not a person |
+| Provider identity | The Operator's own sign-in | Brokered platform App identity; short-lived repository-scoped tokens |
+| Personal credentials | The Operator's own, in their custody | None, ever |
 | Personalspace | Not mounted on an Organization-owned Machine | Never present |
-| Attribution | The Principal's own provider identity | Bot committer, Team author pseudo-identity and workspace trailer (upstream 0148) |
-| How changes land | The Principal's live rights | Pull requests; an authorized person reviews, merges and takes responsibility |
-| Revocation | The Principal's grants and sign-in | Live GitHub Team grant checked at each token issue (upstream 0149) |
-| Workspace preset | `hosted-personal` (the Principal's own personal VM) or `hosted-organization-personal` (an Organization work VM assigned to one operator) | `hosted-organization-team` |
+| Attribution | The Operator's own provider identity | Bot committer, Team author pseudo-identity and workspace trailer (upstream 0148) |
+| How changes land | The Operator's live rights | Pull requests; an authorized person reviews, merges and takes responsibility |
+| Revocation | The Operator's grants and sign-in | Live GitHub Team grant checked at each token issue (upstream 0149) |
+| Workspace preset | `hosted-personal` (the Operator's own personal VM) or `hosted-organization-personal` (an Organization work VM assigned to one Operator) | `hosted-organization-team` |
 
 **Intent that remains.** A personal environment is never shared ad hoc. Nobody adds a
 second person to a private workspace, a workstation or a Buddy host; nobody copies a
@@ -165,7 +165,7 @@ choice. Existing native OS/harness and custody gates remain binding.
 
 **Direction accepted:** coordinator behavior, configurable technical detail and
 publication mandate are distinct. **Accepted ownership:** per-Machine profile, independently selectable for the same
-Principal on different Machines. No automatic sync or global override engine.
+person on different Machines. No automatic sync or global override engine.
 **Proposed implementation:** versioned machine-local preferences and deterministic
 Folder-owned generation through one Folder Factory capability shared by CLI and Launchpad.
 
@@ -184,20 +184,20 @@ have different transactions and compatibility checks. See [recovery](migration-a
 
 | Existing authority | Proposed precise change | Preserved invariant / retirement evidence |
 | --- | --- | --- |
-| Decisions 0128 and 0144 / `Conglomerate Host` | Accepted: deprecated root/product name stays deprecated; Conglomerate means the Principal's Machine graph, Host is a specific infrastructure Machine | No new authority, ACL or registry; consumer terminology migration remains separate |
+| Decisions 0128 and 0144 / `Conglomerate Host` | Accepted: deprecated root/product name stays deprecated; Conglomerate means the Operator's Machine graph, Host is a specific infrastructure Machine | No new authority, ACL or registry; consumer terminology migration remains separate |
 | Decisions 0136 and resident-distribution knowledge | Platform source is optional development input; installed product owns runtime; Folder Factory preserves the canonical Lazurio Folder path | Legacy source-working directory supported until explicit migration and restore proof; no second active Lazurio Folder |
 | Decision 0137, session semantics (F8) | **Required upstream amendment.** Long-running module applications are owned by the OS service manager (Linux first), not by the Launchpad process: Start survives a Launchpad restart, Stop stops the service, persistence across reboot is an explicit per-application setting. macOS workstations keep session-scoped applications | Module-owned ports and collision refusal; no foreign process adopted or signalled; health, catalog and background requests start nothing; production still accepts only a reproducible Build; no Lazurio supervisor or daemon |
 | Decisions 0147–0149 and the Hosted Team Workspace | No amendment: Platform's former F2 proposal to retire shared Team execution is withdrawn. Platform consumes the brokered identity, attribution and live-grant contract as written | No personal credentials or Personalspace on a team workspace; live Team-grant verification remains a broker change upstream |
-| Decisions 0091, 0092, 0094 and Machine architecture | Clarify private versus team hosted use, infrastructure ownership and custodian recovery | Personalspace remains private, Buddy not Principal, AI Colleague own identity, parent operator boundary explicit |
+| Decisions 0091, 0092, 0094 and Machine architecture | Clarify private versus team hosted use, infrastructure ownership and custodian recovery | Personalspace remains private, Buddy not Operator, AI Colleague own identity, parent hosting operator boundary explicit |
 | Decision 0129 (F9) | **Required upstream amendment.** Product upgrade uses artifacts and is a separate operation from content synchronization. Content synchronization keeps 0129's hierarchy, atomic materialization, fast-forward-only rule, sibling quarantine and exclusions, but dirty or wrong-branch checkouts **block** instead of being stashed and switched to `main` | No product updater scanning/rewriting repositories; no reset or auto-merge; Source update retired by cohort; an explicit separate preservation operation replaces the implicit stash |
 | Decision 0144 and the Machine identity schema (F10) | **Conditional upstream amendment.** Only if preset provenance must appear in `lazurio.machine.json`: add the field upstream in the hosting engine, then re-pin and conformance-test here | Identity stays descriptive and grants nothing; nothing is derived from names; `account` stays `null` until its contract exists |
-| Decision 0145 (F12) | No amendment to the decision. **Admission superseded 2026-09-28** (Principal, question H1, decision F22 point 1): canonical-only `current` roots execute now (variant B), without waiting for an upstream identity continuity proof; the proof requirement F12 stated is historical | Transition-only admission is retired, variant A kept one line away for the record; no fallback to the deprecated projection; no second schema; `legacy`, `projection_drift`, `conflict`, `missing` and templates still refuse |
+| Decision 0145 (F12) | No amendment to the decision. **Admission superseded 2026-09-28** (Matěj, question H1, decision F22 point 1): canonical-only `current` roots execute now (variant B), without waiting for an upstream identity continuity proof; the proof requirement F12 stated is historical | Transition-only admission is retired, variant A kept one line away for the record; no fallback to the deprecated projection; no second schema; `legacy`, `projection_drift`, `conflict`, `missing` and templates still refuse |
 | Decision 0146 (F11) | No amendment: Platform consumes the per-application hostname, catalog and session model through a hosted request adapter | Gateway authenticates; forwarded identity headers are not trusted; unknown hosts refused |
-| Decision 0166 (F21) | No amendment: **accepted 2026-09-28** (Principal, questions Q1–Q6 of the recovery-mode shaping). No program rollback; Recovery mode with a repair agent or a sanitized issue for every entry; quality gates and an 8-hour canary on the pilot Organization's work VMs and its operators' personal VMs. Within this repository it amends F4, F13, F17 (with its addendum point 3) and F18; in the root it replaces 0161's mention of the Platform's own rollback | Atomic failure, refusal before the switch, floor and high-water stay; no shorter or narrower canary without the Principal's decision recorded in the register; Machines' own rule is a separate Machines decision, not done |
-| Decisions 0167 and 0168 (F22) | No amendment: **accepted 2026-09-28** (Principal, questions H1, H4, H6, H3 in direction, the drops of the parity shaping). The Platform Launchpad replaces the resident in one Machines apply; Ubuntu 24.04 on every hosted Machine, personal VMs by a rebuild with state transfer. Amends F8's "Not done" list, F12's admission (its addendum) and F15; in the root 0167 amends 0137 and 0049, and 0168 ends the 0159 exception on Team Environments | No side-by-side period, transition hostname or way back; no new Folder state; `entry` written only by Machines; H2, H5, H7 and the preview lease rules (B14) stay open |
+| Decision 0166 (F21) | No amendment: **accepted 2026-09-28** (Matěj, questions Q1–Q6 of the recovery-mode shaping). No program rollback; Recovery mode with a repair agent or a sanitized issue for every entry; quality gates and an 8-hour canary on the pilot Organization's work VMs and its operators' personal VMs. Within this repository it amends F4, F13, F17 (with its addendum point 3) and F18; in the root it replaces 0161's mention of the Platform's own rollback | Atomic failure, refusal before the switch, floor and high-water stay; no shorter or narrower canary without Matěj's decision recorded in the register; Machines' own rule is a separate Machines decision, not done |
+| Decisions 0167 and 0168 (F22) | No amendment: **accepted 2026-09-28** (Matěj, questions H1, H4, H6, H3 in direction, the drops of the parity shaping). The Platform Launchpad replaces the resident in one Machines apply; Ubuntu 24.04 on every hosted Machine, personal VMs by a rebuild with state transfer. Amends F8's "Not done" list, F12's admission (its addendum) and F15; in the root 0167 amends 0137 and 0049, and 0168 ends the 0159 exception on Team Environments | No side-by-side period, transition hostname or way back; no new Folder state; `entry` written only by Machines; H2, H5, H7 and the preview lease rules (B14) stay open |
 | Decisions 0134, 0140 | Installed executable carries its runtime; development/module toolchain checks remain capability-specific | No automatic machine-wide PATH/tool upgrades; packaging does not claim third-party app dependencies bundled |
 | Decision 0142 | Lazurio Folder Factory composes purpose, behavior and locale from versioned inputs | Organization language ownership and stable locale-neutral reason codes preserved |
-| Collaboration constitution / 0132 | Define coordinator acceptance with real harness capability and independent verification | Principal retains scope, access and publication authority |
+| Collaboration constitution / 0132 | Define coordinator acceptance with real harness capability and independent verification | Operator retains scope, access and publication authority |
 
 Canonical amendments belong with the existing maintained decision owners. This
 preparation records replacement text and acceptance intent; it neither edits live
@@ -226,7 +226,7 @@ provenance, preserving notices and exact source refs. Decide the final public so
 URL and legacy redirect policy, artifact/package names and trusted signing identity.
 Keep an auditable mapping `legacy source/ref → reviewed reused component → Platform ref`.
 Do not copy private planning, provider operations or customer context into public docs.
-The Principal selected [Elastic License 2.0](licensing.md) for newly owned Platform
+Matěj selected [Elastic License 2.0](licensing.md) for newly owned Platform
 code, documentation, runtime and embedded templates. User content and marketplace
 submissions retain their own rights; dependencies retain original terms/notices.
 No legacy FSL source is relicensed and no automatic Apache transition applies.
@@ -250,7 +250,7 @@ same qualified artifact are accepted requirements. How a release is selected, tr
 
 | Gate | Accountable function | Evidence needed |
 | --- | --- | --- |
-| Decision amendment acceptance | Product Principal and maintained decision owner | Reviewed canonical amendments, explicit migration scope |
+| Decision amendment acceptance | Product owner and maintained decision owner | Reviewed canonical amendments, explicit migration scope |
 | License/IP and product release | Authorized repository/IP owner | Reused-source inventory, license disposition, explicit product-release instruction; repository visibility is already public by request |
 | Native supported platform floor | Lazurio Platform maintainer | Native OS/CPU/ABI tests; build success alone insufficient |
 | Hosting envelope for private and team workspaces | Infrastructure owner | Isolation and identity smoke per kind, brokered attribution and revocation on the team kind, recovery plan; legacy shared workshops converge to one of the two kinds |
@@ -269,7 +269,7 @@ discover/start/status/stop plus the necessary navigation, readiness and error ha
 full unspecified legacy feature parity is not an accepted promise.
 
 Accepted: three simultaneous worktree tests are isolated; a separately integrated,
-qualified candidate may then be explicitly selected for the Principal's whole dedicated
+qualified candidate may then be explicitly selected for the Operator's whole dedicated
 Machine and real Lazurio Environment before stable release. These are not alternatives. A per-shell
 override alone cannot prove daily activation. Repeated PATH rewriting and a separate
 candidate updater are rejected because they create conflicting selectors. Extend the
@@ -302,7 +302,7 @@ No implementation, account service, billing or live migration is authorized here
 
 ## Managed-service and private-integration boundary
 
-**Direction confirmed by the Principal:** the public Lazurio Platform is source-available
+**Direction confirmed by Matěj:** the public Lazurio Platform is source-available
 under Elastic License 2.0 and remains self-hostable for personal and internal commercial
 Organization use. Human and Machine s.r.o. reserves customer-facing hosted/managed service
 delivery, with separately contracted partners as the explicit exception.
@@ -450,19 +450,19 @@ deliberate change from the legacy engine that requires the 0129 amendment above.
 
 ## F10 — Workspace presets and typed owner requests
 
-**Accepted direction (2026-09-19); amended and accepted by the Principal 2026-09-22;
+**Accepted direction (2026-09-19); amended and accepted by Matěj 2026-09-22;
 local preset model implemented, typed owner requests not.** A named, versioned,
 declarative [workspace preset](workspace-presets.md) composes purpose, collaboration
 defaults, required capabilities, enabled surfaces and supervision policy. A preset does
 not select product releases: F13 has no update channel to configure.
 
 **Amendment 2026-09-22.** Three hosted presets, next to the `local` workstation
-default: `hosted-personal` (a Principal's one personal VM: Personalspace present, no
-Organization repositories mounted, the Principal's own sign-ins, Buddy optional),
+default: `hosted-personal` (a person's one personal VM: Personalspace present, no
+Organization repositories mounted, the person's own sign-ins, Buddy optional),
 `hosted-organization-personal` (an Organization-owned work VM assigned to one
-operator; Organization repositories; Personalspace never present; formerly
+Operator; Organization repositories; Personalspace never present; formerly
 `hosted-private`) and `hosted-organization-team` (an Organization-owned team VM, one
-OS account, several Principals, brokered Organization identity; formerly
+OS account, several people, brokered Organization identity; formerly
 `hosted-team`). Nothing was implemented under the old names, so no compatibility.
 The preset is **derived from the Machine handover** and can only be confirmed or
 explicitly overridden within what the handover allows: `machine.kind: "personal-vm"`
@@ -521,17 +521,17 @@ and transaction of `profile-update` (digest-checked edits refused by path, stage
 archived, revision bumped, `profile-resume` recovery). A binding that renders the same
 bytes is `unchanged` and not recorded, so a re-apply that only rewrote `installed`
 never bumps the revision. A preset recorded as derived that the new assignment no
-longer derives is `preset-derivation-changed`: the Principal chooses again. The
+longer derives is `preset-derivation-changed`: the Operator chooses again. The
 Machines resident role calls it after every handover write on an existing Folder.
 The shared transaction (refresh and profile update alike) re-checks the claimed
 boundary of a hosted Folder before its journal, before every replacement and in
 `profile-resume`, as adoption and initialization recovery do: a foreign top-level
 entry is refused by name and the interrupted state is left in place. A workstation
-Folder keeps preserving the Principal's own top-level files.
+Folder keeps preserving the Operator's own top-level files.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| `profile-preview`/`profile-update` treat a changed handover rendering as a change | The caller must hold the recorded profile choices and revision, which Machines does not own (the Principal changes them in the Launchpad); the generic profile commands and the Launchpad would have to read the Linux handover; one revision would mix a Principal's choice with an infrastructure rewrite; rejected |
+| `profile-preview`/`profile-update` treat a changed handover rendering as a change | The caller must hold the recorded profile choices and revision, which Machines does not own (the Operator changes them in the Launchpad); the generic profile commands and the Launchpad would have to read the Linux handover; one revision would mix an Operator's choice with an infrastructure rewrite; rejected |
 | Explicit `machine folder-refresh` over the same planner and transaction (selected) | One more input to the one change use case, bound like `folder-init`, non-interactive, no parallel writer |
 | Automatic re-render by the Launchpad or updater on start | A write without an explicit caller (F14 defers automatic writes); on hosted Machines Machines installs without `--service`, so no Platform unit runs at boot yet; could later be a thin caller of the same use case; rejected for now |
 
@@ -562,7 +562,7 @@ work. Contract: [hosted entry](hosted-entry.md).
 
 ## F12 — Canonical-only Organizations and a deliberately narrow first delivery
 
-**Addendum 2026-09-28 (Principal, question H1 of the Launchpad parity shaping,
+**Addendum 2026-09-28 (Matěj, question H1 of the Launchpad parity shaping,
 decision F22 point 1): the admission gate below is superseded.** The interim
 transition-only gate ends without the upstream identity continuity proof: no owner of
 that proof was named, and a canonical-only Organization would otherwise lose its
@@ -610,7 +610,7 @@ selection of TUF. `latest` or one explicit exact tag selects a release; no docum
 preset, local configuration or typed request carries an update channel, and there is
 no channel promotion.
 
-Motivation: the Principal asked for proven practice instead of our own machinery.
+Motivation: Matěj asked for proven practice instead of our own machinery.
 The TUF path was secure on paper, but the maintained JavaScript client does not
 persist what it verifies, so the product had grown its own role promotion, floor
 vector, link rules, a four-key publisher, a metadata tree on a second origin with a
@@ -647,7 +647,7 @@ Linux activation journey listed in the contract.
 
 ## F14 — Agent manuals live in the Lazurio Folder
 
-**Decided by the Principal 2026-09-22; implemented in the local Folder model.** The
+**Decided by Matěj 2026-09-22; implemented in the local Folder model.** The
 Lazurio Folder is self-contained for an agent that starts work on the Machine: what
 Lazurio is, how this Machine fits into the Conglomerate, what is expected of agents,
 how work is done, the roles, the glossary and how to solve problems. That content is
@@ -682,7 +682,7 @@ from itself to the Platform before it is retired for those Machines.
 | Generate everything from the product (selected) | One authority, versioned with the release, reviewed as code, rendered per preset from the same inputs as `AGENTS.md`; the text can only change through a product release |
 | Mixed: product renders the frame, the root repository supplies the prose | Two sources for one document, drift between them invisible to the agent; rejected |
 
-**Principal's decision 2026-09-22: the pull-request lifecycle for agents.** From the
+**Matěj's decision 2026-09-22: the pull-request lifecycle for agents.** From the
 first push the work is visible as a GitHub Draft PR while it is in progress; once it is
 finished and verified, the agent marks it Ready for review themselves (Ready is not
 Publication; finished work never stays a Draft); and the agent assigns the pull request
@@ -727,13 +727,13 @@ conditions:
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | Keep `template-upgrade-required` for every change of revision | No new state path; hosted Machines never receive a corrected manual; rejected |
-| Re-render automatically on product activation | A write the Principal did not ask for, and a second writer beside the change path; rejected |
+| Re-render automatically on product activation | A write the Operator did not ask for, and a second writer beside the change path; rejected |
 | A separate `folder-upgrade` command | The same planner and transaction under a second name, and one more step for Machines; rejected |
 | Upgrade inside the existing planner, digests as proof (selected) | One path, the existing refusal for edited files, no downgrade |
 
-**Amendment 2026-09-24, decided by the Principal (Matěj): the manual follows the
-Folder locale.** Asked whether the manuals should be Czech or English, the Principal
-decided they follow the locale, so that a Czech-speaking operator gets a Czech manual.
+**Amendment 2026-09-24, decided by Matěj: the manual follows the
+Folder locale.** Asked whether the manuals should be Czech or English, Matěj
+decided they follow the locale, so that a Czech-speaking Operator gets a Czech manual.
 `manual/*` is rendered in the Folder locale (`cs` or `en`), with the same six file
 names; `AGENTS.md` is unchanged in that respect. The locale is chosen as before (the
 handover owner overlay at `folder-init`, then the profile). Both languages are written
@@ -753,7 +753,7 @@ a device, never cloned onto the personal VM. The peers this Machine may reach ov
 are listed neutrally, exactly as the recorded `relationships` carry them; the handover
 records reachability, not whose a peer is (a peer carries no owner or operator and its
 zone may be `null`), so the text says reachability is neither identity nor mandate and
-has the agent confirm with the Principal that a peer is theirs or assigned to them
+has the agent confirm with the Operator that a peer is theirs or assigned to them
 before working there. Nothing is inferred from names, and the text says that
 Headscale, not Lazurio, enforces reachability. Organization content synchronization is
 stated as not implemented in the product yet, with only plain `git pull --ff-only` on
@@ -788,14 +788,14 @@ to GitHub Issues and do not stop the work" and "Take review findings with judgme
 at once as a GitHub Issue in the exact owning repository without asking first, after a
 duplicate check and after removing secrets, Personalspace and Organization content
 outside its boundary; it continues with everything that does not depend on the answer
-and stops only where it cannot continue safely or the decision is the Principal's. It
+and stops only where it cannot continue safely or the decision is the Operator's. It
 does not close, assign or prioritize issues without instruction; plan, priority and
 responsibility stay in the Organization's Mission Control. (2) A real defect found in
 review is fixed at once; trivia, speculation about a future change or a widening of
 the scope gets a factual objection on the pull request and a request for a verdict on
-the unchanged head; if the reviewer insists, both positions go to the Principal, and
+the unchanged head; if the reviewer insists, both positions go to the Operator, and
 the review is never bypassed. The manual no longer says that creating an issue is a
-Publication that needs the Principal's mandate (`working-here.md`, `troubleshooting.md`):
+Publication that needs the Operator's mandate (`working-here.md`, `troubleshooting.md`):
 0163 changed exactly that point of root decision 0139. No file is added. The template
 revision stays `base-instructions-8`, like the F18 addendum: the latest release,
 `v0.1.6`, renders `base-instructions-7`, so nothing rendered by revision 8 has shipped.
@@ -916,7 +916,7 @@ next refresh or product upgrade. Unit tests check:
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
-**Principal's decision 2026-09-23, not implemented.** On a hosted Machine delivered
+**Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
 by Machines, the Launchpad in `lazurio-launchpad.service` is today the resident
 runtime's copy of the legacy root repository, and `launchpad.gen3.json` plus the
 per-Machine `launchpad.gen3.local.json` exist only because that Launchpad reads
@@ -945,7 +945,7 @@ Not decided here: the shape of the hosted request adapter (F11 shaping follows) 
 the order of Machines releases; the legacy root repository's own rename of
 `company.gen3.json` → `lazurio.organization.json` is unaffected.
 
-**Addendum 2026-09-28 (Principal, after clicking through the preview of the Tools
+**Addendum 2026-09-28 (Matěj, after clicking through the preview of the Tools
 section): the Launchpad's Settings follow T3 Code.** "I would like to keep to the UX
 of settings the way T3 Code has it solved." The Platform Launchpad gets a Settings
 area in T3 Code's pattern: the sidebar turns into the settings navigation, a header
@@ -961,7 +961,7 @@ for the Folder refresh indication above it); the development Application panel s
 on the Launchpad home. Plain CSS, no framework and no new dependency; Czech and
 English. Patterns, sources and deliberate differences:
 [launchpad development](launchpad-development.md#settings-structure-routes-and-the-t3-code-pattern).
-The same day the Principal settled the follow-ups: a history entry per section;
+The same day Matěj settled the follow-ups: a history entry per section;
 the update pill only while an update is available, as in T3 Code, with the Folder
 refresh line independent of it; "Set up with an agent" visible on the row of a tool
 an agent sets up; the tool switch labelled "Used by agents" / "Používají agenti",
@@ -969,7 +969,7 @@ its meaning said once in the Tools intro ("guides agents to use this tool;
 installing, uninstalling, signing in and signing out are separate acts"); and the
 Environment kinds named "Personal" / "Osobní", "Work" / "Pracovní", "Work, Team" /
 "Pracovní týmové" where the page already names a kind (the workspace presets).
-**Team Environments and GitHub (Principal 2026-09-28).** A Team Environment
+**Team Environments and GitHub (Matěj 2026-09-28).** A Team Environment
 (`hosted-organization-team`) is never signed in to gh with a person's account and
 never links a person's SSH key; it will work in GitHub through the GitHub App
 "Lazurio for GitHub" installed under the Organization, so that GitHub shows which
@@ -980,8 +980,8 @@ personal account left there, is the F19 addendum "gh on a Team Environment".
 
 ## F16 — One network per Organization: every Machine is reached the same way, and the Conglomerate graph is the truth agents move along
 
-**Principal's decision 2026-09-25, direction; not implemented.** Recorded from the
-Principal's own words, because it reframes F11 and the root-repository migration.
+**Matěj's decision 2026-09-25, direction; not implemented.** Recorded from
+Matěj's own words, because it reframes F11 and the root-repository migration.
 
 **The Machine is a boundary of access and functionality.** The operator's goal is to
 automate it: install applications and automatic processes until the Machine works as a
@@ -1064,12 +1064,12 @@ Conglomerate Host gateway) is decided in the laptop phase as an F10 amendment, n
 here; until it exists no laptop can be given an entry, and the adapter's rule is only
 "an entry requires a Machine binding".
 
-**Naming (Principal's decision 2026-09-26).** A hosted Machine is a **Remote
+**Naming (Matěj's decision 2026-09-26).** A hosted Machine is a **Remote
 Environment** (Czech *Vzdálené prostředí*) wherever people see it — the Launchpad's
 Environment switcher, the Dashboard, the generated manual — the same term Codex and T3
 Code use for a remote workspace: an Organization's work VM at
 `launchpad.<machine>.<org>.lazurio.io` on the Organization's network, or a personal VM
-at `launchpad.<login>.lazurio.io` on its Principal's home tailnet (0146, 0153). This
+at `launchpad.<login>.lazurio.io` on its Owner's home tailnet (0146, 0153). This
 computer — the device the user is sitting at, not a hosted Machine — is the **Local
 Environment** (*Místní prostředí*); the listener is not the classifier, a hosted
 Launchpad also serves on loopback behind its gateway. The axis stays "Prostředí / Environments" and offers both; "VM" remains an
@@ -1084,9 +1084,9 @@ Conglomerate Host (Machines), and the exact profile axes.
 
 ## F17 — Operator tools belong to the operator; the rollout pins the baseline and repairs
 
-**Principal's decision 2026-09-26 (root decision 0161), direction; the manual rule is
-implemented in this revision, `lazurio tools` follows.** Recorded from the Principal's
-words: operators of a Remote Environment must be able to update Codex, Claude Code, T3
+**Matěj's decision 2026-09-26 (root decision 0161), direction; the manual rule is
+implemented in this revision, `lazurio tools` follows.** Recorded from Matěj's
+words: Operators of a Remote Environment must be able to update Codex, Claude Code, T3
 Code, `gh`, Node and Bun themselves and are not to be blocked; there is no point in
 pinning their versions; the provider should be clear about what it operates and use
 the rollout only as a repair to the state where an agent can be started in the
@@ -1118,8 +1118,8 @@ the operator's PATH, and recovery goes through `lazurio` from the recovery runti
 through a PATH fallback (Machines, DEV-6624).
 
 **Platform.** The hosted manual section "Updates on this Machine" now says (until the
-addendum of 2026-09-28 below) that the pin owns the product and the generated files, not the operator's tools, and that an agent
-updates operator tools only on the Principal's explicit instruction in the thread and
+addendum of 2026-09-28 below) that the pin owns the product and the generated files, not the Operator's tools, and that an agent
+updates Operator tools only on the Operator's explicit instruction in the thread and
 otherwise only reports versions (template revision `base-instructions-6`, so every
 Folder re-renders on its next refresh). `lazurio update` remains the only product
 update; `lazurio tools status|update` is the thin orchestration of the official
@@ -1131,7 +1131,7 @@ npm with their official source; it does not query what is available, because a v
 check against a vendor is the vendor's updater's job and the Platform never says
 "outdated" about an operator's tool.
 
-**Addendum 2026-09-26 (root decision 0161 addendum, Principal).** The recovery runtime
+**Addendum 2026-09-26 (root decision 0161 addendum, Matěj).** The recovery runtime
 above is withdrawn: there is no second copy of any tool. The baseline delivers one
 installation of the operator's tools in one standard path — the first executable of
 the name in `~/.local/bin` on the operator's PATH, official installers keeping their
@@ -1155,8 +1155,8 @@ so agents on VMs keep the layout for further tools, and `tools status` reports
 
 **Not decided here:** the readback shape and the T3 launcher (Machines).
 
-**Addendum 2026-09-28 (Principal): the operator owns the Lazurio version; the pin
-is a minimum.** Recorded from the Principal's decisions of 2026-09-28. (1) There is
+**Addendum 2026-09-28 (Matěj): the Operator owns the Lazurio version; the pin
+is a minimum.** Recorded from Matěj's decisions of 2026-09-28. (1) There is
 **one updater**, `lazurio update`. The operator of an Environment updates Lazurio
 themselves, on a hosted Machine (Remote Environment) exactly as on their own computer,
 without any rollout: "updating Lazurio is the operator's update of a tool, not a
@@ -1278,7 +1278,7 @@ to ask.
 
 ## F18 — Enabled tools of the Environment
 
-**Principal's decision 2026-09-27 (root decision 0162 and the F17 line), implemented
+**Matěj's decision 2026-09-27 (root decision 0162 and the F17 line), implemented
 in this revision as data, state, rendering and read/write surfaces; installation,
 sign-in flows and Launchpad UI are not built.** Lazurio is CLI-first: the `lazurio`
 CLI and the Launchpad, one thing over one core, care for the tools of an Environment
@@ -1306,7 +1306,7 @@ its sign-in) and `installation` (the target state an installation must reach).
 **Context, not authority and not installation.** Enabling a tool grants no access,
 installs nothing, signs in nowhere and pins no version. A tool may be enabled while it
 is not installed; the generated manual tells the agent to report a missing or
-signed-out tool to the Principal. F3 holds unchanged: a generated profile never grants
+signed-out tool to the Operator. F3 holds unchanged: a generated profile never grants
 permission.
 
 **Priority rule for agents.** First the catalog CLIs that are on, as the generated
@@ -1325,9 +1325,9 @@ installer failed. It names the binary and the standard path `~/.local/bin/<comma
 what must never happen: no secret in chat, Git or a log, no second installation of the
 same tool, no downgrade of a working tool. `toolPrompt` and `lazurio tools prompt
 <tool>` return the prompt: the task, that text, and the rule that after a successful
-installation the agent enables the tool so the Folder instructions name it. The
-Principal's reason for the second mode: many tools can be offered cheaply through the
-agent mode, and later usage analytics of which tools operators try to install with an
+installation the agent enables the tool so the Folder instructions name it. Matěj's
+reason for the second mode: many tools can be offered cheaply through the
+agent mode, and later usage analytics of which tools Operators try to install with an
 agent shows where a curated flow is worth building. No such analytics exist in this
 revision; F5 (opt-in, content-free measurement) governs them when they do.
 
@@ -1407,14 +1407,14 @@ state what was not verified against the vendor's documentation (the npm package 
 and Node.js requirement, which the documentation and the repository README state
 differently, and whether the browser sign-in completes on a headless Machine).
 
-**Shared Team preset (Principal 2026-09-27).** Tools can be enabled on the preset with a
+**Shared Team preset (Matěj 2026-09-27).** Tools can be enabled on the preset with a
 brokered Organization identity (`hosted-organization-team`) too. Accounts signed in to
 the tools there apply to the whole Environment and are shared by all its operators and
 their agents; `AGENTS.md` and `manual/this-machine.md` say so, and enabling a tool
 returns the warning `shared-environment-sign-ins`.
 
-**Addendum 2026-09-27 (Principal, after a preview of the Launchpad Tools section):
-the operator's note, sign-in state and one-click changes.**
+**Addendum 2026-09-27 (Matěj, after a preview of the Launchpad Tools section):
+the Operator's note, sign-in state and one-click changes.**
 
 *The operator's note.* An operator who installs a tool with an intent ("use it for the
 ClickUp and Gmail of Spectoda; send nothing without my instruction") writes that intent
@@ -1442,9 +1442,9 @@ notes are `unchanged` and not recorded. The instruction source gains `toolNotes`
 (absent means none), and every caller of `instructionSource` passes the recorded notes.
 
 *Rendering and its safety.* `manual/this-machine.md` quotes a note inside the tool's
-list item, under "Note from the operator of this Environment:" / "Poznámka operátora
+list item, under "Note from the Operator of this Environment:" / "Poznámka Operátora
 tohohle Environmentu:", and when any note exists the section says once that a note is
-the operator's intent for agents on this Environment, followed within the Principal's
+the Operator's intent for agents on this Environment, followed within the Operator's
 instructions, granting no access and no mandate for a Publication and changing none of
 the document's rules. `AGENTS.md` does not repeat the note; the tool's line says that
 the operator left one in `manual/this-machine.md`. Every note line is rendered as a
@@ -1505,7 +1505,7 @@ response says which with `hosted`.
 
 ## F19 — Curated installation and login of catalog tools
 
-**Principal's decision 2026-09-27 and 2026-09-28 (the F18 line), implemented in this
+**Matěj's decision 2026-09-27 and 2026-09-28 (the F18 line), implemented in this
 revision for `gh`, `composio` and `wacli` on Linux and macOS.** The tools with setup
 mode `launchpad` get a curated flow that installs the tool and signs the operator in
 with as little friction as possible: the operator never copies an API key, and the
@@ -1623,8 +1623,8 @@ tools, automatic updates of curated tools, the hand-over of the prompt into a T3
 chat, and usage analytics. The real vendor flows are qualified on a test VM, not by this
 revision's tests, which use fake tools and a fake source only.
 
-**Addendum 2026-09-28 (Principal): the gh sign-in links the Machine's SSH key.**
-Recorded from the Principal's words: the sign-in to gh through the Launchpad must link
+**Addendum 2026-09-28 (Matěj): the gh sign-in links the Machine's SSH key.**
+Recorded from Matěj's words: the sign-in to gh through the Launchpad must link
 the SSH key as well, which is why it exists; the SSH key matters most, and gh over
 https is of no use here. Also decided, with no change needed: a broken tool outside the
 standard path is always left to an agent following the manual, and on a shared
@@ -1742,7 +1742,7 @@ and the CLI are expected to run with the account's own home.
 prompt gh`, not rendered into the Folder) states this target state for an agent. The
 `usage` text rendered into the Folder instructions is unchanged in this revision.
 
-**Addendum 2026-09-28 (Principal): gh on a Team Environment.** There are three kinds
+**Addendum 2026-09-28 (Matěj): gh on a Team Environment.** There are three kinds
 of Environment: Personal, Work (one operator) and Work Team (shared by several
 operators). "A Team VM is to work out of the box with the signed-in bot of the
 organization. So there is no need to sign in gh." A Team Environment
@@ -1901,8 +1901,8 @@ and reported a paired wacli as not signed in.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
-**Principal's decision 2026-09-28, implemented in this revision for Linux and macOS.**
-Recorded from the Principal's words: "with one command I am able to install the
+**Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**
+Recorded from Matěj's words: "with one command I am able to install the
 lazurio platform (CLI and Launchpad) on a customer's new laptop". The first
 installation is one command, an install script served from `https://lazurio.ai/install`
 (`curl --proto '=https' --tlsv1.2 -fsSL https://lazurio.ai/install | sh`); it installs the Platform, the CLI and
@@ -1957,7 +1957,7 @@ installed product.
 | Verify Sigstore in POSIX shell | No maintained verifier exists in `sh`; our own cryptography; rejected |
 | The executable verifies its own release (selected) | Same verifier and path as every update, no extra tool; not authentication of the publisher, stated as such |
 | The website pins the expected manifest digest in the script it serves | Script and release from independent places, so a swapped release is refused before execution; needs a website deploy step per release; left open for the website, not built here |
-| npm as the door | Needs Node and npm on a new laptop and a second distribution channel; rejected by the Principal |
+| npm as the door | Needs Node and npm on a new laptop and a second distribution channel; rejected by Matěj |
 | `wget` as a fallback when curl is missing | Covers Linux desktops that ship only wget; but GNU wget 1.x cannot restrict the scheme of a redirect, and following redirects by hand would have to be right for GNU wget, wget2 and BusyBox wget alike, while a plaintext hop could supply a forged manifest and a matching executable that run before any attestation check; rejected (review of pull request 62), the script names how to install curl instead |
 
 **Not in this decision:** Windows; the website route itself (another repository);
@@ -1965,10 +1965,10 @@ OS publisher signing, which stays a gate before public release (F13).
 
 ## F21 — Recovery mode instead of rollback
 
-**Principal's decision 2026-09-28, accepted.** The authority is root decision 0166
+**Matěj's decision 2026-09-28, accepted.** The authority is root decision 0166
 (HumanAndMachines/Lazurio#442); this entry records how it binds the Platform. The
-analysis and design are [recovery mode](recovery-mode.md), whose questions Q1–Q6 the
-Principal decided the same day (Q4 by delegation). Recorded from the Principal's words:
+analysis and design are [recovery mode](recovery-mode.md), whose questions Q1–Q6
+Matěj decided the same day (Q4 by delegation). Recorded from Matěj's words:
 rollback must not be the safety net; when something breaks, the Environment starts an
 agent that repairs forward, or delivers every material for a fix to GitHub, and the
 pressure lands on tests and CI/CD so that releases become stable. "No back doors for
@@ -1993,7 +1993,7 @@ rollback!"
 3. **Every entry into Recovery mode ends on GitHub** (0166 point 2; Q2), also after
    a local repair, "otherwise the repair never becomes a test". Each such issue closes
    only with a regression test under `tests/recovery/<fingerprint>/`.
-4. **Where the issue goes** (0166 point 8; Q4, delegated by the Principal and decided
+4. **Where the issue goes** (0166 point 8; Q4, delegated by Matěj and decided
    by the Task Agent). The automatic issue goes to this public repository and carries
    only structured fields after a deterministic sanitizing gate (version, target,
    platform, failed check identifiers, unit state, Folder and template revision). The
@@ -2008,7 +2008,7 @@ rollback!"
    stage of **8 hours on the work VMs of the pilot Organization and on the personal
    VMs of its operators**, with its evidence. Releases go out in stages: qualification
    VM, pilot Organization, then further Organizations step by step. A shorter canary
-   or a narrower set of Machines for a named release exists only as the Principal's
+   or a narrower set of Machines for a named release exists only as Matěj's
    decision recorded in the register, never as a line in an evidence pull request.
    Linux means Ubuntu in the first phase; the rebuild of the hosted personal VMs on
    Ubuntu 24.04 (F22 point 5) comes before the first canary stage, and no final
@@ -2027,7 +2027,7 @@ rollback!"
    unaffected. The update to the first release without rollback is performed by the
    old updater, which may switch back once; that last switch-back is accepted.
 
-Q7 (whether `update status` keeps a `previous` field) was not put to the Principal; it
+Q7 (whether `update status` keeps a `previous` field) was not put to Matěj; it
 was implemented as recommended: the field is dropped.
 
 **Amends** F4 (rollback retention; "program rollback and data recovery are
@@ -2058,7 +2058,7 @@ rebuild of the personal VMs that precedes the first canary.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Keep rollback as a safety net | Fast relief on one Machine; hides faults and keeps a second code path alive; rejected by the Principal |
+| Keep rollback as a safety net | Fast relief on one Machine; hides faults and keeps a second code path alive; rejected by Matěj |
 | Keep only the automatic switch-back after an unhealthy restart | Smaller, but the new version was observable and may have written state; it is rollback by the rule above; rejected (Q1) |
 | Recovery page from a separate program | Survives a broken executable; a second runtime and supervisor to build and qualify; rejected in favour of the gateway's static page |
 | Recovery mode in the Launchpad plus `lazurio recover` | One core, no new process, reaches the operator where they already are; selected |
@@ -2066,12 +2066,12 @@ rebuild of the personal VMs that precedes the first canary.
 
 ## F22 — The Platform Launchpad reaches parity and replaces the resident in one apply
 
-**Principal's decision 2026-09-28, accepted.** The authority is root decision 0167 with
+**Matěj's decision 2026-09-28, accepted.** The authority is root decision 0167 with
 its addendum of the same day (HumanAndMachines/Lazurio#442, #443); the Team
 Environment part follows root decision 0168. The analysis is
 [Launchpad parity](launchpad-parity.md), whose questions H1, H4 and H6, H3 in
-direction and the drops of its section F the Principal decided. Recorded from the
-Principal's words: "Let us give maximum priority to finishing the Platform Launchpad,
+direction and the drops of its section F Matěj decided. Recorded from
+Matěj's words: "Let us give maximum priority to finishing the Platform Launchpad,
 so that we do not have to deal with this parallel run at all", and "take the concepts
 of the old Launchpad and do them properly in the new Launchpad".
 
@@ -2105,8 +2105,8 @@ of the old Launchpad and do them properly in the new Launchpad".
    Buddy's state are restored, each proven by a readback. The Buddy's secrets are
    carried byte for byte without rotation; the pool host keeps the old disk for 14
    days, and booting it in that window is only a manual last-resort step of the
-   operator, not a product mechanism and not a way back in the sense of F21. The
-   Principal's own personal VM is rebuilt first, the second at any time, the third in
+   operator, not a product mechanism and not a way back in the sense of F21.
+   Matěj's own personal VM is rebuilt first, the second at any time, the third in
    a window agreed with its Owner. The rebuild stays separate from the switch and
    precedes the first canary stage (F21 point 5). macOS and Windows follow, Windows
    once a Platform build for Windows exists.
@@ -2119,7 +2119,7 @@ of the old Launchpad and do them properly in the new Launchpad".
 7. **Pull-request previews** (0167 addendum; H3 in direction). Worktree source (P9) is
    off the switch line. A preview from the web T3 Code on a hosted Machine gets a
    temporary Environment URL that the agent registers like a module's hostname, as a
-   lease that ends by itself and never accumulates (the Principal's examples: cleanup
+   lease that ends by itself and never accumulates (Matěj's examples: cleanup
    after 24 hours and when the port disappears). The hosted Folder manual tells agents
    how previews work so that they never send the operator a localhost link; until an
    application has a hosted name, the handoff says so instead of a link. On a
@@ -2139,7 +2139,7 @@ of the old Launchpad and do them properly in the new Launchpad".
 ([C.2](launchpad-parity.md#c2-the-apply-in-order)); recommended, and the Machines
 switch draft follows it. H5: `launchpad.gen3.json` and `launchpad.gen3.local.json`
 with its planned slots and Personalspace owner have no successor, amending F15 point
-2; 0167 point 9 records it as a proposal the Principal neither confirmed nor
+2; 0167 point 9 records it as a proposal Matěj neither confirmed nor
 questioned. H7: the command names `lazurio module …` and `lazurio organization …` are
 kept from the resident; recommended and implemented. The rules of the preview lease
 (time to live, renewal, end conditions, the cap per Machine;
@@ -2169,16 +2169,16 @@ switch. The resident Launchpad serves every hosted Machine until the switch rele
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Run both Launchpads side by side on a transition hostname | Gentle, but two Launchpads, a second hostname and a way back to maintain; rejected by the Principal |
+| Run both Launchpads side by side on a transition hostname | Gentle, but two Launchpads, a second hostname and a way back to maintain; rejected by Matěj |
 | Port the resident's code | Carries a Git client, a plan browser and click ranking nobody decided; rejected: concepts, not code |
 | Keep transition-only admission until an identity continuity proof | The proof has no owner; every migrated Organization would lose its applications at the switch; rejected (H1) |
 | Parity by concept, CLI first, one Machines apply (selected) | No new Folder state and no parallel run; the switch waits for Recovery mode and a qualified candidate |
 
 ## F23 — The operator's own checkout is read by ownership, not by permission bits or link count
 
-**Principal's decision 2026-09-29, accepted** (issue #92, last comment; the reasons of
+**Matěj's decision 2026-09-29, accepted** (issue #92, last comment; the reasons of
 issue #93 follow from it; the directory, dependency-tree and lockfile points were
-decided the same day on the open questions of #94). The Principal did not pick one of
+decided the same day on the open questions of #94). Matěj did not pick one of
 the options of #92 as written; he stated the principle, which decides it:
 
 > The rights of the signed-in GitHub account are the authority. What GitHub allows the
@@ -2261,7 +2261,7 @@ stay the start's to refuse.
 
 ## F24 — An Organization's root-level applications are modules of the catalog
 
-**Direction decided by the Principal 2026-09-28; the details proposed 2026-09-29 and
+**Direction decided by Matěj 2026-09-28; the details proposed 2026-09-29 and
 implemented** (issue #95). The direction is the decided row of [Launchpad
 parity](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over): "Mission Control
 is an Organization application; the Launchpad opens it like any module". Observed on
@@ -2317,14 +2317,14 @@ discovery and the Folder manual are unchanged.
 
 ## F25 — A module without a preparation declaration starts by a default preparation
 
-**Principal's decision 2026-09-29, accepted** (issue #97, last comment: option (a)).
+**Matěj's decision 2026-09-29, accepted** (issue #97, last comment: option (a)).
 Observed the same day on the first real Machine switched to this Launchpad
 (`0.1.8-rc.7`): `lazurio module start` of its only module answered `operation-failed`,
 because the application's `package.json` declares `lazurio.runtime` and no
 `lazurio.preparation`, which the start required. On a hosted Organization work Machine
 none of 27 application packages of 21 modules declares it. The Launchpad this one
 replaces started the same modules by running their dev script after a frozen install
-from their lockfile. The Principal's rule: what the replaced Launchpad started must keep
+from their lockfile. Matěj's rule: what the replaced Launchpad started must keep
 starting without a change in the module. The catalog meanwhile called these modules
 `executable: true`, which the Machines switch relies on before its point of no return,
 and the operator saw only `operation-failed`. Both are fixed with the decision.
@@ -2453,7 +2453,7 @@ undeclared module is a follow-up.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Every application package declares `lazurio.preparation` before its Machine switches, with a migration and `executable: false` until then (option b) | A change in every module of every Organization before the switch; not chosen by the Principal |
+| Every application package declares `lazurio.preparation` before its Machine switches, with a migration and `executable: false` until then (option b) | A change in every module of every Organization before the switch; not chosen by Matěj |
 | Search the ancestors for a lockfile or workspace owner | Guesses which install owns the app; excluded by the issue's rule |
 | Default with a check script by convention (for example `check`) | Invents a script name the modules never agreed to; rejected |
 | Pin the default toolchain to the Platform's own Bun version | Real Machines update their Bun (B2); every module would stop at the first Bun update; not chosen |
@@ -2465,7 +2465,7 @@ undeclared module is a follow-up.
 
 ## F26 — A started application gets the runtime environment of the replaced Launchpad
 
-**Required by the Principal 2026-09-29 (issue #102); the details proposed 2026-09-30
+**Required by Matěj 2026-09-29 (issue #102); the details proposed 2026-09-30
 and implemented.** Observed on 2026-09-29 on a hosted personal Environment, at its first
 real switch to this Launchpad: a module started through the module operations ran and
 was healthy on its loopback port, and opened at its own hostname it answered the dev
@@ -2635,12 +2635,12 @@ explicitly by the operator, so nothing is switched silently.
 | Keep the kind-wide allow-list for every choice | Leaves a Team Environment one explicit choice away from a user-account sign-in (0168); rejected by issue #107 |
 | Narrow validation of stored presets too | Would make existing Folders invalid (an explicit Steward preset recorded on an `operator` handover under #106); rejected: only new choices narrow |
 | Refresh switches to the newly derived preset by itself | A silent switch of provider identity, against F10's refresh rule; rejected for the explicit `--preset` |
-| Profile change reads the current handover | The Launchpad and profile commands would read the Linux handover and mix an infrastructure rewrite into a Principal's revision, as F10 rejected; rejected |
+| Profile change reads the current handover | The Launchpad and profile commands would read the Linux handover and mix an infrastructure rewrite into an Operator's revision, as F10 rejected; rejected |
 | `folder-refresh --preset <derived>` (selected) | One explicit option on the existing refresh, same planner and transaction; takes only the derived preset |
 
 ## F28 — Towards people the place they work in is the Environment; a hosted one is a Remote Environment
 
-**Decided by the Principal 2026-09-29 (issue #99).** What people read calls the place
+**Decided by Matěj 2026-09-29 (issue #99).** What people read calls the place
 where they and their agents work the **Environment**, and a hosted one a **Remote
 Environment**. The words "Mašina", "Machine" (as the thing a person works in), "VM" and
 "server" are not used towards people. The reason is recognition: people know "Remote
@@ -2685,14 +2685,14 @@ may follow this wording when they are next edited.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Keep "Machine" / "Mašina" towards people | A defined architectural term people do not recognize; rejected by the Principal |
-| Czech "prostředí" / "vzdálené prostředí" | A common word that does not read as a name; not chosen by the Principal, so Czech and English texts name the same thing |
+| Keep "Machine" / "Mašina" towards people | A defined architectural term people do not recognize; rejected by Matěj |
+| Czech "prostředí" / "vzdálené prostředí" | A common word that does not read as a name; not chosen by Matěj, so Czech and English texts name the same thing |
 | Rename the identifiers, commands and schemas too | Changes contracts other products read; a separate decision |
 | "Environment" and "Remote Environment" in what people read, "Machine" as the technical term, guarded by a test (selected) | People read one familiar word; contracts stay; regressions are caught |
 
 ## F29 — Entry units of a Remote Environment: the Launchpad, T3 Code and the operator's Codex app-server
 
-**Decided by the Principal 2026-09-30 (plan DEV-6635); implemented in this revision.**
+**Decided by Matěj 2026-09-30 (plan DEV-6635); implemented in this revision.**
 A Remote Environment has three ways in that must be there after every boot without
 anyone starting them by hand: the Launchpad (the installer's
 `lazurio-launchpad.service`, F21), T3 Code (baseline, its launcher's unit, Machines,
@@ -2795,9 +2795,10 @@ What stays:
   `src/machine/lazurio-machine.v1.schema.json`, which is pinned to Lazurio Machines.
   Renaming them is a migration of `lazurio.machine.json` with Machines, not a wording
   change.
-- The older decision records and the documents of this repository until the follow-up
-  pull request that rewords them; the root repository's and the Organizations' texts
-  until their own migration.
+- The root repository's and the Organizations' texts until their own migration, and
+  the historical evidence in `docs/evidence/` as written. The older decision records
+  and the other documents of this repository were reworded in the follow-up pull
+  request.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |

@@ -90,14 +90,14 @@ output contains private context: keep it in the owner's scope, not public logs.
 ## The operator is an OS account, not a person
 
 `operator` names the OS execution account that owns the Lazurio Folder on this
-Machine. It is not necessarily a human Principal, and the consumer never treats it as
+Machine. It is not necessarily a person, and the consumer never treats it as
 one. Reconciled 2026-09-19 with [decision F2](decisions.md#f2--private-and-team-hosted-workspaces);
 this section is accepted direction, and the implemented consumer below remains the
 narrow Linux/remote/human pilot entrypoint.
 
-- **Private hosted workspace:** one Principal uses the operator account and signs in
+- **Private hosted workspace:** one person uses the operator account and signs in
   with their own provider identity inside it.
-- **Team hosted workspace:** the operator account is shared by the Principals who
+- **Team hosted workspace:** the operator account is shared by the people who
   connect. It must never acquire anyone's personal credentials, sessions or
   Personalspace. Its provider identity is the brokered Organization identity; `team`
   in the handover is context for that, not a grant and not a roster.
@@ -123,11 +123,11 @@ configuration together with the **Machine binding** (kind, name, owner, team,
 assignment, tailnet node, host, relationships, entry and the handover digest).
 Machines does not rewrite the identity; a Folder adopted for a different Machine is
 refused, never rewritten. Identity is kind, name, Owner (Organization and Team, or
-Principal), tailnet node and host, and it is immutable. Machines rewrites the handover
+a person), tailnet node and host, and it is immutable. Machines rewrites the handover
 on every apply (`installed`, the declared assignment, the derived relationships), so
 the document digest is not identity: a re-apply of the same Machine keeps the Folder
 adopted. The rest of the binding is handover-derived content, not a choice of the
-Principal: `lazurio machine folder-refresh` re-records it from the current handover
+Operator: `lazurio machine folder-refresh` re-records it from the current handover
 and re-renders the generated files, keeping the recorded preset and profile.
 
 A repeated infrastructure apply must preserve the Machine identity, the Folder
@@ -215,7 +215,7 @@ that appears while a refresh or profile update is interrupted is refused by name
 (`profile-resume` exits 2 with `folder-foreign-entry`); the journal and every output
 stay exactly as the interruption left them, and the resume completes once the entry
 is gone. A workstation Folder (no handover binding) keeps its existing rule: the
-Principal's own top-level files beside the generated ones are preserved, never read
+Operator's own top-level files beside the generated ones are preserved, never read
 or written.
 
 The Launchpad shows the refreshed binding on its next read; an open panel holding the
@@ -291,7 +291,7 @@ module delivery remain separate pilot gates.
 
 `AGENTS.md` is a deterministic projection of the preset, the recorded binding and
 the profile: which Machine this is and whose, how it is assigned when the handover
-says so (`assigned to operator <login>` / `shared by the Team`), who the Principal is
+says so (`assigned to Operator <login>` / `shared by the Team`), who the Operator is
 here, the Personalspace boundary, where Organization repositories live, the provider
 identity mode and how work is done (including the two working rules of upstream
 decision 0163: open questions go to GitHub Issues and do not stop the work, and
@@ -308,7 +308,7 @@ and no persona is rendered. The Owner line names the Team only under
 After a handover rewrite `folder-refresh` renders the current assignment and
 relationships ([refresh](#refresh-after-a-handover-rewrite)).
 The Launchpad shows the binding, including the assignment and a compact read-only
-list of the peers, and lets the Principal change the preset (to the recorded one or a
+list of the peers, and lets the Operator change the preset (to the recorded one or a
 preset the handover offers as a new choice) and the communication axes through the
 ordinary preview → apply flow.
 
