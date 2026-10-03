@@ -23,7 +23,12 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
-import { binding, bindings } from "./fixtures/machine-bindings";
+import {
+  assignments,
+  binding,
+  bindings,
+  entries,
+} from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 import { journeys } from "./folder-render.test";
@@ -771,6 +776,94 @@ test("work products go to the Documents folder of the execution OS", () => {
       "never write anything at the top level of the Folder",
     );
   }
+});
+
+// Decision F35: where the Folder records a hosted entry, the Operator reaches
+// the Documents folder through the Launchpad's Files page, so agents hand over
+// the link `lazurio files link` prints, never a path. Without an entry (a
+// workstation, or a Remote Environment whose handover has none yet) no browser
+// reaches that page and agents keep giving the full path.
+test("with a hosted entry agents hand over the Files link; without one the full path", () => {
+  const organizationOrigin = "https://launchpad.workspace.example.lazurio.io";
+  const withEntry = [
+    [
+      "hosted-personal",
+      bindings.personalEntry,
+      "https://launchpad.example.lazurio.io",
+    ],
+    [
+      "hosted-organization-personal",
+      bindings.organizationEntry,
+      organizationOrigin,
+    ],
+    [
+      "hosted-organization-team",
+      binding({ ...organization, entry: entries.organization }),
+      organizationOrigin,
+    ],
+    [
+      "hosted-organization-steward",
+      binding({
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.automation },
+        entry: entries.organization,
+      }),
+      organizationOrigin,
+    ],
+  ] as const;
+  for (const [preset, machine, origin] of withEntry)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset,
+        machine,
+        profile: presetProfile(preset, "linux", { locale }),
+      });
+      const agents = outputs["AGENTS.md"];
+      const manual = outputs["manual/this-machine.md"];
+      expect(agents).toContain(
+        locale === "cs"
+          ? "Operátorovi místo cesty předej odkaz, který vypíše `lazurio files link <cesta>`: otevře se mu v prohlížeči a soubor stáhne."
+          : "Hand the Operator the link `lazurio files link <path>` prints instead of the path: it opens in their browser and downloads the file.",
+      );
+      expect(agents).toContain(`\`${origin}/files\``);
+      expect(agents).not.toContain(
+        locale === "cs" ? "uveď celou cestu" : "give the full path",
+      );
+      for (const sentence of locale === "cs"
+        ? [
+            "nikdy cestu `/home/…`",
+            `stránce Soubory Launchpadu (\`${origin}/files\`)`,
+            "Odkaz není veřejný: otevře ho jen ten, kdo se na tenhle Environment smí přihlásit.",
+            "Soubor mimo `~/Documents` nebo se jménem začínajícím tečkou odkaz nemá",
+          ]
+        : [
+            "never a `/home/…` path",
+            `Files page (\`${origin}/files\`)`,
+            "The link is not public: only someone who may sign in to this Environment opens it.",
+            "A file outside `~/Documents`, or with a name that starts with a dot, has no link",
+          ])
+        expect(manual).toContain(sentence);
+      expect(
+        manual.includes(
+          locale === "cs"
+            ? "společná celému Teamu"
+            : "shared by the whole Team",
+        ),
+      ).toBe(preset === "hosted-organization-team");
+    }
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const text of Object.values(outputs))
+        expect(text).not.toContain("lazurio files link");
+      expect(outputs["AGENTS.md"]).toContain(
+        locale === "cs" ? "uveď celou cestu" : "give the full path",
+      );
+    }
 });
 
 // How Lazurio is built is rendered wherever Organizations are mounted; a

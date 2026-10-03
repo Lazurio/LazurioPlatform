@@ -3109,3 +3109,174 @@ dependency tree (#124). Keeping the output of the preparation's processes (#125)
 | The standard says "declare only from the release with `prepare`" (#114 option 3) | Leaves conforming modules worse off than non-conforming ones; rejected |
 | Check first, install only when the check fails | A check that passes on a stale tree starts an application that misses a dependency added by an update (#114's last comment), unless every module's check inspects its `node_modules`; rejected |
 | Install on every start, then check, then `prepare_script` and the check again only when it fails; `prepare` as the explicit transaction (selected, #116's proposal) | One install policy for every module, declared or not; the stale-tree failure repaired without an operator step; about a second per start in the fixture when nothing changes, as for an undeclared module |
+
+## F35 — Files: the Operator's Documents through the Launchpad
+
+**Decided by Matěj 2026-10-02 for milestone M3 of plan DEV-6637; implemented in this
+revision.** Operators of a Remote Environment who are not developers could not get
+finished files back to their computer. An office team working in Codex Desktop over SSH
+saw images in the chat, but a 107 MB DOCX could not be downloaded after about half an hour
+of attempts, PPTX downloads were confusing, and agents answered with `/home/…` paths that
+open nothing on the Operator's computer (root issue HumanAndMachines/Lazurio#464). On a
+workstation the file is simply on disk. Since `base-instructions-17` (F14 addendum
+2026-10-02) agents save work products to `~/Documents/<task>/`. Matěj decided that those
+files go through the Platform Launchpad, on a page named Files: upload by drag and drop,
+download, a ZIP of a whole folder, and from the chat a link that opens in the browser.
+
+1. **One folder.** The page serves the Documents folder of the account the Launchpad
+   runs as, `<home>/Documents`, and nothing else: not the home folder, not the Lazurio
+   Folder, no hidden entry such as `~/.ssh`. The home is HOME, or `%USERPROFILE%` on
+   Windows, as `os.homedir()` reads them; a Documents folder that OneDrive redirects is
+   not followed. The folder itself, and nothing else, is created when the Operator lists
+   or uploads and it is missing. A Documents folder that is a link is followed to its
+   target (macOS iCloud Desktop & Documents works that way), but a target that holds the
+   home folder (`~`, `/`), overlaps the Lazurio Folder or lies on a hidden path of the
+   home (`~/.ssh`) serves nothing (`documents-unavailable`). On a Team Environment every member sees the same folder;
+   that is intended, and the page says so.
+2. **One set of path rules** (`src/files/rules.ts`), applied by the routes, the page's
+   route and `lazurio files link`. A path is names inside the folder. Refused before
+   anything is read: an empty name, `.` and `..`, a name that starts with a dot (hidden
+   entries are neither listed nor served), control characters, either separator (also
+   percent-encoded), an unpaired surrogate, a name over 255 bytes, a path over 4096
+   bytes or 64 levels, and on Windows the names Windows itself refuses. The Documents
+   adapter (`src/files/documents.ts`) resolves every path with `realpath` and requires
+   the result inside the realpath of the folder, visible on its whole real path (a link
+   into a hidden folder serves nothing), and a regular file or a directory (no FIFO,
+   socket or device). A link that stays inside is followed; one that leaves is refused
+   (`outside-documents`) and not listed.
+3. **Routes**, behind the admission every route already has: the gateway session,
+   revalidated, with the same-origin rule for every non-GET on a Remote Environment; the
+   session token locally.
+   - `GET|HEAD /files/<path>` behind a gateway: a regular file is its download, a folder
+     is the page, and anything not served is the page with status 404, which says so.
+     Locally `/files/<path>` is only the page: a link cannot carry the session token, so
+     the page downloads through `/api/files/download` with it.
+   - `GET /api/files/list?path=<folder>` answers `{ path, entries: [{ name, kind, size,
+     modifiedAt }] }`, folders first, then names as people read them (numbers by value,
+     case and accents ignored); `size` is `null` for a folder.
+   - A download (`GET|HEAD /api/files/download?path=<file>` and the file case above;
+     locally a `HEAD` needs the page's `Origin`, as every request but a `GET` does) is
+     an attachment under the name it was asked for (through a link the link's name, as
+     the list shows it), with an ASCII fallback and the exact UTF-8 name (RFC 6266 and
+     5987, Czech diacritics intact), the content type by extension (never HTML, SVG, XML
+     or a script: those are `application/octet-stream`), `Content-Length`,
+     `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`,
+     `Content-Security-Policy: sandbox`, `ETag` and `Last-Modified`, and one byte range
+     (206, 416) that honours `If-Range`.
+   - `GET /api/files/zip?path=<folder>`: a streamed ZIP of the visible tree, named
+     `<folder>.zip` (`Documents.zip` for the folder itself), its entries under that name.
+     Chosen over `?zip=1` on the page route because locally only `/api/*` carries the
+     session token, so one route serves both.
+   - `POST /api/files/upload?path=<folder>&name=<name>`: the raw body, with a required
+     `Content-Length` (411 without), streamed into a hidden temporary file in the target
+     folder, synced, then published under the first free name (`name`, `name (2).ext`,
+     `name (3).ext`, …), so nothing is ever replaced: by a hard link, or on a filesystem
+     without hard links (exFAT, some network and synced folders) by reserving the name
+     exclusively and moving the file over the reservation; it answers `201 { name, path,
+     size }` (the brief's `{ name, size }` plus the path). The name is stored in NFC.
+     A short or broken body (`upload-incomplete`), too little free space (`disk-full`,
+     checked before the first byte) and every other failure remove the temporary file.
+     The next upload into a folder removes a temporary file older than an hour that a
+     killed process left there, and the Launchpad's close waits until every upload under
+     way, also one still finding its folder, has finished or cleaned up.
+4. **Request bodies.** The Launchpad had set Bun's `maxRequestBodySize` to 16 KiB (Bun's
+   own default is 128 MiB). It is now 1 TiB, because uploads stream to disk, and every
+   JSON route reads its body through `readJsonBody`, bounded at 16 KiB whether the length
+   is declared or streamed (413 `body-too-large`). Bun reads a body only as the handler
+   does, so a refused request buffers nothing: in a measurement, a 2 GiB body sent to a
+   handler that waited 3 seconds and then refused it moved under 4 MB in that time, and
+   the process grew by 8 MB.
+5. **Streaming.** A full file and a byte range go out by sendfile as a `Bun.file` body,
+   which keeps the `Content-Length`. Bun applies its own Range handling to a full file
+   body and ignores `If-Range`, so a request whose range is not served (another version
+   named by `If-Range`, several ranges) gets the whole file through a generator instead,
+   chunked and without a length: Bun drops a declared `Content-Length` for every streamed
+   body. The ZIP streams the same way. Measured locally: 256 MiB up in 0.5 s and down in
+   1 s with the Launchpad's memory 5 MB above rest.
+6. **Our own ZIP writer** (`src/files/zip.ts`, about 300 lines), because Windows has no
+   `zip` to shell out to and the repository has no ZIP dependency. Entries are stored,
+   since office files, images and video are compressed already; CRC-32 comes from
+   `node:zlib`; data descriptors mean nothing is read twice; names are UTF-8 (bit 11);
+   each entry carries the extended timestamp; ZIP64 is written only where a value needs
+   it (a file of 4 GiB or more, an entry starting past 4 GiB, 65,535 entries or more).
+   The archive holds what the listing shows: a folder reached by a link and by its own
+   name is in it twice, a link back to a folder on the way down is left out (it would
+   never end), and a folder that cannot be read is left out with its contents. A file
+   that cannot be opened is left out whole; one that breaks mid-way breaks the archive
+   rather than hiding the damage. `unzip -t`, Python's `zipfile` and macOS `ditto` (the
+   engine of Archive Utility) read its archives, ZIP64 included; a real archive of a
+   4.4 GiB file (4,718,592,610 bytes, its central directory past 4 GiB) passed
+   `unzip -t` and `zipfile`.
+7. **`lazurio files link <path> [--folder <F>] [--json]`** resolves the path (absolute or
+   relative to the current directory) with the same rules and adapter. With a recorded
+   entry (F16) it prints `<entry.externalOrigin>/files/<percent-encoded path>`; without
+   one it prints the absolute path and says the file is already on this computer (or, on
+   a Remote Environment whose handover has no entry yet, that there is no browser link).
+   A path outside `~/Documents`, hidden or missing is refused with exit 2 and the
+   instruction to save or copy the file into `~/Documents/<task>/` first. `--json` prints
+   `{kind: "files-link", hosted, url}` or `{kind: "files-link", hosted, path}`, and
+   `{kind: "blocked", reason}`. `--folder` finds the entry as for `lazurio chat link`.
+8. **Agent instructions** (`base-instructions-19`, after #134 took 18). Where the Folder records a hosted
+   entry, the `AGENTS.md` rule for work products says: save to `~/Documents/<task>/` and
+   hand the Operator the link `lazurio files link <path>` prints, which opens in their
+   browser and downloads the file; on `<origin>/files` they upload files and download a
+   whole folder as a ZIP. `manual/this-machine.md` ("How the Operator works with you")
+   says it in full: never a `/home/…` path, the link is not public, a file outside
+   `~/Documents` or with a hidden name has no link, uploads land in the folder the
+   Operator had open, and on a Team Environment the folder is the whole Team's. Without
+   an entry no browser reaches the page and the earlier rule (give the full path) stays.
+   This ties the rule to the recorded entry rather than to the hosted presets: on a
+   hosted preset without an entry the command could only print a path.
+   `manual/troubleshooting.md` is unchanged; the command's refusal says what to do.
+9. **The page**: a Files entry in the sidebar on every route; the path as links; a list
+   with name, size, modified and Download, folders as routes; "Download folder (ZIP)";
+   upload by drag and drop anywhere on the page and by a button with a file picker, one
+   file at a time with its progress and Cancel, "Uploaded as …" when the name was taken;
+   an empty state that says what the folder is; a missing state; the Team note. Czech and
+   English; a narrow screen stacks a row's size and date under its name. Behind a gateway
+   every download is a plain link the browser saves itself, resumable and of any size;
+   locally the page fetches it with the session token and saves the result, holding it
+   in the browser's memory for the moment.
+
+**Security.** File links ride the gateway session cookie: there is no token in a link,
+no public, anonymous or time-limited link, and a link opens only for someone who may sign
+in to the Environment ([hosted entry](hosted-entry.md#files-links-decision-f34)). An
+upload is a state-changing request: the session and the same origin behind a gateway, the
+session token locally. Content goes out only as a sandboxed attachment, never sniffed.
+The rules and the realpath containment bound what the Launchpad hands to a browser; they
+are not a sandbox against the account itself, which can change the folder between the
+check and the read and whose agents work there with full access (root decision 0172).
+
+**Out of scope:** delete, rename and move; sharing links; public or time-limited
+anonymous links; folders other than Documents; previews of file contents; uploading a
+folder (a dropped folder is skipped, and the page says so); a quota of its own (the
+filesystem's free space is the limit).
+
+**Not decided here.** The gateway of a Remote Environment (Lazurio Machines) must pass
+large request bodies and long transfers through to the Launchpad; Caddy sets no body
+limit by default, which is to be confirmed on a real Remote Environment. Whether a given
+Environment's agents get the link rule follows whether its handover records the entry.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Hand files over through the chat clients' previews | The observed failure: a large file does not pass; rejected |
+| Public or pre-signed links | Whoever holds the link gets the file, and links travel through chats; rejected by Matěj: no public or anonymous links |
+| A Folder-owned files area | Rejected in the F14 addendum of 2026-10-02: the OS Documents folder is the Operator's own |
+| Serve the home folder and hide dot-folders | One mistake away from `~/.ssh`, the Folder and Personalspace; rejected: one folder |
+| Shell out to `zip`, or add a ZIP library | No `zip` on Windows; a dependency for a small, stable format; rejected |
+| A one-time token in the link for local downloads | A credential in a URL, while the file is on that computer anyway; rejected: the page fetches with the session token |
+| The Launchpad's own routes behind its existing admission, one folder, one set of rules, a streaming ZIP of our own (selected) | No new credential, authority or service; the link is an ordinary Launchpad route |
+
+Verified by unit and HTTP tests: the path rules (traversal, percent-encoded `%2e%2e` and
+`%2f`, absolute paths, hidden names, Windows names, lengths), the adapter against a
+temporary home (links that stay or leave, links into hidden folders, FIFOs, the Documents
+folder as a link to the home, `/`, `~/.ssh` or the Folder, a folder reached twice, an
+unreadable folder, a filesystem without hard links), listing order and fields, download
+headers with a Czech name, ranges with `If-Range` and `HEAD`, a 200 MiB file uploaded past
+Bun's 128 MiB default and downloaded back by sha256, uploads that never replace, refused
+uploads that write nothing, an abandoned upload and one cut off by the Launchpad's close
+that leave nothing, the ZIP by an independent reader and `unzip -t` (ZIP64 with lowered
+limits), the 16 KiB JSON bound, the hosted admission (no session, forged headers, another
+host, a foreign origin), `lazurio files link` inside and outside `~/Documents` with and
+without an entry and from the real command line, and the Folder render on every preset in
+both locales.
