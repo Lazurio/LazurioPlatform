@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
@@ -346,6 +347,7 @@ export async function startLaunchpad(
               machine: current.preferences.machine,
               locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
               catalog: await readFolderCatalog(folder),
+              computer: hostname(),
             }),
           );
         } catch {

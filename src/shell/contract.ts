@@ -39,8 +39,9 @@ export type ShellEnvironment = Readonly<{
   /** Stable within the document; `current` names one of them. */
   id: string;
   /** Its own name when it has one: a Team Environment's Team, an Automated
-   * Environment's persona. Null: the elements name it by its kind
-   * (Pracovní, Osobní, Tento počítač). Never the machine's technical name. */
+   * Environment's persona, a workstation's computer. Null: the elements name
+   * it by its kind (Pracovní, Osobní, Tento počítač). Never a hosted
+   * machine's technical name. */
   label: string | null;
   kind: ShellEnvironmentKind;
   /** The slugs of `organizations` it holds, in order; empty for a personal

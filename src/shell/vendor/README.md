@@ -78,3 +78,17 @@ files from `package/files/` and `package/LICENSE`.
 | `fonts/geist-mono-latin-ext-400-normal.woff2` | `8ede9cb664d0e0446ed066201d58e444f6147645ae0cb1108f765f68c54fe0a4` |
 | `fonts/LICENSE-inter-tight.txt` | `1e1c8b3dc6dfcbd5498a33f17fcc68ff2d39c599f6e8195fbf14601261dbef6a` |
 | `fonts/LICENSE-geist-mono.txt` | `cc815ed4fc045f0e991abb10395b7932bd028c6a067deb13316d6002105074e6` |
+
+## Interface icons
+
+The shell and the Launchpad page draw their interface icons from Iconoir
+(MIT, https://iconoir.com), the set the design system mandates for the
+interface (`content/brand/icons/icons.md`). The path data is copied exactly as
+the shell wireframe draws it (`HumanAndMachine-ai/prototypes-lazurio` 1cbad15,
+`app/v1/src/Icon.tsx`, `iconoir-react` 7.12.1) into `src/shell/icons.ts` and the
+page's inlined symbols. Its licence is copied byte-for-byte from the design
+system at the pinned commit (`content/brand/icons/LICENSE-iconoir.txt`).
+
+| File | Source path | SHA-256 |
+| --- | --- | --- |
+| `LICENSE-iconoir.txt` | `content/brand/icons/LICENSE-iconoir.txt` | `869b60da1ada5b896d1f285c3c24ca193d612e308d1710a77a58f2f572eb4fa2` |

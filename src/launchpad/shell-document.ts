@@ -156,13 +156,24 @@ export function assigneeLogin(
     : null;
 }
 
-/** This Environment's shell document. */
+/** A workstation's name: the computer's host name without its domain
+ * (`MacBook-Pro.local` is `MacBook-Pro`), as the person named the computer;
+ * null when there is none. Only a workstation is named so: a hosted
+ * Environment is never named by its machine. */
+export function computerLabel(name: string | undefined): string | null {
+  const host = (name ?? "").split(".")[0]?.trim() ?? "";
+  return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62})$/.test(host) ? host : null;
+}
+
+/** This Environment's shell document. `computer` is the host name of the
+ * computer a workstation runs on. */
 export function shellDocument(
   input: Readonly<{
     preset: PresetName;
     machine: MachineBinding | null;
     locale: "cs" | "en";
     catalog: Catalog;
+    computer?: string;
   }>,
 ): Shell {
   const { machine } = input;
@@ -183,7 +194,10 @@ export function shellDocument(
     environments: [
       {
         id,
-        label: teamLabel(machine, kind, input.catalog),
+        label:
+          kind === "workstation"
+            ? computerLabel(input.computer)
+            : teamLabel(machine, kind, input.catalog),
         kind,
         // A personal Environment belongs to no Organization, whatever its
         // Folder holds.

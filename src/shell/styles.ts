@@ -34,11 +34,10 @@ a, button, input { font: inherit; color: inherit; }
 /** The list of Environments: under the picker (one space) and as the ⌘⇧E
  * dialog (every space). */
 const switcherCss = `
-.switcher-backdrop { position: fixed; inset: 0; z-index: 70; }
 dialog.switcher-dialog { width: min(560px, 92vw); max-height: 64vh; margin: 12vh auto auto; padding: 0; border: 1px solid var(--lz-gray-300); border-radius: 14px; background: var(--lz-white); color: var(--lz-ink); }
 dialog.switcher-dialog::backdrop { background: rgb(0 0 0 / 25%); }
 .switcher-box { display: flex; flex-direction: column; max-height: inherit; overflow: hidden; background: var(--lz-white); }
-.switcher-popover { position: fixed; z-index: 71; max-height: min(72vh, 600px); border: 1px solid var(--lz-gray-300); border-radius: 12px; }
+.switcher-popover { position: fixed; inset: auto; margin: 0; padding: 0; max-height: min(72vh, 600px); border: 1px solid var(--lz-gray-300); border-radius: 12px; color: var(--lz-ink); }
 .switcher-search { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--lz-line); color: var(--lz-ink-muted); }
 .switcher-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--lz-ink); font-size: 15px; }
 .kbd { padding: 1px 6px; border: 1px solid var(--lz-line); border-radius: 6px; color: var(--lz-ink-muted); font-family: var(--lz-font-mono); font-size: 11px; }
@@ -112,5 +111,25 @@ nav.switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; pad
 a.tab:hover { color: var(--lz-ink); }
 .tab[aria-current="page"] { background: var(--lz-white); box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); color: var(--lz-ink); }
 .tab[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+/* A dark host (data-host-tone="dark", from --lazurio-host-tone or the host's
+   background): no frame, light text, a translucent hover. */
+:host([data-host-tone="dark"]) { color: #fff; }
+:host([data-host-tone="dark"]) .pick { color: #fff; }
+:host([data-host-tone="dark"]) .pick-who, :host([data-host-tone="dark"]) .pick > svg, :host([data-host-tone="dark"]) .gear { color: rgb(255 255 255 / 0.65); }
+:host([data-host-tone="dark"]) .pick:hover, :host([data-host-tone="dark"]) .pick[aria-expanded="true"], :host([data-host-tone="dark"]) .gear:hover, :host([data-host-tone="dark"]) .gear[aria-current="page"] { background: rgb(255 255 255 / 0.1); color: #fff; }
+:host([data-host-tone="dark"]) nav.switch { background: rgb(255 255 255 / 0.06); }
+:host([data-host-tone="dark"]) .tab { color: rgb(255 255 255 / 0.65); }
+:host([data-host-tone="dark"]) a.tab:hover { color: #fff; }
+:host([data-host-tone="dark"]) .tab[aria-current="page"] { background: rgb(255 255 255 / 0.12); box-shadow: none; color: #fff; }
+/* A narrow host (a fork's icon-only sidebar): the glyphs alone. */
+:host { container-type: inline-size; }
+@container (max-width: 160px) {
+  .row { flex-direction: column; align-items: center; }
+  .pick { flex: none; justify-content: center; padding: 7px; }
+  .pick-text, .pick > svg { display: none; }
+  .gear { width: 40px; height: 40px; }
+  nav.switch { grid-template-columns: 1fr; }
+  .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 @media (prefers-reduced-motion: reduce) { .pick > svg { transition: none; } }
 `;

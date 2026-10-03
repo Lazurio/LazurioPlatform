@@ -573,6 +573,7 @@ export class LazurioColumnHead extends ShellElement {
   }
   override disconnectedCallback() {
     super.disconnectedCallback();
+    this.scheme.removeEventListener("change", this.retone);
     this.open?.close();
   }
 
@@ -585,25 +586,24 @@ export class LazurioColumnHead extends ShellElement {
   }
 
   /** Opens the list of this space's Environments under the picker. */
+  /** Opens the list of this space's Environments under the picker, in the
+   * top layer (a popover): the host's sidebar may clip or stack over its
+   * children, the top layer is above both. A click outside or Escape closes
+   * it (light dismiss). */
   private toggle(picker: HTMLButtonElement, shell: Shell) {
     if (this.open !== null) {
       this.open.close();
       return;
     }
     const copy = this.copy(shell);
-    const backdrop = element("div", "switcher-backdrop");
+    let closed = false;
     const close = () => {
-      backdrop.remove();
+      if (closed) return;
+      closed = true;
+      if (switcher.box.matches(":popover-open")) switcher.box.hidePopover();
       switcher.box.remove();
       picker.setAttribute("aria-expanded", "false");
-      document.removeEventListener("keydown", onEscape, true);
       this.open = null;
-    };
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      close();
-      picker.focus();
     };
     const switcher = new Switcher(this, shell, copy, {
       here: this.here(shell),
@@ -613,16 +613,47 @@ export class LazurioColumnHead extends ShellElement {
       close,
     });
     const rect = picker.getBoundingClientRect();
-    switcher.box.classList.add("switcher-popover");
-    switcher.box.style.top = `${rect.bottom + 6}px`;
-    switcher.box.style.left = `${rect.left}px`;
-    switcher.box.style.width = `${Math.min(Math.max(rect.width, 400), window.innerWidth - rect.left - 8)}px`;
-    backdrop.addEventListener("click", close);
-    document.addEventListener("keydown", onEscape, true);
-    this.root.append(backdrop, switcher.box);
+    const box = switcher.box;
+    box.classList.add("switcher-popover");
+    box.popover = "auto";
+    box.style.top = `${rect.bottom + 6}px`;
+    box.style.left = `${rect.left}px`;
+    box.style.width = `${Math.min(Math.max(rect.width, 400), window.innerWidth - rect.left - 8)}px`;
+    box.addEventListener("toggle", (event) => {
+      if ((event as ToggleEvent).newState === "closed") {
+        close();
+        if (document.activeElement === this || this.root.activeElement === null)
+          picker.focus();
+      }
+    });
+    this.root.append(box);
+    box.showPopover();
     picker.setAttribute("aria-expanded", "true");
     this.open = { close };
     switcher.focus();
+  }
+
+  // The host's tone (the forks have light and dark skins): the custom
+  // property `--lazurio-host-tone: dark | light` wins; otherwise the
+  // luminance of the nearest ancestor with an opaque background decides.
+  // Read on connect and when the colour scheme changes.
+  private readonly scheme = window.matchMedia("(prefers-color-scheme: dark)");
+  private readonly retone = () => this.tone();
+  override connectedCallback() {
+    super.connectedCallback();
+    this.tone();
+    this.scheme.addEventListener("change", this.retone);
+  }
+  private tone() {
+    const declared = getComputedStyle(this)
+      .getPropertyValue("--lazurio-host-tone")
+      .trim();
+    const dark =
+      declared === "dark" || declared === "light"
+        ? declared === "dark"
+        : hostIsDark(this);
+    if ((this.dataset.hostTone === "dark") !== dark)
+      this.dataset.hostTone = dark ? "dark" : "light";
   }
 
   private activeApp(): ShellApp | null {
@@ -718,6 +749,33 @@ export class LazurioColumnHead extends ShellElement {
     head.append(row, nav);
     this.root.replaceChildren(head);
   }
+}
+
+/** Whether the nearest ancestor with an opaque background is dark (its
+ * relative luminance below 0.4); none found is light. */
+export function hostIsDark(start: Element): boolean {
+  let node: Element | null = start.parentElement;
+  while (node !== null) {
+    const rgb = /rgba?\(([^)]+)\)/.exec(getComputedStyle(node).backgroundColor);
+    const parts =
+      rgb?.[1]
+        ?.split(/[\s,/]+/)
+        .filter(Boolean)
+        .map(Number) ?? [];
+    const [r = 0, g = 0, b = 0, alpha = 1] = parts;
+    if (parts.length >= 3 && alpha >= 0.9) return luminance(r, g, b) < 0.4;
+    node = node.parentElement;
+  }
+  return false;
+}
+
+/** The relative luminance of an sRGB colour (WCAG). */
+export function luminance(r: number, g: number, b: number): number {
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
 
 /** Defines the elements (once) and declares the brand fonts in the document. */

@@ -105,6 +105,34 @@ test("a workstation's document: this computer, every Organization of the Folder 
   if (current === undefined) throw new Error("The document has one");
   expect(environmentName(current, cs)).toBe("Tento počítač");
   expect(environmentWho(current, cs)).toBe("tento počítač");
+  // Named by its computer when the host name is known, never by a hosted
+  // machine's name.
+  const named = shellDocument({
+    preset: "local",
+    machine: null,
+    locale: "cs",
+    catalog: catalog(),
+    computer: "Example-MacBook.local",
+  });
+  expect(named.environments[0]?.label).toBe("Example-MacBook");
+  expect(
+    shellDocument({
+      preset: "local",
+      machine: null,
+      locale: "cs",
+      catalog: catalog(),
+      computer: "not a host",
+    }).environments[0]?.label,
+  ).toBeNull();
+  expect(
+    shellDocument({
+      preset: "hosted-organization-personal",
+      machine: organizationWithEntry(),
+      locale: "cs",
+      catalog: catalog(),
+      computer: "Example-MacBook.local",
+    }).environments[0]?.label,
+  ).toBeNull();
   // On its own the workstation is personal; opened for an Organization it
   // stands in that Organization's space, Apps scoped to it.
   expect(hereOf(shell, null)).toBe("personal");

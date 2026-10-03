@@ -292,7 +292,7 @@ Escape does not leave Settings from a form field, so an unsaved note is not left
 behind by a stray key. T3 Code's settings search, `/` shortcut, resizable sidebar and
 per-row reset are not built: the page has three sections and no defaults to reset to.
 The General settings keep the explicit Preview → Apply of a Folder change instead of
-T3 Code's immediate apply. Icons are Lucide (ISC), inlined as SVG symbols.
+T3 Code's immediate apply. Icons are Iconoir (MIT), the design system's interface set, inlined as SVG symbols (Lucide before decision F36's addendum of 2026-10-04).
 
 ## Launchpad home: the catalog
 
