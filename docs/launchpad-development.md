@@ -138,7 +138,10 @@ app switch in its own sidebar and the Buddy bubble, and knows nothing of Lazurio
   `<lazurio-buddy>` (the bubble).
 - The patch in each fork is about 20 lines in about three files: the
   `<script type="module" src="/.lazurio/shell.js">` in `index.html`, the three elements,
-  and `#root { margin-left: var(--lazurio-rail-width, 0); }`. A check in the fork keeps
+  and a fixed rail with `#root { box-sizing: border-box; padding-left:
+  var(--lazurio-rail-width, 0px); }` (padding, not margin: upstream `#root` is
+  `width: 100%` under an overflow-hidden body, so a margin would clip the right edge).
+  Each changed file joins the fork's allowlist as its own exact path. A check in the fork keeps
   that slot (the script and `<lazurio-column-head>`), so a rebase on a new upstream
   conflicts only on those lines.
 - Nothing renders outside Lazurio: without `/.lazurio/shell.js` the elements stay
