@@ -253,6 +253,10 @@ export function moduleResultMessage(
       return copy.moduleStoppedDone;
     case "not-managed":
       return copy.moduleNotRunning;
+    case "start-pending":
+      return copy.moduleStartPending;
+    case "prepare-pending":
+      return copy.modulePreparePending;
     default:
       return result.outcome;
   }

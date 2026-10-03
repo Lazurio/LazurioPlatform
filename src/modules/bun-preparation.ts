@@ -41,9 +41,10 @@ type PreparationResult = Readonly<{
 // Operations: `prepare` installs, runs the optional preparation script, then
 // the optional check; `check` runs only the check; `start` (decision F32)
 // installs, runs the check and, only when it exits non-zero, the preparation
-// script and the check again. The frozen install changes nothing when the
-// installed tree already matches the lockfile. Every operation is one run
-// under one deadline.
+// script and the check again. On a tree that already matches the lockfile
+// Bun leaves registry dependencies as they are, but copies local `file:`
+// dependencies again and runs the owner package's own lifecycle scripts. Every operation is one run under one
+// deadline.
 export async function preflightBunPreparation(input: {
   checkout: string;
   owner: string;
@@ -168,8 +169,8 @@ export async function preflightBunPreparation(input: {
               return failed();
           }
           // Every operation but `check` begins with the frozen install,
-          // which changes nothing when node_modules already matches the
-          // lockfile (decision F32: the install is the Platform's).
+          // which leaves matching registry dependencies as they are (decision
+          // F32: the install is the Platform's; not free of effects, point 1).
           if (operation !== "check") {
             install = await runFrozenInstallProcess({
               authority,

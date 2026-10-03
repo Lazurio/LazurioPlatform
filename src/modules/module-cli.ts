@@ -33,8 +33,10 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   operator's Bun at ${standardBun} (toolchain-missing otherwise; see lazurio
   tools status). An app whose package declares no lazurio.preparation is
   prepared by default first: bun install --frozen-lockfile from the bun.lock
-  beside its package.json, which changes nothing when node_modules already
-  matches it (preparation-install-failed otherwise). An app that declares
+  beside its package.json, which leaves registry dependencies as they are
+  when node_modules already matches it (local file: dependencies are copied
+  again and the package's own lifecycle scripts such as postinstall run on
+  every install; preparation-install-failed when it fails). An app that declares
   one gets the same install first, then its declared check: when the check
   passes the app starts; when it fails, start runs its prepare_script and
   the check again and starts the app only when the check then passes

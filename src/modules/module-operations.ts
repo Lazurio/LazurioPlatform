@@ -252,6 +252,18 @@ export const ensureWaitMsDefault = 20_000;
  * `openHealthyPollMs`, `R:lazurio/runtime/runtime-lib.mjs:45`). */
 export const ensurePollMsDefault = 250;
 
+/** How long the Launchpad's module routes wait for a start or a preparation
+ * before they answer that it is still running: below the routes' 660-second
+ * idle timeout, so the answer always arrives (decision F32). The bound covers
+ * everything after the module is named: the toolchain check, the queue
+ * behind other operations of the Organization, the coordination lock, the
+ * preflight and the preparation's own 600-second run. */
+export const moduleAnswerWithinMsDefault = 630_000;
+
+/** A caller that must answer within a deadline (the Launchpad's routes). The
+ * operation goes on after a `start-pending` or `prepare-pending` answer. */
+export type AnswerOptions = Readonly<{ answerWithinMs?: number | undefined }>;
+
 export type EnsureOptions = Readonly<{
   /** Whether this request may start a stopped app: a top-level navigation
    * (an Open) may; a background fetch or a WebSocket reconnect only reports.
@@ -898,6 +910,43 @@ export function createModuleOperations(input: {
     });
   }
 
+  // A start or preparation answered within a deadline (decision F32): when
+  // it has not finished by then, the owner's view of the app now, with the
+  // outcome `start-pending` or `prepare-pending`; the operation goes on in
+  // this owner, and its result is the app's later status. Without a
+  // deadline (the CLI) the operation's own result.
+  async function answerWithin(
+    operation: "start" | "prepare",
+    prepared: Prepared,
+    run: (prepared: Prepared) => Promise<ModuleAnswer | ModuleBlocked>,
+    { answerWithinMs }: AnswerOptions,
+  ): Promise<ModuleAnswer | ModuleBlocked> {
+    if (answerWithinMs === undefined) return run(prepared);
+    const { target, runner: kind, selection } = prepared;
+    const running = run(prepared).catch((error: unknown) =>
+      moduleFailure(operation, target, error),
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const result = await Promise.race([
+      running,
+      new Promise<"pending">((resolve) => {
+        timer = setTimeout(() => resolve("pending"), answerWithinMs);
+      }),
+    ]).finally(() => clearTimeout(timer));
+    if (result !== "pending") return result;
+    return operate("status", kind, target, (lifecycle) =>
+      observe(
+        operation,
+        `${operation}-pending`,
+        kind,
+        target,
+        selection,
+        lifecycle,
+        "status",
+      ),
+    );
+  }
+
   // Seams of later slices, deliberately not built here:
   // - B3 `open` (start, wait for health, the link) composes the start and
   //   the same `observe`; until then `ensure` starts, and a start installs
@@ -909,20 +958,22 @@ export function createModuleOperations(input: {
     async start(
       name: string,
       options: ModuleOptions = {},
+      answer: AnswerOptions = {},
     ): Promise<ModuleAnswer | ModuleBlocked> {
       const prepared = await prepare("start", name, options);
       if ("kind" in prepared) return prepared;
-      return startOwned(prepared);
+      return answerWithin("start", prepared, startOwned, answer);
     },
     /** Prepare the module's app (its default, or `app`) explicitly, without
      * starting it (decision F32). */
     async prepare(
       name: string,
       options: ModuleOptions = {},
+      answer: AnswerOptions = {},
     ): Promise<ModuleAnswer | ModuleBlocked> {
       const prepared = await prepare("prepare", name, options);
       if ("kind" in prepared) return prepared;
-      return prepareOwned(prepared);
+      return answerWithin("prepare", prepared, prepareOwned, answer);
     },
     /** The gateway's `ensure` (launchpad-parity B5): make the default app of
      * the module with this exact lazurio.module.v1 id run. Healthy now: the

@@ -56,7 +56,10 @@ Authenticated preparation requests use a 660-second transport wait rather than t
 ordinary CLI request's 30 seconds, allowing the Bun preparation effect's maximum
 600-second budget and cleanup. Launchpad extends that request's idle timeout only
 after authentication and body parsing. A real 31-second shared-owner test covers
-the CLI/server path. These deadlines do not cancel an operation, prove rollback,
+the CLI/server path. Since F32 the module routes `POST /api/modules/…/start` and
+`…/prepare` answer within 630 seconds counted from naming the module (queue, locks and
+preflight included): a start or preparation still running then answers `202` with
+`start-pending` or `prepare-pending` and goes on. These deadlines do not cancel an operation, prove rollback,
 or solve queue admission, reconnect/status tracking and uncooperative adapter
 timeouts; those remain integration work, not reasons to automatically retry a write.
 
@@ -330,8 +333,10 @@ For the start-time step, `preflightDeclaredBunStart` selects the `start` operati
 that same process owner (decision F32, issues #114 and #116). It requires check_script
 and rejects clean-install mode. It runs, in one run under the same 600-second deadline,
 the frozen install from the lockfile beside the owner's package on every start (exactly
-as the default preparation does; it changes nothing when `node_modules` already matches
-the lockfile), then the check. A check that passes ends the step: the application starts
+as the default preparation does; when `node_modules` already matches the lockfile Bun
+leaves registry and Git dependencies as they are, but copies local `file:` dependencies
+again and runs the app package's own lifecycle scripts such as `postinstall`, so such a
+hook runs on every start), then the check. A check that passes ends the step: the application starts
 and prepare_script does not run. A check that exits non-zero is followed by the declared
 prepare_script and the check again, as the Lazurio Module Standard (root
 `manual/module-standard.md` ch. 3 and 10) requires; the application starts only when that

@@ -6,7 +6,10 @@ import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
 import { runModuleCommand } from "../src/modules/module-cli";
-import type { ModuleHost } from "../src/modules/module-operations";
+import {
+  createModuleOperations,
+  type ModuleHost,
+} from "../src/modules/module-operations";
 import { createSessionRunner } from "../src/modules/session-runner";
 import type { CliContext } from "../src/update/cli";
 import { writeOrganization } from "./fixtures/catalog-folder";
@@ -578,6 +581,140 @@ posixTest(
         );
         expect(await servedDependency(app("stale"))).toBe("2.0.0");
         expect(await exists(join(app("stale"), "prepared"))).toBe(false);
+        const stopped = await fetch(route("stop"), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(await stopped.json()).toMatchObject({
+          outcome: "group-stopped",
+        });
+      } finally {
+        expect(await launchpad.close()).toEqual({ kind: "closed" });
+      }
+    });
+  },
+  120_000,
+);
+
+// Decision F32 point 2: the Launchpad's routes answer within their deadline,
+// counted from naming the module, so a start that waits in the Organization's
+// queue behind another operation (or for a lock, or installs) still gets an
+// answer before the transport gives up; the operation goes on. Shortened
+// budgets: a preparation whose check takes 4 s holds the queue, answers are
+// due after 0.5 s. (The in-memory user manager runs one app at a time, so the
+// queue is held by a preparation, which starts nothing.)
+posixTest(
+  "the routes' deadline covers the queue: a start waiting behind another operation answers start-pending in time, goes on, and the route says 202",
+  async () => {
+    await world(async ({ folder, app, host, manager }) => {
+      await writeFile(
+        join(app("ready"), "check.ts"),
+        "await Bun.sleep(4000); process.exit(0);",
+      );
+      const operations = createModuleOperations({
+        folder,
+        owner: "launchpad",
+        host: host("fresh"),
+      });
+      try {
+        const began = performance.now();
+        const holding = operations.prepare(
+          "delta/ready",
+          {},
+          { answerWithinMs: 500 },
+        );
+        await Bun.sleep(100);
+        const queued = operations.start(
+          "delta/fresh",
+          {},
+          { answerWithinMs: 500 },
+        );
+        const [first, second] = await Promise.all([holding, queued]);
+        // Both answered while the preparation's check still held the queue.
+        expect(performance.now() - began).toBeLessThan(3_000);
+        expect(first).toMatchObject({
+          kind: "module",
+          operation: "prepare",
+          module: "ready",
+          outcome: "prepare-pending",
+          state: "stopped",
+        });
+        expect(second).toMatchObject({
+          kind: "module",
+          operation: "start",
+          module: "fresh",
+          outcome: "start-pending",
+          state: "stopped",
+          healthy: false,
+        });
+        expect(await exists(join(app("ready"), "prepared"))).toBe(false);
+        // Both go on: the preparation ends, then the queued start installs,
+        // prepares and starts its app.
+        let status = await operations.status("delta/fresh");
+        for (
+          let attempt = 0;
+          attempt < 600 && !(status.kind === "module" && status.healthy);
+          attempt++
+        ) {
+          await Bun.sleep(100);
+          status = await operations.status("delta/fresh");
+        }
+        expect(status).toMatchObject({ state: "running", healthy: true });
+        expect(await traces(app("ready"), "prepared")).toBe("yes");
+        expect(manager.commands("systemd-run")).toHaveLength(1);
+        expect(await operations.stop("delta/fresh")).toMatchObject({
+          outcome: "group-stopped",
+        });
+        // Without a deadline (the CLI's way) the call waits for the result.
+        expect(await operations.prepare("delta/ready")).toMatchObject({
+          outcome: "prepared",
+        });
+      } finally {
+        expect(await operations.close()).toEqual({ kind: "closed" });
+      }
+      const host2 = host("ready");
+      // The route: 202 with the pending answer, then the app runs.
+      const launchpad = await startLaunchpad(
+        folder,
+        undefined,
+        undefined,
+        undefined,
+        { moduleAnswerWithinMs: 500 },
+        undefined,
+        {},
+        undefined,
+        host2,
+      );
+      try {
+        const url = new URL(launchpad.url);
+        const headers = {
+          Origin: url.origin,
+          Authorization: `Bearer ${url.hash.slice(1)}`,
+        };
+        const route = (verb: string) =>
+          `${url.origin}/api/modules/delta/ready/${verb}`;
+        const started = await fetch(route("start"), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(started.status).toBe(202);
+        expect(await started.json()).toMatchObject({
+          kind: "module",
+          operation: "start",
+          outcome: "start-pending",
+        });
+        let status: Record<string, unknown> = {};
+        for (let attempt = 0; attempt < 600 && !status.healthy; attempt++) {
+          status = await (
+            await fetch(route("status"), {
+              headers: { Authorization: headers.Authorization },
+            })
+          ).json();
+          if (!status.healthy) await Bun.sleep(100);
+        }
+        expect(status).toMatchObject({ state: "running", healthy: true });
         const stopped = await fetch(route("stop"), {
           method: "POST",
           headers: { ...headers, "Content-Type": "application/json" },

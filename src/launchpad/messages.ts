@@ -484,6 +484,10 @@ const en = {
   moduleStartedHealthy: "Started and healthy.",
   moduleAlreadyRunning: "It was already running.",
   moduleStoppedDone: "Stopped; its processes ended.",
+  moduleStartPending:
+    "The start is still running (Lazurio is installing or preparing the app); it goes on, and the status shows the app once it runs.",
+  modulePreparePending:
+    "The preparation is still running; it goes on without starting the app.",
   moduleNotRunning: "It was not running.",
   moduleRefused: "Refused: {reason}.",
   moduleReasonToolchain:
@@ -1089,6 +1093,10 @@ const cs: Record<MessageKey, string> = {
   moduleStartedHealthy: "Spuštěno a zdravé.",
   moduleAlreadyRunning: "Už běžela.",
   moduleStoppedDone: "Zastaveno; její procesy skončily.",
+  moduleStartPending:
+    "Spouštění ještě běží (Lazurio aplikaci instaluje nebo připravuje); pokračuje dál a stav aplikaci ukáže, až poběží.",
+  modulePreparePending:
+    "Příprava ještě běží; pokračuje dál a aplikaci nespustí.",
   moduleNotRunning: "Neběžela.",
   moduleRefused: "Odmítnuto: {reason}.",
   moduleReasonToolchain:

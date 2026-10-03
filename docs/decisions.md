@@ -2869,16 +2869,35 @@ and crashed at once on a dependency an update had added (`Cannot find module`).
    data, its build); whether the installed tree matches the lockfile is the Platform's
    question, and the frozen install is the Platform's answer to it. A module check cannot
    reliably tell whether `node_modules` matches its lockfile, and one that passes on a
-   stale tree started an application that crashed. An install that changes nothing changes
-   no file, so a passing check still leaves everything the module owns as it was. Its cost
-   is the one every application without a declaration already pays: Bun's own no-op
-   frozen install takes about 10 ms, and the guarded process, toolchain and input checks
-   around it made a declared start of the fixture module about 1.1 s slower on macOS
-   ARM64 (1.2 s to 2.3 s, start to healthy against the in-memory user manager).
-2. **One run, one deadline.** The install, the check, the script and the second check are
-   one run of the existing Bun preparation under its one 600-second budget, so a start
-   fits the Launchpad's 660-second transport wait; cancellation, timeout, unconfirmed
-   cleanup and changed inputs never become prepared.
+   stale tree started an application that crashed. **What a satisfied install still
+   does:** when `node_modules` already matches the lockfile, Bun leaves registry and Git
+   dependencies as they are ("no changes"), but it copies local `file:` dependencies into
+   `node_modules` again and runs the application package's own lifecycle scripts
+   (`preinstall`, `install`, `postinstall`, `prepare`) on every install. So such a hook runs
+   on every start before the check, as it already does for every application without a
+   declaration (F25); it is not a side-effect-free no-op. The Platform does not suppress
+   this: skipping a satisfied install
+   would need a second record of the installed state beside Bun's, and `--ignore-scripts`
+   would also skip them on a real install. Under the standard a module's own preparation
+   belongs in `prepare_script`; a module that keeps a root lifecycle hook keeps it
+   idempotent and cheap. The cost is the one every application without a declaration
+   already pays: Bun's own frozen install of a satisfied tree took about 10 ms here, and
+   the guarded process, toolchain and input checks around it made a declared start of the
+   fixture module about 1.1 s slower on macOS ARM64 (1.2 s to 2.3 s, start to healthy
+   against the in-memory user manager).
+2. **One run, one deadline; the routes answer in time.** The install, the check, the
+   script and the second check are one run of the existing Bun preparation under its one
+   600-second budget; cancellation, timeout, unconfirmed cleanup and changed inputs never
+   become prepared. That budget starts only once the run starts: before it, a start can
+   wait in the Organization's queue behind another application's start, for the
+   coordination lock and for the preflight. The Launchpad's module routes (`POST
+   …/start`, `…/prepare`) therefore bound the whole request, not the run: they answer
+   within `moduleAnswerWithinMsDefault` (630 s, below their 660-second idle timeout),
+   counted from when the module is named. A start or preparation not finished by then
+   answers `202` with the app's status and the outcome `start-pending` or
+   `prepare-pending`, and goes on in the Launchpad; its result is the app's later status.
+   The CLI has no transport and waits for the result; the gateway's `ensure` keeps its
+   own 20-second answer.
 3. **Exclusion as F25 point 2.** The start-time preparation runs under the start's
    coordination, not as a retained transaction: an interrupted install or script leaves
    no retained record, and the next start installs and checks again.

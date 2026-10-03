@@ -58,8 +58,9 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   const declaration = binding.preparation;
   requireQualifiedInstall(declaration, applicationPackage, binding.authority);
   // The default preparation (decision F25) has no check: its start-time
-  // step is its preparation, the frozen install, which changes nothing when
-  // the installed tree already matches the lockfile. A declared preparation's
+  // step is its preparation, the frozen install, which leaves matching
+  // registry dependencies as they are (Bun still copies local `file:`
+  // dependencies and runs the package's own lifecycle scripts). A declared preparation's
   // start-time step is the same install, then its check, and only when the
   // check fails its prepare_script and the check again (decision F32), unless
   // the app's directory overlaps another app of its module: its install could
@@ -164,7 +165,8 @@ export async function preflightDeclaredBunPreparation(input: Input) {
 }
 
 // The start-time step (decision F32). For a declared preparation: the frozen
-// install (nothing changes when node_modules already matches the lockfile),
+// install (matching registry dependencies are left as they are; local
+// `file:` dependencies are copied and lifecycle scripts run every time),
 // its check, and only when the check fails the declared prepare_script and the
 // check again, all in one run under one deadline. For the default preparation
 // (decision F25), which has no check, it is the frozen install. The lifecycle

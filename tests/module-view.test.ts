@@ -182,6 +182,26 @@ test("the sentence after Start or Stop names what happened or why not", () => {
   expect(moduleResultMessage(answer({ outcome: "not-managed" }), en)).toBe(
     en.moduleNotRunning,
   );
+  // A start or preparation still running at the route's deadline (F32).
+  for (const copy of [en, cs]) {
+    expect(
+      moduleResultMessage(
+        answer({ outcome: "start-pending", state: "stopped", healthy: false }),
+        copy,
+      ),
+    ).toBe(copy.moduleStartPending);
+    expect(
+      moduleResultMessage(
+        answer({
+          operation: "prepare",
+          outcome: "prepare-pending",
+          state: "stopped",
+          healthy: false,
+        }),
+        copy,
+      ),
+    ).toBe(copy.modulePreparePending);
+  }
   expect(moduleResultMessage(refusal("toolchain-missing"), cs)).toBe(
     cs.moduleReasonToolchain,
   );

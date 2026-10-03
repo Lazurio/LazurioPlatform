@@ -19,6 +19,7 @@ import {
   type ModuleAnswer,
   type ModuleBlocked,
   type ModuleHost,
+  moduleAnswerWithinMsDefault,
   processModuleHost,
 } from "../modules/module-operations";
 import { readFolderCatalog } from "../organizations/catalog";
@@ -64,6 +65,10 @@ export type HostedOptions = Readonly<{
   /** How long the gateway's `ensure` waits for a started app to report
    * healthy (default `ensureWaitMsDefault`). */
   ensureWaitMs?: number;
+  /** How long the module routes wait for a start or a preparation before
+   * they answer that it is still running (default
+   * `moduleAnswerWithinMsDefault`, decision F32); also on a workstation. */
+  moduleAnswerWithinMs?: number;
 }>;
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
@@ -356,19 +361,33 @@ export async function startLaunchpad(
         const options = app === undefined ? {} : { app };
         try {
           // A start runs the module's start-time step first, and a prepare
-          // its preparation: one run bounded by the preparation budget
-          // (600 s, decision F32); the request waits for it.
+          // its preparation. The request waits at most until the answer
+          // deadline (below this idle timeout, decision F32), which includes
+          // the queue, the locks and the preflight; a start or preparation
+          // still running then is answered 202 with its pending outcome and
+          // goes on.
+          const answer = {
+            answerWithinMs:
+              hostedOptions.moduleAnswerWithinMs ?? moduleAnswerWithinMsDefault,
+          };
           if (moduleRequest[3] === "start" || moduleRequest[3] === "prepare")
             server.timeout(request, 660);
           const result =
             moduleRequest[3] === "start"
-              ? await modules.start(name, options)
+              ? await modules.start(name, options, answer)
               : moduleRequest[3] === "prepare"
-                ? await modules.prepare(name, options)
+                ? await modules.prepare(name, options, answer)
                 : moduleRequest[3] === "stop"
                   ? await modules.stop(name, options)
                   : await modules.status(name, options);
-          return response(result, result.kind === "blocked" ? 409 : 200);
+          return response(
+            result,
+            result.kind === "blocked"
+              ? 409
+              : result.kind === "module" && result.outcome.endsWith("-pending")
+                ? 202
+                : 200,
+          );
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

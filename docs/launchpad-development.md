@@ -319,8 +319,10 @@ read.
 its own declaration through the existing lifecycle (`src/modules/lifecycle.ts`), the
 runners and `localApplicationAdapters`: for an app without a `lazurio.preparation` its
 default preparation, the frozen install from the lockfile beside its package (decision
-F25); for an app that declares one the same frozen install on every start (a no-op when
-`node_modules` matches the lockfile), then its check, and only when the check fails the
+F25); for an app that declares one the same frozen install on every start (when
+`node_modules` matches the lockfile Bun leaves registry dependencies as they are, but
+copies local `file:` dependencies again and runs the app package's own lifecycle scripts
+such as `postinstall`), then its check, and only when the check fails the
 declared `prepare_script` and the check again (decision F32, Lazurio Module Standard
 ch. 3 and 10); then the dev script, never a hostname convention. A check that passes
 after the install runs no `prepare_script`. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
@@ -378,7 +380,11 @@ Refusals are `{kind: "blocked", operation, reason, …}`.
 /api/modules/<org>/<module>/start`, `…/prepare` and `…/stop` with `{}` or `{"app": "<package>"}`,
 each segment URL-encoded, behind the existing admission (the fragment token locally,
 the gateway's cookie hosted; `POST` also same-origin). The body is the CLI's `--json`
-object: 200 when done, 409 when refused.
+object: 200 when done, 409 when refused. Start and prepare answer within 630 seconds
+counted from naming the module, below their 660-second idle timeout (decision F32): one
+still running then (queued behind another app's start of the Organization, waiting for a
+lock, or installing) answers 202 with the app's status and the outcome `start-pending` or
+`prepare-pending`, goes on in the Launchpad, and the page says so.
 
 **Page.** The route `/o/<org>/<module>` of an executable module shows an "Application"
 card in the settings-row pattern: a status dot (green running and healthy, amber

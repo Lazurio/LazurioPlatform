@@ -298,6 +298,20 @@ posixTest(
       }
       if (options.data)
         await writeFile(join(f.directory, "module-data"), "ready");
+      // The installed package's file, to tell whether the install wrote it.
+      const installedFile = join(
+        f.directory,
+        "node_modules/fixture-dependency/package.json",
+      );
+      const identity = async () => {
+        try {
+          const { ino, mtimeMs } = await lstat(installedFile);
+          return `${ino}:${mtimeMs}`;
+        } catch {
+          return null;
+        }
+      };
+      const before = await identity();
       const preparation = await preflightBunPreparation({
         checkout: f.directory,
         owner: f.directory,
@@ -318,6 +332,9 @@ posixTest(
             : null;
         return {
           result,
+          // null without an earlier install; true when the install left the
+          // installed package's file as it was.
+          untouched: before === null ? null : before === (await identity()),
           steps: await read("steps"),
           dependency: await Bun.file(
             join(f.directory, "node_modules/fixture-dependency/package.json"),
@@ -328,11 +345,17 @@ posixTest(
         expect(await preparation.close()).toEqual({ kind: "closed" });
       }
     };
-    // Ready: the install changes nothing, one check, no preparation script.
+    // Ready: one check and no preparation script, but the install is not
+    // free of effects (decision F32 point 1, accepted): Bun runs the
+    // package's own postinstall hook ('i') and copies a local `file:`
+    // dependency into node_modules again on every install, satisfied or not.
+    // A registry dependency that matches is left as it is (Bun reports "no
+    // changes"); that needs the network and is not exercised here.
     expect(
       await scenario("start-ready", { installed: true, data: true }),
     ).toEqual({
       result: { kind: "prepared" },
+      untouched: false,
       steps: "ic",
       dependency: true,
       data: "ready",
@@ -341,6 +364,7 @@ posixTest(
     // the install repairs it and the passing check starts without the script.
     expect(await scenario("start-stale", { data: true })).toEqual({
       result: { kind: "prepared" },
+      untouched: null,
       steps: "ic",
       dependency: true,
       data: "ready",
@@ -348,6 +372,7 @@ posixTest(
     // A fresh checkout: install, check, preparation, check.
     expect(await scenario("start-fresh", {})).toEqual({
       result: { kind: "prepared" },
+      untouched: null,
       steps: "icpc",
       dependency: true,
       data: "ready",
@@ -359,6 +384,7 @@ posixTest(
       }),
     ).toEqual({
       result: { kind: "preparation-failed", stage: "install" },
+      untouched: null,
       steps: "i",
       // The failing postinstall hook runs after the dependency is in place.
       dependency: true,
@@ -369,6 +395,7 @@ posixTest(
       await scenario("start-prepare-fails", { prepare: "process.exit(9);" }),
     ).toEqual({
       result: { kind: "preparation-failed", stage: "prepare-script" },
+      untouched: null,
       steps: "icp",
       dependency: true,
       data: null,
@@ -380,6 +407,7 @@ posixTest(
       }),
     ).toEqual({
       result: { kind: "preparation-failed", stage: "check" },
+      untouched: null,
       steps: "icpc",
       dependency: true,
       data: "partial",
