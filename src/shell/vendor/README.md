@@ -2,7 +2,7 @@
 
 Byte-for-byte copies; never edited here. A change is a new copy from the pinned
 source with new hashes in this file, reviewed like code (decision F36).
-`tests/shell-vendor.test.ts` checks every file below against its hash.
+`tests/apps-view.test.ts` ("every vendored file has the hash its README records") checks every file below against its hash.
 
 ## Lazurio design system
 

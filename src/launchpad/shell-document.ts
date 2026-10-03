@@ -68,7 +68,7 @@ export function shellOrganizations(
     return [
       Object.freeze({
         slug,
-        name: organization.displayName ?? slug,
+        name: shellName(organization.displayName, slug),
         accent: null,
         avatar:
           organization.forgeLogin === undefined
@@ -77,6 +77,21 @@ export function shellOrganizations(
       }),
     ];
   });
+}
+
+/** An Organization's name as the shell contract takes it: its manifest
+ * admits any nonblank display name, the contract at most 128 characters
+ * without control characters, so the name is cut to fit rather than the
+ * whole document refused; the slug when nothing is left. */
+export function shellName(name: string | null, slug: string): string {
+  const clean = [...(name ?? "")]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code < 0x20 || code === 0x7f ? " " : character;
+    })
+    .join("")
+    .trim();
+  return [...clean].slice(0, 128).join("").trim() || slug;
 }
 
 const origin = (value: string) => `${value}/`;

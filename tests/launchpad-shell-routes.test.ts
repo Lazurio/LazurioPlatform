@@ -6,12 +6,13 @@ import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
+import { parseCatalog } from "../src/launchpad/catalog-view";
 import { privatePage, shellSource } from "../src/launchpad/page";
 import { startLaunchpad } from "../src/launchpad/server";
 import { checkBundledPage } from "../src/launchpad/start-check";
 import { parseShell } from "../src/shell/contract";
 import { shellFonts } from "../src/shell/fonts";
-import { folderFixture } from "./fixtures/catalog-folder";
+import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 
 // Decision F36: `/.lazurio/shell.js` and `/.lazurio/fonts/*` are static
@@ -205,6 +206,68 @@ posixTest(
       await app.close();
       await rm(parent, { recursive: true, force: true });
     }
+  },
+  30_000,
+);
+
+posixTest(
+  "valid but long declarations keep the shell document and the page's catalog readable",
+  async () => {
+    await folderFixture(async (folder) => {
+      // A display name the manifest admits (nonblank, a tab inside, longer
+      // than the shell's 128) and an app whose valid runtime declaration has
+      // an id and a tag longer than the page's catalog bounds.
+      await writeOrganization(folder, "longname_GEN3", {
+        slug: "longname",
+        state: "current",
+        displayName: `Long\t${"N".repeat(129)}`,
+        modules: [
+          {
+            id: "orders",
+            runtime: {
+              id: "o".repeat(140),
+              title: "Orders v2",
+              tags: ["a".repeat(129), "sales"],
+            },
+          },
+        ],
+      });
+      const app = await startLaunchpad(folder);
+      const session = new URL(app.url);
+      const token = session.hash.slice(1);
+      try {
+        const answer = await fetch(new URL("/.lazurio/shell.json", session), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        expect(answer.status).toBe(200);
+        const shell = parseShell(await answer.json());
+        const name = shell?.organizations.find(
+          (entry) => entry.slug === "longname",
+        )?.name;
+        expect(name).toBe(`Long ${"N".repeat(123)}`);
+        expect([...(name ?? "")].length).toBe(128);
+        const catalog = await fetch(new URL("/api/catalog", session), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: session.origin,
+            Authorization: `Bearer ${token}`,
+          },
+          body: "{}",
+        });
+        expect(catalog.status).toBe(200);
+        const parsed = parseCatalog(await catalog.json());
+        expect(parsed).not.toBeNull();
+        const display = parsed?.organizations
+          .find((entry) => entry.organization === "longname")
+          ?.modules.find((entry) => entry.module === "orders")?.display;
+        expect(display?.title).toBe("Orders v2");
+        expect(display?.id).toBe("o".repeat(128));
+        expect(display?.tags).toEqual(["sales"]);
+      } finally {
+        await app.close();
+      }
+    });
   },
   30_000,
 );

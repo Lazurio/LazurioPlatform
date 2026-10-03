@@ -299,7 +299,7 @@ const declaresModule = (manifest: string) =>
  * raw file content, a path or a grant. The Module's manifest stays the
  * authority; the Launchpad only draws it. */
 export type AppDisplay = Readonly<{
-  /** The app's id in its declaration. */
+  /** The app's id in its declaration, at most 128 characters. */
   id: string;
   /** Its title, at most 120 characters. */
   title: string;
@@ -307,7 +307,8 @@ export type AppDisplay = Readonly<{
   description?: string;
   /** Its semantic icon key, when it is one (lowercase words and dashes). */
   icon?: string;
-  /** Its tags, at most 20. */
+  /** Its tags, at most 20, each at most 128 characters (a longer one is
+   * left out). */
   tags: readonly string[];
 }>;
 
@@ -320,14 +321,19 @@ function appDisplay(
   }>,
 ): AppDisplay {
   const { description, icon } = runtime.optional;
+  // The runtime parser bounds none of id, title or tags; the page's catalog
+  // reader does (src/launchpad/catalog-view.ts), so the projection keeps to
+  // those bounds and a valid declaration never makes the catalog unreadable.
   return Object.freeze({
-    id: runtime.id,
+    id: [...runtime.id].slice(0, 128).join(""),
     title: [...runtime.title].slice(0, 120).join(""),
     ...(typeof description === "string" ? { description } : {}),
     ...(typeof icon === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(icon)
       ? { icon }
       : {}),
-    tags: Object.freeze(runtime.tags.slice(0, 20)),
+    tags: Object.freeze(
+      runtime.tags.filter((tag) => [...tag].length <= 128).slice(0, 20),
+    ),
   });
 }
 
