@@ -85,6 +85,13 @@ export async function readCheckoutJson(path: string): Promise<unknown> {
   ) as unknown;
 }
 
+/** A file that changed while it was read: it was replaced, grew, shrank, or
+ * its mtime or ctime moved between the first `lstat` and the last. Its bytes
+ * are unknown, which is no refusal of the file and no evidence that they
+ * differ: a link added or removed beside it moves its ctime alone. Whoever
+ * watches the file over time may read it again (issue #140). */
+export class CheckoutFileUnsettled extends Error {}
+
 // One bounded read of a file that `refuse` accepts, unchanged from the first
 // `lstat` to the last: never through a symlink, never a file that grew,
 // shrank, was replaced or changed during the read.
@@ -105,7 +112,7 @@ async function readStableFile(
   try {
     const opened = await file.stat();
     if (!safe(opened) || opened.dev !== before.dev || opened.ino !== before.ino)
-      throw new Error("Declaration changed before read");
+      throw new CheckoutFileUnsettled("Declaration changed before read");
     const bytes = Buffer.alloc(opened.size + 1);
     let count = 0;
     while (count < bytes.length) {
@@ -125,7 +132,7 @@ async function readStableFile(
       named.dev !== opened.dev ||
       named.ino !== opened.ino
     )
-      throw new Error("Declaration changed during read");
+      throw new CheckoutFileUnsettled("Declaration changed during read");
     return bytes.subarray(0, count);
   } finally {
     await file.close();

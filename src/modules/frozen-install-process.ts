@@ -3,6 +3,7 @@ import { inspectBunToolchain } from "./bun-toolchain";
 import { startGuardedProcess } from "./guarded-process";
 import {
   type inspectInstallAuthority,
+  observeInstallAuthority,
   verifyInstallAuthority,
 } from "./install-authority";
 import { PreparationRefused } from "./preparation-refusal";
@@ -133,7 +134,12 @@ async function runBunOwnerProcess(
           outcome = { kind: "timed-out" };
           break;
         }
-        if (!(await verifyInstallAuthority(authority))) {
+        // A file of the authority that changed while it was read is no
+        // answer yet: the process's own effects move the metadata of its
+        // inputs (an install replaces a hard link of a local dependency's
+        // file in node_modules, issue #140). The next poll reads it again,
+        // and the authority is verified once more after the group drains.
+        if ((await observeInstallAuthority(authority)) === "changed") {
           outcome = { kind: "authority-changed" };
           break;
         }

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, spyOn, test } from "bun:test";
+import { existsSync } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import {
   chmod,
@@ -1122,6 +1123,58 @@ posixTest(
     const result = await runFrozenInstallProcess(f.request);
     expect(result.kind).toBe("authority-changed");
     expect("cleanup" in result && result.cleanup).toBe("group-stopped");
+  },
+);
+
+// Issue #140: a frozen install over a node_modules that holds a hard link of
+// a local dependency's file replaces that link, which moves the ctime of the
+// dependency's own file; a poll that reads it at that moment sees it change
+// while it is read. Here every read of dependency/package.json changes its
+// ctime between the reader's two stats while the hook runs (and with
+// `persist` also after it), so the poll is certain to see it.
+posixTest(
+  "a dependency file whose metadata moves while the install runs is read again, not taken as changed; the verification after the install stays strict",
+  async () => {
+    for (const persist of [false, true]) {
+      const f = await fixture(
+        `unsettled-${persist}`,
+        "await Bun.write('started', 'yes'); await Bun.write('installing', 'yes'); await Bun.sleep(500); require('node:fs').unlinkSync('installing');",
+      );
+      const dependency = join(f.directory, "dependency/package.json");
+      const tearing = () =>
+        existsSync(join(f.directory, "installing")) ||
+        (persist && existsSync(join(f.directory, "started")));
+      let torn = 0;
+      const original = fsPromises.open;
+      const spy = spyOn(fsPromises, "open").mockImplementation((async (
+        ...args: Parameters<typeof original>
+      ) => {
+        const handle = await original(...args);
+        if (args[0] !== dependency || !tearing()) return handle;
+        const stat = handle.stat.bind(handle);
+        let calls = 0;
+        handle.stat = (async (...options: Parameters<typeof stat>) => {
+          const observed = await stat(...options);
+          if (calls++ > 0) {
+            torn += 1;
+            Object.defineProperty(observed, "ctimeMs", {
+              value: Number(observed.ctimeMs) + 1,
+            });
+          }
+          return observed;
+        }) as typeof stat;
+        return handle;
+      }) as typeof original);
+      try {
+        const result = await runFrozenInstallProcess(f.request);
+        expect(torn).toBeGreaterThan(0);
+        expect("cleanup" in result && result.cleanup).toBe("group-stopped");
+        if (persist) expect(result.kind).toBe("authority-changed");
+        else expect(result).toMatchObject({ kind: "process-exited", code: 0 });
+      } finally {
+        spy.mockRestore();
+      }
+    }
   },
 );
 
