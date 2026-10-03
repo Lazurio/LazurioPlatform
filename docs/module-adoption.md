@@ -57,8 +57,9 @@ ordinary CLI request's 30 seconds, allowing the Bun preparation effect's maximum
 600-second budget and cleanup. Launchpad extends that request's idle timeout only
 after authentication and body parsing. A real 31-second shared-owner test covers
 the CLI/server path. Since F34 the module routes `POST /api/modules/…/start` and
-`…/prepare` answer within 630 seconds counted from naming the module (queue, locks and
-preflight included): a start or preparation still running then answers `202` with
+`…/prepare` answer within 630 seconds counted from naming the module (resolution, queue,
+locks, preflight and the answer's status read included): a start or preparation still
+running then answers `202` with
 `start-pending` or `prepare-pending` and goes on. These deadlines do not cancel an operation, prove rollback,
 or solve queue admission, reconnect/status tracking and uncooperative adapter
 timeouts; those remain integration work, not reasons to automatically retry a write.

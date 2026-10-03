@@ -395,10 +395,15 @@ Refusals are `{kind: "blocked", operation, reason, …}`.
 each segment URL-encoded, behind the existing admission (the fragment token locally,
 the gateway's cookie hosted; `POST` also same-origin). The body is the CLI's `--json`
 object: 200 when done, 409 when refused. Start and prepare answer within 630 seconds
-counted from naming the module, below their 660-second idle timeout (decision F34): one
-still running then (queued behind another app's start of the Organization, waiting for a
-lock, or installing) answers 202 with the app's status and the outcome `start-pending` or
-`prepare-pending`, goes on in the Launchpad, and the page says so.
+counted from naming the module, below their 660-second idle timeout (decision F34); the
+deadline covers the module's resolution and the status read of the answer as well. One
+still running when only the status read's share is left (half the deadline, at most 5 s;
+queued behind another app's start of the Organization, waiting for a lock, or installing)
+answers 202 with the app's status and the outcome `start-pending` or `prepare-pending`,
+goes on in the Launchpad, and the page says so; a status read that does not finish in
+the rest leaves that answer unobserved (not healthy, `starting` for a start, `stopped`
+for a preparation), and a module not resolved in time is not operated on
+(`operation-failed`).
 
 **Page.** The route `/o/<org>/<module>` of an executable module shows an "Application"
 card in the settings-row pattern: a status dot (green running and healthy, amber
@@ -449,7 +454,11 @@ comment) is installed by a start through a session Launchpad, and the real app s
 the dependency version the lockfile pins. `lazurio module prepare` prepares without starting,
 for a declared and an undeclared app, names the same failures, is refused beneath its
 running app and while another app runs, answers like `POST …/prepare`, and is
-`launchpad-required` where apps are session-owned. `tests/frozen-install-process.test.ts`
+`launchpad-required` where apps are session-owned. Under shortened deadlines the routes
+answer in time: a start queued behind a preparation answers `start-pending` (202 over
+HTTP) and goes on, a runner selection slower than the deadline answers
+`operation-failed` and starts nothing, and a status read that does not finish answers an
+unobserved `start-pending` while the start goes on. `tests/frozen-install-process.test.ts`
 covers the steps' order and failures in the Bun preparation itself,
 `tests/module-lifecycle.test.ts` the core's decisions with fake adapters, and
 `tests/organization-applications.test.ts` a fresh declared module started through the

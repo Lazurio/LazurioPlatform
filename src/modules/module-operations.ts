@@ -255,10 +255,15 @@ export const ensurePollMsDefault = 250;
 /** How long the Launchpad's module routes wait for a start or a preparation
  * before they answer that it is still running: below the routes' 660-second
  * idle timeout, so the answer always arrives (decision F34). The bound covers
- * everything after the module is named: the toolchain check, the queue
- * behind other operations of the Organization, the coordination lock, the
- * preflight and the preparation's own 600-second run. */
+ * everything after the module is named: the module's resolution (the catalog
+ * and the runner), the toolchain check, the queue behind other operations of
+ * the Organization, the coordination lock, the preflight, the preparation's
+ * own 600-second run and the status read of a pending answer. */
 export const moduleAnswerWithinMsDefault = 630_000;
+
+/** The end of the answer deadline kept for the status read of a pending
+ * answer: half the deadline, at most this (decision F34 point 2). */
+const pendingObservationMs = 5_000;
 
 /** A caller that must answer within a deadline (the Launchpad's routes). The
  * operation goes on after a `start-pending` or `prepare-pending` answer. */
@@ -355,6 +360,18 @@ async function launchOrigin(folder: string, module: string) {
   if (origin.kind === "none" && origin.reason === "folder-state-unreadable")
     throw new Error("Folder state unreadable");
   return origin.kind === "origin" ? origin.origin : null;
+}
+
+// The value of `work` if it settles within `ms`, otherwise undefined; `work`
+// goes on either way.
+async function within<T>(work: Promise<T>, ms: number): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    work,
+    new Promise<undefined>((resolve) => {
+      timer = setTimeout(() => resolve(undefined), Math.max(0, ms));
+    }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 /** The module operations of one Folder. `owner` is who holds a lifecycle:
@@ -910,40 +927,83 @@ export function createModuleOperations(input: {
     });
   }
 
-  // A start or preparation answered within a deadline (decision F34): when
-  // it has not finished by then, the owner's view of the app now, with the
+  // A start or preparation answered within a deadline (decision F34): the
+  // deadline counts from the moment the module is named and bounds its
+  // resolution, the operation and the status read of the answer. When the
+  // operation has not finished by the deadline less the status read's share,
+  // the answer is the owner's view of the app read within the rest, with the
   // outcome `start-pending` or `prepare-pending`; the operation goes on in
-  // this owner, and its result is the app's later status. Without a
-  // deadline (the CLI) the operation's own result.
+  // this owner, and its result is the app's later status. A status read that
+  // does not finish in time leaves the pending answer without an observation:
+  // not healthy, no service, no link, and the state the operation under way
+  // gives (`starting` for a start; a preparation never starts the app). A
+  // module not resolved by then is never operated on: `operation-failed`,
+  // nothing changed. Without a deadline (the CLI) the operation's own result.
   async function answerWithin(
     operation: "start" | "prepare",
-    prepared: Prepared,
+    name: string,
+    options: ModuleOptions,
     run: (prepared: Prepared) => Promise<ModuleAnswer | ModuleBlocked>,
     { answerWithinMs }: AnswerOptions,
   ): Promise<ModuleAnswer | ModuleBlocked> {
-    if (answerWithinMs === undefined) return run(prepared);
-    const { target, runner: kind, selection } = prepared;
-    const running = run(prepared).catch((error: unknown) =>
-      moduleFailure(operation, target, error),
-    );
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const result = await Promise.race([
+    if (answerWithinMs === undefined) {
+      const prepared = await prepare(operation, name, options);
+      return "kind" in prepared ? prepared : run(prepared);
+    }
+    const deadline = performance.now() + answerWithinMs;
+    let resolved: Prepared | undefined;
+    let late = false;
+    const running = prepare(operation, name, options).then((prepared) => {
+      if ("kind" in prepared) return prepared;
+      if (late) return blocked(operation, "operation-failed");
+      resolved = prepared;
+      return run(prepared).catch((error: unknown) =>
+        moduleFailure(operation, prepared.target, error),
+      );
+    });
+    const result = await within(
       running,
-      new Promise<"pending">((resolve) => {
-        timer = setTimeout(() => resolve("pending"), answerWithinMs);
-      }),
-    ]).finally(() => clearTimeout(timer));
-    if (result !== "pending") return result;
-    return operate("status", kind, target, (lifecycle) =>
-      observe(
-        operation,
-        `${operation}-pending`,
-        kind,
-        target,
-        selection,
-        lifecycle,
-        "status",
+      deadline -
+        Math.min(answerWithinMs / 2, pendingObservationMs) -
+        performance.now(),
+    );
+    if (result !== undefined) return result;
+    if (resolved === undefined) {
+      late = true;
+      return blocked(operation, "operation-failed");
+    }
+    const { target, runner: kind, selection } = resolved;
+    const outcome = `${operation}-pending`;
+    const observed = await within(
+      operate("status", kind, target, (lifecycle) =>
+        observe(
+          operation,
+          outcome,
+          kind,
+          target,
+          selection,
+          lifecycle,
+          "status",
+        ),
       ),
+      deadline - performance.now(),
+    );
+    return (
+      observed ??
+      Object.freeze({
+        kind: "module" as const,
+        operation,
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
+        runner: kind,
+        survivesLaunchpadRestart: kind === "systemd-user",
+        outcome,
+        state: operation === "start" ? "starting" : "stopped",
+        healthy: false,
+        service: null,
+        runtime: null,
+      })
     );
   }
 
@@ -960,9 +1020,7 @@ export function createModuleOperations(input: {
       options: ModuleOptions = {},
       answer: AnswerOptions = {},
     ): Promise<ModuleAnswer | ModuleBlocked> {
-      const prepared = await prepare("start", name, options);
-      if ("kind" in prepared) return prepared;
-      return answerWithin("start", prepared, startOwned, answer);
+      return answerWithin("start", name, options, startOwned, answer);
     },
     /** Prepare the module's app (its default, or `app`) explicitly, without
      * starting it (decision F34). */
@@ -971,9 +1029,7 @@ export function createModuleOperations(input: {
       options: ModuleOptions = {},
       answer: AnswerOptions = {},
     ): Promise<ModuleAnswer | ModuleBlocked> {
-      const prepared = await prepare("prepare", name, options);
-      if ("kind" in prepared) return prepared;
-      return answerWithin("prepare", prepared, prepareOwned, answer);
+      return answerWithin("prepare", name, options, prepareOwned, answer);
     },
     /** The gateway's `ensure` (launchpad-parity B5): make the default app of
      * the module with this exact lazurio.module.v1 id run. Healthy now: the

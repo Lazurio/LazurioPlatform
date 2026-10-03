@@ -730,3 +730,130 @@ posixTest(
   },
   120_000,
 );
+
+// Decision F34 point 2: the deadline counts from naming the module, so it
+// bounds the module's resolution too. A runner selection slower than the
+// deadline (on Linux it may wait up to 5 s for systemctl) answers in time; a
+// module not resolved by then is never operated on, so the answer is a
+// refusal that changed nothing, not a pending start.
+posixTest(
+  "the routes' deadline covers the resolution: a runner selection slower than the deadline answers in time and starts nothing",
+  async () => {
+    await world(async ({ folder, host, manager }) => {
+      const base = host("ready");
+      let selections = 0;
+      const operations = createModuleOperations({
+        folder,
+        owner: "launchpad",
+        host: {
+          ...base,
+          runnerKind: async () => {
+            await Bun.sleep(1_500);
+            selections++;
+            return base.runnerKind();
+          },
+        },
+      });
+      try {
+        const began = performance.now();
+        const answer = await operations.start(
+          "delta/ready",
+          {},
+          { answerWithinMs: 400 },
+        );
+        expect(performance.now() - began).toBeLessThan(400);
+        expect(answer).toEqual({
+          kind: "blocked",
+          operation: "start",
+          reason: "operation-failed",
+        });
+        // The selection ends later; the start never begins.
+        await Bun.sleep(1_600);
+        expect(selections).toBe(1);
+        expect(manager.commands("systemd-run")).toHaveLength(0);
+        expect(await operations.status("delta/ready")).toMatchObject({
+          outcome: "not-managed",
+          state: "stopped",
+        });
+      } finally {
+        expect(await operations.close()).toEqual({ kind: "closed" });
+      }
+    });
+  },
+  120_000,
+);
+
+// Decision F34 point 2: the status read of a pending answer is bounded by
+// what is left of the deadline. A start still running at the deadline less
+// the read's share, whose status read does not finish in the rest, answers
+// start-pending in time without an observation; the start goes on.
+posixTest(
+  "the routes' deadline covers the pending status read: an unavailable read answers start-pending in time, the start goes on",
+  async () => {
+    await world(async ({ folder, host }) => {
+      const base = host("ready");
+      let slow = true;
+      const operations = createModuleOperations({
+        folder,
+        owner: "launchpad",
+        host: {
+          ...base,
+          createRunner: (kind, organizationDirectory) => {
+            const runner = base.createRunner(kind, organizationDirectory);
+            return {
+              ...runner,
+              inspect: async (application) => {
+                if (slow) await Bun.sleep(2_000);
+                return runner.inspect(application);
+              },
+            };
+          },
+        },
+      });
+      try {
+        const began = performance.now();
+        const answer = await operations.start(
+          "delta/ready",
+          {},
+          { answerWithinMs: 400 },
+        );
+        // The read's share is half the deadline here: the start is given
+        // 200 ms, the read the remaining 200 ms; a timer may fire a little
+        // late, never a whole read later.
+        expect(performance.now() - began).toBeLessThan(600);
+        expect(answer).toEqual({
+          kind: "module",
+          operation: "start",
+          organization: "delta",
+          module: "ready",
+          app: "app/package.json",
+          runner: "systemd-user",
+          survivesLaunchpadRestart: true,
+          outcome: "start-pending",
+          state: "starting",
+          healthy: false,
+          service: null,
+          runtime: null,
+        });
+        slow = false;
+        // The start goes on and its app runs.
+        let status = await operations.status("delta/ready");
+        for (
+          let attempt = 0;
+          attempt < 600 && !(status.kind === "module" && status.healthy);
+          attempt++
+        ) {
+          await Bun.sleep(100);
+          status = await operations.status("delta/ready");
+        }
+        expect(status).toMatchObject({ state: "running", healthy: true });
+        expect(await operations.stop("delta/ready")).toMatchObject({
+          outcome: "group-stopped",
+        });
+      } finally {
+        expect(await operations.close()).toEqual({ kind: "closed" });
+      }
+    });
+  },
+  120_000,
+);

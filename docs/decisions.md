@@ -3031,11 +3031,18 @@ and crashed at once on a dependency an update had added (`Cannot find module`).
    coordination lock and for the preflight. The Launchpad's module routes (`POST
    …/start`, `…/prepare`) therefore bound the whole request, not the run: they answer
    within `moduleAnswerWithinMsDefault` (630 s, below their 660-second idle timeout),
-   counted from when the module is named. A start or preparation not finished by then
-   answers `202` with the app's status and the outcome `start-pending` or
-   `prepare-pending`, and goes on in the Launchpad; its result is the app's later status.
-   The CLI has no transport and waits for the result; the gateway's `ensure` keeps its
-   own 20-second answer.
+   counted from when the module is named, so the bound covers the module's resolution
+   (the catalog and the runner selection, which on Linux may wait 5 s for `systemctl`)
+   and the status read of the answer too. A start or preparation not finished when only
+   the read's share is left (half the deadline, at most 5 s) answers `202` with the app's
+   status, read within that share, and the outcome `start-pending` or `prepare-pending`,
+   and goes on in the Launchpad; its result is the app's later status. A status read
+   that does not finish in time leaves the pending answer unobserved: not healthy, no
+   service, no link, and the state the operation under way gives (`starting` for a
+   start, `stopped` for a preparation, which never starts the app); the page then reads
+   the status itself. A module not resolved by then is never operated on and answers
+   `operation-failed` (nothing changed). The CLI has no transport and waits for the
+   result; the gateway's `ensure` keeps its own 20-second answer.
 3. **Exclusion as F25 point 2.** The start-time preparation runs under the start's
    coordination, not as a retained transaction: an interrupted install or script leaves
    no retained record, and the next start installs and checks again.
