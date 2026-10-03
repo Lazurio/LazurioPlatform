@@ -232,6 +232,14 @@ posixTest(
           },
         ],
       });
+      // Characters outside the Basic Multilingual Plane: 65 of them are 130
+      // UTF-16 units, past the contract's 128.
+      await writeOrganization(folder, "wide_GEN3", {
+        slug: "wide",
+        state: "current",
+        displayName: "\u{1F680}".repeat(65),
+        modules: [{ id: "site" }],
+      });
       const app = await startLaunchpad(folder);
       const session = new URL(app.url);
       const token = session.hash.slice(1);
@@ -245,7 +253,11 @@ posixTest(
           (entry) => entry.slug === "longname",
         )?.name;
         expect(name).toBe(`Long ${"N".repeat(123)}`);
-        expect([...(name ?? "")].length).toBe(128);
+        expect(name?.length).toBe(128);
+        // Cut between characters, never inside one: 64 whole ones.
+        expect(
+          shell?.organizations.find((entry) => entry.slug === "wide")?.name,
+        ).toBe("\u{1F680}".repeat(64));
         const catalog = await fetch(new URL("/api/catalog", session), {
           method: "POST",
           headers: {

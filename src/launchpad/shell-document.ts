@@ -80,9 +80,10 @@ export function shellOrganizations(
 }
 
 /** An Organization's name as the shell contract takes it: its manifest
- * admits any nonblank display name, the contract at most 128 characters
- * without control characters, so the name is cut to fit rather than the
- * whole document refused; the slug when nothing is left. */
+ * admits any nonblank display name, the contract at most 128 UTF-16 units
+ * (`String.length`) without control characters, so the name is cut to fit
+ * rather than the whole document refused, never inside a character; the slug
+ * when nothing is left. */
 export function shellName(name: string | null, slug: string): string {
   const clean = [...(name ?? "")]
     .map((character) => {
@@ -91,7 +92,12 @@ export function shellName(name: string | null, slug: string): string {
     })
     .join("")
     .trim();
-  return [...clean].slice(0, 128).join("").trim() || slug;
+  let cut = "";
+  for (const character of clean) {
+    if (cut.length + character.length > 128) break;
+    cut += character;
+  }
+  return cut.trim() || slug;
 }
 
 const origin = (value: string) => `${value}/`;
