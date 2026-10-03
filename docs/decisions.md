@@ -3449,7 +3449,9 @@ each of its origins.
    on the document. `<lazurio-column-head active="chat|apps|automate">`: the switch
    Chat · Apps · Automate, plain links to the current Environment's origins, a missing
    app shown disabled with the reason. `<lazurio-buddy>` is reserved in the contract
-   (decision 0180) and not defined. No runtime dependency, no React.
+   (decision 0180) and not defined. No runtime dependency, no React. *(This point
+   records the build. As the target, the folders, the gear in the rail and the accent
+   fill are superseded by the addendum of 2026-10-04 below.)*
 2. **The contract** `lazurio.shell.v1` (`src/shell/contract.ts`, one parser shared by
    the producer, the page and the elements): `locale`, `current`, `operator` (initials,
    login), `environments` (id, label, kind `personal | work | team | automated |
@@ -3577,3 +3579,89 @@ hashes, and the
 wording rule on the elements' text. The page was checked in Chrome against temporary
 fixture Folders, local and with a recorded entry, in both languages at 1440×900,
 1470×956 and 390×844. These are no rendered-page CI gates (root decision 0178).
+
+**Addendum 2026-10-04: the shell's second iteration (decided, not implemented).**
+Proposed and decided by Anička, the owner of the design system and of the shell's UX,
+after reviewing the shell wireframe (HumanAndMachine-ai/prototypes-lazurio#4); Matěj
+confirmed the whole batch on 2026-10-04. It supersedes root decision 0179 points 2 and 3
+in part, and as the target the parts of this decision named below; the build is still
+points 1 to 7. The full target is in [the target
+shell](launchpad-development.md#target-shell). In short:
+
+1. **The rail switches spaces, not Environments.** From the top: the Lazurio logo (the
+   Dashboard), the search button (⌘⇧E), the personal space (the Owner's initials), one
+   GitHub avatar per Organization, and "+" to add an Organization; at the bottom only
+   the account, as the person's GitHub photo. No Environment icons, no folders, no
+   "+N" or "less". The active space has an ink ring around its avatar, no pill and no
+   fill. The tooltip gives the name, the number of Environments and the last one used.
+   Clicking an Organization returns to the Environment last used in it, in the same
+   app; without one it opens the first Environment, and with no Environment the
+   Organization's Dashboard. The personal space opens the personal Remote Environment
+   or the last personal Environment. *Supersedes* point 1's folders, "+N", the gear in
+   the rail and the accent fill.
+2. **The column head.** `<lazurio-column-head>` carries the Environment picker (the
+   Environment's name, whom it serves, the Organization's avatar as its glyph) with a
+   square Settings gear beside it, over the switch Chat · Apps · Automate; in a fork's
+   sidebar it stays the only slot. The gear opens the Settings of exactly what the
+   picker names: the Environment's, or the Organization's on its Dashboard; account
+   Settings stay in the account menu. The dropdown lists the current space's
+   Environments under the Organization's head row, which opens the Organization's
+   Dashboard (never a row beside the Environments). "This computer" appears in every
+   Organization it carries and opens for that Organization, so the Organization is part
+   of every app's address. "Všechny Organizace" widens the list; search, ↑↓ and Enter
+   work; the dropdown overlays the column only while it is open. ⌘⇧E stays the global
+   jump. On an Organization's Dashboard the picker names the Organization, with no
+   second Organization block under it.
+3. **Names say what an Environment is for:** "Team <name>", "Pracovní", the persona's
+   name, the computer's name, "Osobní"; no "VM" (root decision 0170). The second line
+   says whom it serves, and "offline" only when it is not running. The default name
+   comes from the Dashboard (the Team, the assignment or the persona). The Machine's
+   technical name appears only in Tento Environment ("Technický název (pro podporu)"),
+   Diagnostics, Servers and the address. *Supersedes* as the target point 3's label
+   (the Machine name); the producer keeps it until the Dashboard supplies names.
+4. **Selection is the quiet surface** (HumanAndMachine-ai/design-system-lazurio#54,
+   variant A): one step darker surface, semibold type, a check with "tady jsi" in a
+   list, no left edge, no frame on the picker until hovered or open. The Organization's
+   colour stays in its avatar. This closes point 3's open accent token without a token:
+   the contract's `accent` is not needed by the target, and "Organization accents" leave
+   the facade list below.
+5. **Apps.** Landing in Apps of the Environment last open (the first time, the first
+   Environment of the first Organization). The header: the Organization's name, the
+   Environment's name with its kind icon, "offline" only when not running, the Guide
+   only as a link. The column: Všechny moduly, Soubory, Oblíbené and the Marketplace at
+   its bottom ("již brzy", a placeholder page); no module list and no search. The two
+   sections are F32's final addendum. Favourites from a module's "⋯" menu, pinned in the
+   column, first in their section with a small star; they belong to the person and the
+   Organization (Dashboard account). A clean tile: icon, name, description, star, "⋯";
+   no state line, no running dot, no new-tab arrow, no explanatory tail; a work branch
+   stays. A module with an app opens it (a new tab today); a tile without an app opens
+   nothing and says so in one sentence. The "⋯" menu: favourites, "Informace o modulu"
+   (the only entry to the module's information page) and, for Admin and Steward,
+   "Přístup k modulu", which opens the module's access in the Organization's Dashboard
+   in the same window, where GitHub stays the only authority. "+ Nový modul", the last
+   Workspace tile, opens Chat with an unsent prompt that founds the module by
+   `lazurio module create` (`--dry-run` first), shown only where the Environment's
+   GitHub identity can create a repository and grant it to Teams: the Organization
+   Owner's own work Environment or computer (Lazurio/t3code#35). *Supersedes* point 7's
+   search and module list in the column, the overview opened from the column or by a
+   tile whose module has no app or cannot start, and the state on tiles.
+
+The contract `lazurio.shell.v1` will need members the target reads (the person's photo,
+the spaces with their Environments' names and whom they serve, the last Environment per
+space, the favourites); point 2's rule that unknown members are ignored allows adding
+them, and their shape belongs to the implementing change and to the Dashboard's
+Environment list ([workspace composition, 7.5](workspace-composition.md#75-one-contract-with-the-shared-lazurio-shell-plan-dev-6639)).
+Implementation is tracked in issues #146 (the rail and the column head), #147 (the
+landing, the Apps header and column) and #148 (the tiles, their menu, favourites and
+"+ Nový modul"). **Open:** whether module apps open in the same window instead of a new
+tab; whether a Team with several Environments may rename them; whether Diagnostika and
+Přístup belong under Tento Environment (plan DEV-6628).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Environment icons in Organization folders, "+N" to unfold (the first target) | A kind icon looks the same in every Organization and a wrong click is easy; superseded |
+| The gear at the bottom of the rail | Under the Organizations it read as global Settings; moved beside the picker |
+| The active Environment filled with the Organization's accent | Needs a token the design system does not have and spends colour the avatar already carries; replaced by the quiet surface |
+| The Organization's Dashboard as one more row among its Environments | Mixes two levels; the Organization is the head row above them |
+| A module list and search in the Apps column | The rows led to technical details and confused people; replaced by favourites and the tile's menu |
+| A rail of spaces, the picker with the gear in the column head, the quiet surface, a clean tile with a "⋯" menu (selected) | One recognisable mark per Organization; Settings scoped to what the picker names; selection never coloured by an Organization |
