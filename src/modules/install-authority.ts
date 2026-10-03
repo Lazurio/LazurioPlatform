@@ -5,6 +5,7 @@ import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { snapshotOrganizationDocument } from "../organizations/document-hash";
 import { CheckoutRefused } from "../providers/checkout-custody";
 import {
+  CheckoutFileUnsettled,
   checkoutFileRefusal,
   lockfileBytesMax,
   readCheckoutFileBytes,
@@ -287,32 +288,46 @@ export async function inspectInstallAuthority(
   return snapshot;
 }
 
-export async function verifyInstallAuthority(
+/** The install authority against its snapshot: `unchanged`, `changed`, or
+ * `unsettled` when one of its files changed while it was read, whose bytes
+ * are then unknown. A process of the owner moves the metadata of its inputs
+ * without changing them: an install replaces a hard link of a local
+ * dependency's file in node_modules, which moves that file's ctime (issue
+ * #140). Whoever watches the authority while such a process runs reads it
+ * again; `verifyInstallAuthority` accepts nothing but `unchanged`. */
+export async function observeInstallAuthority(
   expected: Awaited<ReturnType<typeof inspectInstallAuthority>>,
-) {
+): Promise<"unchanged" | "changed" | "unsettled"> {
+  let current: Awaited<ReturnType<typeof inspectInstallAuthority>>;
   try {
-    const current = await inspectInstallAuthority(
+    current = await inspectInstallAuthority(
       expected.checkout,
       expected.owner,
       expected.environment ?? undefined,
       expected.dependencyBoundary,
     );
-    return (
-      current.checkoutIdentity === expected.checkoutIdentity &&
-      current.ownerIdentity === expected.ownerIdentity &&
-      current.packageDigest === expected.packageDigest &&
-      current.lockfile === expected.lockfile &&
-      current.lockDigest === expected.lockDigest &&
-      JSON.stringify(current.workspaceInputs) ===
-        JSON.stringify(expected.workspaceInputs) &&
-      JSON.stringify(current.patchInputs) ===
-        JSON.stringify(expected.patchInputs) &&
-      JSON.stringify(current.localDependencyInputs) ===
-        JSON.stringify(expected.localDependencyInputs) &&
-      JSON.stringify(current.configuration) ===
-        JSON.stringify(expected.configuration)
-    );
-  } catch {
-    return false;
+  } catch (error) {
+    return error instanceof CheckoutFileUnsettled ? "unsettled" : "changed";
   }
+  return current.checkoutIdentity === expected.checkoutIdentity &&
+    current.ownerIdentity === expected.ownerIdentity &&
+    current.packageDigest === expected.packageDigest &&
+    current.lockfile === expected.lockfile &&
+    current.lockDigest === expected.lockDigest &&
+    JSON.stringify(current.workspaceInputs) ===
+      JSON.stringify(expected.workspaceInputs) &&
+    JSON.stringify(current.patchInputs) ===
+      JSON.stringify(expected.patchInputs) &&
+    JSON.stringify(current.localDependencyInputs) ===
+      JSON.stringify(expected.localDependencyInputs) &&
+    JSON.stringify(current.configuration) ===
+      JSON.stringify(expected.configuration)
+    ? "unchanged"
+    : "changed";
+}
+
+export async function verifyInstallAuthority(
+  expected: Awaited<ReturnType<typeof inspectInstallAuthority>>,
+) {
+  return (await observeInstallAuthority(expected)) === "unchanged";
 }
