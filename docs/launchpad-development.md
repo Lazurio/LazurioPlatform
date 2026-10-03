@@ -95,9 +95,10 @@ sections are Obecné / Tento Environment / Nástroje / Obnova (General / This En
 with several Organizations) and the modules in three sections (Matěj, evening of
 2026-10-03): **Organizace**, the Organization's own applications and repositories
 (Mission Control, the design system, infra); **Workspace**, the workspace modules of
-this Environment; and **Productionspace**, the Organization's productionspace
-repositories. The sections replace the one flat list of decision F32, and nothing is
-grouped by Team: the point is that an Environment does not show Teams. A module tile
+this Environment, with a "Přístup Teamu" link to manage the Team's access; and
+**Productionspace**, the Organization's productionspace repositories. The sections replace the one flat list of decision F32, and nothing is
+grouped or labelled by Team: the point is that an Environment does not show Teams
+(the access link is not a grouping). A module tile
 opens the module's app in a new tab on its own origin; selecting the module in the left
 column opens its overview: open the app, its lifecycle, branches and worktrees, its
 log.
@@ -156,8 +157,7 @@ catalog's core and the module lifecycle are not affected.
 Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
 `postMessage` per navigation); whether the switch takes the colours of the fork it sits
 in; whether the switch still pairs the browser with T3 Code and MausBot on the way;
-where the update pill goes; whether the Workspace section keeps the link to the Team's
-access ("Přístup Teamu") of the earlier sketch; how the catalog reads the productionspace
+where the update pill goes; how the catalog reads the productionspace
 repositories, which decision F24 never treats as modules; and `infra`: it is an
 Organization-level repository shown in the Organizace section, while whether it is a
 module of the catalog stays as decision F24 has it.
