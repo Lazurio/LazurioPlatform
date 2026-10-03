@@ -45,6 +45,8 @@ test("a path names the view and the settings section; the canonical path is one"
     "/",
     "/o/:organization",
     "/o/:organization/:module",
+    "/files",
+    "/files/*",
     "/settings",
     "/settings/general",
     "/settings/machine",
@@ -140,4 +142,34 @@ test("a catalog title names the Organization by its display name once known", ()
     heading: "web",
     document: "web · Alpha Company — Lazurio Launchpad",
   });
+});
+
+// Decision F35: the Files page is a route of the same page, a folder of the
+// Documents folder per path, read by the same rules as the server's.
+test("the Files routes: the Documents folder and the folders below it, one canonical path", () => {
+  expect(pageRoute("/files")).toEqual({ view: "files", path: [] });
+  expect(pageRoute("/files/")).toEqual({ view: "files", path: [] });
+  expect(pageRoute("/files/%C3%9Akol/podklady/")).toEqual({
+    view: "files",
+    path: ["Úkol", "podklady"],
+  });
+  expect(routePath({ view: "files", path: ["Úkol", "Q3 (final)"] })).toBe(
+    "/files/%C3%9Akol/Q3%20%28final%29",
+  );
+  expect(routePath(pageRoute("/files/%C3%9Akol"))).toBe("/files/%C3%9Akol");
+  // A path the rules refuse opens the Documents folder itself.
+  for (const path of ["/files/.ssh", "/files/a%2Fb", "/files/%E0%A4%A"])
+    expect(pageRoute(path)).toEqual({ view: "files", path: [] });
+  expect(pageRoute("/filesx")).toEqual({ view: "home" });
+  expect(routeFrame({ view: "files", path: [] })).toBe("files");
+  expect(routeTitle({ view: "files", path: [] }, messages("en"))).toEqual({
+    heading: "Files",
+    document: "Files — Lazurio Launchpad",
+  });
+  expect(routeTitle({ view: "files", path: ["Úkol"] }, messages("cs"))).toEqual(
+    {
+      heading: "Soubory",
+      document: "Úkol · Soubory — Lazurio Launchpad",
+    },
+  );
 });
