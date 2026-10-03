@@ -33,6 +33,9 @@ export type ModuleFixture = {
   // Without the Bun lockfile beside the app's package.json, which every
   // other fixture app has, as a real application package has (issue #97).
   lockfile?: boolean;
+  // More or other members of the app's runtime declaration (such as its
+  // title, tags or id).
+  runtime?: Record<string, unknown>;
 };
 
 /** The Bun lockfile a fixture app carries beside its package.json: never
@@ -134,6 +137,7 @@ export async function writeModule(
                     health: { kind: "http", path: "/" },
                   },
                 ],
+                ...module.runtime,
               },
             },
           }),
@@ -162,6 +166,8 @@ export async function writeOrganization(
     slots?: Slot[];
     // The GitHub login, when the slug is not one.
     forge?: string;
+    // The display name, when not the generated one.
+    displayName?: string;
   },
 ) {
   const root = join(folder, "organizations", directory);
@@ -188,6 +194,8 @@ export async function writeOrganization(
     options.teams ?? [],
     options.forge,
   );
+  if (options.displayName !== undefined)
+    document.organization.display_name = options.displayName;
   const expected = expectedLegacyProjection(document, inventory);
   document.compatibility.legacy_projection.sha256 = expected.hash;
   await writeFile(
@@ -219,9 +227,10 @@ export async function writeOrganization(
 // candidates. Beside its root-level application `mission-control`, alpha
 // declares `design-system` without a module manifest and the repository
 // slots `infra` and `mission-control/db`, which carry one: none of the three
-// is a module. alpha's `infra` (checked out, with its GitHub remote) and its
-// two productionspace repositories, `firmware` checked out and `connect`
-// not, are its read-only repositories (F32 addendum of 2026-10-03).
+// is a module. alpha's two productionspace repositories, `firmware` checked
+// out and `connect` not, are its read-only repositories; its `infra`, checked
+// out and with its GitHub remote, is neither a module nor a production
+// repository and is not listed (F32 addendum of 2026-10-03, final).
 export async function folderFixture(run: (folder: string) => Promise<void>) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "catalog-")));
   const folder = join(parent, "Lazurio");

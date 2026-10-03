@@ -110,7 +110,6 @@ posixTest(
       const module = {
         organization: "personalspace",
         path: "workspace/diary",
-        layout: "workspace" as const,
         teams: [],
         teamsSource: "none" as const,
         apps: [
@@ -144,6 +143,7 @@ posixTest(
                 kind: "runtime-declared" as const,
               },
             ],
+            display: { id: "notes", title: "notes", tags: [] },
             executable: true,
           },
         ],

@@ -52,6 +52,7 @@ import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
+import { shellDocument } from "./shell-document";
 import {
   checkBundledPage,
   LaunchpadStartRefused,
@@ -73,6 +74,9 @@ export type HostedOptions = Readonly<{
    * `moduleAnswerWithinMsDefault`, decision F34); also on a workstation. */
   moduleAnswerWithinMs?: number;
 }>;
+
+/** The Lazurio shell's data document (decision F36). */
+export const shellDocumentPath = "/.lazurio/shell.json";
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
@@ -296,7 +300,11 @@ export async function startLaunchpad(
             },
           });
         }
-        if (request.method === "GET" && !url.pathname.startsWith("/api/")) {
+        if (
+          request.method === "GET" &&
+          !url.pathname.startsWith("/api/") &&
+          url.pathname !== shellDocumentPath
+        ) {
           const page = await shell.get(
             `${url.pathname}${url.search}`,
             request.headers.get("accept"),
@@ -312,6 +320,30 @@ export async function startLaunchpad(
         }
       } else if (!admitLocal(request, origin, token))
         return response({ error: "denied" }, 403);
+      if (url.pathname === shellDocumentPath) {
+        // The Lazurio shell's data (decision F36): this Environment, its
+        // Organizations and the addresses of its apps, behind the same
+        // admission as every read (the token locally, the gateway's session
+        // hosted). Read-only, recomputed on every read.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          return response(
+            shellDocument({
+              preset: current.preferences.preset.name,
+              machine: current.preferences.machine,
+              locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
+              catalog: await readFolderCatalog(folder),
+            }),
+          );
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (url.pathname.startsWith("/api/files/")) {
         if (closing) return response({ error: "closing" }, 503);
         try {

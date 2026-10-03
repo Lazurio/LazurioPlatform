@@ -388,25 +388,23 @@ test("the page accepts only the entry's shape and a pairing link on the recorded
   expect(publicEntry(null)).toBeNull();
 });
 
-test("the page's Chat entry: hidden until an entry is read, outside every view so it stands on the module page too, and no link in the markup", async () => {
+test("the page's Chat entry is the switch at the top of the column (decision F36): outside every view, so it stands on every route, and no link in the markup", async () => {
   const html = await readFile(
     join(import.meta.dir, "..", "src", "launchpad", "index.html"),
     "utf8",
   );
-  const menu =
-    /<ul class="menu chat-menu" id="chat-menu" hidden>(.*?)<\/ul>/.exec(html);
-  expect(menu).not.toBeNull();
-  const item = menu?.[1] ?? "";
-  expect(item).toContain('id="chat" rel="noreferrer" hidden');
-  // No href is written into the page: it comes from `GET /api/entry`.
-  expect(item).not.toContain('href="http');
-  // Not inside a view-specific navigation: the same entry on the home, an
-  // Organization, a module and Settings.
-  const before = html.slice(
-    html.indexOf('<div class="sidebar-body">'),
-    menu?.index,
+  const head = /<lazurio-column-head id="column-head" active="apps">/.exec(
+    html,
   );
+  expect(head).not.toBeNull();
+  // Not inside a view-specific part of the column: the same switch on the
+  // home, an Organization, a module, Files and Settings.
+  const before = html.slice(html.indexOf('<aside class="column"'), head?.index);
   expect(before).not.toContain("data-view");
+  // No origin is written into the page: the switch draws the shell
+  // document's (`/.lazurio/shell.json`, from the recorded entry).
+  expect(html).not.toContain('href="http');
+  expect(html).not.toContain('id="chat"');
 });
 
 // The page composes no origin (docs/hosted-entry.md "Where every origin comes

@@ -122,8 +122,9 @@ export async function readStartState(
   }
 }
 
-/** The page and every script and stylesheet it names answer from this
- * executable's bundle. `get` asks the listener that serves the page. */
+/** The page, every script and stylesheet it names and the Lazurio shell's
+ * script (`/.lazurio/shell.js`, decision F36) answer from this executable's
+ * bundle. `get` asks the listener that serves the page. */
 export async function checkBundledPage(
   get: (path: string) => Promise<Response>,
 ): Promise<boolean> {
@@ -135,7 +136,7 @@ export async function checkBundledPage(
     const assets = [
       ...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="(\/[^"]*)"/g),
     ].map((match) => match[1] as string);
-    for (const path of assets) {
+    for (const path of [...assets, "/.lazurio/shell.js"]) {
       const asset = await get(path);
       await asset.body?.cancel().catch(() => undefined);
       if (!asset.ok) return false;

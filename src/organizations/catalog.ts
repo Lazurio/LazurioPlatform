@@ -21,8 +21,10 @@ import {
   personalspaceModuleIds,
   personalspaceName,
 } from "./personalspace";
-import { observeOrganizationApplications } from "./read-applications";
-import { classifyRepositorySlotPath } from "./repository-slots";
+import {
+  type AppDisplay,
+  observeOrganizationApplications,
+} from "./read-applications";
 import type { OrganizationRootState } from "./root-resolution";
 
 // The catalog of a Lazurio Folder (launchpad-parity B1): every directory in
@@ -81,6 +83,11 @@ export type ModuleReason =
    * running anything (decision F25); `file` names the package it concerns. */
   | PreparationReason;
 
+/** What the default app of a module says of itself for a page (decision
+ * F36): its id, title, description, semantic icon key and tags, bounded and
+ * display-only. The Module's own manifest stays the authority. */
+export type { AppDisplay } from "./read-applications";
+
 export type CatalogApp = Readonly<{
   package: string;
   kind: "runtime-declared" | "invalid-runtime";
@@ -99,25 +106,19 @@ export type TeamsSource = "teams" | "legacy-alias" | "default" | "none";
 /** The Team of a workspace module that declares none (decision 0041). */
 export const defaultTeam = "workspace";
 
-/** Where a module lives in the Organization's layout, from its slot path:
- * a root-level application slot (`mission-control`, `design-system`,
- * decision F24) is `organization`, a slot under `workspace/` (or the legacy
- * `modules/`) is `workspace`. A Personalspace module is `workspace`. The
- * Launchpad groups an Organization's modules by it (F32 addendum of
- * 2026-10-03). */
-export type CatalogLayout = "organization" | "workspace";
-
 export type CatalogModule = Readonly<{
   organization: string;
   module: string;
   path: string;
-  layout: CatalogLayout;
   /** Team slugs, N:M, in declaration order; never empty for an Organization
    * module (see `teamsSource`), empty for a Personalspace module. */
   teams: readonly string[];
   teamsSource: TeamsSource;
   apps: readonly CatalogApp[];
   defaultApp: string | null;
+  /** What the default app's declaration says of it for a page: present only
+   * when that declaration was read (decision F36). */
+  display?: AppDisplay;
   /** The Organization root's state; null for a Personalspace module, which
    * has no Organization documents. */
   state: OrganizationRootState | null;
@@ -137,16 +138,14 @@ export type CatalogModule = Readonly<{
 
 export type CatalogTeam = Readonly<{ slug: string; displayName: string }>;
 
-/** A declared repository the Launchpad lists read-only, never a module,
- * never started, opened or given a page of its own (F32 addendum of
- * 2026-10-03): the Organization's `infra` in its Organization group (root
- * decision 0179 point 5), and every repository of its `productionspace/`
- * (root decision 0041). */
+/** A declared repository of the Organization's `productionspace/` (root
+ * decision 0041), which the Launchpad lists read-only in its Productionspace
+ * section: never a module, never started, opened or given a page of its own
+ * (F32 addendum of 2026-10-03, final). The Organization's `infra` is neither
+ * a module nor a production repository and is not listed (decision F24). */
 export type CatalogRepository = Readonly<{
   /** The slot's id: its `slug`, else the last segment of its path. */
   slug: string;
-  /** Its group: `organization` for `infra`, else `productionspace`. */
-  layout: "organization" | "productionspace";
   /** The slot path, relative to the Organization root. */
   path: string;
   /** Whether its directory is a Git checkout of the operator's (a real,
@@ -167,6 +166,10 @@ export type CatalogOrganization = Readonly<{
   /** The canonical slug; null when the root could not be read. */
   organization: string | null;
   displayName: string | null;
+  /** The GitHub login the canonical manifest binds the Organization to
+   * (`organization.forge_binding.locator` with `forge: "github"`), present
+   * only when it is one. Never the slug: the two may differ. */
+  forgeLogin?: string;
   state: OrganizationRootState | null;
   issues: readonly string[];
   executable: boolean;
@@ -176,8 +179,8 @@ export type CatalogOrganization = Readonly<{
   file?: string;
   teams: readonly CatalogTeam[];
   modules: readonly CatalogModule[];
-  /** Its declared read-only repositories (`infra`, productionspace) in
-   * declaration order; empty for an Organization that could not be read and
+  /** Its declared productionspace repositories, read-only, in declaration
+   * order; empty for an Organization that could not be read and
    * for the Personalspace group. */
   repositories: readonly CatalogRepository[];
 }>;
@@ -320,6 +323,32 @@ async function moduleReason(
     : { reason: "default-app-invalid" };
 }
 
+// The GitHub login of the canonical manifest's forge binding, when it is
+// one; the same field the legacy projection and the inventory read.
+function forgeLogin(organization: Data): Readonly<{ forgeLogin?: string }> {
+  const binding = organization.forge_binding;
+  if (!isRecord(binding) || binding.forge !== "github") return {};
+  const locator = binding.locator;
+  return typeof locator === "string" &&
+    /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(locator)
+    ? { forgeLogin: locator }
+    : {};
+}
+
+// The display of a module's default app, when its declaration was read.
+function defaultDisplay(
+  observed: object,
+  defaultApp: string | null,
+): Readonly<{ display?: AppDisplay }> {
+  const apps = "apps" in observed ? observed.apps : undefined;
+  const display = Array.isArray(apps)
+    ? (
+        apps as readonly Readonly<{ package: string; display?: AppDisplay }>[]
+      ).find((app) => app.package === defaultApp)?.display
+    : undefined;
+  return display === undefined ? {} : { display };
+}
+
 // An app of the catalog: its package, its kind and, when its declaration was
 // refused, the rule and file (decision F23).
 const catalogApp = (app: CatalogApp): CatalogApp =>
@@ -354,13 +383,6 @@ function failed(
     repositories: Object.freeze([]),
   });
 }
-
-/** The layout group of a module's slot path (decision F24: only the
- * root-level application paths are root slots that are modules). */
-export const moduleLayout = (path: string): CatalogLayout =>
-  classifyRepositorySlotPath(path)?.scope === "root"
-    ? "organization"
-    : "workspace";
 
 const githubRepository =
   /^(?:git@github\.com:|ssh:\/\/git@github\.com\/|https:\/\/github\.com\/)([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9_.-]{1,100}?)(?:\.git)?\/?$/i;
@@ -478,11 +500,11 @@ export async function readCatalogOrganization(
             organization: result.company,
             module: entry.module,
             path: entry.path,
-            layout: moduleLayout(entry.path),
             teams: Object.freeze(teams),
             teamsSource: source,
             apps: Object.freeze(apps),
             defaultApp,
+            ...defaultDisplay(entry, defaultApp),
             state,
             executable: reason === undefined,
             ...(reason === undefined ? {} : { reason }),
@@ -499,7 +521,6 @@ export async function readCatalogOrganization(
       async (slot): Promise<CatalogRepository> =>
         Object.freeze({
           slug: slot.id,
-          layout: slot.layout,
           path: slot.path,
           checkedOut: await isCheckedOut(directory, slot.path),
           url: repositoryPage(slotRemote(bySlotPath.get(slot.path))),
@@ -513,6 +534,7 @@ export async function readCatalogOrganization(
       typeof organization.display_name === "string"
         ? organization.display_name
         : result.company,
+    ...forgeLogin(organization),
     state,
     // The root's issues, then the inventory's (a slot without a usable id is
     // not a module row, but its conflict stays visible here).
@@ -627,11 +649,11 @@ async function readCatalogPersonalspace(
         organization: personalspaceName,
         module: id,
         path: `workspace/${id}`,
-        layout: "workspace",
         teams: Object.freeze([]),
         teamsSource: "none",
         apps: Object.freeze(apps),
         defaultApp,
+        ...defaultDisplay(observed, defaultApp),
         state: null,
         executable: reason === undefined,
         ...(reason === undefined ? {} : { reason }),

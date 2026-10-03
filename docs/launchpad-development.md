@@ -92,13 +92,17 @@ sections are Obecné / Tento Environment / Nástroje / Obnova (General / This En
 / Tools / Recovery); the Czech name is "Tento Environment", never "Toto" or "Tenhle".
 
 **Apps home.** The home shows the Organization's name on top (a picker on a computer
-with several Organizations) and the modules in three sections (Matěj, evening of
-2026-10-03): **Organizace**, the Organization's own applications and repositories
-(Mission Control, the design system, infra); **Workspace**, the workspace modules of
-this Environment, only those its GitHub identity can access (no Team link, no
-request-access tiles); and
-**Productionspace**, the Organization's productionspace repositories. The sections replace the one flat list of decision F32, and nothing is
-grouped or labelled by Team: the point is that an Environment does not show Teams. A module tile
+with several Organizations) and two sections (Matěj's final position, evening of
+2026-10-03, [F32's final addendum](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace)):
+**Workspace**, every module of this Environment, root-level applications such as
+Mission Control and the design system included, in the catalog's order, and later only
+those its GitHub identity can access (no Team link, no request-access tiles); and
+**Productionspace**, the Organization's productionspace repositories, read-only. The
+Organization's `infra` is neither and is not listed. An earlier version of this target
+had a third section, Organizace, for the Organization's own applications and `infra`;
+it was dropped because where a module's repository sits in the Organization is not
+something the Operator acts on. Nothing is grouped or labelled by Team: the point is
+that an Environment does not show Teams. A module tile
 opens the module's app in a new tab on its own origin; selecting the module in the left
 column opens its overview: open the app, its lifecycle, branches and worktrees, its
 log.
@@ -160,10 +164,40 @@ catalog's core and the module lifecycle are not affected.
 Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
 `postMessage` per navigation); whether the switch takes the colours of the fork it sits
 in; whether the switch still pairs the browser with T3 Code and MausBot on the way;
-where the update pill goes; how the catalog reads the productionspace
-repositories, which decision F24 never treats as modules; and `infra`: it is an
-Organization-level repository shown in the Organizace section, while whether it is a
-module of the catalog stays as decision F24 has it.
+where the update pill goes. (How the catalog reads the productionspace repositories
+was settled by F32's addenda: the read-only `repositories`; `infra` is not listed.)
+
+## The shell as built (decision F36)
+
+The first cut of the [target shell](#target-shell), DEV-6639; [decision
+F36](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)
+records what is functional and what is a facade until its source exists.
+
+- **Library.** `src/shell/`: `contract.ts` (`lazurio.shell.v1` and its parser),
+  `view.ts` (the rail, the switch and the jump list as pure functions), `elements.ts`
+  (`<lazurio-rail>`, `<lazurio-column-head>`), `styles.ts` (the vendored tokens on
+  `:host`), `fonts.ts`, `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
+  (tokens, logo and fonts with their hashes). Tests: `tests/shell.test.ts`,
+  `tests/launchpad-shell-routes.test.ts`, `tests/apps-view.test.ts`.
+- **Routes.** `/.lazurio/shell.js` and `/.lazurio/fonts/<file>` beside the page's
+  routes (`src/launchpad/page.ts`); `/.lazurio/shell.json` in the server after
+  admission (`src/launchpad/server.ts`, producer `shell-document.ts`).
+- **Page.** `index.html` is rail | column | main. The Apps column and home are
+  `catalog-panel.ts` over `apps-view.ts`, the frame is `shell.ts` and the switch's
+  pairing is in `ui.ts`. Settings, Tools, Recovery and Files keep their panels in the
+  new frame and look. A module's name, line and stone come from its default app's
+  declaration (title, description, `icon`, tags), carried by the catalog as display-only
+  `display`; the stone falls back by the root Launchpad's org-agnostic semantic key
+  (`src/shell/stones.ts`), and the Module's own manifest stays the authority. The
+  sections below that speak of the sidebar, its footer, the
+  top bar, T3 Code's colours or Chat and MausBot as sidebar links describe the build
+  before F36.
+- **Preview.** A temporary fixture Folder, never a live one: `bun
+  scripts/preview-launchpad.ts local|hosted cs|en <port>` writes an Organization with root-level and workspace modules in Workspace, two production repositories in Productionspace and an `infra` that is not listed, a synthetic home for Files
+  and Tools, and with `hosted` a recorded entry plus a loopback proxy that adds the
+  gateway's Host and cookie. Screenshots come from Chrome through playwright-core.
+- **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
+  and `/.lazurio/`".
 
 ## Settings: structure, routes and the T3 Code pattern
 
@@ -282,10 +316,7 @@ executability and reasons are a workspace module's. The repository slots `infra`
 id that a workspace module and a root-level application share is
 `declaration-conflict` on both, with the inventory issue `repository-id-collision` on
 the Organization, as for any two slots declaring one id.
-Per module: Organization slug, module id, path, its layout group `layout`
-(`organization` for a root-level application slot, `workspace` for every other slot
-and for a Personalspace module, from the slot path; F32 addendum of 2026-10-03),
-apps and the default app, Teams (N:M)
+Per module: Organization slug, module id, path, apps and the default app, Teams (N:M)
 with their source `teamsSource`, the root state and `executable`, or a typed `reason`
 (`organization-not-executable`, `declaration-conflict`, `module-unavailable`,
 `explicit-apps-required`, `no-app`, `default-app-invalid`, or a refusal of the
@@ -310,21 +341,21 @@ local dependencies, patches, configuration) are still the start's to refuse (F23
 6), and so are a Bun version mismatch and a failing install. A malformed
 Team membership is reported as `teams-invalid` on the module and never blocks it.
 
-**Read-only repositories (F32 addendum of 2026-10-03, root decision 0179 point 5).**
-Per Organization, `repositories` lists in declaration order the declared slots that
-are repositories the Launchpad shows without an action: `infra` (`layout:
-"organization"`) and every `productionspace/<repository>` (`layout:
-"productionspace"`). They are never modules. Each has `slug`, `layout`, `path`,
-`checkedOut` and `url`. The canonical reader (`observeOrganizationApplications`)
-returns them with the modules, from the same documents; a slot without a usable id or
+**Production repositories (F32 final addendum of 2026-10-03).** Per Organization,
+`repositories` lists in declaration order the declared `productionspace/<repository>`
+slots, which the Launchpad shows read-only in its Productionspace section. They are
+never modules. Each has `slug`, `path`, `checkedOut` and `url`; there is no `layout`
+field, on a repository or on a module (the first addendum's three groups are gone).
+The canonical reader (`observeOrganizationApplications`) returns them with the modules, from the same documents; a slot without a usable id or
 in a declaration conflict is left out, and its issue stays on the Organization.
 `checkedOut` is true when every directory down to the slot passes the checkout rule of
 F23 and the slot holds `.git` (a directory, or a linked worktree's file); a missing,
 refused or plain directory is not checked out. `url` is the GitHub page
 `https://github.com/<owner>/<repo>` of the slot's `git.url` (or the legacy `repo`,
 `repository`) when that names a github.com repository, otherwise null; nothing is
-fetched. `mission-control/db` is not listed. An Organization that could not be read,
-and the Personalspace group, have `repositories: []`.
+fetched. `infra` and `mission-control/db` are not listed: neither is a module nor a
+production repository. An Organization that could not be read, and the Personalspace
+group, have `repositories: []`.
 
 **Teams.** The canonical form is `module_slots[].teams`. The catalog resolves membership
 exactly as the resident's read model does (`organizationSlotTeams` in the legacy root's
@@ -391,9 +422,8 @@ no output carries the login. The company a module declares is still part of its
 transient unit's readable name (`applicationUnitName`), as it was in the resident's
 inventory.
 
-**Routes.** `/` is every Organization's modules with their default app, under its
-layout groups; `/o/<org>` one Organization (directory, resolution state, issues, then
-one section per layout group);
+**Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
+Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
 `/o/<org>/<module>` one module (Organization, apps with the default marked,
 path, resolution state, whether it can run). No route shows Teams (F32). `<org>` is selected by the CLI's rule
 above and each segment is URL-encoded. A candidate's own route uses the name that
@@ -413,36 +443,46 @@ rows (T3's threads) and a status dot (green: can run; grey: cannot, with the rea
 in the row's accessible name). Each module is one row, in the catalog's order (the
 declaration order of `module_slots`), whatever Teams declare it, and there is no Team
 subheader (decision F32; until then a subheader per Team listed a module of two Teams
-twice). Under each Organization the rows sit in up to three layout groups, each with a
-small heading: **Organizace** (the root-level applications, then `infra`),
-**Workspace** (the workspace modules) and **Productionspace** (its repositories), in
-English "Organization", "Workspace", "Productionspace" (F32 addendum of 2026-10-03,
-root decision 0179 point 5). A group with nothing in it is not drawn. A read-only
-repository's row is its name without a dot or a link, its checkout state in its
-accessible name. The Personalspace group stays one list. The overview draws the same
-groups as `h3` headings with a card each under the Organization's heading, the
-Organization page as its sections.
+twice). From F32's first addendum of 2026-10-03 the rows sat in three layout groups
+(Organizace, Workspace, Productionspace); its final addendum the same evening left two,
+**Workspace** (every module, in the catalog's order) and **Productionspace** (the
+production repositories, read-only), which the shell's Apps column and home draw
+([below](#the-shell-as-built-decision-f36)). A section with nothing in it is not
+drawn; the Personalspace group stays one list.
 The current Organization or module is `aria-current="page"`. "Refresh" is the page
 action in the header. Below 768 px the sidebar is the same off-canvas sheet as in
 Settings, and choosing a row closes it.
 
 **Target (2026-10-03).** This sidebar of "All Organizations" and Organization groups is
 today's build. In the [target shell](#target-shell) the home shows the Organization's
-name on top (a picker on a computer with several Organizations) and the modules in three
-sections, Organizace, Workspace and Productionspace, with no grouping by Team; a module
+name on top (a picker on a computer with several Organizations) and two sections,
+Workspace (every module) and Productionspace (read-only), with no grouping by Team; a module
 tile opens its app in a new tab, and selecting a module in the left column opens its
 overview.
 
 **What a module row shows.** Name, default app, and "Can run" or the reason in
-words with its code; no Team badge (F32). A read-only repository's row shows its name,
-path, "Checked out" or "Not checked out" and a plain "GitHub" link to its page when it
-has one; no status dot, no action and no page of its own. Rows carry no action; the
+words with its code; no Team badge (F32). A production repository's tile or row shows
+its name and path, "Not checked out" in words when it is not, and is a link to its
+GitHub page when it has one; no status dot, no action and no page of its own. Rows carry no action; the
 module's page carries its lifecycle
 ([below](#module-lifecycle)). `src/launchpad/catalog-view.ts` holds the pure
 presentation (tested in `tests/catalog-view.test.ts`), `src/launchpad/catalog-panel.ts`
 the DOM, drawn with `textContent` only.
 
-**Verification 2026-10-03 (F32 addendum).** `tests/organization-catalog.test.ts`
+**Verification 2026-10-03 (F32 final addendum).** `tests/organization-catalog.test.ts`
+reads the same fixture Folder and checks that `alpha`'s modules, its root-level
+application among its workspace modules, form one list in declaration order with no
+`layout`, and that its `repositories` are only `firmware` and `connect`: the checked-out
+`infra` with its GitHub remote is not there. The HTTP answer equals the CLI's JSON,
+passes the page's shape check and carries no `layout`. `tests/catalog-view.test.ts`
+checks in both languages that an Organization has at most two sections, Workspace and
+Productionspace, the Workspace section being the very flat list with a root-level
+application in the middle where it is declared, an empty section not drawn and no
+"Organizace"/"Organization" heading; `tests/apps-view.test.ts` that the Apps home's
+sections are Workspace and Productionspace with their counts, and that a production
+repository's tile has no action and a muted note instead of a dot.
+
+**Verification 2026-10-03 (F32 first addendum, superseded).** `tests/organization-catalog.test.ts`
 reads the fixture Folder, whose Organization `alpha` has a root-level application
 (`mission-control`), three workspace modules, a checked-out `infra` with a GitHub
 remote and two productionspace repositories, `firmware` checked out with an SSH

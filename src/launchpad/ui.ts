@@ -1,9 +1,10 @@
+import { parseShell, type Shell } from "../shell/contract";
+import { defineShellElements, provideShell } from "../shell/elements";
 import { createCatalogPanel } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
   chatHref,
   chatPairLink,
-  mausbotHref,
   mausbotPairLink,
   parseEntryAnswer,
 } from "./chat-view";
@@ -52,16 +53,31 @@ const controls = {
 let locale: "cs" | "en" = "en";
 let copy = messages(locale);
 // The recorded entry's public parts (`GET /api/entry`); null on a workstation
-// and until read. The Chat link and the Recovery page's T3 Code link.
+// and until read. The pairing of Chat and Automate, the tiles' module
+// origins and the Recovery page's T3 Code link.
 let entry: PublicEntry | null = null;
-const [chatMenu, chat, mausbot] = ((menu, link, bot) => {
-  if (!menu || !link || !bot) throw new Error("Missing chat UI");
-  return [menu, link, bot] as const;
-})(
-  document.querySelector<HTMLUListElement>("#chat-menu"),
-  document.querySelector<HTMLAnchorElement>("#chat"),
-  document.querySelector<HTMLAnchorElement>("#mausbot"),
-);
+// The Lazurio shell (decision F36): the rail and the switch, drawn from
+// this Environment's `/.lazurio/shell.json`, which the page reads with its
+// own credential and hands over (the forks let the elements read it).
+defineShellElements();
+const columnHead = document.querySelector<HTMLElement>("#column-head");
+let shellDocument: Shell | null = null;
+async function readShell() {
+  try {
+    const response = await fetch("/.lazurio/shell.json", {
+      headers: credential(),
+      cache: "no-store",
+    });
+    denied(response);
+    const parsed = response.ok ? parseShell(await response.json()) : null;
+    if (parsed === null) return;
+    shellDocument = parsed;
+    provideShell(parsed);
+    catalog.render();
+  } catch {
+    // The rail stays empty; the page itself works without it.
+  }
+}
 // The Launchpad home: the catalog of this Folder's Organizations and modules
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
@@ -69,7 +85,13 @@ const catalog = createCatalogPanel({
   get: (path) => get(path),
   copy: () => copy,
   route: () => shell.route(),
+  navigate: (path) => shell.navigate(path),
   loaded: () => shell.relabel(),
+  entry: () => entry,
+  avatar: (slug) =>
+    shellDocument?.organizations.find(
+      (organization) => organization.slug.toLowerCase() === slug.toLowerCase(),
+    )?.avatar ?? null,
 });
 // The Files page (decision F35): the Documents folder of this Environment.
 // Behind a gateway a download is a plain link the session cookie admits;
@@ -104,6 +126,9 @@ const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
   onRoute: (route) => {
+    // The switch marks Apps, except inside Settings (the target shell).
+    if (route.view === "settings") columnHead?.removeAttribute("active");
+    else columnHead?.setAttribute("active", "apps");
     catalog.render(route);
     files.show(route);
     if (
@@ -246,7 +271,6 @@ function relabel() {
       element.textContent = copy[key as MessageKey];
   }
   shell.relabel();
-  renderChat();
   recovery.render();
   files.relabel();
 }
@@ -289,6 +313,7 @@ async function load() {
   files.shared(current.preset.name === "hosted-organization-team");
   relabel();
   catalog.render();
+  void readShell();
   // One settings row per recorded fact: the name on the left, the value on
   // the right.
   controls.machine.replaceChildren(
@@ -414,76 +439,69 @@ controls.apply.addEventListener("click", async () => {
     controls.choices.disabled = false;
   }
 });
-// Chat (launchpad-parity B8): the recorded entry's T3 Code origin as a plain
-// link, shown only with an entry. A plain click first asks the server for a
-// one-time pairing link on that origin and follows it in this tab, as the
-// resident did (`R:launchpad/public/app.js:2257-2281`); when there is none
-// (no T3 launcher, a failed call) it follows the plain origin, where T3 Code
-// itself asks an unpaired browser to pair. A modified click opens the plain
-// origin as a link does. Lazurio MausBot (DEV-6632) is entered the same way,
-// shown only when the entry records it; its pairing link opens MausBot's form
-// with the code filled in, and one Connect click there pairs the browser.
-function renderLink(link: HTMLAnchorElement, href: string | null) {
-  link.hidden = href === null;
-  const item = link.closest("li");
-  if (item) item.hidden = href === null;
-  if (href === null) link.removeAttribute("href");
-  else link.href = href;
-}
-function renderChat() {
-  const href = chatHref(entry);
-  chatMenu.hidden = href === null;
-  renderLink(chat, href);
-  chat.title = copy.chatTitle;
-  renderLink(mausbot, mausbotHref(entry));
-  mausbot.title = copy.mausbotTitle;
-}
-function followPaired(
-  link: HTMLAnchorElement,
-  path: string,
-  origin: (entry: PublicEntry) => string | undefined,
-  accept: (value: unknown, origin: string) => string | null,
-) {
-  link.addEventListener("click", async (event) => {
-    const plain = entry === null ? undefined : origin(entry);
-    if (
-      plain === undefined ||
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey
-    )
-      return;
+// Chat and Automate (launchpad-parity B8, DEV-6632) are tabs of the switch
+// at the top of the column (decision F36), plain links to the recorded
+// origins. A plain click on one first asks the server for a one-time pairing
+// link on that origin and follows it in this tab, as the resident did
+// (`R:launchpad/public/app.js:2257-2281`); when there is none (no T3
+// launcher, a failed call) it follows the plain origin, where the app itself
+// asks an unpaired browser to pair. Apps on this origin moves within the page.
+const pairing: Readonly<
+  Record<
+    string,
+    Readonly<{
+      path: string;
+      origin: (entry: PublicEntry) => string | undefined;
+      accept: (value: unknown, origin: string) => string | null;
+    }>
+  >
+> = {
+  chat: {
+    path: "/api/chat/pair",
+    origin: (current) => current.t3codeOrigin,
+    accept: chatPairLink,
+  },
+  automate: {
+    path: "/api/mausbot/pair",
+    origin: (current) => current.mausbotOrigin,
+    accept: mausbotPairLink,
+  },
+};
+let following = false;
+document.addEventListener("lazurio-app", (event) => {
+  const detail = (event as CustomEvent<{ app?: unknown; href?: unknown }>)
+    .detail;
+  if (typeof detail?.href !== "string" || typeof detail.app !== "string")
+    return;
+  const target = new URL(detail.href, location.href);
+  if (target.origin === location.origin) {
     event.preventDefault();
-    if (link.getAttribute("aria-disabled") === "true") return;
-    link.setAttribute("aria-disabled", "true");
-    let target = plain;
+    shell.navigate(target.pathname);
+    return;
+  }
+  const pair = Object.hasOwn(pairing, detail.app)
+    ? pairing[detail.app]
+    : undefined;
+  const plain =
+    entry === null || pair === undefined ? undefined : pair.origin(entry);
+  if (pair === undefined || plain === undefined) return;
+  event.preventDefault();
+  if (following) return;
+  following = true;
+  void (async () => {
+    let next = plain;
     try {
-      const { value, ok } = await post(path, {});
-      target = (ok && accept(value, plain)) || target;
+      const { value, ok } = await post(pair.path, {});
+      next = (ok && pair.accept(value, plain)) || next;
     } catch {}
-    location.assign(target);
-  });
-  // Back from the app restores this page from the bfcache with the link
-  // still held by the click that navigated away.
-  window.addEventListener("pageshow", () =>
-    link.removeAttribute("aria-disabled"),
-  );
-}
-followPaired(
-  chat,
-  "/api/chat/pair",
-  (current) => current.t3codeOrigin,
-  chatPairLink,
-);
-followPaired(
-  mausbot,
-  "/api/mausbot/pair",
-  (current) => current.mausbotOrigin,
-  mausbotPairLink,
-);
+    location.assign(next);
+  })();
+});
+// Back from the app restores this page from the bfcache with the click that
+// navigated away still held.
+window.addEventListener("pageshow", () => {
+  following = false;
+});
 async function readEntry() {
   try {
     const { value, ok } = await get("/api/entry");
@@ -491,10 +509,11 @@ async function readEntry() {
   } catch {
     entry = null;
   }
-  renderChat();
   recovery.render();
+  catalog.render();
 }
 void readEntry();
+void readShell();
 load().catch(() => {
   controls.status.textContent = copy.loadFailed;
   // The tools section says for itself that it could not be read.

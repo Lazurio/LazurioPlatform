@@ -27,8 +27,7 @@ const module = (
 ): CatalogModule => ({
   organization: "alpha",
   module: name,
-  path: extra.layout === "organization" ? name : `workspace/${name}`,
-  layout: "workspace",
+  path: `workspace/${name}`,
   teams,
   teamsSource: "teams",
   apps: [{ package: "app/package.json", kind: "runtime-declared" }],
@@ -217,22 +216,17 @@ test("each module is listed once, in the catalog's order, whatever Teams declare
   }
 });
 
-const repository = (
-  slug: string,
-  layout: CatalogRepository["layout"],
-  checkedOut: boolean,
-): CatalogRepository => ({
+const repository = (slug: string, checkedOut: boolean): CatalogRepository => ({
   slug,
-  layout,
-  path: layout === "organization" ? slug : `productionspace/${slug}`,
+  path: `productionspace/${slug}`,
   checkedOut,
   url: checkedOut ? `https://github.com/omega/${slug}` : null,
 });
 
-test("an Organization's modules and read-only repositories are grouped by layout: Organization, Workspace, Productionspace; an empty group is not drawn; the Personalspace group stays one list (F32 addendum, 0179 point 5)", () => {
+test("an Organization has two sections, Workspace with every module in catalog order (a root-level application among the workspace modules) and Productionspace read-only; an empty section is not drawn; the Personalspace group stays one list (F32 addendum of 2026-10-03, final)", () => {
   // omega in a manifest's order: a workspace module, the root-level
-  // application, another workspace module; infra and two productionspace
-  // repositories, one checked out and one not.
+  // application, another workspace module; two productionspace repositories,
+  // one checked out and one not.
   const omega: CatalogOrganization = {
     ...alpha,
     directory: "omega",
@@ -242,23 +236,28 @@ test("an Organization's modules and read-only repositories are grouped by layout
       module("web", [], { organization: "omega" }),
       module("mission-control", [], {
         organization: "omega",
-        layout: "organization",
+        path: "mission-control",
       }),
       module("docs", [], { organization: "omega" }),
     ],
-    repositories: [
-      repository("infra", "organization", true),
-      repository("firmware", "productionspace", true),
-      repository("connect", "productionspace", false),
-    ],
+    repositories: [repository("firmware", true), repository("connect", false)],
   };
-  // Only workspace modules: one group. Nothing at all: no group.
+  // Only modules: one section. Only production repositories: one section.
+  // Nothing at all: no section.
   const sigma: CatalogOrganization = {
     ...alpha,
     directory: "sigma",
     organization: "sigma",
     displayName: "Sigma Company",
     modules: [module("api", [], { organization: "sigma" })],
+  };
+  const tau: CatalogOrganization = {
+    ...alpha,
+    directory: "tau",
+    organization: "tau",
+    displayName: "Tau Company",
+    modules: [],
+    repositories: [repository("firmware", false)],
   };
   const empty: CatalogOrganization = {
     ...alpha,
@@ -269,13 +268,10 @@ test("an Organization's modules and read-only repositories are grouped by layout
   };
   const value: Catalog = {
     kind: "catalog",
-    organizations: [omega, sigma, empty],
+    organizations: [omega, sigma, tau, empty],
     personalspace,
   };
-  for (const [locale, titles] of [
-    ["cs", ["Organizace", "Workspace", "Productionspace"]],
-    ["en", ["Organization", "Workspace", "Productionspace"]],
-  ] as const) {
+  for (const locale of ["cs", "en"] as const) {
     const copy = messages(locale);
     const tree = catalogTree(value, copy);
     expect(
@@ -284,39 +280,33 @@ test("an Organization's modules and read-only repositories are grouped by layout
           ? [group.name, null]
           : [
               group.name,
-              group.sections.map((section) => [
-                section.layout,
-                section.title,
-                section.modules.map((entry) => entry.module.module),
-                section.repositories.map((entry) => [
-                  entry.repository.slug,
-                  entry.checkout,
-                  entry.repository.url,
-                ]),
-              ]),
+              group.sections.map((section) =>
+                section.kind === "workspace"
+                  ? [
+                      section.kind,
+                      section.title,
+                      section.modules.map((entry) => entry.module.module),
+                    ]
+                  : [
+                      section.kind,
+                      section.title,
+                      section.repositories.map((entry) => [
+                        entry.repository.slug,
+                        entry.checkout,
+                        entry.repository.url,
+                      ]),
+                    ],
+              ),
             ],
       ),
     ).toEqual([
       [
         "Omega Company",
         [
-          [
-            "organization",
-            titles[0],
-            ["mission-control"],
-            [
-              [
-                "infra",
-                copy.catalogCheckedOut,
-                "https://github.com/omega/infra",
-              ],
-            ],
-          ],
-          ["workspace", titles[1], ["web", "docs"], []],
+          ["workspace", "Workspace", ["web", "mission-control", "docs"]],
           [
             "productionspace",
-            titles[2],
-            [],
+            "Productionspace",
             [
               [
                 "firmware",
@@ -328,21 +318,38 @@ test("an Organization's modules and read-only repositories are grouped by layout
           ],
         ],
       ],
-      ["Sigma Company", [["workspace", titles[1], ["api"], []]]],
+      ["Sigma Company", [["workspace", "Workspace", ["api"]]]],
+      [
+        "Tau Company",
+        [
+          [
+            "productionspace",
+            "Productionspace",
+            [["firmware", copy.catalogNotCheckedOut, null]],
+          ],
+        ],
+      ],
       ["Empty Company", []],
       ["Personalspace", null],
     ]);
     expect(copy.catalogCheckedOut).not.toBe(copy.catalogNotCheckedOut);
-    // Every module is in exactly one group, the very entry of the flat list:
-    // a module's route and status stay what they were.
+    // The Workspace section is the very flat list: every module once, the
+    // same entries, so a module's route and status stay what they were.
     const [first] = tree;
-    if (first?.sections == null) throw new Error("No sections");
-    const grouped = first.sections.flatMap((section) => section.modules);
-    expect(grouped).toHaveLength(first.modules.length);
-    for (const entry of first.modules)
-      expect(grouped.filter((other) => other === entry)).toHaveLength(1);
+    const workspace = first?.sections?.[0];
+    if (workspace?.kind !== "workspace") throw new Error("No Workspace");
+    expect(workspace.modules).toEqual(first?.modules ?? []);
+    for (const [index, entry] of (first?.modules ?? []).entries())
+      expect(workspace.modules[index]).toBe(entry);
+    // No third section heading in either language: the Organization group
+    // of the earlier addendum is gone.
+    expect(
+      tree.flatMap((group) =>
+        (group.sections ?? []).map((section) => section.title),
+      ),
+    ).not.toContain(locale === "cs" ? "Organizace" : "Organization");
     // The Personalspace group keeps its one list (B11).
-    expect(tree[3]?.modules.map((entry) => entry.module.module)).toEqual([
+    expect(tree[4]?.modules.map((entry) => entry.module.module)).toEqual([
       "notes",
     ]);
   }
@@ -511,41 +518,21 @@ test("only an answer in the catalog's exact shape is drawn", () => {
       kind: "catalog",
       organizations: [{ ...alpha, teams: [{ slug: "core" }] }],
     },
-    // The layout group of a module and the read-only repositories
-    // (F32 addendum of 2026-10-03).
-    {
-      kind: "catalog",
-      organizations: [
-        { ...alpha, modules: [{ ...module("x", []), layout: "team" }] },
-      ],
-    },
-    {
-      kind: "catalog",
-      organizations: [
-        { ...alpha, modules: [{ ...module("x", []), layout: undefined }] },
-      ],
-    },
+    // The read-only production repositories (F32 addendum of 2026-10-03).
     { kind: "catalog", organizations: [{ ...alpha, repositories: undefined }] },
     {
       kind: "catalog",
       organizations: [
         {
           ...alpha,
-          repositories: [
-            { ...repository("x", "productionspace", true), checkedOut: "yes" },
-          ],
+          repositories: [{ ...repository("x", true), checkedOut: "yes" }],
         },
       ],
     },
     {
       kind: "catalog",
       organizations: [
-        {
-          ...alpha,
-          repositories: [
-            { ...repository("x", "workspace" as "organization", true) },
-          ],
-        },
+        { ...alpha, repositories: [{ ...repository("x", true), path: 1 }] },
       ],
     },
     {
@@ -555,7 +542,7 @@ test("only an answer in the catalog's exact shape is drawn", () => {
           ...alpha,
           repositories: [
             {
-              ...repository("x", "productionspace", true),
+              ...repository("x", true),
               url: "javascript:alert(1)",
             },
           ],

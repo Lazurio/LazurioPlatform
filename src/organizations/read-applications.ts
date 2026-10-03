@@ -11,10 +11,7 @@ import { readCheckoutJson } from "../providers/owned-json";
 import { inspectCanonicalInventory } from "./canonical-inventory";
 import { organizationDocumentHash } from "./document-hash";
 import { organizationDocumentFiles } from "./read-documents";
-import {
-  organizationRepositoryPaths,
-  rootApplicationPaths,
-} from "./repository-slots";
+import { rootApplicationPaths } from "./repository-slots";
 import { resolveOrganizationRoot } from "./root-resolution";
 
 // Resolve a selection against the live inventory, never a caller-supplied path.
@@ -160,23 +157,17 @@ export async function observeOrganizationApplications(
       inventory.inventory.issues.flatMap((issue) => issue.indices),
     );
     const entries = [];
-    // The declared repositories the catalog lists read-only, never modules:
-    // the Organization's `infra` (root decision 0179 point 5) and its
-    // productionspace repositories (root decision 0041), in declaration
-    // order. A slot without a usable id or in a declaration conflict is left
-    // out; its issue stays visible.
-    const repositories = inventory.inventory.slots.flatMap((slot) => {
-      if (!slot || slot.id === null || conflicted.has(slot.index)) return [];
-      const layout =
-        slot.scope === "productionspace"
-          ? ("productionspace" as const)
-          : slot.scope === "root" && organizationRepositoryPaths.has(slot.path)
-            ? ("organization" as const)
-            : null;
-      return layout === null
+    // The declared productionspace repositories (root decision 0041), which
+    // the catalog lists read-only and never as modules, in declaration order.
+    // A slot without a usable id or in a declaration conflict is left out;
+    // its issue stays visible.
+    const repositories = inventory.inventory.slots.flatMap((slot) =>
+      slot?.scope !== "productionspace" ||
+      slot.id === null ||
+      conflicted.has(slot.index)
         ? []
-        : [Object.freeze({ id: slot.id, path: slot.path, layout })];
-    });
+        : [Object.freeze({ id: slot.id, path: slot.path })],
+    );
     for (const slot of inventory.inventory.slots) {
       // A workspace slot is a module; a root-level application slot is one
       // only when it carries a module manifest (decision F24), never by its
@@ -294,6 +285,49 @@ const declaresModule = (manifest: string) =>
       error.code !== "ENOENT" && error.code !== "ENOTDIR",
   );
 
+/** What a module's app says of itself for a page to show (decision F36):
+ * display-only text from its `lazurio.runtime` declaration, bounded, never
+ * raw file content, a path or a grant. The Module's manifest stays the
+ * authority; the Launchpad only draws it. */
+export type AppDisplay = Readonly<{
+  /** The app's id in its declaration, at most 128 characters. */
+  id: string;
+  /** Its title, at most 120 characters. */
+  title: string;
+  /** Its one-line description, at most 240 characters (the parser's bound). */
+  description?: string;
+  /** Its semantic icon key, when it is one (lowercase words and dashes). */
+  icon?: string;
+  /** Its tags, at most 20, each at most 128 characters (a longer one is
+   * left out). */
+  tags: readonly string[];
+}>;
+
+function appDisplay(
+  runtime: Readonly<{
+    id: string;
+    title: string;
+    tags: readonly string[];
+    optional: Readonly<Record<string, string | readonly string[]>>;
+  }>,
+): AppDisplay {
+  const { description, icon } = runtime.optional;
+  // The runtime parser bounds none of id, title or tags; the page's catalog
+  // reader does (src/launchpad/catalog-view.ts), so the projection keeps to
+  // those bounds and a valid declaration never makes the catalog unreadable.
+  return Object.freeze({
+    id: [...runtime.id].slice(0, 128).join(""),
+    title: [...runtime.title].slice(0, 120).join(""),
+    ...(typeof description === "string" ? { description } : {}),
+    ...(typeof icon === "string" && /^[a-z0-9][a-z0-9-]{0,39}$/.test(icon)
+      ? { icon }
+      : {}),
+    tags: Object.freeze(
+      runtime.tags.filter((tag) => [...tag].length <= 128).slice(0, 20),
+    ),
+  });
+}
+
 /** One module directory's declaration, the reader Organization slots and the
  * Personalspace share (launchpad-parity B1, B11): `lazurio.module.json`, and
  * for each declared app whether its runtime declaration names this module,
@@ -327,6 +361,7 @@ export async function observeModuleDirectory(
     kind: "runtime-declared" | "invalid-runtime";
     reason?: CheckoutReason;
     file?: string;
+    display?: AppDisplay;
   }>[] = [];
   for (const pkg of module.apps) {
     try {
@@ -338,7 +373,11 @@ export async function observeModuleDirectory(
       )
         throw new Error("Application declaration unavailable");
       apps.push(
-        Object.freeze({ package: pkg, kind: "runtime-declared" as const }),
+        Object.freeze({
+          package: pkg,
+          kind: "runtime-declared" as const,
+          display: appDisplay(app.runtime),
+        }),
       );
     } catch (error) {
       const refused = checkoutRefusal(error, path);
