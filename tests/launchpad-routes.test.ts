@@ -67,8 +67,8 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "machine" }, messages("cs")),
   ).toEqual({
-    heading: "Tenhle Environment",
-    document: "Tenhle Environment · Nastavení — Lazurio Launchpad",
+    heading: "Tento Environment",
+    document: "Tento Environment · Nastavení — Lazurio Launchpad",
   });
 });
 
