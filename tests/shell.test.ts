@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
 import type { MachineBinding } from "../src/folder/machine-binding";
 import { shellDocument } from "../src/launchpad/shell-document";
-import type {
-  Catalog,
-  CatalogOrganization,
+import {
+  type Catalog,
+  type CatalogOrganization,
+  readFolderCatalog,
 } from "../src/organizations/catalog";
 import { parseShell, type Shell } from "../src/shell/contract";
 import { shellMessages } from "../src/shell/messages";
@@ -14,6 +15,7 @@ import {
   railModel,
   switchTabs,
 } from "../src/shell/view";
+import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import {
   bindings,
   organizationWithEntry,
@@ -51,7 +53,12 @@ test("a workstation's document: this computer, every Organization of the Folder,
     preset: "local",
     machine: null,
     locale: "cs",
-    catalog: catalog(organization("alpha"), organization("beta")),
+    // alpha's manifest binds it to another GitHub login than its slug; beta
+    // binds none.
+    catalog: catalog(
+      organization("alpha", { forgeLogin: "alpha-forge" }),
+      organization("beta"),
+    ),
   });
   expect(shell).toEqual({
     schema: "lazurio.shell.v1",
@@ -72,13 +79,15 @@ test("a workstation's document: this computer, every Organization of the Folder,
         slug: "alpha",
         name: "Alpha Example",
         accent: null,
-        avatar: "https://github.com/alpha.png?size=96",
+        // The avatar of the bound login, never of the slug.
+        avatar: "https://github.com/alpha-forge.png?size=96",
       },
       {
         slug: "beta",
         name: "Beta Example",
         accent: null,
-        avatar: "https://github.com/beta.png?size=96",
+        // No bound login: no avatar, the rail shows initials.
+        avatar: null,
       },
     ],
     dashboard: "https://dashboard.lazurio.ai/",
@@ -379,3 +388,41 @@ test("initials: first letters of two words, else two letters", () => {
   expect(initialsOf("north-example")).toBe("NE");
   expect(initialsOf("Č")).toBe("Č");
 });
+
+test.skipIf(process.platform === "win32")(
+  "the avatar names the GitHub login the manifest binds, not the slug, read from a real Folder",
+  async () => {
+    await folderFixture(async (folder) => {
+      await writeOrganization(folder, "north_GEN3", {
+        slug: "north",
+        forge: "north-forge-login",
+        state: "current",
+        modules: [{ id: "orders" }],
+      });
+      const read = await readFolderCatalog(folder);
+      const north = read.organizations.find(
+        (entry) => entry.organization === "north",
+      );
+      expect(north?.forgeLogin).toBe("north-forge-login");
+      const shell = shellDocument({
+        preset: "local",
+        machine: null,
+        locale: "en",
+        catalog: read,
+      });
+      expect(
+        shell.organizations.find((entry) => entry.slug === "north")?.avatar,
+      ).toBe("https://github.com/north-forge-login.png?size=96");
+      // No avatar of any slug: every avatar is a bound login's.
+      for (const entry of shell.organizations)
+        expect(entry.avatar).toBe(
+          `https://github.com/${
+            read.organizations.find(
+              (candidate) => candidate.organization === entry.slug,
+            )?.forgeLogin
+          }.png?size=96`,
+        );
+    });
+  },
+  30_000,
+);

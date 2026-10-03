@@ -45,9 +45,11 @@ export function operatorLogin(machine: MachineBinding | null): string | null {
 
 /** The Organizations of the catalog the shell names: every candidate with a
  * slug that is not refused as a template or as a duplicate of another, once
- * per slug, in catalog order. Its avatar is the GitHub Organization's, by
- * the slug (an Organization's slug is its GitHub login); the Dashboard will
- * replace it with the avatar it caches on each GitHub sync. */
+ * per slug, in catalog order. Its avatar is the GitHub Organization's of the
+ * login its manifest binds it to (`forge_binding.locator`), never derived
+ * from the slug, which may differ; without a bound login there is none and
+ * the elements show its initials. The Dashboard will replace it with the
+ * avatar it caches on each GitHub sync. */
 export function shellOrganizations(
   catalog: Catalog,
 ): readonly ShellOrganization[] {
@@ -68,7 +70,10 @@ export function shellOrganizations(
         slug,
         name: organization.displayName ?? slug,
         accent: null,
-        avatar: `https://github.com/${encodeURIComponent(slug)}.png?size=96`,
+        avatar:
+          organization.forgeLogin === undefined
+            ? null
+            : `https://github.com/${encodeURIComponent(organization.forgeLogin)}.png?size=96`,
       }),
     ];
   });

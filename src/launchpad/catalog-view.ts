@@ -397,6 +397,11 @@ function isOrganization(value: unknown): value is CatalogOrganization {
     text(entry.directory) &&
     orNull(entry.organization) &&
     orNull(entry.displayName) &&
+    (entry.forgeLogin === undefined ||
+      (text(entry.forgeLogin) &&
+        /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(
+          entry.forgeLogin,
+        ))) &&
     orNull(entry.state) &&
     texts(entry.issues) &&
     typeof entry.executable === "boolean" &&
