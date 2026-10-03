@@ -9,10 +9,14 @@ import {
 import { parseShell, type Shell } from "../src/shell/contract";
 import { shellMessages } from "../src/shell/messages";
 import {
-  folderLimit,
+  environmentHref,
+  environmentName,
+  environmentWho,
+  hereOf,
   initialsOf,
-  jumpList,
-  railModel,
+  railSpaces,
+  spaceEnvironments,
+  switcherSections,
   switchTabs,
 } from "../src/shell/view";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
@@ -22,9 +26,10 @@ import {
   personalWithEntry,
 } from "./fixtures/machine-bindings";
 
-// Decision F36: the Lazurio shell's data contract `lazurio.shell.v1`, its
-// producer for what this Environment knows today, and the rail and switch
-// as the elements draw them. Fixtures use example names only.
+// Decision F36 and its addendum of 2026-10-04: the Lazurio shell's data
+// contract `lazurio.shell.v1`, its producer for what this Environment knows
+// today, and the rail of Organizations, the Environment picker and the
+// switch as the elements draw them. Fixtures use example names only.
 
 const organization = (
   slug: string,
@@ -47,8 +52,9 @@ const catalog = (...organizations: CatalogOrganization[]): Catalog => ({
 });
 const en = shellMessages("en");
 const cs = shellMessages("cs");
+const noLast = () => null;
 
-test("a workstation's document: this computer, every Organization of the Folder, Apps on its own origin, no Chat or Automate", () => {
+test("a workstation's document: this computer, every Organization of the Folder with its Dashboard, Apps on its own origin", () => {
   const shell = shellDocument({
     preset: "local",
     machine: null,
@@ -64,13 +70,14 @@ test("a workstation's document: this computer, every Organization of the Folder,
     schema: "lazurio.shell.v1",
     locale: "cs",
     current: "local",
-    operator: { initials: null, login: null },
+    operator: { initials: null, login: null, avatar: null },
     environments: [
       {
         id: "local",
         label: null,
         kind: "workstation",
         organizations: ["alpha", "beta"],
+        assignee: null,
         apps: { apps: "/", chat: null, automate: null },
       },
     ],
@@ -78,29 +85,48 @@ test("a workstation's document: this computer, every Organization of the Folder,
       {
         slug: "alpha",
         name: "Alpha Example",
-        accent: null,
         // The avatar of the bound login, never of the slug.
         avatar: "https://github.com/alpha-forge.png?size=96",
+        dashboard: "https://dashboard.lazurio.ai/orgs/alpha",
       },
       {
         slug: "beta",
         name: "Beta Example",
-        accent: null,
         // No bound login: no avatar, the rail shows initials.
         avatar: null,
+        dashboard: "https://dashboard.lazurio.ai/orgs/beta",
       },
     ],
     dashboard: "https://dashboard.lazurio.ai/",
     account: "https://dashboard.lazurio.ai/settings",
+    addOrganization: "https://dashboard.lazurio.ai/add-organization",
   });
-  // The rail: this computer is personal, so no folder; Organizations
-  // without an Environment in the document have none.
-  const rail = railModel(shell, cs);
-  expect(rail.personal.map((entry) => [entry.label, entry.active])).toEqual([
-    ["Tento počítač", true],
+  const current = shell.environments[0];
+  if (current === undefined) throw new Error("The document has one");
+  expect(environmentName(current, cs)).toBe("Tento počítač");
+  expect(environmentWho(current, cs)).toBe("tento počítač");
+  // On its own the workstation is personal; opened for an Organization it
+  // stands in that Organization's space, Apps scoped to it.
+  expect(hereOf(shell, null)).toBe("personal");
+  expect(hereOf(shell, "BETA")).toBe("beta");
+  expect(environmentHref(current, "beta", "apps")).toBe("/o/beta");
+  expect(environmentHref(current, "personal", "apps")).toBe("/");
+  // The rail: your space, then each Organization; the space a click on
+  // Beta leads to is this computer opened for Beta.
+  const spaces = railSpaces(shell, cs, {
+    here: "beta",
+    app: "apps",
+    last: noLast,
+  });
+  expect(
+    spaces.map((space) => [space.space, space.href, space.active, space.sub]),
+  ).toEqual([
+    ["personal", "/", false, "1 Environment"],
+    ["alpha", "/o/alpha", false, "1 Environment"],
+    ["beta", "/o/beta", true, "1 Environment"],
   ]);
-  expect(rail.personal[0]?.mark).toEqual({ kind: "icon", icon: "laptop" });
-  expect(rail.folders).toEqual([]);
+  expect(spaces[1]?.avatar).toBe("https://github.com/alpha-forge.png?size=96");
+  expect(spaces[2]?.initials).toBe("BE");
   // The switch: Apps on this origin, the two others disabled with a reason.
   expect(
     switchTabs(shell, cs, "apps").map((tab) => [
@@ -116,64 +142,135 @@ test("a workstation's document: this computer, every Organization of the Folder,
   ]);
 });
 
-test("a hosted work Environment: its Machine name, the assigned operator's initials, the entry's origins, one Organization folder with it active", () => {
+test("a hosted work Environment is named by its kind and its person, never by its machine; its Organization's space is the active one", () => {
   const machine = organizationWithEntry(20000, "workspace.example.lazurio.io");
   const shell = shellDocument({
     preset: "hosted-organization-personal",
     machine,
     locale: "en",
-    catalog: catalog(organization("example")),
+    catalog: catalog(organization("example", { forgeLogin: "example" })),
   });
   const [environment] = shell.environments;
-  expect(environment?.kind).toBe("work");
-  expect(environment?.label).toBe(machine.name);
-  expect(shell.current).toBe(machine.name);
-  expect(environment?.apps).toEqual({
+  if (environment === undefined) throw new Error("The document has one");
+  expect(environment.kind).toBe("work");
+  // The machine's name is the id the document keys it by, never a label.
+  expect(environment.id).toBe(machine.name);
+  expect(environment.label).toBeNull();
+  expect(environmentName(environment, cs)).toBe("Pracovní");
+  expect(environment.apps).toEqual({
     apps: "https://launchpad.workspace.example.lazurio.io/",
     chat: "https://t3code.workspace.example.lazurio.io/",
     automate: null,
   });
-  const rail = railModel(shell, en);
-  expect(rail.personal).toEqual([]);
-  expect(rail.folders).toHaveLength(1);
-  expect(rail.folders[0]?.hasActive).toBe(true);
-  expect(rail.folders[0]?.items[0]?.sub).toBe(
-    "Example Example · work · you are here",
-  );
-  expect(rail.folders[0]?.initials).toBe("EE");
-  expect(switchTabs(shell, en, "apps").map((tab) => tab.href)).toEqual([
-    "https://t3code.workspace.example.lazurio.io/",
-    "https://launchpad.workspace.example.lazurio.io/",
-    null,
+  expect(hereOf(shell, null)).toBe("example");
+  const spaces = railSpaces(shell, en, {
+    here: "example",
+    app: "chat",
+    last: noLast,
+  });
+  // Your personal space has no Environment here: its Dashboard.
+  expect(
+    spaces.map((space) => [space.space, space.href, space.active]),
+  ).toEqual([
+    ["personal", "https://dashboard.lazurio.ai/", false],
+    // A click stays in the app the rail sits in (Chat).
+    ["example", "https://t3code.workspace.example.lazurio.io/", true],
+  ]);
+  // The picker's list: the Organization's head (its Dashboard), then its
+  // Environments, the current one marked.
+  const [section] = switcherSections(shell, cs, {
+    here: "example",
+    all: false,
+    app: "apps",
+    query: "",
+  });
+  expect(section?.head?.href).toBe("https://dashboard.lazurio.ai/orgs/example");
+  expect(section?.rows.map((row) => [row.name, row.who, row.current])).toEqual([
+    ["Pracovní", "pracovní", true],
   ]);
 });
 
-test("a personal Remote Environment carries its owner's initials and belongs to no Organization", () => {
-  const machine = personalWithEntry();
+test("an assigned work Environment says whose it is; an Automated one is its persona's; a Team one its Team's", () => {
+  const work = shellDocument({
+    preset: "hosted-organization-personal",
+    machine: bindings.assignedOperator as MachineBinding,
+    locale: "en",
+    catalog: catalog(organization("example")),
+  });
+  expect(work.environments[0]?.assignee).toBe("example");
+  const [assigned] = work.environments;
+  if (assigned === undefined) throw new Error("The document has one");
+  expect(environmentWho(assigned, cs)).toBe("@example");
+  // The Team the binding names, by its display name in the catalog of the
+  // Organization that owns the Environment.
+  const teams = catalog(
+    organization("example", {
+      forgeLogin: "example",
+      teams: [{ slug: "sample-team", displayName: "Sample" }],
+    }),
+  );
+  const team = shellDocument({
+    preset: "hosted-organization-team",
+    machine: bindings.assignedTeam as MachineBinding,
+    locale: "en",
+    catalog: teams,
+  });
+  expect(team.operator).toEqual({ initials: null, login: null, avatar: null });
+  expect(team.environments[0]?.label).toBe("Team Sample");
+  expect(team.environments[0]?.assignee).toBeNull();
+  const [shared] = team.environments;
+  if (shared === undefined) throw new Error("The document has one");
+  expect(environmentWho(shared, cs)).toBe("sdílený Teamem");
+  const automated = shellDocument({
+    preset: "hosted-organization-steward",
+    machine: bindings.automated as MachineBinding,
+    locale: "en",
+    catalog: catalog(
+      organization("example", {
+        forgeLogin: "example",
+        teams: [{ slug: "sample-team", displayName: "Steward" }],
+      }),
+    ),
+  });
+  expect(automated.environments[0]?.kind).toBe("automated");
+  expect(automated.environments[0]?.label).toBe("Steward");
+  expect(automated.operator.login).toBe("example");
+  // A Team the catalog does not know: named by its kind.
+  const unknown = shellDocument({
+    preset: "hosted-organization-team",
+    machine: bindings.assignedTeam as MachineBinding,
+    locale: "en",
+    catalog: catalog(organization("example")),
+  });
+  expect(unknown.environments[0]?.label).toBeNull();
+});
+
+test("a personal Remote Environment carries its owner's initials and photo and belongs to no Organization", () => {
   const shell = shellDocument({
     preset: "hosted-personal",
-    machine,
+    machine: personalWithEntry(),
     locale: "en",
     catalog: catalog(organization("example")),
   });
   expect(shell.environments[0]?.organizations).toEqual([]);
-  expect(shell.operator.login).not.toBeNull();
-  expect(shell.operator.initials).toBe(
-    initialsOf(shell.operator.login ?? "").slice(0, 2),
-  );
-  const rail = railModel(shell, en);
-  expect(rail.personal[0]?.mark).toEqual({
-    kind: "initials",
-    text: shell.operator.initials ?? "",
+  expect(shell.operator.login).toBe("example");
+  expect(shell.operator.initials).toBe("EX");
+  expect(shell.operator.avatar).toBe("https://github.com/example.png?size=96");
+  expect(hereOf(shell, null)).toBe("personal");
+  const [personal] = switcherSections(shell, en, {
+    here: "personal",
+    all: false,
+    app: "apps",
+    query: "",
   });
-  expect(rail.personal[0]?.sub).toStartWith(`@${shell.operator.login}`);
-  expect(rail.folders).toEqual([]);
+  expect(personal?.rows[0]?.glyph).toEqual({ kind: "initials", text: "EX" });
+  expect(personal?.rows[0]?.name).toBe("Personal");
 });
 
-test("a Team Environment names no operator; a template or a duplicate slug is no Organization of the shell", () => {
+test("a template or a duplicate slug is no Organization of the shell", () => {
   const shell = shellDocument({
-    preset: "hosted-organization-team",
-    machine: bindings.assignedTeam as MachineBinding,
+    preset: "local",
+    machine: null,
     locale: "en",
     catalog: catalog(
       organization("example"),
@@ -188,25 +285,7 @@ test("a Team Environment names no operator; a template or a duplicate slug is no
       organization("broken", { organization: null, displayName: null }),
     ),
   });
-  expect(shell.operator).toEqual({ initials: null, login: null });
-  expect(shell.environments[0]?.kind).toBe("team");
   expect(shell.organizations.map((entry) => entry.slug)).toEqual(["example"]);
-  expect(railModel(shell, en).folders[0]?.items[0]?.mark).toEqual({
-    kind: "icon",
-    icon: "users",
-  });
-});
-
-test("the Automated Environment names its responsible operator", () => {
-  const shell = shellDocument({
-    preset: "hosted-organization-steward",
-    machine: bindings.assignedOperator as MachineBinding,
-    locale: "en",
-    catalog: catalog(organization("example")),
-  });
-  expect(shell.environments[0]?.kind).toBe("automated");
-  expect(shell.operator.login).toBe("example");
-  expect(shell.operator.initials).toBe("EX");
 });
 
 // A document as the Dashboard will fill it: more Environments, several
@@ -216,31 +295,38 @@ const filled = (): Shell => {
     schema: "lazurio.shell.v1",
     locale: "en",
     current: "work-3",
-    operator: { initials: "OP", login: "operator" },
+    operator: {
+      initials: "OP",
+      login: "operator",
+      avatar: "https://avatars.example.invalid/operator.png",
+    },
     environments: [
       {
         id: "laptop",
         label: null,
         kind: "workstation",
         organizations: ["north"],
+        assignee: null,
         apps: { apps: "/", chat: null, automate: null },
       },
       {
         id: "personal",
-        label: "operator",
+        label: null,
         kind: "personal",
         organizations: [],
+        assignee: null,
         apps: {
           apps: "https://launchpad.operator.example.lazurio.io/",
           chat: "https://t3code.operator.example.lazurio.io/",
           automate: null,
         },
       },
-      ...Array.from({ length: 8 }, (_, index) => ({
+      ...Array.from({ length: 4 }, (_, index) => ({
         id: `work-${index}`,
-        label: `vm-${index}`,
+        label: index === 0 ? "Team North" : null,
         kind: index === 0 ? "team" : "work",
         organizations: ["north"],
+        assignee: index === 0 ? null : `person-${index}`,
         apps: {
           apps: `https://launchpad.vm-${index}.north.example.lazurio.io/`,
           chat: null,
@@ -249,9 +335,10 @@ const filled = (): Shell => {
       })),
       {
         id: "south-1",
-        label: "vm-1",
+        label: "Steward",
         kind: "automated",
         organizations: ["South"],
+        assignee: null,
         apps: {
           apps: "https://launchpad.vm-1.south.example.lazurio.io/",
           chat: null,
@@ -260,16 +347,22 @@ const filled = (): Shell => {
       },
     ],
     organizations: [
-      { slug: "north", name: "North Example", accent: "#0b0eb4", avatar: null },
+      {
+        slug: "north",
+        name: "North Example",
+        avatar: null,
+        dashboard: "https://dashboard.example.invalid/orgs/north",
+      },
       {
         slug: "south",
         name: "South Example",
-        accent: null,
         avatar: "https://avatars.example.invalid/south.png",
+        dashboard: "https://dashboard.example.invalid/orgs/south",
       },
     ],
     dashboard: "https://dashboard.example.invalid/",
     account: "https://dashboard.example.invalid/settings",
+    addOrganization: null,
     // A member a later producer adds is ignored.
     buddy: { origin: "https://buddy.example.invalid" },
   });
@@ -277,36 +370,86 @@ const filled = (): Shell => {
   return value;
 };
 
-test("several Organizations: personal first, a folder each, six then +N, the active one always shown, less folds again", () => {
+test("several Organizations: a space's Environments, its last one remembered, the picker's list widened to all, filtered", () => {
   const shell = filled();
-  const rail = railModel(shell, en);
-  expect(rail.personal.map((entry) => entry.id)).toEqual([
+  expect(hereOf(shell, null)).toBe("north");
+  expect(spaceEnvironments(shell, "north").map((entry) => entry.id)).toEqual([
+    "work-0",
+    "work-1",
+    "work-2",
+    "work-3",
     "laptop",
-    "personal",
   ]);
-  expect(rail.folders.map((folder) => folder.organization.slug)).toEqual([
-    "north",
-    "south",
+  expect(spaceEnvironments(shell, "personal").map((entry) => entry.id)).toEqual(
+    ["laptop", "personal"],
+  );
+  // A click on a space: the last Environment this browser was in there,
+  // else its first; in Automate an Environment without it opens Apps.
+  const spaces = railSpaces(shell, en, {
+    here: "north",
+    app: "automate",
+    last: (space) => (space === "north" ? "work-2" : null),
+  });
+  expect(spaces.map((space) => [space.space, space.href, space.sub])).toEqual([
+    ["personal", "/", "2 Environments"],
+    [
+      "north",
+      "https://launchpad.vm-2.north.example.lazurio.io/",
+      "5 Environments · last Work",
+    ],
+    [
+      "south",
+      "https://mausbot.vm-1.south.example.lazurio.io/",
+      "1 Environment",
+    ],
   ]);
-  const [north, south] = rail.folders;
-  // Six first, plus the active one further down; two folded behind +N.
-  expect(north?.items.map((entry) => entry.id)).toEqual([
-    ...Array.from({ length: folderLimit }, (_, index) => `work-${index}`),
+  // The list under the picker: this space only.
+  const one = switcherSections(shell, en, {
+    here: "north",
+    all: false,
+    app: "apps",
+    query: "",
+  });
+  expect(one.map((section) => section.space)).toEqual(["north"]);
+  expect(
+    one[0]?.rows.map((row) => [row.id, row.name, row.who, row.current]),
+  ).toEqual([
+    ["work-0", "Team North", "shared by the Team", false],
+    ["work-1", "Work", "@person-1", false],
+    ["work-2", "Work", "@person-2", false],
+    ["work-3", "Work", "@person-3", true],
+    ["laptop", "This computer", "this computer", false],
   ]);
-  expect(north?.hidden).toBe(2);
-  expect(north?.items.find((entry) => entry.active)?.id).toBe("work-3");
-  expect(north?.items[0]?.accent).toBe("#0b0eb4");
-  expect(south?.items[0]?.mark).toEqual({ kind: "icon", icon: "bot" });
-  const open = railModel(shell, en, new Set(["north"]));
-  expect(open.folders[0]?.items).toHaveLength(8);
-  expect(open.folders[0]?.hidden).toBe(0);
-  expect(open.folders[0]?.expanded).toBe(true);
-  // The jump list: every Environment, the current one first, filtered.
-  expect(jumpList(shell, en, "")[0]?.id).toBe("work-3");
-  expect(jumpList(shell, en, "")).toHaveLength(11);
-  expect(jumpList(shell, en, "south").map((entry) => entry.id)).toEqual([
-    "south-1",
+  // "All Organizations" (and ⌘⇧E): every space, each Organization with its
+  // head; a query keeps what matches.
+  const all = switcherSections(shell, en, {
+    here: "north",
+    all: true,
+    app: "apps",
+    query: "",
+  });
+  expect(all.map((section) => [section.space, section.head !== null])).toEqual([
+    ["personal", false],
+    ["north", true],
+    ["south", true],
   ]);
+  const found = switcherSections(shell, en, {
+    here: "north",
+    all: true,
+    app: "apps",
+    query: "steward",
+  });
+  expect(
+    found.map((section) => [section.space, section.rows.map((row) => row.id)]),
+  ).toEqual([["south", ["south-1"]]]);
+  expect(
+    switcherSections(shell, en, {
+      here: "north",
+      all: true,
+      app: "apps",
+      query: "nothing like that",
+    }),
+  ).toEqual([]);
 });
 
 test("the parser refuses what the elements could not draw safely", () => {
@@ -316,6 +459,8 @@ test("the parser refuses what the elements could not draw safely", () => {
     change(copy);
     return parseShell(copy);
   };
+  const first = (value: Record<string, unknown>, key: string) =>
+    (value[key] as Record<string, unknown>[])[0] as Record<string, unknown>;
   expect(parseShell(valid)).not.toBeNull();
   expect(variant((value) => (value.schema = "lazurio.shell.v2"))).toBeNull();
   expect(variant((value) => (value.current = "missing"))).toBeNull();
@@ -328,39 +473,40 @@ test("the parser refuses what the elements could not draw safely", () => {
     variant((value) => (value.account = "http://dashboard.example.invalid/")),
   ).toBeNull();
   expect(
+    variant((value) => (value.addOrganization = "/add-organization")),
+  ).toBeNull();
+  expect(
     variant((value) => {
-      const [first] = value.environments as Record<string, unknown>[];
-      if (first)
-        first.apps = {
-          apps: "//other.example.invalid/",
-          chat: null,
-          automate: null,
-        };
+      first(value, "environments").apps = {
+        apps: "//other.example.invalid/",
+        chat: null,
+        automate: null,
+      };
     }),
   ).toBeNull();
   expect(
     variant((value) => {
-      const [first] = value.environments as Record<string, unknown>[];
-      if (first)
-        first.apps = {
-          apps: "/",
-          chat: "https://user:secret@t3.example.invalid/",
-          automate: null,
-        };
+      first(value, "environments").apps = {
+        apps: "/",
+        chat: "https://user:secret@t3.example.invalid/",
+        automate: null,
+      };
     }),
   ).toBeNull();
-  // The accent is a colour, never CSS.
   expect(
     variant((value) => {
-      const [first] = value.organizations as Record<string, unknown>[];
-      if (first) first.accent = "red; background: url(x)";
+      first(value, "organizations").dashboard = "javascript:alert(1)";
+    }),
+  ).toBeNull();
+  expect(
+    variant((value) => {
+      first(value, "environments").assignee = "not a login";
     }),
   ).toBeNull();
   // Every Organization an Environment names is listed, each id once.
   expect(
     variant((value) => {
-      const [first] = value.environments as Record<string, unknown>[];
-      if (first) first.organizations = ["east"];
+      first(value, "environments").organizations = ["east"];
     }),
   ).toBeNull();
   expect(
@@ -375,9 +521,14 @@ test("the parser refuses what the elements could not draw safely", () => {
     ),
   ).toBeNull();
   expect(
+    variant(
+      (value) =>
+        ((value.operator as Record<string, unknown>).avatar = "data:image/png"),
+    ),
+  ).toBeNull();
+  expect(
     variant((value) => {
-      const [first] = value.environments as Record<string, unknown>[];
-      if (first) first.kind = "server";
+      first(value, "environments").kind = "server";
     }),
   ).toBeNull();
 });
@@ -413,15 +564,6 @@ test.skipIf(process.platform === "win32")(
       expect(
         shell.organizations.find((entry) => entry.slug === "north")?.avatar,
       ).toBe("https://github.com/north-forge-login.png?size=96");
-      // No avatar of any slug: every avatar is a bound login's.
-      for (const entry of shell.organizations)
-        expect(entry.avatar).toBe(
-          `https://github.com/${
-            read.organizations.find(
-              (candidate) => candidate.organization === entry.slug,
-            )?.forgeLogin
-          }.png?size=96`,
-        );
     });
   },
   30_000,

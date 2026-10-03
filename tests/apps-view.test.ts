@@ -3,17 +3,26 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  appsMatch,
   appsScope,
   appsSections,
+  favoriteTiles,
   moduleDescription,
   moduleName,
   moduleStone,
+  newModulePrompt,
   pluralKey,
   tileTarget,
 } from "../src/launchpad/apps-view";
 import { parseCatalog } from "../src/launchpad/catalog-view";
 import type { PublicEntry } from "../src/launchpad/chat";
+import {
+  favoritesFirst,
+  favoritesKey,
+  moduleFavorite,
+  parseFavorites,
+  repositoryFavorite,
+  toggleFavorite,
+} from "../src/launchpad/favorites";
 import { messages } from "../src/launchpad/messages";
 import type {
   Catalog,
@@ -22,11 +31,13 @@ import type {
   CatalogRepository,
 } from "../src/organizations/catalog";
 
-// Decision F36: the Apps home as pure functions, like the catalog's view
-// tests. One Organization at a time, its two sections Workspace (every
-// module) and Productionspace (production repositories, read-only) with
-// counts, and where each tile leads: the module's own origin hosted,
-// start-then-open locally, the overview without an app.
+// Decision F36 and its addendum of 2026-10-04: the Apps home as pure
+// functions, like the catalog's view tests. One Organization at a time, its
+// two sections Workspace (every module) and Productionspace (production
+// repositories, read-only) with counts, clean tiles, favourites first, and
+// what a tile does: the module's app on its own origin hosted,
+// start-then-open locally, otherwise a short message in the wireframe's
+// words.
 
 const cs = messages("cs");
 const en = messages("en");
@@ -137,7 +148,7 @@ test("the home shows the first Organization; an Organization or module route its
   ).toBeNull();
 });
 
-test("two sections, Workspace with every module in catalog order and Productionspace read-only, with Czech counts; status only by exception; a module without an app is no failure", () => {
+test("two sections, Workspace with every module in catalog order and Productionspace read-only, with Czech counts and no subtitles; clean tiles", () => {
   const group = appsScope(catalog, { view: "home" }, cs);
   if (group === null) throw new Error("The fixture has an Organization");
   const sections = appsSections(catalog, group, cs, null);
@@ -146,7 +157,6 @@ test("two sections, Workspace with every module in catalog order and Productions
       section.kind,
       section.title,
       section.count,
-      section.subtitle,
       section.tiles.map((tile) => tile.name),
     ]),
   ).toEqual([
@@ -154,26 +164,14 @@ test("two sections, Workspace with every module in catalog order and Productions
       "workspace",
       "Workspace",
       "5 modulů",
-      "Example Company Workspace",
       ["Mission Control", "Knowledgebase", "deals", "website", "notes"],
     ],
-    [
-      "productionspace",
-      "Productionspace",
-      "1 repozitář",
-      "Repozitáře Organizace s vlastním releasem, jen pro čtení",
-      ["firmware"],
-    ],
+    ["productionspace", "Productionspace", "1 repozitář", ["firmware"]],
   ]);
+  expect(sections.some((section) => "subtitle" in section)).toBe(false);
   const [mission, ...workspace] = sections[0]?.tiles ?? [];
-  expect(workspace.map((tile) => tile.note?.text ?? null)).toEqual([
-    null,
-    null,
-    "Nelze spustit",
-    null,
-  ]);
   // The declared description first, otherwise the org-agnostic sentence of
-  // the stone's key; "No app" without an app.
+  // the stone's key; "No app" without an app. No status row on a tile.
   expect(
     workspace.map((tile) => [
       tile.name,
@@ -198,19 +196,41 @@ test("two sections, Workspace with every module in catalog order and Productions
     ],
     ["notes", "Bez aplikace", "/.lazurio/stones/clients-96.png"],
   ]);
+  expect(workspace.some((tile) => "note" in tile)).toBe(false);
   expect(mission?.name).toBe("Mission Control");
   expect(mission?.kind === "module" && mission.stone).toEqual({
     key: "control",
     src: "/.lazurio/stones/mission-control-96.png",
     accent: "var(--lz-blue-500)",
   });
-  const firmware = sections[1]?.tiles[0];
-  expect(firmware?.kind === "repository" && firmware.href).toBe(null);
-  expect(firmware?.note?.text).toBe("Nenaklonovaný");
-  expect(firmware?.note?.tone).toBe("muted");
+  // The menu's "Informace o modulu" is the module's overview.
+  expect(mission?.info).toBe("/o/example/mission-control");
 });
 
-test("a production repository's tile has no action: no lifecycle target, no page, no status dot; at most its GitHub page", () => {
+test("what a tile does: open the app, or say why not, in the wireframe's words", () => {
+  const group = appsScope(catalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  const [workspace, productionspace] = appsSections(catalog, group, cs, entry);
+  expect(
+    workspace?.tiles.map((tile) =>
+      tile.action.kind === "open" ? tile.action.target.kind : tile.action.text,
+    ),
+  ).toEqual([
+    "hosted",
+    "hosted",
+    "hosted",
+    "Aplikace modulu website teď nejde spustit.",
+    "Modul notes zatím nemá aplikaci.",
+  ]);
+  expect(productionspace?.tiles[0]?.action).toEqual({
+    kind: "say",
+    text: "Repozitář firmware nemá aplikaci.",
+  });
+  // A repository has no page: its menu leads at most to its GitHub page.
+  expect(productionspace?.tiles[0]?.info).toBeNull();
+});
+
+test("a production repository's tile: read-only, no stone, its GitHub page as its information", () => {
   const connect: CatalogRepository = {
     slug: "connect",
     path: "productionspace/connect",
@@ -229,18 +249,73 @@ test("a production repository's tile has no action: no lifecycle target, no page
     expect(productionspace?.tiles).toEqual([
       {
         kind: "repository",
+        key: "r:connect",
         repository: connect,
         name: "connect",
         description: "productionspace/connect",
-        note: null,
-        href: "https://github.com/example/connect",
+        action: { kind: "say", text: "The repository connect has no app." },
+        info: "https://github.com/example/connect",
+        favorite: false,
       },
     ]);
-    // Nothing a module tile has: no target to start or open, no stone.
-    const [tile] = productionspace?.tiles ?? [];
-    expect(tile && "target" in tile).toBe(false);
-    expect(tile && "stone" in tile).toBe(false);
   }
+});
+
+test("favourites: first in their section in the column's order, in the column only those the catalog has, kept per Organization in the browser", () => {
+  const group = appsScope(catalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  const favorites = [
+    moduleFavorite("deals"),
+    repositoryFavorite("firmware"),
+    moduleFavorite("gone"),
+    moduleFavorite("mission-control"),
+  ];
+  const [workspace, productionspace] = appsSections(
+    catalog,
+    group,
+    cs,
+    null,
+    favorites,
+  );
+  expect(workspace?.tiles.map((tile) => [tile.name, tile.favorite])).toEqual([
+    ["deals", true],
+    ["Mission Control", true],
+    ["Knowledgebase", false],
+    ["website", false],
+    ["notes", false],
+  ]);
+  expect(productionspace?.tiles[0]?.favorite).toBe(true);
+  expect(
+    favoriteTiles(catalog, group, cs, null, favorites).map((tile) => tile.key),
+  ).toEqual(["m:deals", "r:firmware", "m:mission-control"]);
+  // The stored list: one per Organization, read defensively.
+  expect(favoritesKey("Example")).toBe("lazurio.favorites:example");
+  expect(parseFavorites(null)).toEqual([]);
+  expect(parseFavorites("{ not json")).toEqual([]);
+  expect(parseFavorites('{"m:deals": true}')).toEqual([]);
+  expect(
+    parseFavorites('["m:deals", "m:deals", "x:other", 7, "r:firmware"]'),
+  ).toEqual(["m:deals", "r:firmware"]);
+  expect(toggleFavorite(["m:a"], "m:b")).toEqual(["m:a", "m:b"]);
+  expect(toggleFavorite(["m:a", "m:b"], "m:a")).toEqual(["m:b"]);
+  expect(
+    favoritesFirst(
+      [{ key: "a" }, { key: "b" }, { key: "c" }],
+      ["c", "x", "a"],
+    ).map((item) => item.key),
+  ).toEqual(["c", "a", "b"]);
+});
+
+test("the new module's prompt names the Organization and its GitHub login, in the person's language", () => {
+  const prompt = newModulePrompt("Example Company", "example-org", cs);
+  expect(prompt).toStartWith(
+    "Chci založit nový modul v Organizaci Example Company (GitHub example-org).",
+  );
+  expect(prompt).toContain("lazurio module create example-org/<slug>");
+  expect(prompt).not.toContain("{");
+  expect(newModulePrompt("Example Company", "example-org", en)).toContain(
+    "in the Organization Example Company (GitHub example-org)",
+  );
 });
 
 test("a tile opens the app on its own origin hosted, starts it locally, and falls back to the overview", () => {
@@ -299,7 +374,7 @@ test("a tile opens the app on its own origin hosted, starts it locally, and fall
   });
 });
 
-test("Czech plural forms, app directories and the column's search", () => {
+test("Czech plural forms, module names and descriptions", () => {
   const keys = {
     one: "appsModulesOne",
     few: "appsModulesFew",
@@ -333,8 +408,6 @@ test("Czech plural forms, app directories and the column's search", () => {
     ),
   ).toBe("Data, records, and their safe management.");
   expect(moduleStone(module("ledger")).key).toBe("database");
-  expect(appsMatch("knowledgebase", " KNOW ")).toBe(true);
-  expect(appsMatch("deals", "know")).toBe(false);
 });
 
 // The vendored brand assets are the pinned bytes (src/shell/vendor/README.md).
