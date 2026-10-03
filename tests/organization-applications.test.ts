@@ -652,7 +652,14 @@ posixTest(
             path: "workspace/web",
             kind: "module-observed",
             defaultApp: "app/package.json",
-            apps: [{ package: "app/package.json", kind: "runtime-declared" }],
+            apps: [
+              {
+                package: "app/package.json",
+                kind: "runtime-declared",
+                // What the app declares of itself for a page (decision F36).
+                display: { id: "web", title: "Web", tags: [] },
+              },
+            ],
           },
         ],
         // A productionspace repository is declared, never a module.
