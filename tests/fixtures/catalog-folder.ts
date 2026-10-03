@@ -219,7 +219,9 @@ export async function writeOrganization(
 // candidates. Beside its root-level application `mission-control`, alpha
 // declares `design-system` without a module manifest and the repository
 // slots `infra` and `mission-control/db`, which carry one: none of the three
-// is a module.
+// is a module. alpha's `infra` (checked out, with its GitHub remote) and its
+// two productionspace repositories, `firmware` checked out and `connect`
+// not, are its read-only repositories (F32 addendum of 2026-10-03).
 export async function folderFixture(run: (folder: string) => Promise<void>) {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "catalog-")));
   const folder = join(parent, "Lazurio");
@@ -248,11 +250,23 @@ export async function folderFixture(run: (folder: string) => Promise<void>) {
       ],
       slots: [
         { path: "design-system", slug: "design-system" },
-        { path: "infra", slug: "infra" },
+        {
+          path: "infra",
+          slug: "infra",
+          git: { url: "https://github.com/alpha/infra.git", branch: "main" },
+        },
         { path: "mission-control/db", slug: "mission-control-db" },
+        {
+          path: "productionspace/firmware",
+          slug: "firmware",
+          git: { url: "git@github.com:alpha/firmware.git", branch: "main" },
+        },
+        { path: "productionspace/connect", slug: "connect" },
       ],
     });
     await mkdir(join(alpha, "design-system"));
+    for (const path of ["infra/.git", "productionspace/firmware/.git"])
+      await mkdir(join(alpha, path), { recursive: true });
     for (const [path, id] of [
       ["infra", "infra"],
       ["mission-control/db", "mission-control-db"],

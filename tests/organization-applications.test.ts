@@ -655,6 +655,14 @@ posixTest(
             apps: [{ package: "app/package.json", kind: "runtime-declared" }],
           },
         ],
+        // A productionspace repository is declared, never a module.
+        repositories: [
+          {
+            id: "source",
+            path: "productionspace/source",
+            layout: "productionspace",
+          },
+        ],
       } as const;
       expect(await readOrganizationApplications(root)).toEqual(observed);
       expect(await resolveOrganizationApplication(root, selection)).toEqual({

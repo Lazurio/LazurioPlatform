@@ -2944,6 +2944,73 @@ decision.
 | Remove Teams from the catalog and `/api/catalog` too | Breaks the Teams column and the legacy-alias note of `module list`; the API answers what the CLI prints; not chosen: the composition decision of DEV-6638 owns the catalog's contract |
 | One flat list per Organization in declaration order, no Team anywhere on the page, the catalog unchanged (selected) | Each module once; one order on every surface; no contract change |
 
+**Addendum 2026-10-03, decided by Matěj (plan DEV-6638), aligned with root decision
+0179 point 5: an Organization is grouped by its layout, not by people.** Teams stay
+out of the Launchpad, and points 2 to 5 stand: no Team section, heading or badge, each
+module exactly once, no section for another person in the Operator's Environment,
+nothing filtered by Team or by the handover, Teams kept in the catalog for the CLI. But
+one undifferentiated list hid where a repository lives in the Organization. The
+Operator wants that layout visible, as the resident Launchpad showed it. So point 1
+changes: inside each Organization the sidebar, the overview (`/`) and the Organization
+page (`/o/<org>`) keep three groups, by where a repository lives in the Organization's
+layout:
+
+1. **Organizace / Organization**: the root-level application slots `mission-control`
+   and `design-system` when they are modules (F24), and the Organization's `infra`
+   repository slot as a read-only row (root decision 0179 point 5). `infra` is a
+   repository, never a module (F24 point 1). `mission-control/db` is Mission Control's
+   data and is not listed.
+2. **Workspace**: the modules under `workspace/` (and the legacy `modules/`), the
+   declared workspace slots.
+3. **Productionspace**: the Organization's `productionspace/` repositories, read-only.
+   Each row shows the name, the path, whether it is checked out and a link to its
+   GitHub page when the slot declares a github.com remote. A row has no status dot, no
+   Start, Stop or Open and no page of its own: each repository has its own release
+   process (root decision 0041). Launchpad parity row 19 said "not carried". This
+   addendum carries the listing back without the resident's actions.
+
+Inside a group the order stays the catalog's, the declaration order of `module_slots`.
+The modules come first, then the read-only rows. A group with nothing in it is not
+drawn. The Personalspace group (B11) stays one list without groups. The group
+headings are the page's strings in both languages ("Organizace", "Workspace",
+"Productionspace" in Czech).
+
+The catalog stays the one core, which `lazurio organization list --json` prints and
+`POST /api/catalog` answers. It is extended additively:
+
+- every module carries `layout`, `organization` or `workspace`, derived from its
+  slot path. A root slot (`classifyRepositorySlotPath` scope `root`, which for a
+  module means `mission-control` or `design-system`) is `organization`; anything else
+  is `workspace`. A Personalspace module is `workspace`;
+- every Organization carries `repositories`, the read-only rows in declaration order.
+  Each row has `slug`, `layout` (`organization` for `infra`, `productionspace` for
+  `productionspace/*`), `path`, `checkedOut` and `url`. The canonical reader returns
+  the declared slots (a slot without a usable id or in a declaration conflict is left
+  out, its issue stays on the Organization). `checkedOut` is true when every directory
+  down to the slot passes the checkout rule (F23) and the slot holds `.git`. `url` is
+  `https://github.com/<owner>/<repo>` from the slot's `git.url`, or from the legacy
+  `repo` or `repository`, when that names a github.com repository, else null. Nothing
+  is fetched. An Organization that could not be read, and the Personalspace group,
+  have none.
+
+The page's shape check covers both fields, and the test that compares the HTTP answer
+with the CLI's JSON now also feeds that answer to the page's parser. The human tables
+of `organization list` and `module list` are unchanged.
+
+*Supersedes* point 1's "one list" and, in F24, the "not chosen" disposition of "List
+root-level applications first, or in a group of their own": root-level applications
+are now a group of their own, and declaration order holds inside it. It also
+supersedes Launchpad parity row 19's "Not carried (F)" and the "Productionspace cards"
+row of its section F.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep one flat list (F32 as decided on 2026-10-02) | Hides the Organization's layout the Operator wants to see; superseded |
+| Group by layout on the page alone, from the module path, without a catalog field | The CLI's JSON and the page would derive the same rule twice; rejected: the catalog states the group once |
+| List productionspace and `infra` with the resident's actions | Each has its own release process (0041); rejected: read-only rows |
+| A separate endpoint for the read-only repositories | A second read of the same documents; rejected: the one reader returns the declared slots |
+| A `layout` per module and `repositories` per Organization in the one catalog, three groups on the page (selected) | Additive; one rule for the page and the CLI; nothing Team-shaped comes back |
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not

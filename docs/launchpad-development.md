@@ -279,7 +279,10 @@ executability and reasons are a workspace module's. The repository slots `infra`
 id that a workspace module and a root-level application share is
 `declaration-conflict` on both, with the inventory issue `repository-id-collision` on
 the Organization, as for any two slots declaring one id.
-Per module: Organization slug, module id, path, apps and the default app, Teams (N:M)
+Per module: Organization slug, module id, path, its layout group `layout`
+(`organization` for a root-level application slot, `workspace` for every other slot
+and for a Personalspace module, from the slot path; F32 addendum of 2026-10-03),
+apps and the default app, Teams (N:M)
 with their source `teamsSource`, the root state and `executable`, or a typed `reason`
 (`organization-not-executable`, `declaration-conflict`, `module-unavailable`,
 `explicit-apps-required`, `no-app`, `default-app-invalid`, or a refusal of the
@@ -303,6 +306,22 @@ provider permission or a lease. The contents of the install inputs (lockfile byt
 local dependencies, patches, configuration) are still the start's to refuse (F23 point
 6), and so are a Bun version mismatch and a failing install. A malformed
 Team membership is reported as `teams-invalid` on the module and never blocks it.
+
+**Read-only repositories (F32 addendum of 2026-10-03, root decision 0179 point 5).**
+Per Organization, `repositories` lists in declaration order the declared slots that
+are repositories the Launchpad shows without an action: `infra` (`layout:
+"organization"`) and every `productionspace/<repository>` (`layout:
+"productionspace"`). They are never modules. Each has `slug`, `layout`, `path`,
+`checkedOut` and `url`. The canonical reader (`observeOrganizationApplications`)
+returns them with the modules, from the same documents; a slot without a usable id or
+in a declaration conflict is left out, and its issue stays on the Organization.
+`checkedOut` is true when every directory down to the slot passes the checkout rule of
+F23 and the slot holds `.git` (a directory, or a linked worktree's file); a missing,
+refused or plain directory is not checked out. `url` is the GitHub page
+`https://github.com/<owner>/<repo>` of the slot's `git.url` (or the legacy `repo`,
+`repository`) when that names a github.com repository, otherwise null; nothing is
+fetched. `mission-control/db` is not listed. An Organization that could not be read,
+and the Personalspace group, have `repositories: []`.
 
 **Teams.** The canonical form is `module_slots[].teams`. The catalog resolves membership
 exactly as the resident's read model does (`organizationSlotTeams` in the legacy root's
@@ -369,8 +388,9 @@ no output carries the login. The company a module declares is still part of its
 transient unit's readable name (`applicationUnitName`), as it was in the resident's
 inventory.
 
-**Routes.** `/` is every Organization's modules with their default app; `/o/<org>` one
-Organization (directory, resolution state, issues, then its modules);
+**Routes.** `/` is every Organization's modules with their default app, under its
+layout groups; `/o/<org>` one Organization (directory, resolution state, issues, then
+one section per layout group);
 `/o/<org>/<module>` one module (Organization, apps with the default marked,
 path, resolution state, whether it can run). No route shows Teams (F32). `<org>` is selected by the CLI's rule
 above and each segment is URL-encoded. A candidate's own route uses the name that
@@ -390,7 +410,15 @@ rows (T3's threads) and a status dot (green: can run; grey: cannot, with the rea
 in the row's accessible name). Each module is one row, in the catalog's order (the
 declaration order of `module_slots`), whatever Teams declare it, and there is no Team
 subheader (decision F32; until then a subheader per Team listed a module of two Teams
-twice).
+twice). Under each Organization the rows sit in up to three layout groups, each with a
+small heading: **Organizace** (the root-level applications, then `infra`),
+**Workspace** (the workspace modules) and **Productionspace** (its repositories), in
+English "Organization", "Workspace", "Productionspace" (F32 addendum of 2026-10-03,
+root decision 0179 point 5). A group with nothing in it is not drawn. A read-only
+repository's row is its name without a dot or a link, its checkout state in its
+accessible name. The Personalspace group stays one list. The overview draws the same
+groups as `h3` headings with a card each under the Organization's heading, the
+Organization page as its sections.
 The current Organization or module is `aria-current="page"`. "Refresh" is the page
 action in the header. Below 768 px the sidebar is the same off-canvas sheet as in
 Settings, and choosing a row closes it.
@@ -403,10 +431,28 @@ tile opens its app in a new tab, and selecting a module in the left column opens
 overview.
 
 **What a module row shows.** Name, default app, and "Can run" or the reason in
-words with its code; no Team badge (F32). Rows carry no action; the module's page carries its lifecycle
+words with its code; no Team badge (F32). A read-only repository's row shows its name,
+path, "Checked out" or "Not checked out" and a plain "GitHub" link to its page when it
+has one; no status dot, no action and no page of its own. Rows carry no action; the
+module's page carries its lifecycle
 ([below](#module-lifecycle)). `src/launchpad/catalog-view.ts` holds the pure
 presentation (tested in `tests/catalog-view.test.ts`), `src/launchpad/catalog-panel.ts`
 the DOM, drawn with `textContent` only.
+
+**Verification 2026-10-03 (F32 addendum).** `tests/organization-catalog.test.ts`
+reads the fixture Folder, whose Organization `alpha` has a root-level application
+(`mission-control`), three workspace modules, a checked-out `infra` with a GitHub
+remote and two productionspace repositories, `firmware` checked out with an SSH
+remote and `connect` not checked out. It checks every module's `layout` and the
+repositories with their checkout state and page. A productionspace directory without
+`.git` is not checked out, and a slot path decides the group, not the id. The HTTP
+answer equals the CLI's JSON and passes the page's shape check.
+`tests/catalog-view.test.ts` checks the groups the page draws in both languages: the
+order Organization, Workspace, Productionspace; modules before repositories; an empty
+group not drawn; every module in exactly one group; the Personalspace group without
+groups. It also checks that an answer whose layout, repositories or link is malformed
+is not drawn. The page was rendered in headless Chrome against a fixture Folder (see
+the pull request).
 
 **Verification 2026-10-02 (F32).** `tests/catalog-view.test.ts` checks the pure view
 the sidebar, the overview and both pages draw (`catalogTree`, `organizationFacts`,
