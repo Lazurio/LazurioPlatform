@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
+import { type DocumentsHost, processDocumentsHost } from "../files/documents";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
   inspectToolsChange,
@@ -44,8 +45,10 @@ import {
 import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
 import { issueChatLink, publicEntry } from "./chat";
+import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
+import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import {
@@ -179,6 +182,10 @@ export async function startLaunchpad(
   // Bun and the runner of this platform. Trusted composition, never HTTP
   // input; tests supply a fake service manager.
   moduleHost: ModuleHost = processModuleHost(),
+  // Whose Documents folder the Files page serves (decision F34): this
+  // process's account. Trusted composition, never HTTP input; tests supply
+  // a temporary home.
+  documentsHost: DocumentsHost = processDocumentsHost(folder),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -229,20 +236,24 @@ export async function startLaunchpad(
   });
   const installing = new Set<string>();
   let closing = false;
+  const headers = {
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+  };
+  // The Files page (decision F34): the Operator's Documents folder.
+  const files = createFilesRoutes({ host: documentsHost, headers });
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: entry === null ? 0 : entry.listenPort,
     development: false,
-    maxRequestBodySize: 16 * 1024,
+    // Uploads stream to disk, so bodies may be large; every JSON route reads
+    // its body through `readJsonBody`, bounded at 16 KiB.
+    maxRequestBodySize: maxRequestBytes,
     ...(trust === null ? { routes: pageRoutes } : {}),
     async fetch(request, server) {
       const origin = `http://127.0.0.1:${server.port}`;
       const url = new URL(request.url);
-      const headers = {
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-        "Referrer-Policy": "no-referrer",
-      };
       const response = (body: unknown, status = 200) =>
         Response.json(body, { status, headers });
       if (trust !== null && shell !== null) {
@@ -251,6 +262,34 @@ export async function startLaunchpad(
         const admission = await trust.admit(request);
         if (!admission.ok)
           return response({ error: "denied", reason: admission.reason }, 401);
+        if (
+          (request.method === "GET" || request.method === "HEAD") &&
+          (url.pathname === "/files" || url.pathname.startsWith("/files/"))
+        ) {
+          // A Files link: a regular file is its download, through the same
+          // admission as the page; a folder, or anything not served, is
+          // the page, which says what is there.
+          if (closing) return response({ error: "closing" }, 503);
+          let answer: Awaited<ReturnType<typeof files.page>>;
+          try {
+            answer = await files.page(request, server, url);
+          } catch {
+            return response({ error: "operation-failed" }, 500);
+          }
+          if (answer instanceof Response) return answer;
+          const page = await shell.get(
+            url.pathname,
+            request.headers.get("accept"),
+          );
+          return new Response(request.method === "HEAD" ? null : page.body, {
+            status: page.ok ? answer.status : page.status,
+            headers: {
+              ...headers,
+              "Content-Type":
+                page.headers.get("content-type") ?? "application/octet-stream",
+            },
+          });
+        }
         if (request.method === "GET" && !url.pathname.startsWith("/api/")) {
           const page = await shell.get(
             `${url.pathname}${url.search}`,
@@ -267,6 +306,14 @@ export async function startLaunchpad(
         }
       } else if (!admitLocal(request, origin, token))
         return response({ error: "denied" }, 403);
+      if (url.pathname.startsWith("/api/files/")) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await files.api(request, server, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (request.method === "GET" && url.pathname === "/api/recovery") {
         // The Recovery view of Settings: the same read-only use case and
         // result as `lazurio recover --json` (docs/recovery.md).
@@ -342,14 +389,16 @@ export async function startLaunchpad(
           } else {
             if (request.headers.get("content-type") !== "application/json")
               return response({ error: "invalid-content-type" }, 415);
-            const input: unknown = await request.json();
+            const input: unknown = await readJsonBody(request);
             const withApp = ownDataValue(input, "app") !== undefined;
             const value = stateFields(input, withApp ? ["app"] : []);
             if (withApp && typeof value.app !== "string")
               return response({ error: "invalid-app" }, 400);
             app = value.app as string | undefined;
           }
-        } catch {
+        } catch (error) {
+          if (error instanceof BodyTooLarge)
+            return response({ error: "body-too-large" }, 413);
           return response({ error: "invalid-request" }, 400);
         }
         const options = app === undefined ? {} : { app };
@@ -373,7 +422,7 @@ export async function startLaunchpad(
       if (request.headers.get("content-type") !== "application/json")
         return response({ error: "invalid-content-type" }, 415);
       try {
-        const input: unknown = await request.json();
+        const input: unknown = await readJsonBody(request);
         if (closing) return response({ error: "closing" }, 503);
         if (url.pathname === "/api/update/apply") {
           if (!pill) return response({ error: "update-unavailable" }, 503);
@@ -687,7 +736,9 @@ export async function startLaunchpad(
             logins.refuse("gh");
         }
         return response(result, result.kind === "blocked" ? 409 : 200);
-      } catch {
+      } catch (error) {
+        if (error instanceof BodyTooLarge)
+          return response({ error: "body-too-large" }, 413);
         return response(
           { error: "operation-failed", recoveryMayBeRequired: true },
           400,
@@ -723,6 +774,8 @@ export async function startLaunchpad(
           const loginClose = logins.close();
           pill?.stop();
           await server.stop(true);
+          // An upload cut off by the stop removes its temporary file first.
+          await files.close();
           await shell?.stop();
           await health?.stop(true);
           await loginClose;

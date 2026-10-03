@@ -1,3 +1,4 @@
+import { filesUrlPath, parseUrlPath } from "../files/rules";
 import type { MessageKey } from "./messages";
 
 // The page routes of the Launchpad: one document served under each path, the
@@ -26,13 +27,21 @@ export type PageRoute =
   | Readonly<{ view: "home" }>
   | Readonly<{ view: "organization"; organization: string }>
   | Readonly<{ view: "module"; organization: string; module: string }>
-  | Readonly<{ view: "settings"; section: SettingsSection }>;
+  | Readonly<{ view: "settings"; section: SettingsSection }>
+  /** A folder of the Documents folder (decision F34): `/files` is the
+   * folder itself, `/files/<name>/<name>` one below it. */
+  | Readonly<{ view: "files"; path: readonly string[] }>;
 
-/** The two frames of the page: the catalog (home, Organization, module) with
- * the Organizations in the sidebar, and Settings with its navigation. */
-export type PageFrame = "catalog" | "settings";
+/** The three frames of the page: the catalog (home, Organization, module)
+ * with the Organizations in the sidebar, the Files page beside the same
+ * sidebar, and Settings with its navigation. */
+export type PageFrame = "catalog" | "files" | "settings";
 export const routeFrame = (route: PageRoute): PageFrame =>
-  route.view === "settings" ? "settings" : "catalog";
+  route.view === "settings"
+    ? "settings"
+    : route.view === "files"
+      ? "files"
+      : "catalog";
 
 /** Every path the server answers with the page. The two catalog patterns are
  * the server's route parameters; the page reads its segments itself. */
@@ -40,6 +49,8 @@ export const pagePaths: readonly string[] = [
   "/",
   "/o/:organization",
   "/o/:organization/:module",
+  "/files",
+  "/files/*",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
 ];
@@ -72,6 +83,13 @@ function segment(input: string | undefined): string | null {
  * `/o/<org>` and `/o/<org>/<module>` are the catalog; anything else is the
  * Launchpad home. */
 export function pageRoute(pathname: string): PageRoute {
+  // A Files path keeps its encoding until the rules decode it; one they
+  // refuse (a hidden name, an encoded separator) opens the Documents
+  // folder itself. The server checks every path again on its platform.
+  if (pathname === "/files" || pathname.startsWith("/files/")) {
+    const parsed = parseUrlPath(pathname.slice("/files".length), "linux");
+    return { view: "files", path: "segments" in parsed ? parsed.segments : [] };
+  }
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (path.startsWith("/o/")) {
     const parts = path.slice("/o/".length).split("/");
@@ -101,6 +119,7 @@ export function routePath(route: PageRoute): string {
     return organizationPath(route.organization);
   if (route.view === "module")
     return modulePath(route.organization, route.module);
+  if (route.view === "files") return filesUrlPath(route.path);
   return settingsPath(route.section);
 }
 
@@ -132,6 +151,16 @@ export function routeTitle(
     return {
       heading: route.module,
       document: `${route.module} · ${organization} — ${copy.title}`,
+    };
+  }
+  if (route.view === "files") {
+    const folder = route.path.at(-1);
+    return {
+      heading: copy.filesTitle,
+      document:
+        folder === undefined
+          ? `${copy.filesTitle} — ${copy.title}`
+          : `${folder} · ${copy.filesTitle} — ${copy.title}`,
     };
   }
   const heading = copy[sectionLabels[route.section]];

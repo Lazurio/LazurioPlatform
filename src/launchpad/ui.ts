@@ -7,6 +7,7 @@ import {
   mausbotPairLink,
   parseEntryAnswer,
 } from "./chat-view";
+import { createFilesPanel } from "./files-panel";
 import { type AssignmentView, assignmentText } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
@@ -70,6 +71,20 @@ const catalog = createCatalogPanel({
   route: () => shell.route(),
   loaded: () => shell.relabel(),
 });
+// The Files page (decision F34): the Documents folder of this Environment.
+// Behind a gateway a download is a plain link the session cookie admits;
+// locally the token is in page memory only, so the page fetches with it.
+const files = createFilesPanel({
+  get: (path) => get(path),
+  credential: () => credential(),
+  linkDownloads: () => !token,
+  denied: (status) => {
+    if (!token && status === 401) location.assign(location.href);
+  },
+  copy: () => copy,
+  locale: () => locale,
+  route: () => shell.route(),
+});
 // Settings → Recovery, and in Recovery mode the whole page
 // (docs/recovery.md "The Recovery page"): read on first view, never written.
 const recovery = createRecoveryPanel({
@@ -91,6 +106,7 @@ const shell = createShell({
   displayName: (organization) => catalog.displayName(organization),
   onRoute: (route) => {
     catalog.render(route);
+    files.show(route);
     if (
       route.view === "settings" &&
       route.section === "recovery" &&
@@ -233,6 +249,7 @@ function relabel() {
   shell.relabel();
   renderChat();
   recovery.render();
+  files.relabel();
 }
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
@@ -269,6 +286,8 @@ async function load() {
   locale = current.profile.locale === "cs" ? "cs" : "en";
   copy = messages(locale);
   renderUpdate();
+  // A Team Environment's folder is the whole Team's.
+  files.shared(current.preset.name === "hosted-organization-team");
   relabel();
   catalog.render();
   // One settings row per recorded fact: the name on the left, the value on

@@ -11,9 +11,9 @@ import {
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // The frame of the page in the pattern of T3 Code: one sidebar that holds the
-// Organizations and modules of the catalog on the Launchpad home and the
-// settings navigation on a settings route, "Settings" or "Back" in its footer,
-// a header with the breadcrumb, and one view shown at a time. The route is the
+// Organizations and modules of the catalog on the Launchpad home and the Files
+// page and the settings navigation on a settings route, "Settings" or "Back"
+// in its footer, a header with the breadcrumb, and one view shown at a time. The route is the
 // path; the page never reloads to change it, so the credential held in page
 // memory stays (docs/launchpad-development.md).
 export function createShell(
@@ -59,7 +59,10 @@ export function createShell(
   function show() {
     const frame = routeFrame(route);
     const section = route.view === "settings" ? route.section : null;
-    for (const view of views) view.hidden = view.dataset.view !== frame;
+    // An element names every frame it belongs to: the catalog's sidebar
+    // also stands beside the Files page.
+    for (const view of views)
+      view.hidden = !(view.dataset.view ?? "").split(" ").includes(frame);
     for (const element of sections)
       element.hidden = element.dataset.section !== section;
     // A page action belongs to a settings section or to the whole catalog.

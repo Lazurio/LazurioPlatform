@@ -605,6 +605,53 @@ const en = {
   reloadFailed: "Cannot reload profile; CLI recovery may be required.",
   loadFailed:
     "Cannot read profile. Open the session link from CLI; pending state may require CLI recovery.",
+  filesTitle: "Files",
+  filesIntro:
+    "The Documents folder of this Environment. Agents save finished files here; download them, or upload files for the agents.",
+  filesShared:
+    "This Environment is shared: the whole Team sees and changes the same folder.",
+  filesRoot: "Documents",
+  filesPath: "Folder path",
+  filesUpload: "Upload files",
+  filesZip: "Download folder (ZIP)",
+  filesRefresh: "Refresh",
+  filesLoading: "Reading the folder…",
+  filesLoadFailed: "The folder could not be read. Try Refresh.",
+  filesUnavailable:
+    "The Documents folder of this Environment cannot be used: it is not a folder, or it is a link to the home folder or the Lazurio Folder. An agent can fix it on request.",
+  filesEmpty: "This folder is empty.",
+  filesEmptyRoot:
+    "This is the Documents folder of your Environment. Agents save finished files here, and the files you upload land here too. Nothing is here yet.",
+  filesNotFound: "This folder or file does not exist.",
+  filesOpenRoot: "Open Documents",
+  filesIsFile: "{name} is a file.",
+  filesOpenFolder: "Open its folder",
+  filesName: "Name",
+  filesSize: "Size",
+  filesModified: "Modified",
+  filesFolder: "Folder",
+  filesDownload: "Download",
+  filesDownloadNamed: "Download {name}",
+  filesDownloading: "Downloading {name}…",
+  filesDownloadFailed: "{name} could not be downloaded.",
+  filesDrop: "Drop files to upload them to {folder}",
+  filesFoldersSkipped:
+    "Folders cannot be uploaded: upload the files inside, or a ZIP.",
+  filesUploads: "Uploads",
+  filesQueued: "Waiting",
+  filesUploading: "Uploading, {percent}%",
+  filesUploaded: "Uploaded",
+  filesUploadedAs: "Uploaded as {name}",
+  filesUploadedStatus: "{name} uploaded.",
+  filesUploadCancelled: "Cancelled",
+  filesCancel: "Cancel",
+  filesCancelNamed: "Cancel the upload of {name}",
+  filesUploadDiskFull: "Not enough free space in this Environment.",
+  filesUploadIncomplete: "The upload was interrupted. Try again.",
+  filesUploadName:
+    "This name cannot be used here. Rename the file and try again.",
+  filesUploadMissing: "The folder no longer exists.",
+  filesUploadFailed: "The upload failed. Try again.",
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
@@ -1202,6 +1249,53 @@ const cs: Record<MessageKey, string> = {
   reloadFailed: "Profil nelze znovu načíst. Může být nutná obnova přes CLI.",
   loadFailed:
     "Profil nelze načíst. Otevřete odkaz relace z CLI; rozpracovaný stav může vyžadovat obnovu přes CLI.",
+  filesTitle: "Soubory",
+  filesIntro:
+    "Složka Dokumenty tohoto Environmentu. Agenti sem ukládají hotové soubory; stáhněte si je, nebo sem nahrajte soubory pro agenty.",
+  filesShared:
+    "Tenhle Environment je sdílený: celý Team vidí a mění stejnou složku.",
+  filesRoot: "Dokumenty",
+  filesPath: "Cesta ke složce",
+  filesUpload: "Nahrát soubory",
+  filesZip: "Stáhnout složku (ZIP)",
+  filesRefresh: "Načíst znovu",
+  filesLoading: "Načítám složku…",
+  filesLoadFailed: "Složku se nepodařilo načíst. Zkuste Načíst znovu.",
+  filesUnavailable:
+    "Složku Dokumenty tohoto Environmentu nejde použít: není to složka, nebo je to link na domovskou složku či Lazurio Folder. Na požádání to opraví agent.",
+  filesEmpty: "Tahle složka je prázdná.",
+  filesEmptyRoot:
+    "Tohle je složka Dokumenty vašeho Environmentu. Agenti sem ukládají hotové soubory a dorazí sem i soubory, které nahrajete. Zatím tu nic není.",
+  filesNotFound: "Tahle složka nebo soubor neexistuje.",
+  filesOpenRoot: "Otevřít Dokumenty",
+  filesIsFile: "{name} je soubor.",
+  filesOpenFolder: "Otevřít jeho složku",
+  filesName: "Název",
+  filesSize: "Velikost",
+  filesModified: "Změněno",
+  filesFolder: "Složka",
+  filesDownload: "Stáhnout",
+  filesDownloadNamed: "Stáhnout {name}",
+  filesDownloading: "Stahuji {name}…",
+  filesDownloadFailed: "{name} se nepodařilo stáhnout.",
+  filesDrop: "Pusťte soubory a nahrají se do složky {folder}",
+  filesFoldersSkipped:
+    "Složky nahrát nejde: nahrajte soubory z nich, nebo ZIP.",
+  filesUploads: "Nahrávání",
+  filesQueued: "Čeká",
+  filesUploading: "Nahrávám, {percent}\u00a0%",
+  filesUploaded: "Nahráno",
+  filesUploadedAs: "Nahráno jako {name}",
+  filesUploadedStatus: "{name}: nahráno.",
+  filesUploadCancelled: "Zrušeno",
+  filesCancel: "Zrušit",
+  filesCancelNamed: "Zrušit nahrávání {name}",
+  filesUploadDiskFull: "Na tomhle Environmentu není dost volného místa.",
+  filesUploadIncomplete: "Nahrávání se přerušilo. Zkuste to znovu.",
+  filesUploadName:
+    "Tohle jméno tu použít nejde. Soubor přejmenujte a zkuste to znovu.",
+  filesUploadMissing: "Složka už neexistuje.",
+  filesUploadFailed: "Nahrání se nezdařilo. Zkuste to znovu.",
 };
 export function messages(
   locale: unknown,
