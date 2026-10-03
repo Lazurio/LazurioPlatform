@@ -153,7 +153,9 @@ const recovery = createRecoveryPanel({
   t3codeOrigin: () => chatHref(entry),
 });
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
-// the sheet of a narrow viewport.
+// the sheet of a narrow viewport. It shows its first route while it is
+// created; `framed` says it exists.
+let framed = false;
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
@@ -163,10 +165,11 @@ const shell = createShell({
       "active",
       route.view === "settings" ? "settings" : "apps",
     );
-    // Back on "Všechny moduly" the catalog is read again.
-    if (route.view === "home" || route.view === "organization")
+    catalog.render(route);
+    // Back on "Všechny moduly" the catalog is read again (the first read
+    // starts below, once the frame exists).
+    if (framed && (route.view === "home" || route.view === "organization"))
       void catalog.refresh();
-    else catalog.render(route);
     if (route.view === "marketplace" && marketplaceText !== null) {
       const name = catalog.scopeName(route);
       marketplaceText.textContent =
@@ -184,6 +187,8 @@ const shell = createShell({
       void recovery.refresh();
   },
 });
+framed = true;
+
 type MachinePeer = {
   name: string;
   kind: string;
