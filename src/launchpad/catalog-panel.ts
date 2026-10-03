@@ -45,9 +45,10 @@ import type { PageRoute } from "./routes";
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // The Apps home of the Lazurio shell (decision F36; the target shell's "Apps
-// home"): the left column lists one Organization's modules and read-only
-// repositories under the sections Organizace, Workspace and Productionspace
-// (F32 addendum of 2026-10-03), with a search; the main view shows that
+// home"): the left column lists one Organization's modules under the section
+// Workspace and its production repositories, read-only, under the section
+// Productionspace (F32 addendum of 2026-10-03, final), with a search; the
+// main view shows that
 // Organization's name on top (a picker when the Folder holds several) and
 // the same sections as pills with counts over grids of tiles. A tile opens
 // the module's app in a new tab: hosted on the module's own origin, where the
@@ -57,9 +58,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // module lifecycle (slice P5): the status of its app with a dot, the one
 // primary action (Start or Stop) and Open while the app reports a link, over
 // `/api/modules/<org>/<module>/…`, the same core as `lazurio module`. A
-// read-only repository (`infra`, productionspace) has no page: its tile is
-// its GitHub page. Teams are shown nowhere (decision F32). Every value from
-// the server is drawn with textContent.
+// production repository has no dot, no action and no page: its tile is its
+// GitHub page when known, else plain text. Teams are shown nowhere (decision
+// F32). Every value from the server is drawn with textContent.
 export function createCatalogPanel(
   options: Readonly<{
     post: (
@@ -307,7 +308,8 @@ export function createCatalogPanel(
       const note = element("span", "tile-note", item.note.text);
       note.dataset.tone = item.note.tone;
       note.title = item.note.title;
-      note.prepend(dot(item.note.tone === "warn" ? "blocked-warn" : "stopped"));
+      // A status dot only on a module: a production repository has none.
+      if (item.kind === "module") note.prepend(dot("blocked-warn"));
       text.append(note);
     }
     node.append(tileMark(item.kind === "module" ? item.stone : null), text);
@@ -323,7 +325,7 @@ export function createCatalogPanel(
 
   function section(value: AppsSection): HTMLElement {
     const part = element("section", "apps-section");
-    part.dataset.layout = value.layout;
+    part.dataset.section = value.kind;
     const top = element("div", "section-head");
     const title = element("h2", "section-pill", value.title);
     top.append(title, element("span", "section-count", value.count));
@@ -656,8 +658,9 @@ export function createCatalogPanel(
 
   // --- The left column ----------------------------------------------------
 
-  // One Organization's modules and repositories in the column, under its
-  // section labels, filtered by the search; the current module is marked.
+  // One Organization's modules and production repositories in the column,
+  // under the section labels Workspace and Productionspace, filtered by the
+  // search; the current module is marked.
   function drawTree(
     value: Catalog,
     scope: CatalogGroupEntry | null,
@@ -679,9 +682,9 @@ export function createCatalogPanel(
       const items = part.tiles.filter((item) => appsMatch(item.name, query));
       if (items.length === 0) return [];
       const box = element("div", "column-group");
-      box.dataset.layout = part.layout;
+      box.dataset.section = part.kind;
       const label = element("p", "column-label", part.title);
-      label.id = `column-${part.layout}`;
+      label.id = `column-${part.kind}`;
       const list = element("ul", "menu");
       list.setAttribute("aria-labelledby", label.id);
       list.append(
@@ -719,14 +722,14 @@ export function createCatalogPanel(
           }
           link.append(mark, element("span", "menu-name", item.name));
           if (item.note !== null) {
-            const tail = dot(
-              item.note.tone === "warn" ? "blocked-warn" : "stopped",
-            );
-            tail.classList.add("menu-tail");
-            link.append(
-              tail,
-              element("span", "sr-only", `, ${item.note.text}`),
-            );
+            // A status dot only on a module: a production repository has
+            // none, its state is said in words.
+            if (item.kind === "module") {
+              const tail = dot("blocked-warn");
+              tail.classList.add("menu-tail");
+              link.append(tail);
+            }
+            link.append(element("span", "sr-only", `, ${item.note.text}`));
           }
           entry.append(link);
           return entry;

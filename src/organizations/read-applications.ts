@@ -11,10 +11,7 @@ import { readCheckoutJson } from "../providers/owned-json";
 import { inspectCanonicalInventory } from "./canonical-inventory";
 import { organizationDocumentHash } from "./document-hash";
 import { organizationDocumentFiles } from "./read-documents";
-import {
-  organizationRepositoryPaths,
-  rootApplicationPaths,
-} from "./repository-slots";
+import { rootApplicationPaths } from "./repository-slots";
 import { resolveOrganizationRoot } from "./root-resolution";
 
 // Resolve a selection against the live inventory, never a caller-supplied path.
@@ -160,23 +157,17 @@ export async function observeOrganizationApplications(
       inventory.inventory.issues.flatMap((issue) => issue.indices),
     );
     const entries = [];
-    // The declared repositories the catalog lists read-only, never modules:
-    // the Organization's `infra` (root decision 0179 point 5) and its
-    // productionspace repositories (root decision 0041), in declaration
-    // order. A slot without a usable id or in a declaration conflict is left
-    // out; its issue stays visible.
-    const repositories = inventory.inventory.slots.flatMap((slot) => {
-      if (!slot || slot.id === null || conflicted.has(slot.index)) return [];
-      const layout =
-        slot.scope === "productionspace"
-          ? ("productionspace" as const)
-          : slot.scope === "root" && organizationRepositoryPaths.has(slot.path)
-            ? ("organization" as const)
-            : null;
-      return layout === null
+    // The declared productionspace repositories (root decision 0041), which
+    // the catalog lists read-only and never as modules, in declaration order.
+    // A slot without a usable id or in a declaration conflict is left out;
+    // its issue stays visible.
+    const repositories = inventory.inventory.slots.flatMap((slot) =>
+      slot?.scope !== "productionspace" ||
+      slot.id === null ||
+      conflicted.has(slot.index)
         ? []
-        : [Object.freeze({ id: slot.id, path: slot.path, layout })];
-    });
+        : [Object.freeze({ id: slot.id, path: slot.path })],
+    );
     for (const slot of inventory.inventory.slots) {
       // A workspace slot is a module; a root-level application slot is one
       // only when it carries a module manifest (decision F24), never by its

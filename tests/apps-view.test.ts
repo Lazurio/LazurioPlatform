@@ -19,12 +19,14 @@ import type {
   Catalog,
   CatalogModule,
   CatalogOrganization,
+  CatalogRepository,
 } from "../src/organizations/catalog";
 
 // Decision F36: the Apps home as pure functions, like the catalog's view
-// tests. One Organization at a time, its sections Organizace, Workspace and
-// Productionspace with counts, and where each tile leads: the module's own
-// origin hosted, start-then-open locally, the overview without an app.
+// tests. One Organization at a time, its two sections Workspace (every
+// module) and Productionspace (production repositories, read-only) with
+// counts, and where each tile leads: the module's own origin hosted,
+// start-then-open locally, the overview without an app.
 
 const cs = messages("cs");
 const en = messages("en");
@@ -36,7 +38,6 @@ const module = (
   organization: "example",
   module: id,
   path: `workspace/${id}`,
-  layout: "workspace",
   teams: ["workspace"],
   teamsSource: "default",
   apps: [{ package: "app/v1/package.json", kind: "runtime-declared" }],
@@ -71,7 +72,6 @@ const example = organization(
   [
     module("mission-control", {
       path: "mission-control",
-      layout: "organization",
       display: display("mission-control", "Mission Control v3"),
     }),
     module("knowledgebase", {
@@ -94,15 +94,7 @@ const example = organization(
   {
     repositories: [
       {
-        slug: "infra",
-        layout: "organization",
-        path: "infra",
-        checkedOut: true,
-        url: "https://github.com/example/infra",
-      },
-      {
         slug: "firmware",
-        layout: "productionspace",
         path: "productionspace/firmware",
         checkedOut: false,
         url: null,
@@ -145,13 +137,13 @@ test("the home shows the first Organization; an Organization or module route its
   ).toBeNull();
 });
 
-test("three sections in order with Czech counts; status only by exception; a module without an app is no failure", () => {
+test("two sections, Workspace with every module in catalog order and Productionspace read-only, with Czech counts; status only by exception; a module without an app is no failure", () => {
   const group = appsScope(catalog, { view: "home" }, cs);
   if (group === null) throw new Error("The fixture has an Organization");
   const sections = appsSections(catalog, group, cs, null);
   expect(
     sections.map((section) => [
-      section.layout,
+      section.kind,
       section.title,
       section.count,
       section.subtitle,
@@ -159,18 +151,11 @@ test("three sections in order with Czech counts; status only by exception; a mod
     ]),
   ).toEqual([
     [
-      "organization",
-      "Organizace",
-      "2 moduly",
-      null,
-      ["Mission Control", "infra"],
-    ],
-    [
       "workspace",
       "Workspace",
-      "4 moduly",
+      "5 modulů",
       "Example Company Workspace",
-      ["Knowledgebase", "deals", "website", "notes"],
+      ["Mission Control", "Knowledgebase", "deals", "website", "notes"],
     ],
     [
       "productionspace",
@@ -180,7 +165,7 @@ test("three sections in order with Czech counts; status only by exception; a mod
       ["firmware"],
     ],
   ]);
-  const workspace = sections[1]?.tiles ?? [];
+  const [mission, ...workspace] = sections[0]?.tiles ?? [];
   expect(workspace.map((tile) => tile.note?.text ?? null)).toEqual([
     null,
     null,
@@ -213,16 +198,49 @@ test("three sections in order with Czech counts; status only by exception; a mod
     ],
     ["notes", "Bez aplikace", "/.lazurio/stones/clients-96.png"],
   ]);
-  const [mission] = sections[0]?.tiles ?? [];
   expect(mission?.name).toBe("Mission Control");
   expect(mission?.kind === "module" && mission.stone).toEqual({
     key: "control",
     src: "/.lazurio/stones/mission-control-96.png",
     accent: "var(--lz-blue-500)",
   });
-  const firmware = sections[2]?.tiles[0];
+  const firmware = sections[1]?.tiles[0];
   expect(firmware?.kind === "repository" && firmware.href).toBe(null);
   expect(firmware?.note?.text).toBe("Nenaklonovaný");
+  expect(firmware?.note?.tone).toBe("muted");
+});
+
+test("a production repository's tile has no action: no lifecycle target, no page, no status dot; at most its GitHub page", () => {
+  const connect: CatalogRepository = {
+    slug: "connect",
+    path: "productionspace/connect",
+    checkedOut: true,
+    url: "https://github.com/example/connect",
+  };
+  const withLink = organization("example", [module("deals")], {
+    repositories: [connect],
+  });
+  const value: Catalog = { kind: "catalog", organizations: [withLink] };
+  const group = appsScope(value, { view: "home" }, en);
+  if (group === null) throw new Error("The fixture has an Organization");
+  for (const host of [entry, null]) {
+    const [, productionspace] = appsSections(value, group, en, host);
+    expect(productionspace?.kind).toBe("productionspace");
+    expect(productionspace?.tiles).toEqual([
+      {
+        kind: "repository",
+        repository: connect,
+        name: "connect",
+        description: "productionspace/connect",
+        note: null,
+        href: "https://github.com/example/connect",
+      },
+    ]);
+    // Nothing a module tile has: no target to start or open, no stone.
+    const [tile] = productionspace?.tiles ?? [];
+    expect(tile && "target" in tile).toBe(false);
+    expect(tile && "stone" in tile).toBe(false);
+  }
 });
 
 test("a tile opens the app on its own origin hosted, starts it locally, and falls back to the overview", () => {

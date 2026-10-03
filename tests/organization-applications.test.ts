@@ -667,7 +667,6 @@ posixTest(
           {
             id: "source",
             path: "productionspace/source",
-            layout: "productionspace",
           },
         ],
       } as const;
