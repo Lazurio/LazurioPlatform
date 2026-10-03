@@ -1235,7 +1235,7 @@ const cs: Record<MessageKey, string> = {
   toolsDetailsNamed: "Podrobnosti o {name}",
   toolsPathLabel: "Umístění",
   legend: "Profil Environmentu",
-  machineTitle: "Tenhle Environment",
+  machineTitle: "Tento Environment",
   machineNotice:
     "Zaznamenáno při předání tohohle Remote Environmentu; tady se jen zobrazuje, mění ho jen provozovatel, který ho hostuje.",
   machineWorkstation: "Pracovní stanice přihlášeného Operátora (bez handoveru)",
