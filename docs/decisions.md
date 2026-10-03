@@ -3583,7 +3583,8 @@ fixture Folders, local and with a recorded entry, in both languages at 1440×900
 **Addendum 2026-10-04: the shell's second iteration (decided, not implemented).**
 Proposed and decided by Anička, the owner of the design system and of the shell's UX,
 after reviewing the shell wireframe (HumanAndMachine-ai/prototypes-lazurio#4); Matěj
-confirmed the whole batch on 2026-10-04. It supersedes root decision 0179 points 2 and 3
+confirmed the whole batch on 2026-10-04; the root records it as decision 0185
+(HumanAndMachines/Lazurio#487). It supersedes root decision 0179 points 2 and 3
 in part, and as the target the parts of this decision named below; the build is still
 points 1 to 7. The full target is in [the target
 shell](launchpad-development.md#target-shell). In short:

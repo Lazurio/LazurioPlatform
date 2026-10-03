@@ -62,7 +62,8 @@ iteration was proposed and decided by Anička, the owner of the design system an
 shell's UX, after reviewing the shell wireframe (HumanAndMachine-ai/prototypes-lazurio#4),
 and Matěj confirmed it as a whole on 2026-10-04. It replaces the first target's rail of
 Environments in Organization folders, its gear in the rail and its accent fill (root
-decision 0179 points 2 and 3 in part), and the Apps column's module list and search. A
+decision 0179 points 2 and 3 in part), and the Apps column's module list and search; the
+root records it as decision 0185 (HumanAndMachines/Lazurio#487). A
 first cut of the first target is built ([decision F36](#the-shell-as-built-decision-f36));
 the record of the second iteration is
 [F36's addendum of 2026-10-04](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer).
