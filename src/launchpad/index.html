@@ -3,16 +3,16 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Lazurio Launchpad</title>
 <link rel="stylesheet" href="../shell/vendor/lazurio/tokens.css">
 <style>
-/* The Launchpad in the Lazurio shell (decision F36; the target shell of
-   docs/launchpad-development.md): the rail of Environments on the far left
-   (<lazurio-rail>, src/shell), the app's left column at full height beside
-   it with the switch Chat · Apps · Automate on top, and the main view; no
-   top bar. Settings keep T3 Code's shape (a 52 px header with the
-   breadcrumb, sections of cards with rows) in the Lazurio design-system look:
-   every colour, type and radius below comes from its vendored tokens
-   (src/shell/vendor/lazurio/tokens.css); the aliases keep the names the
-   panels use. Plain CSS, no framework. Light only: the design system has no
-   dark mode yet. */
+/* The Launchpad in the Lazurio shell (decision F36 and its addendum of
+   2026-10-04): the rail of Organizations on the far left (<lazurio-rail>,
+   src/shell), the app's left column at full height beside it with the
+   Environment picker, the gear and the switch Chat · Apps · Automate on top
+   (<lazurio-column-head>), and the main view; no top bar. Settings keep T3
+   Code's shape (a 52 px header with the breadcrumb, sections of cards with
+   rows) in the Lazurio design-system look: every colour, type and radius
+   below comes from its vendored tokens (src/shell/vendor/lazurio/tokens.css);
+   the aliases keep the names the panels use. Plain CSS, no framework. Light
+   only: the design system has no dark mode yet. */
 :root {
   color-scheme: light;
   --bg: var(--lz-surface);
