@@ -10,12 +10,13 @@ import {
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-// The frame of the page in the pattern of T3 Code: one sidebar that holds the
-// Organizations and modules of the catalog on the Launchpad home and the Files
-// page and the settings navigation on a settings route, "Settings" or "Back"
-// in its footer, a header with the breadcrumb, and one view shown at a time. The route is the
-// path; the page never reloads to change it, so the credential held in page
-// memory stays (docs/launchpad-development.md).
+// The frame of the page in the Lazurio shell (decision F36): beside the rail,
+// one left column that holds the Apps column (search, all modules, Files and
+// one Organization's modules) on the Apps home and the Files page and the
+// settings navigation on a settings route with "Back" at its foot, a header
+// with the breadcrumb on Settings and Files only, and one view shown at a
+// time. The route is the path; the page never reloads to change it, so the
+// credential held in page memory stays (docs/launchpad-development.md).
 export function createShell(
   options: Readonly<{
     copy: () => Copy;
@@ -120,7 +121,17 @@ export function createShell(
     route = next;
     show();
     if (moved) window.scrollTo(0, 0);
-    if (how.focus) heading.focus({ preventScroll: true });
+    if (how.focus) focusHeading();
+  }
+
+  // The heading of the view now shown: the Apps home and a module's
+  // overview draw their own (`data-page-heading`), Settings and Files have
+  // the one in the header.
+  function focusHeading() {
+    const own = document.querySelector<HTMLElement>(
+      "main:not([hidden]) [data-page-heading]",
+    );
+    (own ?? heading).focus({ preventScroll: true });
   }
 
   function openSheet() {
@@ -177,6 +188,24 @@ export function createShell(
     });
     if (withinNavigation) link.focus();
   });
+  // A link of the shell elements (the rail's gear, the current
+  // Environment, the switch's Apps) on this origin: the same move, without
+  // a reload (src/shell/elements.ts).
+  document.addEventListener("lazurio-navigate", (event) => {
+    const href = (event as CustomEvent<{ href?: unknown }>).detail?.href;
+    if (
+      typeof href !== "string" ||
+      !href.startsWith("/") ||
+      href.startsWith("//")
+    )
+      return;
+    event.preventDefault();
+    closeSheet(false);
+    go(pageRoute(new URL(href, location.origin).pathname), {
+      history: "push",
+      focus: true,
+    });
+  });
   window.addEventListener("popstate", () =>
     go(pageRoute(location.pathname), { history: "replace", focus: true }),
   );
@@ -215,6 +244,11 @@ export function createShell(
     relabel,
     /** The route now shown. */
     route: () => route,
+    /** Moves to the route of a path, as a click on its link does. */
+    navigate(path: string) {
+      closeSheet(false);
+      go(pageRoute(path), { history: "push", focus: true });
+    },
     /** Shows `next` and stays there: Recovery mode (docs/recovery.md). */
     pin(next: PageRoute) {
       go(next, { history: "replace", focus: false });

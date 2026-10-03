@@ -1,16 +1,61 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { shellScript } from "../shell/bundle" with { type: "macro" };
+import { shellFontPaths } from "../shell/font-files";
 import index from "./index.html";
 import { pagePaths } from "./routes";
+
+/** `/.lazurio/shell.js` (decision F36), built into this executable. */
+export const shellSource: string = shellScript();
+
+const assetHeaders = {
+  "Cache-Control": "no-cache",
+  "X-Content-Type-Options": "nosniff",
+  "Referrer-Policy": "no-referrer",
+};
+
+// The Lazurio shell's static assets (decision F36): the script with the
+// elements and the brand fonts, on every origin of the Environment the
+// Launchpad answers. Like the page's own assets they carry nothing of the
+// Folder and no credential: locally they are served without the token, as
+// the page is; hosted only after the gateway's admission, through the same
+// inner listener as the page.
+export const shellRoutes = {
+  "/.lazurio/shell.js": () =>
+    new Response(shellSource, {
+      headers: {
+        ...assetHeaders,
+        "Content-Type": "text/javascript; charset=utf-8",
+      },
+    }),
+  "/.lazurio/fonts/:file": (
+    request: Request & { params: { file: string } },
+  ) => {
+    const file = request.params.file;
+    if (!Object.hasOwn(shellFontPaths, file))
+      return new Response("not-found", { status: 404 });
+    return new Response(
+      Bun.file(shellFontPaths[file as keyof typeof shellFontPaths]),
+      {
+        headers: {
+          ...assetHeaders,
+          "Cache-Control": "public, max-age=604800, immutable",
+          "Content-Type": "font/woff2",
+        },
+      },
+    );
+  },
+};
 
 // The page itself under each of its routes (`/`, `/settings/tools`, …): the
 // same bundled document, which picks the section from the path. No other
 // path serves it, and none of them carries or needs the credential. It needs
 // nothing of the Folder, so Recovery mode serves it too.
-export const pageRoutes = Object.fromEntries(
-  pagePaths.map((path) => [path, index]),
-);
+export const pageRoutes = {
+  ...Object.fromEntries(pagePaths.map((path) => [path, index])),
+  ...shellRoutes,
+};
 
 // A private unix socket under a fresh private temporary directory: no ambient
 // HTTP proxy of the process environment (HTTP_PROXY, ALL_PROXY) can stand in
