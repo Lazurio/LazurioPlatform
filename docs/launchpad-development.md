@@ -53,6 +53,104 @@ native three-OS acceptance remain open. Module discovery/start/status/stop must 
 use the reviewed manifest and existing lifecycle owner; this panel implements none
 of them. The original bounded proof is unchanged and is not relabelled as a full UI.
 
+## Target shell
+
+**Decided by Matěj on 2026-10-03 (the Lazurio shell decisions); not implemented.** This
+section records the target that the Launchpad, the Dashboard and the two forks converge
+on. The sections below describe what is built today; where they differ, a note points
+here. Nothing in this section is executable evidence.
+
+**Layout.** There is no top bar. Level 1 is a rail of Environments on the far left, and
+the app's left column runs full height next to it. The app switch **Chat · Apps ·
+Automate** sits at the top of the left column: Chat is T3 Code (`t3code.…`), Apps is
+this Launchpad (`launchpad.…`) and Automate is MausBot (`mausbot.…`). Each is its own
+origin of the Environment, so the switch and the rail are plain links that load a full
+page. The Dashboard is not in the switch; the Lazurio logo at the top of the rail opens
+it.
+
+**Rail.** First the operator's personal Environments, then one folder per Organization
+(the Discord model). A folder first shows six Environments; "+N" unfolds the rest right
+in the rail and "méně" (less) folds them back, so every Environment the person may enter
+is reachable from the rail. Labels appear instantly, on two lines: the name, then
+Organization · kind · state. The active Environment is loud: filled with its
+Organization's accent and ringed; there is no "you are working on" badge. A personal
+Environment's mark is its Owner's initials; an Organization's mark is the GitHub
+Organization's avatar, cached by the Dashboard on each GitHub sync and changed only on
+GitHub. The jump switcher is **⌘⇧E** (Ctrl+Shift+E on Windows and Linux), not ⌘K, which
+T3 Code uses for its own command palette. Dedicated servers are never Environments and
+never appear in the rail; they belong to the Organization Settings (Owner only).
+
+**Settings and the gear.** The rail's gear opens the Settings of wherever the person is.
+In an Environment (Apps, Chat, Automate or a module app) that is the Environment's
+Settings under this Launchpad (`/settings/<section>`); in the Dashboard it is the
+account Settings, the same place as "Nastavení účtu" (account settings) in the account
+menu. Organization Settings are an item of the Organization panel in the Dashboard.
+Settings in every scope share one kit in T3 Code's shape (the patterns
+[below](#settings-structure-routes-and-the-t3-code-pattern)) and the Lazurio
+design-system look: its tokens, type and colour, not T3 Code's. The Environment's
+sections are Obecné / Tento Environment / Nástroje / Obnova (General / This Environment
+/ Tools / Recovery); the Czech name is "Tento Environment", never "Toto" or "Tenhle".
+
+**Apps home.** The home shows the Organization's name on top (a picker on a computer
+with several Organizations) and the modules in two sections: **Organizace**, the
+Organization's own applications (Mission Control, the design system, infra), and
+**Workspace**, the workspace modules (with "Přístup Teamu", the Team's access). A module
+tile opens the module's app in a new tab on its own origin; selecting the module in the
+left column opens its overview: open the app, its lifecycle, branches and worktrees, its
+log.
+
+**Buddy.** Buddy is the operator of the person's personal Environment: not an app, not a
+fourth mode of the switch, not a tab. It is a floating chat bottom-right on every
+screen, an iframe served by the personal Environment and embedded in the Dashboard, the
+Launchpad, module apps and both forks. It is one endless thread with Hermes Agent. It
+knows the context the person asks from (Environment, app, module) as a chip the person
+can remove, and it accepts images and files, which go straight to the personal
+Environment; the host app never sees them. The window signs in with the Lazurio account
+(OAuth through `auth.lazurio.ai`, a partitioned cookie); the host app passes no token.
+If that sign-in cannot work in Safari or Firefox, Buddy's window is supported in Chrome
+only. A person without a Buddy sees no bubble.
+
+**The forks and `/.lazurio/`.** Chat (`Lazurio/t3code`) and Automate
+(`Lazurio/OpenMausBot`) keep their upstream look and branding until upstream's stable
+releases, and we keep calling them T3 Code and MausBot. A fork adds only the rail, the
+app switch in its own sidebar and the Buddy bubble, and knows nothing of Lazurio's data:
+
+- Behind the Environment's gateway every app hostname of the Environment
+  (`launchpad.…`, `t3code.…`, `mausbot.…`) serves the path `/.lazurio/`, answered by
+  this Launchpad. `/.lazurio/shell.js` is the script with the elements, in the version of
+  the Launchpad on that Environment; `/.lazurio/shell.json` holds the signed-in person,
+  the Environments and Organizations (the Launchpad takes them from the Dashboard), the
+  current Environment, the addresses of its apps and the Organization's accent. Same
+  origin: no CORS and no cookie of another site.
+- `shell.js` defines three Web Components with Shadow DOM, so neither side's CSS reaches
+  the other: `<lazurio-rail>` (the logo to the Dashboard, the ⌘⇧E jump, personal
+  Environments, Organization folders, the gear, the account), `<lazurio-column-head>`
+  (the app switch, in place of the fork's logo at the top of its sidebar) and
+  `<lazurio-buddy>` (the bubble).
+- The patch in each fork is about 20 lines in about three files: the
+  `<script type="module" src="/.lazurio/shell.js">` in `index.html`, the three elements,
+  and `#root { margin-left: var(--lazurio-rail-width, 0); }`. A check in the fork keeps
+  that slot (the script and `<lazurio-column-head>`), so a rebase on a new upstream
+  conflicts only on those lines.
+- Nothing renders outside Lazurio: without `/.lazurio/shell.js` the elements stay
+  undefined, the rail's width is 0 and the fork behaves as upstream. A new rail ships
+  with the Launchpad, without a new fork release.
+
+**What this changes below.** Today's build has Settings/Back and the update pill in the
+sidebar footer and T3 Code's colour tokens
+([Settings](#settings-structure-routes-and-the-t3-code-pattern)), a sidebar of
+Organization groups on the home ([catalog](#launchpad-home-the-catalog)), and Chat and
+Lazurio MausBot as links in the sidebar ([Chat entry](#chat-entry),
+[MausBot entry](#lazurio-mausbot-entry)); the target replaces these. The routes, the
+catalog's core and the module lifecycle are not affected.
+
+**Open.** The narrow display (how the rail and a fork's sidebar collapse; upstream T3
+Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
+`postMessage` per navigation); whether the switch takes the colours of the fork it sits
+in; whether the switch still pairs the browser with T3 Code and MausBot on the way;
+where the update pill goes; and `infra` in the Organizace section, which the catalog
+does not read as a module today (decision F24).
+
 ## Settings: structure, routes and the T3 Code pattern
 
 The Launchpad is one page with two views (decision F15 addendum 2026-09-28): the
@@ -61,7 +159,9 @@ catalog of the Folder's Organizations and modules
 ([below](#launchpad-home-the-catalog)); the addendum's sentence that the development
 Application panel stays on the home needs Matěj's amendment. Settings follows
 the settings UX of T3 Code, as Matěj asked, in plain CSS inside
-`src/launchpad/index.html` and without a framework or a new dependency.
+`src/launchpad/index.html` and without a framework or a new dependency. In the
+[target shell](#target-shell) Settings keep that shape in the Lazurio design-system
+look and open from the rail's gear.
 
 **Routes.** `/settings/general`, `/settings/machine`, `/settings/tools` and
 `/settings/recovery` (the read-only [Recovery page](recovery.md#the-recovery-page)); `/settings`
@@ -84,7 +184,7 @@ the frame.
 | Environment profile: Workspace preset, Language, Detail, Coordination, Preview, Apply previewed change, the status line | Settings → General, one group of rows; Preview and Apply in its last row |
 | Reload profile | Settings → General, page action in the header |
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
-| This Environment (read-only handover) | Settings → This Environment, one row per recorded fact |
+| This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"), one row per recorded fact |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
 | Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
@@ -99,6 +199,8 @@ the frame.
 - the sidebar footer has "Settings" on the Launchpad home and "Back" inside Settings;
   Back goes to the Launchpad home, not through the browser history, and the update
   pill sits in the same footer (`sidebar/SidebarChrome.tsx`, `mainAppLocation.ts`);
+  in the [target shell](#target-shell) Settings open from the rail's gear instead,
+  scoped to where the person is;
 - Escape leaves Settings unless something else took it (`hooks/useNavigateBack.ts`);
 - a 52 px header with the breadcrumb "Settings / Tools", the current item
   `aria-current="page"`, and page-level actions on its right (`SettingsBreadcrumb.tsx`,
@@ -118,7 +220,10 @@ the frame.
 - below 768 px the sidebar is an off-canvas sheet opened from a header button; choosing
   a section closes it (`ui/sidebar.tsx`);
 - the colour tokens of `index.css`: zinc in light, neutral in dark, the same primary,
-  through `prefers-color-scheme`; the system font stack.
+  through `prefers-color-scheme`; the system font stack. Superseded by the
+  [target shell](#target-shell): Settings take T3 Code's shape in the Lazurio
+  design-system look (its tokens, type and colour); only the forks keep the upstream
+  look.
 
 **Deliberate differences.** Moving between sections adds a history entry (T3 Code
 replaces it), so back and forward move between sections as Matěj asked.
@@ -278,6 +383,12 @@ twice).
 The current Organization or module is `aria-current="page"`. "Refresh" is the page
 action in the header. Below 768 px the sidebar is the same off-canvas sheet as in
 Settings, and choosing a row closes it.
+
+**Target (2026-10-03).** This sidebar of "All Organizations" and Organization groups is
+today's build. In the [target shell](#target-shell) the home shows the Organization's
+name on top (a picker on a computer with several Organizations) and the modules in two
+sections, Organizace and Workspace (with "Přístup Teamu"); a module tile opens its app
+in a new tab, and selecting a module in the left column opens its overview.
 
 **What a module row shows.** Name, default app, and "Can run" or the reason in
 words with its code; no Team badge (F32). Rows carry no action; the module's page carries its lifecycle
@@ -649,7 +760,9 @@ Slice P7 of the Launchpad parity (shaping `docs/launchpad-parity.md` B8). On a h
 Machine the sidebar starts with **Chat**, in T3 Code's "New thread" place: it opens this
 Machine's T3 Code, as the resident's Chat button does today
 (`R:launchpad/public/app.js:2257-2281`, `R:launchpad/src/t3-chat-lib.mjs`, decided in
-root DEV-6616).
+root DEV-6616). In the [target shell](#target-shell) this link becomes **Chat** in the
+switch Chat · Apps · Automate at the top of the left column; the Dashboard is not in the
+switch, the rail's logo opens it.
 
 **What the resident does, and what is kept.** The resident's button is hidden until
 `GET /api/chat` says Chat is configured (only behind a gateway); a click posts
@@ -753,6 +866,9 @@ connected" with **Open the app** instead, and the minted code expires unused aft
 five minutes. Submitting the form by itself would be a small fork change of `/pair`,
 deliberately left for later (the Organization Admin prefers the fork changed as little
 as possible). The old resident Launchpad has no such entry; this one replaces it there.
+In the [target shell](#target-shell) it is **Automate** in the switch, and we call the
+app MausBot: the fork keeps OpenMausBot's upstream look and branding until upstream's
+stable releases.
 
 **Source.** Only the recorded entry: `mausbotOrigin` and `mausbotListenPort`, projected
 from the handover's optional `entry.mausbot`

@@ -124,7 +124,7 @@ the gap blocks the switch of one hosted Work Environment (`hosted-organization-p
 
 | # | Capability | Resident | Platform today | Gap | Switch |
 |---|---|---|---|---|---|
-| 27 | Settings | `/settings/{general,github,network,connections,ssh}` from `settings.html` (`R:launchpad/src/server.mjs:2080-2083`) | T3 Code pattern, `/settings/{general,machine,tools}` (`src/launchpad/routes.ts:20-24`; `docs/launchpad-development.md:56-128`) | Access and Diagnostics sections | partly |
+| 27 | Settings | `/settings/{general,github,network,connections,ssh}` from `settings.html` (`R:launchpad/src/server.mjs:2080-2083`) | T3 Code pattern, `/settings/{general,machine,tools}` (`src/launchpad/routes.ts:20-24`; `docs/launchpad-development.md:154-233`) | Access and Diagnostics sections | partly |
 | 28 | Guide and manual | Tile links out to the documentation site (`R:launchpad/public/guide-link.js:1-7`); `GET /api/guide/organization-install` renders a root manual (`R:launchpad/src/server.mjs:2028-2042`) | Manual in the Folder (F14) | A help link | no |
 | 29 | Product update | None in the Launchpad; hosted runtime is a pinned artifact; on a source checkout `lazurio update` pulls the root itself (`R:manual/lazurio-runtime-install-interface.md:47`) | `lazurio update`, pill, floor (`docs/update.md`); rollback removed by F21 | None | no |
 | 30 | Doctor | `lazurio doctor [--tool-updates] [--json]`, child doctors, Doctor chip (`R:lazurio/lib.mjs:108-136`; `R:launchpad/src/server.mjs:898-933`); unfixable failures on hosted residents (root issue #434) | Not implemented; accepted direction (`docs/legacy-adoption.md:35-55`); the manual already names `lazurio doctor` (`src/folder/manual.ts:709-710`) | Read-only doctor | yes |
@@ -202,13 +202,19 @@ from module and Machine alone collide across Organizations
   banner (`src/launchpad/messages.ts:367`) go away. This changes the F15 addendum
   sentence "the development Application panel stays on the Launchpad home"
   (`docs/decisions.md:820-821`).
-- Visual design: an approved new shell of the Launchpad (row tiles, a left rail) is
+- Visual design. **Superseded 2026-10-03 (the Lazurio shell decisions):** the target
+  shell is the one recorded in
+  [launchpad-development.md](launchpad-development.md#target-shell) (a rail of
+  Environments, the switch Chat · Apps · Automate at the top of the left column, Settings
+  in T3 Code's shape and the Lazurio design-system look, the Buddy bubble); the
+  resident's proof of concept is no longer the input. *Historical text of 2026-09-28:*
+  an approved new shell of the Launchpad (row tiles, a left rail) is
   being built as a proof of concept in the **resident** Launchpad, in two phases, by
   another plan. Matěj decided on 2026-09-28 to let that proof of concept
   finish in the resident and to use it afterwards as the input for the real
   implementation here. The catalog's structure and behaviour (routes, Organization
   groups, module rows, status, actions; Team groups no more since F32) are built now in the T3 Code pattern
-  already merged (`src/launchpad/routes.ts`; `docs/launchpad-development.md:56-128`);
+  already merged (`src/launchpad/routes.ts`; `docs/launchpad-development.md:154-233`);
   the approved visual language is applied when the proof of concept exists. That is
   a dependency of the visual design, not of the function (G).
 - Hosted trust: nothing new; reads pass the same admission.
