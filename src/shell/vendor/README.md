@@ -7,12 +7,16 @@ source with new hashes in this file, reviewed like code (decision F36).
 ## Lazurio design system
 
 Source: `HumanAndMachine-ai/design-system-lazurio` at commit
-`4439aef645b7432181216aab3799d7f7819d6592` (2026-10-03, "Prvky: Describe the
-Environment rail target of 2026-10-03 (#53)"). The bytes of both files are the
-same at `089d6cfbb5386a00e4a9f296f9f10b2901668f11`, the commit the shell
-wireframe (`prototypes-lazurio`, branch `agent/DEV-6639-shell-iteration-2`)
-vendors. Matěj allowed publishing these brand assets in this public repository
-(2026-10-03).
+`5bbc1f78fc5a10f0dcf8936bf54d27da2e2eeafb` (2026-10-04, "Prvky: selection is a
+quiet surface; picker and Organization head (variant A) (#54)"). That commit
+changed only `components.css` and the prvky documentation: the bytes of every
+file below are the same as at the earlier pin
+`4439aef645b7432181216aab3799d7f7819d6592` and at
+`089d6cfbb5386a00e4a9f296f9f10b2901668f11`, the commit the first shell
+wireframe vendored. The shell draws its own components from the tokens and
+mirrors #54's rules (`lz-picker`, `lz-menu__head`, the quiet selected
+surface) in `src/shell/styles.ts`. Matěj allowed publishing these brand assets
+in this public repository (2026-10-03).
 
 | File | Source path | SHA-256 |
 | --- | --- | --- |
@@ -30,7 +34,7 @@ system asks for the rail in the forks.
 
 The design system's Lazurio stones (`content/brand/icons/*-96.png`, Lazurio's own
 artwork, 96 × 96 px, drawn at 48 × 48 on a tile and 20 × 20 in a list), byte-for-byte
-from the same commit `4439aef645b7432181216aab3799d7f7819d6592`. `src/shell/stones.ts`
+from the same commit (unchanged since `4439aef645b7432181216aab3799d7f7819d6592`). `src/shell/stones.ts`
 picks one by a generic semantic key only (the app's declared `icon`, or the
 org-agnostic fallback of the root Launchpad), never by an Organization or a
 module's name, as `content/brand/icons/icons.md` and the root Launchpad's
