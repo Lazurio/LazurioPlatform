@@ -24,7 +24,8 @@ import { initialsOf } from "../shell/view";
  * Organization's slug, the Dashboard's canonical `org_slug`). */
 export const dashboardUrl = "https://dashboard.lazurio.ai/";
 export const accountUrl = "https://dashboard.lazurio.ai/settings";
-export const addOrganizationUrl = "https://dashboard.lazurio.ai/add-organization";
+export const addOrganizationUrl =
+  "https://dashboard.lazurio.ai/add-organization";
 export const organizationDashboardUrl = (slug: string): string =>
   `https://dashboard.lazurio.ai/orgs/${encodeURIComponent(slug)}`;
 

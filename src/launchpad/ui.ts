@@ -1,5 +1,7 @@
-import { parseShell, type Shell } from "../shell/contract";
+import { currentEnvironment, parseShell, type Shell } from "../shell/contract";
 import { defineShellElements, provideShell } from "../shell/elements";
+import { shellMessages } from "../shell/messages";
+import { environmentName } from "../shell/view";
 import { createCatalogPanel } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -61,6 +63,12 @@ let entry: PublicEntry | null = null;
 // own credential and hands over (the forks let the elements read it).
 defineShellElements();
 const columnHead = document.querySelector<HTMLElement>("#column-head");
+const rail = document.querySelector<HTMLElement>("#rail");
+// The documentation of the Launchpad's "Guide" (the root Launchpad's
+// `guideDocumentationUrl`), in the page's language.
+const guide = document.querySelector<HTMLAnchorElement>("#catalog-guide");
+const marketplaceText =
+  document.querySelector<HTMLParagraphElement>("#marketplace-text");
 let shellDocument: Shell | null = null;
 async function readShell() {
   try {
@@ -92,6 +100,30 @@ const catalog = createCatalogPanel({
     shellDocument?.organizations.find(
       (organization) => organization.slug.toLowerCase() === slug.toLowerCase(),
     )?.avatar ?? null,
+  environment: () => {
+    if (shellDocument === null) return null;
+    const current = currentEnvironment(shellDocument);
+    return {
+      name: environmentName(current, shellMessages(locale)),
+      icon: (
+        {
+          personal: "user",
+          work: "user",
+          team: "users",
+          automated: "bot",
+          workstation: "laptop",
+        } as const
+      )[current.kind],
+    };
+  },
+  // The space the Apps home shows: on a workstation with several
+  // Organizations the rail and the picker name the one opened.
+  space: (space) => {
+    for (const element of [rail, columnHead])
+      if (element !== null && element.getAttribute("space") !== space)
+        element.setAttribute("space", space);
+  },
+  newModule: (prompt) => handOver(prompt),
 });
 // The Files page (decision F35): the Documents folder of this Environment.
 // Behind a gateway a download is a plain link the session cookie admits;
@@ -126,10 +158,23 @@ const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
   onRoute: (route) => {
-    // The switch marks Apps, except inside Settings (the target shell).
-    if (route.view === "settings") columnHead?.removeAttribute("active");
-    else columnHead?.setAttribute("active", "apps");
-    catalog.render(route);
+    // The switch marks Apps, the gear Settings (the Organization rail).
+    columnHead?.setAttribute(
+      "active",
+      route.view === "settings" ? "settings" : "apps",
+    );
+    // Back on "Všechny moduly" the catalog is read again.
+    if (route.view === "home" || route.view === "organization")
+      void catalog.refresh();
+    else catalog.render(route);
+    if (route.view === "marketplace" && marketplaceText !== null) {
+      const name = catalog.scopeName(route);
+      marketplaceText.textContent =
+        copy.appsMarketplaceText +
+        (name === null
+          ? ""
+          : copy.appsMarketplaceOrganization.replace("{name}", name));
+    }
     files.show(route);
     if (
       route.view === "settings" &&
@@ -270,6 +315,8 @@ function relabel() {
     if (key && Object.hasOwn(copy, key))
       element.textContent = copy[key as MessageKey];
   }
+  if (guide !== null)
+    guide.href = `https://documentation.lazurio.ai/${locale === "en" ? "en" : "cs"}/guide/?utm_source=launchpad&utm_medium=product&utm_campaign=guide`;
   shell.relabel();
   recovery.render();
   files.relabel();
@@ -467,6 +514,45 @@ const pairing: Readonly<
     accept: mausbotPairLink,
   },
 };
+// The address to follow into Chat or Automate: a one-time pairing link on
+// its origin when the server mints one, otherwise the plain origin.
+async function pairedHref(app: string): Promise<string | null> {
+  const pair = Object.hasOwn(pairing, app) ? pairing[app] : undefined;
+  const plain =
+    entry === null || pair === undefined ? undefined : pair.origin(entry);
+  if (pair === undefined || plain === undefined) return null;
+  try {
+    const { value, ok } = await post(pair.path, {});
+    return (ok && pair.accept(value, plain)) || plain;
+  } catch {
+    return plain;
+  }
+}
+// "+ Nový modul" (decision F36 addendum of 2026-10-04): the prepared prompt
+// goes to the clipboard and this Environment's Chat opens in a new tab, where
+// the person pastes it into a new chat. The T3 Code fork cannot take a
+// prompt draft by link yet (Lazurio/t3code#35); once it can, Chat opens with
+// the prompt in its composer instead. A workstation has no Chat origin: the
+// prompt is copied all the same.
+async function handOver(prompt: string): Promise<boolean> {
+  const tab = entry === null ? null : window.open("about:blank", "_blank");
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(prompt);
+    copied = true;
+  } catch {
+    copied = false;
+  }
+  if (tab !== null) {
+    const next = await pairedHref("chat");
+    if (next === null) tab.close();
+    else {
+      tab.opener = null;
+      tab.location.href = next;
+    }
+  }
+  return copied;
+}
 let following = false;
 document.addEventListener("lazurio-app", (event) => {
   const detail = (event as CustomEvent<{ app?: unknown; href?: unknown }>)
@@ -482,19 +568,14 @@ document.addEventListener("lazurio-app", (event) => {
   const pair = Object.hasOwn(pairing, detail.app)
     ? pairing[detail.app]
     : undefined;
-  const plain =
-    entry === null || pair === undefined ? undefined : pair.origin(entry);
-  if (pair === undefined || plain === undefined) return;
+  if (entry === null || pair === undefined || pair.origin(entry) === undefined)
+    return;
   event.preventDefault();
   if (following) return;
   following = true;
+  const { app, href } = detail;
   void (async () => {
-    let next = plain;
-    try {
-      const { value, ok } = await post(pair.path, {});
-      next = (ok && pair.accept(value, plain)) || next;
-    } catch {}
-    location.assign(next);
+    location.assign((await pairedHref(app)) ?? href);
   })();
 });
 // Back from the app restores this page from the bfcache with the click that

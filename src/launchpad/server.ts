@@ -24,6 +24,7 @@ import {
   processModuleHost,
 } from "../modules/module-operations";
 import { readFolderCatalog } from "../organizations/catalog";
+import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import { activatableTools, toolSelection } from "../tools/catalog";
@@ -51,6 +52,7 @@ import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
+import { createOwnerCheck } from "./organization-owner";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import { shellDocument } from "./shell-document";
 import {
@@ -77,6 +79,11 @@ export type HostedOptions = Readonly<{
 
 /** The Lazurio shell's data document (decision F36). */
 export const shellDocumentPath = "/.lazurio/shell.json";
+
+// Whether this Environment's GitHub identity is an Owner of an Organization
+// (decision F36 addendum of 2026-10-04): `<org>` names it as the catalog's
+// routes do.
+const ownerRoute = /^\/api\/organizations\/([^/]+)\/owner$/;
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
@@ -245,6 +252,7 @@ export async function startLaunchpad(
       githubLoginRefused(await folderPreset(folder), tool, action),
   });
   const installing = new Set<string>();
+  const owners = createOwnerCheck(toolsEnvironment);
   let closing = false;
   const headers = {
     "Cache-Control": "no-store",
@@ -342,6 +350,31 @@ export async function startLaunchpad(
           );
         } catch {
           return response({ error: "operation-failed" }, 500);
+        }
+      }
+      const ownerRequest = ownerRoute.exec(url.pathname);
+      if (ownerRequest !== null) {
+        // Read-only and behind the same admission as every read: GitHub's
+        // own answer, never a local rule (organization-owner.ts).
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          const name = decodeURIComponent(ownerRequest[1] as string);
+          const selection = selectCatalogOrganization(
+            await readFolderCatalog(folder),
+            name,
+          );
+          server.timeout(request, 30);
+          const owner =
+            selection.kind === "found" &&
+            (await owners.owner(
+              selection.organization.forgeLogin,
+              await folderPreset(folder),
+            ));
+          return response({ kind: "organization-owner", owner });
+        } catch {
+          return response({ kind: "organization-owner", owner: false });
         }
       }
       if (url.pathname.startsWith("/api/files/")) {

@@ -12,8 +12,8 @@ import {
   initialsOf,
   railSpaces,
   type ShellApp,
-  shellApps,
   type SwitcherSection,
+  shellApps,
   switcherSections,
   switchTabs,
 } from "./view";
@@ -230,7 +230,11 @@ class Switcher {
       this.fill();
     });
     this.input.addEventListener("keydown", (event) => this.key(event));
-    search.append(icon("search", 16), this.input, element("span", "kbd", "⌘⇧E"));
+    search.append(
+      icon("search", 16),
+      this.input,
+      element("span", "kbd", "⌘⇧E"),
+    );
     this.box.setAttribute("role", "dialog");
     this.box.setAttribute("aria-label", copy.switcher);
     this.box.append(search, this.list, this.foot);
@@ -260,14 +264,14 @@ class Switcher {
     }
   }
   private mark() {
-    this.links.forEach((link, index) =>
-      link.classList.toggle("is-cursor", index === this.cursor),
-    );
+    for (const [index, link] of this.links.entries())
+      link.classList.toggle("is-cursor", index === this.cursor);
     this.links[this.cursor]?.scrollIntoView({ block: "nearest" });
   }
   private fill() {
-    const { copy, shell, options } = this;
-    const sections = switcherSections(shell, copy, {
+    const copy = this.copy;
+    const options = this.options;
+    const sections = switcherSections(this.shell, copy, {
       here: options.here,
       all: options.all,
       app: options.app,
@@ -318,7 +322,7 @@ class Switcher {
     return link;
   }
   private section(section: SwitcherSection): HTMLElement {
-    const { copy } = this;
+    const copy = this.copy;
     const group = element("div", "switcher-group");
     if (section.head !== null) {
       const { organization, href } = section.head;
@@ -479,8 +483,7 @@ export class LazurioRail extends ShellElement {
         if (space.initials !== null) mark.textContent = space.initials;
         else mark.append(icon("user", 18));
         link.append(mark);
-      } else
-        link.append(organizationMark(space.avatar, space.initials ?? ""));
+      } else link.append(organizationMark(space.avatar, space.initials ?? ""));
       scroll.append(link);
     });
     if (shell.addOrganization !== null) {
@@ -593,10 +596,10 @@ export class LazurioColumnHead extends ShellElement {
       backdrop.remove();
       switcher.box.remove();
       picker.setAttribute("aria-expanded", "false");
-      document.removeEventListener("keydown", escape, true);
+      document.removeEventListener("keydown", onEscape, true);
       this.open = null;
     };
-    const escape = (event: KeyboardEvent) => {
+    const onEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       close();
@@ -615,7 +618,7 @@ export class LazurioColumnHead extends ShellElement {
     switcher.box.style.left = `${rect.left}px`;
     switcher.box.style.width = `${Math.min(Math.max(rect.width, 400), window.innerWidth - rect.left - 8)}px`;
     backdrop.addEventListener("click", close);
-    document.addEventListener("keydown", escape, true);
+    document.addEventListener("keydown", onEscape, true);
     this.root.append(backdrop, switcher.box);
     picker.setAttribute("aria-expanded", "true");
     this.open = { close };
