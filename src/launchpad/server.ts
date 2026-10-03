@@ -188,7 +188,7 @@ export async function startLaunchpad(
   // Bun and the runner of this platform. Trusted composition, never HTTP
   // input; tests supply a fake service manager.
   moduleHost: ModuleHost = processModuleHost(),
-  // Whose Documents folder the Files page serves (decision F34): this
+  // Whose Documents folder the Files page serves (decision F35): this
   // process's account. Trusted composition, never HTTP input; tests supply
   // a temporary home.
   documentsHost: DocumentsHost = processDocumentsHost(folder),
@@ -247,7 +247,7 @@ export async function startLaunchpad(
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
   };
-  // The Files page (decision F34): the Operator's Documents folder.
+  // The Files page (decision F35): the Operator's Documents folder.
   const files = createFilesRoutes({ host: documentsHost, headers });
   const server = Bun.serve({
     hostname: "127.0.0.1",

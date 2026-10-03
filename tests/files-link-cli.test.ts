@@ -20,7 +20,7 @@ import { presetProfile } from "../src/folder/presets";
 import { bindings, organizationWithEntry } from "./fixtures/machine-bindings";
 import { commitOf, target } from "./fixtures/update-world";
 
-// `lazurio files link` (decision F34): the link an agent hands the Operator,
+// `lazurio files link` (decision F35): the link an agent hands the Operator,
 // from the same rules and Documents adapter as the Launchpad's Files page.
 // A temporary home, a Folder per kind of Environment; nothing is written.
 

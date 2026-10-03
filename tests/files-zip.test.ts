@@ -6,7 +6,7 @@ import { crc32 } from "node:zlib";
 import { dosDateTime, type ZipInput, zipArchive } from "../src/files/zip";
 import { readZip, unzipTest } from "./fixtures/zip-reader";
 
-// The streaming ZIP writer of the folder download (decision F34): a valid
+// The streaming ZIP writer of the folder download (decision F35): a valid
 // archive by an independent reader and by `unzip -t`, UTF-8 names, ZIP64
 // exactly where a value needs it (exercised with lowered limits), an
 // unreadable file left out whole, and a cancelled stream that closes the file

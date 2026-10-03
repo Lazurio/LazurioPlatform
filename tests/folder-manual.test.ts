@@ -778,7 +778,7 @@ test("work products go to the Documents folder of the execution OS", () => {
   }
 });
 
-// Decision F34: where the Folder records a hosted entry, the Operator reaches
+// Decision F35: where the Folder records a hosted entry, the Operator reaches
 // the Documents folder through the Launchpad's Files page, so agents hand over
 // the link `lazurio files link` prints, never a path. Without an entry (a
 // workstation, or a Remote Environment whose handover has none yet) no browser

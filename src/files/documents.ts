@@ -22,7 +22,7 @@ import {
   utf8Bytes,
 } from "./rules";
 
-// The Documents adapter of decision F34: the filesystem effects behind the
+// The Documents adapter of decision F35: the filesystem effects behind the
 // Launchpad's Files routes and `lazurio files link`. The served root is the
 // Documents folder of the account the process runs as, `<home>/Documents`,
 // and nothing outside it: every path is resolved with realpath and must stay

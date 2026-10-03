@@ -5,7 +5,7 @@ import { fill } from "./update-view";
 type Copy = Readonly<Record<MessageKey, string>>;
 type Locale = "cs" | "en";
 
-// Pure presentation of the Files page (decision F34); the DOM lives in
+// Pure presentation of the Files page (decision F35); the DOM lives in
 // files-panel.ts. Every value from the server is shown as text, never as
 // markup, and every request path is built here from the folder's names.
 

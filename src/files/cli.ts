@@ -21,7 +21,7 @@ import {
 import { filesUrlPath } from "./rules";
 
 /** `lazurio files link <path>`: the link an agent hands the Operator for a
- * file or folder in the Documents folder (decision F34). The same rules and
+ * file or folder in the Documents folder (decision F35). The same rules and
  * Documents adapter as the Launchpad's Files page; it records nothing. */
 export const filesHelp = `files link <path> [--folder <absolute Folder>] [--json]
   The link to a file or folder in the Documents folder of this account

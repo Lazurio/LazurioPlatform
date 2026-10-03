@@ -29,7 +29,7 @@ type Upload = {
   readonly row: HTMLLIElement;
 };
 
-// The Files page (decision F34): the Documents folder of this Environment.
+// The Files page (decision F35): the Documents folder of this Environment.
 // Folders are routes of the page; files download. Behind a gateway a
 // download is a plain link, which the session cookie admits and the browser
 // saves itself (resumable, at any size); locally the session token cannot

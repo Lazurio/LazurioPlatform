@@ -71,7 +71,7 @@ const catalog = createCatalogPanel({
   route: () => shell.route(),
   loaded: () => shell.relabel(),
 });
-// The Files page (decision F34): the Documents folder of this Environment.
+// The Files page (decision F35): the Documents folder of this Environment.
 // Behind a gateway a download is a plain link the session cookie admits;
 // locally the token is in page memory only, so the page fetches with it.
 const files = createFilesPanel({

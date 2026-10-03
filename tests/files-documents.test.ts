@@ -28,7 +28,7 @@ import {
   uploadDocument,
 } from "../src/files/documents";
 
-// The Documents adapter (decision F34) against a temporary home: what it
+// The Documents adapter (decision F35) against a temporary home: what it
 // resolves, lists, archives and writes, and every way out of the folder it
 // refuses. Nothing of this computer's own home is touched.
 

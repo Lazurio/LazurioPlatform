@@ -28,7 +28,7 @@ export type PageRoute =
   | Readonly<{ view: "organization"; organization: string }>
   | Readonly<{ view: "module"; organization: string; module: string }>
   | Readonly<{ view: "settings"; section: SettingsSection }>
-  /** A folder of the Documents folder (decision F34): `/files` is the
+  /** A folder of the Documents folder (decision F35): `/files` is the
    * folder itself, `/files/<name>/<name>` one below it. */
   | Readonly<{ view: "files"; path: readonly string[] }>;
 

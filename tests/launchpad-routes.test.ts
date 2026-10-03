@@ -144,7 +144,7 @@ test("a catalog title names the Organization by its display name once known", ()
   });
 });
 
-// Decision F34: the Files page is a route of the same page, a folder of the
+// Decision F35: the Files page is a route of the same page, a folder of the
 // Documents folder per path, read by the same rules as the server's.
 test("the Files routes: the Documents folder and the folders below it, one canonical path", () => {
   expect(pageRoute("/files")).toEqual({ view: "files", path: [] });

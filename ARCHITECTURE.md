@@ -224,7 +224,7 @@ refused; see the [lock and recovery contract](docs/migration-and-recovery.md).
 
 ### The Operator's files
 
-The Launchpad's Files page ([decision F34](docs/decisions.md#f34--files-the-operators-documents-through-the-launchpad))
+The Launchpad's Files page ([decision F35](docs/decisions.md#f35--files-the-operators-documents-through-the-launchpad))
 serves exactly the Documents folder of the account the Launchpad runs as,
 `<home>/Documents`, behind the admission every route already has: the gateway session on
 a Remote Environment, the session token locally. The folder is the Operator's own data,

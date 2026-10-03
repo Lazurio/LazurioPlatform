@@ -28,7 +28,7 @@ import { startLaunchpad } from "../src/launchpad/server";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 import { readZip, unzipTest } from "./fixtures/zip-reader";
 
-// The Files routes of the Launchpad (decision F34) over real HTTP: a local
+// The Files routes of the Launchpad (decision F35) over real HTTP: a local
 // Launchpad with its session token and a hosted one behind a fake auth
 // endpoint, each serving the Documents folder of a temporary home. Nothing
 // of this computer's own home is read or written.

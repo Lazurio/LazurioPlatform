@@ -531,7 +531,7 @@ export function operatorConnectsOverSsh(
 // decision 2026-10-02: a standard folder, not an invented one). Where the
 // Folder records a hosted entry, the Operator reaches that folder through
 // the Launchpad's Files page, so the agent hands over its link, never a path
-// (decision F34); without an entry no browser reaches the page.
+// (decision F35); without an entry no browser reaches the page.
 function documentsLine(
   os: FolderProfile["os"],
   machine: MachineBinding | null,

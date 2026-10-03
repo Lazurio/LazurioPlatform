@@ -15,7 +15,7 @@ import {
 } from "../src/launchpad/files-view";
 import { messages } from "../src/launchpad/messages";
 
-// The page side of the Files page (decision F34), without a DOM: what it
+// The page side of the Files page (decision F35), without a DOM: what it
 // accepts from the server, the paths it asks for and what it says.
 
 const entry = {

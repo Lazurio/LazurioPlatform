@@ -1,4 +1,4 @@
-// The rules of a path inside the Operator's Documents folder (decision F34):
+// The rules of a path inside the Operator's Documents folder (decision F35):
 // one pure implementation that the Launchpad's Files routes and `lazurio files
 // link` both apply, and the page reads its route with. A path is a list of
 // names relative to the Documents folder; the filesystem effects (realpath,

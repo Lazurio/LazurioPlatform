@@ -1609,7 +1609,7 @@ function enabledToolsSection(
 // OpenAI, see openai/codex#44385); T3 Code and Lazurio MausBot forward
 // nothing. Work products go to the Operator's Documents folder, and where the
 // Folder records a hosted entry they travel through the Launchpad's Files
-// page (decision F34).
+// page (decision F35).
 function operatorClient(
   preset: PresetName,
   machine: MachineBinding,
@@ -1667,7 +1667,7 @@ function operatorClient(
         "- **Odkazy.** `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu.",
         "- **Links.** `lazurio chat link` prints the link into this Environment's T3 Code.",
       );
-  // The Files page of the Launchpad (decision F34): where the Folder records
+  // The Files page of the Launchpad (decision F35): where the Folder records
   // a hosted entry, files travel through it in both directions.
   const origin = machine.entry?.externalOrigin;
   const filesPage =

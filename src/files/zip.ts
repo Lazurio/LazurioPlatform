@@ -1,6 +1,6 @@
 import { crc32 } from "node:zlib";
 
-// A streaming ZIP writer for the Files page's folder download (decision F34),
+// A streaming ZIP writer for the Files page's folder download (decision F35),
 // after PKWARE's APPNOTE 6.3.10. Entries are stored (method 0): office files,
 // images and video are compressed already, and storing streams at disk speed
 // with no CPU cost. Each file's header is written before its bytes with bit

@@ -947,7 +947,7 @@ output and the clipboard path have not been qualified by a recorded manual run.
 ## Files page
 
 The page has a section "Files" / "Soubory" (decision
-[F34](decisions.md#f34--files-the-operators-documents-through-the-launchpad)): the
+[F35](decisions.md#f35--files-the-operators-documents-through-the-launchpad)): the
 Documents folder of the account the Launchpad runs as. Its routes are `/files` (the
 folder itself) and `/files/<name>/<name>` (a folder below it), each name
 percent-encoded; they are page routes like the catalog's, served by the same bundled
@@ -996,7 +996,7 @@ live region. A 401 behind a gateway re-enters through the sign-in.
 link of a file or folder in `~/Documents` with the same rules and Documents adapter:
 `<Launchpad origin>/files/<path>` where the Folder records an entry, the absolute path
 otherwise; a path outside `~/Documents`, hidden or missing is refused with exit 2
-(`tests/files-link-cli.test.ts`). Agents hand that link over (F34 point 8).
+(`tests/files-link-cli.test.ts`). Agents hand that link over (F35 point 8).
 
 Pure view logic lives in `src/launchpad/files-view.ts` and is tested without a DOM
 (`tests/files-view.test.ts`); `src/launchpad/files-panel.ts` holds the DOM and renders

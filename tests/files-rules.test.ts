@@ -10,7 +10,7 @@ import {
   uploadNames,
 } from "../src/files/rules";
 
-// Decision F34: one set of path rules for the Files routes, the page's route
+// Decision F35: one set of path rules for the Files routes, the page's route
 // and `lazurio files link`. A path is names inside the Documents folder; the
 // rules refuse everything that could leave it or reveal what is hidden.
 

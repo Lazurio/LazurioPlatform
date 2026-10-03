@@ -1,7 +1,7 @@
 import { crc32 } from "node:zlib";
 
 // An independent reader of the archives the Files page streams (decision
-// F34): it starts from the end-of-central-directory record, follows a ZIP64
+// F35): it starts from the end-of-central-directory record, follows a ZIP64
 // locator when there is one, reads every central directory record, then
 // checks each entry where its local header says it is: the same name, the
 // stored bytes with their CRC-32, and the data descriptor after them. The
