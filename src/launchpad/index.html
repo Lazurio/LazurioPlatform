@@ -281,12 +281,14 @@ a.files-name:hover { text-decoration: underline; }
 .files-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 0 0.75rem; color: var(--muted-fg); font-size: 12px; }
 .files-action { grid-area: action; display: flex; justify-content: flex-end; }
 .files-head { display: none; }
+.card > .files-head + .files-row { border-top: 0; }
 @container (min-width: 36rem) {
   .files-row-main { grid-template-columns: 1rem minmax(0, 1fr) 6rem 10.5rem 7rem; grid-template-areas: "icon name size modified action"; }
   .files-meta { display: contents; }
   .files-size { grid-area: size; text-align: right; white-space: nowrap; }
   .files-modified { grid-area: modified; white-space: nowrap; }
   .files-head { display: block; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .card > .files-head + .files-row { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
   .files-head .files-name { color: var(--muted-fg); font-size: 12px; font-weight: 500; }
 }
 .files-callout { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
@@ -427,6 +429,7 @@ a.files-name:hover { text-decoration: underline; }
 <ul class="card files-upload-list" id="files-upload-list"></ul>
 </section>
 <p id="files-status" class="row-status" role="status" aria-live="polite"></p>
+<p id="files-announce" class="sr-only" role="status" aria-live="polite"></p>
 <div id="files-body" class="stack"></div>
 </main>
 

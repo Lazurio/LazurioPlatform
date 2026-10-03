@@ -83,7 +83,6 @@ const files = createFilesPanel({
   },
   copy: () => copy,
   locale: () => locale,
-  route: () => shell.route(),
 });
 // Settings → Recovery, and in Recovery mode the whole page
 // (docs/recovery.md "The Recovery page"): read on first view, never written.

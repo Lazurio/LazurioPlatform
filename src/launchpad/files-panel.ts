@@ -50,8 +50,6 @@ export function createFilesPanel(
     denied: (status: number) => void;
     copy: () => Copy;
     locale: () => "cs" | "en";
-    /** The route now shown. */
-    route: () => PageRoute;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -68,14 +66,18 @@ export function createFilesPanel(
   const uploadsSection = find<HTMLElement>("#files-uploads");
   const uploadList = find<HTMLUListElement>("#files-upload-list");
   const status = find<HTMLParagraphElement>("#files-status");
+  const announcer = find<HTMLParagraphElement>("#files-announce");
   const body = find<HTMLDivElement>("#files-body");
   const shared = find<HTMLParagraphElement>("#files-shared");
   const drop = find<HTMLDivElement>("#files-drop");
   const dropText = find<HTMLParagraphElement>("#files-drop-text");
   const refreshButton = find<HTMLButtonElement>("#files-refresh");
 
-  // The folder shown, what its listing said, and a counter that drops the
-  // answer of a listing the operator already moved away from.
+  // The route the page shows (`show` is called on every move, also while
+  // the frame is still being built), the folder shown, what its listing
+  // said, and a counter that drops the answer of a listing the operator
+  // already moved away from.
+  let route: PageRoute = { view: "home" };
   let path: readonly string[] | null = null;
   let state: FilesState | "loading" = "loading";
   let reads = 0;
@@ -104,10 +106,16 @@ export function createFilesPanel(
     svg.append(use);
     return svg;
   };
-  const active = () => options.route().view === "files";
+  const active = () => route.view === "files";
+  // A sentence that stays visible (a download under way or failed, folders
+  // left out of a drop) and one only read out (an upload done, which its row
+  // already shows).
   const announce = (text: string) => {
     note = text;
     status.textContent = text;
+  };
+  const readOut = (text: string) => {
+    announcer.textContent = text;
   };
 
   // A folder: a route of the page, moved to without a reload.
@@ -262,8 +270,7 @@ export function createFilesPanel(
 
   function render() {
     const copy = options.copy();
-    if (options.route().view === "files")
-      navLink.setAttribute("aria-current", "page");
+    if (active()) navLink.setAttribute("aria-current", "page");
     else navLink.removeAttribute("aria-current");
     refreshButton.disabled = state === "loading";
     if (path === null) return;
@@ -298,14 +305,14 @@ export function createFilesPanel(
       callout.append(
         element("p", "", fill(copy.filesIsFile, { name: state.name })),
         download,
-        folderLink(folder.slice(0, -1), copy.filesOpenFolder),
+        routeLink(filesHref(folder.slice(0, -1)), "", copy.filesOpenFolder),
       );
       body.replaceChildren(callout);
     } else if (state.kind === "missing") {
       const callout = element("div", "callout files-callout");
       callout.append(
         element("p", "", copy.filesNotFound),
-        folderLink([], copy.filesOpenRoot),
+        routeLink(filesHref([]), "", copy.filesOpenRoot),
       );
       body.replaceChildren(callout);
     } else
@@ -340,21 +347,25 @@ export function createFilesPanel(
   }
 
   /** Shows the route: reads the folder when it changed. */
-  function show(route: PageRoute) {
-    if (route.view !== "files") {
+  function show(next: PageRoute) {
+    route = next;
+    if (next.view !== "files") {
       dragging = 0;
       drop.hidden = true;
       render();
       return;
     }
+    const target = next.path;
     const changed =
       path === null ||
-      path.length !== route.path.length ||
-      path.some((name, index) => name !== route.path[index]);
-    path = route.path;
+      path.length !== target.length ||
+      path.some((name, index) => name !== target[index]);
+    path = target;
     if (changed) {
       note = "";
-      void load();
+      // The first route is shown while the page's script is still running:
+      // read once it has finished, as every later move does at once.
+      queueMicrotask(() => void load());
     } else render();
   }
 
@@ -427,7 +438,7 @@ export function createFilesPanel(
         upload.state = outcome.ok ? "done" : "failed";
         upload.text = outcome.text;
         if (outcome.ok)
-          announce(
+          readOut(
             fill(options.copy().filesUploadedStatus, { name: outcome.name }),
           );
         finish();
