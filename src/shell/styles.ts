@@ -38,11 +38,11 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 .scroll { display: flex; width: 100%; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 10px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
 .scroll::-webkit-scrollbar { display: none; }
 .env .initials { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
-.env[aria-current="page"] { background: var(--env-accent); color: var(--lz-white); box-shadow: 0 0 0 2px var(--lz-white), 0 0 0 4.5px var(--env-accent), 0 4px 14px color-mix(in srgb, var(--env-accent) 45%, transparent); }
-.env[aria-current="page"]::before { position: absolute; left: -14px; width: 5px; height: 36px; border-radius: 0 4px 4px 0; background: var(--env-accent); content: ""; }
 .folder { display: flex; flex: none; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border-radius: 14px; background: color-mix(in srgb, var(--env-accent) 18%, var(--lz-white)); }
 .folder.has-active { box-shadow: inset 0 0 0 2px var(--env-accent); }
 .folder .env { width: 40px; height: 40px; background: var(--lz-white); }
+.env[aria-current="page"], .folder .env[aria-current="page"] { background: var(--env-accent); color: var(--lz-white); box-shadow: 0 0 0 2px var(--lz-white), 0 0 0 4.5px var(--env-accent), 0 4px 14px color-mix(in srgb, var(--env-accent) 45%, transparent); }
+.env[aria-current="page"]::before { position: absolute; left: -14px; width: 5px; height: 36px; border-radius: 0 4px 4px 0; background: var(--env-accent); content: ""; }
 .folder .env[aria-current="page"]::before { left: -18px; }
 .folder-head { display: grid; width: 40px; height: 32px; place-items: center; }
 .mark { display: grid; width: 24px; height: 24px; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--lz-ink); font-size: 10px; font-weight: 600; letter-spacing: 0.02em; }
