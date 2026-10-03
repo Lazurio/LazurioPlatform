@@ -2896,3 +2896,85 @@ decision.
 | Sort the list alphabetically | A new ordering rule that differs from the CLI's and the API's; F24 already declined to invent one; not chosen |
 | Remove Teams from the catalog and `/api/catalog` too | Breaks the Teams column and the legacy-alias note of `module list`; the API answers what the CLI prints; not chosen: the composition decision of DEV-6638 owns the catalog's contract |
 | One flat list per Organization in declaration order, no Team anywhere on the page, the catalog unchanged (selected) | Each module once; one order on every surface; no contract change |
+
+## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
+
+**Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not
+implemented.** Numbered after F30 and F31 (pull requests #119 and #126) and F32 (pull request
+#122, step 1 of the same direction: Teams are not a presentation axis of the
+Launchpad). Matěj, an Organization Admin, gave the direction on 2026-10-02: one
+Environment is one workspace; its modules are the repositories the Environment can
+reach by GitHub; the Launchpad shows them flat and has nothing to do with Teams; the
+Launchpad signs in with the Lazurio Account and asks the Dashboard what belongs there;
+the Dashboard reads access live from GitHub and projects it; the Launchpad reaches the
+repositories with its own `gh`; later, modules outside the Environment's access can be
+requested and an Owner's approval in the Dashboard writes the grant to GitHub.
+
+The shaping, with variants, the API, the technology comparison, removal semantics,
+failure modes and the decided and open questions, is
+[workspace composition](workspace-composition.md).
+
+**Decided by Matěj on 2026-10-02:**
+
+1. **The Lazurio Account is the foundation**, as the maintainers' account plans define
+   it: one subject per person at the Lazurio issuer (Keycloak), GitHub a linked identity
+   the issuer owns, the Dashboard a relying party without accounts of its own. The
+   Launchpad signs in by the OAuth 2.0 Device Authorization Grant against the issuer, as
+   `gh` does, and by that represents the Environment itself, which is linked to its
+   Operator and gets the Operator's rights. The account and the device-code sign-in come
+   first; the composition follows.
+2. **Who may connect an Environment.** The person for their own device or the personal
+   Remote Environment they own; the Operator the Organization assigned
+   (`owner.assignment`) for a work or Automated Environment; an Owner of the Organization
+   for a Team Environment. Nobody can assign themself someone else's Environment.
+   Ownership is unchanged (root 0144, 0165).
+3. **An Automated Environment** works as the GitHub account linked to the Lazurio Account
+   it is registered under; there is no separate persona binding.
+4. **Clones and clean fast-forwards are automatic; removal only after a person
+   confirms it**, and no automatic removal after a revoke in v1.
+5. **The Production Space is in v1.** Declared Production Space repositories follow the
+   same access rule and are materialized into `productionspace/<repository>` as the
+   manifest declares; they are never run or released and the Launchpad shows them
+   read-only.
+6. **The broker's repository allowlist goes; manifest `teams` become legacy** and are
+   removed after the rollout. Settings → Environment keeps showing the Environment's
+   assigned Team; Teams leave the workspace presentation only.
+7. **The contract package lives in this repository and the Dashboard takes its types
+   from it.** The same package and API carry the Environment list of the shared
+   Lazurio shell (plan DEV-6639), which also owns where the sign-in sits.
+
+**Proposed, still open:**
+
+1. **Four questions, four owners.** Admission stays the gateway's (F11). The Lazurio
+   Account sign-in **registers the Environment** with a key it generated; recommended,
+   the Environment becomes a client of the issuer and authenticates with
+   `private_key_jwt` for 10-minute tokens. The **composition** is the Dashboard's live
+   projection of GitHub. **Access** stays GitHub's, checked at the operation through the
+   Environment's own identity.
+2. **The subject is the Environment's GitHub principal**, never the person signed in:
+   the person's account on a workstation, the Operator's on a Work Environment, the
+   Team on a Team Environment, the linked account on an Automated Environment; a
+   personal Remote Environment has no composition.
+3. **Repositories stay declared.** The composition selects among the module and
+   Production Space slots the Organization manifest declares; destination paths come
+   only from that manifest. An unavailable or partial answer keeps the last known
+   composition.
+4. **A typed contract** written with Effect Schema and `HttpApi` as in the T3 Code fork,
+   behind a committed OpenAPI snapshot and a measured spike, JSON Schema with ajv as the
+   fallback behind the same wire contract.
+
+**Relation to other decisions.** It changes F9's "explicit only" for composition-driven
+additions and fast-forwards and takes the Production Space out of what content sync never
+touches, refines F11 (the Account sign-in is the Environment's registration;
+self-hosted stays unmanaged), keeps B1's execution admission and moves materialization
+to the composition, and needs a root decision record that confirms and extends root
+0149 and fulfils root 0159; root 0144 and 0165 stay as they are (section 14 of the
+shaping).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The Launchpad decides presence from `gh` and provider errors (today's direction of P10, the legacy heuristics) | A Team Environment cannot list what it could read; "absent" and "denied" look alike; rejected by the direction |
+| A snapshot in the handover | Needs a Machines apply per grant change; rejected by the direction |
+| The Dashboard keeps grants in its database | A second copy of access; rejected |
+| Each person signs in and the composition follows the person | Wrong subject on Team and Automated Environments; nothing works while nobody is signed in; rejected |
+| The Dashboard's live projection, Environment registration, local application with the Environment's own identity (proposed) | One projection for every kind of Environment; GitHub stays the authority; nothing destructive without a person |
