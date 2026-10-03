@@ -92,23 +92,31 @@ sections are Obecné / Tento Environment / Nástroje / Obnova (General / This En
 / Tools / Recovery); the Czech name is "Tento Environment", never "Toto" or "Tenhle".
 
 **Apps home.** The home shows the Organization's name on top (a picker on a computer
-with several Organizations) and the modules in two sections: **Organizace**, the
-Organization's own applications (Mission Control, the design system, infra), and
-**Workspace**, the workspace modules (with "Přístup Teamu", the Team's access). A module
-tile opens the module's app in a new tab on its own origin; selecting the module in the
-left column opens its overview: open the app, its lifecycle, branches and worktrees, its
+with several Organizations) and the modules in three sections (Matěj, evening of
+2026-10-03): **Organizace**, the Organization's own applications and repositories
+(Mission Control, the design system, infra); **Workspace**, the workspace modules of
+this Environment; and **Productionspace**, the Organization's productionspace
+repositories. The sections replace the one flat list of decision F32, and nothing is
+grouped by Team: the point is that an Environment does not show Teams. A module tile
+opens the module's app in a new tab on its own origin; selecting the module in the left
+column opens its overview: open the app, its lifecycle, branches and worktrees, its
 log.
 
-**Buddy.** Buddy is the operator of the person's personal Environment: not an app, not a
-fourth mode of the switch, not a tab. It is a floating chat bottom-right on every
-screen, an iframe served by the personal Environment and embedded in the Dashboard, the
-Launchpad, module apps and both forks. It is one endless thread with Hermes Agent. It
-knows the context the person asks from (Environment, app, module) as a chip the person
-can remove, and it accepts images and files, which go straight to the personal
-Environment; the host app never sees them. The window signs in with the Lazurio account
-(OAuth through `auth.lazurio.ai`, a partitioned cookie); the host app passes no token.
-If that sign-in cannot work in Safari or Firefox, Buddy's window is supported in Chrome
-only. A person without a Buddy sees no bubble.
+**Buddy.** Buddy is Buddy: he coordinates Agents on behalf of his person (the Operator)
+and holds the same authority over Agents as the Operator; he is neither an Agent nor an
+app. The Operator stays the human. In the shell Buddy is not a fourth mode of the
+switch and not a tab, but a floating chat bottom-right on every screen, an iframe served
+by the person's personal Environment and embedded in the Dashboard, the Launchpad,
+module apps and both forks. The chat is one endless thread with Buddy, who runs on
+Hermes Agent. Buddy knows the context the person asks from (Environment, app, module) as a
+chip the person can remove, and he accepts images and files, which go straight to the
+personal Environment; the host app never sees them. Buddy looking into an
+Organization's Environment is intended: he knows that what he sees there is the
+Organization's data and keeps it apart from the Personalspace memory and from other
+Organizations. The window signs in with the Lazurio account (OAuth through
+`auth.lazurio.ai`, a partitioned cookie); the host app passes no token. If that sign-in
+cannot work in Safari or Firefox, Buddy's window is supported in Chrome only. A person
+without a Buddy sees no bubble.
 
 **The forks and `/.lazurio/`.** Chat (`Lazurio/t3code`) and Automate
 (`Lazurio/OpenMausBot`) keep their upstream look and branding until upstream's stable
@@ -148,8 +156,11 @@ catalog's core and the module lifecycle are not affected.
 Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
 `postMessage` per navigation); whether the switch takes the colours of the fork it sits
 in; whether the switch still pairs the browser with T3 Code and MausBot on the way;
-where the update pill goes; and `infra` in the Organizace section, which the catalog
-does not read as a module today (decision F24).
+where the update pill goes; whether the Workspace section keeps the link to the Team's
+access ("Přístup Teamu") of the earlier sketch; how the catalog reads the productionspace
+repositories, which decision F24 never treats as modules; and `infra`: it is an
+Organization-level repository shown in the Organizace section, while whether it is a
+module of the catalog stays as decision F24 has it.
 
 ## Settings: structure, routes and the T3 Code pattern
 
@@ -386,9 +397,10 @@ Settings, and choosing a row closes it.
 
 **Target (2026-10-03).** This sidebar of "All Organizations" and Organization groups is
 today's build. In the [target shell](#target-shell) the home shows the Organization's
-name on top (a picker on a computer with several Organizations) and the modules in two
-sections, Organizace and Workspace (with "Přístup Teamu"); a module tile opens its app
-in a new tab, and selecting a module in the left column opens its overview.
+name on top (a picker on a computer with several Organizations) and the modules in three
+sections, Organizace, Workspace and Productionspace, with no grouping by Team; a module
+tile opens its app in a new tab, and selecting a module in the left column opens its
+overview.
 
 **What a module row shows.** Name, default app, and "Can run" or the reason in
 words with its code; no Team badge (F32). Rows carry no action; the module's page carries its lifecycle

@@ -2922,6 +2922,13 @@ and does not act on its Team structure there.
    Personalspace group on a preset that has one. Nothing is filtered by Team or by the
    Environment's handover. A later decision of DEV-6638 redefines the composition.
 
+*Superseded in part 2026-10-03 (Matěj, the Lazurio shell decisions):* the one flat list
+of point 1 gives way to the three-section home of the
+[target shell](launchpad-development.md#target-shell): Organizace, Workspace and
+Productionspace. Nothing is grouped by Team; point 2 stands, and the sections serve the
+same aim, an Environment that does not show Teams. Not implemented: today's build is the
+flat list above.
+
 **Supersedes** in [Launchpad parity](launchpad-parity.md) the "subheader per Team" of
 B1's surface, the "Team groups" of its visual-design note, its test "Team grouping
 N:M", row 18 "Teams grouping" (the switch's "yes (display only)") and the Team group of

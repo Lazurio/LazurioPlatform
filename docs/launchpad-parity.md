@@ -124,7 +124,7 @@ the gap blocks the switch of one hosted Work Environment (`hosted-organization-p
 
 | # | Capability | Resident | Platform today | Gap | Switch |
 |---|---|---|---|---|---|
-| 27 | Settings | `/settings/{general,github,network,connections,ssh}` from `settings.html` (`R:launchpad/src/server.mjs:2080-2083`) | T3 Code pattern, `/settings/{general,machine,tools}` (`src/launchpad/routes.ts:20-24`; `docs/launchpad-development.md:154-233`) | Access and Diagnostics sections | partly |
+| 27 | Settings | `/settings/{general,github,network,connections,ssh}` from `settings.html` (`R:launchpad/src/server.mjs:2080-2083`) | T3 Code pattern, `/settings/{general,machine,tools}` (`src/launchpad/routes.ts:20-24`; `docs/launchpad-development.md:165-244`) | Access and Diagnostics sections | partly |
 | 28 | Guide and manual | Tile links out to the documentation site (`R:launchpad/public/guide-link.js:1-7`); `GET /api/guide/organization-install` renders a root manual (`R:launchpad/src/server.mjs:2028-2042`) | Manual in the Folder (F14) | A help link | no |
 | 29 | Product update | None in the Launchpad; hosted runtime is a pinned artifact; on a source checkout `lazurio update` pulls the root itself (`R:manual/lazurio-runtime-install-interface.md:47`) | `lazurio update`, pill, floor (`docs/update.md`); rollback removed by F21 | None | no |
 | 30 | Doctor | `lazurio doctor [--tool-updates] [--json]`, child doctors, Doctor chip (`R:lazurio/lib.mjs:108-136`; `R:launchpad/src/server.mjs:898-933`); unfixable failures on hosted residents (root issue #434) | Not implemented; accepted direction (`docs/legacy-adoption.md:35-55`); the manual already names `lazurio doctor` (`src/folder/manual.ts:709-710`) | Read-only doctor | yes |
@@ -214,7 +214,7 @@ from module and Machine alone collide across Organizations
   finish in the resident and to use it afterwards as the input for the real
   implementation here. The catalog's structure and behaviour (routes, Organization
   groups, module rows, status, actions; Team groups no more since F32) are built now in the T3 Code pattern
-  already merged (`src/launchpad/routes.ts`; `docs/launchpad-development.md:154-233`);
+  already merged (`src/launchpad/routes.ts`; `docs/launchpad-development.md:165-244`);
   the approved visual language is applied when the proof of concept exists. That is
   a dependency of the visual design, not of the function (G).
 - Hosted trust: nothing new; reads pass the same admission.
@@ -864,7 +864,7 @@ the personal lane of the switch is qualified on Ubuntu only.
 
 **M6 is a rebuild with state transfer** (Matěj, 2026-09-28). It must be seamless
 for the owner: an outage of about one hour is acceptable, but SSH keys, sign-ins and
-the owner's Buddy (the resident agent of a personal VM, with its memory) must not need
+the owner's Buddy (resident on the personal VM, with his memory) must not need
 to be set up again. It also keeps Machines' own hard constraint for personal VMs:
 nothing may require re-pairing an owner's client devices, and a joined guest keeps
 its Headscale node, tailnet address and SSH host key (`M:docs/personal-vm.md:30-32`).
