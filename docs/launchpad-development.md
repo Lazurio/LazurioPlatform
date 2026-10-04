@@ -314,7 +314,8 @@ and its addendum of 2026-10-04, the Organization rail of the wireframe at
 prototypes-lazurio 1cbad15. Where the target shell above still describes a rail of
 Environments, folders and a gear in the rail, the addendum supersedes it.
 
-- **Library.** `src/shell/`: `contract.ts` (`lazurio.shell.v1` and its parser),
+- **Library.** `src/shell/`: `contract.ts` (`lazurio.shell.v1` and its parser, and
+  the identity of an Environment entry below),
   `view.ts` (the rail's spaces, the Environment picker's list, names and who lines, the
   switch, as pure functions), `elements.ts` (`<lazurio-rail>`, `<lazurio-column-head>`),
   `styles.ts` (the vendored tokens on `:host`, the design system's selection rule),
@@ -324,6 +325,23 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `tests/shell-last.test.ts`, `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
+- **Identity of an Environment entry** ([F37's addendum of
+  2026-10-04](decisions.md#addendum-of-2026-10-04-account-writes-one-namespace-the-environment-known-from-the-token)).
+  The document's `current` and every Environment's `id` are the Environment's base host
+  in lowercase DNS form: `<machine>.<org>` for an Organization's hosted Environment
+  (`<app>.<machine>.<org>.lazurio.io`), the personal DNS slug for a personal Remote
+  Environment (`<app>.<slug>.lazurio.io`), and a workstation's local id as before. The
+  bare Machine name repeats across Organizations; the base host is unique by DNS, so
+  the account document can list Environments of several Organizations. Only
+  `environmentIdOf` derives it, from the Environment's own Launchpad origin; the
+  producer (`shell-document.ts`) uses nothing else and fails closed when a hosted
+  address yields no base host (no document, `operation-failed`; the rail stays empty).
+  `parseShell` refuses an id that is not one or two lowercase DNS labels
+  (`isEnvironmentId`), and a hosted entry whose id is not the base host of its own
+  Apps address (the bare Machine name included). The Dashboard derives the
+  same value from the registry's Apps address. The rail's memory of the last
+  Environment, kept under the bare name, stops matching once and falls back to the
+  space's first Environment. Tests: `tests/shell-environment-id.test.ts`.
 - **Routes.** `/.lazurio/shell.js`, `/.lazurio/fonts/<file>` and
   `/.lazurio/stones/<file>` beside the page's routes (`src/launchpad/page.ts`);
   `/.lazurio/shell.json`, `/api/organizations/<org>/owner` and

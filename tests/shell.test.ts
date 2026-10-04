@@ -185,8 +185,9 @@ test("a hosted work Environment is named by its kind and its person, never by it
   const [environment] = shell.environments;
   if (environment === undefined) throw new Error("The document has one");
   expect(environment.kind).toBe("work");
-  // The machine's name is the id the document keys it by, never a label.
-  expect(environment.id).toBe(machine.name);
+  // Its base host is the id the document keys it by (unique across
+  // Organizations, F37's addendum), never a label.
+  expect(environment.id).toBe("workspace.example");
   expect(environment.label).toBeNull();
   expect(environmentName(environment, cs)).toBe("Pracovní");
   expect(environment.apps).toEqual({
@@ -326,7 +327,7 @@ const filled = (): Shell => {
   const value = parseShell({
     schema: "lazurio.shell.v1",
     locale: "en",
-    current: "work-3",
+    current: "vm-3.north",
     operator: {
       initials: "OP",
       login: "operator",
@@ -342,39 +343,39 @@ const filled = (): Shell => {
         apps: { apps: "/", chat: null, automate: null },
       },
       {
-        id: "personal",
+        id: "operator",
         label: null,
         kind: "personal",
         organizations: [],
         assignee: null,
         apps: {
-          apps: "https://launchpad.operator.example.lazurio.io/",
-          chat: "https://t3code.operator.example.lazurio.io/",
+          apps: "https://launchpad.operator.lazurio.io/",
+          chat: "https://t3code.operator.lazurio.io/",
           automate: null,
         },
       },
       ...Array.from({ length: 4 }, (_, index) => ({
-        id: `work-${index}`,
+        id: `vm-${index}.north`,
         label: index === 0 ? "Team North" : null,
         kind: index === 0 ? "team" : "work",
         organizations: ["north"],
         assignee: index === 0 ? null : `person-${index}`,
         apps: {
-          apps: `https://launchpad.vm-${index}.north.example.lazurio.io/`,
+          apps: `https://launchpad.vm-${index}.north.lazurio.io/`,
           chat: null,
           automate: null,
         },
       })),
       {
-        id: "south-1",
+        id: "vm-1.south",
         label: "Steward",
         kind: "automated",
         organizations: ["South"],
         assignee: null,
         apps: {
-          apps: "https://launchpad.vm-1.south.example.lazurio.io/",
+          apps: "https://launchpad.vm-1.south.lazurio.io/",
           chat: null,
-          automate: "https://mausbot.vm-1.south.example.lazurio.io/",
+          automate: "https://mausbot.vm-1.south.lazurio.io/",
         },
       },
     ],
@@ -406,34 +407,30 @@ test("several Organizations: a space's Environments, its last one remembered, th
   const shell = filled();
   expect(hereOf(shell, null)).toBe("north");
   expect(spaceEnvironments(shell, "north").map((entry) => entry.id)).toEqual([
-    "work-0",
-    "work-1",
-    "work-2",
-    "work-3",
+    "vm-0.north",
+    "vm-1.north",
+    "vm-2.north",
+    "vm-3.north",
     "laptop",
   ]);
   expect(spaceEnvironments(shell, "personal").map((entry) => entry.id)).toEqual(
-    ["laptop", "personal"],
+    ["laptop", "operator"],
   );
   // A click on a space: the last Environment this browser was in there,
   // else its first; in Automate an Environment without it opens Apps.
   const spaces = railSpaces(shell, en, {
     here: "north",
     app: "automate",
-    last: (space) => (space === "north" ? "work-2" : null),
+    last: (space) => (space === "north" ? "vm-2.north" : null),
   });
   expect(spaces.map((space) => [space.space, space.href, space.sub])).toEqual([
     ["personal", "/", "2 Environments"],
     [
       "north",
-      "https://launchpad.vm-2.north.example.lazurio.io/",
+      "https://launchpad.vm-2.north.lazurio.io/",
       "5 Environments · last Work",
     ],
-    [
-      "south",
-      "https://mausbot.vm-1.south.example.lazurio.io/",
-      "1 Environment",
-    ],
+    ["south", "https://mausbot.vm-1.south.lazurio.io/", "1 Environment"],
   ]);
   // The list under the picker: this space only.
   const one = switcherSections(shell, en, {
@@ -446,10 +443,10 @@ test("several Organizations: a space's Environments, its last one remembered, th
   expect(
     one[0]?.rows.map((row) => [row.id, row.name, row.who, row.current]),
   ).toEqual([
-    ["work-0", "Team North", "shared by the Team", false],
-    ["work-1", "Work", "@person-1", false],
-    ["work-2", "Work", "@person-2", false],
-    ["work-3", "Work", "@person-3", true],
+    ["vm-0.north", "Team North", "shared by the Team", false],
+    ["vm-1.north", "Work", "@person-1", false],
+    ["vm-2.north", "Work", "@person-2", false],
+    ["vm-3.north", "Work", "@person-3", true],
     ["laptop", "This computer", "this computer", false],
   ]);
   // "All Organizations" (and ⌘⇧E): every space, each Organization with its
@@ -473,7 +470,7 @@ test("several Organizations: a space's Environments, its last one remembered, th
   });
   expect(
     found.map((section) => [section.space, section.rows.map((row) => row.id)]),
-  ).toEqual([["south", ["south-1"]]]);
+  ).toEqual([["south", ["vm-1.south"]]]);
   expect(
     switcherSections(shell, en, {
       here: "north",
