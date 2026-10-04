@@ -3824,7 +3824,14 @@ the same day.
    - `PUT last`.
 
    Writes keep the gateway's existing same-origin rule for every non-`GET`. Bodies
-   are JSON only, at most 4 KiB.
+   are JSON only, at most 4 KiB. `GET environments` keeps point 2's
+   `Cache-Control: no-store, private` and `Vary: Cookie`.
+
+   The relayed access token lives at most ten minutes (DEV-6551). So the gateway's
+   oauth2-proxy refreshes it with the session's refresh token before it expires
+   (`cookie-refresh` shorter than the token's lifetime); otherwise the relay would
+   send expired tokens after the first ten minutes. The gateway's proof covers a
+   refresh.
 2. **The document `lazurio.account.v1`** reuses the entries of `lazurio.shell.v1`, as
    point 1 above requires: `locale`, `operator`, `environments` and `organizations`.
    - **Organizations are the person's spaces**, from live Organization memberships, so
@@ -3869,11 +3876,16 @@ the same day.
 5. **The library and Apps.**
    - The library merges `environments` as point 4 above says, and reports `PUT last`
      once per full page load of Apps, Chat and Automate: fire and forget, silent on
-     failure.
+     failure. The report is a small module of its own in `src/shell`, separate from
+     the merge, and goes only through the same-origin namespace.
    - Apps reads `favourites` and `preferences.openApps`, and the star writes `PUT` and
      `DELETE`.
    - Without the account document (an Environment before the rollout, or a refusal),
      Apps keeps today's browser `localStorage` favourites and opens apps in a new tab.
+
+**Rollout.** A session that signed in before the gateway client requested
+`lazurio-account` carries no such scope until its next sign-in. Until then the rail
+and Apps fall back silently, exactly as without the account document.
 
 **Delivery, replacing the order above.**
 1. Dashboard: the account API, its token verifier (the shared module DEV-6552 S2
