@@ -1,6 +1,7 @@
 import { currentEnvironment, parseShell, type Shell } from "./contract";
 import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
+import { appOf, reportLast } from "./last";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { vendorText } from "./vendor-text" with { type: "macro" };
@@ -436,6 +437,8 @@ export class LazurioRail extends ShellElement {
     const copy = this.copy(shell);
     const here = this.here(shell);
     remember(here, shell.current);
+    // The last Environment used (S8, last.ts): a host that names its app.
+    reportLast(shell, appOf(this.getAttribute("app")), here);
     const last = lastBySpace();
     const spaces = railSpaces(shell, copy, {
       here,
@@ -672,6 +675,8 @@ export class LazurioColumnHead extends ShellElement {
     }
     const copy = this.copy(shell);
     const here = this.here(shell);
+    // The last Environment used (S8, last.ts): Chat, Apps or Automate.
+    reportLast(shell, appOf(this.getAttribute("active")), here);
     const environment = currentEnvironment(shell);
     const name = environmentName(environment, copy);
 

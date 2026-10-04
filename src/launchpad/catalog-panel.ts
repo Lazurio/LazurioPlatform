@@ -7,12 +7,20 @@ import type {
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { initialsOf } from "../shell/view";
 import {
+  type Account,
+  type AccountFavourites,
+  createAccountFavourites,
+  type OpenApps,
+} from "./account";
+import { appLinkTarget, startThenOpen } from "./app-opening";
+import {
   type AppsSection,
   type AppsTile,
   appsScope,
   appsScopes,
   appsSections,
   favoriteTiles,
+  moduleAccessTarget,
   moduleDescription,
   moduleName,
   moduleStone,
@@ -61,17 +69,20 @@ export type HomeEnvironment = Readonly<{
 // Environment, then the sections Workspace (every module) and
 // Productionspace (production repositories, read-only, decision F32's final
 // addendum) as pills with counts over grids of clean tiles: stone, name, a
-// short description, a star when favourite. A tile opens the module's app in
-// a new tab: hosted on the module's own origin, where the gateway starts it;
-// locally through the lifecycle (start, then open the link it reports). A
+// short description, a star when favourite. A tile opens the module's app
+// where the person's account says (root decision 0185 S18; a new tab without
+// the account): hosted on the module's own origin, where the gateway starts
+// it; locally through the lifecycle (start, then open the link it reports). A
 // module without an app, one that cannot start and a repository only say so
-// in a short message. The "⋯" menu at a tile's top right stars it and leads
-// to the module's overview (a repository's GitHub page), which carries the
+// in a short message. The "⋯" menu at a tile's top right stars it, leads to
+// the module's overview (a repository's GitHub page), which carries the
 // module lifecycle (slice P5) over `/api/modules/<org>/<module>/…`, the same
-// core as `lazurio module`. Where this Environment's GitHub identity is an
-// Owner of the Organization, Workspace ends with "+ Nový modul". Teams are
-// shown nowhere (decision F32). Every value from the server is drawn with
-// textContent.
+// core as `lazurio module`, and for the Organization's Owners and Stewards
+// to the module's access in the Organization's Dashboard (S15). Favourites
+// are the account's (S12) when it can be read, else this browser's. Where this
+// Environment's GitHub identity is an Owner of the Organization, Workspace
+// ends with "+ Nový modul". Teams are shown nowhere (decision F32). Every
+// value from the server is drawn with textContent.
 export function createCatalogPanel(
   options: Readonly<{
     post: (
@@ -100,6 +111,14 @@ export function createCatalogPanel(
     /** "+ Nový modul": hands the prepared prompt to Chat; resolves to
      * whether it reached the clipboard. */
     newModule: (prompt: string) => Promise<boolean>;
+    /** Reads the person's account once (account.ts): null when it is
+     * unavailable. */
+    readAccount: () => Promise<Account | null>;
+    /** One write of the account; resolves whether it was taken. */
+    writeAccount: (method: "PUT" | "DELETE", path: string) => Promise<boolean>;
+    /** The Dashboard page of an Organization slug, as the shell document
+     * names it, or null. */
+    dashboard: (slug: string) => string | null;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -124,6 +143,36 @@ export function createCatalogPanel(
   // The Owner answers this page holds (owner-answer.ts); a catalog read
   // drops them all.
   const owners = createOwnerAnswers();
+  // Whether it may maintain a module's repository (a Steward's "Přístup k
+  // modulu"), by the Organization's route key and the module id: asked only
+  // when the person reaches for a module's menu, never for every tile.
+  const maintainers = createOwnerAnswers();
+  // The person's account (root decision 0185 S12, S18): undefined until it
+  // is read once, null when it is unavailable (today's behaviour stays:
+  // favourites in this browser, apps in a new tab).
+  let account:
+    | Readonly<{ openApps: OpenApps; favourites: AccountFavourites }>
+    | null
+    | undefined;
+  const accountRead = options
+    .readAccount()
+    .then((value) => {
+      account =
+        value === null
+          ? null
+          : {
+              openApps: value.openApps,
+              favourites: createAccountFavourites(
+                value.favourites,
+                options.writeAccount,
+              ),
+            };
+    })
+    .catch(() => {
+      account = null;
+    })
+    .finally(() => render());
+  const openMode = (): OpenApps => account?.openApps ?? "tab";
   // The lifecycle of the module the page shows: its last status, the
   // sentence after the last action, and whether a request is under way.
   // Nothing of it is kept beyond the page; the service manager is the truth.
@@ -223,13 +272,24 @@ export function createCatalogPanel(
     group === null || group === appsScopes(value, options.copy())[0]
       ? "/"
       : (organizationRoute(value, group.organization) ?? "/");
-  // The favourites of one group live per Organization in this browser
-  // (favorites.ts): never in the Folder, which a Team Environment shares.
+  // An Organization's favourites belong to the person's account, keyed by
+  // the Organization slug (S12), whenever the account can be read. The
+  // Personalspace group, an Organization without a slug, and every group
+  // while the account is unavailable keep them per Organization in this
+  // browser (favorites.ts): never in the Folder, which a Team Environment
+  // shares. Old browser favourites are not copied into the account.
   const scopeKey = (group: CatalogGroupEntry) =>
     group.sections === null
       ? "personalspace"
       : (group.organization.organization ?? group.organization.directory);
+  const accountSlug = (group: CatalogGroupEntry) =>
+    group.sections === null ? null : group.organization.organization;
+  const favoritesPending = (group: CatalogGroupEntry) =>
+    accountSlug(group) !== null && account === undefined;
   const favoritesOf = (group: CatalogGroupEntry): readonly string[] => {
+    const slug = accountSlug(group);
+    if (slug !== null && account === undefined) return [];
+    if (slug !== null && account) return account.favourites.list(slug);
     try {
       return parseFavorites(
         localStorage.getItem(favoritesKey(scopeKey(group))),
@@ -238,7 +298,22 @@ export function createCatalogPanel(
       return [];
     }
   };
-  const toggle = (group: CatalogGroupEntry, key: string) => {
+  const toggle = async (group: CatalogGroupEntry, key: string) => {
+    if (favoritesPending(group)) await accountRead;
+    const slug = accountSlug(group);
+    if (slug !== null && account) {
+      // At once; once its writes are done the favourite shows what the
+      // account holds, with a short message when the last click was not
+      // taken (account.ts).
+      const favourites = account.favourites;
+      const written = favourites.toggle(slug, key);
+      render();
+      const shown = favourites.list(slug).join("\n");
+      const taken = await written;
+      if (!taken) say(options.copy().appsFavoriteFailed);
+      if (!taken || favourites.list(slug).join("\n") !== shown) render();
+      return;
+    }
     try {
       localStorage.setItem(
         favoritesKey(scopeKey(group)),
@@ -260,56 +335,71 @@ export function createCatalogPanel(
 
   // --- Opening a module's app -------------------------------------------
 
+  // Starts a workstation's app through the lifecycle: the link it reports
+  // once healthy, or null.
+  async function started(
+    target: Extract<TileTarget, { kind: "start" }>,
+  ): Promise<string | null> {
+    let result = parseModuleResult(
+      (await options.post(target.start, {})).value,
+    );
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (result?.kind === "module" && result.healthy)
+        return moduleLink(result.runtime?.url);
+      if (
+        result === null ||
+        (result.kind === "module" &&
+          !moduleSettling(result) &&
+          !result.outcome.endsWith("-pending"))
+      )
+        return null;
+      await new Promise((done) => setTimeout(done, 1000));
+      result = parseModuleResult((await options.get(target.status)).value);
+    }
+    return null;
+  }
+
   // A workstation: start the app through the lifecycle, then open the link
-  // it reports in the tab opened at the click (a tab opened later would be
-  // a blocked pop-up). Anything else closes that tab and shows the overview,
-  // which says why.
+  // it reports where the account says (app-opening.ts): in the tab opened at
+  // the click (a tab opened later would be a blocked pop-up), or this window
+  // once the start succeeded. Anything else closes that tab and shows the
+  // overview, which says why.
   async function openLocal(
     target: Extract<TileTarget, { kind: "start" }>,
     name: string,
   ) {
     const copy = options.copy();
-    const tab = window.open("about:blank", "_blank");
+    const mode = openMode();
     notice = copy.appsStarting.replace("{name}", name);
     render();
-    let link: string | null = null;
-    try {
-      let result = parseModuleResult(
-        (await options.post(target.start, {})).value,
-      );
-      for (let attempt = 0; attempt < 30; attempt++) {
-        if (result?.kind === "module" && result.healthy) {
-          link = moduleLink(result.runtime?.url);
-          break;
-        }
-        if (
-          result === null ||
-          (result.kind === "module" &&
-            !moduleSettling(result) &&
-            !result.outcome.endsWith("-pending"))
-        )
-          break;
-        await new Promise((done) => setTimeout(done, 1000));
-        result = parseModuleResult((await options.get(target.status)).value);
-      }
-    } catch {
-      link = null;
-    }
-    if (link !== null && tab !== null) {
-      tab.opener = null;
-      tab.location.href = link;
+    const opened = await startThenOpen(mode, () => started(target), {
+      open: () => {
+        const tab = window.open("about:blank", "_blank");
+        return tab === null
+          ? null
+          : {
+              close: () => tab.close(),
+              navigate: (href) => {
+                tab.opener = null;
+                tab.location.href = href;
+              },
+            };
+      },
+      assign: (href) => location.assign(href),
+    });
+    if (opened) {
       notice = null;
-      render();
+      if (mode === "tab") render();
       return;
     }
-    tab?.close();
     notice = copy.appsStartFailed.replace("{name}", name);
     options.navigate(target.overview);
   }
 
-  // A link that opens a module's app in a new tab: the module's own origin
-  // hosted; locally a plain click starts it first (without the script the
-  // link is the overview).
+  // A link that opens a module's app where the account says (a new tab,
+  // or this window; never a frame): the module's own origin hosted; locally
+  // a plain click starts it first (without the script the link is the
+  // overview).
   function openLink(
     target: Extract<TileTarget, { kind: "hosted" } | { kind: "start" }>,
     name: string,
@@ -317,11 +407,15 @@ export function createCatalogPanel(
   ): HTMLAnchorElement {
     const copy = options.copy();
     const link = element("a", className);
-    link.title = copy.appsOpenAppNamed.replace("{name}", name);
+    const mode = openMode();
+    link.title = (
+      mode === "same" ? copy.appsOpenAppNamedSame : copy.appsOpenAppNamed
+    ).replace("{name}", name);
     if (target.kind === "hosted") {
       link.href = target.href;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
+      const where = appLinkTarget(mode);
+      if (where.target !== null) link.target = where.target;
+      link.rel = where.rel;
       return link;
     }
     link.href = target.overview;
@@ -370,7 +464,56 @@ export function createCatalogPanel(
     }
   });
 
-  function tileMenu(item: AppsTile, group: CatalogGroupEntry): HTMLElement {
+  // "Přístup k modulu" (root decision 0185 S15, issue #151): the module in
+  // its Organization's Dashboard, in this window, for the Organization's
+  // Owners (the Owner answer of "+ Nový modul") and Stewards (GitHub's
+  // `maintain` on the module's repository); moduleAccessTarget says where
+  // and whether. The Dashboard decides again with its own live read: the item
+  // grants nothing. A Steward's answer is asked once it is older than the
+  // server's cache; `settled` runs when it arrives.
+  function askMaintainer(
+    group: CatalogGroupEntry,
+    item: AppsTile,
+    settled: () => void,
+  ) {
+    if (catalog === null || item.kind !== "module") return;
+    const organization = catalogOrganizationKey(catalog, group.organization);
+    if (organization === null) return;
+    const module = item.entry.module.module;
+    const { ask } = maintainers.read(organization, module);
+    if (ask === null) return;
+    void options
+      .get(
+        `/api/organizations/${encodeURIComponent(organization)}/modules/${encodeURIComponent(module)}/maintain`,
+      )
+      .then(({ value, ok }) =>
+        maintainers.settle(
+          organization,
+          module,
+          ask,
+          ok &&
+            !!value &&
+            typeof value === "object" &&
+            (value as { maintain?: unknown }).maintain === true,
+        ),
+      )
+      .catch(() => maintainers.settle(organization, module, ask, false))
+      .finally(settled);
+  }
+  const maintainerOf = (group: CatalogGroupEntry, item: AppsTile) => {
+    if (catalog === null || item.kind !== "module") return false;
+    const organization = catalogOrganizationKey(catalog, group.organization);
+    return (
+      organization !== null &&
+      maintainers.peek(organization, item.entry.module.module)
+    );
+  };
+
+  function tileMenu(
+    item: AppsTile,
+    group: CatalogGroupEntry,
+    owner: boolean,
+  ): HTMLElement {
     const copy = options.copy();
     const box = element("div", "tile-menu");
     const button = element("button", "tile-menu-button");
@@ -401,7 +544,7 @@ export function createCatalogPanel(
     );
     star.addEventListener("click", () => {
       close();
-      toggle(group, item.key);
+      void toggle(group, item.key);
     });
     list.append(star);
     if (item.info !== null) {
@@ -422,12 +565,50 @@ export function createCatalogPanel(
       info.addEventListener("click", close);
       list.append(info);
     }
+    // Whether the menu could ever offer it (a module, a Dashboard page),
+    // before any Steward answer.
+    const reachable =
+      moduleAccessTarget(item, group, options.dashboard, {
+        owner: true,
+        maintainer: true,
+      }) !== null;
+    let accessShown = false;
+    const showAccess = () => {
+      const access = accessShown
+        ? null
+        : moduleAccessTarget(item, group, options.dashboard, {
+            owner,
+            maintainer: maintainerOf(group, item),
+          });
+      if (access === null) return;
+      accessShown = true;
+      // A plain link: the same window, no new-tab arrow.
+      const link = element("a", "tile-menu-item");
+      link.href = access;
+      link.setAttribute("role", "menuitem");
+      link.append(svg("users"), copy.appsModuleAccess);
+      link.addEventListener("click", close);
+      list.append(link);
+    };
+    showAccess();
+    // A Steward's answer is asked when the person reaches for the menu, and
+    // the item joins the open menu when it comes.
+    const reach = () => {
+      if (reachable && !owner)
+        askMaintainer(group, item, () => {
+          if (!list.hidden) showAccess();
+        });
+    };
+    button.addEventListener("pointerenter", reach);
+    button.addEventListener("focus", reach);
     button.addEventListener("click", (event) => {
       event.stopPropagation();
       if (!list.hidden) {
         close();
         return;
       }
+      reach();
+      showAccess();
       openMenu?.();
       list.hidden = false;
       box.classList.add("is-open");
@@ -439,7 +620,11 @@ export function createCatalogPanel(
     return box;
   }
 
-  function tile(item: AppsTile, group: CatalogGroupEntry): HTMLElement {
+  function tile(
+    item: AppsTile,
+    group: CatalogGroupEntry,
+    owner: boolean,
+  ): HTMLElement {
     const copy = options.copy();
     const wrap = element("div", "tile-wrap");
     const node = actionNode(item, "tile");
@@ -459,7 +644,7 @@ export function createCatalogPanel(
     const text = element("span", "tile-body");
     text.append(name, element("span", "tile-desc", item.description));
     node.append(tileMark(item, 48), text);
-    wrap.append(node, tileMenu(item, group));
+    wrap.append(node, tileMenu(item, group, owner));
     return wrap;
   }
 
@@ -549,7 +734,7 @@ export function createCatalogPanel(
     const title = element("h2", "section-pill", value.title);
     top.append(title, element("span", "section-count", value.count));
     const grid = element("div", "tile-grid");
-    grid.append(...value.tiles.map((item) => tile(item, group)));
+    grid.append(...value.tiles.map((item) => tile(item, group, owner)));
     if (value.kind === "workspace" && owner) grid.append(newModuleTile(group));
     part.append(top, grid);
     return part;
@@ -565,6 +750,12 @@ export function createCatalogPanel(
     }
     const label = element("p", "column-label", copy.appsFavorites);
     label.id = "column-favorites";
+    // Until the account answers (at most a few seconds) neither its list nor
+    // the hint is shown, so nothing jumps.
+    if (favoritesPending(group)) {
+      favoritesBox.replaceChildren(label);
+      return;
+    }
     const items = favoriteTiles(
       value,
       group,
@@ -590,7 +781,7 @@ export function createCatalogPanel(
           tileMark(item, 20),
           element("span", "menu-name", item.name),
         );
-        if (item.action.kind === "open")
+        if (item.action.kind === "open" && openMode() === "tab")
           link.append(svg("external", "icon menu-external"));
         entry.append(link);
         return entry;
@@ -735,7 +926,8 @@ export function createCatalogPanel(
         moduleName(module),
         "button primary module-open",
       );
-      open.append(svg("external"), copy.appsOpenApp);
+      if (openMode() === "tab") open.append(svg("external"));
+      open.append(copy.appsOpenApp);
       top.append(open);
     }
     const key = catalogOrganizationKey(value, organization);
@@ -892,11 +1084,16 @@ export function createCatalogPanel(
     if (view.link !== null) {
       const open = element("a", "button", copy.moduleOpen);
       open.href = view.link;
-      open.target = "_blank";
-      open.rel = "noopener noreferrer";
+      const mode = openMode();
+      const where = appLinkTarget(mode);
+      if (where.target !== null) open.target = where.target;
+      open.rel = where.rel;
       open.setAttribute(
         "aria-label",
-        copy.moduleOpenNamed.replace("{name}", moduleName(module)),
+        (mode === "same"
+          ? copy.moduleOpenNamedSame
+          : copy.moduleOpenNamed
+        ).replace("{name}", moduleName(module)),
       );
       control.append(open);
     }
@@ -988,6 +1185,7 @@ export function createCatalogPanel(
    * and on a language change). */
   async function refresh() {
     owners.clear();
+    maintainers.clear();
     state = catalog === null ? "loading" : state;
     render();
     try {

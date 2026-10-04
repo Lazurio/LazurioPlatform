@@ -37,10 +37,12 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // production repositories in Productionspace (decision F32's final
 // addendum), each a pill with a count over a grid of clean tiles: stone,
 // name, a short description, a star when favourite. A module's tile opens its
-// app in a new tab; one without an app, one that cannot start and a
-// repository only say so in a short message. Its "⋯" menu stars it and leads
-// to the module's overview (a repository's GitHub page). Favourites come
-// first, in the column's order. The DOM lives in catalog-panel.ts.
+// app (where the person's account says, app-opening.ts); one without an app,
+// one that cannot start and a repository only say so in a short message. Its
+// "⋯" menu stars it, leads to the module's overview (a repository's GitHub
+// page) and, for the Organization's Owners and Stewards, to the module's
+// access in the Dashboard. Favourites come first, in the column's order. The
+// DOM lives in catalog-panel.ts.
 
 /** The groups the Apps home offers (Organizations, then the Personalspace
  * group), in the catalog's order. */
@@ -371,6 +373,60 @@ export function favoriteTiles(
     [...tiles.modules, ...tiles.repositories],
     favorites,
   ).filter((tile) => tile.favorite);
+}
+
+/** "Přístup k modulu" (root decision 0185 S15, issue #151): the module in
+ * its Organization's Dashboard, Nastavení Organizace → Moduly → the module
+ * (`<Organization page>/settings?tab=modules&module=<id>`), opened in this
+ * window. `dashboard` is the Organization's page as the shell document names
+ * it (`https://…/orgs/<slug>`); anything else has no such page, and the menu
+ * offers no item (fail closed). */
+export function moduleAccessUrl(
+  dashboard: string | null,
+  module: string,
+): string | null {
+  if (dashboard === null) return null;
+  let url: URL;
+  try {
+    url = new URL(dashboard);
+  } catch {
+    return null;
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.search !== "" ||
+    url.hash !== "" ||
+    !/^\/orgs\/[a-z0-9-]+$/.test(url.pathname)
+  )
+    return null;
+  url.pathname = `${url.pathname}/settings`;
+  url.searchParams.set("tab", "modules");
+  url.searchParams.set("module", module);
+  return url.href;
+}
+
+/** Where a tile's "Přístup k modulu" leads, or null when the menu offers
+ * none: only a module of an Organization bound to a GitHub login (never a
+ * production repository or the Personalspace group), only for its Owners and
+ * Stewards (`owner`, `maintainer`: GitHub's live answers, false until they
+ * come), and only where the shell document names the Organization's
+ * Dashboard page. `dashboard` looks that page up by the Organization slug. */
+export function moduleAccessTarget(
+  tile: AppsTile,
+  group: CatalogGroupEntry,
+  dashboard: (slug: string) => string | null,
+  roles: Readonly<{ owner: boolean; maintainer: boolean }>,
+): string | null {
+  const slug = group.organization.organization;
+  if (
+    tile.kind !== "module" ||
+    group.sections === null ||
+    slug === null ||
+    group.organization.forgeLogin === undefined ||
+    !(roles.owner || roles.maintainer)
+  )
+    return null;
+  return moduleAccessUrl(dashboard(slug), tile.entry.module.module);
 }
 
 /** The prompt "+ Nový modul" hands to Chat (the wireframe's

@@ -2,6 +2,7 @@ import { currentEnvironment, parseShell, type Shell } from "../shell/contract";
 import { defineShellElements, provideShell } from "../shell/elements";
 import { shellMessages } from "../shell/messages";
 import { environmentName } from "../shell/view";
+import { accountWriter, readAccount } from "./account";
 import { createCatalogPanel } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -124,6 +125,14 @@ const catalog = createCatalogPanel({
         element.setAttribute("space", space);
   },
   newModule: (prompt) => handOver(prompt),
+  // The person's account through this Environment's gateway (account.ts):
+  // plain same-origin requests, never with the Launchpad's local token.
+  readAccount: () => readAccount(),
+  writeAccount: accountWriter(),
+  dashboard: (slug) =>
+    shellDocument?.organizations.find(
+      (organization) => organization.slug.toLowerCase() === slug.toLowerCase(),
+    )?.dashboard ?? null,
 });
 // The Files page (decision F35): the Documents folder of this Environment.
 // Behind a gateway a download is a plain link the session cookie admits;

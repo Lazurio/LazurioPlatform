@@ -134,6 +134,10 @@ export type CatalogModule = Readonly<{
   preparationRefused?: true;
   /** `teams-invalid` when the declared membership is not a list of slugs. */
   issues?: readonly string[];
+  /** Its repository's GitHub page, read from the slot's `git.url` (or the
+   * legacy `repo` or `repository`) when that names a github.com repository;
+   * absent otherwise. Nothing is fetched. */
+  url?: string;
 }>;
 
 export type CatalogTeam = Readonly<{ slug: string; displayName: string }>;
@@ -495,6 +499,7 @@ export async function readCatalogOrganization(
         const reason = executable ? own.reason : "organization-not-executable";
         const file = executable ? own.file : undefined;
         const preparation = executable && own.preparationRefused === true;
+        const url = repositoryPage(slotRemote(bySlotPath.get(entry.path)));
         return [
           Object.freeze({
             organization: result.company,
@@ -511,6 +516,7 @@ export async function readCatalogOrganization(
             ...(file === undefined ? {} : { file }),
             ...(preparation ? { preparationRefused: true } : {}),
             ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
+            ...(url === null ? {} : { url }),
           } satisfies CatalogModule),
         ];
       }),

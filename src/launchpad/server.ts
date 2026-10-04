@@ -53,6 +53,7 @@ import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
+import { createMaintainerCheck } from "./module-maintainer";
 import { createOwnerCheck } from "./organization-owner";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import { shellDocument } from "./shell-document";
@@ -85,6 +86,11 @@ export const shellDocumentPath = "/.lazurio/shell.json";
 // (decision F36 addendum of 2026-10-04): `<org>` names it as the catalog's
 // routes do.
 const ownerRoute = /^\/api\/organizations\/([^/]+)\/owner$/;
+
+// Whether it may maintain one module's repository (decision 0185 S15, the
+// Steward's "Přístup k modulu"): `<org>` as above, `<module>` its id.
+const maintainRoute =
+  /^\/api\/organizations\/([^/]+)\/modules\/([^/]+)\/maintain$/;
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
@@ -254,6 +260,7 @@ export async function startLaunchpad(
   });
   const installing = new Set<string>();
   const owners = createOwnerCheck(toolsEnvironment);
+  const maintainers = createMaintainerCheck(toolsEnvironment);
   let closing = false;
   const headers = {
     "Cache-Control": "no-store",
@@ -377,6 +384,41 @@ export async function startLaunchpad(
           return response({ kind: "organization-owner", owner });
         } catch {
           return response({ kind: "organization-owner", owner: false });
+        }
+      }
+      const maintainRequest = maintainRoute.exec(url.pathname);
+      if (maintainRequest !== null) {
+        // Read-only and behind the same admission as every read: GitHub's
+        // own answer for the module's declared repository, never a local
+        // rule (module-maintainer.ts).
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          const name = decodeURIComponent(maintainRequest[1] as string);
+          const id = decodeURIComponent(maintainRequest[2] as string);
+          const selection = selectCatalogOrganization(
+            await readFolderCatalog(folder),
+            name,
+          );
+          const module =
+            selection.kind === "found"
+              ? selection.organization.modules.find(
+                  (entry) => entry.module === id,
+                )
+              : undefined;
+          server.timeout(request, 30);
+          const maintain =
+            selection.kind === "found" &&
+            module !== undefined &&
+            (await maintainers.maintain(
+              selection.organization.forgeLogin,
+              module.url,
+              await folderPreset(folder),
+            ));
+          return response({ kind: "module-maintain", maintain });
+        } catch {
+          return response({ kind: "module-maintain", maintain: false });
         }
       }
       if (url.pathname.startsWith("/api/files/")) {

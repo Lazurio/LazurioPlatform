@@ -25,14 +25,36 @@ import { initialsOf } from "../shell/view";
 // Dashboard fills the other Environments later through the Lazurio account.
 
 /** The Lazurio Dashboard: the personal one, the account settings, adding an
- * Organization, and an Organization's page `/orgs/<slug>` (by the
- * Organization's slug, the Dashboard's canonical `org_slug`). */
+ * Organization, and an Organization's page `/orgs/<slug>`. */
 export const dashboardUrl = "https://dashboard.lazurio.ai/";
 export const accountUrl = "https://dashboard.lazurio.ai/settings";
 export const addOrganizationUrl =
   "https://dashboard.lazurio.ai/add-organization";
-export const organizationDashboardUrl = (slug: string): string =>
-  `https://dashboard.lazurio.ai/orgs/${encodeURIComponent(slug)}`;
+
+/** The Organization's slug as the Dashboard addresses it (its `org_slug`):
+ * the manifest's slug lowercased, every run of other characters one `-`,
+ * none at either end. The Dashboard derives it so from the same manifest
+ * slug and matches `/orgs/<slug>` exactly, so a slug with capitals (`Acme-Co`)
+ * is `acme-co` there. Null when nothing is left. The Dashboard disambiguates
+ * two GitHub Organizations of one person that reduce to the same slug with a
+ * suffix this Environment cannot know; that link then leads to the
+ * Dashboard's own not-found page, never to another Organization's. */
+export function dashboardSlug(slug: string): string | null {
+  const canonical = slug
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return canonical === "" ? null : canonical;
+}
+
+/** An Organization's page in the Dashboard; its home when the slug reduces
+ * to nothing. */
+export const organizationDashboardUrl = (slug: string): string => {
+  const canonical = dashboardSlug(slug);
+  return canonical === null
+    ? dashboardUrl
+    : `https://dashboard.lazurio.ai/orgs/${canonical}`;
+};
 
 /** The kind of Environment a preset sets up (decisions 0165, 0169). */
 export const presetKinds: Readonly<Record<PresetName, ShellEnvironmentKind>> = {
