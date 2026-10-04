@@ -3651,16 +3651,22 @@ and their new-tab arrows, and the Organization picker in the home's head.
    bounded by a timeout, kept five minutes per login, failing closed. A Team
    Environment (the Team's brokered identity) and an Organization without a bound
    GitHub login get no tile, without a call. No local rule stands in for GitHub. Its
-   click copies the wireframe's prompt to the clipboard and opens this Environment's
-   Chat in a new tab, with a short message to paste it into a new chat; a workstation
-   has no Chat origin and only copies. Once the T3 Code fork takes a prompt draft by
-   link (Lazurio/t3code#35) Chat opens with it in the composer.
+   click opens this Environment's Chat in a new tab with the wireframe's prompt in a new
+   thread's composer, not sent: the link carries only the prompt's id and the
+   Organization's GitHub login, and the T3 Code fork fetches the text from
+   `/.lazurio/prompts/<id>?org=<login>` on its own origin, served by this Launchpad
+   under the same Owner rule (Lazurio/t3code#35). Where this Environment's T3 Code is
+   not yet a fork release with that hand-off (its own `t3 --version`), and on a
+   workstation, which has no Chat origin, the click copies the prompt to the clipboard
+   instead, opens Chat where there is one, and says to paste it into a new chat
+   ([prompt hand-off](launchpad-development.md#prompt-hand-off-to-chat)). Amended
+   2026-10-04 (DEV-6639); before, the click always copied the prompt to the clipboard.
 
 **Not in this addendum, each an issue:** "Přístup k modulu" in the tile menu (the
 Dashboard's `/orgs/<slug>/application-access` sets a person's access level inside an
 application, not which Teams reach a module's repository), remembering the last
 Environment after sign-in (the Dashboard's), and Chat opening with the prompt already in
-its composer (Lazurio/t3code#35).
+its composer (Lazurio/t3code#35; since built, point 8).
 
 Verified by unit and HTTP tests: the contract and its parser, the producer's names (Team,
 persona, kind, assigned person) and Dashboards, the rail's spaces and their targets in
