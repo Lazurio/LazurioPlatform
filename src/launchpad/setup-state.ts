@@ -17,21 +17,15 @@ import { signsInAsPerson } from "./first-run";
 // as the content routes answer. Only for an Environment that signs in as
 // its person; nothing is said when it is not known.
 
-/** The server's content routes as this module reads them (DEV-6644 content
- * install): what lives here (`GET /api/content`) and the last installation
- * (`GET /api/content/jobs/<id>` of the newest job), each in the answer's own
- * JSON shape, null when there is none. Trusted composition, never HTTP
- * input. */
+/** The server's content routes as this module reads them (the routes
+ * object of `content-routes.ts` itself): what lives here (`GET /api/content`)
+ * and the last installation (`GET /api/content/jobs/<id>` of the newest job),
+ * each in the answer's own JSON shape, null when there is none. Trusted
+ * composition, never HTTP input. */
 export type ContentReader = Readonly<{
   list: () => Promise<unknown>;
   lastJob: () => Promise<unknown>;
 }>;
-
-/** No content routes: nothing is known about the content. */
-export const unavailableContent: ContentReader = Object.freeze({
-  list: async () => null,
-  lastJob: async () => null,
-});
 
 /** The content as read, each null when it is not there or unreadable. */
 export async function readContent(

@@ -397,8 +397,9 @@ const freePort = () => {
   return port;
 };
 
-// A hosted work Environment whose gh is signed out, with the content routes
-// stubbed: what lives here and the last installation as `content` says.
+// A hosted work Environment whose gh is signed out. With `content`, what
+// lives here and the last installation are stubbed; without it, the
+// Launchpad's own content routes answer.
 async function hosted(content?: ContentReader) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-first-run-")),
@@ -448,6 +449,7 @@ async function hosted(content?: ContentReader) {
     undefined,
     undefined,
     undefined,
+    undefined,
     content,
   );
   const host = new URL(entry.externalOrigin).host;
@@ -491,8 +493,11 @@ const failedAnswer = {
 };
 
 posixTest(
-  "hosted: the shell document says GitHub is missing; with the content routes, what stopped",
+  "hosted: the shell document says what is missing from the real content routes; with a stopped job, what stopped",
   async () => {
+    // No stub: the Launchpad's own content routes (src/content) answer. A
+    // work Environment's content is the Organization of its handover, and
+    // it is not here yet.
     const without = await hosted();
     try {
       const answer = await fetch(`${without.base}/.lazurio/shell.json`, {
@@ -501,6 +506,8 @@ posixTest(
       expect(answer.status).toBe(200);
       expect(parseShell(await answer.json())?.setup).toEqual({
         github: "missing",
+        content: "missing",
+        item: { kind: "organization", name: "example", login: "example" },
       });
     } finally {
       await without.close();
@@ -566,7 +573,8 @@ posixTest(
     } finally {
       await app.close();
     }
-    // Nothing stopped, or no content routes: nothing to resolve.
+    // Nothing stopped, by a stub or by the real routes before any job:
+    // nothing to resolve.
     for (const reader of [stub(listAnswer, null), undefined]) {
       const quiet = await hosted(reader);
       try {
