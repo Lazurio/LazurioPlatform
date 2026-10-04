@@ -143,7 +143,7 @@ test("the generated checkout procedure never prescribes reset --hard", () => {
         "`git checkout -B <branch> origin/<branch>`",
         "`git status --porcelain --ignored`",
         locale === "cs"
-          ? "Vnořený repozitář (podsložka s vlastním `.git`) stash nadřazeného checkoutu přeskočí."
+          ? "Vnořený repozitář (podsložka s vlastním `.git`, která není modulem z manifestu Organizace) stash nadřazeného checkoutu přeskočí."
           : "A stash of the outer checkout skips a nested repository",
       ])
         expect(troubleshooting.includes(fragment)).toBe(withOrganizations);
