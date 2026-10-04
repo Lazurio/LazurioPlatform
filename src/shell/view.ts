@@ -2,66 +2,24 @@ import {
   currentEnvironment,
   type Shell,
   type ShellEnvironment,
-  type ShellEnvironmentKind,
   type ShellOrganization,
 } from "./contract";
 import { fillShell, type ShellCopy } from "./messages";
 
-// Pure presentation of the shell document for the rail and the app switch
-// (decision F36, the target shell of docs/launchpad-development.md): what
-// each element shows, in which order, linked where. The elements in
-// elements.ts only draw it.
+// Pure presentation of the shell document (decision F36, addendum of
+// 2026-10-04): the rail of spaces (your personal space, then one avatar per
+// Organization), the Environment picker at the head of the left column with
+// its list, and the switch Chat · Apps · Automate. The elements in
+// elements.ts only draw it. Every Environment is named one way everywhere:
+// by its own name or its kind, with a line saying who it is for, never by
+// the machine's technical name.
 
-/** At most this many Environments of one folder show before "+N". */
-export const folderLimit = 6;
+/** A space of the rail: your personal space or one Organization. */
+export const personalSpace = "personal";
 
-export type RailMark =
-  | Readonly<{ kind: "initials"; text: string }>
-  | Readonly<{
-      kind: "icon";
-      icon: "laptop" | "user" | "users" | "bot";
-    }>;
-
-export type RailItem = Readonly<{
-  id: string;
-  /** The first line of the label. */
-  label: string;
-  /** The second line: Organization · kind (· you are here). */
-  sub: string;
-  href: string;
-  active: boolean;
-  mark: RailMark;
-  /** The fill of the active item: the Organization's accent, or null for
-   * the design system's ink (personal) or accent (Organization). */
-  accent: string | null;
-}>;
-
-export type RailFolder = Readonly<{
-  organization: ShellOrganization;
-  /** The avatar, or the initials when there is none. */
-  initials: string;
-  items: readonly RailItem[];
-  /** How many are folded behind "+N" (0 when all show). */
-  hidden: number;
-  /** Whether "less" folds them again. */
-  expanded: boolean;
-  hasActive: boolean;
-}>;
-
-export type RailModel = Readonly<{
-  personal: readonly RailItem[];
-  folders: readonly RailFolder[];
-}>;
-
-const kindIcons: Readonly<
-  Record<ShellEnvironmentKind, "laptop" | "user" | "users" | "bot">
-> = {
-  personal: "user",
-  work: "user",
-  team: "users",
-  automated: "bot",
-  workstation: "laptop",
-};
+/** The app a link of the shell leads into. */
+export const shellApps = ["chat", "apps", "automate"] as const;
+export type ShellApp = (typeof shellApps)[number];
 
 /** Up to two letters of a name: the first letters of its first two words,
  * else its first two letters. */
@@ -79,109 +37,285 @@ export function initialsOf(name: string): string {
     .toLocaleUpperCase();
 }
 
-/** The name an Environment is shown under. */
-export function environmentLabel(
+/** The name an Environment is shown under: its own, else its kind's. */
+export const environmentName = (
   environment: ShellEnvironment,
   copy: ShellCopy,
+): string => environment.label ?? copy.names[environment.kind];
+
+/** Who an Environment is for: a work Environment's person, otherwise its
+ * kind's word. */
+export const environmentWho = (
+  environment: ShellEnvironment,
+  copy: ShellCopy,
+): string =>
+  environment.kind === "work" && environment.assignee !== null
+    ? `@${environment.assignee}`
+    : copy.who[environment.kind];
+
+const sameSlug = (left: string, right: string) =>
+  left.toLowerCase() === right.toLowerCase();
+
+/** The Organization of a slug the document lists. */
+export const organizationOf = (
+  shell: Shell,
+  slug: string,
+): ShellOrganization | undefined =>
+  shell.organizations.find((entry) => sameSlug(entry.slug, slug));
+
+/** The space you are in: the one the host names (`space`, a workstation
+ * opened for one Organization), otherwise the current Environment's: a
+ * personal one or a workstation is personal, any other its first
+ * Organization's. */
+export function hereOf(shell: Shell, space: string | null): string {
+  if (
+    space !== null &&
+    (space === personalSpace || organizationOf(shell, space) !== undefined)
+  )
+    return space === personalSpace
+      ? space
+      : (organizationOf(shell, space)?.slug ?? space);
+  const current = currentEnvironment(shell);
+  return current.kind === "personal" ||
+    current.kind === "workstation" ||
+    current.organizations.length === 0
+    ? personalSpace
+    : (current.organizations[0] ?? personalSpace);
+}
+
+/** The Environments of a space, in document order: your personal ones and
+ * workstations for the personal space, and for an Organization those that
+ * hold it (a workstation holding it among them). */
+export function spaceEnvironments(
+  shell: Shell,
+  space: string,
+): readonly ShellEnvironment[] {
+  if (space === personalSpace)
+    return shell.environments.filter(
+      (entry) =>
+        entry.kind === "personal" ||
+        entry.kind === "workstation" ||
+        entry.organizations.length === 0,
+    );
+  const own = shell.environments.filter(
+    (entry) =>
+      entry.kind !== "workstation" &&
+      entry.organizations.some((slug) => sameSlug(slug, space)),
+  );
+  const workstations = shell.environments.filter(
+    (entry) =>
+      entry.kind === "workstation" &&
+      entry.organizations.some((slug) => sameSlug(slug, space)),
+  );
+  return [...own, ...workstations];
+}
+
+/** Where a link to an Environment leads, in a space and an app: the app's
+ * origin, Apps where the Environment has not that app; a workstation holding
+ * several Organizations opens Apps for the space's (`o/<slug>`, the
+ * Launchpad's route of one Organization). */
+export function environmentHref(
+  environment: ShellEnvironment,
+  space: string,
+  app: ShellApp,
 ): string {
-  return environment.label ?? copy.thisComputer;
+  const base =
+    app === "chat"
+      ? environment.apps.chat
+      : app === "automate"
+        ? environment.apps.automate
+        : null;
+  if (base !== null) return base;
+  const apps = environment.apps.apps;
+  if (space === personalSpace || environment.organizations.length < 2)
+    return apps;
+  const root = apps.endsWith("/") ? apps : `${apps}/`;
+  return `${root}o/${encodeURIComponent(space)}`;
 }
 
-function item(
+const pluralKey = (count: number) =>
+  count === 1
+    ? "environmentsOne"
+    : count >= 2 && count <= 4
+      ? "environmentsFew"
+      : "environmentsMany";
+
+export type RailSpace = Readonly<{
+  space: string;
+  /** The label's first line. */
+  title: string;
+  /** Its second line: how many Environments, and the last one. */
+  sub: string;
+  href: string;
+  active: boolean;
+  /** The Organization's avatar or initials; the personal space's initials. */
+  avatar: string | null;
+  initials: string | null;
+}>;
+
+/** The rail: your personal space, then every Organization of the document
+ * in its order. A click leads to the space's last Environment (`last`, by
+ * space, what this browser remembers), else its first, in the same app;
+ * a space without one leads to its Dashboard. */
+export function railSpaces(
+  shell: Shell,
+  copy: ShellCopy,
+  options: Readonly<{
+    here: string;
+    app: ShellApp;
+    last: (space: string) => string | null;
+  }>,
+): readonly RailSpace[] {
+  const space = (
+    id: string,
+    title: string,
+    dashboard: string,
+    marks: Readonly<{ avatar: string | null; initials: string | null }>,
+  ): RailSpace => {
+    const environments = spaceEnvironments(shell, id);
+    const remembered = options.last(id);
+    const last = environments.find((entry) => entry.id === remembered);
+    const target = last ?? environments[0];
+    return Object.freeze({
+      space: id,
+      title,
+      sub: [
+        fillShell(copy[pluralKey(environments.length)], {
+          count: environments.length,
+        }),
+        last === undefined
+          ? null
+          : fillShell(copy.last, { name: environmentName(last, copy) }),
+      ]
+        .filter((part) => part !== null)
+        .join(" · "),
+      href:
+        target === undefined
+          ? dashboard
+          : environmentHref(target, id, options.app),
+      active: options.here === id,
+      ...marks,
+    });
+  };
+  return [
+    space(personalSpace, copy.personal, shell.dashboard, {
+      avatar: null,
+      initials: shell.operator.initials,
+    }),
+    ...shell.organizations.map((organization) =>
+      space(organization.slug, organization.name, organization.dashboard, {
+        avatar: organization.avatar,
+        initials: initialsOf(organization.name),
+      }),
+    ),
+  ];
+}
+
+/** What the picker shows of an Environment: its glyph, its name and who it
+ * is for. The glyph is the Organization's avatar where it belongs to one,
+ * your initials for a personal one, and the kind's icon otherwise. */
+export type EnvironmentGlyph =
+  | Readonly<{ kind: "avatar"; organization: ShellOrganization }>
+  | Readonly<{ kind: "initials"; text: string }>
+  | Readonly<{ kind: "icon"; icon: "laptop" | "user" | "users" | "bot" }>;
+
+const kindIcons = {
+  personal: "user",
+  work: "user",
+  team: "users",
+  automated: "bot",
+  workstation: "laptop",
+} as const;
+
+export function environmentGlyph(
   shell: Shell,
   environment: ShellEnvironment,
-  copy: ShellCopy,
-  accent: string | null,
-): RailItem {
-  const active = environment.id === shell.current;
-  const where = environment.organizations
-    .map(
-      (slug) =>
-        shell.organizations.find(
-          (entry) => entry.slug.toLowerCase() === slug.toLowerCase(),
-        )?.name ?? slug,
-    )
-    .join(", ");
-  const personal = environment.kind === "personal";
-  const mark: RailMark =
-    personal && shell.operator.initials !== null
-      ? { kind: "initials", text: shell.operator.initials }
-      : { kind: "icon", icon: kindIcons[environment.kind] };
-  return Object.freeze({
-    id: environment.id,
-    label: environmentLabel(environment, copy),
-    sub: [
-      personal && shell.operator.login !== null
-        ? `@${shell.operator.login}`
-        : where,
-      copy.kinds[environment.kind],
-      active ? copy.current : "",
-    ]
-      .filter((part) => part !== "")
-      .join(" · "),
-    href: environment.apps.apps,
-    active,
-    mark,
-    accent,
-  });
+  space: string,
+): EnvironmentGlyph {
+  if (environment.kind === "personal" && shell.operator.initials !== null)
+    return { kind: "initials", text: shell.operator.initials };
+  const organization =
+    space === personalSpace ? undefined : organizationOf(shell, space);
+  return organization !== undefined
+    ? { kind: "avatar", organization }
+    : { kind: "icon", icon: kindIcons[environment.kind] };
 }
 
-/** The rail: first the personal Environments (personal Remote Environments
- * and workstations, in document order), then one folder per Organization
- * with the Environments that belong to it, in the order of
- * `organizations`. A workstation holding several Organizations is personal:
- * it is the person's own computer. A folder shows the first `folderLimit`
- * Environments, plus the active one if it is further down; `expanded` lists
- * the folders the person unfolded. An Organization without an Environment
- * in the document has no folder. */
-export function railModel(
+export type SwitcherRow = Readonly<{
+  id: string;
+  name: string;
+  who: string;
+  href: string;
+  current: boolean;
+  /** A row's glyph: your initials for a personal Environment, otherwise its
+   * kind's icon (the Organization stands in the head above). */
+  glyph: Exclude<EnvironmentGlyph, { kind: "avatar" }>;
+}>;
+
+export type SwitcherSection = Readonly<{
+  space: string;
+  title: string;
+  /** An Organization's head above its Environments: its Dashboard. */
+  head: Readonly<{
+    organization: ShellOrganization;
+    href: string;
+  }> | null;
+  rows: readonly SwitcherRow[];
+}>;
+
+/** The list of the picker (one space, `all` false) and of ⌘⇧E (every space,
+ * `all` true): your personal Environments, then each Organization with its
+ * head and its Environments, the current one marked, filtered by `query`
+ * against the space, the name and who it is for. A space keeps its head
+ * while it matches and stays listed empty only when it is the one asked
+ * for. */
+export function switcherSections(
   shell: Shell,
   copy: ShellCopy,
-  expanded: ReadonlySet<string> = new Set(),
-): RailModel {
-  const personal = shell.environments
-    .filter(
-      (environment) =>
-        environment.kind === "personal" ||
-        environment.kind === "workstation" ||
-        environment.organizations.length === 0,
-    )
-    .map((environment) => item(shell, environment, copy, null));
-  const folders = shell.organizations.flatMap((organization): RailFolder[] => {
-    const own = shell.environments.filter(
-      (environment) =>
-        environment.kind !== "personal" &&
-        environment.kind !== "workstation" &&
-        environment.organizations[0]?.toLowerCase() ===
-          organization.slug.toLowerCase(),
-    );
-    if (own.length === 0) return [];
-    const items = own.map((environment) =>
-      item(shell, environment, copy, organization.accent),
-    );
-    const open = expanded.has(organization.slug);
-    const visible = open
-      ? items
-      : items.filter((entry, index) => index < folderLimit || entry.active);
-    return [
-      Object.freeze({
-        organization,
-        initials: initialsOf(organization.name),
-        items: Object.freeze(visible),
-        hidden: items.length - visible.length,
-        expanded: open && items.length > folderLimit,
-        hasActive: items.some((entry) => entry.active),
-      }),
-    ];
-  });
-  return Object.freeze({
-    personal: Object.freeze(personal),
-    folders: Object.freeze(folders),
+  options: Readonly<{
+    here: string;
+    all: boolean;
+    app: ShellApp;
+    query: string;
+  }>,
+): readonly SwitcherSection[] {
+  const words = options.query.trim().toLocaleLowerCase();
+  const matches = (...parts: string[]) =>
+    words === "" || parts.join(" ").toLocaleLowerCase().includes(words);
+  const row = (environment: ShellEnvironment, space: string): SwitcherRow => {
+    const glyph: SwitcherRow["glyph"] =
+      environment.kind === "personal" && shell.operator.initials !== null
+        ? { kind: "initials", text: shell.operator.initials }
+        : { kind: "icon", icon: kindIcons[environment.kind] };
+    return Object.freeze({
+      id: environment.id,
+      name: environmentName(environment, copy),
+      who: environmentWho(environment, copy),
+      href: environmentHref(environment, space, options.app),
+      current: environment.id === shell.current && options.here === space,
+      glyph,
+    });
+  };
+  const spaces = options.all
+    ? [personalSpace, ...shell.organizations.map((entry) => entry.slug)]
+    : [options.here];
+  return spaces.flatMap((space): SwitcherSection[] => {
+    const organization =
+      space === personalSpace ? undefined : organizationOf(shell, space);
+    const title = organization?.name ?? copy.personal;
+    const rows = spaceEnvironments(shell, space)
+      .map((environment) => row(environment, space))
+      .filter((entry) => matches(title, entry.name, entry.who));
+    const head =
+      organization !== undefined &&
+      matches(organization.name, copy.organizationDashboard)
+        ? { organization, href: organization.dashboard }
+        : null;
+    if (rows.length === 0 && head === null && (options.all || words !== ""))
+      return [];
+    return [Object.freeze({ space, title, head, rows: Object.freeze(rows) })];
   });
 }
-
-export const shellApps = ["chat", "apps", "automate"] as const;
-export type ShellApp = (typeof shellApps)[number];
 
 export type SwitchTab = Readonly<{
   app: ShellApp;
@@ -221,47 +355,3 @@ export function switchTabs(
     }),
   );
 }
-
-/** The jump list of ⌘⇧E: every Environment of the document whose label,
- * Organization or kind contains the query, the current one first. */
-export function jumpList(
-  shell: Shell,
-  copy: ShellCopy,
-  query: string,
-): readonly RailItem[] {
-  const model = railModel(
-    shell,
-    copy,
-    new Set(shell.organizations.map((organization) => organization.slug)),
-  );
-  const all = [
-    ...model.personal,
-    ...model.folders.flatMap((folder) => folder.items),
-  ];
-  const needle = query.trim().toLocaleLowerCase();
-  return all
-    .filter(
-      (entry) =>
-        needle === "" ||
-        `${entry.label} ${entry.sub}`.toLocaleLowerCase().includes(needle),
-    )
-    .sort((left, right) => Number(right.active) - Number(left.active));
-}
-
-/** The "+N" button's words. */
-export const moreText = (
-  copy: ShellCopy,
-  folder: RailFolder,
-): Readonly<{ text: string; label: string }> =>
-  folder.expanded
-    ? {
-        text: copy.less,
-        label: fillShell(copy.lessNamed, { name: folder.organization.name }),
-      }
-    : {
-        text: fillShell(copy.more, { count: folder.hidden }),
-        label: fillShell(copy.moreNamed, {
-          count: folder.hidden,
-          name: folder.organization.name,
-        }),
-      };
