@@ -3719,8 +3719,12 @@ does, everything behaves as points 6 and 7 say.
 - **Favourites** (S12). With the account, an Organization's favourites are its list,
   in its order, first in their section with the star as in point 7. The star writes
   `PUT` or `DELETE /.lazurio/account/favourites/<org slug>/<module|repository>/<id>`
-  at once and puts that favourite back, with a short message, when the account does not
-  take it (a later click on the same favourite is not undone). Browser favourites are
+  at once. One favourite has one write under way at a time, sent in the order of the
+  clicks, so the account ends as the last click wants; a click made while a write is
+  under way is sent after it, only if it still differs from what the account holds. A
+  failure is put back, with a short message, only when no later click wants something
+  else; the favourite then shows what the account holds, in its place. Different
+  favourites never wait for each other. Browser favourites are
   never uploaded: `localStorage` stays only for an Environment without the account and
   for the Personalspace group, which is no Organization.
 - **The last Environment** (S8, `src/shell/last.ts`). The library sends `PUT

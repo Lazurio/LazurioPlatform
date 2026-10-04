@@ -1,4 +1,4 @@
-import { parseFavorites, toggleFavorite } from "./favorites";
+import { parseFavorites } from "./favorites";
 
 // The person's Lazurio account as Apps reads it (root decision 0185 S12 and
 // S18, F37's account namespace): `GET /.lazurio/account/environments` on this
@@ -145,40 +145,110 @@ export function accountWriter(
   };
 }
 
+// One favourite's writes: what the account last took (`held`), what the
+// person's last click wants (`wanted`), how many clicks there were, the
+// place it had when its first pending click left it, and the clicks still
+// waiting for an answer.
+type Pending = {
+  held: boolean;
+  wanted: boolean;
+  clicks: number;
+  writing: boolean;
+  at: number;
+  waiting: ((taken: boolean) => void)[];
+};
+
 /** The favourites of the account, as Apps shows and changes them: a star
- * shows at once (optimistic); when the account does not take it, that one
- * favourite is put back as it was, unless a later click changed it since. */
+ * shows at once (optimistic). One favourite has one write under way at a
+ * time, sent in the order of the clicks, so the account ends as the
+ * person's last click wants (Pablo's review of #159): a click while a write
+ * is under way is sent after it, only when it still differs from what the
+ * account holds. A failure is put back only when no later click wants
+ * something else; then the favourite shows what the account holds, in its
+ * place. Different favourites never wait for each other. */
 export function createAccountFavourites(
   initial: Account["favourites"],
   write: (method: "PUT" | "DELETE", path: string) => Promise<boolean>,
 ) {
   const lists = new Map(initial);
+  const pending = new Map<string, Pending>();
+  const list = (scope: string) => lists.get(scope) ?? [];
+  // Shows a favourite starred or not; `at` puts a star back in its place.
+  function show(scope: string, key: string, starred: boolean, at?: number) {
+    const without = list(scope).filter((item) => item !== key);
+    if (!starred) lists.set(scope, without);
+    else if (at === undefined || at < 0)
+      lists.set(
+        scope,
+        list(scope).includes(key) ? list(scope) : [...without, key],
+      );
+    else lists.set(scope, [...without.slice(0, at), key, ...without.slice(at)]);
+  }
+  async function drain(
+    scope: string,
+    slug: string,
+    key: string,
+    state: Pending,
+  ) {
+    state.writing = true;
+    let refused = false;
+    let moved = false;
+    while (state.wanted !== state.held) {
+      const target = state.wanted;
+      const sent = state.clicks;
+      const path = favouritePath(slug, key);
+      const taken =
+        path !== null &&
+        (await write(target ? "PUT" : "DELETE", path).catch(() => false));
+      if (taken) {
+        state.held = target;
+        moved = true;
+      } else if (state.clicks === sent) {
+        // The last click's own write failed: back to what the account holds.
+        state.wanted = state.held;
+        refused = true;
+      }
+      // Otherwise a later click wants something: the loop writes that.
+    }
+    // A star the account never let go of returns to its place.
+    if (state.held && !moved) show(scope, key, true, state.at);
+    else show(scope, key, state.held);
+    state.writing = false;
+    pending.delete(`${scope}\n${key}`);
+    const waiting = state.waiting.splice(0);
+    for (const [index, done] of waiting.entries())
+      done(!(refused && index === waiting.length - 1));
+  }
   return {
     /** One Organization's favourites, in the account's order. */
     list(slug: string): readonly string[] {
-      return lists.get(slug.toLowerCase()) ?? [];
+      return list(slug.toLowerCase());
     },
-    /** Stars or unstars at once; resolves whether the account took it. */
-    async toggle(slug: string, key: string): Promise<boolean> {
+    /** Stars or unstars at once; resolves, once this favourite's writes
+     * are done, whether this click stood: false only for a last click the
+     * account did not take. */
+    toggle(slug: string, key: string): Promise<boolean> {
       const scope = slug.toLowerCase();
-      const before = lists.get(scope) ?? [];
-      const adding = !before.includes(key);
-      const at = before.indexOf(key);
-      lists.set(scope, toggleFavorite(before, key));
-      const path = favouritePath(slug, key);
-      const ok =
-        path !== null &&
-        (await write(adding ? "PUT" : "DELETE", path).catch(() => false));
-      if (ok) return true;
-      const now = lists.get(scope) ?? [];
-      if (adding && now.includes(key))
-        lists.set(
-          scope,
-          now.filter((item) => item !== key),
-        );
-      else if (!adding && !now.includes(key))
-        lists.set(scope, [...now.slice(0, at), key, ...now.slice(at)]);
-      return false;
+      const id = `${scope}\n${key}`;
+      let state = pending.get(id);
+      if (state === undefined) {
+        const starred = list(scope).includes(key);
+        state = {
+          held: starred,
+          wanted: starred,
+          clicks: 0,
+          writing: false,
+          at: list(scope).indexOf(key),
+          waiting: [],
+        };
+        pending.set(id, state);
+      }
+      state.clicks += 1;
+      state.wanted = !state.wanted;
+      show(scope, key, state.wanted);
+      const answered = new Promise<boolean>((done) => state.waiting.push(done));
+      if (!state.writing) void drain(scope, slug, key, state);
+      return answered;
     },
   };
 }

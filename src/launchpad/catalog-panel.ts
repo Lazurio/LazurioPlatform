@@ -302,14 +302,16 @@ export function createCatalogPanel(
     if (favoritesPending(group)) await accountRead;
     const slug = accountSlug(group);
     if (slug !== null && account) {
-      // At once; put back with a short message when the account does not
-      // take it.
-      const written = account.favourites.toggle(slug, key);
+      // At once; once its writes are done the favourite shows what the
+      // account holds, with a short message when the last click was not
+      // taken (account.ts).
+      const favourites = account.favourites;
+      const written = favourites.toggle(slug, key);
       render();
-      if (!(await written)) {
-        say(options.copy().appsFavoriteFailed);
-        render();
-      }
+      const shown = favourites.list(slug).join("\n");
+      const taken = await written;
+      if (!taken) say(options.copy().appsFavoriteFailed);
+      if (!taken || favourites.list(slug).join("\n") !== shown) render();
       return;
     }
     try {

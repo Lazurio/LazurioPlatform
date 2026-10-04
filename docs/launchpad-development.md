@@ -358,8 +358,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     tab is opened within the click; this window moves only once the start succeeded.
   - Favourites (S12): with the account, an Organization's favourites are its list, in
     its order, and the star writes `PUT`/`DELETE
-    /.lazurio/account/favourites/<org slug>/<module|repository>/<id>` at once, putting
-    the favourite back with a short message when the account does not take it. Without
+    /.lazurio/account/favourites/<org slug>/<module|repository>/<id>` at once. One
+    favourite's writes go one at a time in the order of the clicks, and a failure is put
+    back with a short message only when no later click wants something else. Without
     the account, and for the Personalspace group, they stay in the browser per
     Organization (`favorites.ts`); browser favourites are never uploaded.
   - The last Environment (S8, `src/shell/last.ts`): the library sends `PUT
