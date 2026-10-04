@@ -3828,3 +3828,101 @@ Tests this needs: the parser with both documents; the merge (collision with `cur
 local wins, account absent, 401, slow); the gateway proof above; the Dashboard's
 refusal of a token without the scope, with another audience, expired, or from an
 Environment credential.
+
+### Addendum of 2026-10-04: account writes, one namespace, the Environment known from the token
+
+**Decided by Matěj on 2026-10-04 (plan DEV-6639; root decision 0186), not
+implemented.** The shell also writes to the person's Lazurio account:
+- the favourite modules of an Organization (root 0185 S12);
+- the last Environment and app, per space (S1, S2, S8).
+
+The Dashboard alone keeps them, because every Environment has its own origin. The same
+person's token is used, through the same gateway, so this extends the proposal above
+instead of adding a path. Shaped with the gateway's owner and with DEV-6552's owner on
+the same day.
+
+1. **One namespace instead of `account.json`.** On every origin of an Environment the
+   gateway maps `/.lazurio/account/<path>` 1:1 to the Dashboard's
+   `/api/environment/v1/account/<path>`. It attaches `Authorization: Bearer` with the
+   session's token and strips any client-supplied `Authorization`. It relays only this
+   allowlist; anything else in the namespace is `404` at the gateway, so the Dashboard
+   gains routes only through a reviewed Machines change:
+   - `GET environments`, which replaces the name `account.json` in point 2 above;
+   - `PUT` and `DELETE favourites/<org>/<module|repository>/<id>`;
+   - `PUT last`.
+
+   Writes keep the gateway's existing same-origin rule for every non-`GET`. Bodies
+   are JSON only, at most 4 KiB. `GET environments` keeps point 2's
+   `Cache-Control: no-store, private` and `Vary: Cookie`.
+
+   The relayed access token lives at most ten minutes (DEV-6551). So the gateway's
+   oauth2-proxy refreshes it with the session's refresh token before it expires
+   (`cookie-refresh` shorter than the token's lifetime); otherwise the relay would
+   send expired tokens after the first ten minutes. The gateway's proof covers a
+   refresh.
+2. **The document `lazurio.account.v1`** reuses the entries of `lazurio.shell.v1`, as
+   point 1 above requires: `locale`, `operator`, `environments` and `organizations`.
+   - **Organizations are the person's spaces**, from live Organization memberships, so
+     an Organization without an Environment keeps its avatar.
+   - **Optional fields on an Environment entry:**
+     - `name`, the Dashboard's display name: the purpose name, with an order number for
+       a second Environment of the same Team, or an Admin's rename (root 0186 point 4);
+     - `who`, the line saying whom it serves;
+     - `offline`.
+
+     A client that ignores them still names the Environment by its kind and `label`.
+   - **Account-only fields:**
+     - `last`, the last Environment overall;
+     - `lastBySpace`, the last one per space;
+     - `favourites`, keyed by Organization slug, only for the requesting Environment's
+       Organization(s);
+     - `preferences.openApps`, either `tab` or `same` (S18). It is set only in the
+       Dashboard's account Settings, never through this namespace.
+
+   The machine's technical name never appears.
+3. **The Environment is known from the token, not from a header.** Each hosted
+   Environment's gateway signs in through its own client at the issuer. So the
+   Dashboard reads the requesting Environment from the verified token's `azp` and maps
+   client id → Environment in one place. An unknown `azp` is refused. A header could
+   be set by anyone holding the bearer token; `azp` is signed by the issuer. The
+   requesting Environment decides two things:
+   - which favourites are returned, filtered to what that Environment's GitHub identity
+     reaches: a Team's live grants on a Team Environment, the person's own access on
+     their own Environment;
+   - which `PUT last` is accepted, which must name an Environment in the person's live
+     list.
+4. **The scope is `lazurio-account`, replacing `lazurio-environments` in point 3
+   above.** The Dashboard accepts it only on these routes and refuses it everywhere
+   else, including any registration API. Its clients and audience follow DEV-6552's
+   path for first-party clients: the overlay names the client, Auth's renderer shapes
+   it, Machines applies it. There are no hand-made clients. Identity:
+   - The Dashboard maps the token's `sub` to the person by introspection of the linked
+     GitHub identity, never by an e-mail.
+   - It refuses a missing or colliding account and never creates one.
+   - It keys the stored state by its own user row, which survives a GitHub relink and
+     DEV-6552 S2.
+5. **The library and Apps.**
+   - The library merges `environments` as point 4 above says, and reports `PUT last`
+     once per full page load of Apps, Chat and Automate: fire and forget, silent on
+     failure. The report is a small module of its own in `src/shell`, separate from
+     the merge, and goes only through the same-origin namespace.
+   - Apps reads `favourites` and `preferences.openApps`, and the star writes `PUT` and
+     `DELETE`.
+   - Without the account document (an Environment before the rollout, or a refusal),
+     Apps keeps today's browser `localStorage` favourites and opens apps in a new tab.
+
+**Rollout.** A session that signed in before the gateway client requested
+`lazurio-account` carries no such scope until its next sign-in. Until then the rail
+and Apps fall back silently, exactly as without the account document.
+
+**Delivery, replacing the order above.**
+1. Dashboard: the account API, its token verifier (the shared module DEV-6552 S2
+   reuses), the stored state and the account setting; behind an unconfigured issuer it
+   refuses everything.
+2. DEV-6552 S1: the Dashboard's resource and introspection client, and the audience
+   mapper with the `lazurio-account` scope (Auth, Machines, infra).
+3. Machines: the relay of the namespace, in the gateway's executable proof (forged
+   `Authorization`, the allowlist, `no-store`, `401` not a redirect, the same-origin
+   rule for writes).
+4. Platform: the second document in `contract.ts`, the merge, `PUT last`, and the Apps
+   consumers.
