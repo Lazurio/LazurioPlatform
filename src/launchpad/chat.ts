@@ -2,6 +2,7 @@ import { join } from "node:path";
 import type { MachineEntry } from "../folder/machine-binding";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
+import { ownerAnswerMs } from "./owner-answer";
 
 // Chat into T3 Code (launchpad-parity B8, slice P7): what the resident
 // Launchpad does today (`R:launchpad/src/t3-chat-lib.mjs:56-90`), with every
@@ -116,6 +117,116 @@ export async function issueChatLink(
     kind: "chat-link",
     url: t3PairUrl(entry.t3codeOrigin, credential),
   });
+}
+
+// Whether Chat on this Environment takes a prepared prompt by link
+// (Lazurio/t3code#35): "+ Nový modul" then opens Chat with the prompt's id
+// in the link and copies nothing; otherwise the prompt goes to the clipboard
+// as before. The one honest source is the T3 Code installed here: the
+// Launchpad asks its own `t3` launcher for the version, as the pairing
+// does, and only a Lazurio fork release from the first one with the
+// hand-off on its channel says yes. Any failure, a vanilla upstream build or
+// an unknown shape is no, so the clipboard is the fallback, never the guess.
+
+/** The first releases of the Lazurio T3 Code fork whose Chat takes a
+ * prepared prompt by link, per channel (`X.Y.Z-lazurio.N` stable,
+ * `X.Y.Z-preview.YYYYMMDD.N` preview, the fork's release runbook). Set to the
+ * first release that carries Lazurio/t3code#35: stable `v0.0.45-lazurio.2`,
+ * released on 2026-10-04 from source 1e4cf23d, which contains the overlay of
+ * Lazurio/t3code#36. No preview has carried it yet; the first one will be dated
+ * 2026-10-04 or later. */
+export const chatPromptsSince = Object.freeze({
+  stable: "0.0.45-lazurio.2",
+  preview: "0.0.45-preview.20261004.1",
+});
+
+const forkVersion =
+  /^v?(\d{1,6})\.(\d{1,6})\.(\d{1,6})-(?:lazurio\.(\d{1,6})|preview\.(\d{8})\.(\d{1,6}))$/;
+
+function forkRelease(
+  version: string,
+): Readonly<{ channel: "stable" | "preview"; parts: number[] }> | null {
+  const match = forkVersion.exec(version);
+  if (match === null) return null;
+  const base = [match[1], match[2], match[3]].map(Number);
+  return match[4] !== undefined
+    ? { channel: "stable", parts: [...base, Number(match[4])] }
+    : {
+        channel: "preview",
+        parts: [...base, Number(match[5]), Number(match[6])],
+      };
+}
+
+/** Whether a T3 Code version is a Lazurio fork release whose Chat takes a
+ * prepared prompt by link: on its channel, not older than `chatPromptsSince`.
+ * A vanilla upstream version and any other shape are no. */
+export function chatTakesPromptsAt(version: string): boolean {
+  const release = forkRelease(version);
+  const since = release && forkRelease(chatPromptsSince[release.channel]);
+  if (release === null || since === null) return false;
+  for (const [index, part] of release.parts.entries()) {
+    const floor = since.parts[index] ?? 0;
+    if (part !== floor) return part > floor;
+  }
+  return true;
+}
+
+/** The version `t3 --version` prints (`t3 v0.0.45-lazurio.1`): its one token
+ * of a fork release's shape, or null. */
+export function t3Version(stdout: string): string | null {
+  const tokens = stdout
+    .split(/\s+/)
+    .filter(
+      (token) => forkVersion.test(token) || /^v?\d+\.\d+\.\d+$/.test(token),
+    );
+  return tokens.length === 1 ? (tokens[0] as string).replace(/^v/, "") : null;
+}
+
+/** Whether this Environment's Chat takes a prepared prompt by link, from
+ * `t3 --version` of the launcher on this process's PATH (the one the pairing
+ * runs). Kept as long as an Owner answer; one call at a time. */
+export function createChatPromptCheck(
+  environment: ToolsEnvironment,
+  now: () => number = Date.now,
+  cacheMs = ownerAnswerMs,
+) {
+  let known: Readonly<{ accepted: boolean; until: number }> | null = null;
+  let asking: Promise<boolean> | null = null;
+  async function ask(): Promise<boolean> {
+    const launcher = await resolveOnPath(
+      chatPairing.command,
+      environment.path,
+      environment.platform,
+    );
+    if (launcher === undefined || !environment.home) return false;
+    const env: Record<string, string> = { HOME: environment.home };
+    if (environment.path) env.PATH = environment.path;
+    try {
+      const result = await environment.run(
+        [launcher, "--version"],
+        chatPairing.timeoutMs,
+        env,
+      );
+      if (result === "timeout" || result.exitCode !== 0) return false;
+      const version = t3Version(result.stdout);
+      return version !== null && chatTakesPromptsAt(version);
+    } catch {
+      return false;
+    }
+  }
+  return {
+    async accepted(): Promise<boolean> {
+      if (known !== null && known.until > now()) return known.accepted;
+      asking ??= ask()
+        .catch(() => false)
+        .then((accepted) => {
+          known = { accepted, until: now() + cacheMs };
+          asking = null;
+          return accepted;
+        });
+      return asking;
+    },
+  };
 }
 
 /** Why `lazurio chat link` answers without a pairing: asked for the plain

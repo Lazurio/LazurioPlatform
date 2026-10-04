@@ -425,6 +425,8 @@ const en = {
   appsInfoRepository: "Repository information",
   appsNewModule: "New module",
   appsNewModuleSub: "You found it with an agent in Chat",
+  appsNewModuleOpened:
+    "Chat opens in a new tab with the new module's brief in the composer, not sent.",
   appsNewModuleCopied:
     "The new module's brief is in your clipboard: paste it into a new chat.",
   appsNewModuleCopyFailed:
@@ -1148,6 +1150,8 @@ const cs: Record<MessageKey, string> = {
   appsInfoRepository: "Informace o repozitáři",
   appsNewModule: "Nový modul",
   appsNewModuleSub: "Založíš ho s agentem v Chatu",
+  appsNewModuleOpened:
+    "Chat se otevírá v nové záložce se zadáním nového modulu v poli zprávy, neodeslaným.",
   appsNewModuleCopied:
     "Zadání nového modulu je ve schránce: vlož ho v Chatu do nového vlákna.",
   appsNewModuleCopyFailed:

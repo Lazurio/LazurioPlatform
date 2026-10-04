@@ -21,7 +21,9 @@ import { chatPairing, publicEntry, t3PairUrl } from "../src/launchpad/chat";
 import {
   chatHref,
   chatPairLink,
+  chatPromptHref,
   parseEntryAnswer,
+  parsePromptHandoff,
 } from "../src/launchpad/chat-view";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { startLaunchpad } from "../src/launchpad/server";
@@ -386,6 +388,45 @@ test("the page accepts only the entry's shape and a pairing link on the recorded
     }),
   ).toEqual(entry);
   expect(publicEntry(null)).toBeNull();
+});
+
+// "+ Nový modul" (Lazurio/t3code#35): the prompt by link, never its text.
+test("the link carries the prompt's id and the Organization's login in the fragment, on Chat's origin only", () => {
+  const origin = "https://t3code.workspace.example.lazurio.io";
+  const prompt = { id: "new-module", organization: "Example-Org" };
+  const token = "Pairing_Token-0123456789abcdef";
+  expect(chatPromptHref(`${origin}/pair#token=${token}`, origin, prompt)).toBe(
+    `${origin}/pair#token=${token}&lazurio-prompt=new-module&lazurio-org=Example-Org`,
+  );
+  // Without a pairing: Chat's plain origin, which asks to pair first.
+  expect(chatPromptHref(origin, origin, prompt)).toBe(
+    `${origin}/#lazurio-prompt=new-module&lazurio-org=Example-Org`,
+  );
+  // Never the text, and nothing in the query a server or log would see.
+  const href = new URL(
+    chatPromptHref(`${origin}/pair#token=${token}`, origin, prompt) ?? "",
+  );
+  expect(href.search).toBe("");
+  for (const [base, value] of [
+    ["https://t3code.other.lazurio.io/pair#token=x", prompt],
+    [`https://user@t3code.workspace.example.lazurio.io/`, prompt],
+    ["not a url", prompt],
+    [origin, { id: "New Module", organization: "Example-Org" }],
+    [origin, { id: "new-module", organization: "a/b" }],
+    [origin, { id: "new-module", organization: "-x" }],
+  ] as const)
+    expect(chatPromptHref(base, origin, value)).toBeNull();
+  expect(
+    parsePromptHandoff({ kind: "chat-prompt-handoff", accepted: true }),
+  ).toBe(true);
+  for (const value of [
+    { kind: "chat-prompt-handoff", accepted: false },
+    { kind: "chat-prompt-handoff", accepted: "true" },
+    { kind: "other", accepted: true },
+    null,
+    "yes",
+  ])
+    expect(parsePromptHandoff(value)).toBe(false);
 });
 
 test("the page's Chat entry is the switch at the top of the column (decision F36): outside every view, so it stands on every route, and no link in the markup", async () => {
