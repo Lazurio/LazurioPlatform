@@ -214,6 +214,7 @@ details[open].technical > summary::before, details[open].row-details > summary::
 details.technical > summary:hover, details.row-details > summary:hover { color: var(--fg); }
 details.technical { padding: 0 4px; }
 details.technical pre { margin: 0.5rem 0 0; }
+details.technical > dl.card { margin-top: 0.5rem; }
 pre { max-height: 20rem; overflow: auto; margin: 0; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--muted); color: var(--muted-fg); white-space: pre-wrap; overflow-wrap: anywhere; }
 pre:empty { display: none; }
 
@@ -597,6 +598,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <div class="card" id="content-list"></div>
 </section>
 <dl id="machine" class="card"></dl>
+<details class="technical" id="machine-support" hidden><summary data-message="machineSupport">For support</summary><dl id="machine-support-list" class="card"></dl></details>
 </section>
 
 <section id="tools" data-section="tools" aria-labelledby="page-heading" hidden>

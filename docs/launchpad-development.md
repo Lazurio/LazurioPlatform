@@ -599,7 +599,7 @@ the frame.
 | Environment profile: Workspace preset, Language, Detail, Coordination, Preview, Apply previewed change, the status line | Settings → General, one group of rows; Preview and Apply in its last row |
 | Reload profile | Settings → General, page action in the header |
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
-| This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"), one row per recorded fact |
+| This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"): "Obsah Environmentu", then the kind, whom it belongs to and who works in it in a person's words, the recorded technical facts folded under "Pro podporu" (root decision 0188) |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
 | Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
@@ -1401,9 +1401,10 @@ status" (with them again), and shows:
   nezjišťovalo", or "Ještě není přidané" when it is not installed. The installed
   version, a failed version check, a PATH outside the standard and whether gh's SSH key
   is linked are in its Details; only a key that is not linked stays on the line, in
-  the warning colour. On the right the one action ("Připojit" / "Connect", which
-  installs first when needed, "Link SSH key" before "Odpojit" / "Disconnect", or, for a
-  tool an agent sets up, "Set up with an agent") and the switch with its visible label
+  the warning colour. On the right the one action ("Připojit" / "Connect"; "Přidat a
+  připojit" / "Add and connect" when it is not installed yet; "Link SSH key" before
+  "Odpojit" / "Disconnect"; or, for a tool an agent sets up, "Připojit s pomocí agenta" /
+  "Connect with an agent") and the switch with its visible label
   "Used by agents" / "Používají agenti" ("Always on" for a required tool). A signed-in
   gh whose key is not linked shows "Link SSH key" as the row's primary action. A
   sign-in completed in this Launchpad session turns the switch on (`autoEnable`, Matěj
@@ -1648,8 +1649,16 @@ of it.
   until the account holds them. An Environment already usable at first sight (GitHub
   connected, its content here or nothing to prepare) starts with the tour done, so a
   workstation, whose loopback origin changes with every start, does not repeat it.
-- **Obsah Environmentu** (`content-panel.ts`) in Settings → Tento Environment, above the
-  recorded facts (whose introduction is gone): a row per item of `GET /api/content`
+- **Tento Environment** says what a person needs (`environmentFacts` in
+  `machine-view.ts`, the wireframe's `ThisEnvironment`): "Druh" ("Osobní Remote
+  Environment", "Pracovní Remote Environment", "Týmový Remote Environment",
+  "Automatizovaný Environment", "Tvůj počítač"), "Patří" ("tobě (@login)" or the
+  Organization's name) and "Pracuje v něm" ("jen ty", "@assignee", "Team …",
+  "automatizace, odpovídá @…"); the technical name and kind, the owner and assignment as
+  recorded, the tailnet node, the host and the relationships are folded under "Pro
+  podporu". A workstation says only "Tvůj počítač". No introduction.
+- **Obsah Environmentu** (`content-panel.ts`) in Settings → Tento Environment, above
+  those facts: a row per item of `GET /api/content`
   (the personal Environment holds the Personalspace, a work one its Organization, a
   workstation both; the content routes decide), the one action ("Stáhnout",
   "Připravit", "Stáhnout vše", "Zkusit znovu"; disabled with "Nejdřív připoj GitHub v

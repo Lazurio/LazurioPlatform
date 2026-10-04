@@ -657,4 +657,7 @@ test("Nástroje: one plain sentence per tool, connected or not, the version in i
   expect(loginTitle("wacli", "login", cs)).toBe("Připojit wacli");
   expect(cs.toolsSignInAction).toBe("Připojit");
   expect(cs.toolsSignOutAction).toBe("Odpojit");
+  // Not added yet, and set up by an agent (the wireframe's labels).
+  expect(cs.toolsInstallAction).toBe("Přidat a připojit");
+  expect(cs.toolsAgentAction).toBe("Připojit s pomocí agenta");
 });

@@ -31,7 +31,7 @@ import {
   startSection,
   type TourFacts,
 } from "./first-run";
-import { type AssignmentView, assignmentText } from "./machine-view";
+import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
@@ -55,6 +55,11 @@ const apply = document.querySelector<HTMLButtonElement>("#apply");
 const status = document.querySelector<HTMLParagraphElement>("#status");
 const result = document.querySelector<HTMLPreElement>("#result");
 const machine = document.querySelector<HTMLDListElement>("#machine");
+const machineSupport =
+  document.querySelector<HTMLDetailsElement>("#machine-support");
+const machineSupportList = document.querySelector<HTMLDListElement>(
+  "#machine-support-list",
+);
 const presetSelect = document.querySelector<HTMLSelectElement>("#preset");
 const presetSelection =
   document.querySelector<HTMLSpanElement>("#preset-selection");
@@ -66,7 +71,9 @@ if (
   !result ||
   !machine ||
   !presetSelect ||
-  !presetSelection
+  !presetSelection ||
+  !machineSupport ||
+  !machineSupportList
 )
   throw new Error("Missing UI");
 const controls = {
@@ -78,6 +85,8 @@ const controls = {
   machine,
   presetSelect,
   presetSelection,
+  machineSupport,
+  machineSupportList,
 };
 let locale: "cs" | "en" = "en";
 let copy = messages(locale);
@@ -120,6 +129,7 @@ async function readShell() {
     // The rail stays empty; the page itself works without it.
   } finally {
     shellRead = true;
+    drawMachine();
     firstRun();
   }
 }
@@ -136,7 +146,10 @@ const catalog = createCatalogPanel({
   copy: () => copy,
   route: () => shell.route(),
   navigate: (path) => shell.navigate(path),
-  loaded: () => shell.relabel(),
+  loaded: () => {
+    shell.relabel();
+    drawMachine();
+  },
   entry: () => entry,
   avatar: (slug) =>
     shellDocument?.organizations.find(
@@ -440,35 +453,12 @@ if (pendingStart !== null) {
     shell.navigate(settingsPath(section));
 }
 
-type MachinePeer = {
-  name: string;
-  kind: string;
-  zone: string | null;
-  organization: string | null;
-  ssh: { host: string; user: string | null; direction: string } | null;
-  https: string[];
-};
-type MachineBinding = {
-  kind: string;
-  name: string;
-  owner:
-    | { kind: "principal"; githubLogin: string; githubId: number }
-    | {
-        kind: "organization";
-        organization: string;
-        team: string | null;
-        assignment?: AssignmentView;
-      };
-  network: { headscaleHostname: string } | null;
-  host: { kind: string; id: string };
-  relationships?: { zone: string; peers: MachinePeer[] };
-};
 let current: {
   revision: number;
   preset: { name: string; version: number; selection: string };
   // The presets a change may end on: the recorded one and the new choices.
   allowedPresets: string[];
-  machine: MachineBinding | null;
+  machine: MachineView | null;
   profile: Record<string, string>;
 };
 let pending: {
@@ -483,58 +473,52 @@ const presetLabels: Record<string, MessageKey> = {
   "hosted-organization-team": "presetHostedOrganizationTeam",
   "hosted-organization-steward": "presetHostedOrganizationSteward",
 };
-// One compact read-only line per recorded peer, in the handover's own words.
-function peerText(peer: MachinePeer): string {
-  const who = [peer.kind, peer.zone, peer.organization]
-    .filter((part) => part !== null)
-    .join(", ");
-  const ssh =
-    peer.ssh === null
-      ? copy.machineNoSsh
-      : `SSH ${peer.ssh.direction} ${peer.ssh.user === null ? "" : `${peer.ssh.user}@`}${peer.ssh.host}`;
-  const https =
-    peer.https.length === 0
-      ? copy.machineNoHttps
-      : `HTTPS ${peer.https.join(", ")}`;
-  return `${peer.name} (${who}): ${ssh}; ${https}`;
+// Settings → Tento Environment (root decision 0188): what a person needs in
+// view, the recorded technical facts folded under "Pro podporu"; rendered as
+// text only, never as editable controls. Drawn again once the catalog (an
+// Organization's name) or the shell document (a Team's name) is read.
+function factRows(facts: readonly Fact[]): HTMLElement[] {
+  return facts.map(([label, value]) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    const main = document.createElement("div");
+    main.className = "row-main";
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const detail = document.createElement("dd");
+    if (typeof value === "string") detail.textContent = value;
+    else {
+      const list = document.createElement("ul");
+      list.replaceChildren(
+        ...value.map((line) => {
+          const item = document.createElement("li");
+          item.textContent = line;
+          return item;
+        }),
+      );
+      detail.replaceChildren(list);
+    }
+    main.append(term, detail);
+    row.append(main);
+    return row;
+  });
 }
-// The immutable part: rendered as text only, never as editable controls.
-function machineRows(
-  binding: MachineBinding | null,
-): [MessageKey, string | string[]][] {
-  if (binding === null) return [["machineKind", copy.machineWorkstation]];
-  const owner =
-    binding.owner.kind === "principal"
-      ? `${binding.owner.githubLogin} (GitHub id ${binding.owner.githubId})`
-      : binding.owner.organization;
-  const assignment =
-    binding.owner.kind === "organization" &&
-    binding.owner.assignment !== undefined
-      ? assignmentText(binding.owner.assignment, copy)
-      : null;
-  return [
-    ["machineKind", binding.kind],
-    ["machineName", binding.name],
-    ["machineOwner", owner],
-    ...(binding.owner.kind === "organization" && binding.owner.team !== null
-      ? ([["machineTeam", binding.owner.team]] as [MessageKey, string][])
-      : []),
-    ...(assignment === null
-      ? []
-      : ([["machineAssignment", assignment]] as [MessageKey, string][])),
-    ["machineTailnet", binding.network?.headscaleHostname ?? copy.machineNone],
-    ["machineHost", `${binding.host.kind} ${binding.host.id}`],
-    ...(binding.relationships === undefined
-      ? []
-      : ([
-          [
-            "machineRelationships",
-            binding.relationships.peers.length === 0
-              ? copy.machineNoPeers
-              : binding.relationships.peers.map(peerText),
-          ],
-        ] as [MessageKey, string | string[]][])),
-  ];
+function drawMachine() {
+  if (!loaded) return;
+  const environment =
+    shellDocument === null ? null : currentEnvironment(shellDocument);
+  const { facts, support } = environmentFacts(
+    {
+      preset: current.preset.name,
+      machine: current.machine,
+      organization: (login) => catalog.organizationName(login),
+      team: environment?.kind === "team" ? environment.label : null,
+    },
+    copy,
+  );
+  controls.machine.replaceChildren(...factRows(facts));
+  controls.machineSupport.hidden = support.length === 0;
+  controls.machineSupportList.replaceChildren(...factRows(support));
 }
 // Local: the fragment token is the credential. Hosted (no token): the
 // gateway's session cookie is, sent by the browser itself; a denial means the
@@ -626,34 +610,7 @@ async function load() {
   relabel();
   catalog.render();
   void readShell();
-  // One settings row per recorded fact: the name on the left, the value on
-  // the right.
-  controls.machine.replaceChildren(
-    ...machineRows(current.machine).map(([key, value]) => {
-      const row = document.createElement("div");
-      row.className = "row";
-      const main = document.createElement("div");
-      main.className = "row-main";
-      const term = document.createElement("dt");
-      term.textContent = copy[key];
-      const detail = document.createElement("dd");
-      if (typeof value === "string") detail.textContent = value;
-      else {
-        const list = document.createElement("ul");
-        list.replaceChildren(
-          ...value.map((line) => {
-            const item = document.createElement("li");
-            item.textContent = line;
-            return item;
-          }),
-        );
-        detail.replaceChildren(list);
-      }
-      main.append(term, detail);
-      row.append(main);
-      return row;
-    }),
-  );
+  drawMachine();
   controls.presetSelect.replaceChildren(
     ...current.allowedPresets.map(
       (name) =>

@@ -1300,6 +1300,17 @@ export function createCatalogPanel(
     },
     /** A short message at the foot of the page. */
     say,
+    /** The display name of the Organization of the Folder bound to a
+     * GitHub login (or of that slug), once the catalog knows it. */
+    organizationName(login: string): string | null {
+      const key = login.toLowerCase();
+      const found = catalog?.organizations.find(
+        (organization) =>
+          organization.forgeLogin?.toLowerCase() === key ||
+          organization.organization?.toLowerCase() === key,
+      );
+      return found === undefined ? null : organizationName(found);
+    },
     /** How many modules an Organization of the Folder has, by the GitHub
      * login its manifest binds it to; null when the Folder has none such. */
     modulesOf(login: string): number | null {
