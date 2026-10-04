@@ -3812,7 +3812,7 @@ and only `shell.json` needs another way, before the cookie change ships.
 
 **Addendum 2026-10-04, evening, decided by Matěj with Anička (plan DEV-6639): the
 shell takes the colours of the app it sits in.** Root decision 0187
-(`HumanAndMachines/Lazurio`, being written) records the direction; the accepted
+(`HumanAndMachines/Lazurio#489`) records the direction; the accepted
 wireframe is `HumanAndMachine-ai/prototypes-lazurio` 5411279 (`shell-theme.css`). This
 amends point 6, where the rail and the switch took every colour from the design
 system's tokens, and answers the target shell's open question whether the switch takes
