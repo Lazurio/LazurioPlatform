@@ -116,7 +116,7 @@ exports[`rendered AGENTS.md snapshot: hosted-personal / cs 1`] = `
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
-- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
 Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this-machine.md\`. Uvedený nástroj je kontext: neuděluje přístup, nic neinstaluje a nepinuje verzi.
 - \`gh\` (povinný): GitHub CLI pro práci s repozitáři, pull requesty, issues a review.
@@ -164,7 +164,7 @@ exports[`rendered AGENTS.md snapshot: hosted-personal / en 1`] = `
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
@@ -212,7 +212,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-personal / cs 1`] = `
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
-- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
 Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this-machine.md\`. Uvedený nástroj je kontext: neuděluje přístup, nic neinstaluje a nepinuje verzi.
 - \`gh\` (povinný): GitHub CLI pro práci s repozitáři, pull requesty, issues a review.
@@ -260,7 +260,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-personal / en 1`] = `
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
@@ -308,7 +308,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-team / cs 1`] = `
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
-- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
 Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this-machine.md\`. Uvedený nástroj je kontext: neuděluje přístup, nic neinstaluje a nepinuje verzi.
 - \`gh\` (povinný): GitHub CLI pro práci s repozitáři, pull requesty, issues a review.
@@ -357,7 +357,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-team / en 1`] = `
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
@@ -411,7 +411,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-steward / cs 1`] = `
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
 - SSH na jiný Environment nebo zařízení jen na jeho tailnet hostname, s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu \`100.64.0.x\` (\`manual/this-machine.md\`).
-- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nástroje
 Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this-machine.md\`. Uvedený nástroj je kontext: neuděluje přístup, nic neinstaluje a nepinuje verzi.
 - \`gh\` (povinný): GitHub CLI pro práci s repozitáři, pull requesty, issues a review.
@@ -464,7 +464,7 @@ exports[`rendered AGENTS.md snapshot: hosted-organization-steward / en 1`] = `
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
@@ -516,7 +516,7 @@ Tailnet peers as the handover records them (this Environment is in the personal 
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- The Operator connects here over SSH. Only ChatGPT Desktop's built-in browser opens \`localhost\` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- The Operator connects here over SSH. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) opens \`localhost\` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
@@ -565,7 +565,7 @@ exports[`the Assignment line renders the handover's owner.assignment and nothing
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
@@ -614,7 +614,7 @@ exports[`the Assignment line renders the handover's owner.assignment and nothing
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
@@ -663,7 +663,7 @@ exports[`the Owner line names the Team only under hosted-organization-team 1`] =
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 - SSH to another Environment or device only to its tailnet hostname, with a pinned host key and after verifying the active tailnet, never to a bare \`100.64.0.x\` address (\`manual/this-machine.md\`).
-- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
+- \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Tools
 Use these CLIs of the Lazurio catalog first, as \`manual/this-machine.md\` describes them. A listed tool is context: it grants no access, installs nothing and pins no version.
 - \`gh\` (required): GitHub CLI for work with repositories, pull requests, issues and reviews.
