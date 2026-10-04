@@ -54,8 +54,9 @@ export type InstallRequest = Readonly<{
    * the Folder does not hold yet, by lowercase GitHub login (the CLI's
    * `--root`). */
   roots?: Readonly<Record<string, string>> | undefined;
-  /** The role the operator asserts in an Organization, by lowercase GitHub
-   * login (the CLI's `--role`); absent, the role is resolved live. Either
+  /** The role the caller asks for in an Organization, by lowercase GitHub
+   * login: `admin` for the CLI's bare form, `builder` or `steward` for its
+   * `--role`; absent (the Launchpad), the role is resolved live. Either
    * way GitHub must confirm it. */
   roles?: Readonly<Record<string, OrganizationRole>> | undefined;
 }>;

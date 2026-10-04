@@ -73,9 +73,11 @@ const verified = (role: OrganizationRole): RoleVerification =>
     restricted: role === "admin" ? "include" : "exclude",
   });
 
-/** The role GitHub confirms now. `requested` is the role the operator
- * asserts (`--role`), or null to resolve it live (the Launchpad, the CLI
- * without `--role`): Admin by an active Owner membership, Steward by
+/** The role GitHub confirms now. `requested` is the role the caller asks
+ * for — `admin` for the CLI's bare `organization install <login>` (the
+ * resident's Admin installation), `builder` or `steward` for its `--role` —
+ * or null to resolve it live (the Launchpad picks the form from the live
+ * role): Admin by an active Owner membership, Steward by
  * `maintain` on the root repository (the Steward's grant), Builder by
  * `write` on it (the resident's Builder gate reads WRITE). An asserted role
  * GitHub does not confirm, and a live resolution that finds none of them,

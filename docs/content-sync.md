@@ -169,11 +169,15 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    **Admin** by an active Owner membership (`GET /user/memberships/orgs/<org>`, role
    `admin`, as `organization-owner.ts` reads it), **Steward** by `maintain` on the root
    repository (the Steward's grant, as `module-maintainer.ts` reads it), **Builder** by
-   `write` on it (the resident's Builder gate reads WRITE). `--role` asserts a role (an
-   Admin may choose a narrower one); without it, and always in the Launchpad, the role
-   is resolved live in that order. A role GitHub does not confirm, or none of the
-   three, fails closed with `role-unverified`. Only a verified Admin gets the full
-   installation; the role decides scope only, never access, and nothing is recorded.
+   `write` on it (the resident's Builder gate reads WRITE). The CLI matches the
+   resident exactly: `lazurio organization install <login>` is the Admin installation
+   (the full one) and runs only for a verified Admin; `lazurio organization install
+   <login> --role builder|steward` is the role-scoped one (an Admin may choose it too);
+   `--role admin` does not exist. The Launchpad picks the form from the live role, in
+   the order Admin, Steward, Builder. A role GitHub does not confirm, the bare form for
+   anyone but a verified Admin, or a live resolution that finds none of the three fails
+   closed with `role-unverified`. The role decides scope only, never access, and
+   nothing is recorded.
 2. **root** — present in the Folder (an Organization of the catalog whose canonical
    manifest binds the login): taken as it is. Absent: cloned into a temporary sibling
    `organizations/.<name>.lazurio-content-<random>/checkout`, verified (the `origin`
@@ -249,7 +253,7 @@ read (status, catalog) removes anything.
 
 ### Surfaces
 
-- `lazurio organization install <github-login> [--role admin|steward|builder] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
+- `lazurio organization install <github-login> [--role builder|steward] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
   and `lazurio personalspace install [--folder <Folder>] [--json]`: one line per step
   event (`{"kind":"content-step","item":…,"key":…,"state":…,"detail"?,"code"?}` with
   `--json`), then the result (`{"kind":"content-install","state":…,"items":[…],"failure"?}`).

@@ -482,8 +482,10 @@ Contract and details: [content synchronization, Installation](content-sync.md#in
    the root repository) or Builder (`write` on it) gets everything except the
    restricted (Admin-only) slots and the slots below them, `excluded_by_role_scope`
    without any provider operation; a role GitHub does not confirm fails closed
-   (`role-unverified`) before anything is cloned. The CLI takes `--role
-   admin|steward|builder`; the Launchpad resolves the role live.
+   (`role-unverified`) before anything is cloned. The CLI matches the resident: the
+   bare `lazurio organization install <login>` is the Admin installation and fails
+   closed for anyone but a verified Admin; `--role builder|steward` is the scoped
+   one; there is no `--role admin`. The Launchpad picks the form from the live role.
 5. **The Personalspace** is `<login>/<login>_GEN3` in `personalspace/<login>_GEN3`
    (the resident's naming). Existing on GitHub (private, the account's own): cloned
    only. Missing: created from `Lazurio/PersonalspaceTemplate_GEN3` as a private

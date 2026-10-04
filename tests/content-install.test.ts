@@ -365,7 +365,7 @@ posixTest(
     world = await createWorld();
     await alphaRemotes(world);
     for (const [membership, permission, roles] of [
-      // Asserted Admin, but only a member.
+      // The Admin form (the CLI without --role), but only a member.
       [
         { kind: "member", state: "active", role: "member" },
         "admin",
@@ -381,7 +381,7 @@ posixTest(
       [{ kind: "none" }, "write", { alpha: "steward" }],
       // Asserted Builder with read only.
       [{ kind: "none" }, "read", { alpha: "builder" }],
-      // Resolved live: neither an Owner nor write (an Organization User).
+      // Resolved live (the Launchpad): neither an Owner nor write.
       [{ kind: "member", state: "active", role: "member" }, "read", undefined],
       // Resolved live while GitHub does not answer the membership.
       [{ kind: "unavailable" }, "read", undefined],

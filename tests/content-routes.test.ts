@@ -2,6 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { ContentUsageError, runContentCommand } from "../src/content/cli";
 import type { ContentHost } from "../src/content/host";
+import { installContent } from "../src/content/install";
 import { tryContentLock } from "../src/content/lock";
 import { parseInstallBody } from "../src/launchpad/content-routes";
 import { startLaunchpad } from "../src/launchpad/server";
@@ -275,6 +276,69 @@ posixTest(
 );
 
 posixTest(
+  "the Launchpad picks the install's form from the person's live role",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world);
+    const folder = await presetFolder(world, "local");
+    // The Folder already holds the Organization (installed by an Admin).
+    const owner = stubGitHub(world, {
+      repositories: {
+        "Alpha/alpha_GEN3": {},
+        "Alpha/web": {},
+        "Alpha/mission-control": {},
+        "Alpha/firmware": {},
+      },
+    });
+    await installContent(
+      folder,
+      {
+        items: [{ kind: "organization", login: "Alpha" }],
+        roots: { alpha: "Alpha/alpha_GEN3" },
+      },
+      () => {},
+      contentHost(world, owner.github),
+    );
+    // In the Launchpad, gh works as a member with write on the root: the
+    // live role is Builder, and the install is scoped to it.
+    const builder = stubGitHub(world, {
+      repositories: {
+        "Alpha/alpha_GEN3": { permission: "write" },
+        "Alpha/web": {},
+        "Alpha/mission-control": {},
+        "Alpha/firmware": {},
+      },
+      membership: { kind: "member", state: "active", role: "member" },
+    });
+    const { get, post } = await launchpad(
+      folder,
+      contentHost(world, builder.github),
+    );
+    const started = await post("/api/content/install", {
+      items: [{ kind: "organization", login: "Alpha" }],
+    });
+    expect(started.status).toBe(202);
+    const { job } = (await started.json()) as { job: string };
+    const ended = (await untilEnded(get, job)) as {
+      state: string;
+      steps: { key: string; state: string; detail?: string }[];
+    };
+    expect(ended.state).toBe("succeeded");
+    expect(ended.steps.find((step) => step.key === "access")?.detail).toBe(
+      "as example (builder, restricted slots excluded); root Alpha/alpha_GEN3",
+    );
+    expect(
+      builder.calls.some(
+        (call) =>
+          call.kind === "repository" &&
+          call.args.join("/").toLowerCase().startsWith("alpha/secret"),
+      ),
+    ).toBe(false);
+  },
+  60_000,
+);
+
+posixTest(
   "the Launchpad's content routes need the Launchpad's admission",
   async () => {
     world = await createWorld();
@@ -403,6 +467,42 @@ posixTest(
       ).result,
     ).toBe("excluded_by_role_scope");
 
+    // The bare form is the Admin installation: for an account GitHub does
+    // not confirm as an Owner it fails closed (exit 1), even with write.
+    const member = stubGitHub(world, {
+      repositories: { "Alpha/alpha_GEN3": { permission: "write" } },
+      membership: { kind: "member", state: "active", role: "member" },
+    });
+    const bare: string[] = [];
+    expect(
+      await runContentCommand(
+        ["organization", "install", "Alpha", "--folder", folder, "--json"],
+        cliContext(world.home),
+        (line) => bare.push(line),
+        () => contentHost(world as World, member.github),
+      ),
+    ).toBe(1);
+    expect(JSON.parse(bare.at(-1) as string).failure.code).toBe(
+      "role-unverified",
+    );
+    // The same account with --role builder: confirmed by write.
+    expect(
+      await runContentCommand(
+        [
+          "organization",
+          "install",
+          "Alpha",
+          "--role",
+          "builder",
+          "--folder",
+          folder,
+        ],
+        cliContext(world.home),
+        () => {},
+        () => contentHost(world as World, member.github),
+      ),
+    ).toBe(0);
+
     // Without --root the open decision fails the run (exit 1), with its code.
     const second: string[] = [];
     expect(
@@ -451,6 +551,8 @@ posixTest(
       ["personalspace", "install", "--root", "Alpha/alpha_GEN3"],
       ["personalspace", "install", "--role", "admin"],
       ["organization", "install", "Alpha", "--role", "owner"],
+      // As the resident CLI: an Admin installs without --role.
+      ["organization", "install", "Alpha", "--role", "admin"],
       ["personalspace", "install", "--folder", "relative/Folder"],
     ])
       await expect(
