@@ -299,7 +299,7 @@ test.skipIf(process.platform === "win32")(
       expect(html).not.toContain('name="access"');
       expect(html).not.toContain(url.hash.slice(1));
       // The catalog home is the page; the developer form is gone from it.
-      expect(html).toContain('id="catalog-tree"');
+      expect(html).toContain('id="catalog-body"');
       expect(html).not.toContain('id="application"');
       expect(html).not.toContain("Development fixture only");
       // Every settings and catalog route serves the same page and nothing

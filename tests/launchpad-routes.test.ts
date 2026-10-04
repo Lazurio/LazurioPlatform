@@ -41,12 +41,16 @@ test("a path names the view and the settings section; the canonical path is one"
       section,
     });
   expect(routePath({ view: "home" })).toBe("/");
+  // The Marketplace at the foot of the Apps column (F36 addendum).
+  expect(pageRoute("/marketplace/")).toEqual({ view: "marketplace" });
+  expect(routePath({ view: "marketplace" })).toBe("/marketplace");
   expect(pagePaths).toEqual([
     "/",
     "/o/:organization",
     "/o/:organization/:module",
     "/files",
     "/files/*",
+    "/marketplace",
     "/settings",
     "/settings/general",
     "/settings/machine",

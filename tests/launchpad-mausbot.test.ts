@@ -481,7 +481,7 @@ test("the page's MausBot entry is Automate in the switch next to Chat (decision 
     "utf8",
   );
   expect(html).toContain(
-    '<lazurio-column-head id="column-head" active="apps">',
+    '<lazurio-column-head id="column-head" active="apps" settings="/settings/general">',
   );
   expect(html).not.toContain('id="mausbot"');
   expect(html).not.toContain('href="http');

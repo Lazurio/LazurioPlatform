@@ -393,9 +393,10 @@ test("the page's Chat entry is the switch at the top of the column (decision F36
     join(import.meta.dir, "..", "src", "launchpad", "index.html"),
     "utf8",
   );
-  const head = /<lazurio-column-head id="column-head" active="apps">/.exec(
-    html,
-  );
+  const head =
+    /<lazurio-column-head id="column-head" active="apps" settings="\/settings\/general">/.exec(
+      html,
+    );
   expect(head).not.toBeNull();
   // Not inside a view-specific part of the column: the same switch on the
   // home, an Organization, a module, Files and Settings.

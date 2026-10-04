@@ -169,35 +169,45 @@ was settled by F32's addenda: the read-only `repositories`; `infra` is not liste
 
 ## The shell as built (decision F36)
 
-The first cut of the [target shell](#target-shell), DEV-6639; [decision
+The [target shell](#target-shell) as built, DEV-6639: [decision
 F36](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)
-records what is functional and what is a facade until its source exists.
+and its addendum of 2026-10-04, the Organization rail of the wireframe at
+prototypes-lazurio 1cbad15. Where the target shell above still describes a rail of
+Environments, folders and a gear in the rail, the addendum supersedes it.
 
 - **Library.** `src/shell/`: `contract.ts` (`lazurio.shell.v1` and its parser),
-  `view.ts` (the rail, the switch and the jump list as pure functions), `elements.ts`
-  (`<lazurio-rail>`, `<lazurio-column-head>`), `styles.ts` (the vendored tokens on
-  `:host`), `fonts.ts`, `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
-  (tokens, logo and fonts with their hashes). Tests: `tests/shell.test.ts`,
-  `tests/launchpad-shell-routes.test.ts`, `tests/apps-view.test.ts`.
-- **Routes.** `/.lazurio/shell.js` and `/.lazurio/fonts/<file>` beside the page's
-  routes (`src/launchpad/page.ts`); `/.lazurio/shell.json` in the server after
-  admission (`src/launchpad/server.ts`, producer `shell-document.ts`).
-- **Page.** `index.html` is rail | column | main. The Apps column and home are
-  `catalog-panel.ts` over `apps-view.ts`, the frame is `shell.ts` and the switch's
-  pairing is in `ui.ts`. Settings, Tools, Recovery and Files keep their panels in the
-  new frame and look. A module's name, line and stone come from its default app's
-  declaration (title, description, `icon`, tags), carried by the catalog as display-only
-  `display`; the stone falls back by the root Launchpad's org-agnostic semantic key
-  (`src/shell/stones.ts`), and the Module's own manifest stays the authority. The
-  sections below that speak of the sidebar, its footer, the
-  top bar, T3 Code's colours or Chat and MausBot as sidebar links describe the build
-  before F36.
+  `view.ts` (the rail's spaces, the Environment picker's list, names and who lines, the
+  switch, as pure functions), `elements.ts` (`<lazurio-rail>`, `<lazurio-column-head>`),
+  `styles.ts` (the vendored tokens on `:host`, the design system's selection rule),
+  `stones.ts`, `fonts.ts`, `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
+  (tokens, logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
+  `tests/launchpad-shell-routes.test.ts`, `tests/apps-view.test.ts`,
+  `tests/organization-owner.test.ts`.
+- **Routes.** `/.lazurio/shell.js`, `/.lazurio/fonts/<file>` and
+  `/.lazurio/stones/<file>` beside the page's routes (`src/launchpad/page.ts`);
+  `/.lazurio/shell.json` and `/api/organizations/<org>/owner` in the server after
+  admission (`src/launchpad/server.ts`, producer `shell-document.ts`, the Owner
+  answer `organization-owner.ts`).
+- **Page.** `index.html` is rail | column | main. The Apps column (all modules, Files,
+  favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
+  `favorites.ts`, the frame is `shell.ts`, and the switch's pairing and the new
+  module's hand-over to Chat are in `ui.ts`. A module's name, line and stone come from
+  its default app's declaration (title, description, `icon`, tags), carried by the
+  catalog as display-only `display`; the stone falls back by the root Launchpad's
+  org-agnostic semantic key, and the Module's own manifest stays the authority.
+  Favourites live in the browser per Organization. Settings, Tools, Recovery and Files
+  keep their panels. The sections below that speak of the sidebar, its footer, the top
+  bar, T3 Code's colours or Chat and MausBot as sidebar links describe the build before
+  F36.
 - **Preview.** A temporary fixture Folder, never a live one: `bun
-  scripts/preview-launchpad.ts local|hosted cs|en <port>` writes an Organization with root-level and workspace modules in Workspace, two production repositories in Productionspace and an `infra` that is not listed, a synthetic home for Files
-  and Tools, and with `hosted` a recorded entry plus a loopback proxy that adds the
-  gateway's Host and cookie. Screenshots come from Chrome through playwright-core.
+  scripts/preview-launchpad.ts local|hosted cs|en <port>` writes an Organization with
+  root-level and workspace modules in Workspace, two production repositories in
+  Productionspace and an `infra` that is not listed, a synthetic home for Files and
+  Tools whose `gh` answers the Owner question for the example Organization, and with
+  `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
+  cookie. Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
-  and `/.lazurio/`".
+  and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 
 ## Settings: structure, routes and the T3 Code pattern
 
@@ -282,7 +292,7 @@ Escape does not leave Settings from a form field, so an unsaved note is not left
 behind by a stray key. T3 Code's settings search, `/` shortcut, resizable sidebar and
 per-row reset are not built: the page has three sections and no defaults to reset to.
 The General settings keep the explicit Preview → Apply of a Folder change instead of
-T3 Code's immediate apply. Icons are Lucide (ISC), inlined as SVG symbols.
+T3 Code's immediate apply. Icons are Iconoir (MIT), the design system's interface set, inlined as SVG symbols (Lucide before decision F36's addendum of 2026-10-04).
 
 ## Launchpad home: the catalog
 
