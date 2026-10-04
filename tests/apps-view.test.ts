@@ -4,8 +4,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   appsScope,
+  appsScopes,
   appsSections,
   favoriteTiles,
+  moduleAccessTarget,
+  moduleAccessUrl,
   moduleDescription,
   moduleName,
   moduleStone,
@@ -304,6 +307,98 @@ test("favourites: first in their section in the column's order, in the column on
       ["c", "x", "a"],
     ).map((item) => item.key),
   ).toEqual(["c", "a", "b"]);
+});
+
+test("Přístup k modulu: the module in its Organization's Dashboard, for its Owners and Stewards only", () => {
+  const bound = organization("example", [...example.modules], {
+    forgeLogin: "Example-Org",
+    repositories: example.repositories,
+  });
+  const boundCatalog: Catalog = {
+    kind: "catalog",
+    organizations: [bound],
+    personalspace: organization("personalspace", [module("diary")], {
+      directory: "personalspace",
+    }),
+  };
+  const group = appsScope(boundCatalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  const [workspace, productionspace] = appsSections(
+    boundCatalog,
+    group,
+    cs,
+    entry,
+  );
+  const deals = workspace?.tiles.find((tile) => tile.key === "m:deals");
+  const firmware = productionspace?.tiles[0];
+  if (deals === undefined || firmware === undefined)
+    throw new Error("The fixture has a module and a repository");
+  const dashboard = (slug: string) =>
+    slug === "example" ? "https://dashboard.lazurio.ai/orgs/example" : null;
+  const target =
+    "https://dashboard.lazurio.ai/orgs/example/settings?tab=modules&module=deals";
+  // An Owner and a Steward; GitHub's answers, false until they come.
+  expect(
+    moduleAccessTarget(deals, group, dashboard, {
+      owner: true,
+      maintainer: false,
+    }),
+  ).toBe(target);
+  expect(
+    moduleAccessTarget(deals, group, dashboard, {
+      owner: false,
+      maintainer: true,
+    }),
+  ).toBe(target);
+  const both = { owner: true, maintainer: true };
+  expect(
+    moduleAccessTarget(deals, group, dashboard, {
+      owner: false,
+      maintainer: false,
+    }),
+  ).toBeNull();
+  // Never a production repository, never without the Dashboard page, never
+  // an Organization bound to no GitHub login, never the Personalspace group.
+  expect(moduleAccessTarget(firmware, group, dashboard, both)).toBeNull();
+  expect(moduleAccessTarget(deals, group, () => null, both)).toBeNull();
+  const unbound = appsScope(catalog, { view: "home" }, cs);
+  if (unbound === null) throw new Error("The fixture has an Organization");
+  const unboundDeals = appsSections(catalog, unbound, cs, entry)[0]?.tiles.find(
+    (tile) => tile.key === "m:deals",
+  );
+  if (unboundDeals === undefined) throw new Error("The fixture has deals");
+  expect(moduleAccessTarget(unboundDeals, unbound, dashboard, both)).toBeNull();
+  const personal = appsScopes(boundCatalog, cs).find(
+    (scope) => scope.sections === null,
+  );
+  if (personal === undefined) throw new Error("The fixture has one");
+  const diary = appsSections(boundCatalog, personal, cs, entry)[0]?.tiles[0];
+  if (diary === undefined) throw new Error("The fixture has a module");
+  expect(moduleAccessTarget(diary, personal, dashboard, both)).toBeNull();
+});
+
+test("the module access page: only under an Organization page of the Dashboard, the module id encoded", () => {
+  expect(
+    moduleAccessUrl("https://dashboard.lazurio.ai/orgs/example-co", "web.app"),
+  ).toBe(
+    "https://dashboard.lazurio.ai/orgs/example-co/settings?tab=modules&module=web.app",
+  );
+  expect(
+    moduleAccessUrl("https://dashboard.lazurio.ai/orgs/example", "a&b c"),
+  ).toBe(
+    "https://dashboard.lazurio.ai/orgs/example/settings?tab=modules&module=a%26b+c",
+  );
+  for (const dashboard of [
+    null,
+    "https://dashboard.lazurio.ai/",
+    "https://dashboard.lazurio.ai/settings",
+    "https://dashboard.lazurio.ai/orgs/Example",
+    "https://dashboard.lazurio.ai/orgs/example/settings",
+    "https://dashboard.lazurio.ai/orgs/example?tab=x",
+    "http://dashboard.lazurio.ai/orgs/example",
+    "not a url",
+  ])
+    expect(moduleAccessUrl(dashboard, "deals")).toBeNull();
 });
 
 test("the new module's prompt names the Organization and its GitHub login, in the person's language", () => {
