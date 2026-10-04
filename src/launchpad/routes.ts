@@ -30,18 +30,23 @@ export type PageRoute =
   | Readonly<{ view: "settings"; section: SettingsSection }>
   /** A folder of the Documents folder (decision F35): `/files` is the
    * folder itself, `/files/<name>/<name>` one below it. */
-  | Readonly<{ view: "files"; path: readonly string[] }>;
+  | Readonly<{ view: "files"; path: readonly string[] }>
+  /** The Marketplace of the Environment, at the foot of the Apps column
+   * (decision F36 addendum of 2026-10-04): for now it says it is coming. */
+  | Readonly<{ view: "marketplace" }>;
 
-/** The three frames of the page: the catalog (home, Organization, module)
- * with the Organizations in the sidebar, the Files page beside the same
- * sidebar, and Settings with its navigation. */
-export type PageFrame = "catalog" | "files" | "settings";
+/** The frames of the page: the Apps home (home, Organization, module), the
+ * Files page and the Marketplace beside the same Apps column, and Settings
+ * with its navigation. */
+export type PageFrame = "catalog" | "files" | "marketplace" | "settings";
 export const routeFrame = (route: PageRoute): PageFrame =>
   route.view === "settings"
     ? "settings"
     : route.view === "files"
       ? "files"
-      : "catalog";
+      : route.view === "marketplace"
+        ? "marketplace"
+        : "catalog";
 
 /** Every path the server answers with the page. The two catalog patterns are
  * the server's route parameters; the page reads its segments itself. */
@@ -51,6 +56,7 @@ export const pagePaths: readonly string[] = [
   "/o/:organization/:module",
   "/files",
   "/files/*",
+  "/marketplace",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
 ];
@@ -91,6 +97,7 @@ export function pageRoute(pathname: string): PageRoute {
     return { view: "files", path: "segments" in parsed ? parsed.segments : [] };
   }
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  if (path === "/marketplace") return { view: "marketplace" };
   if (path.startsWith("/o/")) {
     const parts = path.slice("/o/".length).split("/");
     const organization = segment(parts[0]);
@@ -120,6 +127,7 @@ export function routePath(route: PageRoute): string {
   if (route.view === "module")
     return modulePath(route.organization, route.module);
   if (route.view === "files") return filesUrlPath(route.path);
+  if (route.view === "marketplace") return "/marketplace";
   return settingsPath(route.section);
 }
 
@@ -153,6 +161,11 @@ export function routeTitle(
       document: `${route.module} · ${organization} — ${copy.title}`,
     };
   }
+  if (route.view === "marketplace")
+    return {
+      heading: copy.appsMarketplace,
+      document: `${copy.appsMarketplace} — ${copy.title}`,
+    };
   if (route.view === "files") {
     const folder = route.path.at(-1);
     return {

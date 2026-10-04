@@ -3580,89 +3580,93 @@ wording rule on the elements' text. The page was checked in Chrome against tempo
 fixture Folders, local and with a recorded entry, in both languages at 1440×900,
 1470×956 and 390×844. These are no rendered-page CI gates (root decision 0178).
 
-**Addendum 2026-10-04: the shell's second iteration (decided, not implemented).**
-Proposed and decided by Anička, the owner of the design system and of the shell's UX,
-after reviewing the shell wireframe (HumanAndMachine-ai/prototypes-lazurio#4); Matěj
-confirmed the whole batch on 2026-10-04; the root records it as decision 0185
-(HumanAndMachines/Lazurio#487). It supersedes root decision 0179 points 2 and 3
-in part, and as the target the parts of this decision named below; the build is still
-points 1 to 7. The full target is in [the target
-shell](launchpad-development.md#target-shell). In short:
+**Addendum 2026-10-04, decided by Matěj with Anička (plan DEV-6639): the Organization
+rail.** Built to the shell wireframe at `HumanAndMachine-ai/prototypes-lazurio`
+1cbad15, its default navigation (`envNav = "org"`), and the design system's selection
+rule at `design-system-lazurio` 5bbc1f7 (#54, variant A). Generic kind icons look the same
+in every Organization and a wrong click was easy; an Organization's GitHub avatar is
+recognised at a glance. So the rail switches Organizations and the head of the left
+column picks the Environment. Root decision 0179 (the rail of Environments) is being
+amended by the Operator to match. This supersedes, in F36 point 1, the rail's personal
+Environments, Organization folders, "+N", the Environment fill in the Organization's
+accent and the gear in the rail; in point 7, the three-section Apps (already two since
+F32's final addendum), the column's module list and search, the status rows of tiles
+and their new-tab arrows, and the Organization picker in the home's head.
 
-1. **The rail switches spaces, not Environments.** From the top: the Lazurio logo (the
-   Dashboard), the search button (⌘⇧E), the personal space (the Owner's initials), one
-   GitHub avatar per Organization, and "+" to add an Organization; at the bottom only
-   the account, as the person's GitHub photo. No Environment icons, no folders, no
-   "+N" or "less". The active space has an ink ring around its avatar, no pill and no
-   fill. The tooltip gives the name, the number of Environments and the last one used.
-   Clicking an Organization returns to the Environment last used in it, in the same
-   app; without one it opens the first Environment, and with no Environment the
-   Organization's Dashboard. The personal space opens the personal Remote Environment
-   or the last personal Environment. *Supersedes* point 1's folders, "+N", the gear in
-   the rail and the accent fill.
-2. **The column head.** `<lazurio-column-head>` carries the Environment picker (the
-   Environment's name, whom it serves, the Organization's avatar as its glyph) with a
-   square Settings gear beside it, over the switch Chat · Apps · Automate; in a fork's
-   sidebar it stays the only slot. The gear opens the Settings of exactly what the
-   picker names: the Environment's, or the Organization's on its Dashboard; account
-   Settings stay in the account menu. The dropdown lists the current space's
-   Environments under the Organization's head row, which opens the Organization's
-   Dashboard (never a row beside the Environments). "This computer" appears in every
-   Organization it carries and opens for that Organization, so the Organization is part
-   of every app's address. "Všechny Organizace" widens the list; search, ↑↓ and Enter
-   work; the dropdown overlays the column only while it is open. ⌘⇧E stays the global
-   jump. On an Organization's Dashboard the picker names the Organization, with no
-   second Organization block under it.
-3. **Names say what an Environment is for:** "Team <name>", "Pracovní", the persona's
-   name, the computer's name, "Osobní"; no "VM" (root decision 0170). The second line
-   says whom it serves, and "offline" only when it is not running. The default name
-   comes from the Dashboard (the Team, the assignment or the persona). The Machine's
-   technical name appears only in Tento Environment ("Technický název (pro podporu)"),
-   Diagnostics, Servers and the address. *Supersedes* as the target point 3's label
-   (the Machine name); the producer keeps it until the Dashboard supplies names.
-4. **Selection is the quiet surface** (HumanAndMachine-ai/design-system-lazurio#54,
-   variant A): one step darker surface, semibold type, a check with "tady jsi" in a
-   list, no left edge, no frame on the picker until hovered or open. The Organization's
-   colour stays in its avatar. This closes point 3's open accent token without a token:
-   the contract's `accent` is not needed by the target, and "Organization accents" leave
-   the facade list below.
-5. **Apps.** Landing in Apps of the Environment last open (the first time, the first
-   Environment of the first Organization). The header: the Organization's name, the
-   Environment's name with its kind icon, "offline" only when not running, the Guide
-   only as a link. The column: Všechny moduly, Soubory, Oblíbené and the Marketplace at
-   its bottom ("již brzy", a placeholder page); no module list and no search. The two
-   sections are F32's final addendum. Favourites from a module's "⋯" menu, pinned in the
-   column, first in their section with a small star; they belong to the person and the
-   Organization (Dashboard account). A clean tile: icon, name, description, star, "⋯";
-   no state line, no running dot, no new-tab arrow, no explanatory tail; a work branch
-   stays. A module with an app opens it (a new tab today); a tile without an app opens
-   nothing and says so in one sentence. The "⋯" menu: favourites, "Informace o modulu"
-   (the only entry to the module's information page) and, for Admin and Steward,
-   "Přístup k modulu", which opens the module's access in the Organization's Dashboard
-   in the same window, where GitHub stays the only authority. "+ Nový modul", the last
-   Workspace tile, opens Chat with an unsent prompt that founds the module by
-   `lazurio module create` (`--dry-run` first), shown only where the Environment's
-   GitHub identity can create a repository and grant it to Teams: the Organization
-   Owner's own work Environment or computer (Lazurio/t3code#35). *Supersedes* point 7's
-   search and module list in the column, the overview opened from the column or by a
-   tile whose module has no app or cannot start, and the state on tiles.
+1. **Rail** (`<lazurio-rail app="…">`): the Lazurio logo (the personal Dashboard), the
+   jump to any Environment (⌘⇧E), your personal space marked with your initials, a
+   divider, one GitHub avatar per Organization (the active one ringed in ink), "+" to
+   add an Organization in the Dashboard, and at the foot only the account, with your
+   GitHub photo where known. Labels show at once. A click on a space leads to the last
+   Environment this browser was in there, else its first, in the same app (Chat, Apps or
+   Automate); a space without one leads to its Dashboard. No Environment icons, folders
+   or colour fills, and no gear.
+2. **Column head** (`<lazurio-column-head active="…" settings="…">`): the Environment
+   picker (a glyph, the Environment's name, a line saying who it is for) with the gear
+   of this Environment's Settings right beside it, then the switch Chat · Apps ·
+   Automate. The picker drops its list over the column: the Organization's head
+   (`lz-menu__head`) opening its Dashboard, then its Environments with the current one
+   checked as "tady jsi", and "Všechny Organizace" widening it to every space. The
+   panel under the head stays the app's own, which is what the forks need.
+3. **Names.** A hosted Environment is never named by its machine's technical name. A
+   Team Environment is its Team's ("Team Sales", by the Team's display name in the
+   catalog), an Automated one its persona's Team, a work one "Pracovní", a personal one
+   "Osobní", and a workstation its computer, as the person named it (the host name
+   without its domain, "MacBook-Pro"; "Tento počítač" when it has none); the second line says who it is for (`@login` of a work
+   Environment's assigned person, "sdílený Teamem", "automatizace", "jen tvůj",
+   "tento počítač"). The machine's name stays the document's id and in Settings → This
+   Environment.
+4. **Contract, changed in place.** The producer and the elements ship in one binary and
+   no fork consumes `lazurio.shell.v1` yet, so the shape changes without a compatibility
+   layer: an Environment's `label` is its own name or null, it gains `assignee`; an
+   Organization loses `accent` and gains `dashboard`
+   (`https://dashboard.lazurio.ai/orgs/<slug>`, the Dashboard's canonical
+   Organization slug); the operator gains `avatar`; the document gains
+   `addOrganization` (`https://dashboard.lazurio.ai/add-organization`). An
+   Organization's slug is its manifest's (any nonblank text, here at most 128 characters
+   without control characters), never held to the GitHub login's rule, which applies
+   only to `forgeLogin`.
+5. **Apps column:** "Všechny moduly", "Soubory", the favourites ("Oblíbené"; a hint
+   while there are none) and, at the foot, "Marketplace" marked "již brzy", whose page
+   says it is coming. No search and no module list; a module's overview is reached from
+   its tile's menu. In Settings the column is their navigation with "Zpět".
+6. **Apps home:** the Organization's name with, under it, the Environment you are in,
+   and "Guide" (the Lazurio documentation) top right. Two sections, Workspace and
+   Productionspace (repositories, counted as such), without subtitles. Clean tiles:
+   stone, name, short description, a small star when favourite. The "⋯" menu at a tile's
+   top right adds or removes the favourite and leads to "Informace o modulu" (the
+   module's overview) or, for a production repository, "Informace o repozitáři" (its
+   GitHub page). A click opens the module's app in a new tab as before; a module without
+   an app, one that cannot start and a repository only say so in a short message in the
+   wireframe's words. `infra` stays hidden (F32's final addendum, root #486).
+7. **Favourites** belong to the person and the Organization. Until the Dashboard account
+   holds them they are kept in this browser's `localStorage`, one list per Organization
+   (`lazurio.favorites:<slug>`), never in the Folder, which a Team Environment shares
+   with its whole Team. They come first in their section in the column's order, and only
+   those this Environment's catalog has are shown.
+8. **"+ Nový modul"** ends Workspace only where this Environment's GitHub identity is an
+   Owner of the Organization: GitHub's own, live answer (`gh api
+   user/memberships/orgs/<forge login>`: active, role `admin`), read by the Launchpad
+   behind the same admission as every read (`GET /api/organizations/<org>/owner`),
+   bounded by a timeout, kept five minutes per login, failing closed. A Team
+   Environment (the Team's brokered identity) and an Organization without a bound
+   GitHub login get no tile, without a call. No local rule stands in for GitHub. Its
+   click copies the wireframe's prompt to the clipboard and opens this Environment's
+   Chat in a new tab, with a short message to paste it into a new chat; a workstation
+   has no Chat origin and only copies. Once the T3 Code fork takes a prompt draft by
+   link (Lazurio/t3code#35) Chat opens with it in the composer.
 
-The contract `lazurio.shell.v1` will need members the target reads (the person's photo,
-the spaces with their Environments' names and whom they serve, the last Environment per
-space, the favourites); point 2's rule that unknown members are ignored allows adding
-them, and their shape belongs to the implementing change and to the Dashboard's
-Environment list ([workspace composition, 7.5](workspace-composition.md#75-one-contract-with-the-shared-lazurio-shell-plan-dev-6639)).
-Implementation is tracked in issues #146 (the rail and the column head), #147 (the
-landing, the Apps header and column) and #148 (the tiles, their menu, favourites and
-"+ Nový modul"). **Open:** whether module apps open in the same window instead of a new
-tab; whether a Team with several Environments may rename them; whether Diagnostika and
-Přístup belong under Tento Environment (plan DEV-6628).
+**Not in this addendum, each an issue:** "Přístup k modulu" in the tile menu (the
+Dashboard's `/orgs/<slug>/application-access` sets a person's access level inside an
+application, not which Teams reach a module's repository), remembering the last
+Environment after sign-in (the Dashboard's), and Chat opening with the prompt already in
+its composer (Lazurio/t3code#35).
 
-| Alternative | Trade-off / disposition |
-| --- | --- |
-| Environment icons in Organization folders, "+N" to unfold (the first target) | A kind icon looks the same in every Organization and a wrong click is easy; superseded |
-| The gear at the bottom of the rail | Under the Organizations it read as global Settings; moved beside the picker |
-| The active Environment filled with the Organization's accent | Needs a token the design system does not have and spends colour the avatar already carries; replaced by the quiet surface |
-| The Organization's Dashboard as one more row among its Environments | Mixes two levels; the Organization is the head row above them |
-| A module list and search in the Apps column | The rows led to technical details and confused people; replaced by favourites and the tile's menu |
-| A rail of spaces, the picker with the gear in the column head, the quiet surface, a clean tile with a "⋯" menu (selected) | One recognisable mark per Organization; Settings scoped to what the picker names; selection never coloured by an Organization |
+Verified by unit and HTTP tests: the contract and its parser, the producer's names (Team,
+persona, kind, assigned person) and Dashboards, the rail's spaces and their targets in
+each app, the picker's list (one space, all of them, filtered), the Apps sections without
+subtitles, tile actions and the wireframe's messages, favourites first and their stored
+list read defensively, the Owner answer (only an active admin, cached, a member, a
+refusal and a timeout are no, no call on a Team Environment), and the admission of the
+Owner route; and in Chrome against temporary fixture Folders, hosted and local, in both
+languages.

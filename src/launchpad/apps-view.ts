@@ -20,21 +20,27 @@ import {
   moduleRoute,
 } from "./catalog-view";
 import type { PublicEntry } from "./chat";
+import {
+  favoritesFirst,
+  moduleFavorite,
+  repositoryFavorite,
+} from "./favorites";
 import { moduleOrigin } from "./hosted-entry";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-// Pure presentation of the Apps home and its left column (decision F36, the
-// target shell's "Apps home"): one Organization at a time, its name on top
-// (a picker when the Folder holds several), its modules in the section
-// Workspace and its production repositories, read-only, in the section
-// Productionspace (decision F32's addendum of 2026-10-03, final), each a pill
-// with a count over a grid of tiles. A tile opens the module's app in a new
-// tab; a module that has no app or cannot start opens its overview; a
-// production repository's tile is at most its GitHub page. The DOM lives in
-// catalog-panel.ts.
+// Pure presentation of the Apps home and its column (decision F36 and its
+// addendum of 2026-10-04): one Organization at a time, its name on top and
+// the Environment under it, its modules in the section Workspace and its
+// production repositories in Productionspace (decision F32's final
+// addendum), each a pill with a count over a grid of clean tiles: stone,
+// name, a short description, a star when favourite. A module's tile opens its
+// app in a new tab; one without an app, one that cannot start and a
+// repository only say so in a short message. Its "⋯" menu stars it and leads
+// to the module's overview (a repository's GitHub page). Favourites come
+// first, in the column's order. The DOM lives in catalog-panel.ts.
 
 /** The groups the Apps home offers (Organizations, then the Personalspace
  * group), in the catalog's order. */
@@ -175,37 +181,48 @@ export function pluralKey(
   return keys.many;
 }
 
+/** What a click on a tile does: open the module's app (hosted on its own
+ * origin, locally through the lifecycle), or say in a short message why
+ * there is nothing to open. */
+export type TileAction =
+  | Readonly<{
+      kind: "open";
+      target: Extract<TileTarget, { kind: "hosted" } | { kind: "start" }>;
+    }>
+  | Readonly<{ kind: "say"; text: string }>;
+
 export type AppsTile =
   | Readonly<{
       kind: "module";
+      /** Its favourite key (`m:<id>`). */
+      key: string;
       entry: CatalogModuleEntry;
       name: string;
       description: string;
       /** Its Lazurio stone (decision F36). */
       stone: Readonly<{ key: StoneKey; src: string; accent: string }>;
-      /** The exception the tile reports, or null: status only by
-       * exception (the design system's `lz-status--plain`). */
-      note: Readonly<{ tone: "warn"; text: string; title: string }> | null;
-      target: TileTarget;
+      action: TileAction;
+      /** The module's overview, from its menu ("Informace o modulu"). */
+      info: string | null;
+      favorite: boolean;
     }>
-  /** A production repository: read-only, no status dot, no action, no
-   * page (F32 addendum of 2026-10-03). */
+  /** A production repository: read-only, no app, no page of its own
+   * (decision F32's final addendum); its menu leads to its GitHub page. */
   | Readonly<{
       kind: "repository";
+      key: string;
       repository: CatalogRepository;
       name: string;
       description: string;
-      /** "Not checked out" as plain text, or null when it is. */
-      note: Readonly<{ tone: "muted"; text: string; title: string }> | null;
-      /** Its GitHub page, in a new tab, or null. */
-      href: string | null;
+      action: TileAction;
+      info: string | null;
+      favorite: boolean;
     }>;
 
 export type AppsSection = Readonly<{
   kind: CatalogSectionKind | "personal";
   title: string;
   count: string;
-  subtitle: string | null;
   tiles: readonly AppsTile[];
 }>;
 
@@ -222,72 +239,149 @@ const countKeys = {
   },
 } as const;
 
-/** The sections of one group, in order, each with what it holds; empty
+/** What a click on a module's tile does. */
+export function moduleAction(
+  target: TileTarget,
+  module: CatalogModule,
+  copy: Copy,
+): TileAction {
+  if (target.kind === "hosted" || target.kind === "start")
+    return { kind: "open", target };
+  return {
+    kind: "say",
+    text: (module.defaultApp === null
+      ? copy.appsSayNoApp
+      : copy.appsSayCannotStart
+    ).replace("{name}", moduleName(module)),
+  };
+}
+
+/** Every tile of one group, in the catalog's order: its modules, then its
+ * production repositories. */
+export function appsTiles(
+  catalog: Catalog,
+  group: CatalogGroupEntry,
+  copy: Copy,
+  entry: PublicEntry | null,
+  favorites: readonly string[],
+): Readonly<{
+  modules: readonly AppsTile[];
+  repositories: readonly AppsTile[];
+}> {
+  const moduleTile = (item: CatalogModuleEntry): AppsTile => {
+    const target = tileTarget(catalog, group.organization, item.module, entry);
+    const key = moduleFavorite(item.module.module);
+    return {
+      kind: "module",
+      key,
+      entry: item,
+      name: moduleName(item.module),
+      description: moduleDescription(item.module, copy),
+      stone: moduleStone(item.module),
+      action: moduleAction(target, item.module, copy),
+      info: item.href,
+      favorite: favorites.includes(key),
+    };
+  };
+  const modules =
+    group.sections === null
+      ? group.modules
+      : group.sections.flatMap((section) =>
+          section.kind === "workspace" ? section.modules : [],
+        );
+  const repositories =
+    group.sections === null
+      ? []
+      : group.sections.flatMap((section) =>
+          section.kind === "productionspace" ? section.repositories : [],
+        );
+  return {
+    modules: modules.map(moduleTile),
+    repositories: repositories.map(({ repository }): AppsTile => {
+      const key = repositoryFavorite(repository.slug);
+      return {
+        kind: "repository",
+        key,
+        repository,
+        name: repository.slug,
+        description: repository.path,
+        action: {
+          kind: "say",
+          text: copy.appsSayRepository.replace("{name}", repository.slug),
+        },
+        info: repository.url,
+        favorite: favorites.includes(key),
+      };
+    }),
+  };
+}
+
+/** The sections of one group, in order, favourites first in each; empty
  * sections are left out. The Personalspace group is one section. */
 export function appsSections(
   catalog: Catalog,
   group: CatalogGroupEntry,
   copy: Copy,
   entry: PublicEntry | null,
+  favorites: readonly string[] = [],
 ): readonly AppsSection[] {
-  const moduleTile = (item: CatalogModuleEntry): AppsTile => ({
-    kind: "module",
-    entry: item,
-    name: moduleName(item.module),
-    description: moduleDescription(item.module, copy),
-    stone: moduleStone(item.module),
-    // A module without an app is not one that cannot start: its tile says
-    // "No app" and nothing more.
-    note:
-      item.status.state === "blocked" && item.module.reason !== "no-app"
-        ? { tone: "warn", text: copy.appsCannotStart, title: item.status.text }
-        : null,
-    target: tileTarget(catalog, group.organization, item.module, entry),
-  });
-  const count = (tiles: number, kind: keyof typeof countKeys) =>
-    copy[pluralKey(tiles, countKeys[kind])].replace("{count}", String(tiles));
+  const tiles = appsTiles(catalog, group, copy, entry, favorites);
+  const count = (length: number, kind: keyof typeof countKeys) =>
+    copy[pluralKey(length, countKeys[kind])].replace("{count}", String(length));
   if (group.sections === null)
-    return group.modules.length === 0
+    return tiles.modules.length === 0
       ? []
       : [
           {
             kind: "personal",
             title: copy.appsPersonal,
-            count: count(group.modules.length, "modules"),
-            subtitle: null,
-            tiles: group.modules.map(moduleTile),
+            count: count(tiles.modules.length, "modules"),
+            tiles: favoritesFirst(tiles.modules, favorites),
           },
         ];
-  return group.sections.map((section): AppsSection => {
-    if (section.kind === "workspace")
-      return {
-        kind: section.kind,
-        title: section.title,
-        count: count(section.modules.length, "modules"),
-        subtitle: copy.appsWorkspaceSubtitle.replace("{name}", group.name),
-        tiles: section.modules.map(moduleTile),
-      };
-    return {
-      kind: section.kind,
-      title: section.title,
-      count: count(section.repositories.length, "repositories"),
-      subtitle: copy.appsProductionspaceSubtitle,
-      tiles: section.repositories.map(
-        ({ repository, checkout }): AppsTile => ({
-          kind: "repository",
-          repository,
-          name: repository.slug,
-          description: repository.path,
-          note: repository.checkedOut
-            ? null
-            : { tone: "muted", text: checkout, title: checkout },
-          href: repository.url,
-        }),
-      ),
-    };
-  });
+  return group.sections.map(
+    (section): AppsSection =>
+      section.kind === "workspace"
+        ? {
+            kind: section.kind,
+            title: section.title,
+            count: count(tiles.modules.length, "modules"),
+            tiles: favoritesFirst(tiles.modules, favorites),
+          }
+        : {
+            kind: section.kind,
+            title: section.title,
+            count: count(tiles.repositories.length, "repositories"),
+            tiles: favoritesFirst(tiles.repositories, favorites),
+          },
+  );
 }
 
-/** Whether a tile or column item matches the column's search. */
-export const appsMatch = (name: string, query: string): boolean =>
-  name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+/** The favourites of the Apps column, in their order, only those this
+ * Environment's catalog has. */
+export function favoriteTiles(
+  catalog: Catalog,
+  group: CatalogGroupEntry,
+  copy: Copy,
+  entry: PublicEntry | null,
+  favorites: readonly string[],
+): readonly AppsTile[] {
+  const tiles = appsTiles(catalog, group, copy, entry, favorites);
+  return favoritesFirst(
+    [...tiles.modules, ...tiles.repositories],
+    favorites,
+  ).filter((tile) => tile.favorite);
+}
+
+/** The prompt "+ Nový modul" hands to Chat (the wireframe's
+ * `newModulePrompt`): the agent first asks what the module is for, then
+ * founds it by the Lazurio Module Standard with the scaffold, never by
+ * hand, and hands it over as a pull request. */
+export const newModulePrompt = (
+  name: string,
+  login: string,
+  copy: Copy,
+): string =>
+  copy.appsNewModulePrompt
+    .replaceAll("{name}", name)
+    .replaceAll("{login}", login);

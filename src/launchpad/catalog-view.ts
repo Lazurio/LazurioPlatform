@@ -149,7 +149,8 @@ export function catalogSelection(
   if (
     route.view === "home" ||
     route.view === "settings" ||
-    route.view === "files"
+    route.view === "files" ||
+    route.view === "marketplace"
   )
     return { kind: "overview" };
   const selection = selectCatalogOrganization(catalog, route.organization);
