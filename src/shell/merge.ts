@@ -155,8 +155,9 @@ function described(
 
 /** The last Environment the account remembers for each space of a merged
  * document, by the space's id there (`personal` or the merged Organization
- * slug): only Environments the merged document lists, and only for a slug
- * that names one space there. Empty without the account. */
+ * slug): only Environments the merged document lists, never for a Dashboard
+ * slug that is ambiguous among the local or the account's Organizations, and
+ * only for a slug that names one space there. Empty without the account. */
 export function accountLastBySpace(
   merged: Shell,
   account: ShellAccount | null,
@@ -164,15 +165,23 @@ export function accountLastBySpace(
   const last = new Map<string, string>();
   if (account === null) return last;
   const ids = new Set(merged.environments.map((entry) => entry.id));
+  // The merged document holds every local Organization, so a local
+  // collision shows in it; an account collision only in the account.
+  const ambiguous = ambiguousSlugs(merged.organizations, account.organizations);
   for (const [space, visit] of Object.entries(account.lastBySpace)) {
     if (!ids.has(visit.environment)) continue;
     if (space === "personal") {
       last.set(space, visit.environment);
       continue;
     }
-    // Only a space the slug names unambiguously in the merged document.
+    // Never for an ambiguous Dashboard slug, on either side: the account's
+    // Organizations of it were left out, and their last Environment must not
+    // land on a local Organization of the same slug. Otherwise only a space
+    // the slug names once in the merged document.
+    const key = canonical(space);
+    if (ambiguous.has(key)) continue;
     const organizations = merged.organizations.filter(
-      (entry) => canonical(entry.slug) === canonical(space),
+      (entry) => canonical(entry.slug) === key,
     );
     const organization = organizations[0];
     if (organizations.length === 1 && organization !== undefined)

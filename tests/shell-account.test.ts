@@ -680,6 +680,97 @@ test("two Organizations of the account that reduce to one Dashboard slug are lef
   expect(merged.organizations.map((entry) => entry.slug)).toEqual(["Example"]);
 });
 
+test("an account-side ambiguous slug never lends its last Environment to the local Organization of that slug (Pablo's case)", () => {
+  // A local Organization `Example` with two Environments, vm-01 first; the
+  // account has two Organizations reducing to `example` and remembers vm-02
+  // there, an id also present locally.
+  const localTwo = parsed(
+    localDocument({
+      environments: [
+        ...localDocument().environments,
+        {
+          id: "vm-02.example",
+          label: "Ops",
+          kind: "team",
+          organizations: ["Example"],
+          assignee: null,
+          apps: hosted("vm-02.example"),
+        },
+      ],
+    }),
+  );
+  const document = accountDocument();
+  const read = account({
+    environments: [
+      {
+        id: "vm-02.example",
+        kind: "team",
+        label: "Ops",
+        name: "Team Ops",
+        who: "shared by the Team",
+        offline: false,
+        organizations: ["example"],
+        assignee: null,
+        apps: hosted("vm-02.example"),
+      },
+    ],
+    organizations: [
+      document.organizations[0],
+      {
+        slug: "example!",
+        name: "Example (second)",
+        avatar: null,
+        dashboard: "https://dashboard.lazurio.ai/orgs/example-2",
+      },
+    ],
+    last: {
+      environment: "vm-02.example",
+      app: "apps",
+      organization: "example",
+    },
+    lastBySpace: { example: { environment: "vm-02.example", app: "apps" } },
+    favourites: {},
+  });
+  const merged = mergeAccount(localTwo, read);
+  // Both account Organizations and their Environment are left out; the
+  // local ones stand as the local document has them.
+  expect(merged.organizations).toEqual(localTwo.organizations);
+  expect(merged.environments).toEqual(localTwo.environments);
+  // No account last for that space, and the overall `last` is not carried
+  // into the merged document at all (nothing in the shell reads it).
+  expect(accountLastBySpace(merged, read).size).toBe(0);
+  expect("last" in merged).toBe(false);
+  // The rail's click falls through to the space's first local Environment.
+  const last = accountLastBySpace(merged, read);
+  const spaces = railSpaces(merged, en, {
+    here: "personal",
+    app: "apps",
+    last: (space) => last.get(space) ?? null,
+  });
+  const example = spaces.find((space) => space.space === "Example");
+  expect(example?.href).toBe("https://launchpad.vm-01.example.lazurio.io/");
+  expect(example?.sub).toBe("2 Environments");
+  // A local-side ambiguity is gated the same way, even when its last names
+  // a local Environment.
+  const localSide = ambiguousLocal();
+  const localRead = account({
+    environments: [accountDocument().environments[0]],
+    organizations: [
+      {
+        slug: "example-org",
+        name: "Example Org",
+        avatar: null,
+        dashboard: "https://dashboard.lazurio.ai/orgs/example-org",
+      },
+    ],
+    lastBySpace: { "example-org": { environment: "ada", app: "apps" } },
+    favourites: {},
+  });
+  expect(
+    accountLastBySpace(mergeAccount(localSide, localRead), localRead).size,
+  ).toBe(0);
+});
+
 // Mixed languages (Pablo's review of #166): the Dashboard words `name` and
 // `who` by the browser's language, the elements speak the profile's.
 
