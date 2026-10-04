@@ -3697,6 +3697,68 @@ application, not which Teams reach a module's repository), remembering the last
 Environment after sign-in (the Dashboard's), and Chat opening with the prompt already in
 its composer (Lazurio/t3code#35).
 
+**Built behind the person's account, 2026-10-04 (root decision 0185 S8, S12, S15,
+S18; F37's addendum of the same day; issues #148, #151).** "Přístup k modulu", the
+report of the last Environment, favourites in the account and where module apps open
+move from not built to built. Each waits only for the person's account to answer on
+the Environment's own origin (`/.lazurio/account/…`, relayed by the gateway); until it
+does, everything behaves as points 6 and 7 say.
+
+- **The account document** (`src/launchpad/account.ts`). Apps reads `GET
+  /.lazurio/account/environments` once per page load: same origin, no token, no
+  redirect followed, given up after 4 s. Only `schema: "lazurio.account.v1"` counts,
+  and Apps takes two things of it: `preferences.openApps` (`same`; anything else is
+  `tab`) and `favourites`, keyed by the Organization slug. The rest is the library's
+  merge (F37 point 4).
+- **Where apps open** (S18, `app-opening.ts`). Tiles, the column's favourites,
+  "Otevřít aplikaci" and the lifecycle's "Otevřít" open in a new tab (`tab`, also
+  without the account) or navigate this window to the app's own address (`same`),
+  never in a frame. On a workstation the new tab is opened within the click and led to
+  the app once it started; with `same` the window moves only after the start
+  succeeded. The new-tab arrow shows only with `tab`.
+- **Favourites** (S12). With the account, an Organization's favourites are its list,
+  in its order, first in their section with the star as in point 7. The star writes
+  `PUT` or `DELETE /.lazurio/account/favourites/<org slug>/<module|repository>/<id>`
+  at once and puts that favourite back, with a short message, when the account does not
+  take it (a later click on the same favourite is not undone). Browser favourites are
+  never uploaded: `localStorage` stays only for an Environment without the account and
+  for the Personalspace group, which is no Organization.
+- **The last Environment** (S8, `src/shell/last.ts`). The library sends `PUT
+  /.lazurio/account/last` with `{ "environment", "app", "organization" }` (this
+  document's `current`, the app its host names, and the space's Organization slug or
+  null) once per full page load of Apps, Chat and Automate: `keepalive`, its answer
+  not read, silent on failure, never blocking drawing. It is its own module, apart from
+  the rail's merge of the account's Environments, and each element calls it with one
+  line.
+- **"Přístup k modulu"** (S15, #151). A module tile's menu offers it to the
+  Organization's Owners (point 8's answer) and Stewards. A Steward's answer is GitHub's
+  `permissions.maintain` on the module's declared repository (the slot's `git.url`,
+  which the catalog now carries as the module's `url`): `gh api repos/<owner>/<repo>`,
+  read behind the same admission (`GET
+  /api/organizations/<org>/modules/<module>/maintain`), bounded by the Owner check's
+  timeout, kept five minutes per repository, one question at a time, and no on every
+  failure. It is never asked on a Team Environment or for a repository outside the
+  Organization's GitHub login. The page asks only when the person reaches for a
+  module's menu, never for every tile, and the item joins the open menu when the answer
+  comes. It opens `<the Organization's Dashboard page>/settings?tab=modules&module=<id>`
+  in the same window, without an arrow. A production repository and the Personalspace
+  group never have it, nor does an Organization without its Dashboard page. The
+  Dashboard decides again with its own live read; the item grants nothing.
+- **The Dashboard's slug.** The Dashboard addresses an Organization by its canonical
+  slug, the manifest's slug lowercased with every run of other characters one `-`, and
+  matches `/orgs/<slug>` exactly. Point 4's `dashboard` used the slug as written, so an
+  Organization whose slug has capitals led to the Dashboard's not-found page; it now
+  uses the canonical form, and "Přístup k modulu" builds on it. The Dashboard
+  disambiguates two of a person's Organizations that reduce to one slug with a suffix
+  an Environment cannot know; such a link still ends on its not-found page.
+
+Verified by unit and HTTP tests (the document read and refused, a timeout, the open
+modes with a workstation's start, the favourites' writes and their rollback, the report
+once per load and silent, the Steward's answer, its route and the catalog's `url`, the
+item's target and its absence, the Dashboard's slug) and in Chrome against the hosted
+preview as an Owner, a Steward and a member, and the local preview in both open modes,
+with the account stood in by the browser automation.
+
 Verified by unit and HTTP tests: the contract and its parser, the producer's names (Team,
 persona, kind, assigned person) and Dashboards, the rail's spaces and their targets in
 each app, the picker's list (one space, all of them, filtered), the Apps sections without

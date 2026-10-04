@@ -318,15 +318,21 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `view.ts` (the rail's spaces, the Environment picker's list, names and who lines, the
   switch, as pure functions), `elements.ts` (`<lazurio-rail>`, `<lazurio-column-head>`),
   `styles.ts` (the vendored tokens on `:host`, the design system's selection rule),
-  `stones.ts`, `fonts.ts`, `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
-  (tokens, logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
-  `tests/launchpad-shell-routes.test.ts`, `tests/apps-view.test.ts`,
-  `tests/organization-owner.test.ts`.
+  `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
+  below), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/` (tokens, logo,
+  fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
+  `tests/shell-last.test.ts`, `tests/launchpad-shell-routes.test.ts`,
+  `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
+  `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
 - **Routes.** `/.lazurio/shell.js`, `/.lazurio/fonts/<file>` and
   `/.lazurio/stones/<file>` beside the page's routes (`src/launchpad/page.ts`);
-  `/.lazurio/shell.json` and `/api/organizations/<org>/owner` in the server after
-  admission (`src/launchpad/server.ts`, producer `shell-document.ts`, the Owner
-  answer `organization-owner.ts`).
+  `/.lazurio/shell.json`, `/api/organizations/<org>/owner` and
+  `/api/organizations/<org>/modules/<module>/maintain` in the server after admission
+  (`src/launchpad/server.ts`, producer `shell-document.ts`, the Owner answer
+  `organization-owner.ts`, a Steward's answer `module-maintainer.ts`). The page and the
+  library also speak to `/.lazurio/account/…` on the same origin, which the
+  Environment's gateway relays to the person's account (F37 and its addendum); the
+  Launchpad does not answer it.
 - **Page.** `index.html` is rail | column | main. The Apps column (all modules, Files,
   favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
   `favorites.ts`, the frame is `shell.ts`, and the switch's pairing and the new
@@ -334,17 +340,44 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   its default app's declaration (title, description, `icon`, tags), carried by the
   catalog as display-only `display`; the stone falls back by the root Launchpad's
   org-agnostic semantic key, and the Module's own manifest stays the authority.
-  Favourites live in the browser per Organization. Settings, Tools, Recovery and Files
-  keep their panels. The sections below that speak of the sidebar, its footer, the top
+  Settings, Tools, Recovery and Files keep their panels. The sections below that speak of the sidebar, its footer, the top
   bar, T3 Code's colours or Chat and MausBot as sidebar links describe the build before
   F36.
+- **The person's account** ([F36's account
+  note](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
+  root decision 0185 S8, S12, S15, S18). Built, and waiting only for the account to
+  answer on the Environment's own origin; until the gateway relays
+  `/.lazurio/account/` (404 today) everything behaves as before it:
+  - `account.ts` reads `GET /.lazurio/account/environments` once per page load
+    (same origin, no token, given up after 4 s). Only a `lazurio.account.v1` document
+    counts, and Apps takes two things of it: `preferences.openApps` and `favourites`
+    keyed by the Organization slug.
+  - Where apps open (S18, `app-opening.ts`): tiles, the column's favourites, "Otevřít
+    aplikaci" and the lifecycle's "Otevřít" open in a new tab (`tab`, also without the
+    account) or navigate this window (`same`), never in a frame. On a workstation the
+    tab is opened within the click; this window moves only once the start succeeded.
+  - Favourites (S12): with the account, an Organization's favourites are its list, in
+    its order, and the star writes `PUT`/`DELETE
+    /.lazurio/account/favourites/<org slug>/<module|repository>/<id>` at once, putting
+    the favourite back with a short message when the account does not take it. Without
+    the account, and for the Personalspace group, they stay in the browser per
+    Organization (`favorites.ts`); browser favourites are never uploaded.
+  - The last Environment (S8, `src/shell/last.ts`): the library sends `PUT
+    /.lazurio/account/last` once per full page load of Apps, Chat and Automate, fire
+    and forget and silent on failure, apart from the rail's merge of the account.
+  - "Přístup k modulu" (S15, #151): in a module tile's menu for the Organization's
+    Owners and Stewards (GitHub's `maintain` on the module's declared repository), into
+    the Organization's Dashboard in the same window.
 - **Preview.** A temporary fixture Folder, never a live one: `bun
-  scripts/preview-launchpad.ts local|hosted cs|en <port>` writes an Organization with
-  root-level and workspace modules in Workspace, two production repositories in
-  Productionspace and an `infra` that is not listed, a synthetic home for Files and
-  Tools whose `gh` answers the Owner question for the example Organization, and with
-  `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
-  cookie. Screenshots come from Chrome through playwright-core.
+  scripts/preview-launchpad.ts local|hosted cs|en <port> [owner|steward|member]` writes
+  an Organization with root-level and workspace modules in Workspace, two production
+  repositories in Productionspace and an `infra` that is not listed, a synthetic home
+  for Files and Tools whose `gh` answers for the example Organization as the role says
+  (an Owner by default; a Steward maintains its workspace modules' repositories), and
+  with `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
+  cookie. The account is not part of the preview: a browser automation stands in for
+  the gateway's relay of `/.lazurio/account/…`. Screenshots come from Chrome through
+  playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
