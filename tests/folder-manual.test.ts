@@ -920,22 +920,27 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
       ]) {
         expect(text).toContain(
           cs
-            ? `- Launchpad tohohle Environmentu je na \`${origin}\`: Operátor v něm otevírá aplikace, Soubory a Nastavení (ozubené kolo vedle názvu Environmentu).`
-            : `- This Environment's Launchpad is at \`${origin}\`: there the Operator opens applications, Files and Settings (the gear beside the Environment's name).`,
+            ? `- Launchpad tohohle Environmentu je na \`${origin}\` (Nástroje ${tools}, Soubory \`${origin}/files\`): Operátor v něm otevírá aplikace, Soubory a Nastavení (ozubené kolo vedle názvu Environmentu).`
+            : `- This Environment's Launchpad is at \`${origin}\` (Tools ${tools}, Files \`${origin}/files\`): there the Operator opens applications, Files and Settings (the gear beside the Environment's name).`,
         );
         expect(text).toContain(
           cs
-            ? "ty mu pošli odkaz a o heslo, token ani kód nežádej"
-            : "you send them the link and never ask for a password, token or code",
+            ? "a běžíš v Codex Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči Codex Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlášení a napojení dělá Operátor sám v Launchpadu; o heslo, token ani kód nežádej."
+            : "and you run in Codex Desktop, open the exact address for them in Codex Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The Operator makes sign-ins and connections in the Launchpad themselves; never ask for a password, token or code.",
         );
         expect(text).toContain(
           cs
-            ? `Když tu Composio zapnuté není, pošli Operátorovi odkaz ${tools}: u Composia klikne na Nainstalovat a přihlásit, přihlásí se a zapne Používají agenti, potom začne nový chat.`
-            : `When Composio is not enabled here, send the Operator the link ${tools}: on Composio they click Install and sign in, sign in and turn on Used by agents, then start a new chat.`,
+            ? "jinou neskládej a nikdy místo nich nedávej `localhost` ani `127.0.0.1`"
+            : "never compose another one and never give `localhost` or `127.0.0.1` instead",
+        );
+        expect(text).toContain(
+          cs
+            ? `Když tu Composio zapnuté není, otevři Operátorovi ${tools} jako výše: u Composia klikne na Nainstalovat a přihlásit, přihlásí se a zapne Používají agenti, potom začne nový chat.`
+            : `When Composio is not enabled here, open ${tools} for the Operator as above: on Composio they click Install and sign in, sign in and turn on Used by agents, then start a new chat.`,
         );
         const ownSignIn = cs
-          ? `pošli Operátorovi odkaz ${tools}. U gh klikne na Přihlásit, případně Propojit SSH klíč, a jednorázový kód zadá na github.com; sám ho nepřihlašuj.`
-          : `send the Operator the link ${tools}. On gh they click Sign in, or Link SSH key, and enter the one-time code on github.com; do not sign them in yourself.`;
+          ? `otevři Operátorovi ${tools} jako výše. U gh klikne na Přihlásit, případně Propojit SSH klíč, a jednorázový kód zadá na github.com; sám ho nepřihlašuj.`
+          : `open ${tools} for the Operator as above. On gh they click Sign in, or Link SSH key, and enter the one-time code on github.com; do not sign them in yourself.`;
         const brokered = cs
           ? "- GitHub: tady jednáš jako brokerovaná identita Organizace (Lazurio for GitHub) a osobní účet GitHubu se sem nepřihlašuje."
           : "- GitHub: here you act as the brokered Organization identity (Lazurio for GitHub), and no personal GitHub account is signed in here.";
