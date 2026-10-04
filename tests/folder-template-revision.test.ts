@@ -21,8 +21,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-19",
-  digest: "9d212c99256aeee704b6292de7c6f788c32296a29e7ca40c86ac190aef36f4ef",
+  revision: "base-instructions-20",
+  digest: "c9686261803b0ee987381d40c9a0da940897cf78050dc285598dc5008dc27816",
 } as const;
 
 const optionalTools = activatableTools()
@@ -31,9 +31,9 @@ const optionalTools = activatableTools()
   .sort();
 
 // Every preset on every OS it is offered for, with and without recorded
-// peers, in both languages; once with the preset's defaults and nothing
-// enabled, once with the other communication axes, every optional catalog
-// tool and a note.
+// peers and with a hosted entry, in both languages; once with the preset's
+// defaults and nothing enabled, once with the other communication axes, every
+// optional catalog tool and a note.
 const environments = [
   { preset: "local", machine: null, os: "windows" },
   { preset: "local", machine: null, os: "macos" },
@@ -53,6 +53,24 @@ const environments = [
   {
     preset: "hosted-organization-steward",
     machine: bindings.automated,
+    os: "linux",
+  },
+  // With a hosted entry: the Files link and the Launchpad routing of sign-ins
+  // and connections render only there (decisions F35, F19 addendum 2026-10-04).
+  { preset: "hosted-personal", machine: bindings.personalEntry, os: "linux" },
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organizationEntry,
+    os: "linux",
+  },
+  {
+    preset: "hosted-organization-team",
+    machine: bindings.teamEntry,
+    os: "linux",
+  },
+  {
+    preset: "hosted-organization-steward",
+    machine: bindings.automatedEntry,
     os: "linux",
   },
 ] as const;

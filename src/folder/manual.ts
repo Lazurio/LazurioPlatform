@@ -7,6 +7,7 @@ import {
   assignmentLine,
   type InstructionSource,
   instructionTemplateRevision,
+  launchpadRouting,
   mcpInstruction,
   notesMeaning,
   operatorConnectsOverSsh,
@@ -291,8 +292,8 @@ function workingHere(preset: PresetName): readonly Text[] {
       "- Next to the worktree keep a sidecar `<PLAN>-<slug>.worktree.json` (schema `companiesascode.worktree.v1`; the Organization's `worktree-stewardship` skill holds the full contract): the repository, the branch, the plan code, the pull request URL once it exists, and `conversation_origin` with your session's ID (`CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID` or the ID your harness offers). The sidecar is how accumulated worktrees are traced and safely cleaned up.",
     ),
     t(
-      `- Do primárního checkoutu ani do \`organizations/\` a \`personalspace/\` tohoto Folderu nikdy neklonuj další repozitář a nezakládej v nich pracovní složku: stash nadřazeného checkoutu takový vnořený repozitář přeskočí, takže jeho práce při srovnání checkoutu není chráněná. Klon jen ke čtení nebo k pokusu patří mimo každý checkout a mimo tyto složky; změna do repozitáře, který tu není namountovaný, patří do worktree jeho vlastního klonu. ${preset === "hosted-personal" ? "Vnořený repozitář, který už tu leží, nech být a řekni o něm Operátorovi." : "Vnořený repozitář, který už tu leží, řeš podle oddílu o aktuálních checkoutech v `manual/troubleshooting.md`."}`,
-      `- Never clone another repository into a primary checkout, or into this Folder's \`organizations/\` and \`personalspace/\`, and never create a scratch directory there: a stash of the outer checkout skips such a nested repository, so its work is not protected when the checkout is aligned. A clone only for reading or trying something goes outside every checkout and outside these directories; a change to a repository that is not mounted here goes into a worktree of its own clone. ${preset === "hosted-personal" ? "Leave a nested repository you find here alone and tell the Operator about it." : "Handle a nested repository you find here as the section on current checkouts in `manual/troubleshooting.md` describes."}`,
+      `- Do primárního checkoutu ani do \`organizations/\` a \`personalspace/\` tohoto Folderu nikdy neklonuj další repozitář a nezakládej v nich pracovní složku: stash nadřazeného checkoutu takový vnořený repozitář přeskočí, takže jeho práce při srovnání checkoutu není chráněná. Klon jen ke čtení nebo k pokusu patří mimo každý checkout a mimo tyto složky; změna do repozitáře, který tu není namountovaný, patří do worktree jeho vlastního klonu. ${preset === "hosted-personal" ? "Vnořený repozitář, který už tu leží, nech být a řekni o něm Operátorovi." : "Jedinou výjimkou je modul deklarovaný v manifestu Organizace, který tu chybí: ten naklonuj na jeho deklarované místo. Ten i jiný vnořený repozitář, který už tu leží, řeš podle oddílu o aktuálních checkoutech v `manual/troubleshooting.md`."}`,
+      `- Never clone another repository into a primary checkout, or into this Folder's \`organizations/\` and \`personalspace/\`, and never create a scratch directory there: a stash of the outer checkout skips such a nested repository, so its work is not protected when the checkout is aligned. A clone only for reading or trying something goes outside every checkout and outside these directories; a change to a repository that is not mounted here goes into a worktree of its own clone. ${preset === "hosted-personal" ? "Leave a nested repository you find here alone and tell the Operator about it." : "The one exception is a module declared in the Organization's manifest that is missing here: clone that one into its declared place. Handle it, and any other nested repository you find here, as the section on current checkouts in `manual/troubleshooting.md` describes."}`,
     ),
     t(
       "- Před každým pushem preflight (čistý commit, čerstvá `origin/main` jako předek HEAD); podle potřeby rebase; přepsanou branch pushni jen s přesným `--force-with-lease`.",
@@ -775,8 +776,12 @@ const toolUpdates: Text = t(
 
 // Keeping the checkouts current until content synchronization exists
 // (decisions F9 and F17 addendum 2026-10-02): the agent pulls clean checkouts
-// and brings a diverged one back without losing any work. Only on presets
-// that carry Organizations.
+// and brings a diverged one back without losing any work. A module the
+// Organization's manifest declares but this Environment lacks is cloned into
+// its declared place, the one exception to the rule on clones, under checks
+// of access, destination and remote (decision F19 addendum 2026-10-04): the
+// Platform has no command that materializes a module. Only on presets that
+// carry Organizations.
 const checkouts: readonly Text[] = [
   t(
     "## Aktuální checkouty Organizací a modulů",
@@ -792,12 +797,16 @@ const checkouts: readonly Text[] = [
     "- Update a clean checkout on its default branch with `git pull --ff-only`.",
   ),
   t(
+    "- Modul deklarovaný v manifestu Organizace (`lazurio.organization.json` a manifest modulů, na který ukazuje), který tu chybí, je jedinou výjimkou z pravidla o klonech: je to namountovaný modul, ne vnořený klon. Naklonuj ho na jeho deklarované místo, jen když Operátor k jeho repozitáři živě má přístup (`gh repo view <vlastník>/<repozitář>`) a cílová složka neexistuje nebo je prázdná. Po klonu ověř, že `git remote get-url origin` je deklarovaný repozitář a checkout stojí na jeho výchozí branchi. Když něco z toho neplatí, nic neklonuj a řekni to Operátorovi.",
+    "- A module declared in the Organization's manifest (`lazurio.organization.json` and the modules manifest it points to) that is missing here is the one exception to the rule on clones: it is a mounted module, not a nested clone. Clone it into its declared place only when the Operator has live access to its repository (`gh repo view <owner>/<repository>`) and the destination does not exist or is empty. After the clone, verify that `git remote get-url origin` is the declared repository and that the checkout is on its default branch. When any of this does not hold, clone nothing and tell the Operator.",
+  ),
+  t(
     "- Rozjetý checkout srovnej tak, aby se žádná práce neztratila. Nejdřív všechnu práci zachovej:",
     "- Bring a diverged checkout back so that no work is lost. Keep all the work first:",
   ),
   t(
-    "  - Vnořený repozitář (podsložka s vlastním `.git`) stash nadřazeného checkoutu přeskočí. Jeho práci ulož v něm samém, commitem na vlastní branch a pushem, a celý ho přesuň mimo checkout, kam patří podle pravidla o klonech.",
-    "  - A stash of the outer checkout skips a nested repository (a subdirectory with its own `.git`). Save its work in it, with a commit on a branch of its own and a push, and move the whole repository out of the checkout, where the rule on clones puts it.",
+    "  - Vnořený repozitář (podsložka s vlastním `.git`, která není modulem z manifestu Organizace) stash nadřazeného checkoutu přeskočí. Jeho práci ulož v něm samém, commitem na vlastní branch a pushem, a celý ho přesuň mimo checkout, kam patří podle pravidla o klonech.",
+    "  - A stash of the outer checkout skips a nested repository (a subdirectory with its own `.git` that is not a module of the Organization's manifest). Save its work in it, with a commit on a branch of its own and a push, and move the whole repository out of the checkout, where the rule on clones puts it.",
   ),
   t(
     "  - Necommitnuté změny přesuň do worktree s vlastní branchí, patří-li k rozpracované práci; jinak je ulož do pojmenovaného stashe (`git stash push --include-untracked -m 'lazurio update <datum>'`).",
@@ -1609,7 +1618,8 @@ function enabledToolsSection(
 // OpenAI, see openai/codex#44385); T3 Code and Lazurio MausBot forward
 // nothing. Work products go to the Operator's Documents folder, and where the
 // Folder records a hosted entry they travel through the Launchpad's Files
-// page (decision F35).
+// page (decision F35), and the agent sends the Operator to the Launchpad for
+// every sign-in and connection (decision F19 addendum 2026-10-04).
 function operatorClient(
   preset: PresetName,
   machine: MachineBinding,
@@ -1731,6 +1741,7 @@ function operatorClient(
     links,
     filesIn,
     filesOut,
+    ...(origin === undefined ? [] : launchpadRouting(preset, origin)),
     ...workOnly,
     chats,
   ];
