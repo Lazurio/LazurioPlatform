@@ -51,6 +51,8 @@ export function createToolsPanel(
   options: Readonly<{
     post: Post;
     copy: () => Copy;
+    /** Share the same observation with Apps, including failed reads. */
+    observed: (overview: ToolsOverview | null) => void;
     /** The Folder changed through this panel: the rest of the page reloads,
      * and that reload refreshes this panel too. */
     changed: () => Promise<void>;
@@ -1205,6 +1207,7 @@ export function createToolsPanel(
       if (turn === sequence) {
         busy = false;
         render();
+        options.observed(overview);
       }
     }
   }

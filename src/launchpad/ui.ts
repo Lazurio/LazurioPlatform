@@ -2,6 +2,7 @@ import { currentEnvironment, parseShell, type Shell } from "../shell/contract";
 import { defineShellElements, provideShell } from "../shell/elements";
 import { shellMessages } from "../shell/messages";
 import { environmentName } from "../shell/view";
+import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
 import {
   createCatalogPanel,
@@ -81,6 +82,7 @@ const guide = document.querySelector<HTMLAnchorElement>("#catalog-guide");
 const marketplaceText =
   document.querySelector<HTMLParagraphElement>("#marketplace-text");
 let shellDocument: Shell | null = null;
+let toolsOverview: ToolsOverview | null = null;
 async function readShell() {
   try {
     const response = await fetch("/.lazurio/shell.json", {
@@ -100,6 +102,7 @@ async function readShell() {
 // The Launchpad home: the catalog of this Folder's Organizations and modules
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
+  tools: () => toolsOverview,
   post: (path, body) => post(path, body),
   get: (path) => get(path),
   copy: () => copy,
@@ -440,6 +443,10 @@ async function load() {
 // The tools section (decision F18). A change recorded there moves the Folder
 // revision, so a profile preview made before it is no longer valid.
 const tools = createToolsPanel({
+  observed: (overview) => {
+    toolsOverview = overview;
+    catalog.render();
+  },
   post,
   copy: () => copy,
   changed: async () => {

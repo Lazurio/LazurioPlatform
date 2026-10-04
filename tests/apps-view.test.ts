@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  appsGithubNotice,
   appsScope,
   appsScopes,
   appsSections,
@@ -517,4 +518,77 @@ test("every vendored file has the hash its README records", async () => {
     const bytes = await readFile(join(directory, file ?? ""));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(hash ?? "");
   }
+});
+
+// An empty Apps catalog does not establish whether GitHub is signed in.
+// Apps consumes the same observed status as Settings > Tools.
+test("Apps directs a confirmed signed-out GitHub to the existing Tools flow", () => {
+  const status = {
+    sharedEnvironment: false,
+    tools: [
+      { name: "gh", installed: true, signIn: { state: "signed-out" as const } },
+    ],
+  };
+  expect(appsGithubNotice(status, cs)).toEqual({
+    title: "Přihlas se ke GitHubu",
+    description: cs.appsGithubSignInDescription,
+    action: cs.appsGithubSignInAction,
+    href: "/settings/tools",
+  });
+  expect(appsGithubNotice(status, en)?.title).toBe("Sign in to GitHub");
+  expect(
+    appsGithubNotice({ ...status, sharedEnvironment: true }, cs),
+  ).toBeNull();
+  for (const signIn of [
+    undefined,
+    { state: "unknown" as const },
+    { state: "signed-in" as const },
+  ])
+    expect(
+      appsGithubNotice(
+        {
+          ...status,
+          tools: [
+            {
+              name: "gh",
+              installed: true,
+              ...(signIn === undefined ? {} : { signIn }),
+            },
+          ],
+        },
+        cs,
+      ),
+    ).toBeNull();
+  expect(appsGithubNotice(null, cs)).toBeNull();
+  expect(appsGithubNotice({ ...status, tools: [] }, cs)).toBeNull();
+  expect(
+    appsGithubNotice(
+      {
+        ...status,
+        tools: [
+          {
+            name: "gh",
+            installed: false,
+            signIn: { state: "signed-out" as const },
+          },
+        ],
+      },
+      cs,
+    ),
+  ).toBeNull();
+  expect(
+    appsGithubNotice(
+      {
+        ...status,
+        tools: [
+          {
+            name: "codex",
+            installed: true,
+            signIn: { state: "signed-out" as const },
+          },
+        ],
+      },
+      cs,
+    ),
+  ).toBeNull();
 });

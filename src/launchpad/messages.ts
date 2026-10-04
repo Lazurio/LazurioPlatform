@@ -447,8 +447,11 @@ const en = {
   catalogLoading: "Reading Organizations…",
   catalogLoadFailed:
     "The Organizations could not be read. Try Refresh; if it keeps failing, run lazurio organization list in the CLI.",
-  catalogEmpty:
-    "No Organizations in this Folder. An Organization appears here once its repository is in organizations/.",
+  appsGithubSignInTitle: "Sign in to GitHub",
+  appsGithubSignInDescription:
+    "To work with GitHub in this Environment, sign in to your account. In Settings → Tools, choose Sign in next to gh (GitHub).",
+  appsGithubSignInAction: "Open sign-in settings",
+  catalogEmpty: "There are no apps in this Environment yet.",
   catalogNotFound:
     "This Organization or module is not in this Folder. It may have been renamed or removed; see all Organizations.",
   chat: "Chat",
@@ -1172,8 +1175,11 @@ const cs: Record<MessageKey, string> = {
   catalogLoading: "Načítám Organizace…",
   catalogLoadFailed:
     "Organizace nelze načíst. Zkuste Načíst znovu; když to nepomůže, spusťte v CLI lazurio organization list.",
-  catalogEmpty:
-    "V tomhle Folderu nejsou žádné Organizace. Organizace se tu objeví, jakmile je její repozitář v organizations/.",
+  appsGithubSignInTitle: "Přihlas se ke GitHubu",
+  appsGithubSignInDescription:
+    "Pro práci s GitHubem v tomto Environmentu se přihlas ke svému účtu. V Nastavení → Nástroje zvol u gh (GitHub) Přihlásit.",
+  appsGithubSignInAction: "Otevřít nastavení přihlášení",
+  catalogEmpty: "V tomto Environmentu zatím nejsou žádné aplikace.",
   catalogNotFound:
     "Tahle Organizace nebo modul v tomhle Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
   chat: "Chat",
