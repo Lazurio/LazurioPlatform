@@ -866,6 +866,102 @@ test("with a hosted entry agents hand over the Files link; without one the full 
     }
 });
 
+// Decision F19 addendum 2026-10-04: where the Folder records a hosted entry,
+// an agent sends the Operator to the Launchpad's Settings → Tools for the
+// GitHub sign-in (with the Machine's SSH key) and for Composio, and never asks
+// for a password, token or code. A Team Environment has the brokered
+// Organization identity and an Automated Environment the persona's account,
+// so neither is told to sign a person's GitHub account in. Without an entry no
+// browser reaches the Launchpad and nothing points there.
+test("with a hosted entry agents send the Operator to the Launchpad for sign-ins and connections", () => {
+  const organizationOrigin = "https://launchpad.workspace.example.lazurio.io";
+  const withEntry = [
+    [
+      "hosted-personal",
+      bindings.personalEntry,
+      "https://launchpad.example.lazurio.io",
+      "own",
+    ],
+    [
+      "hosted-organization-personal",
+      bindings.organizationEntry,
+      organizationOrigin,
+      "own",
+    ],
+    [
+      "hosted-organization-team",
+      binding({ ...organization, entry: entries.organization }),
+      organizationOrigin,
+      "brokered",
+    ],
+    [
+      "hosted-organization-steward",
+      binding({
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.automation },
+        entry: entries.organization,
+      }),
+      organizationOrigin,
+      "persona",
+    ],
+  ] as const;
+  for (const [preset, machine, origin, github] of withEntry)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset,
+        machine,
+        profile: presetProfile(preset, "linux", { locale }),
+      });
+      const cs = locale === "cs";
+      const tools = `\`${origin}/settings/tools\``;
+      for (const text of [
+        outputs["AGENTS.md"],
+        outputs["manual/this-machine.md"],
+      ]) {
+        expect(text).toContain(
+          cs
+            ? `- Launchpad tohohle Environmentu je na \`${origin}\`: Operátor v něm otevírá aplikace, Soubory a Nastavení (ozubené kolo vedle názvu Environmentu).`
+            : `- This Environment's Launchpad is at \`${origin}\`: there the Operator opens applications, Files and Settings (the gear beside the Environment's name).`,
+        );
+        expect(text).toContain(
+          cs
+            ? "ty mu pošli odkaz a o heslo, token ani kód nežádej"
+            : "you send them the link and never ask for a password, token or code",
+        );
+        expect(text).toContain(
+          cs
+            ? `Když tu Composio zapnuté není, pošli Operátorovi odkaz ${tools}: u Composia klikne na Nainstalovat a přihlásit, přihlásí se a zapne Používají agenti, potom začne nový chat.`
+            : `When Composio is not enabled here, send the Operator the link ${tools}: on Composio they click Install and sign in, sign in and turn on Used by agents, then start a new chat.`,
+        );
+        const ownSignIn = cs
+          ? `pošli Operátorovi odkaz ${tools}. U gh klikne na Přihlásit, případně Propojit SSH klíč, a jednorázový kód zadá na github.com; sám ho nepřihlašuj.`
+          : `send the Operator the link ${tools}. On gh they click Sign in, or Link SSH key, and enter the one-time code on github.com; do not sign them in yourself.`;
+        const brokered = cs
+          ? "- GitHub: tady jednáš jako brokerovaná identita Organizace (Lazurio for GitHub) a osobní účet GitHubu se sem nepřihlašuje."
+          : "- GitHub: here you act as the brokered Organization identity (Lazurio for GitHub), and no personal GitHub account is signed in here.";
+        expect(text.includes(ownSignIn)).toBe(github === "own");
+        expect(text.includes(brokered)).toBe(github === "brokered");
+        expect(
+          text.includes(
+            cs
+              ? "Bez toho nejsou dostupné repozitáře ani aplikace Organizace; po přihlášení aktualizuj checkouty Organizace a modulů (`git pull --ff-only`) a moduly z manifestu Organizace, které tu chybějí a k nimž má Operátor přístup, naklonuj na jejich místo."
+              : "Without it the Organization's repositories and applications are unavailable; after the sign-in, update the checkouts of the Organization and its modules (`git pull --ff-only`) and clone the modules of the Organization's manifest that are missing here and that the Operator can access into their places.",
+          ),
+        ).toBe(github === "own" && preset !== "hosted-personal");
+      }
+    }
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const text of Object.values(outputs))
+        expect(text).not.toContain("/settings/tools");
+    }
+});
+
 // How Lazurio is built is rendered wherever Organizations are mounted; a
 // personal Remote Environment mounts none. Connected applications, secrets and
 // the guard against installing from source are on every preset.

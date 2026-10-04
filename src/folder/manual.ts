@@ -7,6 +7,7 @@ import {
   assignmentLine,
   type InstructionSource,
   instructionTemplateRevision,
+  launchpadRouting,
   mcpInstruction,
   notesMeaning,
   operatorConnectsOverSsh,
@@ -1609,7 +1610,8 @@ function enabledToolsSection(
 // OpenAI, see openai/codex#44385); T3 Code and Lazurio MausBot forward
 // nothing. Work products go to the Operator's Documents folder, and where the
 // Folder records a hosted entry they travel through the Launchpad's Files
-// page (decision F35).
+// page (decision F35), and the agent sends the Operator to the Launchpad for
+// every sign-in and connection (decision F19 addendum 2026-10-04).
 function operatorClient(
   preset: PresetName,
   machine: MachineBinding,
@@ -1731,6 +1733,7 @@ function operatorClient(
     links,
     filesIn,
     filesOut,
+    ...(origin === undefined ? [] : launchpadRouting(preset, origin)),
     ...workOnly,
     chats,
   ];

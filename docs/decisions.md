@@ -1934,6 +1934,35 @@ pairing lifetime. The wacli probe reads `wacli auth status --json`'s own envelop
 (`data.authenticated`, `data.phone`, `data.linked_jid`); it read the top level before
 and reported a paired wacli as not signed in.
 
+**Addendum 2026-10-04 (Matěj): agents send the Operator to the Launchpad for sign-ins and
+connections.** People who work in a Remote Environment through Codex Desktop, such as an office
+team with no technical background, do not know where a sign-in lives. An agent that lacks one
+either improvises a terminal flow or asks for a token. Where the Folder records a hosted entry
+(`entry.externalOrigin`), the generated instructions now carry the same lines in `AGENTS.md`
+(How work is done here) and in `manual/this-machine.md` (How the Operator works with you). One
+source renders them: `launchpadRouting` in `src/folder/render.ts`.
+- **The Launchpad.** The line gives its address and what it holds: applications, Files, and
+  Settings behind the gear beside the Environment's name. Sign-ins and connections are the
+  Operator's own and are made in the Launchpad. The agent sends the link and never asks for a
+  password, token or code.
+- **GitHub, by the preset's provider identity.**
+  - With an own sign-in: when `gh auth status` reports no account, or `ssh -T git@github.com`
+    does not greet it, the agent sends `<origin>/settings/tools`. There the curated sign-in of
+    this decision signs gh in and links the Machine's SSH key. The agent then updates the
+    Organization's checkouts and clones the manifest's missing modules the Operator can access.
+    The Platform has no command that materializes a module, so this sentence carries it.
+  - On a Team Environment the line names the brokered Organization identity, and no person signs
+    in.
+  - An Automated Environment gets no GitHub line: it acts with the persona's own account.
+- **Applications.** Outlook, Teams, a calendar and other applications go through Composio. When
+  Composio is not enabled, the agent sends the same link: Install and sign in, Used by agents,
+  then a new chat. The agent builds no integration of its own.
+
+Without an entry no browser reaches the Launchpad, so nothing points there. The template
+revision is `base-instructions-20`. The revision guard (`tests/folder-template-revision.test.ts`)
+now also pins compositions with an entry, so text that renders only with an entry can no longer
+change under an existing revision.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**
