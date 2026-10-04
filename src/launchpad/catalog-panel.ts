@@ -500,22 +500,36 @@ export function createCatalogPanel(
     const organization = catalogOrganizationKey(value, group.organization);
     if (organization === null) return false;
     const { owner, ask } = owners.read(organization, login);
-    if (ask)
+    if (ask !== null)
       void options
         .get(`/api/organizations/${encodeURIComponent(organization)}/owner`)
         .then(({ value: answer, ok }) =>
           owners.settle(
             organization,
             login,
+            ask,
             ok &&
               !!answer &&
               typeof answer === "object" &&
               (answer as { owner?: unknown }).owner === true,
           ),
         )
-        .catch(() => owners.settle(organization, login, false))
-        .finally(() => render());
+        .catch(() => owners.settle(organization, login, ask, false))
+        .finally(() => {
+          wakeForOwners();
+          render();
+        });
     return owner;
+  }
+
+  // Wakes the page when the earliest Owner answer expires, so that a shown
+  // "+ Nový modul" is asked again without any navigation.
+  let ownerWake: ReturnType<typeof setTimeout> | undefined;
+  function wakeForOwners() {
+    clearTimeout(ownerWake);
+    const next = owners.nextExpiry();
+    if (next === null) return;
+    ownerWake = setTimeout(() => render(), Math.max(1000, next - Date.now()));
   }
 
   function section(

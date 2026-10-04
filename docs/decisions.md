@@ -3606,10 +3606,11 @@ and their new-tab arrows, and the Organization picker in the home's head.
    (`lz-menu__head`) opening its Dashboard, then its Environments with the current one
    checked as "tady jsi", and "Všechny Organizace" widening it to every space. The
    panel under the head stays the app's own, which is what the forks need.
-3. **Names.** An Environment is never named by its machine's technical name. A Team
-   Environment is its Team's ("Team Sales", by the Team's display name in the catalog),
-   an Automated one its persona's Team, a work one "Pracovní", a personal one "Osobní",
-   a workstation "Tento počítač"; the second line says who it is for (`@login` of a work
+3. **Names.** A hosted Environment is never named by its machine's technical name. A
+   Team Environment is its Team's ("Team Sales", by the Team's display name in the
+   catalog), an Automated one its persona's Team, a work one "Pracovní", a personal one
+   "Osobní", and a workstation its computer, as the person named it (the host name
+   without its domain, "MacBook-Pro"; "Tento počítač" when it has none); the second line says who it is for (`@login` of a work
    Environment's assigned person, "sdílený Teamem", "automatizace", "jen tvůj",
    "tento počítač"). The machine's name stays the document's id and in Settings → This
    Environment.
