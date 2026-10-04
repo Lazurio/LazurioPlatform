@@ -920,8 +920,8 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
       ]) {
         expect(text).toContain(
           cs
-            ? `- Launchpad tohohle Environmentu je na \`${origin}\` (Nástroje ${tools}, Soubory \`${origin}/files\`): Operátor v něm otevírá aplikace, Soubory a Nastavení (ozubené kolo vedle názvu Environmentu).`
-            : `- This Environment's Launchpad is at \`${origin}\` (Tools ${tools}, Files \`${origin}/files\`): there the Operator opens applications, Files and Settings (the gear beside the Environment's name).`,
+            ? `- Launchpad tohohle Environmentu (lidem mu říkej Lazurio; „Lazurio“ i „Launchpad“ od Operátora znamená tuhle stránku) je na \`${origin}\` (Nástroje ${tools}, Soubory \`${origin}/files\`): Operátor v něm otevírá aplikace, Soubory a Nastavení (ozubené kolo vedle názvu Environmentu).`
+            : `- This Environment's Launchpad (call it Lazurio towards people; „Lazurio“ and „Launchpad“ from the Operator both mean this page) is at \`${origin}\` (Tools ${tools}, Files \`${origin}/files\`): there the Operator opens applications, Files and Settings (the gear beside the Environment's name).`,
         );
         expect(text).toContain(
           cs
@@ -1005,6 +1005,40 @@ test("a missing module of the manifest is the one exception to the rule on clone
             "that is not a module of the Organization's manifest",
           ])
         expect(troubleshooting.includes(sentence)).toBe(organizations);
+    }
+});
+
+// Decision F17 addendum 2026-10-04: the Operator's request to update is the
+// consent for the tools, and above all the agent pulls every Organization and
+// module; a personal Remote Environment mounts none, so it updates only
+// Lazurio and the tools. Chats are deleted and archived by the Operator in
+// their client; the agent never deletes session files.
+test("an update the Operator asks for updates the tools and pulls every module; chats are the Operator's to delete", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const cs = locale === "cs";
+      const agents = outputs["AGENTS.md"];
+      expect(agents).toContain(
+        cs
+          ? "Když tě Operátor požádá o aktualizaci (třeba „Aktualizuj“), je to souhlas: spusť `lazurio update`"
+          : "When the Operator asks for an update (for example „Aktualizuj“), that is the consent: run `lazurio update`",
+      );
+      expect(
+        agents.includes(
+          cs
+            ? "a hlavně stáhni změny všech Organizací a modulů"
+            : "and above all pull the changes of every Organization and module",
+        ),
+      ).toBe(journey.preset !== "hosted-personal");
+      for (const text of Object.values(outputs))
+        expect(text).not.toMatch(
+          /Vzdálený chat zatím nejde|A remote chat cannot be deleted/,
+        );
     }
 });
 

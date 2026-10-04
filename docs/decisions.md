@@ -1988,6 +1988,29 @@ Desktop breaks.
   A module's application keeps its own `runtime.url` from `lazurio module status`.
 - Template revision `base-instructions-21`.
 
+**Addendum 2026-10-04 late evening (Matěj): "Lazurio" towards people, the Operator's update, and
+chats.**
+- **Naming.** Towards people, the Launchpad is called **Lazurio**; "Launchpad" stays the internal
+  name for developers. In the generated Folder, the Launchpad line tells the agent to call it
+  Lazurio towards people, and that "Lazurio" and "Launchpad" from the Operator both mean this page.
+  The glossary-wide rename is a separate root rollout.
+- **Update on request** (F17). When the Operator asks for an update (for example "Aktualizuj"),
+  that is the consent for the tools too. The agent:
+  - runs `lazurio update`;
+  - updates the tools that have a newer version (`lazurio tools update <tool>`);
+  - above all pulls every Organization and module (`git pull --ff-only` in each clean checkout,
+    a diverged one brought back without losing work, missing declared modules cloned as the
+    troubleshooting manual says);
+  - then says briefly what changed.
+
+  A personal Remote Environment mounts no Organization, so there it is `lazurio update` and the
+  tools. Updates otherwise keep running continuously at the start of work, and Publication stays
+  the person's instruction.
+- **Chats.** Codex Desktop now deletes and archives remote chats. The manual no longer says it
+  cannot. The Operator deletes chats in their client, and the agent never deletes session files
+  (issue #177).
+- Template revision `base-instructions-22`.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**

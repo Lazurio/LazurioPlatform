@@ -1726,12 +1726,12 @@ function operatorClient(
     : [];
   const chats = organization
     ? t(
-        `- **Chaty.** Konverzace ze všech klientů se ukládají sem, na Environment, který patří Organizaci; jsou pracovní.${team ? " Na týmovém Environmentu je vidí celý Team." : ""} Vzdálený chat zatím nejde v Codex Desktopu smazat ani najít v archivu; když o to Operátor požádá, řekni mu to a soubory relací sám nemaž.`,
-        `- **Chats.** Conversations from every client are stored here, in an Environment the Organization owns; they are work conversations.${team ? " In a Team Environment the whole Team sees them." : ""} A remote chat cannot be deleted or found in the archive in Codex Desktop yet; when the Operator asks for that, tell them and do not delete session files yourself.`,
+        `- **Chaty.** Konverzace ze všech klientů se ukládají sem, na Environment, který patří Organizaci; jsou pracovní.${team ? " Na týmovém Environmentu je vidí celý Team." : ""} Mazat a archivovat chaty umí Operátor sám ve svém klientovi; soubory relací sám nemaž.`,
+        `- **Chats.** Conversations from every client are stored here, in an Environment the Organization owns; they are work conversations.${team ? " In a Team Environment the whole Team sees them." : ""} The Operator deletes and archives chats in their own client; do not delete session files yourself.`,
       )
     : t(
-        "- **Chaty.** Konverzace ze všech klientů se ukládají sem. Vzdálený chat zatím nejde v Codex Desktopu smazat ani najít v archivu; když o to Operátor požádá, řekni mu to a soubory relací sám nemaž.",
-        "- **Chats.** Conversations from every client are stored here. A remote chat cannot be deleted or found in the archive in Codex Desktop yet; when the Operator asks for that, tell them and do not delete session files yourself.",
+        "- **Chaty.** Konverzace ze všech klientů se ukládají sem. Mazat a archivovat chaty umí Operátor sám ve svém klientovi; soubory relací sám nemaž.",
+        "- **Chats.** Conversations from every client are stored here. The Operator deletes and archives chats in their own client; do not delete session files yourself.",
       );
   return [
     t("## Jak s tebou Operátor pracuje", "## How the Operator works with you"),
