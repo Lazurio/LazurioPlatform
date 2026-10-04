@@ -223,10 +223,15 @@ information page is reached only from its tile's menu.
   stack) and which Teams reach it; then found it with `lazurio module create
   <org>/<slug> --stack … --teams …` by the Lazurio Module Standard, `--dry-run` first
   and never by hand; check the GitHub repository and its Teams; and prepare a PR,
-  asking before Publication. The tile shows only where the Environment's GitHub
-  identity can create a repository and grant it to Teams: on the Organization Owner's
-  own work Environment or computer. Team and Automated Environments act under the
-  Team's identity, and the personal Environment has no Organization repositories. Once
+  asking before Publication. The tile shows only where GitHub's live answer says that
+  the Environment's actual identity can create a repository in the Organization and
+  grant it to Teams; without that answer it is not shown (fail closed). Typically that is
+  the Organization Owner's own work Environment or computer. A Team Environment acts
+  through the brokered Lazurio for GitHub app within its Team's grants (root decisions
+  0147 and 0165), an Automated Environment through its persona's own GitHub account
+  (root decision 0169), and the personal Environment has no Organization repositories;
+  they get the tile only if their identity really has that capability. #154 builds
+  this as the Owner check of F36's Organization-rail addendum, point 8. Once
   founding a Module in the Dashboard is done (plan DEV-6634), "+ Nový modul" leads there
   instead of to Chat (Matěj, 2026-10-04). The
   T3 Code fork must accept the prompt by link, from the Environment's own origin only
