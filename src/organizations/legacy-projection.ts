@@ -72,6 +72,11 @@ export function expectedLegacyProjection(
     const area = organizationSlotArea(slot.path);
     if (!area) throw new Error("Invalid projection slot path");
     if (area === "root") continue;
+    const git = slot.git as Data | null | undefined;
+    const remote = git?.url ?? slot.repo ?? slot.repository;
+    // Core projects only materializable repositories; planned slots remain
+    // in the authored inventory, outside the legacy modules surface.
+    if (remote === undefined) continue;
     const path = slot.path as string;
     const entry: Record<string, unknown> = { ...slot };
     for (const key of ["git", "space", "default_access", "required_roles"])
@@ -81,12 +86,14 @@ export function expectedLegacyProjection(
       !classifyRepositorySlotPath(path)?.nestedDatabase
     )
       entry.slug = path.split("/").at(-1);
-    const git = slot.git as Data | null | undefined;
-    const remote = git?.url ?? slot.repo ?? slot.repository;
     const branch = git?.branch ?? slot.branch;
-    if (remote !== undefined) entry.repo = remote;
+    entry.repo = remote;
     if (branch !== undefined) entry.branch = branch;
-    if (slot.space === "productionspace") entry.workspace = "productionspace";
+    if (area === "productionspace" || slot.space === "productionspace") {
+      delete entry.teams;
+      delete entry.workspace;
+      delete entry.workspaces;
+    }
     if (
       Object.hasOwn(slot, "default_access") ||
       Object.hasOwn(slot, "required_roles")

@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { organizationDocumentHash } from "../src/organizations/document-hash";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import type { readOrganizationDocuments } from "../src/organizations/read-documents";
 import {
@@ -78,6 +79,80 @@ function documents(input: {
 }
 const resolve = (input: Parameters<typeof documents>[0]) =>
   resolveOrganizationRootDocuments(documents(input));
+
+test("Core-compatible projection admits planned slots and Productionspace without changing declarations", () => {
+  const inventory = {
+    ...modules,
+    module_slots: [
+      { path: "workspace/planned", status: "planned_slot" },
+      {
+        path: "productionspace/Engine",
+        space: "productionspace",
+        git: { url: "git@github.com:Fixture/Engine.git", branch: "main" },
+      },
+      {
+        path: "workspace/app",
+        teams: ["makers"],
+        git: { url: "git@github.com:Fixture/app.git", branch: "main" },
+      },
+    ],
+  };
+  // Independent wire expectation from Core's projectLegacyModules contract:
+  // repository-less slots stay inventory-only; Productionspace has no Team alias.
+  const legacy = {
+    organization_generation: "gen3",
+    organization_kind: "organization",
+    company: {
+      slug: "fixture",
+      display_name: "Fixture",
+      github_org: "Fixture",
+    },
+    modules: [
+      {
+        path: "productionspace/Engine",
+        slug: "Engine",
+        repo: "git@github.com:Fixture/Engine.git",
+        branch: "main",
+      },
+      {
+        path: "workspace/app",
+        slug: "app",
+        teams: ["makers"],
+        repo: "git@github.com:Fixture/app.git",
+        branch: "main",
+      },
+    ],
+  };
+  const declaration = {
+    ...unpinned,
+    compatibility: {
+      legacy_projection: {
+        ...unpinned.compatibility.legacy_projection,
+        sha256: organizationDocumentHash(legacy),
+      },
+    },
+  };
+  const before = JSON.stringify({ declaration, inventory });
+  expect(expectedLegacyProjection(declaration, inventory)).toMatchObject({
+    projection: legacy,
+    declaredHashMatches: true,
+  });
+  expect(
+    resolve({
+      canonical: present(declaration),
+      legacy: present(legacy),
+      modules: present(inventory),
+    }),
+  ).toEqual({ state: "transition", executable: true, issues: [] });
+  expect(JSON.stringify({ declaration, inventory })).toBe(before);
+  expect(
+    resolve({ canonical: present(unpinned), modules: present(inventory) }),
+  ).toMatchObject({
+    state: "conflict",
+    executable: false,
+    issues: ["canonical_projection_hash_invalid"],
+  });
+});
 
 test("the admission rule has one home and two variants; the default is B, canonical-only current executes", () => {
   const admitted = (variant?: ExecutionAdmissionVariant) =>

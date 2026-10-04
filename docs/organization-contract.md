@@ -114,6 +114,16 @@ decision replaced that criterion rather than meeting it; the exclusions still ho
 
 ## Relation to the upstream contract
 
+The compatibility projection follows Core's materializable-repository boundary:
+slots without repository coordinates stay in the authored inventory but are absent
+from legacy `modules`; Productionspace entries carry no `teams`, `workspace` or
+`workspaces` alias. This behavior is checked against
+[Core's projector at f402e355](https://github.com/HumanAndMachines/Lazurio/blob/f402e35522ef947efe55c953f754e5d9d1fca98c/lazurio/core/organization-activation-lib.mjs)
+with synthetic wire expectations in `tests/organization-root-resolution.test.ts`.
+The regression proves a valid projection is executable and a stale declared hash
+still refuses. It does not rewrite declarations or claim complete resolver
+convergence.
+
 The upstream contract already makes `lazurio.organization.json` canonical during a
 parity-valid transition, with the legacy file a generated projection, not a second
 authority. Removal waits for the separate reader/update/finalization gate and an
