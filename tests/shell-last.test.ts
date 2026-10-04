@@ -16,11 +16,11 @@ import {
 const shell = parseShell({
   schema: "lazurio.shell.v1",
   locale: "cs",
-  current: "vm-01",
+  current: "vm-01.example",
   operator: { initials: null, login: null, avatar: null },
   environments: [
     {
-      id: "vm-01",
+      id: "vm-01.example",
       label: "Team Sales",
       kind: "team",
       organizations: ["example"],
@@ -48,7 +48,7 @@ const shell = parseShell({
 test("what a page reports: this Environment as the document names it, the app and the space's Organization slug", () => {
   expect(shell).not.toBeNull();
   expect(lastVisit(shell, "chat", "example")).toEqual({
-    environment: "vm-01",
+    environment: "vm-01.example",
     app: "chat",
     organization: "example",
   });
@@ -78,7 +78,7 @@ test("once per page load, and only once an app is known", async () => {
   report(shell, "chat", "example");
   report(shell, "apps", "example");
   expect(sent.map((body) => JSON.parse(body))).toEqual([
-    { environment: "vm-01", app: "apps", organization: "example" },
+    { environment: "vm-01.example", app: "apps", organization: "example" },
   ]);
 });
 
@@ -118,7 +118,7 @@ test("the report is a same-origin PUT that outlives the page, and its answer is 
     "application/json",
   );
   expect(JSON.parse(String(seen[0]?.init?.body))).toEqual({
-    environment: "vm-01",
+    environment: "vm-01.example",
     app: "automate",
     organization: "example",
   });
