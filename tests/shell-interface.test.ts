@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { shellElementInterface } from "../src/shell/interface";
+import { columnHeadCss, railCss } from "../src/shell/styles";
 import { shellApps } from "../src/shell/view";
 
 // Decision F36, addendum of 2026-10-04: the forks (T3 Code, MausBot) and the
@@ -19,7 +20,22 @@ test("the promised interface v1 is exactly this", () => {
     },
     active: ["chat", "apps", "automate"],
     events: ["lazurio-navigate", "lazurio-app"],
-    properties: ["--lazurio-rail-width", "--lazurio-host-tone"],
+    properties: [
+      "--lazurio-rail-width",
+      "--lazurio-host-tone",
+      "--lazurio-surface",
+      "--lazurio-ink",
+      "--lazurio-ink-muted",
+      "--lazurio-line",
+      "--lazurio-line-strong",
+      "--lazurio-hover",
+      "--lazurio-selected",
+      "--lazurio-control",
+      "--lazurio-raised",
+      "--lazurio-overlay",
+      "--lazurio-overlay-ink",
+      "--lazurio-focus",
+    ],
   });
 });
 
@@ -40,10 +56,30 @@ test("the elements keep every promised name", async () => {
     expect(source).toContain(`customElements.define("${name}", `);
   for (const event of shellElementInterface.events)
     expect(source).toContain(`new CustomEvent("${event}"`);
+  // The rail width and the tone in the script, the colour roles in the
+  // styles of both elements.
   for (const property of shellElementInterface.properties)
-    expect(source).toContain(`"${property}"`);
+    expect(
+      source.includes(`"${property}"`) ||
+        (railCss.includes(`var(${property},`) &&
+          columnHeadCss.includes(`var(${property},`)),
+    ).toBe(true);
   for (const app of shellElementInterface.active)
     expect(shellApps as readonly string[]).toContain(app);
+});
+
+// The colour roles (F36, addendum of 2026-10-04, evening) are optional: a
+// host that sets none, or only some, keeps the design system's colour for
+// the rest. A role is read either with that colour as its fallback, or in a
+// `--shell-host-*` value that is itself only ever read with one.
+test("an unset colour role leaves the design system's colour", () => {
+  for (const css of [railCss, columnHeadCss]) {
+    for (const declaration of css.split(/[;{}]/)) {
+      if (!/var\(--lazurio-[a-z-]+\)/.test(declaration)) continue;
+      expect(declaration.trim()).toMatch(/^--shell-host-[a-z-]+:/);
+    }
+    expect(css).not.toMatch(/var\(--shell-host-[a-z-]+\)/);
+  }
 });
 
 test("the Launchpad serves the promised script", async () => {

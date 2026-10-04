@@ -21,6 +21,24 @@ export const shellElementInterface = Object.freeze({
   /** Cancelable, composed events a host may take over. */
   events: Object.freeze(["lazurio-navigate", "lazurio-app"]),
   /** Custom properties: the rail sets the first on the document; a host may
-   * set the second to override the detected tone. */
-  properties: Object.freeze(["--lazurio-rail-width", "--lazurio-host-tone"]),
+   * set the second to override the detected tone. The rest are the colour
+   * roles (F36, addendum of 2026-10-04, evening): a host fills them from its
+   * own theme on its document (`:root`), each one optional; an unset role
+   * keeps the design system's colour, and a set one wins over the tone. */
+  properties: Object.freeze([
+    "--lazurio-rail-width",
+    "--lazurio-host-tone",
+    "--lazurio-surface",
+    "--lazurio-ink",
+    "--lazurio-ink-muted",
+    "--lazurio-line",
+    "--lazurio-line-strong",
+    "--lazurio-hover",
+    "--lazurio-selected",
+    "--lazurio-control",
+    "--lazurio-raised",
+    "--lazurio-overlay",
+    "--lazurio-overlay-ink",
+    "--lazurio-focus",
+  ]),
 });
