@@ -81,6 +81,7 @@ export const contentFailureCodes = [
   "organization-ambiguous",
   "root-denied",
   "root-owner-mismatch",
+  "role-unverified",
   "organization-template",
   "root-declaration-invalid",
   "root-declaration-mismatch",

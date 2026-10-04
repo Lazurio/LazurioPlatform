@@ -19,11 +19,12 @@ import {
   itemLabel,
   repositoryPattern,
 } from "./model";
+import { isOrganizationRole } from "./role";
 
 /** `lazurio organization install` and `lazurio personalspace install`: the
  * terminal surface of content installation. The Launchpad's
  * `POST /api/content/install` runs the same core. */
-export const contentHelp = `organization install <github-login> [--root <owner>/<repository>] [--folder <absolute Folder>] [--json]
+export const contentHelp = `organization install <github-login> [--role admin|steward|builder] [--root <owner>/<repository>] [--folder <absolute Folder>] [--json]
   Installs the Organization bound to that GitHub login into the Folder: its
   root repository first (cloned into a temporary sibling, verified — remote,
   branch main, and its own lazurio.organization.json binding the login — and
@@ -38,7 +39,15 @@ export const contentHelp = `organization install <github-login> [--root <owner>/
   occupied destination is never touched. The root of an Organization the
   Folder does not hold yet is taken only from --root (see
   docs/content-sync.md, "Open decision"); for one it holds, the root is that
-  checkout. Only on a workstation (local) and a work Environment
+  checkout. The scope follows the person's live role in the Organization,
+  which GitHub must confirm through gh before anything is cloned: Admin (an
+  active Owner membership) gets the full installation; Steward (maintain on
+  the root repository) and Builder (write on it) get everything except the
+  restricted (Admin-only) slots and the slots below them, which are reported
+  excluded_by_role_scope and never asked of GitHub. --role asserts a role
+  (an Admin may choose a narrower one); without it the role is resolved
+  live. A role GitHub does not confirm fails closed (role-unverified). Only
+  on a workstation (local) and a work Environment
   (hosted-organization-personal, its own Organization only). One JSON line
   per step with --json, then the result.
 personalspace install [--folder <absolute Folder>] [--json]
@@ -60,7 +69,7 @@ usage or not allowed on this Environment.`;
 export class ContentUsageError extends Error {}
 
 const usage =
-  "Usage: organization install <github-login> [--root <owner>/<repository>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
+  "Usage: organization install <github-login> [--role admin|steward|builder] [--root <owner>/<repository>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
 
 /** Whether `args` is a content command (the dispatcher's question). */
 export const isContentCommand = (args: readonly string[]) =>
@@ -86,6 +95,7 @@ export async function runContentCommand(
     folder?: string | undefined;
     json?: boolean | undefined;
     root?: string | undefined;
+    role?: string | undefined;
   };
   let positionals: string[];
   try {
@@ -98,6 +108,7 @@ export async function runContentCommand(
         folder: { type: "string" },
         json: { type: "boolean" },
         root: { type: "string" },
+        role: { type: "string" },
       },
     });
     ({ values, positionals } = parsed);
@@ -122,7 +133,9 @@ export async function runContentCommand(
         login === undefined ||
         !githubLoginPattern.test(login))) ||
     (!organization && (noun !== "personalspace" || rest.length !== 0)) ||
-    (!organization && values.root !== undefined) ||
+    (!organization &&
+      (values.root !== undefined || values.role !== undefined)) ||
+    (values.role !== undefined && !isOrganizationRole(values.role)) ||
     (values.root !== undefined && !repositoryPattern.test(values.root)) ||
     (values.folder !== undefined &&
       (!isAbsolute(values.folder) || resolve(values.folder) !== values.folder))
@@ -142,10 +155,14 @@ export async function runContentCommand(
   const item: ContentItemRef = organization
     ? { kind: "organization", login: login as string }
     : { kind: "personalspace" };
+  const key = (login ?? "").toLowerCase();
   const request: InstallRequest = {
     items: [item],
     ...(organization && values.root !== undefined
-      ? { roots: { [(login as string).toLowerCase()]: values.root } }
+      ? { roots: { [key]: values.root } }
+      : {}),
+    ...(organization && isOrganizationRole(values.role)
+      ? { roles: { [key]: values.role } }
       : {}),
   };
   let host: ContentHost;

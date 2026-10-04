@@ -27,6 +27,12 @@ import {
 } from "./model";
 import { resolveOrganizationRootRepository } from "./organization-root";
 import {
+  classifySlotAccess,
+  type OrganizationRole,
+  type RepositoryPermission,
+  verifyOrganizationRole,
+} from "./role";
+import {
   organizationsOf,
   personalspaceRepositoryName,
   personalspaceTemplate,
@@ -48,6 +54,10 @@ export type InstallRequest = Readonly<{
    * the Folder does not hold yet, by lowercase GitHub login (the CLI's
    * `--root`). */
   roots?: Readonly<Record<string, string>> | undefined;
+  /** The role the operator asserts in an Organization, by lowercase GitHub
+   * login (the CLI's `--role`); absent, the role is resolved live. Either
+   * way GitHub must confirm it. */
+  roles?: Readonly<Record<string, OrganizationRole>> | undefined;
 }>;
 
 export type ContentPlan =
@@ -57,6 +67,7 @@ export type ContentPlan =
       scope: Extract<ContentScope, { allowed: true }>;
       items: readonly ContentItemRef[];
       roots: Readonly<Record<string, string>>;
+      roles: Readonly<Record<string, OrganizationRole>>;
     }>;
 
 /** What happened to one declared child repository of an Organization. */
@@ -70,7 +81,7 @@ export type RepositoryOutcome = Readonly<{
     | "unavailable"
     | "blocked"
     | "failed"
-    | "restricted"
+    | "excluded_by_role_scope"
     | "excluded"
     | "no-repository";
   reason?: string;
@@ -89,6 +100,8 @@ export type ItemOutcome = Readonly<{
   repository?: string;
   /** Relative to the Folder. */
   directory?: string;
+  /** The role GitHub confirmed in the Organization. */
+  role?: OrganizationRole;
   repositories?: readonly RepositoryOutcome[];
   preparations?: readonly PreparationOutcome[];
 }>;
@@ -148,11 +161,15 @@ export async function planContentInstall(
   const roots: Record<string, string> = {};
   for (const [login, root] of Object.entries(request.roots ?? {}))
     roots[login.toLowerCase()] = root;
+  const roles: Record<string, OrganizationRole> = {};
+  for (const [login, role] of Object.entries(request.roles ?? {}))
+    roles[login.toLowerCase()] = role;
   return {
     kind: "planned",
     scope,
     items: Object.freeze(items),
     roots: Object.freeze(roots),
+    roles: Object.freeze(roles),
   };
 }
 
@@ -188,6 +205,7 @@ export async function runContentInstall(
     host,
     scope: plan.scope,
     roots: plan.roots,
+    roles: plan.roles,
     viewer: () => {
       viewer ??= host.github.viewer();
       return viewer;
@@ -233,6 +251,7 @@ type RunContext = Readonly<{
   host: ContentHost;
   scope: Extract<ContentScope, { allowed: true }>;
   roots: Readonly<Record<string, string>>;
+  roles: Readonly<Record<string, OrganizationRole>>;
   viewer: () => Promise<ViewerAnswer>;
 }>;
 
@@ -361,18 +380,31 @@ type Child = Readonly<{
   segments: readonly string[];
   repository: string | null;
   kind: "module" | "productionspace";
-  excluded?: "excluded" | "restricted";
+  /** Not materialized, and nothing is asked of GitHub for it. */
+  excluded?: "excluded" | "excluded_by_role_scope";
+  /** A slot (or one above it) whose access declaration is malformed. */
+  unclassified?: true;
 }>;
+
+const record = (value: unknown): Readonly<Record<string, unknown>> =>
+  value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : {};
 
 // The declared children content installation materializes (decision F33,
 // 1.1 point 4): workspace modules, the root-level applications
 // (`mission-control`, `design-system`) and the Production Space
 // repositories. `infra` and repository databases (`mission-control/db`,
 // `workspace/<module>/db`) are the Organization's own bootstrap (B7) and are
-// left out; a slot whose `default_access` is `restricted` or `private` is
-// never materialized implicitly (B7, root decision 0143).
+// left out. The role scope comes first, as the resident applies it
+// (`R:lazurio/runtime/lazurio-update-lib.mjs`, restricted slot policy): a
+// restricted (Admin-only) slot and every slot below one are in scope only for
+// a verified Admin, and are otherwise `excluded_by_role_scope`; a slot whose
+// access declaration (its own or one above it) is malformed is never
+// materialized, for any role. Neither asks GitHub anything.
 function declaredChildren(
   inventory: ReturnType<typeof inspectCanonicalInventory>,
+  restricted: "include" | "exclude",
 ): Child[] {
   const raw = Array.isArray(inventory.modules.module_slots)
     ? (inventory.modules.module_slots as unknown[])
@@ -380,15 +412,32 @@ function declaredChildren(
   const conflicted = new Set(
     inventory.inventory.issues.flatMap((issue) => issue.indices),
   );
+  // The access of a path and of every declared slot above it.
+  const boundary = (path: string) => {
+    let worst: "ordinary" | "restricted" | "unknown" = "ordinary";
+    for (const candidate of raw) {
+      const declaration = record(candidate);
+      const at = declaration.path;
+      if (typeof at !== "string" || (at !== path && !path.startsWith(`${at}/`)))
+        continue;
+      const access = classifySlotAccess(declaration);
+      if (access === "unknown") return "unknown";
+      if (access === "restricted") worst = "restricted";
+    }
+    return worst;
+  };
   const children: Child[] = [];
   for (const slot of inventory.inventory.slots) {
-    if (slot === null || slot.id === null || conflicted.has(slot.index))
+    // A repository database may be declared without a slug; it is still
+    // reported (and never materialized).
+    if (
+      slot === null ||
+      (slot.id === null && !slot.nestedDatabase) ||
+      conflicted.has(slot.index)
+    )
       continue;
-    const declaration = raw[slot.index] as Record<string, unknown>;
-    const git =
-      declaration.git !== null && typeof declaration.git === "object"
-        ? (declaration.git as Record<string, unknown>)
-        : {};
+    const declaration = record(raw[slot.index]);
+    const git = record(declaration.git);
     const remote = git.url ?? declaration.repo ?? declaration.repository;
     const repository =
       typeof remote === "string" ? githubRemoteCoordinate(remote.trim()) : null;
@@ -397,18 +446,20 @@ function declaredChildren(
       (slot.scope === "root" && rootApplicationPaths.has(slot.path));
     const kind =
       slot.scope === "productionspace" ? "productionspace" : "module";
-    const access = declaration.default_access;
+    const access = boundary(slot.path);
     children.push(
       Object.freeze({
         path: slot.path,
         segments: Object.freeze(slot.path.split("/")),
         repository,
         kind,
-        ...(!module && kind !== "productionspace"
-          ? { excluded: "excluded" as const }
-          : access === "restricted" || access === "private"
-            ? { excluded: "restricted" as const }
-            : {}),
+        ...(access === "unknown"
+          ? { unclassified: true as const }
+          : access === "restricted" && restricted === "exclude"
+            ? { excluded: "excluded_by_role_scope" as const }
+            : !module && kind !== "productionspace"
+              ? { excluded: "excluded" as const }
+              : {}),
       }),
     );
   }
@@ -429,6 +480,12 @@ async function materializeChild(
     path: child.path,
     ...(child.repository === null ? {} : { repository: child.repository }),
   };
+  if (child.unclassified)
+    return {
+      ...where,
+      result: "blocked",
+      reason: "access-classification-unknown",
+    };
   if (child.excluded !== undefined) return { ...where, result: child.excluded };
   if (child.repository === null) return { ...where, result: "no-repository" };
   const parentSegments = child.segments.slice(0, -1);
@@ -489,7 +546,7 @@ function childrenSummary(outcomes: readonly RepositoryOutcome[]): string {
     "unavailable",
     "blocked",
     "failed",
-    "restricted",
+    "excluded_by_role_scope",
     "excluded",
     "no-repository",
   ];
@@ -541,6 +598,7 @@ async function installOrganization(
       `the root repository of ${login} is not declared to this Environment; the CLI takes it explicitly as --root <owner>/<repository>`,
     );
   let rootRepository = resolution.repository;
+  let rootPermission: RepositoryPermission | null = null;
   if (rootRepository !== null) {
     const [owner, name] = rootRepository.split("/") as [string, string];
     const access = await host.github.repository(owner, name);
@@ -563,10 +621,28 @@ async function installOrganization(
         `${access.repository.fullName} does not belong to ${login}`,
       );
     rootRepository = access.repository.fullName;
+    rootPermission = access.repository.permission;
   }
+  // The person's live role decides the scope; nothing starts without one.
+  const requested = context.roles[login.toLowerCase()] ?? null;
+  const membership =
+    requested === "steward" || requested === "builder"
+      ? ({ kind: "none" } as const)
+      : await host.github.membership(login);
+  const role = verifyOrganizationRole({
+    requested,
+    membership,
+    rootPermission,
+  });
+  if (role.kind === "unverified")
+    return steps.fail(
+      "access",
+      "role-unverified",
+      `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}`,
+    );
   steps.done(
     "access",
-    `as ${viewer.login}; root ${rootRepository ?? "present in this Folder"}`,
+    `as ${viewer.login} (${role.role}${role.restricted === "exclude" ? ", restricted slots excluded" : ""}); root ${rootRepository ?? "present in this Folder"}`,
   );
   // root
   steps.running("root");
@@ -625,6 +701,7 @@ async function installOrganization(
     item,
     ...(rootRepository === null ? {} : { repository: rootRepository }),
     directory: relative(folder, directory),
+    role: role.role,
   };
   // modules: children from the declaration of the root as it is now
   steps.running("modules");
@@ -652,7 +729,7 @@ async function installOrganization(
     };
   }
   const repositories: RepositoryOutcome[] = [];
-  for (const child of declaredChildren(inventory))
+  for (const child of declaredChildren(inventory, role.restricted))
     repositories.push(await materializeChild(directory, child, context));
   steps.done("modules", childrenSummary(repositories));
   // preparation: the modules this run materialized, by the module core
@@ -669,6 +746,17 @@ async function installOrganization(
   if (entry !== undefined && entry.organization !== null)
     for (const module of entry.modules) {
       if (!materialized.has(module.path)) continue;
+      // A module whose own declaration cannot be read has nothing to
+      // prepare; its catalog reason says why (a refused preparation is still
+      // asked, the module core answers it).
+      if (!module.executable && module.preparationRefused !== true) {
+        preparations.push({
+          module: module.module,
+          result: "not-prepared",
+          reason: module.reason ?? "module-unavailable",
+        });
+        continue;
+      }
       const answer = await host.prepare(
         `${entry.organization}/${module.module}`,
       );

@@ -21,6 +21,10 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   Environment does not install that content (`{ "error": "not-allowed",
 //   "reason": … }`);
 // - `GET /api/content/jobs/<id>`: `{ id, state, steps, failure? }`.
+// An Organization's scope follows the person's role, which the request does
+// not carry: the core resolves it live from GitHub through gh (an Owner's
+// membership, `maintain` or `write` on the root repository) and fails closed
+// with `role-unverified` when GitHub confirms none.
 
 const jobRoute = /^\/api\/content\/jobs\/([0-9a-f]{32})$/;
 

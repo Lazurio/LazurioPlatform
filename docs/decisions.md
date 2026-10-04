@@ -475,7 +475,16 @@ Contract and details: [content synchronization, Installation](content-sync.md#in
    Environment's GitHub sign-in can read (workspace modules, root-level applications,
    Production Space repositories; unreachable ones reported, not failures), the
    declared preparation of the modules it cloned, and the doctor's catalog check.
-4. **The Personalspace** is `<login>/<login>_GEN3` in `personalspace/<login>_GEN3`
+4. **The person's live role scopes an Organization** (review of root decision 0188 by
+   the Organization Steward and a Codex review, 2026-10-04), as the resident
+   `lazurio organization install --role builder|steward` does: only a verified Admin
+   (an active Owner membership) gets the full installation; a Steward (`maintain` on
+   the root repository) or Builder (`write` on it) gets everything except the
+   restricted (Admin-only) slots and the slots below them, `excluded_by_role_scope`
+   without any provider operation; a role GitHub does not confirm fails closed
+   (`role-unverified`) before anything is cloned. The CLI takes `--role
+   admin|steward|builder`; the Launchpad resolves the role live.
+5. **The Personalspace** is `<login>/<login>_GEN3` in `personalspace/<login>_GEN3`
    (the resident's naming). Existing on GitHub (private, the account's own): cloned
    only. Missing: created from `Lazurio/PersonalspaceTemplate_GEN3` as a private
    repository of the account, then cloned. GitHub's `template_repository` is only a
@@ -497,6 +506,8 @@ Owner: Matěj.
 | Fail the run when a module's preparation is refused | The content is in place and a start prepares again (F34); reported in the step instead |
 | Materialize `infra` and repository databases with the modules | F33 leaves them out of the composition; databases are the Organization's own bootstrap (B7) |
 | Hold the Folder operation lock for the whole install | Every Folder read (status, preset) would wait behind a clone; a separate content lock instead |
+| No role: GitHub denies what the account cannot read anyway | An Admin-only slot readable by a Builder (a public or wider-granted repository) would land on a Builder's Environment; the role scope decides before any provider operation, as in the resident |
+| The resident's per-slot WRITE readiness gate for Builder and Steward | One unwritable module would block the whole install; the role is confirmed on the root and children are reported one by one (F9) |
 
 ## F10 — Workspace presets and typed owner requests
 

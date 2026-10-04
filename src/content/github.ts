@@ -1,6 +1,7 @@
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
 import { githubLoginPattern, repositoryPattern } from "./model";
+import type { MembershipAnswer, RepositoryPermission } from "./role";
 
 // The GitHub side of content installation, through this Environment's own
 // GitHub sign-in: gh's (decision F19), found on the operator's PATH and run
@@ -28,6 +29,8 @@ export type GitHubRepository = Readonly<{
   archived: boolean;
   /** Whether this identity may read it (`permissions.pull`). */
   readable: boolean;
+  /** The highest permission this identity has on it, or null. */
+  permission: RepositoryPermission | null;
 }>;
 
 export type RepositoryAnswer =
@@ -41,6 +44,9 @@ export type ContentGitHub = Readonly<{
   /** Who gh works as on this Environment. */
   viewer(): Promise<ViewerAnswer>;
   repository(owner: string, name: string): Promise<RepositoryAnswer>;
+  /** The viewer's membership in an Organization (an Owner is an active
+   * `admin` membership). */
+  membership(organization: string): Promise<MembershipAnswer>;
   /** The viewer's own repositories created from `template`, as
    * `<owner>/<name>`, or `unavailable`. */
   templateDerived(template: string): Promise<readonly string[] | "unavailable">;
@@ -119,6 +125,40 @@ export function parseViewer(stdout: string): GitHubViewer | null {
   }
 }
 
+const permissionOrder: readonly [string, RepositoryPermission][] = [
+  ["admin", "admin"],
+  ["maintain", "maintain"],
+  ["push", "write"],
+  ["triage", "triage"],
+  ["pull", "read"],
+];
+
+/** The highest permission REST's `permissions` object grants, or null. */
+function highestPermission(
+  permissions: Record<string, unknown> | null,
+): RepositoryPermission | null {
+  for (const [field, permission] of permissionOrder)
+    if (permissions?.[field] === true) return permission;
+  return null;
+}
+
+/** `GET /user/memberships/orgs/<org>`, as `organization-owner.ts` reads it. */
+export function parseMembership(stdout: string): MembershipAnswer {
+  try {
+    const value = record(JSON.parse(stdout));
+    const state = value?.state;
+    const role = value?.role;
+    if (
+      (state !== "active" && state !== "pending") ||
+      (role !== "admin" && role !== "member")
+    )
+      return { kind: "unavailable" };
+    return Object.freeze({ kind: "member", state, role });
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
 export function parseRepository(stdout: string): GitHubRepository | null {
   try {
     const value = record(JSON.parse(stdout));
@@ -150,6 +190,7 @@ export function parseRepository(stdout: string): GitHubRepository | null {
       // A public repository answers without `permissions` to an anonymous
       // reader only; a signed-in gh always gets them.
       readable: permissions?.pull === true,
+      permission: highestPermission(permissions),
     });
   } catch {
     return null;
@@ -236,6 +277,19 @@ export function ghContentGitHub(
       }
       if (answer.kind === "error" && answer.status === "404")
         return { kind: "missing" };
+      return { kind: "unavailable" };
+    },
+    async membership(organization): Promise<MembershipAnswer> {
+      if (!githubLoginPattern.test(organization))
+        return { kind: "unavailable" };
+      const answer = await run([
+        "api",
+        `user/memberships/orgs/${organization}`,
+      ]);
+      if (answer.kind === "ok") return parseMembership(answer.stdout);
+      // 404: not a member (or the membership is hidden from this token).
+      if (answer.kind === "error" && answer.status === "404")
+        return { kind: "none" };
       return { kind: "unavailable" };
     },
     async templateDerived(template) {

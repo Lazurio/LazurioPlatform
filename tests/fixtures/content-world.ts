@@ -9,6 +9,7 @@ import type {
 } from "../../src/content/github";
 import type { ContentHost, PreparationAnswer } from "../../src/content/host";
 import { contentLockDirectory } from "../../src/content/host";
+import type { MembershipAnswer } from "../../src/content/role";
 import {
   initializeFolder,
   initializeHandoverFolder,
@@ -198,6 +199,19 @@ export const alphaSlots: Slot[] = [
     default_access: "restricted",
     git: { url: "git@github.com:Alpha/secret.git", branch: "main" },
   },
+  // A repository database below the restricted slot: out of the install
+  // anyway, and out of a Builder's or Steward's scope as a descendant.
+  {
+    path: "workspace/secret/db",
+    git: { url: "git@github.com:Alpha/secret-data.git" },
+  },
+  // An access mode no one declared: never materialized, for any role.
+  {
+    path: "workspace/odd",
+    slug: "odd",
+    default_access: "everyone",
+    git: { url: "git@github.com:Alpha/odd.git", branch: "main" },
+  },
   { path: "workspace/planned", slug: "planned" },
 ];
 
@@ -239,6 +253,9 @@ export function stubGitHub(
     derived?: readonly string[] | "unavailable";
     generate?: "private" | "public" | "failed";
     gate?: Promise<void>;
+    /** The viewer's membership in every Organization asked; by default an
+     * active Owner's. */
+    membership?: MembershipAnswer;
   } = {},
 ) {
   const calls: StubCalls = [];
@@ -268,9 +285,16 @@ export function stubGitHub(
           private: true,
           archived: false,
           readable: true,
+          permission: "admin",
           ...entry,
         },
       };
+    },
+    async membership(organization) {
+      calls.push({ kind: "membership", args: [organization] });
+      return (
+        options.membership ?? { kind: "member", state: "active", role: "admin" }
+      );
     },
     async templateDerived(template) {
       calls.push({ kind: "templateDerived", args: [template] });

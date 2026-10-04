@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { gitEnvironmentOf } from "../src/content/git";
 import {
   ghContentGitHub,
+  parseMembership,
   parseRepository,
   parseViewer,
 } from "../src/content/github";
@@ -77,6 +78,23 @@ test("the GitHub answers are read strictly", () => {
     private: true,
     archived: false,
     readable: true,
+    permission: "read",
+  });
+  expect(
+    parseRepository(
+      JSON.stringify({
+        ...repository,
+        permissions: { pull: true, triage: true, push: true, maintain: false },
+      }),
+    )?.permission,
+  ).toBe("write");
+  expect(parseMembership('{"state":"active","role":"admin"}')).toEqual({
+    kind: "member",
+    state: "active",
+    role: "admin",
+  });
+  expect(parseMembership('{"state":"active","role":"owner"}')).toEqual({
+    kind: "unavailable",
   });
   expect(
     parseRepository(JSON.stringify({ ...repository, permissions: undefined }))
@@ -93,6 +111,8 @@ case "$*" in
   "api user") echo '{"login":"example","id":12345}' ;;
   "api repos/Example/present") echo '{"full_name":"Example/present","private":true,"archived":false,"owner":{"login":"Example","id":7,"type":"Organization"},"permissions":{"pull":true}}' ;;
   "api repos/Example/absent") echo '{"message":"Not Found","status":"404"}'; echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
+  "api user/memberships/orgs/Example") echo '{"state":"active","role":"admin","organization":{"login":"Example"}}' ;;
+  "api user/memberships/orgs/Other") echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
   *) echo 'error connecting to api.github.com' >&2; exit 1 ;;
 esac`);
   expect(await github.viewer()).toEqual({
@@ -107,11 +127,19 @@ esac`);
   expect(await github.repository("Example", "offline")).toEqual({
     kind: "unavailable",
   });
+  expect(await github.membership("Example")).toEqual({
+    kind: "member",
+    state: "active",
+    role: "admin",
+  });
+  expect(await github.membership("Other")).toEqual({ kind: "none" });
   expect(await calls()).toEqual([
     "api user",
     "api repos/Example/present",
     "api repos/Example/absent",
     "api repos/Example/offline",
+    "api user/memberships/orgs/Example",
+    "api user/memberships/orgs/Other",
   ]);
 });
 

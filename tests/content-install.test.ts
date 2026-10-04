@@ -8,6 +8,10 @@ import {
   materializationMarker,
 } from "../src/content/materialize";
 import type { ContentStep } from "../src/content/model";
+import {
+  classifySlotAccess,
+  verifyOrganizationRole,
+} from "../src/content/role";
 import { contentStatus } from "../src/content/status";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { renameNoReplace } from "../src/platform/rename";
@@ -132,21 +136,28 @@ posixTest(
       "mission-control/db": "excluded",
       "productionspace/firmware": "materialized",
       "workspace/docs": "denied",
+      "workspace/odd": "blocked",
       "workspace/planned": "no-repository",
-      "workspace/secret": "restricted",
+      // A verified Admin (the stub's default membership) installs the
+      // restricted slot too.
+      "workspace/secret": "materialized",
+      "workspace/secret/db": "excluded",
       "workspace/web": "materialized",
     });
+    expect(outcome?.role).toBe("admin");
     for (const path of [
       "workspace/web",
       "mission-control",
       "productionspace/firmware",
+      "workspace/secret",
     ])
       expect(await exists(join(root, path, ".git"))).toBe(true);
     for (const path of [
       "workspace/docs",
-      "workspace/secret",
+      "workspace/odd",
       "infra",
       "mission-control/db",
+      "workspace/secret/db",
     ])
       expect(await exists(join(root, path))).toBe(false);
     // Only the modules this run cloned are prepared; never productionspace.
@@ -207,6 +218,196 @@ posixTest(
       again.find((step) => step.key === "root" && step.state === "done")
         ?.detail,
     ).toBe("present at organizations/alpha_GEN3");
+  },
+  60_000,
+);
+
+// ---- The person's live role ----------------------------------------------
+
+test("the role GitHub confirms, and the scope it gives", () => {
+  const owner = { kind: "member", state: "active", role: "admin" } as const;
+  const member = { kind: "member", state: "active", role: "member" } as const;
+  const none = { kind: "none" } as const;
+  const verify = (
+    requested: "admin" | "steward" | "builder" | null,
+    membership: Parameters<typeof verifyOrganizationRole>[0]["membership"],
+    rootPermission: "admin" | "maintain" | "write" | "triage" | "read" | null,
+  ) => {
+    const answer = verifyOrganizationRole({
+      requested,
+      membership,
+      rootPermission,
+    });
+    return answer.kind === "verified"
+      ? `${answer.role}:${answer.restricted}`
+      : "unverified";
+  };
+  expect(verify(null, owner, "admin")).toBe("admin:include");
+  expect(verify(null, member, "admin")).toBe("steward:exclude");
+  expect(verify(null, member, "maintain")).toBe("steward:exclude");
+  expect(verify(null, member, "write")).toBe("builder:exclude");
+  expect(verify(null, member, "triage")).toBe("unverified");
+  expect(verify(null, none, null)).toBe("unverified");
+  expect(verify("admin", owner, null)).toBe("admin:include");
+  expect(verify("admin", member, "admin")).toBe("unverified");
+  expect(
+    verify("admin", { kind: "member", state: "pending", role: "admin" }, null),
+  ).toBe("unverified");
+  expect(verify("steward", none, "maintain")).toBe("steward:exclude");
+  expect(verify("steward", owner, "write")).toBe("unverified");
+  expect(verify("builder", owner, "admin")).toBe("builder:exclude");
+  expect(verify("builder", none, "read")).toBe("unverified");
+  expect(classifySlotAccess({ default_access: "private" })).toBe("restricted");
+  expect(classifySlotAccess({ default_access: "role_based" })).toBe("ordinary");
+  expect(classifySlotAccess({})).toBe("ordinary");
+  expect(classifySlotAccess({ default_access: "everyone" })).toBe("unknown");
+  expect(classifySlotAccess({ required_roles: "builder" })).toBe("unknown");
+});
+
+async function installAlpha(
+  github: ReturnType<typeof stubGitHub>["github"],
+  folder: string,
+  roles?: Record<string, "admin" | "steward" | "builder">,
+) {
+  const steps: ContentStep[] = [];
+  const result = await installContent(
+    folder,
+    {
+      items: [{ kind: "organization", login: "Alpha" }],
+      roots: { alpha: "Alpha/alpha_GEN3" },
+      ...(roles === undefined ? {} : { roles }),
+    },
+    (step) => steps.push(step),
+    contentHost(world as World, github),
+  );
+  return { steps, result };
+}
+
+const results = (
+  result: Awaited<ReturnType<typeof installContent>>,
+): Record<string, string> =>
+  result.kind === "content-install"
+    ? Object.fromEntries(
+        (result.items[0]?.repositories ?? []).map((entry) => [
+          entry.path,
+          entry.result,
+        ]),
+      )
+    : {};
+
+posixTest(
+  "a Builder or Steward never gets the restricted slots, and GitHub is not asked for them",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world);
+    for (const [role, permission, roles] of [
+      // Resolved live: not an Owner, write on the root.
+      ["builder", "write", undefined],
+      // Asserted: maintain on the root.
+      ["steward", "maintain", { alpha: "steward" } as const],
+      // An Admin may choose the narrower Builder scope.
+      ["builder", "admin", { alpha: "builder" } as const],
+    ] as const) {
+      const folder = await presetFolder(world, "local");
+      const { github, calls } = stubGitHub(world, {
+        repositories: {
+          ...alphaReadable,
+          "Alpha/alpha_GEN3": { permission },
+        },
+        membership:
+          permission === "admin"
+            ? { kind: "member", state: "active", role: "admin" }
+            : { kind: "member", state: "active", role: "member" },
+      });
+      const { steps, result } = await installAlpha(github, folder, roles);
+      expect(result.kind === "content-install" && result.state).toBe(
+        "succeeded",
+      );
+      expect(result.kind === "content-install" && result.items[0]?.role).toBe(
+        role,
+      );
+      expect(
+        steps.find((step) => step.key === "access" && step.state === "done")
+          ?.detail,
+      ).toBe(
+        `as example (${role}, restricted slots excluded); root Alpha/alpha_GEN3`,
+      );
+      const scoped = results(result);
+      expect(scoped["workspace/secret"]).toBe("excluded_by_role_scope");
+      expect(scoped["workspace/secret/db"]).toBe("excluded_by_role_scope");
+      expect(scoped["workspace/web"]).toBe("materialized");
+      expect(
+        await exists(
+          join(folder, "organizations", "alpha_GEN3", "workspace", "secret"),
+        ),
+      ).toBe(false);
+      // No provider operation for anything in the restricted scope.
+      expect(
+        calls.some(
+          (call) =>
+            call.kind === "repository" &&
+            call.args.join("/").toLowerCase().startsWith("alpha/secret"),
+        ),
+      ).toBe(false);
+      // An asserted Steward or Builder is confirmed by the repository
+      // permission alone; the membership is not asked.
+      expect(calls.some((call) => call.kind === "membership")).toBe(
+        roles === undefined,
+      );
+    }
+  },
+  90_000,
+);
+
+posixTest(
+  "a role GitHub does not confirm fails closed before anything is cloned",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world);
+    for (const [membership, permission, roles] of [
+      // Asserted Admin, but only a member.
+      [
+        { kind: "member", state: "active", role: "member" },
+        "admin",
+        { alpha: "admin" },
+      ],
+      // A pending Owner invitation is not an Owner.
+      [
+        { kind: "member", state: "pending", role: "admin" },
+        "read",
+        { alpha: "admin" },
+      ],
+      // Asserted Steward with write only.
+      [{ kind: "none" }, "write", { alpha: "steward" }],
+      // Asserted Builder with read only.
+      [{ kind: "none" }, "read", { alpha: "builder" }],
+      // Resolved live: neither an Owner nor write (an Organization User).
+      [{ kind: "member", state: "active", role: "member" }, "read", undefined],
+      // Resolved live while GitHub does not answer the membership.
+      [{ kind: "unavailable" }, "read", undefined],
+    ] as const) {
+      const folder = await presetFolder(world, "local");
+      const { github, calls } = stubGitHub(world, {
+        repositories: { ...alphaReadable, "Alpha/alpha_GEN3": { permission } },
+        membership,
+      });
+      const { steps, result } = await installAlpha(
+        github,
+        folder,
+        roles === undefined ? undefined : { ...roles },
+      );
+      expect(summary(steps)).toEqual(["access:failed:role-unverified"]);
+      expect(result.kind === "content-install" && result.failure?.code).toBe(
+        "role-unverified",
+      );
+      expect(await readdir(join(folder, "organizations"))).toEqual([]);
+      // Only the root was asked about; no child.
+      expect(
+        calls
+          .filter((call) => call.kind === "repository")
+          .map((call) => call.args.join("/")),
+      ).toEqual(["Alpha/alpha_GEN3"]);
+    }
   },
   60_000,
 );

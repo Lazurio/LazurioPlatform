@@ -374,6 +374,34 @@ posixTest(
     const result = parsed.at(-1);
     expect(result.kind).toBe("content-install");
     expect(result.state).toBe("succeeded");
+    expect(result.items[0].role).toBe("admin");
+
+    // --role narrows the scope to the asserted role GitHub confirms.
+    const builder: string[] = [];
+    expect(
+      await runContentCommand(
+        [
+          "organization",
+          "install",
+          "Alpha",
+          "--role",
+          "builder",
+          "--folder",
+          folder,
+          "--json",
+        ],
+        cliContext(world.home),
+        (line) => builder.push(line),
+        () => host,
+      ),
+    ).toBe(0);
+    const scoped = JSON.parse(builder.at(-1) as string);
+    expect(scoped.items[0].role).toBe("builder");
+    expect(
+      scoped.items[0].repositories.find(
+        (entry: { path: string }) => entry.path === "workspace/secret",
+      ).result,
+    ).toBe("excluded_by_role_scope");
 
     // Without --root the open decision fails the run (exit 1), with its code.
     const second: string[] = [];
@@ -421,6 +449,8 @@ posixTest(
       ["organization", "install", "Alpha", "--root", "not a repository"],
       ["personalspace", "install", "extra"],
       ["personalspace", "install", "--root", "Alpha/alpha_GEN3"],
+      ["personalspace", "install", "--role", "admin"],
+      ["organization", "install", "Alpha", "--role", "owner"],
       ["personalspace", "install", "--folder", "relative/Folder"],
     ])
       await expect(

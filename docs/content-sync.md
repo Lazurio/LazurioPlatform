@@ -163,6 +163,17 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 
 1. **access** — gh's account, then the root repository (below), then GitHub's answer
    for it through that account: it must exist, be readable and belong to the login.
+   Then the person's **live role** in the Organization (review of root decision 0188,
+   as the resident `lazurio organization install --role builder|steward` scopes it),
+   which GitHub must confirm through the same account before anything is cloned:
+   **Admin** by an active Owner membership (`GET /user/memberships/orgs/<org>`, role
+   `admin`, as `organization-owner.ts` reads it), **Steward** by `maintain` on the root
+   repository (the Steward's grant, as `module-maintainer.ts` reads it), **Builder** by
+   `write` on it (the resident's Builder gate reads WRITE). `--role` asserts a role (an
+   Admin may choose a narrower one); without it, and always in the Launchpad, the role
+   is resolved live in that order. A role GitHub does not confirm, or none of the
+   three, fails closed with `role-unverified`. Only a verified Admin gets the full
+   installation; the role decides scope only, never access, and nothing is recorded.
 2. **root** — present in the Folder (an Organization of the catalog whose canonical
    manifest binds the login): taken as it is. Absent: cloned into a temporary sibling
    `organizations/.<name>.lazurio-content-<random>/checkout`, verified (the `origin`
@@ -177,12 +188,20 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    Production Space repositories (decision F33, 1.1 point 4), each with a GitHub
    remote in its slot. `infra` and repository databases (`mission-control/db`,
    `workspace/<module>/db`) are the Organization's own bootstrap (B7) and are left out
-   (`excluded`); a slot whose `default_access` is `restricted` or `private` is never
-   materialized implicitly (`restricted`). Each other child is checked through gh
+   (`excluded`). The role scope comes first: a restricted (Admin-only,
+   `default_access` `restricted` or `private`) slot and every slot below it are in
+   scope only for a verified Admin; for a Steward or Builder they are
+   `excluded_by_role_scope` without any provider operation. A slot whose access
+   declaration (its own or one above it) is malformed (`classifySlotAccess` →
+   `unknown`) is `blocked` (`access-classification-unknown`) for every role, also
+   without a provider operation. Each other child is checked through gh
    (`denied` when GitHub answers 404 or no read permission, `unavailable` when it does
    not answer), materialized like the root, or reported `present` (a checkout of the
    same repository) or `blocked` (anything else there). One child's result never
    stops its siblings; unreachable children are reported, not failures of the run.
+   Unlike the resident's role gate, a Builder's or Steward's missing WRITE on one
+   child repository does not block the whole install: the role is confirmed on the
+   root, and each child is cloned when it can be read.
 4. **preparation** — the declared preparation (`lazurio.preparation`, decision F34)
    of each module this run cloned, through the module core's `prepare` (the same as
    `lazurio module prepare`). Production Space repositories are never prepared. A
@@ -230,7 +249,7 @@ read (status, catalog) removes anything.
 
 ### Surfaces
 
-- `lazurio organization install <github-login> [--root <owner>/<repository>] [--folder <Folder>] [--json]`
+- `lazurio organization install <github-login> [--role admin|steward|builder] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
   and `lazurio personalspace install [--folder <Folder>] [--json]`: one line per step
   event (`{"kind":"content-step","item":…,"key":…,"state":…,"detail"?,"code"?}` with
   `--json`), then the result (`{"kind":"content-install","state":…,"items":[…],"failure"?}`).
