@@ -1569,7 +1569,9 @@ errors.
 ## GitHub sign-in guidance on Apps
 
 Apps reads the same in-memory Tools overview as Settings, including its first
-sign-in probe and refresh after login/logout. An installed `gh` reported as signed
+sign-in probe and refresh after login/logout. The observation must match the
+currently rendered profile revision: a delayed answer from a prior personal or
+Team preset is ignored until Tools reports the new revision. An installed `gh` reported as signed
 out displays a nonblocking Czech/English notice linking to `/settings/tools`, where
 the existing curated GitHub login runs. Existing apps and Chat remain available.
 An unknown, unprobed or failed status never claims the person is signed out, and a
