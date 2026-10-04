@@ -131,7 +131,10 @@ export async function issueChatLink(
 /** The first releases of the Lazurio T3 Code fork whose Chat takes a
  * prepared prompt by link, per channel (`X.Y.Z-lazurio.N` stable,
  * `X.Y.Z-preview.YYYYMMDD.N` preview, the fork's release runbook). Set to the
- * first release that carries Lazurio/t3code#35. */
+ * first release that carries Lazurio/t3code#35: stable `v0.0.45-lazurio.2`,
+ * released on 2026-10-04 from source 1e4cf23d, which contains the overlay of
+ * Lazurio/t3code#36. No preview has carried it yet; the first one will be dated
+ * 2026-10-04 or later. */
 export const chatPromptsSince = Object.freeze({
   stable: "0.0.45-lazurio.2",
   preview: "0.0.45-preview.20261004.1",
