@@ -1969,6 +1969,25 @@ revision is `base-instructions-20`. The revision guard (`tests/folder-template-r
 now also pins compositions with an entry on the personal, work, Team and Automated presets, so
 text that renders only with an entry can no longer change under an existing revision.
 
+**Addendum 2026-10-04 evening (Matěj): in Codex Desktop the agent opens the Launchpad in the
+built-in browser.** For an office team, Codex Desktop is the entry point. They do not keep
+Launchpad addresses or open a browser themselves. Instead they write "Otevři mi Launchpad" (or
+Nástroje, Soubory) to their agent, and the agent opens it in Codex Desktop's built-in browser,
+in the panel beside the chat. Chat in the browser (T3 Code) is only the fallback when Codex
+Desktop breaks.
+- **The first line of `launchpadRouting`** now names the three exact addresses: the Launchpad,
+  `<origin>/settings/tools` and `<origin>/files`.
+  - They come from this Environment's handover (`entry.externalOrigin`, rendered into
+    `AGENTS.md` and `manual/this-machine.md`), so the agent never composes one and never gives
+    `localhost` or `127.0.0.1` instead.
+  - When the Operator wants one of them, or the agent sends them there for a sign-in, an agent
+    running in Codex Desktop opens the exact address in its built-in browser. In another client
+    it sends the link.
+- The GitHub and Composio lines say "open … as above" instead of "send the link".
+- **How the agent knows the address.** The handover's `entry.externalOrigin` is the one writer.
+  A module's application keeps its own `runtime.url` from `lazurio module status`.
+- Template revision `base-instructions-21`.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**
