@@ -47,14 +47,21 @@ import {
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
-import { issueChatLink, publicEntry } from "./chat";
+import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
+import { messages } from "./messages";
 import { createOwnerCheck } from "./organization-owner";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
+import {
+  isPromptId,
+  promptAudience,
+  promptDocument,
+  promptOrganization,
+} from "./prompts";
 import { shellDocument } from "./shell-document";
 import {
   checkBundledPage,
@@ -85,6 +92,15 @@ export const shellDocumentPath = "/.lazurio/shell.json";
 // (decision F36 addendum of 2026-10-04): `<org>` names it as the catalog's
 // routes do.
 const ownerRoute = /^\/api\/organizations\/([^/]+)\/owner$/;
+
+/** A prepared prompt for Chat (`GET /.lazurio/prompts/<id>?org=<login>`,
+ * Lazurio/t3code#35), in the gateway's segment grammar. */
+const promptRoute = /^\/\.lazurio\/prompts\/([A-Za-z0-9._-]+)$/;
+
+/** The Launchpad's own data under `/.lazurio/`, answered after admission
+ * like every read; every other path there is the page's static asset. */
+const isLazurioDocument = (path: string) =>
+  path === shellDocumentPath || promptRoute.test(path);
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
@@ -254,6 +270,7 @@ export async function startLaunchpad(
   });
   const installing = new Set<string>();
   const owners = createOwnerCheck(toolsEnvironment);
+  const chatPrompts = createChatPromptCheck(toolsEnvironment);
   let closing = false;
   const headers = {
     "Cache-Control": "no-store",
@@ -312,7 +329,7 @@ export async function startLaunchpad(
         if (
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
-          url.pathname !== shellDocumentPath
+          !isLazurioDocument(url.pathname)
         ) {
           const page = await shell.get(
             `${url.pathname}${url.search}`,
@@ -352,6 +369,56 @@ export async function startLaunchpad(
           );
         } catch {
           return response({ error: "operation-failed" }, 500);
+        }
+      }
+      const promptRequest = promptRoute.exec(url.pathname);
+      if (promptRequest !== null) {
+        // A prepared prompt for Chat (prompts.ts): its id in the path, the
+        // Organization's GitHub login as the only query. Only for whom the
+        // prompt names; anyone else, an unknown id or Organization and any
+        // failure get the same 404, never more (fail closed).
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        const notFound = () => response({ error: "not-found" }, 404);
+        const id = promptRequest[1] as string;
+        const login = url.searchParams.get("org");
+        if (
+          !isPromptId(id) ||
+          login === null ||
+          [...url.searchParams.keys()].length !== 1
+        )
+          return notFound();
+        try {
+          const organization = promptOrganization(
+            await readFolderCatalog(folder),
+            login,
+          );
+          if (organization === null) return notFound();
+          server.timeout(request, 30);
+          if (
+            promptAudience(id) === "organization-owner" &&
+            !(await owners.owner(
+              organization.forgeLogin,
+              await folderPreset(folder),
+            ))
+          )
+            return notFound();
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          return response(
+            promptDocument(
+              id,
+              folder,
+              organization,
+              messages(
+                current.preferences.profile.locale === "cs" ? "cs" : "en",
+              ),
+            ),
+          );
+        } catch {
+          return notFound();
         }
       }
       const ownerRequest = ownerRoute.exec(url.pathname);
@@ -406,6 +473,19 @@ export async function startLaunchpad(
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
+      }
+      if (url.pathname === "/api/chat/prompt-handoff") {
+        // Whether Chat on this Environment takes a prepared prompt by link
+        // (chat.ts): "+ Nový modul" then copies nothing. No on a
+        // workstation, which has no Chat origin, without a call.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        server.timeout(request, 30);
+        return response({
+          kind: "chat-prompt-handoff",
+          accepted: entry !== null && (await chatPrompts.accepted()),
+        });
       }
       if (url.pathname === "/api/entry") {
         // The recorded entry's public parts, read-only (launchpad-parity B8):
