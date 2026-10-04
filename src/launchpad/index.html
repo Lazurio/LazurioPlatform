@@ -376,7 +376,51 @@ a.files-name:hover { text-decoration: underline; }
   .module-head { flex-wrap: wrap; }
   .module-open { margin-left: 0; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* The first run (root decision 0188; the wireframe's setup.css,
+   prototypes-lazurio 45c92830): the line under the Apps head until the
+   Environment is usable, "Obsah Environmentu" in Tento Environment, and the
+   tour's ring and bubble over the real interface. */
+.setup-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; max-width: 900px; padding: 12px 16px; border: 1px solid var(--lz-info-border); border-radius: var(--radius-card); background: var(--lz-info-bg); color: var(--fg); font-size: 14px; }
+.setup-line[data-tone="failed"] { border-color: var(--destructive-border); background: var(--destructive-bg); }
+.setup-line-text { flex: 1; min-width: 220px; }
+.setup-line-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.content-row { display: grid; gap: 10px; padding: 14px 16px; }
+.content-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.content-text { display: grid; gap: 3px; min-width: 0; }
+.content-name { font-size: 15px; font-weight: var(--lz-weight-akce); }
+.content-status { color: var(--muted-fg); font-size: 13px; }
+.content-status[data-state="present"] { color: var(--success-fg); }
+.content-note { color: var(--muted-fg); font-size: 13px; }
+.content-steps { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
+.content-step { display: flex; align-items: center; gap: 8px; }
+.content-step[data-mark="next"] { color: var(--lz-ink-faint); }
+.content-step[data-mark="failed"] { color: var(--destructive); font-weight: var(--lz-weight-akce); }
+.content-mark { display: grid; width: 18px; height: 18px; flex: none; place-items: center; border-radius: 50%; }
+.content-mark .icon { width: 13px; height: 13px; }
+.content-step[data-mark="done"] .content-mark { background: var(--success-bg); color: var(--success-fg); }
+.content-step[data-mark="failed"] .content-mark { background: var(--destructive-bg); color: var(--destructive); }
+.content-step[data-mark="next"] .content-mark { border: 1px solid var(--lz-line); }
+.spinner { width: 12px; height: 12px; border: 2px solid var(--lz-line); border-top-color: var(--fg); border-radius: 50%; animation: lazurio-spin 0.9s linear infinite; }
+@keyframes lazurio-spin { to { transform: rotate(360deg); } }
+.content-failure { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--destructive-border); border-radius: var(--radius-control); background: var(--destructive-bg); font-size: 14px; }
+.content-failure details.technical, .content-row details.technical { padding: 0; }
+.tools-code-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+#tools-login .tools-code-row .tools-code { margin: 0; }
+.tools-open { height: 34px; padding: 0 14px; font-size: 14px; }
+.tools-login-more > summary { cursor: pointer; color: var(--muted-fg); font-size: 13px; }
+.tour { position: fixed; inset: 0; z-index: 80; pointer-events: none; }
+.tour-ring { position: fixed; border-radius: var(--lz-radius-md); box-shadow: 0 0 0 2px var(--lz-accent), 0 0 0 6px color-mix(in oklab, var(--lz-accent) 25%, transparent), 0 0 0 9999px rgb(0 0 0 / 0.18); transition: left 160ms ease, top 160ms ease, width 160ms ease, height 160ms ease; }
+.tour-bubble { position: fixed; display: flex; flex-direction: column; gap: 8px; width: 300px; max-width: calc(100vw - 24px); padding: 16px 18px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-white); box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); color: var(--lz-ink); pointer-events: auto; }
+.tour-bubble[data-side="right"]::before, .tour-bubble[data-side="below"]::before { position: absolute; width: 10px; height: 10px; border-bottom: 1px solid var(--lz-line); border-left: 1px solid var(--lz-line); background: var(--lz-white); content: ""; }
+.tour-bubble[data-side="right"]::before { top: 18px; left: -6px; transform: rotate(45deg); }
+.tour-bubble[data-side="below"]::before { top: -6px; left: 18px; transform: rotate(135deg); }
+.tour-title { font-size: 16px; font-weight: 650; }
+.tour-text { font-size: 14px; line-height: 1.45; }
+.tour-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+button.tour-quit { height: auto; margin-left: auto; padding: 0; border: 0; background: transparent; color: var(--muted-fg); font-size: 12px; font-weight: 400; }
+button.tour-quit:hover { background: transparent; color: var(--fg); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spinner { animation: none; } }
 </style>
 </head>
 <body>
@@ -411,6 +455,10 @@ a.files-name:hover { text-decoration: underline; }
 <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M1 20V19C1 15.134 4.13401 12 8 12V12C11.866 12 15 15.134 15 19V20" stroke="currentColor" stroke-linecap="round"/><path d="M13 14V14C13 11.2386 15.2386 9 18 9V9C20.7614 9 23 11.2386 23 14V14.5" stroke="currentColor" stroke-linecap="round"/><path d="M8 12C10.2091 12 12 10.2091 12 8C12 5.79086 10.2091 4 8 4C5.79086 4 4 5.79086 4 8C4 10.2091 5.79086 12 8 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 9C19.6569 9 21 7.65685 21 6C21 4.34315 19.6569 3 18 3C16.3431 3 15 4.34315 15 6C15 7.65685 16.3431 9 18 9Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-laptop" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M3.2 14.2222V4C3.2 2.89543 4.09543 2 5.2 2H18.8C19.9046 2 20.8 2.89543 20.8 4V14.2222M3.2 14.2222H20.8M3.2 14.2222L1.71969 19.4556C1.35863 20.7321 2.31762 22 3.64418 22H20.3558C21.6824 22 22.6414 20.7321 22.2803 19.4556L20.8 14.2222" stroke="currentColor"/><path d="M11 19L13 19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M7 14C5.34315 14 4 15.3431 4 17C4 18.6569 5.34315 20 7 20C7.35064 20 7.68722 19.9398 8 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.26392 15.6046C2.9243 14.9582 2.00004 13.587 2.00004 12C2.00004 10.7883 2.53877 9.70251 3.38978 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.42053 8.8882C3.1549 8.49109 3 8.01363 3 7.5C3 6.11929 4.11929 5 5.5 5C6.06291 5 6.58237 5.18604 7.00024 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7.23769 5.56533C7.08524 5.24215 7 4.88103 7 4.5C7 3.11929 8.11929 2 9.5 2C10.8807 2 12 3.11929 12 4.5V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 20C8 21.1046 8.89543 22 10 22C11.1046 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7C12 8.65685 13.3431 10 15 10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 14C18.6569 14 20 15.3431 20 17C20 18.6569 18.6569 20 17 20C16.6494 20 16.3128 19.9398 16 19.8293" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.7361 15.6046C21.0757 14.9582 22 13.587 22 12C22 10.7883 21.4612 9.70251 20.6102 8.96898" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.5795 8.8882C20.8451 8.49109 21 8.01363 21 7.5C21 6.11929 19.8807 5 18.5 5C17.9371 5 17.4176 5.18604 16.9998 5.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4.5C12 3.11929 13.1193 2 14.5 2C15.8807 2 17 3.11929 17 4.5C17 4.88103 16.9148 5.24215 16.7623 5.56533" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 20C16 21.1046 15.1046 22 14 22C12.8954 22 12 21.1046 12 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M10 12C10 14.2091 8.20914 16 6 16C3.79086 16 2 14.2091 2 12C2 9.79086 3.79086 8 6 8C8.20914 8 10 9.79086 10 12ZM10 12H22V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 12V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-warning" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M20.0429 21H3.95705C2.41902 21 1.45658 19.3364 2.22324 18.0031L10.2662 4.01533C11.0352 2.67792 12.9648 2.67791 13.7338 4.01532L21.7768 18.0031C22.5434 19.3364 21.581 21 20.0429 21Z" stroke="currentColor" stroke-linecap="round"/><path d="M12 9V13" stroke="currentColor" stroke-linecap="round"/><path d="M12 17.01L12.01 16.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M5 13L9 17L19 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M6.75827 17.2426L12.0009 12M17.2435 6.75736L12.0009 12M12.0009 12L6.75827 6.75736M12.0009 12L17.2435 17.2426" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-star-filled" viewBox="0 0 24 24" fill="currentColor" stroke-width="1.5"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 <!-- Level 1, the rail of Organizations (decision F36 and its addendum of
@@ -541,13 +589,18 @@ a.files-name:hover { text-decoration: underline; }
 </section>
 
 <section id="section-machine" data-section="machine" aria-labelledby="page-heading" hidden>
-<p class="intro" data-message="machineNotice">Recorded when this Remote Environment was handed over; shown here, changed only by the operator who hosts it.</p>
+<!-- "Obsah Environmentu" (root decision 0188): what lives here and its
+     preparation by the Lazurio CLI, drawn by content-panel.ts; only where
+     the Environment signs in as its person and the content routes answer. -->
+<section class="group" id="content-group" aria-labelledby="content-heading" hidden>
+<div class="group-head"><h2 id="content-heading" data-message="contentTitle">Content of this Environment</h2></div>
+<div class="card" id="content-list"></div>
+</section>
 <dl id="machine" class="card"></dl>
 </section>
 
 <section id="tools" data-section="tools" aria-labelledby="page-heading" hidden>
 <div class="section-head-text">
-<p class="intro" data-message="toolsIntro">Tools are command-line programs that agents use to work with outside services. “Used by agents” guides the agents on this Environment to use a tool. Installing, uninstalling, signing in and signing out are separate acts.</p>
 <p id="tools-shared" class="tools-warning" role="note" hidden data-message="toolsShared">This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.</p>
 <p class="toolbar"><span id="tools-checked"></span></p>
 <p id="tools-announce" class="sr-only" role="status" aria-live="polite"></p>
@@ -564,7 +617,6 @@ a.files-name:hover { text-decoration: underline; }
      Recovery mode it is the whole page. -->
 <section id="section-recovery" data-section="recovery" aria-labelledby="page-heading" hidden>
 <div id="recovery-mode" class="callout recovery-mode" data-kind="warning" role="alert" hidden></div>
-<p class="intro" data-message="recoveryIntro">Whether Lazurio in this Environment needs a repair, read by the same check as lazurio recover. Reading changes nothing.</p>
 <p id="recovery-status" class="row-status" role="status" aria-live="polite"></p>
 <div id="recovery-body" class="stack"></div>
 </section>

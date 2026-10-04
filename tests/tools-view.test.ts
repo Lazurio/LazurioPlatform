@@ -546,42 +546,42 @@ test("the steps say installing, waiting for you, linking the SSH key, signed in,
   expect(states("install", "confirm")).toEqual([
     "Installing:todo",
     "Waiting for you:todo",
-    "Signed in:todo",
+    "Connected:todo",
   ]);
   expect(states("install", "installing")).toEqual([
     "Installing:current",
     "Waiting for you:todo",
-    "Signed in:todo",
+    "Connected:todo",
   ]);
   expect(states("install", "waiting")).toEqual([
     "Installing:done",
     "Waiting for you:current",
-    "Signed in:todo",
+    "Connected:todo",
   ]);
   expect(states("login", "signed-in")).toEqual([
     "Waiting for you:done",
-    "Signed in:done",
+    "Connected:done",
   ]);
   expect(states("install", "failed", "installing")).toEqual([
     "Installing:failed",
     "Waiting for you:todo",
-    "Signed in:todo",
+    "Connected:todo",
   ]);
   expect(states("login", "failed")).toEqual([
     "Waiting for you:failed",
-    "Signed in:todo",
+    "Connected:todo",
   ]);
   // gh links the SSH key as a step of its own.
   expect(states("login", "linking", "linking", "gh")).toEqual([
     "Waiting for you:done",
     "Linking the SSH key:current",
-    "Signed in:todo",
+    "Connected:todo",
   ]);
   expect(states("install", "failed", "linking", "gh")).toEqual([
     "Installing:done",
     "Waiting for you:done",
     "Linking the SSH key:failed",
-    "Signed in:todo",
+    "Connected:todo",
   ]);
   expect(states("ssh", "linking", "linking", "gh")).toEqual([
     "Linking the SSH key:current",

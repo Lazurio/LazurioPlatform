@@ -45,6 +45,18 @@ export type ShellCopy = Readonly<{
   automate: string;
   chatMissing: string;
   automateMissing: string;
+  /** The line under the switch in Chat and Automate until the Environment
+   * is usable (root decision 0188). */
+  setupLabel: string;
+  setupGithub: string;
+  setupGithubAction: string;
+  setupOrganizationMissing: string;
+  setupPersonalMissing: string;
+  setupDownload: string;
+  setupPrepare: string;
+  setupFailed: string;
+  setupResolve: string;
+  setupRetry: string;
 }>;
 
 const en: ShellCopy = {
@@ -95,6 +107,16 @@ const en: ShellCopy = {
   automate: "Automate",
   chatMissing: "Chat does not run on this Environment",
   automateMissing: "MausBot does not run on this Environment",
+  setupLabel: "What this Environment still lacks",
+  setupGithub: "Agents do not work without GitHub.",
+  setupGithubAction: "Connect GitHub",
+  setupOrganizationMissing: "{name} is not here yet.",
+  setupPersonalMissing: "Your personal space is not here yet.",
+  setupDownload: "Download",
+  setupPrepare: "Prepare",
+  setupFailed: "The preparation stopped.",
+  setupResolve: "Solve in Chat",
+  setupRetry: "Try again",
 };
 
 const cs: ShellCopy = {
@@ -145,6 +167,16 @@ const cs: ShellCopy = {
   automate: "Automate",
   chatMissing: "Chat na tomto Environmentu neběží",
   automateMissing: "MausBot na tomto Environmentu neběží",
+  setupLabel: "Co Environmentu ještě chybí",
+  setupGithub: "Bez GitHubu agenti nepracují.",
+  setupGithubAction: "Připojit GitHub",
+  setupOrganizationMissing: "{name} tu ještě není.",
+  setupPersonalMissing: "Osobní prostor tu ještě není.",
+  setupDownload: "Stáhnout",
+  setupPrepare: "Připravit",
+  setupFailed: "Příprava se zastavila.",
+  setupResolve: "Vyřešit v Chatu",
+  setupRetry: "Zkusit znovu",
 };
 
 export const shellMessages = (locale: "cs" | "en"): ShellCopy =>

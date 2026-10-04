@@ -86,12 +86,39 @@ export type ShellOperator = Readonly<{
   avatar: string | null;
 }>;
 
+/** The content a setup line is about: an Organization by its name and
+ * GitHub login, or the person's Personalspace (with their GitHub login when
+ * it is known). */
+export type ShellSetupItem = Readonly<
+  | { kind: "organization"; name: string; login: string }
+  | { kind: "personalspace"; login: string | null }
+>;
+
+/** What the current Environment still lacks before it is usable (root
+ * decision 0188, the first run): GitHub's sign-in of its person and its
+ * content, the Organization or the Personalspace, as its Launchpad reads
+ * them. The column head says it in Chat and Automate. Only an Environment
+ * that signs in to GitHub as its person has it; the document leaves it out
+ * elsewhere and whenever the Launchpad cannot tell. */
+export type ShellSetup = Readonly<{
+  github: "connected" | "missing";
+  /** Absent: not known (no content routes here, or they could not be
+   * read). `failed`: the last preparation stopped. */
+  content?: "ready" | "missing" | "failed";
+  /** With `content` missing: the first content not here; with `failed`:
+   * the one that stopped. */
+  item?: ShellSetupItem;
+}>;
+
 export type Shell = Readonly<{
   schema: typeof shellSchema;
   /** The language of the person's profile; the elements speak it. */
   locale: "cs" | "en";
   /** The id of the Environment this document is served from. */
   current: string;
+  /** What the current Environment still lacks (additive in v1); absent
+   * when there is nothing to say or nothing known. */
+  setup?: ShellSetup;
   operator: ShellOperator;
   environments: readonly ShellEnvironment[];
   organizations: readonly ShellOrganization[];
@@ -347,13 +374,62 @@ function entries(input: Data): Entries | null {
   };
 }
 
+/** The `setup` member: absent or null is none (`undefined`); otherwise its
+ * exact shape, or `false` for any other. */
+export function parseShellSetup(
+  value: unknown,
+): ShellSetup | undefined | false {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value)) return false;
+  const { github, content, item } = value;
+  if (
+    (github !== "connected" && github !== "missing") ||
+    !(
+      content === undefined ||
+      content === "ready" ||
+      content === "missing" ||
+      content === "failed"
+    )
+  )
+    return false;
+  let read: ShellSetupItem | undefined;
+  if (item !== undefined) {
+    if (!isRecord(item)) return false;
+    if (
+      item.kind === "organization" &&
+      text(item.name, 128) &&
+      isLogin(item.login)
+    )
+      read = Object.freeze({
+        kind: "organization",
+        name: item.name,
+        login: item.login,
+      });
+    else if (
+      item.kind === "personalspace" &&
+      (item.login === null || isLogin(item.login))
+    )
+      read = Object.freeze({
+        kind: "personalspace",
+        login: item.login as string | null,
+      });
+    else return false;
+  }
+  return Object.freeze({
+    github,
+    ...(content === undefined ? {} : { content }),
+    ...(read === undefined ? {} : { item: read }),
+  });
+}
+
 /** The shell document, when the input is a valid `lazurio.shell.v1`; null
  * otherwise. Members this version does not know are ignored (a later producer
  * may add some); every known member must have its exact shape, Environment
  * ids are in the DNS form of `isEnvironmentId` and a hosted entry's is the
  * base host of its Apps address, ids and slugs are unique,
  * `current` names an Environment and every Organization an Environment names
- * is listed. */
+ * is listed. The optional `setup` (root decision 0188) is absent, null or
+ * in its exact shape. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (!isShellUrl(input.dashboard) || !isShellUrl(input.account)) return null;
@@ -363,10 +439,13 @@ export function parseShell(input: unknown): Shell | null {
   if (shared === null) return null;
   if (!shared.environments.some((entry) => entry.id === input.current))
     return null;
+  const setup = parseShellSetup(input.setup);
+  if (setup === false) return null;
   return Object.freeze({
     schema: shellSchema,
     locale: shared.locale,
     current: input.current as string,
+    ...(setup === undefined ? {} : { setup }),
     operator: shared.operator,
     environments: shared.environments,
     organizations: shared.organizations,

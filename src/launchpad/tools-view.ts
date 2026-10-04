@@ -209,6 +209,98 @@ export function toolGroups(
     .filter((group) => group.tools.length > 0);
 }
 
+// What each tool is for, in a sentence for an office person (Matěj
+// 2026-10-04, the wireframe's Settings → Nástroje). Only the page says it:
+// `activation.purpose` of the catalog is rendered into the agents' generated
+// files and stays as it is.
+const descriptionKeys: Readonly<Record<string, MessageKey>> = {
+  gh: "toolsDescriptionGh",
+  composio: "toolsDescriptionComposio",
+  wacli: "toolsDescriptionWacli",
+  gogcli: "toolsDescriptionGogcli",
+  neon: "toolsDescriptionNeon",
+};
+
+/** The one sentence under a tool's name: what it is for, in plain words;
+ * the catalog's purpose for a tool this page has no sentence for. */
+export function toolDescription(
+  tool: Pick<ToolOverview, "name" | "purpose">,
+  copy: Copy,
+): string {
+  const key = Object.hasOwn(descriptionKeys, tool.name)
+    ? descriptionKeys[tool.name]
+    : undefined;
+  return key === undefined ? tool.purpose : copy[key];
+}
+
+/** The state under a tool's name (Matěj 2026-10-04): connected as whom, not
+ * connected, or not added yet; the version and the rest are in its
+ * details. The SSH key of gh is part of it only when it needs the person
+ * (not linked) and on a Team Environment, which works through Lazurio for
+ * GitHub. */
+export function connectionLine(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): Readonly<{ text: string; state: string; ssh: string | null }> {
+  if (!tool.installed)
+    return { text: copy.toolsNotAdded, state: "missing", ssh: null };
+  const ssh = tool.signIn?.ssh;
+  // The line without the key's state; the key follows as its own part.
+  let text = signInLine(tool, copy, brokered);
+  if (tool.signIn !== undefined && ssh !== undefined) {
+    const { ssh: _, ...signIn } = tool.signIn;
+    text = signInLine({ ...tool, signIn }, copy, brokered);
+  }
+  const key =
+    ssh === undefined
+      ? null
+      : brokered
+        ? copy.toolsSshTeam
+        : ssh.state === "not-linked"
+          ? copy.toolsSshNotLinked
+          : null;
+  return {
+    text,
+    state: tool.signIn?.state ?? "unchecked",
+    ssh: key,
+  };
+}
+
+/** Whether a sign-in that just completed in this Launchpad turns the tool's
+ * "Používají agenti" on (Matěj 2026-10-04), so that it works without a
+ * second step: only a tool that has the switch (not a required one) and has
+ * it off, and never when the tool was signed in before the sign-in started.
+ * A person may turn it off again. */
+export function autoEnable(
+  tool: Pick<ToolOverview, "tier" | "enabled"> | undefined,
+  state: LoginView,
+): boolean {
+  return (
+    state.kind === "signed-in" &&
+    state.already !== true &&
+    tool !== undefined &&
+    tool.tier !== "required" &&
+    !tool.enabled
+  );
+}
+
+/** The title of a tool's sign-in dialog: "Připojit GitHub", "Připojit
+ * aplikace" (Composio), otherwise "Připojit <tool>". */
+export function loginTitle(
+  name: string,
+  mode: "install" | "login" | "ssh",
+  copy: Copy,
+): string {
+  if (mode === "ssh") return fill(copy.toolsLoginTitleSsh, { name });
+  if (name === "gh") return copy.toolsLoginTitleGh;
+  if (name === "composio") return copy.toolsLoginTitleComposio;
+  return fill(
+    mode === "install" ? copy.toolsLoginTitleInstall : copy.toolsLoginTitle,
+    { name },
+  );
+}
+
 export type ToolStatusView = Readonly<{
   /** `ready`: installed and its version read; `attention`: installed with
    * something to look at; `missing`: not installed. */

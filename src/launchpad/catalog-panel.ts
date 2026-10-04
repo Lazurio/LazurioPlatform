@@ -6,7 +6,6 @@ import type {
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { initialsOf } from "../shell/view";
-import type { ToolsOverview } from "../tools/overview";
 import {
   type Account,
   type AccountFavourites,
@@ -17,7 +16,6 @@ import { appLinkTarget, startThenOpen } from "./app-opening";
 import {
   type AppsSection,
   type AppsTile,
-  appsGithubNotice,
   appsScope,
   appsScopes,
   appsSections,
@@ -45,6 +43,7 @@ import {
 import type { PublicEntry } from "./chat";
 import type { PromptLink } from "./chat-view";
 import { favoritesKey, parseFavorites, toggleFavorite } from "./favorites";
+import type { SetupAction, SetupLine } from "./first-run";
 import type { MessageKey } from "./messages";
 import {
   moduleLink,
@@ -54,7 +53,7 @@ import {
   parseModuleResult,
 } from "./module-view";
 import { createOwnerAnswers } from "./owner-answer";
-import type { PageRoute } from "./routes";
+import { type PageRoute, settingsPath } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -110,9 +109,11 @@ export function createCatalogPanel(
     /** A read-only GET with the page's credential. */
     get: (path: string) => Promise<{ value: unknown; ok: boolean }>;
     copy: () => Copy;
-    tools: () => ToolsOverview | null;
-    /** Revision of the profile currently rendered, never an older probe. */
-    revision: () => number | null;
+    /** The line until the Environment is usable (first-run.ts), or null. */
+    setupLine: () => SetupLine | null;
+    /** A button of that line: a start request for Settings, which the page
+     * takes on arrival, or "Vyřešit v Chatu". */
+    setupAction: (action: SetupAction) => void;
     /** The route now shown. */
     route: () => PageRoute;
     /** Moves the page to a route path (history push, focus on its head). */
@@ -846,21 +847,58 @@ export function createCatalogPanel(
 
   // --- The main views -----------------------------------------------------
 
+  // The line until the Environment is usable (root decision 0188): one
+  // sentence and its buttons under the head. A button leads to Settings and
+  // tells the page what to start there; "Vyřešit v Chatu" hands the prompt
+  // over. No empty cards beside it.
+  const setupStarts: Readonly<Record<SetupAction, string | null>> = {
+    "sign-in-gh": settingsPath("tools"),
+    "install-content": settingsPath("machine"),
+    "resolve-in-chat": null,
+  };
+  function setupLineNode(line: SetupLine): HTMLElement {
+    const box = element("div", "setup-line");
+    box.dataset.tone = line.tone;
+    box.setAttribute("role", "status");
+    const actions = element("div", "setup-line-actions");
+    line.actions.forEach(({ action, label }, index) => {
+      const className = index === 0 ? "button primary" : "button";
+      const path = setupStarts[action];
+      const control =
+        path === null
+          ? element("button", className.replace("button", "").trim(), label)
+          : routeLink(`${path}#lazurio-start=${action}`, className, label);
+      if (control instanceof HTMLButtonElement) control.type = "button";
+      control.dataset.setupAction = action;
+      control.addEventListener("click", (event) => {
+        const click = event as MouseEvent;
+        if (
+          click.button !== 0 ||
+          click.metaKey ||
+          click.ctrlKey ||
+          click.shiftKey ||
+          click.altKey
+        )
+          return;
+        options.setupAction(action);
+      });
+      actions.append(control);
+    });
+    box.append(
+      svg(line.icon),
+      element("span", "setup-line-text", line.text),
+      actions,
+    );
+    return box;
+  }
+
   function appsHome(value: Catalog, group: CatalogGroupEntry | null): Node[] {
     const copy = options.copy();
     const parts: Node[] = [];
-    const github = appsGithubNotice(options.tools(), copy, options.revision());
-    if (github !== null) {
-      const notice = element("div", "callout");
-      notice.append(
-        element("strong", "", github.title),
-        element("p", "", github.description),
-        routeLink(github.href, "", github.action),
-      );
-      parts.push(notice);
-    }
+    const setup = options.setupLine();
+    if (setup !== null) parts.push(setupLineNode(setup));
     if (group === null)
-      return github === null
+      return setup === null
         ? [element("p", "callout", copy.catalogEmpty)]
         : parts;
     if (
@@ -876,7 +914,11 @@ export function createCatalogPanel(
       favoritesOf(group),
     );
     const owner = ownerOf(value, group);
-    if (sections.length === 0 && group.organization.reason === undefined)
+    if (
+      sections.length === 0 &&
+      group.organization.reason === undefined &&
+      setup === null
+    )
       parts.push(element("p", "intro", copy.catalogNoModules));
     parts.push(...sections.map((part) => section(part, group, owner)));
     return parts;
@@ -1255,6 +1297,17 @@ export function createCatalogPanel(
       return organization === undefined
         ? undefined
         : organizationName(organization);
+    },
+    /** A short message at the foot of the page. */
+    say,
+    /** How many modules an Organization of the Folder has, by the GitHub
+     * login its manifest binds it to; null when the Folder has none such. */
+    modulesOf(login: string): number | null {
+      const key = login.toLowerCase();
+      const found = catalog?.organizations.find(
+        (organization) => organization.forgeLogin?.toLowerCase() === key,
+      );
+      return found === undefined ? null : found.modules.length;
     },
     /** The Organization a route shows, for the Marketplace's sentence. */
     scopeName(route: PageRoute): string | null {

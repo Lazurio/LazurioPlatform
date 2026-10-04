@@ -13,6 +13,8 @@ import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
+  type ColumnSetupLine,
+  columnSetupLine,
   environmentGlyph,
   environmentName,
   environmentWho,
@@ -751,6 +753,8 @@ export class LazurioColumnHead extends ShellElement {
     picker.addEventListener("click", () => this.toggle(picker, shell));
 
     const gear = this.link(this.settingsHref(shell), "gear");
+    // The first-run tour rings the gear and the tabs (root decision 0188).
+    gear.dataset.tour = "gear";
     gear.setAttribute("aria-label", copy.settings);
     gear.title = copy.settings;
     if (this.getAttribute("active") === "settings")
@@ -769,6 +773,7 @@ export class LazurioColumnHead extends ShellElement {
         const label = element("span", "", tab.label);
         if (tab.href === null) {
           const disabled = element("span", "tab");
+          disabled.dataset.tour = `tab-${tab.app}`;
           disabled.setAttribute("aria-disabled", "true");
           disabled.title = tab.missing ?? "";
           disabled.append(glyph, label);
@@ -778,6 +783,7 @@ export class LazurioColumnHead extends ShellElement {
         const anchor = element("a", "tab");
         anchor.href = href;
         anchor.dataset.app = tab.app;
+        anchor.dataset.tour = `tab-${tab.app}`;
         if (tab.active) anchor.setAttribute("aria-current", "page");
         anchor.addEventListener("click", (event) => {
           if (!plainClick(event)) return;
@@ -797,8 +803,44 @@ export class LazurioColumnHead extends ShellElement {
     );
     const head = element("div", "head");
     head.append(row, nav);
+    const line = columnSetupLine(shell, copy, this.activeApp());
+    if (line !== null) head.append(setupLine(line, copy.setupLabel));
     this.root.replaceChildren(head);
   }
+}
+
+/** The line under the switch in Chat and Automate until the Environment is
+ * usable (root decision 0188): an icon, one sentence and its buttons. A link
+ * on this page's own origin that differs only in its fragment loads the page
+ * again, so the app reads it as it starts (Chat takes a prepared prompt's
+ * link only then). */
+function setupLine(line: ColumnSetupLine, label: string): HTMLElement {
+  const box = element("div", "setup");
+  box.dataset.tone = line.tone;
+  box.setAttribute("role", "status");
+  box.setAttribute("aria-label", label);
+  const text = element("span", "setup-text", line.text);
+  const links = element("span", "setup-links");
+  for (const link of line.links) {
+    const anchor = element("a", "setup-link", link.label);
+    anchor.href = link.href;
+    anchor.addEventListener("click", (event) => {
+      if (!plainClick(event)) return;
+      const target = new URL(link.href, location.href);
+      if (
+        target.origin !== location.origin ||
+        target.pathname !== location.pathname ||
+        target.search !== location.search
+      )
+        return;
+      event.preventDefault();
+      location.hash = target.hash;
+      location.reload();
+    });
+    links.append(anchor);
+  }
+  box.append(icon(line.icon, 16), text, links);
+  return box;
 }
 
 /** Whether the nearest ancestor with an opaque background is dark (its

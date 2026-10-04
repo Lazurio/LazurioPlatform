@@ -10,6 +10,7 @@ import {
   type Shell,
   type ShellEnvironmentKind,
   type ShellOrganization,
+  type ShellSetup,
   shellSchema,
   workstationId,
 } from "../shell/contract";
@@ -199,7 +200,8 @@ export function environmentId(machine: MachineBinding | null): string {
 }
 
 /** This Environment's shell document. `computer` is the host name of the
- * computer a workstation runs on. */
+ * computer a workstation runs on; `setup` what the Environment still lacks
+ * (root decision 0188, setup-state.ts), when the server knows it. */
 export function shellDocument(
   input: Readonly<{
     preset: PresetName;
@@ -207,6 +209,7 @@ export function shellDocument(
     locale: "cs" | "en";
     catalog: Catalog;
     computer?: string;
+    setup?: ShellSetup;
   }>,
 ): Shell {
   const { machine } = input;
@@ -219,6 +222,7 @@ export function shellDocument(
     schema: shellSchema,
     locale: input.locale,
     current: id,
+    ...(input.setup === undefined ? {} : { setup: input.setup }),
     operator: {
       initials: login === null ? null : initialsOf(login).slice(0, 2) || null,
       login,
