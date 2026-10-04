@@ -1565,3 +1565,14 @@ Chrome) against a temporary Folder and home: the Documents folder, a task folder
 upload with its progress and a taken name, the drop overlay, an empty and a missing
 folder, light and dark, a 390 px wide screen with its sheet, and Czech, without page
 errors.
+
+## GitHub sign-in guidance on Apps
+
+Apps reads the same in-memory Tools overview as Settings, including its first
+sign-in probe and refresh after login/logout. An installed `gh` reported as signed
+out displays a nonblocking Czech/English notice linking to `/settings/tools`, where
+the existing curated GitHub login runs. Existing apps and Chat remain available.
+An unknown, unprobed or failed status never claims the person is signed out, and a
+Team Environment never offers personal GitHub login. This adds no probe, API,
+credential store or automatic Organization clone. An empty catalog alone is not
+an authentication failure; without a sign-in notice it says there are no apps yet.

@@ -6,6 +6,7 @@ import type {
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { initialsOf } from "../shell/view";
+import type { ToolsOverview } from "../tools/overview";
 import {
   type Account,
   type AccountFavourites,
@@ -16,6 +17,7 @@ import { appLinkTarget, startThenOpen } from "./app-opening";
 import {
   type AppsSection,
   type AppsTile,
+  appsGithubNotice,
   appsScope,
   appsScopes,
   appsSections,
@@ -108,6 +110,7 @@ export function createCatalogPanel(
     /** A read-only GET with the page's credential. */
     get: (path: string) => Promise<{ value: unknown; ok: boolean }>;
     copy: () => Copy;
+    tools: () => ToolsOverview | null;
     /** The route now shown. */
     route: () => PageRoute;
     /** Moves the page to a route path (history push, focus on its head). */
@@ -843,8 +846,21 @@ export function createCatalogPanel(
 
   function appsHome(value: Catalog, group: CatalogGroupEntry | null): Node[] {
     const copy = options.copy();
-    if (group === null) return [element("p", "callout", copy.catalogEmpty)];
     const parts: Node[] = [];
+    const github = appsGithubNotice(options.tools(), copy);
+    if (github !== null) {
+      const notice = element("div", "callout");
+      notice.append(
+        element("strong", "", github.title),
+        element("p", "", github.description),
+        routeLink(github.href, "", github.action),
+      );
+      parts.push(notice);
+    }
+    if (group === null)
+      return github === null
+        ? [element("p", "callout", copy.catalogEmpty)]
+        : parts;
     if (
       !group.organization.executable &&
       group.organization.reason !== undefined
