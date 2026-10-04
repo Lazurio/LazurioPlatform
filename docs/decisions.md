@@ -3671,6 +3671,34 @@ refusal and a timeout are no, no call on a Team Environment), and the admission 
 Owner route; and in Chrome against temporary fixture Folders, hosted and local, in both
 languages.
 
+**Addendum 2026-10-04, decided by Matěj (plan DEV-6639): the elements' interface v1 is
+a promise to the apps outside this repository.** The T3 Code and MausBot forks place
+the elements in their own pages and the Dashboard embeds them; each changes on its own
+release cycle, and a fork is rebuilt on every new upstream version. They therefore
+build only on the interface in `src/shell/interface.ts`, version 1: the script
+`/.lazurio/shell.js` on the app's own origin; the elements `<lazurio-rail>` (attribute
+`lang`), `<lazurio-column-head>` (attributes `active` with `chat`, `apps` or
+`automate`, and `lang`) and the reserved `<lazurio-buddy>`; the events
+`lazurio-navigate` and `lazurio-app`; the custom properties `--lazurio-rail-width`
+(set by the rail) and `--lazurio-host-tone` (a host's override of the detected tone).
+They never read `/.lazurio/shell.json` themselves. A Launchpad release may add
+attributes, events and properties and may change everything the elements draw and
+read, but it never renames or removes a promised name; such a change is a new
+interface version, decided like the contract and announced to the forks first.
+`tests/shell-interface.test.ts` holds the snapshot and checks that the elements keep
+every promised name; each fork's own release contract checks its slot.
+
+**The same addendum: the forks' origins and the session cookie.** On a hosted
+Environment the gateway (Machines) proxies `GET`/`HEAD` of `/.lazurio/*` from the
+`t3code.` and `mausbot.` origins to the Launchpad with the Launchpad's `Host` and the
+browser's session cookie, and the Launchpad's hosted admission revalidates that cookie
+at the gateway's auth endpoint. This holds because every origin of one Environment is
+signed in by the same gateway sign-in (one oauth2-proxy, one cookie name and secret).
+Root decision 0179 point 7 moves the relying-party cookies to host-only `__Host-`
+cookies; that change must keep one sign-in per Environment whose session revalidates
+on any of its origins. If it cannot, the gateway serves the static shell files itself
+and only `shell.json` needs another way, before the cookie change ships.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
