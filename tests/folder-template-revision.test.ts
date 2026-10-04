@@ -22,7 +22,7 @@ import { bindings } from "./fixtures/machine-bindings";
 // compositions too.
 const pinned = {
   revision: "base-instructions-20",
-  digest: "709d2290d2a1ae5e4c96eb083983c88b44ad987c87ad41ab0fac4e73b103d4b4",
+  digest: "c9686261803b0ee987381d40c9a0da940897cf78050dc285598dc5008dc27816",
 } as const;
 
 const optionalTools = activatableTools()
@@ -61,6 +61,16 @@ const environments = [
   {
     preset: "hosted-organization-personal",
     machine: bindings.organizationEntry,
+    os: "linux",
+  },
+  {
+    preset: "hosted-organization-team",
+    machine: bindings.teamEntry,
+    os: "linux",
+  },
+  {
+    preset: "hosted-organization-steward",
+    machine: bindings.automatedEntry,
     os: "linux",
   },
 ] as const;

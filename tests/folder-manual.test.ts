@@ -944,8 +944,8 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
         expect(
           text.includes(
             cs
-              ? "Bez toho nejsou dostupné repozitáře ani aplikace Organizace; po přihlášení aktualizuj checkouty Organizace a modulů (`git pull --ff-only`) a moduly z manifestu Organizace, které tu chybějí a k nimž má Operátor přístup, naklonuj na jejich místo."
-              : "Without it the Organization's repositories and applications are unavailable; after the sign-in, update the checkouts of the Organization and its modules (`git pull --ff-only`) and clone the modules of the Organization's manifest that are missing here and that the Operator can access into their places.",
+              ? "Bez toho nejsou dostupné repozitáře ani aplikace Organizace; po přihlášení aktualizuj checkouty Organizace a modulů (`git pull --ff-only`) a moduly z manifestu Organizace, které tu chybějí a k nimž má Operátor přístup, naklonuj na jejich deklarované místo podle `manual/troubleshooting.md`."
+              : "Without it the Organization's repositories and applications are unavailable; after the sign-in, update the checkouts of the Organization and its modules (`git pull --ff-only`) and clone the modules of the Organization's manifest that are missing here and that the Operator can access into their declared places as `manual/troubleshooting.md` describes.",
           ),
         ).toBe(github === "own" && preset !== "hosted-personal");
       }
@@ -959,6 +959,47 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
       });
       for (const text of Object.values(outputs))
         expect(text).not.toContain("/settings/tools");
+    }
+});
+
+// Decision F19 addendum 2026-10-04: the agent clones a missing module of the
+// Organization's manifest after the GitHub sign-in. That is the one named
+// exception to the rule on clones, in working-here and in the current
+// checkouts section alike, with its checks of access, destination and remote,
+// so the two never contradict each other. A personal Remote Environment mounts
+// no Organization and has neither.
+test("a missing module of the manifest is the one exception to the rule on clones, with its checks", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const cs = locale === "cs";
+      const organizations = journey.preset !== "hosted-personal";
+      expect(
+        outputs["manual/working-here.md"].includes(
+          cs
+            ? "Jedinou výjimkou je modul deklarovaný v manifestu Organizace, který tu chybí: ten naklonuj na jeho deklarované místo. Ten i jiný vnořený repozitář, který už tu leží, řeš podle oddílu o aktuálních checkoutech v `manual/troubleshooting.md`."
+            : "The one exception is a module declared in the Organization's manifest that is missing here: clone that one into its declared place. Handle it, and any other nested repository you find here, as the section on current checkouts in `manual/troubleshooting.md` describes.",
+        ),
+      ).toBe(organizations);
+      const troubleshooting = outputs["manual/troubleshooting.md"];
+      for (const sentence of cs
+        ? [
+            "je jedinou výjimkou z pravidla o klonech: je to namountovaný modul, ne vnořený klon.",
+            "jen když Operátor k jeho repozitáři živě má přístup (`gh repo view <vlastník>/<repozitář>`) a cílová složka neexistuje nebo je prázdná.",
+            "Po klonu ověř, že `git remote get-url origin` je deklarovaný repozitář a checkout stojí na jeho výchozí branchi.",
+            "která není modulem z manifestu Organizace",
+          ]
+        : [
+            "is the one exception to the rule on clones: it is a mounted module, not a nested clone.",
+            "only when the Operator has live access to its repository (`gh repo view <owner>/<repository>`) and the destination does not exist or is empty.",
+            "After the clone, verify that `git remote get-url origin` is the declared repository and that the checkout is on its default branch.",
+            "that is not a module of the Organization's manifest",
+          ])
+        expect(troubleshooting.includes(sentence)).toBe(organizations);
     }
 });
 

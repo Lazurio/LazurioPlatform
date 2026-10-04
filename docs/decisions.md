@@ -1950,7 +1950,13 @@ source renders them: `launchpadRouting` in `src/folder/render.ts`.
     does not greet it, the agent sends `<origin>/settings/tools`. There the curated sign-in of
     this decision signs gh in and links the Machine's SSH key. The agent then updates the
     Organization's checkouts and clones the manifest's missing modules the Operator can access.
-    The Platform has no command that materializes a module, so this sentence carries it.
+    The Platform has no command that materializes a module, so this sentence carries it. A
+    declared module that is missing is the one named exception to the rule on clones, in
+    `manual/working-here.md` and in the current checkouts section of `manual/troubleshooting.md`
+    alike. The agent clones it into its declared place only with live access to its repository
+    and an absent or empty destination, then verifies the remote and the default branch.
+    Otherwise it clones nothing and tells the Operator. A nested repository that is not a
+    declared module is still moved out of the checkout.
   - On a Team Environment the line names the brokered Organization identity, and no person signs
     in.
   - An Automated Environment gets no GitHub line: it acts with the persona's own account.
@@ -1960,8 +1966,8 @@ source renders them: `launchpadRouting` in `src/folder/render.ts`.
 
 Without an entry no browser reaches the Launchpad, so nothing points there. The template
 revision is `base-instructions-20`. The revision guard (`tests/folder-template-revision.test.ts`)
-now also pins compositions with an entry, so text that renders only with an entry can no longer
-change under an existing revision.
+now also pins compositions with an entry on the personal, work, Team and Automated presets, so
+text that renders only with an entry can no longer change under an existing revision.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
