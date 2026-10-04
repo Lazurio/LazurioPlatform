@@ -135,9 +135,10 @@ if (mode === "local")
 // and the Tools page reads no real tool or sign-in.
 const home = join(parent, "home");
 await mkdir(join(home, "bin"), { recursive: true });
-await writeFile(join(home, "bin", "gh"), "#!/bin/sh\nexit 1\n", {
-  mode: 0o755,
-});
+for (const tool of ["gh", "t3"])
+  await writeFile(join(home, "bin", tool), "#!/bin/sh\nexit 1\n", {
+    mode: 0o755,
+  });
 await mkdir(join(home, "Documents", "Nabídky"), { recursive: true });
 await mkdir(join(home, "Documents", "Smlouvy"), { recursive: true });
 await writeFile(
@@ -156,8 +157,9 @@ const app = await startLaunchpad(
   undefined,
   mode === "hosted" ? { fetcher: async () => new Response("ok") } : {},
   // The preview's GitHub identity answers the Owner question of the Apps
-  // home ("+ Nový modul") as an Owner of the example Organization; no real
-  // account is asked.
+  // home ("+ Nový modul") as an Owner of the example Organization, and its
+  // T3 Code is a fork release that takes a prompt by link and pairs with a
+  // synthetic token; no real account or T3 Code is asked.
   toolsEnvironmentOf(
     { PATH: join(home, "bin"), HOME: home },
     process.platform,
@@ -169,7 +171,15 @@ const app = await startLaunchpad(
             stdout: JSON.stringify({ state: "active", role: "admin" }),
             stderr: "",
           }
-        : runTool(command, timeoutMs, env),
+        : command[1] === "--version"
+          ? { exitCode: 0, stdout: "t3 v0.0.45-lazurio.2\n", stderr: "" }
+          : command[1] === "auth" && command[2] === "pairing"
+            ? {
+                exitCode: 0,
+                stdout: JSON.stringify({ credential: "PreviewPairingToken" }),
+                stderr: "",
+              }
+            : runTool(command, timeoutMs, env),
   ),
   {},
   undefined,
