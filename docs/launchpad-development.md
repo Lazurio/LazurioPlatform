@@ -383,7 +383,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     Organization (`favorites.ts`); browser favourites are never uploaded.
   - The last Environment (S8, `src/shell/last.ts`): the library sends `PUT
     /.lazurio/account/last` once per full page load of Apps, Chat and Automate, fire
-    and forget and silent on failure, apart from the rail's merge of the account.
+    and forget and silent on failure, apart from the rail's merge of the account. The
+    Environment it names is the shell document's `current`, its base host (the
+    identity of an Environment entry, F37's addendum).
   - "Přístup k modulu" (S15, #151): in a module tile's menu for the Organization's
     Owners and Stewards (GitHub's `maintain` on the module's declared repository), into
     the Organization's Dashboard in the same window.

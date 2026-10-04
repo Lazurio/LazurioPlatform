@@ -3732,8 +3732,9 @@ does, everything behaves as points 6 and 7 say.
   for the Personalspace group, which is no Organization.
 - **The last Environment** (S8, `src/shell/last.ts`). The library sends `PUT
   /.lazurio/account/last` with `{ "environment", "app", "organization" }` (this
-  document's `current`, the app its host names, and the space's Organization slug or
-  null) once per full page load of Apps, Chat and Automate: `keepalive`, its answer
+  document's `current`, which is the Environment's base host by the identity of an
+  Environment entry above, the app its host names, and the space's Organization slug
+  or null) once per full page load of Apps, Chat and Automate: `keepalive`, its answer
   not read, silent on failure, never blocking drawing. It is its own module, apart from
   the rail's merge of the account's Environments, and each element calls it with one
   line.
