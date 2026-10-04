@@ -173,4 +173,11 @@ export const bindings = Object.freeze({
     ...organization,
     owner: { ...organization.owner, assignment: assignments.automation },
   }),
+  // A Team Environment and an Automated Environment with their entry.
+  teamEntry: binding({ ...organization, entry: entries.organization }),
+  automatedEntry: binding({
+    ...organization,
+    owner: { ...organization.owner, assignment: assignments.automation },
+    entry: entries.organization,
+  }),
 });
