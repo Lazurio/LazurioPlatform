@@ -3498,7 +3498,9 @@ each of its origins.
    other Environments in this same shape, and the elements do not change.
 3. **The producer** (`src/launchpad/shell-document.ts`) states what this Environment
    knows today: one Environment, its own. Its id and label are the Machine name; a
-   workstation is `local` and the elements name it "This computer". The kind comes from
+   workstation is `local` and the elements name it "This computer". *(The id is the
+   Environment's base host since F37's addendum of 2026-10-04, "Identity of an
+   Environment entry".)* The kind comes from
    the preset. The Operator's initials come from the GitHub login the binding records:
    the owner of a personal one, the assigned or responsible operator of a work or
    Automated one. A Team Environment and a workstation name nobody. The Organizations
@@ -3649,8 +3651,9 @@ and their new-tab arrows, and the Organization picker in the home's head.
    "Osobní", and a workstation its computer, as the person named it (the host name
    without its domain, "MacBook-Pro"; "Tento počítač" when it has none); the second line says who it is for (`@login` of a work
    Environment's assigned person, "sdílený Teamem", "automatizace", "jen tvůj",
-   "tento počítač"). The machine's name stays the document's id and in Settings → This
-   Environment.
+   "tento počítač"). The machine's name stays in Settings → This Environment; the
+   document's id is the Environment's base host (F37's addendum of 2026-10-04,
+   "Identity of an Environment entry").
 4. **Contract, changed in place.** The producer and the elements ship in one binary and
    no fork consumes `lazurio.shell.v1` yet, so the shape changes without a compatibility
    layer: an Environment's `label` is its own name or null, it gains `assignee`; an
@@ -3945,6 +3948,26 @@ the same day.
      `DELETE`.
    - Without the account document (an Environment before the rollout, or a refusal),
      Apps keeps today's browser `localStorage` favourites and opens apps in a new tab.
+
+**Identity of an Environment entry.** An Environment's id in `lazurio.shell.v1` and
+`lazurio.account.v1` (`current` and every entry's `id`) is its base host in lowercase
+DNS form: `<machine>.<org>` for an Organization's hosted Environment, the part of
+`<app>.<machine>.<org>.lazurio.io` between the app's label and `lazurio.io`; the
+personal DNS slug for a personal Remote Environment (`<app>.<slug>.lazurio.io`); and
+for a workstation, which has no such address, its local id as before. The bare Machine
+name repeats across Organizations (every Organization may have a `vm-01`), and the
+account document lists the person's Environments across Organizations, so it cannot
+key them; DNS makes the base host unique. One function derives it
+(`environmentIdOf` in `src/shell/contract.ts`, from the Environment's own Launchpad
+origin). The parser refuses an id that is not one or two lowercase DNS labels, and a
+hosted entry whose id is not the base host of its own Apps address, the bare Machine
+name included; an https Apps address from which no base host derives carries only a
+workstation's `local`. The producer fails closed: a hosted Launchpad whose address
+yields no base host serves no shell document (`operation-failed`, the rail stays
+empty, the page works) rather than fall back to the Machine name. The
+Dashboard derives the same value from the registry's Apps address. A rail's memory of
+the last Environment per space, kept in the browser under the bare name, simply stops
+matching once and falls back to the space's first Environment.
 
 **Rollout.** A session that signed in before the gateway client requested
 `lazurio-account` carries no such scope until its next sign-in. Until then the rail
