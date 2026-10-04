@@ -540,6 +540,226 @@ test("the account's last Environment per space, by the merged space's id, only f
   expect(spaces[1]?.sub).toBe("2 Environments · last Work");
 });
 
+// An ambiguous Dashboard slug (Pablo's review of #166): two local
+// Organizations whose slugs reduce to the same Dashboard slug.
+const hosted = (base: string) => ({
+  apps: `https://launchpad.${base}.lazurio.io/`,
+  chat: `https://t3code.${base}.lazurio.io/`,
+  automate: null,
+});
+const ambiguousLocal = () =>
+  parsed(
+    localDocument({
+      current: "vm-01.example-org",
+      environments: [
+        {
+          id: "vm-01.example-org",
+          label: "Sales",
+          kind: "team",
+          organizations: ["Example Org"],
+          assignee: null,
+          apps: hosted("vm-01.example-org"),
+        },
+      ],
+      organizations: [
+        {
+          slug: "Example Org",
+          name: "Example Org",
+          avatar: null,
+          dashboard: "https://dashboard.lazurio.ai/orgs/example-org",
+        },
+        {
+          slug: "example-org",
+          name: "Example Org (second)",
+          avatar: null,
+          dashboard: "https://dashboard.lazurio.ai/orgs/example-org",
+        },
+      ],
+    }),
+  );
+const ambiguousAccount = () =>
+  account({
+    environments: [
+      accountDocument().environments[0],
+      {
+        id: "vm-01.example-org",
+        kind: "team",
+        label: "Sales",
+        name: "Team Sales",
+        who: "shared by the Team",
+        offline: false,
+        organizations: ["example-org"],
+        assignee: null,
+        apps: hosted("vm-01.example-org"),
+      },
+      {
+        id: "vm-02.example-org",
+        kind: "team",
+        label: "Ops",
+        name: "Team Ops",
+        who: "shared by the Team",
+        offline: false,
+        organizations: ["example-org"],
+        assignee: null,
+        apps: hosted("vm-02.example-org"),
+      },
+    ],
+    organizations: [
+      {
+        slug: "example-org",
+        name: "Example Org",
+        avatar: "https://avatars.githubusercontent.com/u/710101?v=4",
+        dashboard: "https://dashboard.lazurio.ai/orgs/example-org",
+      },
+      accountDocument().organizations[1],
+    ],
+    lastBySpace: {
+      "example-org": { environment: "vm-02.example-org", app: "chat" },
+    },
+    favourites: {},
+  });
+
+test("an ambiguous Dashboard slug: the local Organizations stay as they are, the account's of that slug and its Environments are left out", () => {
+  const local = ambiguousLocal();
+  const read = ambiguousAccount();
+  const merged = mergeAccount(local, read);
+  // No third space of that slug, no guess between the two local ones; the
+  // account's other Organization still comes.
+  expect(merged.organizations.map((entry) => entry.slug)).toEqual([
+    "other-example",
+    "Example Org",
+    "example-org",
+  ]);
+  expect(merged.organizations[1]).toBe(local.organizations[0]);
+  expect(merged.organizations[2]).toBe(local.organizations[1]);
+  // The account's Environments of that slug are not placed under either
+  // local Organization; this Environment stands as its document has it,
+  // without the account's words.
+  expect(merged.environments.map((entry) => entry.id)).toEqual([
+    "vm-01.example-org",
+    "ada",
+  ]);
+  expect(merged.environments[0]).toBe(local.environments[0]);
+  expect(spaceEnvironments(merged, "example-org")).toEqual([]);
+  expect(
+    spaceEnvironments(merged, "Example Org").map((entry) => entry.id),
+  ).toEqual(["vm-01.example-org"]);
+  // The rail: one space per Organization entry, none twice, and no last
+  // Environment from the account for the ambiguous slug.
+  const last = accountLastBySpace(merged, read);
+  expect(last.size).toBe(0);
+  const spaces = railSpaces(merged, en, {
+    here: "Example Org",
+    app: "apps",
+    last: (space) => last.get(space) ?? null,
+  });
+  expect(spaces.map((space) => space.space)).toEqual([
+    "personal",
+    "other-example",
+    "Example Org",
+    "example-org",
+  ]);
+  expect(new Set(spaces.map((space) => space.space)).size).toBe(spaces.length);
+  expect(parseShell(JSON.parse(JSON.stringify(merged)))).toEqual(merged);
+});
+
+test("two Organizations of the account that reduce to one Dashboard slug are left out the same way", () => {
+  const document = accountDocument();
+  const read = account({
+    organizations: [
+      ...document.organizations,
+      {
+        slug: "other_example",
+        name: "Other Example (second)",
+        avatar: null,
+        dashboard: "https://dashboard.lazurio.ai/orgs/other-example-2",
+      },
+    ],
+  });
+  const merged = mergeAccount(local, read);
+  expect(merged.organizations.map((entry) => entry.slug)).toEqual(["Example"]);
+});
+
+// Mixed languages (Pablo's review of #166): the Dashboard words `name` and
+// `who` by the browser's language, the elements speak the profile's.
+
+test("the account in another language: every Environment is named as without the account, in the local language; the structure stays", () => {
+  const cs = shellMessages("cs");
+  const czech = parsed(localDocument({ locale: "cs" }));
+  const read = account({
+    lastBySpace: { example: { environment: "vm-03.example", app: "chat" } },
+  });
+  expect(read.locale).toBe("en");
+  const merged = mergeAccount(czech, read);
+  expect(merged.locale).toBe("cs");
+  for (const entry of merged.environments) {
+    expect(entry.name).toBeUndefined();
+    expect(entry.who).toBeUndefined();
+  }
+  const names = merged.environments.map((entry) => [
+    entry.id,
+    environmentName(entry, cs),
+    environmentWho(entry, cs),
+  ]);
+  expect(names).toEqual([
+    ["ada", "Osobní", "jen tvůj"],
+    ["vm-01.example", "Sales", "sdílený Teamem"],
+    ["vm-03.example", "Pracovní", "@ada"],
+  ]);
+  // Ids, apps, spaces and the last Environments are the account's as in the
+  // same language.
+  const same = mergeAccount(local, read);
+  expect(merged.environments.map((entry) => [entry.id, entry.apps])).toEqual(
+    same.environments.map((entry) => [entry.id, entry.apps]),
+  );
+  expect(merged.organizations).toEqual(same.organizations);
+  expect([...accountLastBySpace(merged, read)]).toEqual([
+    ["Example", "vm-03.example"],
+  ]);
+  // No English word of the account reaches the Czech picker.
+  const sections = switcherSections(merged, cs, {
+    here: "Example",
+    all: true,
+    app: "apps",
+    query: "",
+  });
+  const shown = JSON.stringify(
+    sections.flatMap((section) =>
+      section.rows.map((row) => [row.name, row.who]),
+    ),
+  );
+  expect(shown).not.toContain("shared by the Team");
+  expect(shown).not.toContain("only yours");
+  expect(shown).not.toContain("Team Sales");
+});
+
+test("the account in the local language: its words name the Environments", () => {
+  const cs = shellMessages("cs");
+  const czech = parsed(localDocument({ locale: "cs" }));
+  const document = accountDocument({ locale: "cs" });
+  const read = account({
+    locale: "cs",
+    environments: document.environments.map((entry, at) =>
+      at === 1
+        ? { ...entry, name: "Obchod", who: "sdílený Teamem" }
+        : at === 2
+          ? { ...entry, name: "Pracovní 2", who: "jen tvůj" }
+          : { ...entry, name: "Osobní Ada", who: "jen tvůj" },
+    ),
+  });
+  const merged = mergeAccount(czech, read);
+  expect(
+    merged.environments.map((entry) => [
+      environmentName(entry, cs),
+      environmentWho(entry, cs),
+    ]),
+  ).toEqual([
+    ["Osobní Ada", "jen tvůj"],
+    ["Obchod", "sdílený Teamem"],
+    ["Pracovní 2", "jen tvůj"],
+  ]);
+});
+
 // The read: once per page load, the fallback on every failure.
 
 const answer = (status: number, body: unknown) =>

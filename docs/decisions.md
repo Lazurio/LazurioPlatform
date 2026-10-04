@@ -4047,8 +4047,10 @@ addendum: `parseShellAccount` in `src/shell/contract.ts` reads `lazurio.account.
 with the entry parsers of `lazurio.shell.v1` (one parser, point 1), in the shape the
 Dashboard emits (HumanAndMachine-ai/Dashboard#198); `mergeAccount` in
 `src/shell/merge.ts` merges it as point 4 says (the local entry, `current` and its
-apps win; Organizations are matched by their Dashboard slug; the operator is the
-person signed in at the browser), and the elements read
+apps win; Organizations are matched by their Dashboard slug, and an ambiguous one
+leaves the account's Organization and its Environments out; the account's `name` and
+`who` show only when its locale is the shell's; the operator is the person signed in
+at the browser), and the elements read
 `/.lazurio/account/environments` once per page load, on the Launchpad page too,
 falling back to this Environment's rail on any failure. A space without an
 Environment keeps its avatar in the rail and leads to its Dashboard. Not live yet:

@@ -388,7 +388,13 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     the same id, taking only its `name`, `who` and `offline`. It adds the account's
     other Environments and its spaces in the account's order. An Organization is
     matched by its Dashboard slug (`dashboardSlug`), the local entry winning in
-    the account's place, and local ones the account lacks follow. The operator
+    the account's place, and local ones the account lacks follow. A Dashboard slug
+    that two local Organizations (or two of the account's) reduce to is ambiguous:
+    the local entries stay as they are and the account's Organization, its
+    Environments and its last Environment there are left out. The account's `name`
+    and `who` are shown only when its `locale` is the local document's; otherwise
+    every Environment is named from its label or kind in the local language, and the
+    structure (ids, apps, spaces, last Environments) stays. The operator
     becomes the person signed in at the browser. A space without an Environment (an
     Organization from the person's memberships) keeps its avatar in the rail, says
     "No Environment yet · opens its Dashboard", and leads to its Dashboard; the

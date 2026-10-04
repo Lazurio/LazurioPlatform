@@ -26,6 +26,17 @@ import {
 //   document by the manifest's slug), then local ones the account does not
 //   list. The local entry wins. An account Environment names the merged
 //   slug.
+// - An ambiguous Dashboard slug (two local Organizations, or two of the
+//   account's, that reduce to the same one, such as `Example Org` and
+//   `example-org`) cannot be placed safely: for it the local entries stay as
+//   they are, and the account's Organization, its Environments and its last
+//   Environment are left out. Never a guess, never two spaces of one slug.
+// - The account's words (`name`, `who`) are shown only when the account
+//   speaks the local document's language: the Dashboard words them by the
+//   browser's `Accept-Language`, the elements by the profile's locale. In
+//   another language every Environment is named as without the account (its
+//   label or kind, in the local language); ids, apps, spaces, `offline` and
+//   the last Environments stay.
 // - The operator is the account's: the person signed in at the browser,
 //   whom a Team or another person's work Environment does not know.
 // - The locale and the Dashboard's addresses stay the local document's.
@@ -33,43 +44,69 @@ import {
 const canonical = (slug: string): string =>
   dashboardSlug(slug) ?? slug.toLowerCase();
 
+/** The Dashboard slugs more than one entry of a list reduces to. */
+function ambiguousSlugs(
+  ...lists: readonly (readonly ShellOrganization[])[]
+): ReadonlySet<string> {
+  const ambiguous = new Set<string>();
+  for (const list of lists) {
+    const seen = new Set<string>();
+    for (const entry of list) {
+      const key = canonical(entry.slug);
+      if (seen.has(key)) ambiguous.add(key);
+      seen.add(key);
+    }
+  }
+  return ambiguous;
+}
+
+/** An Environment without the account's words for it. */
+function unworded(entry: ShellEnvironment): ShellEnvironment {
+  if (entry.name === undefined && entry.who === undefined) return entry;
+  const { name: _name, who: _who, ...rest } = entry;
+  return Object.freeze(rest);
+}
+
 export function mergeAccount(
   local: Shell,
   account: ShellAccount | null,
 ): Shell {
   if (account === null) return local;
 
+  const ambiguous = ambiguousSlugs(local.organizations, account.organizations);
+  const sameLanguage = account.locale === local.locale;
+
   // Organizations: the account's order, the local entry in its place.
   const localBySlug = new Map<string, ShellOrganization>();
-  for (const organization of local.organizations) {
-    const key = canonical(organization.slug);
-    if (!localBySlug.has(key)) localBySlug.set(key, organization);
-  }
+  for (const organization of local.organizations)
+    localBySlug.set(canonical(organization.slug), organization);
   const organizations: ShellOrganization[] = [];
-  const byKey = new Map<string, ShellOrganization>();
-  // An account slug (lowercased) to the slug it has in the merged document.
+  // An account slug (lowercased) to the slug it has in the merged document;
+  // absent for an ambiguous one.
   const slugOf = new Map<string, string>();
   for (const organization of account.organizations) {
     const key = canonical(organization.slug);
-    let chosen = byKey.get(key);
-    if (chosen === undefined) {
-      chosen = localBySlug.get(key) ?? organization;
-      byKey.set(key, chosen);
-      organizations.push(chosen);
-    }
+    if (ambiguous.has(key)) continue;
+    const chosen = localBySlug.get(key) ?? organization;
+    organizations.push(chosen);
     slugOf.set(organization.slug.toLowerCase(), chosen.slug);
   }
   const onlyLocal = local.organizations.filter(
     (entry) => !organizations.includes(entry),
   );
 
-  // Environments: the account's order, a local entry in its place.
+  // Environments: the account's order, a local entry in its place. An
+  // account entry in an Organization left out (ambiguous) is left out too;
+  // a local one of the same id then stands as the local document has it.
   const localById = new Map(
     local.environments.map((entry) => [entry.id, entry]),
   );
   const listed = new Set<string>();
   const environments: ShellEnvironment[] = [];
-  for (const entry of account.environments) {
+  for (const read of account.environments) {
+    if (read.organizations.some((slug) => !slugOf.has(slug.toLowerCase())))
+      continue;
+    const entry = sameLanguage ? read : unworded(read);
     const own = localById.get(entry.id);
     if (own !== undefined) {
       listed.add(own.id);
@@ -118,8 +155,8 @@ function described(
 
 /** The last Environment the account remembers for each space of a merged
  * document, by the space's id there (`personal` or the merged Organization
- * slug): only Environments the merged document lists. Empty without the
- * account. */
+ * slug): only Environments the merged document lists, and only for a slug
+ * that names one space there. Empty without the account. */
 export function accountLastBySpace(
   merged: Shell,
   account: ShellAccount | null,
@@ -133,10 +170,12 @@ export function accountLastBySpace(
       last.set(space, visit.environment);
       continue;
     }
-    const organization = merged.organizations.find(
+    // Only a space the slug names unambiguously in the merged document.
+    const organizations = merged.organizations.filter(
       (entry) => canonical(entry.slug) === canonical(space),
     );
-    if (organization !== undefined && !last.has(organization.slug))
+    const organization = organizations[0];
+    if (organizations.length === 1 && organization !== undefined)
       last.set(organization.slug, visit.environment);
   }
   return last;
