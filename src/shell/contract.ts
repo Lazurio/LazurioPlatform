@@ -53,6 +53,16 @@ export type ShellEnvironment = Readonly<{
    * for its "who" line; null otherwise. */
   assignee: string | null;
   apps: ShellApps;
+  /** The Dashboard's display name, when the account names it (F37's
+   * addendum of 2026-10-04): the purpose name, with an order number for a
+   * second Environment of the same Team, or an Admin's rename. Absent: the
+   * elements name it by `label` or its kind. */
+  name?: string;
+  /** The line saying whom it serves, as the Dashboard words it; absent: the
+   * elements word it from the kind and `assignee`. */
+  who?: string;
+  /** True when the account knows it is off. */
+  offline?: boolean;
 }>;
 
 export type ShellOrganization = Readonly<{
@@ -230,7 +240,8 @@ function apps(value: unknown): ShellApps | null {
 
 function environment(value: unknown): ShellEnvironment | null {
   if (!isRecord(value)) return null;
-  const { id, label, kind, organizations, assignee } = value;
+  const { id, label, kind, organizations, assignee, name, who, offline } =
+    value;
   const own = apps(value.apps);
   if (
     !isEnvironmentId(id) ||
@@ -240,7 +251,12 @@ function environment(value: unknown): ShellEnvironment | null {
     !organizations.every((entry) => typeof entry === "string") ||
     !(assignee === null || isLogin(assignee)) ||
     own === null ||
-    !identityMatches(id, own)
+    !identityMatches(id, own) ||
+    // The optional members of F37's addendum: absent, or their exact shape
+    // (`who` may also be null: the Dashboard's facts do not say).
+    !(name === undefined || text(name, 128)) ||
+    !(who === undefined || who === null || text(who, 128)) ||
+    !(offline === undefined || typeof offline === "boolean")
   )
     return null;
   return Object.freeze({
@@ -250,6 +266,9 @@ function environment(value: unknown): ShellEnvironment | null {
     organizations: Object.freeze([...(organizations as string[])]),
     assignee: assignee as string | null,
     apps: own,
+    ...(typeof name === "string" ? { name } : {}),
+    ...(typeof who === "string" ? { who } : {}),
+    ...(offline === true ? { offline } : {}),
   });
 }
 
@@ -272,19 +291,21 @@ function organization(value: unknown): ShellOrganization | null {
   });
 }
 
-/** The shell document, when the input is a valid `lazurio.shell.v1`; null
- * otherwise. Members this version does not know are ignored (a later producer
- * may add some); every known member must have its exact shape, Environment
- * ids are in the DNS form of `isEnvironmentId` and a hosted entry's is the
- * base host of its Apps address, ids and slugs are unique,
- * `current` names an Environment and every Organization an Environment names
- * is listed. */
-export function parseShell(input: unknown): Shell | null {
-  if (!isRecord(input) || input.schema !== shellSchema) return null;
+type Entries = Readonly<{
+  locale: "cs" | "en";
+  operator: ShellOperator;
+  environments: readonly ShellEnvironment[];
+  organizations: readonly ShellOrganization[];
+}>;
+
+/** The entries both documents share (F37 point 1: one parser for
+ * `lazurio.shell.v1` and `lazurio.account.v1`): `locale`, `operator`,
+ * `environments` and `organizations`, each in its exact shape, Environment
+ * ids unique and in the form of `isEnvironmentId` (a hosted entry's the base
+ * host of its Apps address), Organization slugs unique (ignoring case) and
+ * every Organization an Environment names listed. Null otherwise. */
+function entries(input: Data): Entries | null {
   if (input.locale !== "cs" && input.locale !== "en") return null;
-  if (!isShellUrl(input.dashboard) || !isShellUrl(input.account)) return null;
-  if (!(input.addOrganization === null || isShellUrl(input.addOrganization)))
-    return null;
   const operator = input.operator;
   if (
     !isRecord(operator) ||
@@ -314,11 +335,8 @@ export function parseShell(input: unknown): Shell | null {
     )
   )
     return null;
-  if (!envs.some((entry) => entry.id === input.current)) return null;
-  return Object.freeze({
-    schema: shellSchema,
+  return {
     locale: input.locale,
-    current: input.current as string,
     operator: Object.freeze({
       initials: operator.initials as string | null,
       login: operator.login as string | null,
@@ -326,10 +344,218 @@ export function parseShell(input: unknown): Shell | null {
     }),
     environments: Object.freeze(envs),
     organizations: Object.freeze(orgs),
+  };
+}
+
+/** The shell document, when the input is a valid `lazurio.shell.v1`; null
+ * otherwise. Members this version does not know are ignored (a later producer
+ * may add some); every known member must have its exact shape, Environment
+ * ids are in the DNS form of `isEnvironmentId` and a hosted entry's is the
+ * base host of its Apps address, ids and slugs are unique,
+ * `current` names an Environment and every Organization an Environment names
+ * is listed. */
+export function parseShell(input: unknown): Shell | null {
+  if (!isRecord(input) || input.schema !== shellSchema) return null;
+  if (!isShellUrl(input.dashboard) || !isShellUrl(input.account)) return null;
+  if (!(input.addOrganization === null || isShellUrl(input.addOrganization)))
+    return null;
+  const shared = entries(input);
+  if (shared === null) return null;
+  if (!shared.environments.some((entry) => entry.id === input.current))
+    return null;
+  return Object.freeze({
+    schema: shellSchema,
+    locale: shared.locale,
+    current: input.current as string,
+    operator: shared.operator,
+    environments: shared.environments,
+    organizations: shared.organizations,
     dashboard: input.dashboard,
     account: input.account,
     addOrganization: input.addOrganization as string | null,
   });
+}
+
+// The person's Lazurio account (F37 and its addendum of 2026-10-04):
+// `lazurio.account.v1`, which the Dashboard answers at
+// `GET /api/environment/v1/account/environments` and the Environment's
+// gateway relays on its own origins as `/.lazurio/account/environments`.
+// The same entries as `lazurio.shell.v1`, without `current` and without the
+// Dashboard's addresses, for the person signed in at the browser: their
+// spaces (Organizations from live memberships, so one without an
+// Environment keeps its avatar), the Environments they may open, and the
+// account-only members below.
+
+export const accountSchema = "lazurio.account.v1";
+
+/** The apps a visit names (`last`, `lastBySpace`). */
+const visitApps = ["chat", "apps", "automate"] as const;
+type VisitApp = (typeof visitApps)[number];
+const isVisitApp = (value: unknown): value is VisitApp =>
+  (visitApps as readonly unknown[]).includes(value);
+
+/** Where the person was last: an Environment of `environments`, the app,
+ * and the Organization slug of the space (null in the personal one). */
+export type AccountLast = Readonly<{
+  environment: string;
+  app: VisitApp;
+  organization: string | null;
+}>;
+
+export type AccountFavourite = Readonly<{
+  kind: "module" | "repository";
+  /** A module id, or a production repository's name. */
+  id: string;
+}>;
+
+export type ShellAccount = Readonly<{
+  schema: typeof accountSchema;
+  /** The language `name` and `who` are worded in. */
+  locale: "cs" | "en";
+  /** The person signed in at the browser. */
+  operator: ShellOperator;
+  /** The Environments they may open, with absolute https Apps addresses. */
+  environments: readonly ShellEnvironment[];
+  /** Their spaces: every Organization they are a member of. */
+  organizations: readonly ShellOrganization[];
+  /** The last Environment overall; null when none is known. */
+  last: AccountLast | null;
+  /** The last Environment per space: `personal` and Organization slugs. */
+  lastBySpace: Readonly<
+    Record<string, Readonly<{ environment: string; app: VisitApp }>>
+  >;
+  /** Favourites by Organization slug, only for the requesting
+   * Environment's Organization(s). */
+  favourites: Readonly<Record<string, readonly AccountFavourite[]>>;
+  preferences: Readonly<{ openApps: "tab" | "same" }>;
+}>;
+
+const accountPersonalSpace = "personal";
+
+/** The account document, when the input is a valid `lazurio.account.v1`;
+ * null otherwise, as a whole. The shared entries are read by the shell's own
+ * parser (`entries`), with one addition: an Environment of the account is
+ * another origin, so its Apps address is an absolute https URL, never a path.
+ * The account-only members may be absent (`last` none, `lastBySpace` and
+ * `favourites` empty, `openApps` `tab`); present, they have their exact
+ * shape and name only listed Environments and Organizations. Members this
+ * version does not know are ignored. */
+export function parseShellAccount(input: unknown): ShellAccount | null {
+  if (!isRecord(input) || input.schema !== accountSchema) return null;
+  const shared = entries(input);
+  if (shared === null) return null;
+  if (shared.environments.some((entry) => !isShellUrl(entry.apps.apps)))
+    return null;
+  const ids = new Set(shared.environments.map((entry) => entry.id));
+  const slugOf = new Map(
+    shared.organizations.map((entry) => [entry.slug.toLowerCase(), entry.slug]),
+  );
+  const listedSlug = (value: unknown): value is string =>
+    typeof value === "string" && slugOf.has(value.toLowerCase());
+
+  let last: AccountLast | null = null;
+  if (input.last !== undefined && input.last !== null) {
+    const value = input.last;
+    if (
+      !isRecord(value) ||
+      typeof value.environment !== "string" ||
+      !ids.has(value.environment) ||
+      !isVisitApp(value.app) ||
+      !(value.organization === null || listedSlug(value.organization))
+    )
+      return null;
+    last = Object.freeze({
+      environment: value.environment,
+      app: value.app,
+      organization: value.organization as string | null,
+    });
+  }
+
+  const lastBySpace: Record<
+    string,
+    Readonly<{ environment: string; app: VisitApp }>
+  > = {};
+  if (input.lastBySpace !== undefined) {
+    if (!isRecord(input.lastBySpace)) return null;
+    for (const [space, value] of Object.entries(input.lastBySpace)) {
+      if (
+        !(space === accountPersonalSpace || listedSlug(space)) ||
+        !isRecord(value) ||
+        typeof value.environment !== "string" ||
+        !ids.has(value.environment) ||
+        !isVisitApp(value.app)
+      )
+        return null;
+      lastBySpace[space] = Object.freeze({
+        environment: value.environment,
+        app: value.app,
+      });
+    }
+  }
+
+  const favourites: Record<string, readonly AccountFavourite[]> = {};
+  if (input.favourites !== undefined) {
+    if (!isRecord(input.favourites)) return null;
+    for (const [slug, list] of Object.entries(input.favourites)) {
+      if (!listedSlug(slug) || !Array.isArray(list)) return null;
+      const read: AccountFavourite[] = [];
+      for (const value of list) {
+        if (
+          !isRecord(value) ||
+          (value.kind !== "module" && value.kind !== "repository") ||
+          !text(value.id, 128)
+        )
+          return null;
+        read.push(Object.freeze({ kind: value.kind, id: value.id }));
+      }
+      favourites[slug] = Object.freeze(read);
+    }
+  }
+
+  let openApps: "tab" | "same" = "tab";
+  if (input.preferences !== undefined) {
+    const preferences = input.preferences;
+    if (
+      !isRecord(preferences) ||
+      !(
+        preferences.openApps === undefined ||
+        preferences.openApps === "tab" ||
+        preferences.openApps === "same"
+      )
+    )
+      return null;
+    if (preferences.openApps === "same") openApps = "same";
+  }
+
+  return Object.freeze({
+    schema: accountSchema,
+    locale: shared.locale,
+    operator: shared.operator,
+    environments: shared.environments,
+    organizations: shared.organizations,
+    last,
+    lastBySpace: Object.freeze(lastBySpace),
+    favourites: Object.freeze(favourites),
+    preferences: Object.freeze({ openApps }),
+  });
+}
+
+/** An Organization's slug as the Dashboard addresses it (its `org_slug`):
+ * the manifest's slug lowercased, every run of other characters one `-`,
+ * none at either end. The Dashboard derives it so from the same manifest
+ * slug and matches `/orgs/<slug>` exactly, so a slug with capitals (`Acme-Co`)
+ * is `acme-co` there. Null when nothing is left. The Dashboard disambiguates
+ * two GitHub Organizations of one person that reduce to the same slug with a
+ * suffix this Environment cannot know; that link then leads to the
+ * Dashboard's own not-found page, never to another Organization's. The
+ * account document names Organizations by this slug, so the shell's merge
+ * compares an Environment's own slugs with the account's in this form. */
+export function dashboardSlug(slug: string): string | null {
+  const canonical = slug
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return canonical === "" ? null : canonical;
 }
 
 /** The Environment the document is served from. */

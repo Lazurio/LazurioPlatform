@@ -95,53 +95,24 @@ const answer = (status: number, body: unknown) =>
     headers: { "Content-Type": "application/json" },
   });
 
-test("read once from the page's own origin, without a token and never following a sign-in", async () => {
-  const seen: { path: string; init: RequestInit }[] = [];
-  const account = await readAccount(async (path, init) => {
-    seen.push({ path, init });
-    return answer(200, document());
+test("Apps reads the page's one answer, shared with the shell's rail; unavailable is null", async () => {
+  // The transport (same origin, no token, no redirect, the timeout, the
+  // fallback) is the shell library's: tests/shell-account.test.ts.
+  let reads = 0;
+  const account = await readAccount(async () => {
+    reads += 1;
+    return document();
   });
   expect(account?.openApps).toBe("same");
-  expect(seen).toHaveLength(1);
-  expect(seen[0]?.path).toBe(accountDocumentPath);
-  expect(seen[0]?.path).toBe("/.lazurio/account/environments");
-  expect(seen[0]?.init.credentials).toBe("same-origin");
-  expect(seen[0]?.init.redirect).toBe("error");
-  expect(new Headers(seen[0]?.init.headers).has("authorization")).toBe(false);
-});
-
-test("unavailable is null, so today's behaviour stays: 404, a refusal, another schema, not JSON, a network error", async () => {
-  for (const response of [
-    answer(404, { error: "not-found" }),
-    answer(401, { error: "denied" }),
-    answer(502, "bad gateway"),
-    answer(200, document({ schema: "lazurio.shell.v1" })),
-    answer(200, "<!doctype html><title>Launchpad</title>"),
-  ])
-    expect(await readAccount(async () => response)).toBeNull();
+  expect(reads).toBe(1);
+  expect(accountDocumentPath).toBe("/.lazurio/account/environments");
+  for (const value of [null, document({ schema: "lazurio.shell.v1" })])
+    expect(await readAccount(async () => value)).toBeNull();
   expect(
     await readAccount(async () => {
-      throw new TypeError("redirect");
+      throw new TypeError("unexpected");
     }),
   ).toBeNull();
-});
-
-test("a slow account is given up after the timeout and is null", async () => {
-  let aborted = false;
-  const started = Date.now();
-  const account = await readAccount(
-    (_path, init) =>
-      new Promise((_resolve, reject) => {
-        init.signal?.addEventListener("abort", () => {
-          aborted = true;
-          reject(new DOMException("aborted", "AbortError"));
-        });
-      }),
-    50,
-  );
-  expect(account).toBeNull();
-  expect(aborted).toBe(true);
-  expect(Date.now() - started).toBeLessThan(2_000);
 });
 
 test("the path of one favourite, only with segments the gateway passes", () => {

@@ -322,9 +322,11 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   switch, as pure functions), `elements.ts` (`<lazurio-rail>`, `<lazurio-column-head>`),
   `styles.ts` (the vendored tokens on `:host`, the design system's selection rule),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
-  below), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/` (tokens, logo,
-  fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
-  `tests/shell-last.test.ts`, `tests/launchpad-shell-routes.test.ts`,
+  below), `account.ts` and `merge.ts` (the person's account and its merge into the
+  rail, below), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/` (tokens,
+  logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
+  `tests/shell-last.test.ts`, `tests/shell-account.test.ts`,
+  `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
 - **Identity of an Environment entry** ([F37's addendum of
@@ -369,10 +371,38 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   root decision 0185 S8, S12, S15, S18). Built, and waiting only for the account to
   answer on the Environment's own origin; until the gateway relays
   `/.lazurio/account/` (404 today) everything behaves as before it:
-  - `account.ts` reads `GET /.lazurio/account/environments` once per page load
-    (same origin, no token, given up after 4 s). Only a `lazurio.account.v1` document
-    counts, and Apps takes two things of it: `preferences.openApps` and `favourites`
+  - The library reads `GET /.lazurio/account/environments` once per page load
+    (`src/shell/account.ts`: same origin, no token, no redirect followed, given up
+    after 4 s), alongside `/.lazurio/shell.json`, on the Launchpad page too, and
+    never polls. Apps reads the same answer (`src/launchpad/account.ts`), so the page
+    asks once. Apps takes two things of it: `preferences.openApps` and `favourites`
     keyed by the Organization slug.
+  - The rail's merge (F37 point 4, `src/shell/merge.ts`). `parseShellAccount` in
+    `contract.ts` reads `lazurio.account.v1` with the same entry parsers as
+    `lazurio.shell.v1` (https only, `isEnvironmentId` and the base-host identity, unknown
+    members dropped, an invalid document refused as a whole), plus the optional `name`,
+    `who` and `offline` of an Environment (both documents) and the account-only
+    `last`, `lastBySpace`, `favourites` and `preferences.openApps`; an account
+    Environment's Apps address is always absolute. `mergeAccount` keeps this
+    Environment's own entry, `current` and apps, and drops the account's entry of
+    the same id, taking only its `name`, `who` and `offline`. It adds the account's
+    other Environments and its spaces in the account's order. An Organization is
+    matched by its Dashboard slug (`dashboardSlug`), the local entry winning in
+    the account's place, and local ones the account lacks follow. A Dashboard slug
+    that two local Organizations (or two of the account's) reduce to is ambiguous:
+    the local entries stay as they are and the account's Organization, its
+    Environments and its last Environment there are left out. The account's `name`
+    and `who` are shown only when its `locale` is the local document's; otherwise
+    every Environment is named from its label or kind in the local language, and the
+    structure (ids, apps, spaces, last Environments) stays. The operator
+    becomes the person signed in at the browser. A space without an Environment (an
+    Organization from the person's memberships) keeps its avatar in the rail, says
+    "No Environment yet · opens its Dashboard", and leads to its Dashboard; the
+    picker's "All Organizations" lists it with its head and "You have no Environment
+    here." A click on another space leads to the account's last Environment there
+    (`lastBySpace`), else this browser's memory, else its first. Without the account
+    (404 on today's gateways, 401 or 403, slow, not a valid document) the rail is
+    exactly this Environment's, with one debug line in the console and no error shown.
   - Where apps open (S18, `app-opening.ts`): tiles, the column's favourites, "Otevřít
     aplikaci" and the lifecycle's "Otevřít" open in a new tab (`tab`, also without the
     account) or navigate this window (`same`), never in a frame. On a workstation the
@@ -399,8 +429,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   for Files and Tools whose `gh` answers for the example Organization as the role says
   (an Owner by default; a Steward maintains its workspace modules' repositories), and
   with `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
-  cookie. The account is not part of the preview: a browser automation stands in for
-  the gateway's relay of `/.lazurio/account/…`. Screenshots come from Chrome through
+  cookie. The account is not part of the preview: a browser automation, or a small
+  stub in front of the hosted proxy, stands in for the gateway's relay of
+  `/.lazurio/account/…`. Screenshots come from Chrome through
   playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
