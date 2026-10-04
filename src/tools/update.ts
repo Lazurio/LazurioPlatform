@@ -27,6 +27,9 @@ export type ToolsUpdateResult =
       after: ToolStatus;
       changed: boolean;
       output: string;
+      /** What a person or agent does next, when the update leaves something
+       * running on the old version (Codex: its app-server). */
+      next?: string;
     }>
   | Readonly<{
       kind: "tool-update-failed";
@@ -48,6 +51,13 @@ export type ToolsUpdateInput = Readonly<{
 }>;
 
 const updateTimeoutMs = 10 * 60_000;
+
+/** After Codex changed its version: an app-server already running (one
+ * ChatGPT Desktop started over SSH, for example) keeps the old version until
+ * it is replaced, and nothing here stops or restarts it: that would end live
+ * sessions (decision F29, issue #173). */
+export const codexUpdatedNext =
+  "A Codex app-server that is already running keeps the old version until it is replaced; nothing was stopped or restarted. In a Remote Environment, lazurio doctor reports it (codex-app-server, app-server-outdated) and the Folder's manual/troubleshooting.md says how to replace it, with the Operator's consent.";
 
 async function updateCommand(
   entry: ToolEntry,
@@ -116,6 +126,8 @@ export async function toolsUpdate(
         output,
       };
     const after = await status();
+    const versionChanged =
+      before.version !== undefined && before.version !== after.version;
     return {
       kind: "tool-updated",
       tool: entry.name,
@@ -125,6 +137,9 @@ export async function toolsUpdate(
       changed:
         before.version !== after.version || before.realPath !== after.realPath,
       output,
+      ...(entry.name === "codex" && versionChanged
+        ? { next: codexUpdatedNext }
+        : {}),
     };
   } catch (error) {
     return {

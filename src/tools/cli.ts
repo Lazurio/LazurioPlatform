@@ -53,7 +53,9 @@ tools update <tool> [--json]
   own updater (claude update, bun upgrade) or the vendor's installer script
   (codex). Tools without one (gh, git, node, npm) are reported with their
   official source and nothing runs. Run it only with the Operator's
-  consent. Never pins or downgrades; never touches another tool.
+  consent. Never pins or downgrades; never touches another tool. A running
+  Codex app-server is never stopped: after Codex changed its version, the
+  answer says it keeps the old version until it is replaced.
 tools list --folder <absolute Folder> [--sign-in] [--json]
   The catalog tools agents may be told to use (gh required, composio
   recommended, wacli, gogcli and neon optional): tier, setup mode (launchpad:
@@ -349,7 +351,7 @@ export async function runToolsCommand(
       else if (result.kind === "tool-not-self-updating")
         text = `${result.tool} has no official self-update path here; installed: ${result.before.version ?? "missing"}. Official source: ${result.source}`;
       else if (result.kind === "tool-updated")
-        text = `${result.tool}: ${result.before.version ?? "missing"} -> ${result.after.version ?? "?"}${result.changed ? "" : " (unchanged)"}`;
+        text = `${result.tool}: ${result.before.version ?? "missing"} -> ${result.after.version ?? "?"}${result.changed ? "" : " (unchanged)"}${result.next === undefined ? "" : `\n${result.next}`}`;
       else
         text = `${result.tool}: update failed${result.exitCode === undefined ? "" : ` (exit ${result.exitCode})`}\n${result.output}`;
     }

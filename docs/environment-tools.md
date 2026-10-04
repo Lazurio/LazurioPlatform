@@ -48,7 +48,11 @@ The Platform's surface for the operator's tools, implemented in `src/tools/`:
   runs (`tool-not-self-updating`, exit 1). Unknown names exit 2. It never pins,
   never downgrades on its own, never touches another tool and is not run by
   `lazurio update`, the Launchpad or a Machines apply. An agent runs it only on the
-  Operator's explicit instruction (F17).
+  Operator's explicit instruction (F17). When Codex changed its version, the result
+  carries `next`: a Codex app-server that is already running keeps the old version
+  until it is replaced, `lazurio doctor` reports it as `codex-app-server`
+  `app-server-outdated`, and nothing is stopped or restarted (F29 addendum, issue
+  #173).
 
 ### Enabled tools of a Folder (decision 0162, F18)
 

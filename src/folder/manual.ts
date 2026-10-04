@@ -838,6 +838,44 @@ const checkouts: readonly Text[] = [
   ),
 ];
 
+// An app-server older than the Operator's Codex (decision F29 addendum, issue
+// #173): ChatGPT Desktop starts one over SSH outside the unit, and neither a
+// Codex update nor a restart of the unit replaces it. The product never ends
+// it on its own; an agent does, with the Operator's consent, and never the one
+// whose own session runs under it. Only where the unit is (a Remote
+// Environment).
+const codexAppServer: readonly Text[] = [
+  t(
+    "## Codex app-server po aktualizaci Codexu",
+    "## The Codex app-server after a Codex update",
+  ),
+  t(
+    "Když `lazurio doctor` hlásí u `codex-app-server` `warn app-server-outdated`, klienti ChatGPT Desktopu pořád mluví se starším app-serverem (`appServerVersion`), než je nainstalovaný Codex (`cliVersion`). Takový app-server spustil ChatGPT Desktop přes SSH mimo jednotku `lazurio-codex-app-server.service`, takže ho aktualizace Codexu ani restart jednotky nenahradí. Výměna na chvíli odpojí chaty ChatGPT Desktopu na tomhle Environmentu, proto je to rozhodnutí Operátora: nejdřív se ho zeptej.",
+    "When `lazurio doctor` reports `warn app-server-outdated` for `codex-app-server`, ChatGPT Desktop clients still talk to an app-server (`appServerVersion`) older than the installed Codex (`cliVersion`). ChatGPT Desktop started that app-server over SSH outside the unit `lazurio-codex-app-server.service`, so neither a Codex update nor a restart of the unit replaces it. Replacing it briefly disconnects ChatGPT Desktop chats in this Environment, so it is the Operator's call: ask them first.",
+  ),
+  blank,
+  t(
+    "- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace (`find ~/.codex/sessions -type f -mmin -15` nic nevypíše); jinak je někdo uprostřed práce, počkej.",
+    "- With their consent, check that no session file changed in the last 15 minutes (`find ~/.codex/sessions -type f -mmin -15` prints nothing); otherwise someone is mid-turn, so wait.",
+  ),
+  t(
+    "- Najdi neřízený proces `codex … app-server --listen unix://` (`pgrep -af 'app-server --listen unix://'`): ten, jehož `/proc/<pid>/exe` nevede do `~/.codex/packages/app-server-daemon/`, kde běží daemon jednotky. Když žádný takový není, nic neukončuj a řekni to Operátorovi.",
+    "- Find the unmanaged `codex … app-server --listen unix://` process (`pgrep -af 'app-server --listen unix://'`): the one whose `/proc/<pid>/exe` does not lead into `~/.codex/packages/app-server-daemon/`, where the unit's daemon runs. When there is none, end nothing and tell the Operator.",
+  ),
+  t(
+    "- Když tvůj vlastní shell běží pod tímhle procesem (projdi předky od `$$` přes `ps -o ppid= -p <pid>`), sám ho neukončuj: ukončil bys vlastní relaci. Řekni Operátorovi, ať o výměnu požádá z jiného klienta (T3 Code).",
+    "- When your own shell runs under that process (walk your ancestry from `$$` with `ps -o ppid= -p <pid>`), do not end it yourself: you would end your own session. Tell the Operator to ask for the replacement from another client (T3 Code).",
+  ),
+  t(
+    "- Jinak ho ukonči `kill -TERM <pid>` a spusť `systemctl --user restart lazurio-codex-app-server.service`.",
+    "- Otherwise end it with `kill -TERM <pid>` and run `systemctl --user restart lazurio-codex-app-server.service`.",
+  ),
+  t(
+    "- Ověř, že `codex app-server daemon version` hlásí `appServerVersion` rovné `cliVersion`, a řekni Operátorovi, že se ChatGPT Desktop znovu připojí při své další akci.",
+    "- Verify that `codex app-server daemon version` reports `appServerVersion` equal to `cliVersion`, and tell the Operator that ChatGPT Desktop reconnects on its next action.",
+  ),
+];
+
 // Who updates the product on this Machine: its operator, through the one
 // updater `lazurio update`, on a workstation and on a hosted Machine alike
 // (decision F17 addendum 2026-09-28). On a hosted Machine the Machines pin is
@@ -1164,6 +1202,7 @@ function troubleshooting(preset: PresetName): readonly Text[] {
         ]),
     blank,
     ...productUpdate(preset),
+    ...(hosted ? [blank, ...codexAppServer] : []),
     ...(preset === "hosted-personal" ? [] : [blank, ...checkouts]),
     blank,
     t("## Identita Environmentu", "## The Environment's identity"),

@@ -2879,6 +2879,30 @@ update does.
 | Write the unit only with `install --service` | Machines passes `--service` once, at the switch, so every Environment switched earlier would never get it; rejected for convergence on every install and update of a supervised hosted base |
 | A oneshot unit running the operator's `codex app-server daemon start`, written by `install --service` on a hosted Machine, never blocking (selected) | Uses Codex's own daemon lifecycle; one owner of the installer's units; failures are facts, not blockers |
 
+**Addendum 2026-10-05 (issue #173): an app-server older than the CLI.** On a hosted
+Environment, `lazurio tools update codex` moved the CLI to a new version, but ChatGPT
+Desktop clients kept talking to an app-server of an older version, and doctor said `ok`.
+ChatGPT Desktop had started that app-server itself over SSH
+(`codex … app-server --listen unix://`, detached), outside the unit, so neither the Codex
+update, a restart of the unit nor Codex's own `daemon restart` or `daemon update`
+replaced it.
+- **Doctor.** `codex-app-server` now reads `appServerVersion` and `cliVersion` from
+  `codex app-server daemon version`. When the daemon is `running` and both are version
+  strings that differ, it reports `warn app-server-outdated` with exactly those two
+  versions as context. A missing or malformed version stays `ok` and adds nothing; no
+  path or pid reaches the context. Still never `fail`, never in `recover`.
+- **`lazurio tools update codex`.** When Codex changed its version, the result carries
+  `next`: a Codex app-server that is already running keeps the old version until it is
+  replaced, doctor reports it, and the Folder's `manual/troubleshooting.md` describes
+  the replacement.
+- **Nothing is killed or restarted automatically.** Point 3 holds: replacing the
+  app-server ends live ChatGPT Desktop sessions, so it is the Operator's call. The new
+  troubleshooting section tells the agent to ask first, check that no file under
+  `~/.codex/sessions` changed in the last 15 minutes, end only the unmanaged process
+  (never one its own session runs under; then the Operator asks from another client,
+  T3 Code), restart the unit and verify that the two versions are equal.
+- Template revision `base-instructions-24`.
+
 ## F30 — The Operator replaces the Principal
 
 **Decided by Matěj 2026-10-02.** The Agents' principal is the **Operator** of the

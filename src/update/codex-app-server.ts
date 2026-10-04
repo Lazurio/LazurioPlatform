@@ -185,7 +185,15 @@ export const codexAppServerReasons = [
   "codex-missing",
   "daemon-not-running",
   "daemon-state-unknown",
+  "app-server-outdated",
 ] as const;
+
+/** A Codex version as `codex app-server daemon version` reports it, the only
+ * form either version reaches doctor's context in: numeric segments and an
+ * optional prerelease suffix, bounded; anything else is not a version. */
+export const isCodexVersion = (value: unknown): value is string =>
+  typeof value === "string" &&
+  /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/.test(value);
 
 const daemonTimeoutMs = 10_000;
 
@@ -199,15 +207,17 @@ async function executable(path: string): Promise<boolean> {
   }
 }
 
-/** The first line of the output that is a JSON object, or the whole. */
-function statusOf(output: string): unknown {
+/** The whole output or its first line that is a JSON object; the fields
+ * doctor reads are checked where they are used. */
+function answerOf(output: string): Readonly<Record<string, unknown>> {
   for (const candidate of [output, ...output.split("\n")]) {
     try {
-      const value = JSON.parse(candidate.trim()) as { status?: unknown };
-      if (value !== null && typeof value === "object") return value.status;
+      const value: unknown = JSON.parse(candidate.trim());
+      if (value !== null && typeof value === "object" && !Array.isArray(value))
+        return value as Record<string, unknown>;
     } catch {}
   }
-  return undefined;
+  return {};
 }
 
 /** Read-only: `systemctl --user show` of the unit and, when it is active,
@@ -294,10 +304,24 @@ export async function observeCodexAppServer(
   const answer = await input.tools
     .run([codex, "app-server", "daemon", "version"], daemonTimeoutMs, env)
     .catch(() => "timeout" as const);
-  const status =
-    answer === "timeout" ? undefined : statusOf(answer.stdout.trim());
-  if (status === "running") return Object.freeze({ outcome: "ok" as const });
-  return warn(
-    status === "notRunning" ? "daemon-not-running" : "daemon-state-unknown",
-  );
+  const daemon = answer === "timeout" ? {} : answerOf(answer.stdout.trim());
+  if (daemon.status !== "running")
+    return warn(
+      daemon.status === "notRunning"
+        ? "daemon-not-running"
+        : "daemon-state-unknown",
+    );
+  // A running app-server older (or newer) than the CLI: one a client such as
+  // ChatGPT Desktop started over SSH outside the unit keeps its version
+  // across a Codex update and a restart of the unit (issue #173). Doctor
+  // names both versions and stops nothing; replacing it ends that client's
+  // live sessions, so it is the Operator's call (manual/troubleshooting.md).
+  const { appServerVersion, cliVersion } = daemon;
+  if (
+    isCodexVersion(appServerVersion) &&
+    isCodexVersion(cliVersion) &&
+    appServerVersion !== cliVersion
+  )
+    return warn("app-server-outdated", { appServerVersion, cliVersion });
+  return Object.freeze({ outcome: "ok" as const });
 }
