@@ -1610,10 +1610,10 @@ function enabledToolsSection(
 
 // How the Operator works with an agent on a hosted Environment (decision F14
 // addendum 2026-10-02). The Operator uses the clients they prefer, possibly
-// several at once: Codex Desktop over SSH, T3 Code on the web or in its
+// several at once: ChatGPT Desktop over SSH, T3 Code on the web or in its
 // desktop app, and Lazurio MausBot.
 // Whether they connect over SSH is a fact of the handover's peers, never a
-// guess. Only Codex Desktop's built-in browser reaches a `localhost` port of
+// guess. Only ChatGPT Desktop's built-in browser reaches a `localhost` port of
 // this Environment, through an SSH tunnel it opens itself (undocumented by
 // OpenAI, see openai/codex#44385); T3 Code and Lazurio MausBot forward
 // nothing. Work products go to the Operator's Documents folder, and where the
@@ -1635,16 +1635,16 @@ function operatorClient(
         )
       : ssh === false
         ? t(
-            "Podle handoveru se sem Operátor přes SSH nepřipojuje, takže Codex Desktop tu nepoužívá.",
-            "Per the handover, the Operator does not connect here over SSH, so they do not use Codex Desktop here.",
+            "Podle handoveru se sem Operátor přes SSH nepřipojuje, takže ChatGPT Desktop tu nepoužívá.",
+            "Per the handover, the Operator does not connect here over SSH, so they do not use ChatGPT Desktop here.",
           )
         : t(
             "Handover nezaznamenává, odkud se sem Operátor připojuje.",
             "The handover does not record where the Operator connects from.",
           );
   const intro = t(
-    `Operátor sedí u svého počítače a pracuje s tebou v klientech, které mu vyhovují, klidně ve více zároveň: v Codex Desktopu přes SSH, v T3 Code na webu nebo v desktopové aplikaci a v Lazurio MausBotu. ${fact.cs} Ve kterém klientovi právě běžíš ty, poznáš podle svého harnessu; Operátor mezitím může pracovat i v jiném. Tvůj shell, soubory a procesy jsou tady, ne u Operátora.`,
-    `The Operator sits at their own computer and works with you in the clients they prefer, possibly several at once: Codex Desktop over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot. ${fact.en} Your harness tells you which client you run in; the Operator may be working in another one meanwhile. Your shell, files and processes are here, not on the Operator's computer.`,
+    `Operátor sedí u svého počítače a pracuje s tebou v klientech, které mu vyhovují, klidně ve více zároveň: v ChatGPT Desktopu (dřív Codex Desktop) přes SSH, v T3 Code na webu nebo v desktopové aplikaci a v Lazurio MausBotu. ${fact.cs} Ve kterém klientovi právě běžíš ty, poznáš podle svého harnessu; Operátor mezitím může pracovat i v jiném. Tvůj shell, soubory a procesy jsou tady, ne u Operátora.`,
+    `The Operator sits at their own computer and works with you in the clients they prefer, possibly several at once: ChatGPT Desktop (formerly Codex Desktop) over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot. ${fact.en} Your harness tells you which client you run in; the Operator may be working in another one meanwhile. Your shell, files and processes are here, not on the Operator's computer.`,
   );
   const previews: readonly Text[] =
     ssh === false
@@ -1660,8 +1660,8 @@ function operatorClient(
             "- **Previews.** `localhost` and `127.0.0.1` exist only here; never write a bare link to them into the chat.",
           ),
           t(
-            "  - Běžíš-li v Codex Desktopu přes SSH, otevři rozpracovanou stránku v jeho integrovaném prohlížeči. Aktuální verze si k portu samy otevřou SSH tunel na náhodný port Operátorova počítače. OpenAI to nedokumentuje a starší verze to neumí, proto ověř, že se stránka opravdu načetla.",
-            "  - When you run in Codex Desktop over SSH, open work in progress in its built-in browser. Current versions open an SSH tunnel to the port themselves, on a random port of the Operator's computer. OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
+            "  - Běžíš-li v ChatGPT Desktopu přes SSH, otevři rozpracovanou stránku v jeho integrovaném prohlížeči. Aktuální verze si k portu samy otevřou SSH tunel na náhodný port Operátorova počítače. OpenAI to nedokumentuje a starší verze to neumí, proto ověř, že se stránka opravdu načetla.",
+            "  - When you run in ChatGPT Desktop over SSH, open work in progress in its built-in browser. Current versions open an SSH tunnel to the port themselves, on a random port of the Operator's computer. OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
           ),
           t(
             "  - Běžíš-li v T3 Code nebo Lazurio MausBotu, port se k Operátorovi nepřesměruje. Rozpracovanou aplikaci modulu spusť (`lazurio module start`) a pošli její `runtime.url`; jinou stránku předej jako soubor.",
@@ -1694,8 +1694,8 @@ function operatorClient(
           `- **Files from the Operator.** The Operator uploads a file into the T3 Code or Lazurio MausBot chat.${filesPage?.en ?? ""} Save what you will need later in \`~/Documents/<task>/\`.`,
         )
       : t(
-          `- **Soubory od Operátora.** Soubor přetažený do chatu Codex Desktopu dorazí do \`~/.codex/attachments/\`; do T3 Code a Lazurio MausBotu ho Operátor nahraje v chatu.${filesPage?.cs ?? ""} Co budeš potřebovat i později, ulož do \`~/Documents/<úkol>/\`.`,
-          `- **Files from the Operator.** A file dragged into the Codex Desktop chat arrives in \`~/.codex/attachments/\`; into T3 Code and Lazurio MausBot the Operator uploads it in the chat.${filesPage?.en ?? ""} Save what you will need later in \`~/Documents/<task>/\`.`,
+          `- **Soubory od Operátora.** Soubor přetažený do chatu ChatGPT Desktopu dorazí do \`~/.codex/attachments/\`; do T3 Code a Lazurio MausBotu ho Operátor nahraje v chatu.${filesPage?.cs ?? ""} Co budeš potřebovat i později, ulož do \`~/Documents/<úkol>/\`.`,
+          `- **Files from the Operator.** A file dragged into the ChatGPT Desktop chat arrives in \`~/.codex/attachments/\`; into T3 Code and Lazurio MausBot the Operator uploads it in the chat.${filesPage?.en ?? ""} Save what you will need later in \`~/Documents/<task>/\`.`,
         );
   const filesOut =
     origin !== undefined
@@ -1709,8 +1709,8 @@ function operatorClient(
             "- **Files for the Operator.** Save finished files in `~/Documents/<task>/`. The Operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer; hand over the result the way their client can and say where the file lies.",
           )
         : t(
-            "- **Soubory pro Operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře, proto mu výsledek předej tím, co jeho klient umí: obrázek ukaž v chatu, dokument otevři v náhledu Codex Desktopu. Velký soubor (desítky MB) náhled spolehlivě nepřenese; řekni to a nabídni menší nebo rozdělenou verzi.",
-            "- **Files for the Operator.** Save finished files in `~/Documents/<task>/`. The Operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer, so hand over the result the way their client can: show an image in the chat, open a document in Codex Desktop's preview. A large file (tens of MB) does not reliably pass through the preview; say so and offer a smaller or split version.",
+            "- **Soubory pro Operátora.** Hotové soubory ukládej do `~/Documents/<úkol>/`. Operátor k souborům tohohle Environmentu nemá přímý přístup a cesta `/home/…` mu na jeho počítači nic neotevře, proto mu výsledek předej tím, co jeho klient umí: obrázek ukaž v chatu, dokument otevři v náhledu ChatGPT Desktopu. Velký soubor (desítky MB) náhled spolehlivě nepřenese; řekni to a nabídni menší nebo rozdělenou verzi.",
+            "- **Files for the Operator.** Save finished files in `~/Documents/<task>/`. The Operator has no direct access to this Environment's files and a `/home/…` path opens nothing on their computer, so hand over the result the way their client can: show an image in the chat, open a document in ChatGPT Desktop's preview. A large file (tens of MB) does not reliably pass through the preview; say so and offer a smaller or split version.",
           );
   const workOnly: readonly Text[] = organization
     ? [

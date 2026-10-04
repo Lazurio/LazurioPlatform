@@ -662,12 +662,12 @@ test.skipIf(process.platform === "win32")(
 );
 
 // How the Operator sees an agent's work follows the handover, never a guess
-// (decision F14 addendum 2026-10-02). Only Codex Desktop's built-in browser
+// (decision F14 addendum 2026-10-02). Only ChatGPT Desktop's built-in browser
 // reaches a `localhost` port of the Environment, through a tunnel it opens
 // itself and that OpenAI does not document; T3 Code and Lazurio MausBot
 // forward nothing. Without SSH no client reaches `localhost`; without recorded
 // peers the handover's silence is said. A workstation has no such section.
-test("previews follow how the Operator connects: only Codex Desktop over SSH reaches localhost, and only through its built-in browser", () => {
+test("previews follow how the Operator connects: only ChatGPT Desktop over SSH reaches localhost, and only through its built-in browser", () => {
   const { team: _, ...owner } = organization.owner;
   const gatewayOnly = binding({
     ...organization,
@@ -694,12 +694,12 @@ test("previews follow how the Operator connects: only Codex Desktop over SSH rea
     });
   const overSsh = render(bindings.related);
   expect(overSsh["AGENTS.md"]).toContain(
-    "- The Operator connects here over SSH. Only Codex Desktop's built-in browser opens `localhost` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port.",
+    "- The Operator connects here over SSH. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) opens `localhost` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port.",
   );
   const machine = overSsh["manual/this-machine.md"];
   for (const sentence of [
     "Per the handover, the Operator connects here over SSH.",
-    "works with you in the clients they prefer, possibly several at once: Codex Desktop over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot.",
+    "works with you in the clients they prefer, possibly several at once: ChatGPT Desktop (formerly Codex Desktop) over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot.",
     "the Operator may be working in another one meanwhile.",
     "OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
     "When you run in T3 Code or Lazurio MausBot, no port reaches the Operator.",
@@ -721,7 +721,7 @@ test("previews follow how the Operator connects: only Codex Desktop over SSH rea
   );
   const unknown = render(bindings.organization);
   expect(unknown["AGENTS.md"]).toContain(
-    "- `localhost` exists only here. Only the built-in browser of Codex Desktop connected over SSH opens it",
+    "- `localhost` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it",
   );
   expect(unknown["manual/this-machine.md"]).toContain(
     "The handover does not record where the Operator connects from.",
@@ -925,8 +925,8 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
         );
         expect(text).toContain(
           cs
-            ? "a běžíš v Codex Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči Codex Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlášení a napojení dělá Operátor sám v Launchpadu; o heslo, token ani kód nežádej."
-            : "and you run in Codex Desktop, open the exact address for them in Codex Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The Operator makes sign-ins and connections in the Launchpad themselves; never ask for a password, token or code.",
+            ? "a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlášení a napojení dělá Operátor sám v Launchpadu; o heslo, token ani kód nežádej."
+            : "and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The Operator makes sign-ins and connections in the Launchpad themselves; never ask for a password, token or code.",
         );
         expect(text).toContain(
           cs
