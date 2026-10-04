@@ -1,6 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { join } from "node:path";
+import {
+  type ContentHost,
+  preparationAnswer,
+  processContentHost,
+} from "../content/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
@@ -48,6 +53,7 @@ import {
 import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
+import { createContentRoutes } from "./content-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
@@ -226,6 +232,11 @@ export async function startLaunchpad(
   // process's account. Trusted composition, never HTTP input; tests supply
   // a temporary home.
   documentsHost: DocumentsHost = processDocumentsHost(folder),
+  // Where content installation runs (decision F9, addendum of 2026-10-04):
+  // this Environment's gh and git, the install base's content lock and the
+  // module core's preparation. Trusted composition, never HTTP input; tests
+  // supply a stub GitHub and local repositories.
+  contentHost?: ContentHost | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -286,6 +297,21 @@ export async function startLaunchpad(
   };
   // The Files page (decision F35): the Operator's Documents folder.
   const files = createFilesRoutes({ host: documentsHost, headers });
+  // Content installation: one job at a time per Folder, over the same core
+  // as `lazurio organization install` and `lazurio personalspace install`.
+  const content = createContentRoutes({
+    folder,
+    headers,
+    host: () =>
+      contentHost ??
+      processContentHost({
+        env: process.env,
+        platform: toolsEnvironment.platform,
+        tools: toolsEnvironment,
+        base: installed?.base,
+        prepare: async (name) => preparationAnswer(await modules.prepare(name)),
+      }),
+  });
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: entry === null ? 0 : entry.listenPort,
@@ -625,6 +651,16 @@ export async function startLaunchpad(
               : result.kind === "module" && result.outcome.endsWith("-pending")
                 ? 202
                 : 200,
+          );
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (content.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await content.handle(request, url, (seconds) =>
+            server.timeout(request, seconds),
           );
         } catch {
           return response({ error: "operation-failed" }, 500);
