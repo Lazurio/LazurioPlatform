@@ -524,20 +524,21 @@ test("every vendored file has the hash its README records", async () => {
 // Apps consumes the same observed status as Settings > Tools.
 test("Apps directs a confirmed signed-out GitHub to the existing Tools flow", () => {
   const status = {
+    revision: 1,
     sharedEnvironment: false,
     tools: [
       { name: "gh", installed: true, signIn: { state: "signed-out" as const } },
     ],
   };
-  expect(appsGithubNotice(status, cs)).toEqual({
+  expect(appsGithubNotice(status, cs, 1)).toEqual({
     title: "Přihlas se ke GitHubu",
     description: cs.appsGithubSignInDescription,
     action: cs.appsGithubSignInAction,
     href: "/settings/tools",
   });
-  expect(appsGithubNotice(status, en)?.title).toBe("Sign in to GitHub");
+  expect(appsGithubNotice(status, en, 1)?.title).toBe("Sign in to GitHub");
   expect(
-    appsGithubNotice({ ...status, sharedEnvironment: true }, cs),
+    appsGithubNotice({ ...status, sharedEnvironment: true }, cs, 1),
   ).toBeNull();
   for (const signIn of [
     undefined,
@@ -557,10 +558,11 @@ test("Apps directs a confirmed signed-out GitHub to the existing Tools flow", ()
           ],
         },
         cs,
+        1,
       ),
     ).toBeNull();
-  expect(appsGithubNotice(null, cs)).toBeNull();
-  expect(appsGithubNotice({ ...status, tools: [] }, cs)).toBeNull();
+  expect(appsGithubNotice(null, cs, 1)).toBeNull();
+  expect(appsGithubNotice({ ...status, tools: [] }, cs, 1)).toBeNull();
   expect(
     appsGithubNotice(
       {
@@ -574,6 +576,7 @@ test("Apps directs a confirmed signed-out GitHub to the existing Tools flow", ()
         ],
       },
       cs,
+      1,
     ),
   ).toBeNull();
   expect(
@@ -589,6 +592,28 @@ test("Apps directs a confirmed signed-out GitHub to the existing Tools flow", ()
         ],
       },
       cs,
+      1,
     ),
   ).toBeNull();
+});
+
+test("Apps never reuses a Tools observation across a personal/Team profile revision", () => {
+  const personal = {
+    revision: 1,
+    sharedEnvironment: false,
+    tools: [
+      { name: "gh", installed: true, signIn: { state: "signed-out" as const } },
+    ],
+  };
+  // The new profile is rendered before its delayed Tools response arrives.
+  expect(appsGithubNotice(personal, cs, 1)).not.toBeNull();
+  expect(appsGithubNotice(personal, cs, 2)).toBeNull();
+  const team = { ...personal, revision: 2, sharedEnvironment: true };
+  expect(appsGithubNotice(team, cs, 2)).toBeNull();
+  // Neither the Team observation nor a late old personal response can be
+  // reused on the next personal revision; wait for its own observation.
+  expect(appsGithubNotice(team, cs, 3)).toBeNull();
+  expect(appsGithubNotice(personal, cs, 3)).toBeNull();
+  expect(appsGithubNotice({ ...personal, revision: 3 }, cs, 3)).not.toBeNull();
+  expect(appsGithubNotice(personal, cs, null)).toBeNull();
 });

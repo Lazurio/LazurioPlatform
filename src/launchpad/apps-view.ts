@@ -36,16 +36,19 @@ type Copy = Readonly<Record<MessageKey, string>>;
  * an unavailable probe means signed out; Teams use brokered GitHub. */
 export function appsGithubNotice(
   overview:
-    | (Pick<ToolsOverview, "sharedEnvironment"> &
+    | (Pick<ToolsOverview, "revision" | "sharedEnvironment"> &
         Readonly<{
           tools: readonly Pick<ToolOverview, "name" | "installed" | "signIn">[];
         }>)
     | null,
   copy: Copy,
+  currentRevision: number | null,
 ) {
   const github = overview?.tools.find((tool) => tool.name === "gh");
   if (
-    overview?.sharedEnvironment !== false ||
+    currentRevision === null ||
+    overview?.revision !== currentRevision ||
+    overview.sharedEnvironment !== false ||
     !github?.installed ||
     github.signIn?.state !== "signed-out"
   )

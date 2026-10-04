@@ -103,6 +103,7 @@ async function readShell() {
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
   tools: () => toolsOverview,
+  revision: () => current?.revision ?? null,
   post: (path, body) => post(path, body),
   get: (path) => get(path),
   copy: () => copy,

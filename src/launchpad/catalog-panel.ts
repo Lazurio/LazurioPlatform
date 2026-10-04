@@ -111,6 +111,8 @@ export function createCatalogPanel(
     get: (path: string) => Promise<{ value: unknown; ok: boolean }>;
     copy: () => Copy;
     tools: () => ToolsOverview | null;
+    /** Revision of the profile currently rendered, never an older probe. */
+    revision: () => number | null;
     /** The route now shown. */
     route: () => PageRoute;
     /** Moves the page to a route path (history push, focus on its head). */
@@ -847,7 +849,7 @@ export function createCatalogPanel(
   function appsHome(value: Catalog, group: CatalogGroupEntry | null): Node[] {
     const copy = options.copy();
     const parts: Node[] = [];
-    const github = appsGithubNotice(options.tools(), copy);
+    const github = appsGithubNotice(options.tools(), copy, options.revision());
     if (github !== null) {
       const notice = element("div", "callout");
       notice.append(
