@@ -128,7 +128,10 @@ ${switcherCss}
 nav { display: flex; height: 100%; flex-direction: column; align-items: center; gap: 6px; padding: 12px 0; }
 .item { position: relative; display: grid; width: 44px; height: 44px; flex: none; place-items: center; padding: 0; border: 0; border-radius: var(--lz-radius-md); background: transparent; color: var(--shell-ink-muted); cursor: pointer; text-decoration: none; transition: border-radius 120ms ease; }
 .item:hover { color: var(--shell-ink); border-radius: 14px; }
-.home img { width: 30px; height: 30px; display: block; }
+/* The Lazurio logo sits on a white disc, so it reads the same in every
+   app's colours (Matěj 2026-10-04); white whatever the roles say. */
+.home .disc { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: var(--lz-white); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08); }
+.home img { width: 20px; height: 20px; display: block; }
 .search { width: 36px; height: 32px; }
 .divider { width: 32px; height: 1px; margin: 4px 0; flex: none; background: var(--shell-line); }
 .scroll { display: flex; width: 100%; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 10px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
