@@ -151,6 +151,7 @@ case "$*" in
   "api --header Accept: application/vnd.github.raw+json repos/Example/root/contents/lazurio.organization.json") echo '{"kind":"organization"}' ;;
   "api --header Accept: application/vnd.github.raw+json repos/Example/plain/contents/lazurio.organization.json") echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
   "api --paginate orgs/Example/repos?per_page=100&type=all --jq "*) printf 'Example/root\\nExample/plain\\n' ;;
+  "api --paginate orgs/Missing/repos?per_page=100&type=all --jq "*) echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
   *) exit 1 ;;
 esac`);
     expect(await github.declaration("Example", "root")).toEqual({
@@ -167,8 +168,9 @@ esac`);
       "Example/root",
       "Example/plain",
     ]);
+    expect(await github.organizationRepositories("Missing")).toEqual([]);
     expect(await github.organizationRepositories("Other")).toBe("unavailable");
-    expect((await calls()).at(-2)).toBe(
+    expect((await calls()).at(-3)).toBe(
       "api --paginate orgs/Example/repos?per_page=100&type=all --jq .[] | select(.archived | not) | .full_name",
     );
   },

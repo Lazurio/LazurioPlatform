@@ -334,6 +334,10 @@ export function ghContentGitHub(
         "--jq",
         ".[] | select(.archived | not) | .full_name",
       ]);
+      // 404: no such Organization visible to this account, so none of its
+      // repositories either.
+      if (answer.kind === "error" && answer.status === "404")
+        return Object.freeze([]);
       if (answer.kind !== "ok") return "unavailable";
       const names = answer.stdout.split("\n").filter((line) => line !== "");
       return names.every((name) => repositoryPattern.test(name))
