@@ -41,6 +41,7 @@ import {
   routeOrganization,
 } from "./catalog-view";
 import type { PublicEntry } from "./chat";
+import type { PromptLink } from "./chat-view";
 import { favoritesKey, parseFavorites, toggleFavorite } from "./favorites";
 import type { MessageKey } from "./messages";
 import {
@@ -54,6 +55,21 @@ import { createOwnerAnswers } from "./owner-answer";
 import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
+
+/** The prompt "+ Nový modul" hands to Chat: its id and the Organization's
+ * GitHub login for the link (Lazurio/t3code#35), its text for the
+ * clipboard. */
+export type NewModulePrompt = PromptLink & Readonly<{ text: string }>;
+
+/** What "+ Nový modul" did: Chat opened with the prompt in its composer,
+ * the prompt went to the clipboard, or neither. */
+export type NewModuleOutcome = "handed-over" | "copied" | "failed";
+
+const newModuleSay: Readonly<Record<NewModuleOutcome, MessageKey>> = {
+  "handed-over": "appsNewModuleOpened",
+  copied: "appsNewModuleCopied",
+  failed: "appsNewModuleCopyFailed",
+};
 
 /** The current Environment as the Apps home names it under the
  * Organization: its name by what it is for and its kind's icon. */
@@ -108,9 +124,10 @@ export function createCatalogPanel(
     /** The Organization (or `personal`) the Apps home now shows: the shell
      * marks it as the space you are in. */
     space: (space: string) => void;
-    /** "+ Nový modul": hands the prepared prompt to Chat; resolves to
-     * whether it reached the clipboard. */
-    newModule: (prompt: string) => Promise<boolean>;
+    /** "+ Nový modul": hands the prepared prompt to Chat, by link where
+     * Chat takes it, otherwise through the clipboard; resolves to what
+     * happened. */
+    newModule: (prompt: NewModulePrompt) => Promise<NewModuleOutcome>;
     /** Reads the person's account once (account.ts): null when it is
      * unavailable. */
     readAccount: () => Promise<Account | null>;
@@ -650,9 +667,10 @@ export function createCatalogPanel(
 
   // "+ Nový modul" (2026-10-04): the last tile of Workspace, only where this
   // Environment's GitHub identity is an Owner of the Organization. It hands
-  // the wireframe's prompt to Chat: until the T3 Code fork takes a prompt
-  // draft by link (Lazurio/t3code#35, issue #153) the prompt goes to the clipboard and
-  // Chat opens, where the person pastes it into a new chat.
+  // the wireframe's prompt to Chat: where Chat takes a prompt by link
+  // (Lazurio/t3code#35) it opens with the prompt in a new thread's composer,
+  // not sent; otherwise the prompt goes to the clipboard and Chat opens,
+  // where the person pastes it into a new chat (ui.ts `handOver`).
   function newModuleTile(group: CatalogGroupEntry): HTMLElement {
     const copy = options.copy();
     const button = element("button", "tile tile--new is-button");
@@ -668,10 +686,12 @@ export function createCatalogPanel(
     const login = group.organization.forgeLogin;
     button.addEventListener("click", async () => {
       if (login === undefined) return;
-      const copied = await options.newModule(
-        newModulePrompt(group.name, login, copy),
-      );
-      say(copied ? copy.appsNewModuleCopied : copy.appsNewModuleCopyFailed);
+      const outcome = await options.newModule({
+        id: "new-module",
+        organization: login,
+        text: newModulePrompt(group.name, login, copy),
+      });
+      say(options.copy()[newModuleSay[outcome]]);
     });
     return button;
   }
