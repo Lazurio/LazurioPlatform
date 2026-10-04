@@ -75,3 +75,28 @@ test("another bound login is another question; a catalog read forgets every answ
   expect(answers.nextExpiry()).toBeNull();
   expect(answers.read("alpha", "alpha-forge").ask).not.toBeNull();
 });
+
+test("visiting A then B: the wake for A's expiry re-arms for B's, and an expired answer off screen never keeps the page waking", () => {
+  let now = 1_000;
+  const answers = createOwnerAnswers(() => now);
+  const a = answers.read("alpha", "alpha-forge").ask as number;
+  answers.settle("alpha", "alpha-forge", a, true);
+  now = 2_000;
+  const b = answers.read("beta", "beta-forge").ask as number;
+  answers.settle("beta", "beta-forge", b, true);
+  // The page wakes first for A.
+  expect(answers.nextExpiry()).toBe(1_000 + ownerAnswerMs);
+  now = 1_000 + ownerAnswerMs;
+  // At that wake only B is shown and still stands; the next wake is B's,
+  // not A's expired moment again.
+  expect(answers.read("beta", "beta-forge")).toEqual({
+    owner: true,
+    ask: null,
+  });
+  expect(answers.nextExpiry()).toBe(2_000 + ownerAnswerMs);
+  now = 2_000 + ownerAnswerMs;
+  // B expires: shown, so asked again; A stays expired off screen and sets
+  // no wake.
+  expect(answers.read("beta", "beta-forge").ask).not.toBeNull();
+  expect(answers.nextExpiry()).toBeNull();
+});

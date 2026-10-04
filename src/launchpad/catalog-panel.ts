@@ -529,7 +529,13 @@ export function createCatalogPanel(
     clearTimeout(ownerWake);
     const next = owners.nextExpiry();
     if (next === null) return;
-    ownerWake = setTimeout(() => render(), Math.max(1000, next - Date.now()));
+    ownerWake = setTimeout(
+      () => {
+        render();
+        wakeForOwners();
+      },
+      Math.max(1000, next - Date.now()),
+    );
   }
 
   function section(

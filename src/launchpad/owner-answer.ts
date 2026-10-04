@@ -53,12 +53,20 @@ export function createOwnerAnswers(now: () => number = Date.now) {
         asking: null,
       });
     },
-    /** When the earliest settled answer expires, or null: the page wakes
-     * then and asks again. */
+    /** When the earliest settled answer that still stands expires, or
+     * null: the page wakes then, asks again for what it shows, and wakes
+     * again for the next one. An answer already expired (an Organization no
+     * longer shown) is asked again only when it is shown, so it never keeps
+     * the page waking. */
     nextExpiry(): number | null {
+      const at = now();
       let next: number | null = null;
       for (const answer of answers.values())
-        if (answer.asking === null && (next === null || answer.until < next))
+        if (
+          answer.asking === null &&
+          answer.until > at &&
+          (next === null || answer.until < next)
+        )
           next = answer.until;
       return next;
     },
