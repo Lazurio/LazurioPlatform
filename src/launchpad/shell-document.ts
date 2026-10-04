@@ -2,6 +2,8 @@ import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import type { Catalog } from "../organizations/catalog";
 import {
+  environmentIdOf,
+  isEnvironmentId,
   isShellSlug,
   parseShell,
   type Shell,
@@ -13,8 +15,9 @@ import { initialsOf } from "../shell/view";
 
 // The producer of `/.lazurio/shell.json` (decision F36 and its addendum of
 // 2026-10-04): what this Environment knows about itself today, in the shape
-// of `lazurio.shell.v1`. One Environment, its own, named by what it is for
-// (its Team, its persona, or its kind) and never by the machine's name; its
+// of `lazurio.shell.v1`. One Environment, its own, keyed by its base host
+// (unique across Organizations) and named by what it is for (its Team, its
+// persona, or its kind), never by the machine's name; its
 // Organizations from the catalog of this Folder, each with its Dashboard;
 // its apps from the recorded hosted entry. Nothing here is a grant: the
 // document names places, and every place admits by its own rules. The
@@ -165,6 +168,18 @@ export function computerLabel(name: string | undefined): string | null {
   return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62})$/.test(host) ? host : null;
 }
 
+/** This Environment's id in the document (F37's addendum of 2026-10-04):
+ * where it has a hosted entry, its base host by `environmentIdOf`, the one
+ * derivation of it; otherwise, as before, its Machine name, and `local`
+ * without one (a workstation). */
+export function environmentId(machine: MachineBinding | null): string {
+  const entry = machine?.entry;
+  const hosted =
+    entry === undefined ? null : environmentIdOf(entry.externalOrigin);
+  if (hosted !== null) return hosted;
+  return isEnvironmentId(machine?.name) ? machine.name : "local";
+}
+
 /** This Environment's shell document. `computer` is the host name of the
  * computer a workstation runs on. */
 export function shellDocument(
@@ -181,7 +196,7 @@ export function shellDocument(
   const kind = presetKinds[input.preset];
   const organizations = shellOrganizations(input.catalog);
   const login = operatorLogin(machine);
-  const id = machine?.name ?? "local";
+  const id = environmentId(machine);
   const document = {
     schema: shellSchema,
     locale: input.locale,

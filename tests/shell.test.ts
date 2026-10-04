@@ -181,8 +181,9 @@ test("a hosted work Environment is named by its kind and its person, never by it
   const [environment] = shell.environments;
   if (environment === undefined) throw new Error("The document has one");
   expect(environment.kind).toBe("work");
-  // The machine's name is the id the document keys it by, never a label.
-  expect(environment.id).toBe(machine.name);
+  // Its base host is the id the document keys it by (unique across
+  // Organizations, F37's addendum), never a label.
+  expect(environment.id).toBe("workspace.example");
   expect(environment.label).toBeNull();
   expect(environmentName(environment, cs)).toBe("Pracovní");
   expect(environment.apps).toEqual({

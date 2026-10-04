@@ -192,7 +192,8 @@ posixTest(
       const shell = parseShell(await answer.json());
       expect(shell?.locale).toBe("cs");
       expect(shell?.environments[0]).toEqual({
-        id: machine.name,
+        // Its base host: the machine and the Organization of its address.
+        id: "workspace.example",
         // Named by its kind, never by its machine.
         label: null,
         kind: "work",
