@@ -663,10 +663,14 @@ credential on a possibly shared Machine) and a long-lived bearer secret on disk.
 ### 7.5 One contract with the shared Lazurio shell (plan DEV-6639)
 
 Plan DEV-6639 gives the Dashboard, the Launchpad, Chat (the T3 Code fork) and Lazurio
-MausBot one frame: a left rail of Environments grouped per Organization, with the
-account and Settings at the bottom, and a contract for the Environment list that the
-Dashboard owns (its P3). Both plans need the same things, so they share them (Matěj,
-2026-10-02):
+MausBot one frame and a contract for the Environment list that the Dashboard owns (its
+P3). Since the shell's second iteration (2026-10-04, the [target
+shell](launchpad-development.md#target-shell)) the frame is a left rail of spaces (the
+personal space and one avatar per Organization) with only the account at the bottom,
+and an Environment picker with the Settings gear at the top of the left column; the
+Environment list fills the picker's dropdown and the rail's tooltips. The first
+target's rail of Environments grouped per Organization, with Settings at its bottom, is
+superseded. Both plans need the same things, so they share them (Matěj, 2026-10-02):
 
 - **One contract package.** `@lazurio/contracts` carries both the Environment list
   (DEV-6639) and the composition (this plan), with one versioning rule and one OpenAPI
@@ -687,9 +691,13 @@ Dashboard owns (its P3). Both plans need the same things, so they share them (Ma
   reach (root decision 0155). So the rule is the same everywhere: an Environment
   credential gets 403 on the list.
 - **What DEV-6639 owns.** The shape of the Environment list, its offline cache and the
-  local "Tento počítač" entry, where the sign-in sits in the Launchpad (the account at
-  the bottom of the rail), and how the person's own session reaches the shared rail on
-  each Environment's origin (its open point). Until that is decided, the Launchpad's
+  local "Tento počítač" entry (since 2026-10-04 listed in every Organization the
+  computer carries), where the sign-in sits in the Launchpad (the account at the bottom
+  of the rail), and how the person's own session reaches the shared rail and picker on
+  each Environment's origin (its open point). The second iteration also reads two
+  things of the person's Dashboard account: the last Environment used in each space
+  (the rail's click and the landing in Apps) and the person's favourite modules per
+  Organization; their shape is DEV-6639's too. Until that is decided, the Launchpad's
   rail shows a person's list only through that person's own session, or not at all.
   This plan provides the Environment's sign-in flow and credential.
 

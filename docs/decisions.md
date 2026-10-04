@@ -3449,7 +3449,9 @@ each of its origins.
    on the document. `<lazurio-column-head active="chat|apps|automate">`: the switch
    Chat · Apps · Automate, plain links to the current Environment's origins, a missing
    app shown disabled with the reason. `<lazurio-buddy>` is reserved in the contract
-   (decision 0180) and not defined. No runtime dependency, no React.
+   (decision 0180) and not defined. No runtime dependency, no React. *(This point
+   records the first build. The Organization-rail addendum of 2026-10-04 below
+   supersedes the folders, the gear in the rail and the accent fill.)*
 2. **The contract** `lazurio.shell.v1` (`src/shell/contract.ts`, one parser shared by
    the producer, the page and the elements): `locale`, `current`, `operator` (initials,
    login), `environments` (id, label, kind `personal | work | team | automated |

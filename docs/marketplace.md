@@ -2,7 +2,10 @@
 
 Status: requested product vision and future roadmap, outside the current bootstrap.
 There is no marketplace service, account system, billing, discovery backend or
-executable extension capability in this foundation.
+executable extension capability in this foundation. The Marketplace entry at the bottom
+of the Apps column in the [target shell](launchpad-development.md#target-shell) (second
+iteration, 2026-10-04) is a placeholder page that says "již brzy" (coming soon); it
+lists nothing and implements none of this document.
 
 One shared marketplace for profiles and Organization modules is an accepted future
 product requirement. Discovery/presentation, authorship, versions and descriptions
