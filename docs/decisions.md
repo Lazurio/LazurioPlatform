@@ -2011,6 +2011,13 @@ chats.**
   (issue #177).
 - Template revision `base-instructions-22`.
 
+**Addendum 2026-10-04 night (Matěj): ChatGPT Desktop.** OpenAI rebranded Codex Desktop as
+**ChatGPT Desktop**. The generated Folder now uses that name. The first mention in the
+`localhost` line of `AGENTS.md` and in the client list of `manual/this-machine.md` adds
+"(formerly Codex Desktop)", so an agent whose harness still uses the old name recognises the
+client. Paths such as `~/.codex/attachments/` and the `codex` tool keep their names. Earlier
+entries in this log keep "Codex Desktop" as history. Template revision `base-instructions-23`.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**
