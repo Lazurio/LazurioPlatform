@@ -1,6 +1,9 @@
 // A preview of the Launchpad (decision F36) against a temporary fixture
 // Folder, never a live one: `bun scripts/preview-launchpad.ts local|hosted
-// cs|en [port]`. One Organization with root-level and workspace modules in
+// cs|en [port] [owner|steward|member]`. The role is what the preview's GitHub
+// identity answers for the example Organization: an Owner (the default), a
+// Steward (`maintain` on its module repositories) or a member. One
+// Organization with root-level and workspace modules in
 // Workspace, production repositories in Productionspace and an `infra` the
 // Launchpad does not list (and a second Organization locally, for the rail),
 // a synthetic home for Files and Tools. Prints one JSON line: `url` to open
@@ -34,6 +37,10 @@ import { organizationWithEntry } from "../tests/fixtures/machine-bindings";
 const mode = process.argv[2] === "hosted" ? "hosted" : "local";
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
+const role =
+  process.argv[5] === "steward" || process.argv[5] === "member"
+    ? process.argv[5]
+    : "owner";
 const host = "vm-01.example.lazurio.io";
 const parent = await realpath(
   await mkdtemp(join(tmpdir(), "launchpad-preview-")),
@@ -66,8 +73,15 @@ const root = await writeOrganization(folder, "example_GEN3", {
   modules: [
     { id: "mission-control", path: "mission-control" },
     { id: "design-system", path: "design-system" },
-    { id: "knowledgebase" },
-    { id: "deals" },
+    // Workspace modules declare their repository, for a Steward's answer.
+    {
+      id: "knowledgebase",
+      slot: { git: { url: "https://github.com/example/knowledgebase.git" } },
+    },
+    {
+      id: "deals",
+      slot: { git: { url: "https://github.com/example/deals.git" } },
+    },
     { id: "website", broken: true },
     { id: "brainstorm", apps: false },
   ],
@@ -156,8 +170,9 @@ const app = await startLaunchpad(
   undefined,
   mode === "hosted" ? { fetcher: async () => new Response("ok") } : {},
   // The preview's GitHub identity answers the Owner question of the Apps
-  // home ("+ Nový modul") as an Owner of the example Organization; no real
-  // account is asked.
+  // home ("+ Nový modul", "Přístup k modulu") and a Steward's `maintain` on
+  // the example Organization's repositories by its role; no real account is
+  // asked.
   toolsEnvironmentOf(
     { PATH: join(home, "bin"), HOME: home },
     process.platform,
@@ -166,10 +181,26 @@ const app = await startLaunchpad(
       command[2]?.startsWith("user/memberships/orgs/example")
         ? {
             exitCode: 0,
-            stdout: JSON.stringify({ state: "active", role: "admin" }),
+            stdout: JSON.stringify({
+              state: "active",
+              role: role === "owner" ? "admin" : "member",
+            }),
             stderr: "",
           }
-        : runTool(command, timeoutMs, env),
+        : command[1] === "api" && command[2]?.startsWith("repos/example/")
+          ? {
+              exitCode: 0,
+              stdout: JSON.stringify({
+                permissions: {
+                  admin: role === "owner",
+                  maintain: role !== "member",
+                  push: true,
+                  pull: true,
+                },
+              }),
+              stderr: "",
+            }
+          : runTool(command, timeoutMs, env),
   ),
   {},
   undefined,

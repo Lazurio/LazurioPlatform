@@ -36,6 +36,16 @@ export function createOwnerAnswers(now: () => number = Date.now) {
       });
       return { owner: known?.owner ?? false, ask: questions };
     },
+    /** The answer that stands now, without asking: false when none does
+     * (never asked, expired, forgotten). */
+    peek(organization: string, login: string): boolean {
+      const known = answers.get(key(organization, login));
+      return (
+        known !== undefined &&
+        (known.asking !== null || known.until > now()) &&
+        known.owner
+      );
+    },
     /** GitHub's answer to one question, as the Launchpad gave it (false on
      * any failure); an answer to a question no longer asked (forgotten by a
      * catalog read, or overtaken) changes nothing. */
