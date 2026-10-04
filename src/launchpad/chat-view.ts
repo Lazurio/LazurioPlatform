@@ -101,3 +101,50 @@ function pairLink(
     return null;
   }
 }
+
+/** The answer of `GET /api/chat/prompt-handoff`: whether Chat on this
+ * Environment takes a prepared prompt by link (Lazurio/t3code#35). Any
+ * other answer is no, and "+ Nový modul" copies the prompt instead. */
+export function parsePromptHandoff(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { kind?: unknown }).kind === "chat-prompt-handoff" &&
+    (value as { accepted?: unknown }).accepted === true
+  );
+}
+
+/** A prepared prompt as a link names it: its id and the Organization's
+ * GitHub login, never its text (`GET /.lazurio/prompts/<id>?org=<login>`). */
+export type PromptLink = Readonly<{ id: string; organization: string }>;
+
+const promptId = /^[a-z][a-z0-9-]{0,63}$/;
+const githubLogin = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+
+/** Chat's address with a prepared prompt for the T3 Code fork
+ * (Lazurio/t3code#35): the pairing link, or Chat's plain origin, with
+ * `lazurio-prompt=<id>` and `lazurio-org=<login>` added to its fragment.
+ * The fragment never reaches a server or a log, the pairing token stays as
+ * it was, and a T3 Code without the hand-off ignores both. Null for an
+ * address that is not on Chat's recorded origin, or a prompt outside the
+ * grammar. */
+export function chatPromptHref(
+  href: string,
+  t3codeOrigin: string,
+  prompt: PromptLink,
+): string | null {
+  if (!promptId.test(prompt.id) || !githubLogin.test(prompt.organization))
+    return null;
+  try {
+    const url = new URL(href);
+    if (url.origin !== t3codeOrigin || url.username || url.password)
+      return null;
+    const fragment = new URLSearchParams(url.hash.slice(1));
+    fragment.set("lazurio-prompt", prompt.id);
+    fragment.set("lazurio-org", prompt.organization);
+    url.hash = fragment.toString();
+    return url.href;
+  } catch {
+    return null;
+  }
+}

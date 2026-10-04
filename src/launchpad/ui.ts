@@ -3,13 +3,19 @@ import { defineShellElements, provideShell } from "../shell/elements";
 import { shellMessages } from "../shell/messages";
 import { environmentName } from "../shell/view";
 import { accountWriter, readAccount } from "./account";
-import { createCatalogPanel } from "./catalog-panel";
+import {
+  createCatalogPanel,
+  type NewModuleOutcome,
+  type NewModulePrompt,
+} from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
   chatHref,
   chatPairLink,
+  chatPromptHref,
   mausbotPairLink,
   parseEntryAnswer,
+  parsePromptHandoff,
 } from "./chat-view";
 import { createFilesPanel } from "./files-panel";
 import { type AssignmentView, assignmentText } from "./machine-view";
@@ -59,6 +65,10 @@ let copy = messages(locale);
 // and until read. The pairing of Chat and Automate, the tiles' module
 // origins and the Recovery page's T3 Code link.
 let entry: PublicEntry | null = null;
+// Whether Chat on this Environment takes a prepared prompt by link
+// (`GET /api/chat/prompt-handoff`, Lazurio/t3code#35): read once with the
+// entry, no until answered.
+let chatTakesPrompts = false;
 // The Lazurio shell (decision F36): the rail and the switch, drawn from
 // this Environment's `/.lazurio/shell.json`, which the page reads with its
 // own credential and hands over (the forks let the elements read it).
@@ -542,21 +552,40 @@ async function pairedHref(app: string): Promise<string | null> {
     return plain;
   }
 }
-// "+ Nový modul" (decision F36 addendum of 2026-10-04): the prepared prompt
-// goes to the clipboard and this Environment's Chat opens in a new tab, where
-// the person pastes it into a new chat. The T3 Code fork cannot take a
-// prompt draft by link yet (Lazurio/t3code#35, issue #153); once it can, Chat opens with
-// the prompt in its composer instead. A workstation has no Chat origin: the
-// prompt is copied all the same.
-async function handOver(prompt: string): Promise<boolean> {
-  const tab = entry === null ? null : window.open("about:blank", "_blank");
-  let copied = false;
-  try {
-    await navigator.clipboard.writeText(prompt);
-    copied = true;
-  } catch {
-    copied = false;
+// "+ Nový modul" (decision F36 addendum of 2026-10-04). Where this
+// Environment's Chat takes a prepared prompt by link (Lazurio/t3code#35,
+// the server asks its T3 Code for the version), Chat opens in a new tab
+// through the pairing with the prompt's id and the Organization in the
+// link's fragment, never the text: the fork fetches the text from its own
+// origin and leaves it in a new thread's composer, not sent, and nothing is
+// copied. Otherwise, and when the tab cannot open, the prompt goes to the
+// clipboard (written first, while the page still has the focus) and Chat
+// opens, where the person pastes it into a new chat. A workstation has no
+// Chat origin: the prompt is copied all the same.
+async function handOver(prompt: NewModulePrompt): Promise<NewModuleOutcome> {
+  const current = entry;
+  if (current !== null && chatTakesPrompts) {
+    const tab = window.open("about:blank", "_blank");
+    if (tab !== null) {
+      const next = await pairedHref("chat");
+      const href =
+        next === null
+          ? null
+          : chatPromptHref(next, current.t3codeOrigin, prompt);
+      if (href === null) {
+        tab.close();
+        return "failed";
+      }
+      tab.opener = null;
+      tab.location.href = href;
+      return "handed-over";
+    }
   }
+  const copying = navigator.clipboard.writeText(prompt.text).then(
+    () => true,
+    () => false,
+  );
+  const tab = current === null ? null : window.open("about:blank", "_blank");
   if (tab !== null) {
     const next = await pairedHref("chat");
     if (next === null) tab.close();
@@ -565,7 +594,7 @@ async function handOver(prompt: string): Promise<boolean> {
       tab.location.href = next;
     }
   }
-  return copied;
+  return (await copying) ? "copied" : "failed";
 }
 let following = false;
 document.addEventListener("lazurio-app", (event) => {
@@ -606,6 +635,13 @@ async function readEntry() {
   }
   recovery.render();
   catalog.render();
+  if (entry === null) return;
+  try {
+    const { value, ok } = await get("/api/chat/prompt-handoff");
+    chatTakesPrompts = ok && parsePromptHandoff(value);
+  } catch {
+    chatTakesPrompts = false;
+  }
 }
 void readEntry();
 void readShell();
