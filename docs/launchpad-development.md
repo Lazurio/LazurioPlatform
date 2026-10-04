@@ -347,6 +347,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   cookie. Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
+- **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
+  addendum of 2026-10-04); `tests/shell-interface.test.ts` keeps every promised name.
 
 ## Settings: structure, routes and the T3 Code pattern
 
