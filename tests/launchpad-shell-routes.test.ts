@@ -193,14 +193,26 @@ posixTest(
       expect(shell?.locale).toBe("cs");
       expect(shell?.environments[0]).toEqual({
         id: machine.name,
-        label: machine.name,
+        // Named by its kind, never by its machine.
+        label: null,
         kind: "work",
         organizations: [],
+        assignee: null,
         apps: {
           apps: "https://launchpad.workspace.example.lazurio.io/",
           chat: "https://t3code.workspace.example.lazurio.io/",
           automate: null,
         },
+      });
+      // The Owner question of "+ Nový modul": behind the same admission,
+      // and no for an Organization the Folder does not hold.
+      const owner = `${base}/api/organizations/example/owner`;
+      expect((await fetch(owner, { headers: { host } })).status).toBe(401);
+      const answered = await fetch(owner, { headers: valid });
+      expect(answered.status).toBe(200);
+      expect(await answered.json()).toEqual({
+        kind: "organization-owner",
+        owner: false,
       });
     } finally {
       await app.close();

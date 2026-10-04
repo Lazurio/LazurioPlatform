@@ -11,100 +11,136 @@ export type ShellCopy = Readonly<{
   dashboardSub: string;
   jump: string;
   jumpShortcut: string;
-  jumpTitle: string;
-  jumpEmpty: string;
-  settings: string;
-  settingsSub: string;
+  personal: string;
+  addOrganization: string;
   account: string;
   accountSub: string;
-  thisComputer: string;
-  personal: string;
-  organizationSub: string;
-  more: string;
-  moreNamed: string;
-  less: string;
-  lessNamed: string;
-  current: string;
-  kinds: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** "{count} Environment(s)" by the Czech plural. */
+  environmentsOne: string;
+  environmentsFew: string;
+  environmentsMany: string;
+  last: string;
+  /** The name of an Environment without its own name, by kind. */
+  names: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** Who an Environment is for, by kind. */
+  who: Readonly<Record<ShellEnvironmentKind, string>>;
+  pick: string;
+  settings: string;
+  switcher: string;
+  searchIn: string;
+  searchAll: string;
+  organizationDashboard: string;
+  here: string;
+  noEnvironment: string;
+  nothing: string;
+  widen: string;
+  choose: string;
+  go: string;
+  close: string;
   switchLabel: string;
   chat: string;
   apps: string;
   automate: string;
   chatMissing: string;
   automateMissing: string;
-  close: string;
 }>;
 
 const en: ShellCopy = {
-  rail: "Environments and Organizations",
+  rail: "Organizations",
   dashboard: "Dashboard",
   dashboardSub: "Your overview across Organizations",
   jump: "Go to an Environment",
   jumpShortcut: "⌘⇧E",
-  jumpTitle: "Go to an Environment",
-  jumpEmpty: "No Environment matches.",
-  settings: "Environment Settings",
-  settingsSub: "Settings of this Environment",
+  personal: "Personal",
+  addOrganization: "Add an Organization",
   account: "Lazurio account",
   accountSub: "Account settings in the Dashboard",
-  thisComputer: "This computer",
-  personal: "Personal",
-  organizationSub: "Organization",
-  more: "+{count}",
-  moreNamed: "Show {count} more Environments of {name}",
-  less: "less",
-  lessNamed: "Show fewer Environments of {name}",
-  current: "you are here",
-  kinds: {
-    personal: "personal",
-    work: "work",
+  environmentsOne: "{count} Environment",
+  environmentsFew: "{count} Environments",
+  environmentsMany: "{count} Environments",
+  last: "last {name}",
+  names: {
+    personal: "Personal",
+    work: "Work",
     team: "Team",
-    automated: "automated",
+    automated: "Automated",
+    workstation: "This computer",
+  },
+  who: {
+    personal: "only yours",
+    work: "work",
+    team: "shared by the Team",
+    automated: "automation",
     workstation: "this computer",
   },
+  pick: "{name}, switch Environment",
+  settings: "Environment Settings",
+  switcher: "Go to an Environment",
+  searchIn: "Search in {name}…",
+  searchAll: "Environment or Organization…",
+  organizationDashboard: "Organization Dashboard",
+  here: "you are here",
+  noEnvironment: "You have no Environment here.",
+  nothing: "Nothing like that here.",
+  widen: "All Organizations",
+  choose: "choose",
+  go: "go",
+  close: "close",
   switchLabel: "Apps of this Environment",
   chat: "Chat",
   apps: "Apps",
   automate: "Automate",
   chatMissing: "Chat does not run on this Environment",
   automateMissing: "MausBot does not run on this Environment",
-  close: "Close",
 };
 
 const cs: ShellCopy = {
-  rail: "Environmenty a Organizace",
+  rail: "Organizace",
   dashboard: "Dashboard",
-  dashboardSub: "Tvůj přehled napříč Organizacemi",
+  dashboardSub: "tvůj přehled napříč Organizacemi",
   jump: "Přejít na Environment",
   jumpShortcut: "⌘⇧E",
-  jumpTitle: "Přejít na Environment",
-  jumpEmpty: "Žádný Environment neodpovídá.",
-  settings: "Nastavení Environmentu",
-  settingsSub: "Nastavení tohoto Environmentu",
+  personal: "Osobní",
+  addOrganization: "Přidat organizaci",
   account: "Lazurio účet",
   accountSub: "Nastavení účtu v Dashboardu",
-  thisComputer: "Tento počítač",
-  personal: "Osobní",
-  organizationSub: "Organizace",
-  more: "+{count}",
-  moreNamed: "Ukázat dalších {count} Environmentů v {name}",
-  less: "méně",
-  lessNamed: "Ukázat méně Environmentů v {name}",
-  current: "tady jsi",
-  kinds: {
-    personal: "osobní",
+  environmentsOne: "{count} Environment",
+  environmentsFew: "{count} Environmenty",
+  environmentsMany: "{count} Environmentů",
+  last: "naposledy {name}",
+  names: {
+    personal: "Osobní",
+    work: "Pracovní",
+    team: "Týmový",
+    automated: "Automatizovaný",
+    workstation: "Tento počítač",
+  },
+  who: {
+    personal: "jen tvůj",
     work: "pracovní",
-    team: "týmový",
-    automated: "automatizovaný",
+    team: "sdílený Teamem",
+    automated: "automatizace",
     workstation: "tento počítač",
   },
+  pick: "{name}, přepnout Environment",
+  settings: "Nastavení Environmentu",
+  switcher: "Přejít na Environment",
+  searchIn: "Hledat v {name}…",
+  searchAll: "Environment nebo Organizace…",
+  organizationDashboard: "Dashboard Organizace",
+  here: "tady jsi",
+  noEnvironment: "Tady nemáš žádný Environment.",
+  nothing: "Nic takového tu není.",
+  widen: "Všechny Organizace",
+  choose: "vybrat",
+  go: "přejít",
+  close: "zavřít",
   switchLabel: "Aplikace Environmentu",
   chat: "Chat",
   apps: "Apps",
   automate: "Automate",
   chatMissing: "Chat na tomto Environmentu neběží",
   automateMissing: "MausBot na tomto Environmentu neběží",
-  close: "Zavřít",
 };
 
 export const shellMessages = (locale: "cs" | "en"): ShellCopy =>

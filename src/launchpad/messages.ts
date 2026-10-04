@@ -364,13 +364,9 @@ const en = {
   toolsMcpPromptHint:
     "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
   // The Apps home and its left column (decision F36).
+  appsTitle: "Apps",
   appsAll: "All modules",
-  appsSearch: "Search",
-  appsSearchLabel: "Search modules",
   appsPersonal: "Personal",
-  appsWorkspaceSubtitle: "{name} Workspace",
-  appsProductionspaceSubtitle:
-    "The Organization's repositories with their own release, read-only",
   appsModulesOne: "{count} module",
   appsModulesFew: "{count} modules",
   appsModulesMany: "{count} modules",
@@ -379,21 +375,13 @@ const en = {
   appsRepositoriesMany: "{count} repositories",
   appsOpenApp: "Open app",
   appsOpenAppNamed: "Open the app of {name} in a new tab",
-  appsOverviewNamed: "Overview of the module {name}",
-  appsCannotStart: "Cannot start",
   appsNoApp: "No app",
-  appsRunning: "running",
-  appsRepositoryNamed: "The repository {name} on GitHub, in a new tab",
-  appsOrganizationPick: "Choose an Organization",
   appsAbout: "About the module",
-  appsFolder: "Folder",
   appsLog: "App log",
   appsLogHint:
     "The Launchpad does not show the log yet. Its last lines are read on the command line of this Environment:",
   appsStarting: "Starting {name}…",
   appsStartFailed: "{name} could not be opened. Its overview says why.",
-  appsNoMatch: "No module matches.",
-  appsColumn: "Modules of {name}",
   // The org-agnostic description of a module by its stone's semantic key,
   // when its app declares none (decision F36; the root Launchpad's
   // `description.<key>`).
@@ -419,13 +407,38 @@ const en = {
   appsDescriptionSystem: "Operations tools and technical infrastructure.",
   appsDescriptionDefault:
     "An application for day-to-day work in the {module} module.",
+  // The Apps home and column of the Organization rail (decision F36
+  // addendum of 2026-10-04): the wireframe's words.
+  appsSayNoApp: "The module {name} has no app yet.",
+  appsSayCannotStart: "The app of the module {name} cannot start right now.",
+  appsSayRepository: "The repository {name} has no app.",
+  appsMore: "More options for {name}",
+  appsFavorites: "Favourites",
+  appsFavoritesHint: "Star a module to pin it here.",
+  appsFavoriteAdd: "Add to favourites",
+  appsFavoriteRemove: "Remove from favourites",
+  appsFavoriteMark: "In favourites",
+  appsInfoModule: "Module information",
+  appsInfoRepository: "Repository information",
+  appsNewModule: "New module",
+  appsNewModuleSub: "You found it with an agent in Chat",
+  appsNewModuleCopied:
+    "The new module's brief is in your clipboard: paste it into a new chat.",
+  appsNewModuleCopyFailed:
+    "The brief could not be copied; open Chat and describe the new module to the agent.",
+  appsNewModulePrompt:
+    "I want to found a new module in the Organization {name} (GitHub {login}).\n\nBefore you create anything, ask me one question at a time:\n1. What the module is for and who will use it.\n2. What it should be called (a name and a short slug).\n3. Whether it should have an app and which (vite-react, astro, astro-starlight, bun-service, python-uv), or none.\n4. Which Teams should have access to it.\n\nThen follow the Lazurio Module Standard (skill lazurio-module-standard):\n- found the module with the scaffold `lazurio module create {login}/<slug> --stack <stack> --teams <teams>` from a task worktree of the Organization's root, never by hand, and first show me the plan with --dry-run;\n- check that the module's repository exists on GitHub in the Organization {login} and that the chosen Teams have access to it;\n- prepare the result as a pull request and ask me before Publication.",
+  appsGuide: "Guide",
+  appsMarketplace: "Marketplace",
+  appsSoon: "coming soon",
+  appsMarketplaceSoon: "Coming soon",
+  appsMarketplaceText:
+    "This is where you will add more modules to the Environment. We are preparing it.",
+  appsMarketplaceOrganization:
+    " Until then, modules are added in the Dashboard of the Organization {name}.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
-  catalogNavigation: "Organizations",
   catalogBreadcrumb: "Where you are in the Launchpad",
-  catalogIntro:
-    "The Organizations and modules of this Folder, read from its organizations/ directory each time. A module's page starts, stops and opens its app.",
-  catalogRefresh: "Refresh",
   catalogLoading: "Reading Organizations…",
   catalogLoadFailed:
     "The Organizations could not be read. Try Refresh; if it keeps failing, run lazurio organization list in the CLI.",
@@ -433,11 +446,8 @@ const en = {
     "No Organizations in this Folder. An Organization appears here once its repository is in organizations/.",
   catalogNotFound:
     "This Organization or module is not in this Folder. It may have been renamed or removed; see all Organizations.",
-  catalogAll: "All Organizations",
   chat: "Chat",
-  chatTitle: "Open T3 Code in this Environment",
   mausbot: "Lazurio MausBot",
-  mausbotTitle: "Open Lazurio MausBot in this Environment",
   catalogModules: "Modules",
   catalogNoModules: "This Organization declares no modules.",
   catalogSectionWorkspace: "Workspace",
@@ -449,7 +459,6 @@ const en = {
   catalogState: "Resolution state",
   catalogIssues: "Issues",
   catalogApps: "Apps",
-  catalogDefaultApp: "Default app",
   catalogDefaultMark: "default",
   catalogPath: "Path",
   catalogStatus: "Can it run",
@@ -1075,13 +1084,9 @@ const cs: Record<MessageKey, string> = {
   toolsMcpPromptHint:
     "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
   // The Apps home and its left column (decision F36).
+  appsTitle: "Apps",
   appsAll: "Všechny moduly",
-  appsSearch: "Hledat",
-  appsSearchLabel: "Hledat moduly",
   appsPersonal: "Osobní",
-  appsWorkspaceSubtitle: "{name} Workspace",
-  appsProductionspaceSubtitle:
-    "Repozitáře Organizace s vlastním releasem, jen pro čtení",
   appsModulesOne: "{count} modul",
   appsModulesFew: "{count} moduly",
   appsModulesMany: "{count} modulů",
@@ -1090,21 +1095,13 @@ const cs: Record<MessageKey, string> = {
   appsRepositoriesMany: "{count} repozitářů",
   appsOpenApp: "Otevřít aplikaci",
   appsOpenAppNamed: "Otevřít aplikaci modulu {name} v nové záložce",
-  appsOverviewNamed: "Přehled modulu {name}",
-  appsCannotStart: "Nelze spustit",
   appsNoApp: "Bez aplikace",
-  appsRunning: "běží",
-  appsRepositoryNamed: "Repozitář {name} na GitHubu v nové záložce",
-  appsOrganizationPick: "Vybrat Organizaci",
   appsAbout: "O modulu",
-  appsFolder: "Složka",
   appsLog: "Log aplikace",
   appsLogHint:
     "Launchpad log zatím neukazuje. Jeho poslední řádky přečteš v příkazové řádce tohoto Environmentu:",
   appsStarting: "Spouštím {name}…",
   appsStartFailed: "{name} se nepodařilo otevřít. Proč, říká přehled modulu.",
-  appsNoMatch: "Žádný modul neodpovídá.",
-  appsColumn: "Moduly {name}",
   // The org-agnostic description of a module by its stone's semantic key,
   // when its app declares none (decision F36; the root Launchpad's
   // `description.<key>`).
@@ -1129,13 +1126,38 @@ const cs: Record<MessageKey, string> = {
   appsDescriptionApp: "Pracovní podklady a soubory tohoto modulu.",
   appsDescriptionSystem: "Provozní nástroje a technické zázemí.",
   appsDescriptionDefault: "Aplikace pro každodenní práci v modulu {module}.",
+  // The Apps home and column of the Organization rail (decision F36
+  // addendum of 2026-10-04): the wireframe's words.
+  appsSayNoApp: "Modul {name} zatím nemá aplikaci.",
+  appsSayCannotStart: "Aplikace modulu {name} teď nejde spustit.",
+  appsSayRepository: "Repozitář {name} nemá aplikaci.",
+  appsMore: "Další volby pro {name}",
+  appsFavorites: "Oblíbené",
+  appsFavoritesHint: "Hvězdičkou u modulu si ho připneš sem.",
+  appsFavoriteAdd: "Přidat do oblíbených",
+  appsFavoriteRemove: "Odebrat z oblíbených",
+  appsFavoriteMark: "V oblíbených",
+  appsInfoModule: "Informace o modulu",
+  appsInfoRepository: "Informace o repozitáři",
+  appsNewModule: "Nový modul",
+  appsNewModuleSub: "Založíš ho s agentem v Chatu",
+  appsNewModuleCopied:
+    "Zadání nového modulu je ve schránce: vlož ho v Chatu do nového vlákna.",
+  appsNewModuleCopyFailed:
+    "Zadání se nepodařilo zkopírovat; otevři Chat a popiš agentovi nový modul.",
+  appsNewModulePrompt:
+    "Chci založit nový modul v Organizaci {name} (GitHub {login}).\n\nNež cokoli vytvoříš, zeptej se mě postupně, jednu otázku po druhé:\n1. K čemu modul je a kdo ho bude používat.\n2. Jak se má jmenovat (název a krátký slug).\n3. Jestli má mít aplikaci a jakou (vite-react, astro, astro-starlight, bun-service, python-uv), nebo žádnou.\n4. Které Teamy k němu mají mít přístup.\n\nPak postupuj podle Lazurio Module Standard (skill lazurio-module-standard):\n- modul založ scaffoldem `lazurio module create {login}/<slug> --stack <stack> --teams <teamy>` z task worktree rootu Organizace, nikdy ručně, a nejdřív mi ukaž plán přes --dry-run;\n- ověř, že repozitář modulu existuje na GitHubu v Organizaci {login} a že k němu mají přístup vybrané Teamy;\n- výsledek připrav jako pull request a před Publikací se mě zeptej.",
+  appsGuide: "Guide",
+  appsMarketplace: "Marketplace",
+  appsSoon: "již brzy",
+  appsMarketplaceSoon: "Již brzy",
+  appsMarketplaceText:
+    "Tady si do Environmentu budeš přidávat další moduly. Připravujeme to.",
+  appsMarketplaceOrganization:
+    " Do té doby přibývají moduly v Dashboardu Organizace {name}.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
-  catalogNavigation: "Organizace",
   catalogBreadcrumb: "Kde v Launchpadu jste",
-  catalogIntro:
-    "Organizace a moduly tohoto Folderu, pokaždé znovu načtené z jeho složky organizations/. Stránka modulu jeho aplikaci spouští, zastavuje a otevírá.",
-  catalogRefresh: "Načíst znovu",
   catalogLoading: "Načítám Organizace…",
   catalogLoadFailed:
     "Organizace nelze načíst. Zkuste Načíst znovu; když to nepomůže, spusťte v CLI lazurio organization list.",
@@ -1143,11 +1165,8 @@ const cs: Record<MessageKey, string> = {
     "V tomhle Folderu nejsou žádné Organizace. Organizace se tu objeví, jakmile je její repozitář v organizations/.",
   catalogNotFound:
     "Tahle Organizace nebo modul v tomhle Folderu není. Možná byl přejmenován nebo odstraněn; podívejte se na všechny Organizace.",
-  catalogAll: "Všechny Organizace",
   chat: "Chat",
-  chatTitle: "Otevřít T3 Code na tomto Environmentu",
   mausbot: "Lazurio MausBot",
-  mausbotTitle: "Otevřít Lazurio MausBot na tomto Environmentu",
   catalogModules: "Moduly",
   catalogNoModules: "Tahle Organizace nedeklaruje žádné moduly.",
   catalogSectionWorkspace: "Workspace",
@@ -1159,7 +1178,6 @@ const cs: Record<MessageKey, string> = {
   catalogState: "Stav rozlišení",
   catalogIssues: "Problémy",
   catalogApps: "Aplikace",
-  catalogDefaultApp: "Výchozí aplikace",
   catalogDefaultMark: "výchozí",
   catalogPath: "Cesta",
   catalogStatus: "Lze spustit",

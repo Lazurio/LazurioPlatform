@@ -2,9 +2,8 @@
 // Folder, never a live one: `bun scripts/preview-launchpad.ts local|hosted
 // cs|en [port]`. One Organization with root-level and workspace modules in
 // Workspace, production repositories in Productionspace and an `infra` the
-// Launchpad does not list (and a second Organization locally, for the
-// picker), a
-// synthetic home for Files and Tools. Prints one JSON line: `url` to open
+// Launchpad does not list (and a second Organization locally, for the rail),
+// a synthetic home for Files and Tools. Prints one JSON line: `url` to open
 // (local: with the fragment token) and, hosted, `proxy`: a loopback listener
 // that adds the gateway's Host and cookie, which a browser automation routes
 // the entry's origin through. Synthetic names only; stop it with Ctrl-C.
@@ -25,6 +24,7 @@ import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolsEnvironmentOf } from "../src/tools/overview";
+import { runTool } from "../src/tools/status";
 import {
   writeModule,
   writeOrganization,
@@ -134,6 +134,10 @@ if (mode === "local")
 // A synthetic home: the Files page shows its Documents, never the account's,
 // and the Tools page reads no real tool or sign-in.
 const home = join(parent, "home");
+await mkdir(join(home, "bin"), { recursive: true });
+await writeFile(join(home, "bin", "gh"), "#!/bin/sh\nexit 1\n", {
+  mode: 0o755,
+});
 await mkdir(join(home, "Documents", "Nabídky"), { recursive: true });
 await mkdir(join(home, "Documents", "Smlouvy"), { recursive: true });
 await writeFile(
@@ -151,7 +155,22 @@ const app = await startLaunchpad(
   undefined,
   undefined,
   mode === "hosted" ? { fetcher: async () => new Response("ok") } : {},
-  toolsEnvironmentOf({ PATH: "", HOME: home }, process.platform),
+  // The preview's GitHub identity answers the Owner question of the Apps
+  // home ("+ Nový modul") as an Owner of the example Organization; no real
+  // account is asked.
+  toolsEnvironmentOf(
+    { PATH: join(home, "bin"), HOME: home },
+    process.platform,
+    async (command, timeoutMs, env) =>
+      command[1] === "api" &&
+      command[2]?.startsWith("user/memberships/orgs/example")
+        ? {
+            exitCode: 0,
+            stdout: JSON.stringify({ state: "active", role: "admin" }),
+            stderr: "",
+          }
+        : runTool(command, timeoutMs, env),
+  ),
   {},
   undefined,
   undefined,
