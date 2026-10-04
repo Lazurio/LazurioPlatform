@@ -19,7 +19,7 @@ export const ownerCheck = Object.freeze({
   cacheMs: ownerAnswerMs,
 });
 
-const login = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
+export const githubLogin = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 
 /** Whether a membership answer of the GitHub API is an active Owner's. */
 export function isOwnerMembership(stdout: string): boolean {
@@ -31,6 +31,33 @@ export function isOwnerMembership(stdout: string): boolean {
   }
 }
 
+/** One read of the GitHub API with this Environment's `gh` (`gh api
+ * <path>`), bounded by the check's timeout: its output, or null on any
+ * failure (no `gh`, no home, a refusal, a timeout). Shared by the Owner
+ * check and the Steward's `maintain` read (module-maintainer.ts), so both
+ * ask GitHub the same way. */
+export async function askGitHub(
+  environment: ToolsEnvironment,
+  path: string,
+): Promise<string | null> {
+  const gh = await resolveOnPath("gh", environment.path, environment.platform);
+  if (gh === undefined || !environment.home) return null;
+  const env: Record<string, string> = { HOME: environment.home };
+  if (environment.path) env.PATH = environment.path;
+  for (const [name, value] of Object.entries(environment.xdg ?? {}))
+    env[name] = value;
+  try {
+    const result = await environment.run(
+      [gh, "api", path],
+      ownerCheck.timeoutMs,
+      env,
+    );
+    return result !== "timeout" && result.exitCode === 0 ? result.stdout : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createOwnerCheck(
   environment: ToolsEnvironment,
   now: () => number = Date.now,
@@ -39,32 +66,13 @@ export function createOwnerCheck(
     string,
     Readonly<{ owner: boolean; until: number }>
   >();
-  async function ask(organization: string): Promise<boolean> {
-    const gh = await resolveOnPath(
-      "gh",
-      environment.path,
-      environment.platform,
+  const ask = async (organization: string): Promise<boolean> => {
+    const stdout = await askGitHub(
+      environment,
+      `user/memberships/orgs/${organization}`,
     );
-    if (gh === undefined || !environment.home) return false;
-    const env: Record<string, string> = { HOME: environment.home };
-    if (environment.path) env.PATH = environment.path;
-    for (const [name, value] of Object.entries(environment.xdg ?? {}))
-      env[name] = value;
-    try {
-      const result = await environment.run(
-        [gh, "api", `user/memberships/orgs/${organization}`],
-        ownerCheck.timeoutMs,
-        env,
-      );
-      return (
-        result !== "timeout" &&
-        result.exitCode === 0 &&
-        isOwnerMembership(result.stdout)
-      );
-    } catch {
-      return false;
-    }
-  }
+    return stdout !== null && isOwnerMembership(stdout);
+  };
   return {
     /** The answer for a bound GitHub login on this Folder's preset. */
     async owner(
@@ -73,7 +81,7 @@ export function createOwnerCheck(
     ): Promise<boolean> {
       if (
         organization === undefined ||
-        !login.test(organization) ||
+        !githubLogin.test(organization) ||
         preset === "hosted-organization-team"
       )
         return false;
