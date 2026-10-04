@@ -493,18 +493,23 @@ Contract and details: [content synchronization, Installation](content-sync.md#in
    guard against a second one (`personalspace-elsewhere`), never the recognition: a
    Personalspace created before the template has no template link.
 
-**Open: the root repository of an Organization the Folder does not hold yet.** The
-contract forbids deriving it as `<Owner>/<Owner>_GEN3`, and no delivered authority
-names it (the declaration is inside the root, the handover names only the Organization,
-the F33 composition is not delivered). The resolver answers `needs-decision`; the CLI
-takes the root explicitly (`--root`). Options and the recommendation (the conventional
-name as a candidate, accepted only by the candidate's own declaration, until F33's
-composition replaces it) are in [content synchronization](content-sync.md#open-decision-the-root-of-an-absent-organization).
-Owner: Matěj.
+**The root repository (Matěj, 2026-10-05).** A name is never trusted, it is only a
+candidate, accepted after the repository declares itself the root (its own
+`lazurio.organization.json` binds the login and names exactly that repository as
+`root_repository`). The target source is the Dashboard's Organization record, fed by
+the Organization's Lazurio for GitHub app installation; until it exists the interim
+sources are the conventional name `<login>/<login>_GEN3` and then a scan of the
+Organization's readable repositories (exactly one must declare itself:
+`root-not-found`, `root-ambiguous`). The CLI's `--root` stays an explicit source,
+verified the same way. The verification stays with every source, the Dashboard
+included. `docs/organization-contract.md` now says "never trusted by name" instead of
+"never derived". Details: [content synchronization](content-sync.md#where-the-root-repository-is).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | Recognize the Personalspace by `template_repository` | Misses every Personalspace made before the template, then creates a second one; rejected as the rule, kept as a guard |
+| The root only from an explicit name (no discovery) | The Launchpad could not install an Organization the Folder does not hold; superseded on 2026-10-05 by name candidate and scan, each verified |
+| Trust `<login>/<login>_GEN3` as the root by its name, as the resident does | A repository of that name that is not the root (a fork, a rename, a placeholder) would be installed as one; the name is only a candidate |
 | Fail the run when a module's preparation is refused | The content is in place and a start prepares again (F34); reported in the step instead |
 | Materialize `infra` and repository databases with the modules | F33 leaves them out of the composition; databases are the Organization's own bootstrap (B7) |
 | Hold the Folder operation lock for the whole install | Every Folder read (status, preset) would wait behind a clone; a separate content lock instead |

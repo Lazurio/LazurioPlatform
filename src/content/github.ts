@@ -40,6 +40,12 @@ export type RepositoryAnswer =
   | Readonly<{ kind: "missing" }>
   | Readonly<{ kind: "unavailable" }>;
 
+export type DeclarationAnswer =
+  | Readonly<{ kind: "file"; value: unknown }>
+  /** 404: no such file, or the repository is absent or not readable. */
+  | Readonly<{ kind: "missing" }>
+  | Readonly<{ kind: "unavailable" }>;
+
 export type ContentGitHub = Readonly<{
   /** Who gh works as on this Environment. */
   viewer(): Promise<ViewerAnswer>;
@@ -47,6 +53,14 @@ export type ContentGitHub = Readonly<{
   /** The viewer's membership in an Organization (an Owner is an active
    * `admin` membership). */
   membership(organization: string): Promise<MembershipAnswer>;
+  /** The repository's `lazurio.organization.json` on its default branch,
+   * parsed, as this identity can read it. */
+  declaration(owner: string, name: string): Promise<DeclarationAnswer>;
+  /** The Organization's repositories this identity can read, not archived,
+   * as `<owner>/<name>`, or `unavailable`. */
+  organizationRepositories(
+    organization: string,
+  ): Promise<readonly string[] | "unavailable">;
   /** The viewer's own repositories created from `template`, as
    * `<owner>/<name>`, or `unavailable`. */
   templateDerived(template: string): Promise<readonly string[] | "unavailable">;
@@ -291,6 +305,40 @@ export function ghContentGitHub(
       if (answer.kind === "error" && answer.status === "404")
         return { kind: "none" };
       return { kind: "unavailable" };
+    },
+    async declaration(owner, name): Promise<DeclarationAnswer> {
+      // The raw file of the default branch; bounded by the runner.
+      const answer = await run([
+        "api",
+        "--header",
+        "Accept: application/vnd.github.raw+json",
+        `${repositoryPath(owner, name)}/contents/lazurio.organization.json`,
+      ]);
+      if (answer.kind === "ok") {
+        try {
+          return { kind: "file", value: JSON.parse(answer.stdout) };
+        } catch {
+          return { kind: "file", value: null };
+        }
+      }
+      if (answer.kind === "error" && answer.status === "404")
+        return { kind: "missing" };
+      return { kind: "unavailable" };
+    },
+    async organizationRepositories(organization) {
+      if (!githubLoginPattern.test(organization)) return "unavailable";
+      const answer = await run([
+        "api",
+        "--paginate",
+        `orgs/${organization}/repos?per_page=100&type=all`,
+        "--jq",
+        ".[] | select(.archived | not) | .full_name",
+      ]);
+      if (answer.kind !== "ok") return "unavailable";
+      const names = answer.stdout.split("\n").filter((line) => line !== "");
+      return names.every((name) => repositoryPattern.test(name))
+        ? Object.freeze(names)
+        : "unavailable";
     },
     async templateDerived(template) {
       if (!repositoryPattern.test(template)) return "unavailable";

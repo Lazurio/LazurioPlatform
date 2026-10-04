@@ -122,6 +122,12 @@ export function createContentJobs(
       const job = jobs.get(id);
       return job === undefined ? undefined : snapshot(job);
     },
+    /** The newest job of this Launchpad (running or ended), or undefined:
+     * what the page shows again after a reload. */
+    latest(): ContentJob | undefined {
+      const newest = [...jobs.values()].at(-1);
+      return newest === undefined ? undefined : snapshot(newest);
+    },
     /** Resolves when no job runs (for shutdown and tests). */
     async settled(): Promise<void> {
       while (running !== null) await running.done;

@@ -256,12 +256,17 @@ export function stubGitHub(
     /** The viewer's membership in every Organization asked; by default an
      * active Owner's. */
     membership?: MembershipAnswer;
+    /** The Organization's repository listing fails. */
+    listing?: "unavailable";
   } = {},
 ) {
   const calls: StubCalls = [];
   const known = new Map<string, Partial<GitHubRepository> | "unavailable">();
-  for (const [name, entry] of Object.entries(options.repositories ?? {}))
+  const names = new Map<string, string>();
+  for (const [name, entry] of Object.entries(options.repositories ?? {})) {
     known.set(name.toLowerCase(), entry);
+    names.set(name.toLowerCase(), name);
+  }
   const viewer: ViewerAnswer = options.viewer ?? {
     kind: "signed-in",
     viewer: { login: "example", databaseId: 12345 },
@@ -280,7 +285,9 @@ export function stubGitHub(
       return {
         kind: "observed",
         repository: {
-          fullName: `${owner}/${name}`,
+          // As GitHub spells it, whatever case was asked.
+          fullName:
+            names.get(`${owner}/${name}`.toLowerCase()) ?? `${owner}/${name}`,
           owner: { login: owner, databaseId: 1, kind: "Organization" },
           private: true,
           archived: false,
@@ -295,6 +302,45 @@ export function stubGitHub(
       return (
         options.membership ?? { kind: "member", state: "active", role: "admin" }
       );
+    },
+    // The default branch's lazurio.organization.json of a readable
+    // repository, read from its bare remote as GitHub would serve it.
+    async declaration(owner, name) {
+      calls.push({ kind: "declaration", args: [owner, name] });
+      const key = `${owner}/${name}`.toLowerCase();
+      const entry = known.get(key);
+      if (entry === undefined) return { kind: "missing" };
+      if (entry === "unavailable") return { kind: "unavailable" };
+      // The bare remote by the repository's own spelling (Linux is
+      // case-sensitive).
+      const spelled = names.get(key) ?? `${owner}/${name}`;
+      const shown = Bun.spawnSync(
+        [
+          "git",
+          "--git-dir",
+          join(world.remotes, `${spelled}.git`),
+          "show",
+          "HEAD:lazurio.organization.json",
+        ],
+        { env: { PATH: Bun.env.PATH ?? "/usr/bin:/bin" } },
+      );
+      if (shown.exitCode !== 0) return { kind: "missing" };
+      try {
+        return { kind: "file", value: JSON.parse(shown.stdout.toString()) };
+      } catch {
+        return { kind: "file", value: null };
+      }
+    },
+    async organizationRepositories(organization) {
+      calls.push({ kind: "organizationRepositories", args: [organization] });
+      if (options.listing === "unavailable") return "unavailable";
+      return [...known.entries()]
+        .filter(
+          ([key, entry]) =>
+            entry !== "unavailable" &&
+            key.startsWith(`${organization.toLowerCase()}/`),
+        )
+        .map(([key]) => names.get(key) as string);
     },
     async templateDerived(template) {
       calls.push({ kind: "templateDerived", args: [template] });

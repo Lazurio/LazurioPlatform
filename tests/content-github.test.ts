@@ -143,6 +143,37 @@ esac`);
   ]);
 });
 
+posixTest(
+  "a root's declaration is read raw from the default branch, and the Organization's repositories are listed",
+  async () => {
+    const { github, calls } = await fakeGh(`
+case "$*" in
+  "api --header Accept: application/vnd.github.raw+json repos/Example/root/contents/lazurio.organization.json") echo '{"kind":"organization"}' ;;
+  "api --header Accept: application/vnd.github.raw+json repos/Example/plain/contents/lazurio.organization.json") echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
+  "api --paginate orgs/Example/repos?per_page=100&type=all --jq "*) printf 'Example/root\\nExample/plain\\n' ;;
+  *) exit 1 ;;
+esac`);
+    expect(await github.declaration("Example", "root")).toEqual({
+      kind: "file",
+      value: { kind: "organization" },
+    });
+    expect(await github.declaration("Example", "plain")).toEqual({
+      kind: "missing",
+    });
+    expect(await github.declaration("Example", "offline")).toEqual({
+      kind: "unavailable",
+    });
+    expect(await github.organizationRepositories("Example")).toEqual([
+      "Example/root",
+      "Example/plain",
+    ]);
+    expect(await github.organizationRepositories("Other")).toBe("unavailable");
+    expect((await calls()).at(-2)).toBe(
+      "api --paginate orgs/Example/repos?per_page=100&type=all --jq .[] | select(.archived | not) | .full_name",
+    );
+  },
+);
+
 posixTest("gh without a sign-in is signed out, never unavailable", async () => {
   const { github } = await fakeGh(`
 echo 'To get started with GitHub CLI, please run:  gh auth login' >&2

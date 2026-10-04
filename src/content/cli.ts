@@ -36,9 +36,12 @@ export const contentHelp = `organization install <github-login> [--role builder|
   others continue; infra, repository databases and restricted slots are left
   out. An existing repository is never fetched, switched or reset, and an
   occupied destination is never touched. The root of an Organization the
-  Folder does not hold yet is taken only from --root (see
-  docs/content-sync.md, "Open decision"); for one it holds, the root is that
-  checkout. The scope follows the person's role in the Organization, as
+  Folder already holds is that checkout. Otherwise a name is only a
+  candidate: --root <owner>/<repository> when named, else
+  <login>/<login>_GEN3, else the one repository of the Organization this
+  account can read, each accepted only when its own lazurio.organization.json
+  declares it the root of that login (root-declaration-mismatch for a named
+  one that does not; root-not-found or root-ambiguous after the scan). The scope follows the person's role in the Organization, as
   the resident CLI's: without --role it is the Admin installation, the full
   one, and runs only when GitHub confirms through gh an active Owner
   membership; --role builder or --role steward installs everything except

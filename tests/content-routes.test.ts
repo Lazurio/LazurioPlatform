@@ -3,8 +3,12 @@ import { join } from "node:path";
 import { ContentUsageError, runContentCommand } from "../src/content/cli";
 import type { ContentHost } from "../src/content/host";
 import { installContent } from "../src/content/install";
+import { createContentJobs } from "../src/content/jobs";
 import { tryContentLock } from "../src/content/lock";
-import { parseInstallBody } from "../src/launchpad/content-routes";
+import {
+  createContentRoutes,
+  parseInstallBody,
+} from "../src/launchpad/content-routes";
 import { startLaunchpad } from "../src/launchpad/server";
 import type { CliContext } from "../src/update/cli";
 import {
@@ -229,6 +233,56 @@ posixTest(
     expect((await get("/api/content/jobs/not-an-id")).status).toBe(404);
   },
   60_000,
+);
+
+posixTest(
+  "the newest job stays readable for a reload: jobs.latest() and the reader accessors",
+  async () => {
+    world = await createWorld();
+    await remoteRepository(world, "example/example_GEN3", (directory) =>
+      writeFile(join(directory, "README.md"), "mine"),
+    );
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, {
+      repositories: {
+        "example/example_GEN3": {
+          owner: { login: "example", databaseId: 12345, kind: "User" },
+        },
+      },
+    });
+    const routes = createContentRoutes({
+      folder,
+      host: () => contentHost(world as World, github),
+      headers: {},
+    });
+    expect(await routes.lastJob()).toBeNull();
+    expect(await routes.list()).toEqual({
+      allowed: true,
+      items: [
+        {
+          kind: "personalspace",
+          login: "example",
+          state: "absent",
+          onGitHub: "exists",
+        },
+      ],
+    });
+    const jobs = createContentJobs({
+      folder,
+      host: () => contentHost(world as World, github),
+    });
+    expect(jobs.latest()).toBeUndefined();
+    const first = await jobs.start({});
+    await jobs.settled();
+    const second = await jobs.start({ items: [{ kind: "personalspace" }] });
+    await jobs.settled();
+    expect(first.kind === "started" && second.kind === "started").toBe(true);
+    const latest = jobs.latest();
+    expect(latest?.id).toBe(second.kind === "started" ? second.job : "");
+    expect(latest?.state).toBe("succeeded");
+    expect(latest).toEqual(jobs.get(latest?.id ?? ""));
+  },
+  30_000,
 );
 
 posixTest(
@@ -503,7 +557,8 @@ posixTest(
       ),
     ).toBe(0);
 
-    // Without --root the open decision fails the run (exit 1), with its code.
+    // An Organization none of whose repositories declares itself the root
+    // fails the run (exit 1), with its code.
     const second: string[] = [];
     expect(
       await runContentCommand(
@@ -514,7 +569,7 @@ posixTest(
       ),
     ).toBe(1);
     expect(JSON.parse(second.at(-1) as string).failure.code).toBe(
-      "organization-root-needs-decision",
+      "root-not-found",
     );
   },
   60_000,

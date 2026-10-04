@@ -578,26 +578,17 @@ async function installOrganization(
     login,
     catalog: await catalogOf(host, folder),
     git: host.git,
+    github: host.github,
     root: context.roots[login.toLowerCase()],
   });
-  if (resolution.kind === "ambiguous")
+  if (resolution.kind === "ambiguous-in-folder")
     return steps.fail(
       "access",
       "organization-ambiguous",
       `more than one directory in organizations/ binds ${login}: ${resolution.directories.join(", ")}`,
     );
-  if (resolution.kind === "explicit-mismatch")
-    return steps.fail(
-      "access",
-      "root-owner-mismatch",
-      `the named root must be <owner>/<repository> of ${login}`,
-    );
-  if (resolution.kind === "needs-decision")
-    return steps.fail(
-      "access",
-      "organization-root-needs-decision",
-      `the root repository of ${login} is not declared to this Environment; the CLI takes it explicitly as --root <owner>/<repository>`,
-    );
+  if (resolution.kind === "failed")
+    return steps.fail("access", resolution.code, resolution.detail);
   let rootRepository = resolution.repository;
   let rootPermission: RepositoryPermission | null = null;
   if (rootRepository !== null) {
@@ -641,9 +632,13 @@ async function installOrganization(
       "role-unverified",
       `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}`,
     );
+  const found =
+    resolution.kind === "resolved"
+      ? ` (${resolution.source === "explicit" ? "named" : resolution.source === "name-candidate" ? "by name" : resolution.source === "scan" ? "by scan" : "from the Dashboard"})`
+      : "";
   steps.done(
     "access",
-    `as ${viewer.login} (${role.role}${role.restricted === "exclude" ? ", restricted slots excluded" : ""}); root ${rootRepository ?? "present in this Folder"}`,
+    `as ${viewer.login} (${role.role}${role.restricted === "exclude" ? ", restricted slots excluded" : ""}); root ${rootRepository ?? "present in this Folder"}${found}`,
   );
   // root
   steps.running("root");

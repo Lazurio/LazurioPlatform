@@ -15,14 +15,17 @@ import {
 import { contentStatus } from "../src/content/status";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { renameNoReplace } from "../src/platform/rename";
+import { type Slot, writeModule } from "./fixtures/catalog-folder";
 import {
   alphaRemotes,
+  alphaSlots,
   contentHost,
   createWorld,
   presetFolder,
   remoteRepository,
   stubGitHub,
   type World,
+  writeOrganizationRoot,
 } from "./fixtures/content-world";
 import { bindings } from "./fixtures/machine-bindings";
 import {
@@ -330,7 +333,7 @@ posixTest(
         steps.find((step) => step.key === "access" && step.state === "done")
           ?.detail,
       ).toBe(
-        `as example (${role}, restricted slots excluded); root Alpha/alpha_GEN3`,
+        `as example (${role}, restricted slots excluded); root Alpha/alpha_GEN3 (named)`,
       );
       const scoped = results(result);
       expect(scoped["workspace/secret"]).toBe("excluded_by_role_scope");
@@ -412,8 +415,47 @@ posixTest(
   60_000,
 );
 
+// ---- Where the root is: a name is only a candidate --------------------------
+
+/** A root `Alpha/<name>` that declares itself (or `declares` another
+ * repository, or none), with the one module `web`. */
+async function alphaRoot(
+  name: string,
+  declares: string | null = `Alpha/${name}`,
+) {
+  await remoteRepository(world as World, `Alpha/${name}`, (directory) =>
+    writeOrganizationRoot(directory, {
+      slug: "alpha",
+      forge: "Alpha",
+      slots: [alphaSlots[0] as Slot],
+      ...(declares === null ? {} : { root: declares }),
+    }),
+  );
+}
+
+async function resolveAlpha(
+  github: ReturnType<typeof stubGitHub>["github"],
+  folder: string,
+  root?: string,
+) {
+  const steps: ContentStep[] = [];
+  const result = await installContent(
+    folder,
+    {
+      items: [{ kind: "organization", login: "Alpha" }],
+      ...(root === undefined ? {} : { roots: { alpha: root } }),
+    },
+    (step) => steps.push(step),
+    contentHost(world as World, github),
+  );
+  return { steps, result };
+}
+
+const accessDetail = (steps: ContentStep[]) =>
+  steps.find((step) => step.key === "access" && step.state !== "running");
+
 posixTest(
-  "an absent Organization without a declared root is an open decision, not a guess",
+  "the conventional name is accepted when the repository declares itself the root",
   async () => {
     world = await createWorld();
     await alphaRemotes(world);
@@ -421,23 +463,156 @@ posixTest(
     const { github, calls } = stubGitHub(world, {
       repositories: alphaReadable,
     });
-    const steps: ContentStep[] = [];
-    const result = await installContent(
-      folder,
-      { items: [{ kind: "organization", login: "Alpha" }] },
-      (step) => steps.push(step),
-      contentHost(world, github),
+    const { steps, result } = await resolveAlpha(github, folder);
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    expect(accessDetail(steps)?.detail).toBe(
+      "as example (admin); root Alpha/alpha_GEN3 (by name)",
     );
-    expect(result.kind === "content-install" && result.failure).toEqual({
-      item: { kind: "organization", login: "Alpha" },
-      key: "access",
-      code: "organization-root-needs-decision",
-      detail: expect.stringContaining("--root"),
-    });
-    // Not even the conventional name was asked for.
-    expect(calls.filter((call) => call.kind === "repository")).toEqual([]);
-    expect(await readdir(join(folder, "organizations"))).toEqual([]);
+    // Its declaration was read before anything was cloned; no scan.
+    // (GitHub compares names case-insensitively; the login is as named.)
+    expect(calls.find((call) => call.kind === "declaration")?.args).toEqual([
+      "Alpha",
+      "Alpha_GEN3",
+    ]);
+    expect(calls.some((call) => call.kind === "organizationRepositories")).toBe(
+      false,
+    );
+    expect(await readdir(join(folder, "organizations"))).toEqual([
+      "alpha_GEN3",
+    ]);
   },
+  30_000,
+);
+
+posixTest(
+  "a name that does not declare itself the root is passed over for the one that does",
+  async () => {
+    world = await createWorld();
+    // alpha_GEN3 exists but declares no root; home declares itself.
+    await alphaRoot("alpha_GEN3", null);
+    await alphaRoot("home");
+    await remoteRepository(world, "Alpha/web", (directory) =>
+      writeModule(directory, "alpha", { id: "web" }),
+    );
+    const folder = await presetFolder(world, "local");
+    const { github, calls } = stubGitHub(world, {
+      repositories: {
+        "Alpha/alpha_GEN3": {},
+        "Alpha/home": {},
+        "Alpha/web": {},
+      },
+    });
+    const { steps, result } = await resolveAlpha(github, folder);
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    expect(accessDetail(steps)?.detail).toBe(
+      "as example (admin); root Alpha/home (by scan)",
+    );
+    expect(calls.some((call) => call.kind === "organizationRepositories")).toBe(
+      true,
+    );
+    expect(await readdir(join(folder, "organizations"))).toEqual(["home"]);
+    expect(
+      await exists(join(folder, "organizations", "home", "workspace", "web")),
+    ).toBe(true);
+  },
+  30_000,
+);
+
+posixTest(
+  "a scan accepts exactly one repository that declares itself the root",
+  async () => {
+    world = await createWorld();
+    for (const [roots, code] of [
+      // None declares itself (one names another repository, one nothing).
+      [
+        [
+          ["elsewhere", "Alpha/someone-else"],
+          ["plain", null],
+        ],
+        "root-not-found",
+      ],
+      // Two declare themselves.
+      [
+        [
+          ["first", "Alpha/first"],
+          ["second", "Alpha/second"],
+        ],
+        "root-ambiguous",
+      ],
+    ] as const) {
+      const repositories: Record<string, object> = {};
+      for (const [name, declares] of roots) {
+        await alphaRoot(name, declares);
+        repositories[`Alpha/${name}`] = {};
+      }
+      const folder = await presetFolder(world, "local");
+      const { github } = stubGitHub(world, { repositories });
+      const { steps, result } = await resolveAlpha(github, folder);
+      expect(summary(steps)).toEqual([`access:failed:${code}`]);
+      if (code === "root-ambiguous")
+        expect(
+          result.kind === "content-install" && result.failure?.detail,
+        ).toContain("Alpha/first, Alpha/second");
+      expect(await readdir(join(folder, "organizations"))).toEqual([]);
+    }
+    // A listing GitHub does not answer is not "none".
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, { listing: "unavailable" });
+    const { steps } = await resolveAlpha(github, folder);
+    expect(summary(steps)).toEqual(["access:failed:github-unavailable"]);
+  },
+  30_000,
+);
+
+posixTest(
+  "an explicit --root is verified the same way, and rejected when it does not declare itself",
+  async () => {
+    world = await createWorld();
+    await alphaRoot("home");
+    await alphaRoot("other", "Alpha/home");
+    await remoteRepository(world, "Alpha/web", (directory) =>
+      writeModule(directory, "alpha", { id: "web" }),
+    );
+    const repositories = {
+      "Alpha/home": {},
+      "Alpha/other": {},
+      "Alpha/web": {},
+    };
+    const accepted = await resolveAlpha(
+      stubGitHub(world, { repositories }).github,
+      await presetFolder(world, "local"),
+      "Alpha/home",
+    );
+    expect(accessDetail(accepted.steps)?.detail).toBe(
+      "as example (admin); root Alpha/home (named)",
+    );
+    // `other` declares `home` its root, not itself: refused, and no other
+    // source is tried.
+    const stub = stubGitHub(world, { repositories });
+    const folder = await presetFolder(world, "local");
+    const rejected = await resolveAlpha(stub.github, folder, "Alpha/other");
+    expect(summary(rejected.steps)).toEqual([
+      "access:failed:root-declaration-mismatch",
+    ]);
+    expect(
+      stub.calls.some((call) => call.kind === "organizationRepositories"),
+    ).toBe(false);
+    expect(await readdir(join(folder, "organizations"))).toEqual([]);
+    // A root of another owner is refused before GitHub is asked.
+    const foreign = stubGitHub(world, { repositories });
+    const wrongOwner = await resolveAlpha(
+      foreign.github,
+      await presetFolder(world, "local"),
+      "Beta/home",
+    );
+    expect(summary(wrongOwner.steps)).toEqual([
+      "access:failed:root-owner-mismatch",
+    ]);
+    expect(foreign.calls.some((call) => call.kind === "declaration")).toBe(
+      false,
+    );
+  },
+  30_000,
 );
 
 posixTest(
@@ -477,7 +652,7 @@ posixTest(
 );
 
 posixTest(
-  "a root whose own declaration names another Organization is never published",
+  "a root whose own declaration names another Organization is never cloned",
   async () => {
     world = await createWorld();
     // A valid declaration, but of another Organization and its own root.
@@ -494,11 +669,7 @@ posixTest(
       (step) => steps.push(step),
       contentHost(world, github),
     );
-    expect(summary(steps)).toEqual([
-      "access:done",
-      "root:failed:root-declaration-mismatch",
-    ]);
-    // Neither the destination nor the temporary sibling remains.
+    expect(summary(steps)).toEqual(["access:failed:root-declaration-mismatch"]);
     expect(await readdir(join(folder, "organizations"))).toEqual([]);
   },
   30_000,

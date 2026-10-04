@@ -137,5 +137,11 @@ export function createContentRoutes(
         : response(found);
     },
     settled: () => jobs.settled(),
+    /** The status as `GET /api/content` answers it: the shape of a content
+     * reader's `list()`. */
+    list: () => contentStatus(input.folder, resolved()),
+    /** The newest job as `GET /api/content/jobs/<id>` answers it, or null:
+     * the shape of a content reader's `lastJob()`. */
+    lastJob: async () => jobs.latest() ?? null,
   });
 }

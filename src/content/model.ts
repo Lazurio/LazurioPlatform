@@ -77,7 +77,8 @@ export const contentFailureCodes = [
   "github-unavailable",
   "github-identity-mismatch",
   // Organization root
-  "organization-root-needs-decision",
+  "root-not-found",
+  "root-ambiguous",
   "organization-ambiguous",
   "root-denied",
   "root-owner-mismatch",

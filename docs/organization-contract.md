@@ -17,7 +17,15 @@ legacy source under Platform's license or create another schema authority.
 extensions and compatibility projection fields are upstream wire fields. They are
 not invented Platform fields. Verified Organization/repository IDs remain a complete
 pair; owner and binding state must match and the compatibility branch remains `main`.
-The root repository name is explicit, not derived as `<Owner>/<Owner>_GEN3`.
+The root repository is never trusted by name: a name is only a candidate, accepted
+after the repository declares itself the root, that is, after its own
+`lazurio.organization.json` binds the Organization's login and names exactly that
+repository as `root_repository` (Matěj, 2026-10-05; root decision 0188). The target
+source of the root is the Dashboard's Organization record, fed by the Organization's
+Lazurio for GitHub app installation; until it exists, content installation finds the
+candidate by name (`<Owner>/<Owner>_GEN3`) and otherwise by a scan of the
+Organization's readable repositories ([content synchronization](content-sync.md#where-the-root-repository-is)).
+The verification stays with every source, the Dashboard included.
 Shape validation is neither live provider verification nor permission to operate.
 
 Templates remain valid authored declarations for inspection/conversion preview, but

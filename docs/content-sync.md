@@ -254,6 +254,8 @@ read (status, catalog) removes anything.
 ### Surfaces
 
 - `lazurio organization install <github-login> [--role builder|steward] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
+  (`--root` is the explicit source of [the root](#where-the-root-repository-is), verified
+  the same way)
   and `lazurio personalspace install [--folder <Folder>] [--json]`: one line per step
   event (`{"kind":"content-step","item":…,"key":…,"state":…,"detail"?,"code"?}` with
   `--json`), then the result (`{"kind":"content-install","state":…,"items":[…],"failure"?}`).
@@ -277,27 +279,38 @@ read (status, catalog) removes anything.
 Failure codes are `contentFailureCodes` in `src/content/model.ts`; the Organization
 `check` fails with the catalog's own reason (`organization-conflict`, …).
 
-### Open decision: the root of an absent Organization
+### Where the root repository is
 
-The Organization contract makes the root explicit, never derived as
-`<Owner>/<Owner>_GEN3`. Its only explicit declaration, `root_repository` in
-`lazurio.organization.json`, lives inside the root, the handover names only the
-Organization, and the composition that will name it (F33) is not delivered. So
-`resolveOrganizationRootRepository` (`src/content/organization-root.ts`) answers
-`present` (the Folder holds it), `explicit` (the operator named it, the CLI's `--root`,
-as B7 designed `organization add <org>/<root-repo>`) and otherwise `needs-decision`
-with these options; the install then fails at `access` with
-`organization-root-needs-decision`. The Launchpad can therefore install an Organization
-the Folder already holds (its missing children), not an absent one, until this is
-decided.
+**Decided by Matěj on 2026-10-05 (root decision 0188): a name is never trusted, it is
+only a candidate, accepted after the repository declares itself the root.** A
+repository declares itself the root of login `L` when its own
+`lazurio.organization.json` on its default branch, read through the Environment's gh
+before anything is cloned, is an Organization (not a template) whose
+`organization.forge_binding.locator` is `L` and whose `root_repository.locator` names
+exactly that repository. The install verifies the cloned commit once more before
+publishing it (`root-declaration-mismatch`).
 
-| Option | Covers | Trade-off |
-| --- | --- | --- |
-| A. `<login>/<login>_GEN3` as a **candidate**, accepted only when its own declaration binds the login and declares itself as `root_repository` (**recommended now**) | Every Environment, today; what the resident does | The name only finds a candidate; the authority is the declaration, which the install already verifies before publishing. Needs the contract sentence changed from "never derived" to "never trusted by name" |
-| B. The Dashboard's workspace composition (F33 `root`) | Every registered Environment | The target; waits for the Lazurio Account and the composition API. Replaces A when delivered |
-| C. Machines records the Organization's root in the work Environment's handover | Work Environments only | A new handover field and schema pin; a workstation still needs A or E |
-| D. Scan the Organization's repositories for the one declaring itself root | Every Environment | No name rule, but one read per repository and ambiguity handling |
-| E. The operator names it (implemented in the CLI) | CLI today | The Launchpad needs a field the person must know how to fill |
+**The target source is the Dashboard's Organization record, fed by the Organization's
+Lazurio for GitHub app installation.** It does not exist yet; finding the candidate by
+name and by scan is the interim way until it does. The verification stays with every
+source, the Dashboard included: a named root is accepted only after it declares itself
+the root.
+
+`resolveOrganizationRootRepository` (`src/content/organization-root.ts`) takes an
+Organization the Folder already holds as its own root, and otherwise asks one typed
+list of sources in order:
+
+| Source | Kind | When it finds nothing | When its repository does not declare itself |
+| --- | --- | --- | --- |
+| `explicit`: the CLI's `--root <owner>/<repository>` | Named | Next source | `root-declaration-mismatch`, no other source |
+| `dashboard`: the Dashboard's Organization record (**target; not wired yet**) | Named | Next source | `root-declaration-mismatch`, no other source |
+| `name-candidate`: `<login>/<login>_GEN3`, the resident's name (interim) | Discovery | Next source | Next source |
+| `scan`: the Organization's repositories this account can read, not archived (interim) | Discovery | `root-not-found` | Exactly one that declares itself is accepted; several are `root-ambiguous` |
+
+A named source that names a repository of another owner is `root-owner-mismatch`
+before GitHub is asked; a source GitHub does not answer is `github-unavailable`, never
+"absent". The scan reads at most 1 000 repositories, eight at a time. The role rules
+above are unchanged and run after the root is known.
 
 ## What this does not mean
 

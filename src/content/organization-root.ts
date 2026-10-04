@@ -1,60 +1,45 @@
 import { join } from "node:path";
+import { parseCanonicalOrganization } from "../organizations/canonical-manifest";
 import type { Catalog } from "../organizations/catalog";
 import type { ContentGit } from "./git";
-import { repositoryPattern } from "./model";
+import type { ContentGitHub } from "./github";
+import { repositoryPattern, sameRepository } from "./model";
 
-// Where an Organization's ROOT repository is declared for a GitHub login.
-// The Organization contract says the root is explicit, never derived as
-// `<Owner>/<Owner>_GEN3` (docs/organization-contract.md). The explicit
-// declaration, `root_repository.locator` of `lazurio.organization.json`,
-// lives INSIDE the root, so it cannot name the root of an Organization this
-// Environment does not hold yet; the Machine handover names only the
-// Organization (`owner.organization`), and the workspace composition of the
-// Dashboard (F33), which will name it (`root`), is not delivered. Until an
-// owner decides which authority names an absent Organization's root, this
-// resolver knows two answers and returns `needs-decision` for the rest:
-// - `present`: the Folder already holds the Organization (its canonical
-//   manifest binds this login); the root is that checkout;
-// - `explicit`: the operator named `<owner>/<repository>` (the CLI's
-//   `--root`, the B7 design's `organization add <org>/<root-repo>`); the
-//   clone is then accepted only when its own declaration binds this login and,
-//   when it declares `root_repository`, names exactly this repository.
+// Where an Organization's ROOT repository is, for a GitHub login (Matěj,
+// 2026-10-05; root decision 0188): a name is never trusted, it is only a
+// candidate, accepted after the repository declares itself the root. A
+// repository declares itself the root of `login` when its own
+// `lazurio.organization.json`, on its default branch as this Environment's
+// gh reads it, is an Organization (not a template) whose
+// `organization.forge_binding.locator` is `login` and whose
+// `root_repository.locator` names exactly that repository. The install
+// verifies the cloned commit once more before publishing it.
+//
+// The sources, in this order:
+// - `explicit`: the operator named it (the CLI's `--root`);
+// - `dashboard`: the Organization record of the Dashboard, fed by the
+//   Organization's Lazurio for GitHub app installation: the TARGET source,
+//   not wired yet (`dashboard` stays undefined until it is);
+// - `name-candidate`: `<login>/<login>_GEN3`, the name the resident creates;
+// - `scan`: the Organization's repositories this account can read, the one
+//   that declares itself the root.
+// A named source (`explicit`, `dashboard`) is authoritative about WHICH
+// repository: when it does not declare itself the root, resolution fails
+// (`root-declaration-mismatch`) instead of trying another. A discovery source
+// that finds nothing passes to the next. The interim pair name-candidate and
+// scan goes when the Dashboard source is wired; the verification stays.
 
-export type RootOption = Readonly<{
-  id: string;
-  summary: string;
-}>;
+export const rootSources = [
+  "explicit",
+  "dashboard",
+  "name-candidate",
+  "scan",
+] as const;
+export type RootSource = (typeof rootSources)[number];
 
-/** The options for the open decision, in the order of the recommendation
- * (docs/content-sync.md "Open decision: the root of an absent
- * Organization"). */
-export const organizationRootOptions: readonly RootOption[] = Object.freeze([
-  {
-    id: "convention-confirmed-by-declaration",
-    summary:
-      "Recommended now: look up <login>/<login>_GEN3 as a candidate and accept it only when its own lazurio.organization.json binds the login and declares itself as root_repository; the declaration, not the name, is the authority.",
-  },
-  {
-    id: "dashboard-composition",
-    summary:
-      "Target (F33): the Dashboard's workspace composition names each Organization's root (root.fullName, immutable id); replaces the candidate rule when delivered.",
-  },
-  {
-    id: "machine-handover",
-    summary:
-      "Machines records the owning Organization's root repository in the work Environment's handover; covers work Environments only.",
-  },
-  {
-    id: "github-self-declaration-scan",
-    summary:
-      "Scan the Organization's repositories for the one whose lazurio.organization.json declares itself as root; no name rule, one API read per repository.",
-  },
-  {
-    id: "explicit-operator-input",
-    summary:
-      "The operator names <owner>/<repository> (implemented in the CLI as --root); the Launchpad would need a field for it.",
-  },
-]);
+/** How many repositories a scan reads at most, and at once. */
+const scanLimit = 1_000;
+const scanConcurrency = 8;
 
 export type RootResolution =
   | Readonly<{
@@ -68,34 +53,89 @@ export type RootResolution =
       /** `<owner>/<name>` of its `origin`, when it is a checkout of one. */
       repository: string | null;
     }>
-  | Readonly<{ kind: "explicit"; repository: string }>
-  | Readonly<{ kind: "ambiguous"; directories: readonly string[] }>
-  | Readonly<{ kind: "explicit-mismatch" }>
+  | Readonly<{ kind: "resolved"; source: RootSource; repository: string }>
+  | Readonly<{ kind: "ambiguous-in-folder"; directories: readonly string[] }>
   | Readonly<{
-      kind: "needs-decision";
-      login: string;
-      options: readonly RootOption[];
+      kind: "failed";
+      code:
+        | "root-owner-mismatch"
+        | "root-declaration-mismatch"
+        | "root-not-found"
+        | "root-ambiguous"
+        | "github-unavailable";
+      detail: string;
+      /** For `root-ambiguous`: every repository that declares itself. */
+      candidates?: readonly string[];
     }>;
 
-/** The root repository of the Organization bound to GitHub `login`, as far
- * as it is declared to this Environment (see the module comment). `root` is
- * the operator's explicit `<owner>/<repository>`, when named. */
+/** Whether a parsed `lazurio.organization.json` declares `repository` the
+ * root of the Organization bound to `login`. */
+export function declaresRoot(
+  document: unknown,
+  login: string,
+  repository: string,
+): boolean {
+  try {
+    const canonical = parseCanonicalOrganization(document) as Readonly<
+      Record<string, unknown>
+    >;
+    if (canonical.kind !== "organization") return false;
+    const organization = canonical.organization as Readonly<
+      Record<string, Readonly<Record<string, unknown>>>
+    >;
+    const owner = organization.forge_binding?.locator;
+    const root = (
+      canonical.root_repository as Readonly<Record<string, unknown>> | null
+    )?.locator;
+    return (
+      typeof owner === "string" &&
+      owner.toLowerCase() === login.toLowerCase() &&
+      typeof root === "string" &&
+      sameRepository(root, repository)
+    );
+  } catch {
+    return false;
+  }
+}
+
+type Verdict = "declares" | "does-not-declare" | "unavailable";
+
+async function verdict(
+  github: ContentGitHub,
+  login: string,
+  repository: string,
+): Promise<Verdict> {
+  const [owner, name] = repository.split("/") as [string, string];
+  const answer = await github.declaration(owner, name);
+  if (answer.kind === "unavailable") return "unavailable";
+  return answer.kind === "file" && declaresRoot(answer.value, login, repository)
+    ? "declares"
+    : "does-not-declare";
+}
+
+/** The root repository of the Organization bound to GitHub `login` (see
+ * the module comment). `root` is the operator's explicit
+ * `<owner>/<repository>`; `dashboard` the Dashboard's answer, once wired. */
 export async function resolveOrganizationRootRepository(
   input: Readonly<{
     folder: string;
     login: string;
     catalog: Catalog;
     git: ContentGit;
+    github: ContentGitHub;
     root?: string | undefined;
+    dashboard?: (() => Promise<string | null>) | undefined;
   }>,
 ): Promise<RootResolution> {
-  const login = input.login.toLowerCase();
+  const { login, github } = input;
+  const lower = login.toLowerCase();
+  // An Organization the Folder already holds is its own root.
   const held = input.catalog.organizations.filter(
-    (entry) => entry.forgeLogin?.toLowerCase() === login,
+    (entry) => entry.forgeLogin?.toLowerCase() === lower,
   );
   if (held.length > 1)
     return Object.freeze({
-      kind: "ambiguous",
+      kind: "ambiguous-in-folder",
       directories: Object.freeze(held.map((entry) => entry.directory)),
     });
   const [entry] = held;
@@ -110,17 +150,99 @@ export async function resolveOrganizationRootRepository(
       repository: observed.kind === "checkout" ? observed.repository : null,
     });
   }
-  if (input.root !== undefined) {
+  const failed = (
+    code: Extract<RootResolution, { kind: "failed" }>["code"],
+    detail: string,
+    candidates?: readonly string[],
+  ): RootResolution =>
+    Object.freeze({
+      kind: "failed",
+      code,
+      detail,
+      ...(candidates === undefined ? {} : { candidates }),
+    });
+  const unavailable = () =>
+    failed(
+      "github-unavailable",
+      "GitHub did not answer while the root repository was looked up",
+    );
+
+  // Named sources: authoritative about which repository, still verified.
+  const named: [RootSource, () => Promise<string | null>][] = [
+    ["explicit", async () => input.root ?? null],
+    ["dashboard", input.dashboard ?? (async () => null)],
+  ];
+  for (const [source, ask] of named) {
+    const repository = await ask();
+    if (repository === null) continue;
     if (
-      !repositoryPattern.test(input.root) ||
-      input.root.split("/")[0]?.toLowerCase() !== login
+      !repositoryPattern.test(repository) ||
+      repository.split("/")[0]?.toLowerCase() !== lower
     )
-      return Object.freeze({ kind: "explicit-mismatch" });
-    return Object.freeze({ kind: "explicit", repository: input.root });
+      return failed(
+        "root-owner-mismatch",
+        `the named root must be <owner>/<repository> of ${login}`,
+      );
+    const answer = await verdict(github, login, repository);
+    if (answer === "unavailable") return unavailable();
+    if (answer === "does-not-declare")
+      return failed(
+        "root-declaration-mismatch",
+        `${repository} does not declare itself the root of ${login} in its lazurio.organization.json`,
+      );
+    return Object.freeze({ kind: "resolved", source, repository });
   }
-  return Object.freeze({
-    kind: "needs-decision",
-    login: input.login,
-    options: organizationRootOptions,
-  });
+
+  // The name candidate.
+  const candidate = `${login}/${login}_GEN3`;
+  const byName = await verdict(github, login, candidate);
+  if (byName === "unavailable") return unavailable();
+  if (byName === "declares")
+    return Object.freeze({
+      kind: "resolved",
+      source: "name-candidate",
+      repository: candidate,
+    });
+
+  // The scan of what this account can read in the Organization.
+  const listed = await github.organizationRepositories(login);
+  if (listed === "unavailable") return unavailable();
+  const repositories = listed
+    .filter(
+      (repository) =>
+        repository.split("/")[0]?.toLowerCase() === lower &&
+        !sameRepository(repository, candidate),
+    )
+    .slice(0, scanLimit);
+  const matches: string[] = [];
+  let unanswered = false;
+  for (let start = 0; start < repositories.length; start += scanConcurrency) {
+    const batch = repositories.slice(start, start + scanConcurrency);
+    const answers = await Promise.all(
+      batch.map((repository) => verdict(github, login, repository)),
+    );
+    answers.forEach((answer, index) => {
+      if (answer === "declares") matches.push(batch[index] as string);
+      if (answer === "unavailable") unanswered = true;
+    });
+  }
+  if (matches.length > 1)
+    return failed(
+      "root-ambiguous",
+      `more than one repository of ${login} declares itself the root: ${matches.join(", ")}`,
+      Object.freeze(matches),
+    );
+  const [match] = matches;
+  if (match !== undefined)
+    return Object.freeze({
+      kind: "resolved",
+      source: "scan",
+      repository: match,
+    });
+  // A repository GitHub did not answer for might be the root: not "none".
+  if (unanswered) return unavailable();
+  return failed(
+    "root-not-found",
+    `no repository of ${login} this account can read declares itself the root (${candidate} included)`,
+  );
 }
