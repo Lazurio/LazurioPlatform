@@ -20,6 +20,8 @@ export type ShellCopy = Readonly<{
   environmentsFew: string;
   environmentsMany: string;
   last: string;
+  /** The second line of a space without an Environment: its Dashboard. */
+  spaceEmpty: string;
   /** The name of an Environment without its own name, by kind. */
   names: Readonly<Record<ShellEnvironmentKind, string>>;
   /** Who an Environment is for, by kind. */
@@ -59,6 +61,7 @@ const en: ShellCopy = {
   environmentsFew: "{count} Environments",
   environmentsMany: "{count} Environments",
   last: "last {name}",
+  spaceEmpty: "No Environment yet · opens its Dashboard",
   names: {
     personal: "Personal",
     work: "Work",
@@ -108,6 +111,7 @@ const cs: ShellCopy = {
   environmentsFew: "{count} Environmenty",
   environmentsMany: "{count} Environmentů",
   last: "naposledy {name}",
+  spaceEmpty: "Zatím žádný Environment · otevře Dashboard",
   names: {
     personal: "Osobní",
     work: "Pracovní",

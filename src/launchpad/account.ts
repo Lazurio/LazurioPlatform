@@ -1,3 +1,8 @@
+import {
+  accountDocumentPath,
+  accountReadMs,
+  pageAccountJson,
+} from "../shell/account";
 import { parseFavorites } from "./favorites";
 
 // The person's Lazurio account as Apps reads it (root decision 0185 S12 and
@@ -7,16 +12,15 @@ import { parseFavorites } from "./favorites";
 // two things of it: where module apps open (`preferences.openApps`) and the
 // favourites of this Environment's Organization (`favourites`, keyed by the
 // Organization slug). Everything else in it (the spaces, the Environments,
-// the last one used) is the shell library's. Until the gateway relays the
+// the last one used) is the shell library's, which also makes the page's one
+// request (`src/shell/account.ts`). Until the gateway relays the
 // namespace the read fails (404) and Apps keeps today's behaviour: favourites
 // in this browser, apps in a new tab. Nothing here holds a token: the
 // requests are plain same-origin ones, and the gateway adds the person's
-// token on its own side. Pure but for the fetch passed in.
+// token on its own side. Pure but for the read and the fetch passed in.
 
 export const accountSchema = "lazurio.account.v1";
-export const accountDocumentPath = "/.lazurio/account/environments";
-/** How long Apps waits for the account before it keeps today's behaviour. */
-export const accountReadMs = 4_000;
+export { accountDocumentPath, accountReadMs };
 
 /** Where module apps open (S18): a new tab, or this window. */
 export type OpenApps = "tab" | "same";
@@ -73,30 +77,18 @@ export function parseAccount(input: unknown): Account | null {
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
-/** Reads the account once: the document, or null when it is unavailable
- * (no gateway relay yet, a refusal, a sign-in redirect, a slow answer past
- * `timeoutMs`, anything else than `lazurio.account.v1`). Never throws. */
+/** What Apps reads of the account: the answer this page read once (the
+ * shell library's `pageAccountJson`, which the rail merges too, so the page
+ * asks once), or null when it is unavailable (no gateway relay yet, a
+ * refusal, a sign-in redirect, a slow answer, anything else than
+ * `lazurio.account.v1`). Never throws. */
 export async function readAccount(
-  fetcher: Fetch = fetch,
-  timeoutMs = accountReadMs,
+  read: () => Promise<unknown> = pageAccountJson,
 ): Promise<Account | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetcher(accountDocumentPath, {
-      credentials: "same-origin",
-      cache: "no-store",
-      // An expired session is a refusal, never a sign-in page to follow.
-      redirect: "error",
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
-    return parseAccount(await response.json());
+    return parseAccount(await read());
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

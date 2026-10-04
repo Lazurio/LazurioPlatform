@@ -1,7 +1,14 @@
-import { currentEnvironment, parseShell, type Shell } from "./contract";
+import { pageAccountJson, readShellAccount } from "./account";
+import {
+  currentEnvironment,
+  parseShell,
+  type Shell,
+  type ShellAccount,
+} from "./contract";
 import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
 import { appOf, reportLast } from "./last";
+import { accountLastBySpace, mergeAccount } from "./merge";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { vendorText } from "./vendor-text" with { type: "macro" };
@@ -33,7 +40,12 @@ import {
 // Data: the `lazurio.shell.v1` document. A host that has it calls
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
 // their own origin once (the forks). A host that provides it marks
-// `<html data-lazurio-shell="host">` so nothing is fetched twice.
+// `<html data-lazurio-shell="host">` so nothing is fetched twice. Alongside
+// it, in either case, the elements read the person's account once
+// (`/.lazurio/account/environments`, account.ts) and draw the two merged
+// (merge.ts, F37): this Environment as its document says, and the other
+// spaces and Environments of the person signed in at the browser. Until the
+// account answers, and whenever it cannot, they draw the document alone.
 //
 // Attributes: `app` on the rail (`chat`, `apps`, `automate`: a click on a
 // space stays in that app), `space` on both (the space you are in, when the
@@ -48,20 +60,45 @@ import {
 
 const logo = vendorText("symbol-color.svg");
 
+// This Environment's document, the person's account and the two merged
+// (what the elements draw).
+let local: Shell | null = null;
+let account: ShellAccount | null = null;
 let current: Shell | null = null;
+let accountLast: ReadonlyMap<string, string> = new Map();
 const listeners = new Set<() => void>();
 let requested = false;
+let accountRequested = false;
 
-/** Gives the elements their document; they redraw. */
-export function provideShell(shell: Shell): void {
-  current = shell;
+function redraw(): void {
+  current = local === null ? null : mergeAccount(local, account);
+  accountLast =
+    current === null ? new Map() : accountLastBySpace(current, account);
   for (const listener of listeners) listener();
 }
 
+/** Gives the elements their document; they redraw (merged with the
+ * person's account once it has answered). */
+export function provideShell(shell: Shell): void {
+  local = shell;
+  redraw();
+}
+
+function requestAccount(): void {
+  if (accountRequested) return;
+  accountRequested = true;
+  void readShellAccount(pageAccountJson).then((read) => {
+    if (read === null) return;
+    account = read;
+    redraw();
+  });
+}
+
 function requestShell(): void {
+  requestAccount();
   if (
     requested ||
-    current !== null ||
+    local !== null ||
     document.documentElement.dataset.lazurioShell === "host"
   )
     return;
@@ -439,11 +476,16 @@ export class LazurioRail extends ShellElement {
     remember(here, shell.current);
     // The last Environment used (S8, last.ts): a host that names its app.
     reportLast(shell, appOf(this.getAttribute("app")), here);
+    // Where you were last in each other space: the account's memory (every
+    // Environment is its own origin, so this browser's memory on this
+    // origin knows little else), else this browser's; in the space you are
+    // in, this Environment.
     const last = lastBySpace();
     const spaces = railSpaces(shell, copy, {
       here,
       app: this.app(),
-      last: (space) => last[space] ?? null,
+      last: (space) =>
+        (space === here ? null : accountLast.get(space)) ?? last[space] ?? null,
     });
     const nav = element("nav");
     nav.setAttribute("aria-label", copy.rail);

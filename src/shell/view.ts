@@ -37,21 +37,25 @@ export function initialsOf(name: string): string {
     .toLocaleUpperCase();
 }
 
-/** The name an Environment is shown under: its own, else its kind's. */
+/** The name an Environment is shown under: the Dashboard's display name
+ * where the account gives one (F37's addendum), else its own, else its
+ * kind's. */
 export const environmentName = (
   environment: ShellEnvironment,
   copy: ShellCopy,
-): string => environment.label ?? copy.names[environment.kind];
+): string =>
+  environment.name ?? environment.label ?? copy.names[environment.kind];
 
-/** Who an Environment is for: a work Environment's person, otherwise its
- * kind's word. */
+/** Who an Environment is for: the account's line where it gives one, else a
+ * work Environment's person, otherwise its kind's word. */
 export const environmentWho = (
   environment: ShellEnvironment,
   copy: ShellCopy,
 ): string =>
-  environment.kind === "work" && environment.assignee !== null
+  environment.who ??
+  (environment.kind === "work" && environment.assignee !== null
     ? `@${environment.assignee}`
-    : copy.who[environment.kind];
+    : copy.who[environment.kind]);
 
 const sameSlug = (left: string, right: string) =>
   left.toLowerCase() === right.toLowerCase();
@@ -179,16 +183,21 @@ export function railSpaces(
     return Object.freeze({
       space: id,
       title,
-      sub: [
-        fillShell(copy[pluralKey(environments.length)], {
-          count: environments.length,
-        }),
-        last === undefined
-          ? null
-          : fillShell(copy.last, { name: environmentName(last, copy) }),
-      ]
-        .filter((part) => part !== null)
-        .join(" · "),
+      // A space without an Environment (an Organization the account lists
+      // from the person's memberships) says so and leads to its Dashboard.
+      sub:
+        target === undefined
+          ? copy.spaceEmpty
+          : [
+              fillShell(copy[pluralKey(environments.length)], {
+                count: environments.length,
+              }),
+              last === undefined
+                ? null
+                : fillShell(copy.last, { name: environmentName(last, copy) }),
+            ]
+              .filter((part) => part !== null)
+              .join(" · "),
       href:
         target === undefined
           ? dashboard

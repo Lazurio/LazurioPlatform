@@ -4036,6 +4036,20 @@ Dashboard derives the same value from the registry's Apps address. A rail's memo
 the last Environment per space, kept in the browser under the bare name, simply stops
 matching once and falls back to the space's first Environment.
 
+**The library side, built 2026-10-04 (DEV-6639).** Point 4 above and point 5 of the
+addendum: `parseShellAccount` in `src/shell/contract.ts` reads `lazurio.account.v1`
+with the entry parsers of `lazurio.shell.v1` (one parser, point 1), in the shape the
+Dashboard emits (HumanAndMachine-ai/Dashboard#198); `mergeAccount` in
+`src/shell/merge.ts` merges it as point 4 says (the local entry, `current` and its
+apps win; Organizations are matched by their Dashboard slug; the operator is the
+person signed in at the browser), and the elements read
+`/.lazurio/account/environments` once per page load, on the Launchpad page too,
+falling back to this Environment's rail on any failure. A space without an
+Environment keeps its avatar in the rail and leads to its Dashboard. Not live yet:
+the gateway's relay of the namespace (Machines) and the issuer's `lazurio-account`
+scope (DEV-6552 S1c); until both ship, every Environment answers `404` and the rail
+is F36's.
+
 **Rollout.** A session that signed in before the gateway client requested
 `lazurio-account` carries no such scope until its next sign-in. Until then the rail
 and Apps fall back silently, exactly as without the account document.
