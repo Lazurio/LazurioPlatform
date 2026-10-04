@@ -3670,3 +3670,133 @@ list read defensively, the Owner answer (only an active admin, cached, a member,
 refusal and a timeout are no, no call on a Team Environment), and the admission of the
 Owner route; and in Chrome against temporary fixture Folders, hosted and local, in both
 languages.
+
+## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
+
+**Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
+decided by Matěj the same day, not implemented.** Decided: the layering below (the
+forks place the elements, one library in this repository, the gateway as the one place
+where the person's token is used, the Dashboard as the source of the list); the first
+publication of the forks' slot ships without the list (the rail shows this Environment
+only until the delivery below lands); a workstation stays local-only for now (open
+question 1 stays open for later); the rail is for web Environments only, the desktop
+apps of T3 Code and MausBot show none; a jump to another Environment stays a plain
+navigation to its origin, with the issuer's silent sign-in on a first visit, and no
+single application serving every Environment is built. Open question 2 stays open. Matěj asked on
+2026-10-04 for foundations, not a facade: the rail of every app (Apps, Chat, Automate,
+module apps, the Dashboard) shows the spaces and Environments of **the person signed in
+at the browser**, wired properly through OAuth, so that the forks' small slot never has
+to change for it. F36 left exactly this as a facade ("other Environments in the rail …
+the Dashboard fills them through the Lazurio account").
+
+### What is already fixed
+
+- The Environment list is the Dashboard's (`GET /api/environment/v1/environments`, the
+  Dashboard's workspace composition §7). It is authorized **only by the person's own
+  Keycloak access token from their session at the browser**, never by an Environment's
+  credential, on every kind of Environment (§4.4): on a Team Environment several people
+  share one Launchpad, and on every kind Task Agents run with full access (root 0172).
+- One Keycloak session spans `dashboard.lazurio.ai` and `*.lazurio.io`; no parent-domain
+  cookie; relying-party cookies are host-only (root 0179 point 7). Every hosted
+  Environment already has a gateway (Caddy and oauth2-proxy, owned by Machines) that
+  admits the person through that issuer before any app sees a request.
+- The forks place the elements and read no data themselves (F36 point 5).
+
+### Proposal
+
+1. **Two documents, one shape.** `/.lazurio/shell.json` stays as F36 built it: what this
+   Environment knows about itself, the same for everyone who may open it, from the
+   Launchpad. A second document, **`/.lazurio/account.json`**, carries what only the
+   viewer's identity can answer: their spaces, the Environments they may open, their
+   Organizations, in the same entries as `lazurio.shell.v1` without `current`. One
+   parser in `src/shell/contract.ts` reads both (strict https-only URLs as today).
+2. **The gateway answers `account.json`, not the Launchpad.** On every origin of the
+   Environment (`launchpad.`, `t3code.`, `mausbot.`, module apps), after the unchanged
+   admission, the gateway asks its oauth2-proxy for the session's access token on the
+   auth subrequest and proxies `GET` to the Dashboard's
+   `/api/environment/v1/environments` with `Authorization: Bearer`. The token exists only
+   inside the system-owned gateway: it never reaches the Launchpad, an app, a Task
+   Agent's process or the browser. The answer goes back with `Cache-Control: no-store,
+   private` and `Vary: Cookie`; there is no cache of any viewer's list on the
+   Environment. Each browser carries its own session, so the answer is per viewer by
+   construction, Team Environments included.
+3. **A narrow token.** The issuer gets an optional client scope `lazurio-environments`
+   whose audience is the Dashboard's API; the gateway clients of Environments request
+   it. The Dashboard accepts a token carrying that scope for this one read-only `GET`
+   and for nothing else, and validates issuer, JWKS, exact audience and expiry. It maps
+   the subject to the person through the GitHub identity the issuer links (DEV-6552),
+   never through an e-mail.
+4. **The library merges in the browser.** The shell fetches both documents from its
+   own origin. The local document wins for `current` and its apps; account entries
+   whose id equals `current` are dropped; the account adds the other spaces and
+   Environments. If `account.json` is missing (an Environment before the rollout),
+   refused (401, 403) or slow, the rail is exactly F36's: this Environment only, with
+   no error shown. The forks' slot does not change.
+5. **The forks' origins reach the Launchpad's documents through the gateway.** On
+   `t3code.` and `mausbot.`, `GET` and `HEAD` of `/.lazurio/*` (except `account.json`)
+   are proxied to the Launchpad's listener with the Launchpad's `Host` and the session
+   cookie, before the app's own route, so the Launchpad's hosted admission (Host
+   equality and session revalidation) admits them unchanged. To be proven by the
+   gateway's executable proof, because RP cookies are host-only (0179 point 7): the
+   session of a fork origin must revalidate at the same oauth2-proxy. If it cannot, the
+   gateway serves the static files (`shell.js`, fonts, stones) itself from the same
+   pinned Platform bundle and only `shell.json` needs another way.
+6. **A workstation** (local Launchpad, no gateway) shows the local rail only until
+   Matěj decides how a workstation holds a viewer's token (open question 1).
+
+### Variants considered
+
+| Variant | Trade-off / disposition |
+| --- | --- |
+| The gateway relays the person's token to the Dashboard (selected) | The token stays in the system-owned gateway; per viewer by construction; one Machines change, one issuer scope, one Dashboard endpoint |
+| The Launchpad receives the viewer's token and asks the Dashboard | Every viewer's token would reach userland, where Task Agents run with full access; on a Team Environment every member's token passes through one process; rejected |
+| The browser asks `dashboard.lazurio.ai` directly with its session cookie | Cross-site from `*.lazurio.io`: third-party cookies are blocked by default in Safari and Firefox, and Chrome is following; rejected |
+| The shell runs its own OIDC (PKCE) in the browser on each origin | A token in JavaScript on every app origin, readable by any script there; silent renewal needs third-party cookies again; rejected |
+| The Environment's own credential asks for the person's list | Forbidden by the Dashboard's §4.4: on a Team Environment it would show the registering Owner's list to every member; rejected |
+| The Dashboard pushes each person's list into every Environment | Stale, and every Environment would hold lists of people who never open it; rejected |
+| A new account host on `lazurio.io` with its own same-site session | A second session beside the issuer's, a second login surface; rejected |
+
+### Failure modes
+
+- **Dashboard or issuer unavailable:** `account.json` answers `502`/`504`; the rail
+  falls back to the local document. Opening an Environment never depends on the
+  Dashboard.
+- **Session expired between page load and the request:** the gateway answers `401`
+  instead of a sign-in redirect for `account.json` (a `fetch` cannot follow it); the
+  next navigation signs in again.
+- **A removed grant:** the Dashboard answers from live rights; a stale entry in an open
+  page leads to the target's own gateway, which refuses. The rail is navigation, never
+  authority.
+- **A forged or foreign token:** refused by the Dashboard (scope, audience, issuer). A
+  header `Authorization` from the browser is stripped by the gateway, as today.
+- **Visibility:** the person's list, including the name and address of their personal
+  Remote Environment, crosses the gateway of a work or Team Environment in transit.
+  Whoever holds root on that Machine (Machines, the Organization's Owners) could read
+  it, and an address is not access (root 0155 grants are network grants and stay
+  unchanged). Matěj to confirm (open question 2).
+
+### Open questions for Matěj
+
+1. **Workstation:** a Launchpad client with the device grant and a refresh token limited
+   to `lazurio-environments`, kept in the OS custody of the operator's own computer
+   (recommended), or a workstation rail with this computer only.
+2. **Personal space in a work zone:** show the personal space and its Environments in the
+   rail of a work or Team Environment (recommended: yes, the rail is the person's, and
+   access stays the target gateway's), or hide them there.
+
+### Delivery, in this order
+
+1. Dashboard: the endpoint, its token validation and the mapping to the person (DEV-6552
+   adapter), with the registration-independent part first: a person's own personal
+   Remote Environment and their assigned work Environments from the infra roster the
+   Dashboard already reads.
+2. Issuer: the `lazurio-environments` scope (Machines realm change).
+3. Machines: the gateway route for `account.json` and the `/.lazurio/*` proxy on the fork
+   origins, both in the gateway's executable proof (forged `Authorization`, no token
+   copied to any upstream but the Dashboard, `no-store`, `401` not redirect).
+4. Platform: the second document in `contract.ts` and the merge in the library.
+
+Tests this needs: the parser with both documents; the merge (collision with `current`,
+local wins, account absent, 401, slow); the gateway proof above; the Dashboard's
+refusal of a token without the scope, with another audience, expired, or from an
+Environment credential.
