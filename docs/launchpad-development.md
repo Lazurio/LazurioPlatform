@@ -284,7 +284,9 @@ the Buddy bubble, and knows nothing of Lazurio's data:
   `width: 100%` under an overflow-hidden body, so a margin would clip the right edge).
   Each changed file joins the fork's allowlist as its own exact path. A check in the fork keeps
   that slot (the script and `<lazurio-column-head>`), so a rebase on a new upstream
-  conflicts only on those lines.
+  conflicts only on those lines. For colours, the fork adds a few lines of CSS that map
+  its theme tokens to the shell's colour roles on `:root` (see
+  [the shell as built](#the-shell-as-built-decision-f36), "Colours").
 - Nothing renders outside Lazurio: without `/.lazurio/shell.js` the elements stay
   undefined, the rail's width is 0 and the fork behaves as upstream. A new rail ships
   with the Launchpad, without a new fork release.
@@ -303,8 +305,8 @@ replaces these.
 
 **Open.** The narrow display (how the rail and a fork's sidebar collapse; upstream T3
 Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
-`postMessage` per navigation); whether the switch takes the colours of the fork it sits
-in; whether the switch still pairs the browser with T3 Code and MausBot on the way;
+`postMessage` per navigation); whether the switch still pairs the browser with T3 Code
+and MausBot on the way;
 where the update pill goes. (How the catalog reads the productionspace repositories
 was settled by F32's addenda: the read-only `repositories`; `infra` is not listed.)
 
@@ -320,7 +322,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   the identity of an Environment entry below),
   `view.ts` (the rail's spaces, the Environment picker's list, names and who lines, the
   switch, as pure functions), `elements.ts` (`<lazurio-rail>`, `<lazurio-column-head>`),
-  `styles.ts` (the vendored tokens on `:host`, the design system's selection rule),
+  `styles.ts` (the vendored tokens on `:host`, the colour roles with their
+  fallbacks, the design system's selection rule),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
   rail, below), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/` (tokens,
@@ -437,6 +440,50 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04); `tests/shell-interface.test.ts` keeps every promised name.
+- **Colours** (F36's addendum of 2026-10-04, evening; root decision 0187). The elements
+  have no palette of their own: they take the colours of the app they sit in. A host
+  sets the colour roles below as custom properties on its document (`:root`), from its
+  own theme tokens; they inherit into the elements' shadow roots. Every role is
+  optional: an unset one keeps the design system's colour, so a host that sets none
+  (the Launchpad page) looks as before, and the column head's dark tone
+  (`--lazurio-host-tone`) stays the fallback for a dark host without roles. A role the
+  host sets wins over that tone. Point each role at a token of the theme (`var(--…)`),
+  not at a fixed colour, so a change of theme reaches the elements without more code.
+
+  | Role | What it colours | What a host maps |
+  | --- | --- | --- |
+  | `--lazurio-surface` | the rail, the column behind the head | its sidebar's background |
+  | `--lazurio-ink` | names, icons on hover | its sidebar's text |
+  | `--lazurio-ink-muted` | who an Environment is for, icons, meta | its sidebar's muted text |
+  | `--lazurio-line` | hairlines and borders | its sidebar's border |
+  | `--lazurio-line-strong` | the ring of the active space in the rail | a stronger border, or the text mixed into the background |
+  | `--lazurio-hover` | a row under the pointer | its row hover |
+  | `--lazurio-selected` | the selected row, the open picker | its selected row |
+  | `--lazurio-control` | the track of the app switch | its control or input surface |
+  | `--lazurio-raised` | the active tab of the switch, an Organization's mark | its active row or raised surface |
+  | `--lazurio-overlay` | the list under the picker, the ⌘⇧E dialog, menus | its popover or menu background |
+  | `--lazurio-overlay-ink` | text in them | its popover text |
+  | `--lazurio-focus` | the focus ring | its focus ring |
+
+  T3 Code maps its sidebar tokens, MausBot its skin's panel tokens; the wireframe at
+  `HumanAndMachine-ai/prototypes-lazurio` 5411279 shows both (`themes/t3code.css`,
+  `themes/mausbot.css`). For example, for a theme whose sidebar tokens are `--sidebar`
+  and `--sidebar-foreground`:
+
+  ```css
+  :root {
+    --lazurio-surface: var(--sidebar);
+    --lazurio-ink: var(--sidebar-foreground);
+    /* … the other ten roles … */
+  }
+  ```
+
+  The shapes, type and selection rule stay the design system's. The list of
+  Environments mixes its lines, hover and selection from the overlay and its ink. The
+  Lazurio logo sits on a white disc in every theme, and the rail draws no line on its
+  edge toward the app: map `--lazurio-surface` to the colour of the sidebar beside it
+  and draw no border on that side. Each app picks its own theme for now; one theme
+  across the apps (the Environment's) is a later mechanism.
 
 ### Prompt hand-off to Chat
 
