@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import type { MachineBinding } from "../src/folder/machine-binding";
-import { shellDocument } from "../src/launchpad/shell-document";
+import {
+  dashboardSlug,
+  organizationDashboardUrl,
+  shellDocument,
+} from "../src/launchpad/shell-document";
 import {
   type Catalog,
   type CatalogOrganization,
@@ -561,6 +565,22 @@ test("the parser refuses what the elements could not draw safely", () => {
   ).toBeNull();
 });
 
+test("an Organization's Dashboard page uses the slug as the Dashboard derives it from the manifest's", () => {
+  expect(dashboardSlug("example")).toBe("example");
+  expect(dashboardSlug("Example-Co")).toBe("example-co");
+  expect(dashboardSlug("ExampleCo")).toBe("exampleco");
+  expect(dashboardSlug("alpha_internal.v2")).toBe("alpha-internal-v2");
+  expect(dashboardSlug(" Acme  & Co. ")).toBe("acme-co");
+  expect(dashboardSlug("--x--")).toBe("x");
+  expect(dashboardSlug("příklad")).toBe("p-klad");
+  expect(dashboardSlug("___")).toBeNull();
+  expect(organizationDashboardUrl("Example-Co")).toBe(
+    "https://dashboard.lazurio.ai/orgs/example-co",
+  );
+  // Nothing left: the Dashboard's home, never a page of another one.
+  expect(organizationDashboardUrl("___")).toBe("https://dashboard.lazurio.ai/");
+});
+
 test("initials: first letters of two words, else two letters", () => {
   expect(initialsOf("North Example")).toBe("NE");
   expect(initialsOf("example")).toBe("EX");
@@ -626,8 +646,9 @@ test.skipIf(process.platform === "win32")(
       expect(organization?.avatar).toBe(
         "https://github.com/alpha-forge.png?size=96",
       );
+      // The Dashboard addresses it by its canonical form of the same slug.
       expect(organization?.dashboard).toBe(
-        "https://dashboard.lazurio.ai/orgs/alpha_internal.v2",
+        "https://dashboard.lazurio.ai/orgs/alpha-internal-v2",
       );
       // The workstation holds it, so the picker of its space lists it.
       expect(shell.environments[0]?.organizations).toContain(
