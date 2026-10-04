@@ -106,7 +106,11 @@ function modules() {
     github_org: "Fixture",
     module_slots: [
       { path: "infra", git: { url: "https://github.com/Fixture/infra.git" } },
-      { path: "workspace/App/db", source_of_truth: "repository-db:app" },
+      {
+        path: "workspace/App/db",
+        source_of_truth: "repository-db:app",
+        git: { url: "https://github.com/Fixture/app-data.git", branch: "v3" },
+      },
       {
         path: "workspace/App",
         slug: "app",
@@ -120,6 +124,8 @@ function modules() {
         path: "productionspace/Tool",
         space: "productionspace",
         workspace: "old",
+        workspaces: ["old"],
+        teams: ["old"],
         repository: "Fixture/tool",
         branch: "main",
       },
@@ -156,7 +162,6 @@ test("legacy projection maps existing fields without rewriting source and checks
   expect(result.projection.modules).toEqual([
     {
       path: "productionspace/Tool",
-      workspace: "productionspace",
       repository: "Fixture/tool",
       repo: "Fixture/tool",
       branch: "main",
@@ -171,7 +176,12 @@ test("legacy projection maps existing fields without rewriting source and checks
       teams: ["makers"],
       custom: { keep: true },
     },
-    { path: "workspace/App/db", source_of_truth: "repository-db:app" },
+    {
+      path: "workspace/App/db",
+      source_of_truth: "repository-db:app",
+      repo: "https://github.com/Fixture/app-data.git",
+      branch: "v3",
+    },
   ]);
   expect(JSON.stringify({ c, m })).toBe(before);
   expect(Object.isFrozen(result.projection.modules)).toBe(true);
@@ -187,9 +197,14 @@ test("projection keeps document scope separate from executable mount support and
   expect(
     expectedLegacyProjection(c, {
       ...header,
-      module_slots: [{ path: "workspace" }, { path: "infra/deeper" }],
+      module_slots: [
+        { path: "workspace", repo: "Fixture/workspace" },
+        { path: "infra/deeper" },
+      ],
     }).projection.modules,
-  ).toEqual([{ path: "workspace", slug: "workspace" }]);
+  ).toEqual([
+    { path: "workspace", slug: "workspace", repo: "Fixture/workspace" },
+  ]);
   for (const path of [
     "../workspace/a",
     "workspace/../a",
