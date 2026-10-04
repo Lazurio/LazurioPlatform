@@ -234,8 +234,10 @@ information page is reached only from its tile's menu.
   this as the Owner check of F36's Organization-rail addendum, point 8. Once
   founding a Module in the Dashboard is done (plan DEV-6634), "+ Nový modul" leads there
   instead of to Chat (Matěj, 2026-10-04). The
-  T3 Code fork must accept the prompt by link, from the Environment's own origin only
-  and never sent without the person (Lazurio/t3code#35).
+  T3 Code fork accepts the prompt by link, from the Environment's own origin only and
+  never sent without the person (Lazurio/t3code#35): the link carries only the prompt's
+  id and the Organization's GitHub login, and the fork fetches the text from
+  `/.lazurio/prompts/<id>` on its own origin ([prompt hand-off](#prompt-hand-off-to-chat)).
 
 **Buddy.** Buddy is Buddy: he coordinates Agents on behalf of his person (the Operator)
 and holds the same authority over Agents as the Operator; he is neither an Agent nor an
@@ -344,13 +346,14 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   space's first Environment. Tests: `tests/shell-environment-id.test.ts`.
 - **Routes.** `/.lazurio/shell.js`, `/.lazurio/fonts/<file>` and
   `/.lazurio/stones/<file>` beside the page's routes (`src/launchpad/page.ts`);
-  `/.lazurio/shell.json`, `/api/organizations/<org>/owner` and
-  `/api/organizations/<org>/modules/<module>/maintain` in the server after admission
-  (`src/launchpad/server.ts`, producer `shell-document.ts`, the Owner answer
-  `organization-owner.ts`, a Steward's answer `module-maintainer.ts`). The page and the
-  library also speak to `/.lazurio/account/…` on the same origin, which the
-  Environment's gateway relays to the person's account (F37 and its addendum); the
-  Launchpad does not answer it.
+  `/.lazurio/shell.json`, `/.lazurio/prompts/<id>`, `/api/organizations/<org>/owner`,
+  `/api/organizations/<org>/modules/<module>/maintain` and `/api/chat/prompt-handoff`
+  in the server after admission (`src/launchpad/server.ts`, producer
+  `shell-document.ts`, the prompts `prompts.ts`, the Owner answer
+  `organization-owner.ts`, a Steward's answer `module-maintainer.ts`, the hand-off
+  check `chat.ts`). The page and the library also speak to `/.lazurio/account/…` on the
+  same origin, which the Environment's gateway relays to the person's account (F37 and
+  its addendum); the Launchpad does not answer it.
 - **Page.** `index.html` is rail | column | main. The Apps column (all modules, Files,
   favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
   `favorites.ts`, the frame is `shell.ts`, and the switch's pairing and the new
@@ -403,6 +406,58 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04); `tests/shell-interface.test.ts` keeps every promised name.
+
+### Prompt hand-off to Chat
+
+"+ Nový modul" opens Chat of the same Environment with the prepared prompt in a new
+thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
+
+- **The prompt.** `GET /.lazurio/prompts/<id>?org=<login>`, behind the admission of
+  every read (the gateway's session hosted, where Machines proxies `/.lazurio/*` from
+  the T3 Code origin to this Launchpad with the Launchpad's Host and the query kept;
+  the fragment token locally), answers `application/json`, `Cache-Control: no-store`:
+  `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
+  person's language (the Folder's profile locale), `cwd` the absolute root of the
+  Organization on this Environment (`<Folder>/organizations/<directory>`). Only the id
+  `new-module` exists (`src/launchpad/prompts.ts`, its text `newModulePrompt`); the
+  Organization is the one Organization of the Folder whose manifest binds that GitHub
+  login. Each prompt names who may get it: `new-module` only where this Environment's
+  GitHub identity is an Owner of the Organization, the tile's live check
+  (`organization-owner.ts`), so never on a Team Environment. Anyone else, an unknown id,
+  an Organization the Folder does not bind to that login, any other query and every
+  failure get the same `404 {"error": "not-found"}`: the answer never says more than the
+  tile already showed. Any method but GET: 405.
+- **The link.** The page never puts the text in a link. It opens Chat in a new tab
+  through the pairing (`POST /api/chat/pair`) and adds
+  `lazurio-prompt=<id>&lazurio-org=<login>` to the pairing link's fragment, after the
+  token (`chatPromptHref` in `chat-view.ts`); without a pairing, to Chat's plain origin.
+  A fragment never reaches a server or a log, and a T3 Code without the hand-off ignores
+  both parameters.
+- **Hand-off or clipboard.** The Launchpad hands the prompt over by link only where this
+  Environment's Chat takes it. `GET /api/chat/prompt-handoff` answers
+  `{"kind": "chat-prompt-handoff", "accepted": true|false}`: the server asks the T3 Code
+  installed here, through the same `t3` launcher the pairing runs (`t3 --version`), and
+  says yes only for a Lazurio fork release not older than the first one with the
+  hand-off on its channel (`chatPromptsSince` in `chat.ts`: stable
+  `0.0.45-lazurio.2`, preview `0.0.45-preview.20261004.1`). A vanilla upstream
+  build, another shape, a missing launcher, a failure or a workstation (no Chat origin,
+  nothing run) is no. The answer is kept five minutes. The page reads it once with the
+  entry. Yes: the click opens Chat with the link and copies nothing. No: the click writes
+  the prompt to the clipboard first, while the page still has the focus, then opens Chat
+  as before, and the short message says to paste it into a new chat; a workstation only
+  copies. A blocked tab falls back to the clipboard as well.
+- **The fork.** The overlay of Lazurio/t3code accepts only the id and the login, fetches
+  the text from its own origin, opens a new thread in the project rooted at `cwd` (adding
+  that folder as a project when there is none, as "Add project" does) and leaves the
+  text in the composer; nothing is sent without the person, and an unknown id, a failed
+  fetch or a wrong answer insert nothing.
+- **Tests.** `tests/launchpad-prompts.test.ts`: the prompt registry and its audience,
+  the Organization a login names (case-insensitive, exactly one), the document, the
+  version rule and the cached `t3 --version` check (every failure no), the link's shape,
+  and HTTP: hosted behind the admission (401 without the session), the Owner's document
+  with `no-store`, GitHub asked for the bound login, 405 for POST, the same 404 for
+  another id, Organization, query or a non-Owner, the hand-off answer from the
+  Environment's `t3`; locally only with the token, and no hand-off without a Chat origin.
 
 ## Settings: structure, routes and the T3 Code pattern
 
@@ -1091,6 +1146,7 @@ hosted, the fragment token locally):
 |---|---|
 | `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate, mausbotOrigin?} \| null}`: the recorded entry's public parts, read-only; the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
 | `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON or a credential of another shape); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
+| `GET /api/chat/prompt-handoff` | `{kind: "chat-prompt-handoff", accepted}`: whether Chat on this Environment takes a prepared prompt by link ([prompt hand-off](#prompt-hand-off-to-chat)); `accepted: false` on a workstation without running anything. Any other method: 405. |
 
 **CLI.** `lazurio chat link [--folder <absolute Folder>] [--plain] [--json]`
 (`src/launchpad/chat-cli.ts`) is the same entry for an agent in a terminal: it reads the
