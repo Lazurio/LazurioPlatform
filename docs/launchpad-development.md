@@ -332,8 +332,11 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   bare Machine name repeats across Organizations; the base host is unique by DNS, so
   the account document can list Environments of several Organizations. Only
   `environmentIdOf` derives it, from the Environment's own Launchpad origin; the
-  producer (`shell-document.ts`) uses nothing else, and `parseShell` refuses an id that
-  is not one or two lowercase DNS labels (`isEnvironmentId`). The Dashboard derives the
+  producer (`shell-document.ts`) uses nothing else and fails closed when a hosted
+  address yields no base host (no document, `operation-failed`; the rail stays empty).
+  `parseShell` refuses an id that is not one or two lowercase DNS labels
+  (`isEnvironmentId`), and a hosted entry whose id is not the base host of its own
+  Apps address (the bare Machine name included). The Dashboard derives the
   same value from the registry's Apps address. The rail's memory of the last
   Environment, kept under the bare name, stops matching once and falls back to the
   space's first Environment. Tests: `tests/shell-environment-id.test.ts`.

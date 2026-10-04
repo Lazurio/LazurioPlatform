@@ -10,6 +10,7 @@ import {
   type ShellEnvironmentKind,
   type ShellOrganization,
   shellSchema,
+  workstationId,
 } from "../shell/contract";
 import { initialsOf } from "../shell/view";
 
@@ -168,16 +169,22 @@ export function computerLabel(name: string | undefined): string | null {
   return /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,62})$/.test(host) ? host : null;
 }
 
-/** This Environment's id in the document (F37's addendum of 2026-10-04):
- * where it has a hosted entry, its base host by `environmentIdOf`, the one
- * derivation of it; otherwise, as before, its Machine name, and `local`
- * without one (a workstation). */
+/** This Environment's id in the document (F37's addendum of 2026-10-04).
+ * Hosted (it has an entry): its base host by `environmentIdOf`, the one
+ * derivation of it; an entry whose address yields none has no id, and this
+ * throws, so the document fails closed (`/.lazurio/shell.json` answers
+ * `operation-failed` and the rail stays empty) rather than fall back to the
+ * Machine name, which repeats across Organizations. A workstation, as
+ * before: its Machine name, or `local` without one. */
 export function environmentId(machine: MachineBinding | null): string {
   const entry = machine?.entry;
-  const hosted =
-    entry === undefined ? null : environmentIdOf(entry.externalOrigin);
-  if (hosted !== null) return hosted;
-  return isEnvironmentId(machine?.name) ? machine.name : "local";
+  if (entry !== undefined) {
+    const hosted = environmentIdOf(entry.externalOrigin);
+    if (hosted === null)
+      throw new Error("The hosted entry's origin has no base host");
+    return hosted;
+  }
+  return isEnvironmentId(machine?.name) ? machine.name : workstationId;
 }
 
 /** This Environment's shell document. `computer` is the host name of the

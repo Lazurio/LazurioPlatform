@@ -3959,7 +3959,12 @@ name repeats across Organizations (every Organization may have a `vm-01`), and t
 account document lists the person's Environments across Organizations, so it cannot
 key them; DNS makes the base host unique. One function derives it
 (`environmentIdOf` in `src/shell/contract.ts`, from the Environment's own Launchpad
-origin), and the parser refuses an id that is not one or two lowercase DNS labels. The
+origin). The parser refuses an id that is not one or two lowercase DNS labels, and a
+hosted entry whose id is not the base host of its own Apps address, the bare Machine
+name included; an https Apps address from which no base host derives carries only a
+workstation's `local`. The producer fails closed: a hosted Launchpad whose address
+yields no base host serves no shell document (`operation-failed`, the rail stays
+empty, the page works) rather than fall back to the Machine name. The
 Dashboard derives the same value from the registry's Apps address. A rail's memory of
 the last Environment per space, kept in the browser under the bare name, simply stops
 matching once and falls back to the space's first Environment.

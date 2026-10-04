@@ -224,6 +224,56 @@ posixTest(
 );
 
 posixTest(
+  "hosted at an address without a base host: no shell document, the page still serves",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-shell-")),
+    );
+    const folder = join(parent, "Lazurio");
+    await mkdir(folder, { mode: 0o700 });
+    await mkdir(join(folder, "organizations"), { mode: 0o755 });
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    const probe = Bun.serve({ port: 0, fetch: () => new Response("") });
+    const port = probe.port ?? 0;
+    probe.stop(true);
+    const preset = "hosted-organization-personal";
+    // An entry Machines would not issue (not `<app>.<base>.lazurio.io`): its
+    // Environment has no identity, so the document fails closed instead of
+    // falling back to the Machine name.
+    await initializeHandoverFolder(folder, {
+      preset,
+      machine: organizationWithEntry(port, "example.com"),
+      profile: presetProfile(preset, executionOs(process.platform), {
+        locale: "cs",
+      }),
+    });
+    const app = await startLaunchpad(folder, undefined, undefined, undefined, {
+      fetcher: async () => new Response("ok"),
+    });
+    const base = `http://127.0.0.1:${port}`;
+    const valid = {
+      host: "launchpad.example.com",
+      cookie: "__Secure-lazurio-workspace=valid",
+    };
+    try {
+      const answer = await fetch(`${base}/.lazurio/shell.json`, {
+        headers: valid,
+      });
+      expect(answer.status).toBe(500);
+      expect(await answer.json()).toEqual({ error: "operation-failed" });
+      expect((await fetch(`${base}/`, { headers: valid })).status).toBe(200);
+      expect(
+        (await fetch(`${base}/.lazurio/shell.js`, { headers: valid })).status,
+      ).toBe(200);
+    } finally {
+      await app.close();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  30_000,
+);
+
+posixTest(
   "valid but long declarations keep the shell document and the page's catalog readable",
   async () => {
     await folderFixture(async (folder) => {

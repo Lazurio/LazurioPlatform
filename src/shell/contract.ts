@@ -143,6 +143,9 @@ const isAppsUrl = (value: unknown): value is string =>
 const hostedDomain = ".lazurio.io";
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
+/** A workstation's id: it has no hosted address to take one from. */
+export const workstationId = "local";
+
 /** An Environment id: one lowercase DNS label (a personal Remote
  * Environment's slug, a workstation's `local`) or two (`<machine>.<org>`). */
 export function isEnvironmentId(value: unknown): value is string {
@@ -187,6 +190,17 @@ export function environmentIdOf(origin: string): string | null {
   return isEnvironmentId(id) ? id : null;
 }
 
+/** Whether an entry's id is the one its Apps address gives it: an https
+ * Apps address is the Environment's own, so the id is its base host
+ * (`environmentIdOf`); one from which no base host derives (another
+ * domain, another depth) belongs only to a workstation (`local`). Apps on
+ * the document's own origin (a path) keeps any id in the DNS form. */
+function identityMatches(id: string, apps: ShellApps): boolean {
+  if (!isShellUrl(apps.apps)) return true;
+  const hosted = environmentIdOf(apps.apps);
+  return hosted === null ? id === workstationId : id === hosted;
+}
+
 /** An Organization's slug as its canonical manifest admits it (any
  * nonblank text without surrounding space), bounded here at 128 and without
  * control characters. The elements only compare slugs and encode them into
@@ -225,7 +239,8 @@ function environment(value: unknown): ShellEnvironment | null {
     !Array.isArray(organizations) ||
     !organizations.every((entry) => typeof entry === "string") ||
     !(assignee === null || isLogin(assignee)) ||
-    own === null
+    own === null ||
+    !identityMatches(id, own)
   )
     return null;
   return Object.freeze({
@@ -260,7 +275,8 @@ function organization(value: unknown): ShellOrganization | null {
 /** The shell document, when the input is a valid `lazurio.shell.v1`; null
  * otherwise. Members this version does not know are ignored (a later producer
  * may add some); every known member must have its exact shape, Environment
- * ids are in the DNS form of `isEnvironmentId`, ids and slugs are unique,
+ * ids are in the DNS form of `isEnvironmentId` and a hosted entry's is the
+ * base host of its Apps address, ids and slugs are unique,
  * `current` names an Environment and every Organization an Environment names
  * is listed. */
 export function parseShell(input: unknown): Shell | null {

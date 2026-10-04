@@ -175,3 +175,75 @@ test("two Organizations whose Environments share a machine name are two entries"
   expect(parseShell(document(["vm-01.Alpha", "vm-01.beta"]))).toBeNull();
   expect(parseShell(document(["vm 01", "vm-01.beta"]))).toBeNull();
 });
+
+// Pablo's review of #161: the id must be the base host of the entry's own
+// Apps address, not merely an id in the DNS form, and a hosted Launchpad
+// whose address yields no base host has no document at all.
+const hostedDocument = () =>
+  JSON.parse(
+    JSON.stringify(
+      shellDocument({
+        preset: "hosted-organization-personal",
+        machine: organizationWithEntry(20000, "vm-01.example.lazurio.io"),
+        locale: "en",
+        catalog: { kind: "catalog", organizations: [organization("example")] },
+      }),
+    ),
+  ) as {
+    current: string;
+    environments: { id: string; apps: Record<string, string | null> }[];
+  };
+const withId = (id: string, apps?: string) => {
+  const value = hostedDocument();
+  value.current = id;
+  const entry = value.environments[0];
+  if (entry === undefined) throw new Error("The document has one");
+  entry.id = id;
+  if (apps !== undefined) entry.apps = { apps, chat: null, automate: null };
+  return value;
+};
+
+test("a hosted entry's id is the base host of its Apps address, never the bare machine name", () => {
+  expect(parseShell(hostedDocument())?.current).toBe("vm-01.example");
+  // The collision this rule exists for.
+  expect(parseShell(withId("vm-01"))).toBeNull();
+  // Another valid id that is not this address's.
+  expect(parseShell(withId("vm-02.example"))).toBeNull();
+  expect(parseShell(withId("local"))).toBeNull();
+  // A personal Remote Environment: its slug only.
+  expect(
+    parseShell(withId("example", "https://launchpad.example.lazurio.io/")),
+  ).not.toBeNull();
+  expect(
+    parseShell(withId("vm-01", "https://launchpad.example.lazurio.io/")),
+  ).toBeNull();
+  // An address under lazurio.io of another depth yields no base host.
+  expect(
+    parseShell(withId("b.c", "https://launchpad.a.b.c.lazurio.io/")),
+  ).toBeNull();
+});
+
+test("a workstation keeps its local id: on the document's own origin any id in the DNS form, elsewhere only `local`", () => {
+  expect(parseShell(withId("local", "/"))?.current).toBe("local");
+  expect(parseShell(withId("example-laptop", "/"))?.current).toBe(
+    "example-laptop",
+  );
+  expect(
+    parseShell(withId("local", "https://launchpad.example.com/"))?.current,
+  ).toBe("local");
+  expect(
+    parseShell(withId("workspace", "https://launchpad.example.com/")),
+  ).toBeNull();
+});
+
+test("a hosted Launchpad whose address yields no base host has no shell document (fails closed)", () => {
+  for (const host of ["example.com", "a.b.c.lazurio.io"])
+    expect(() =>
+      shellDocument({
+        preset: "hosted-organization-personal",
+        machine: organizationWithEntry(20000, host),
+        locale: "en",
+        catalog: { kind: "catalog", organizations: [organization("example")] },
+      }),
+    ).toThrow();
+});
