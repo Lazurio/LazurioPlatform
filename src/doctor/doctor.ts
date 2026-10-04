@@ -513,7 +513,11 @@ async function toolRows(
   });
 }
 
-function catalogChecks(catalog: Catalog | "unreadable" | null): DoctorCheck[] {
+/** The Organizations and modules of a catalog as doctor checks; content
+ * installation ends an Organization's install with the same checks. */
+export function catalogChecks(
+  catalog: Catalog | "unreadable" | null,
+): DoctorCheck[] {
   if (catalog === null) return [check("catalog", "skipped", "no-folder")];
   if (catalog === "unreadable")
     return [check("catalog", "warn", "catalog-unreadable")];
