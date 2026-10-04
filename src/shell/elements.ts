@@ -497,10 +497,13 @@ export class LazurioRail extends ShellElement {
     );
     home.href = shell.dashboard;
     home.setAttribute("aria-label", copy.dashboard);
+    // The logo on a white disc, so it reads the same in every app's colours.
+    const disc = element("span", "disc");
     const image = element("img");
     image.alt = "";
     image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logo)}`;
-    home.append(image);
+    disc.append(image);
+    home.append(disc);
 
     const search = this.withTip(
       element("button", "item search"),

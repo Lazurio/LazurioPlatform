@@ -3810,6 +3810,75 @@ cookies; that change must keep one sign-in per Environment whose session revalid
 on any of its origins. If it cannot, the gateway serves the static shell files itself
 and only `shell.json` needs another way, before the cookie change ships.
 
+**Addendum 2026-10-04, evening, decided by Matěj with Anička (plan DEV-6639): the
+shell takes the colours of the app it sits in.** Root decision 0187
+(`HumanAndMachines/Lazurio#489`) records the direction; the accepted
+wireframe is `HumanAndMachine-ai/prototypes-lazurio` 5411279 (`shell-theme.css`). This
+amends point 6, where the rail and the switch took every colour from the design
+system's tokens, and answers the target shell's open question whether the switch takes
+the colours of the app it sits in.
+
+1. **No palette of their own.** The rail, the column head (the Environment picker, the
+   gear, the switch Chat · Apps · Automate), the list of Environments (under the picker
+   and the ⌘⇧E dialog) and the account in the rail take the colours of the app they sit
+   in. The host fills twelve colour roles from its own theme tokens, as custom
+   properties on its document (`:root`); they inherit into the elements' shadow roots.
+
+   | Role | What it colours |
+   | --- | --- |
+   | `--lazurio-surface` | the rail, and the column behind the head |
+   | `--lazurio-ink` | names, icons on hover |
+   | `--lazurio-ink-muted` | the line saying who an Environment is for, icons, meta |
+   | `--lazurio-line` | hairlines and borders |
+   | `--lazurio-line-strong` | the ring of the active space in the rail |
+   | `--lazurio-hover` | a row under the pointer |
+   | `--lazurio-selected` | the selected row and the open picker (the quiet surface) |
+   | `--lazurio-control` | the track of the app switch |
+   | `--lazurio-raised` | the active tab of the switch, an Organization's mark |
+   | `--lazurio-overlay` | the list under the picker, the ⌘⇧E dialog, menus |
+   | `--lazurio-overlay-ink` | text in them |
+   | `--lazurio-focus` | the focus ring |
+
+   Inside, `src/shell/styles.ts` binds every colour to a role through its own
+   `--shell-*` names. The design system's shapes, type and selection rule stay as they
+   are: a quiet surface one step darker, full-weight text, a check with a word. The list
+   sits on the overlay in its ink; its lines, hover and selection are mixed from the two
+   as the wireframe mixes them (`color-mix` in oklab: 14 % of the ink for lines, 22 %
+   for its border, 9 % for faint lines, 5 % for hover, 10 % for the selected row, 62 %
+   for muted text). The rail's labels, the personal space's initials and the account's
+   initials invert the host's colours (ink background, surface text).
+2. **Every role is optional, and without roles nothing changes.** An unset role keeps
+   the design system's colour, so a host that sets none (the Launchpad page today, the
+   Dashboard) looks as before. A value mixed from the overlay stays unset while the host
+   sets no overlay, so the list keeps the design system's lines and greys too. The
+   column head's dark tone (`--lazurio-host-tone`, or the luminance of the host's
+   background, shown as `data-host-tone`) stays the fallback for a dark host without
+   roles; a role the host sets wins over it. Interface v1 gains the twelve names under
+   `properties` (`src/shell/interface.ts`); nothing is renamed or removed.
+3. **The logo on a white disc.** The Lazurio logo in the rail sits on a 32 px white disc
+   with a 1 px ring of 8 % black, the logo 20 px inside it, white whatever the roles
+   say, so it reads the same in every theme. The link to the Dashboard and its
+   accessible name are unchanged.
+4. **No line between the rail and the app.** The rail draws no border, shadow or line
+   on its edge toward the app. A host that maps `--lazurio-surface` to its sidebar's
+   colour and draws no border on that side meets the rail without a seam. The Launchpad
+   page's own hairline at the rail's edge belongs to the page, not to the rail; the
+   wireframe keeps it for Apps, and this addendum leaves it as it is.
+5. **Each app picks its own theme, for now.** T3 Code from its themes (its sidebar's
+   tokens), MausBot from its skins, the Launchpad and Apps from the design system. A
+   later mechanism will unify the theme across the apps as the Environment's theme; it
+   is not part of this addendum, and nothing here records a colour of an Environment.
+
+Verified by unit tests (interface v1 with the twelve roles; both elements read every
+role with a fallback, and none without one) and in Chrome, on a harness page with the
+elements built from `main` and from this revision. With no roles every state (at rest,
+the picker, a tab and the gear under the pointer, the list under the picker with a
+rail label, the ⌘⇧E dialog, keyboard focus), on a light host and on a dark host in the
+dark tone, was byte-identical to `main` before the disc; with the disc, every
+differing pixel lies inside it. The roles were checked with T3 Code's default dark
+theme and its light "ocean" theme, mapped as the wireframe maps them. These are no
+rendered-page CI gates (root decision 0178).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
