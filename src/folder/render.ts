@@ -465,7 +465,7 @@ function updateLine(preset: PresetName): Text {
         : "When the Operator asks for an update (for example „Aktualizuj“), that is the consent: run `lazurio update` and update the tools that have a newer version (`lazurio tools update <tool>`); then tell them briefly what changed.",
       ...(team
         ? [
-            "On a Team Environment an update affects all its Operators: the Launchpad restarts for them for a moment, and the tools and checkouts are shared.",
+            "On a Team Environment an update affects all its Operators: Lazurio (the Launchpad) restarts for them for a moment, and the tools and checkouts are shared.",
           ]
         : []),
       "The procedure is in `manual/troubleshooting.md` (decisions 0161 and F17).",

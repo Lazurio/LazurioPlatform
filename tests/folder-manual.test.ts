@@ -1035,6 +1035,13 @@ test("an update the Operator asks for updates the tools and pulls every module; 
             : "and above all pull the changes of every Organization and module",
         ),
       ).toBe(journey.preset !== "hosted-personal");
+      expect(
+        agents.includes(
+          cs
+            ? "Lazurio (Launchpad) se jim na chvíli restartuje"
+            : "Lazurio (the Launchpad) restarts for them for a moment",
+        ),
+      ).toBe(journey.preset === "hosted-organization-team");
       for (const text of Object.values(outputs))
         expect(text).not.toMatch(
           /Vzdálený chat zatím nejde|A remote chat cannot be deleted/,
