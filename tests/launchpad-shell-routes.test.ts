@@ -10,8 +10,10 @@ import { parseCatalog } from "../src/launchpad/catalog-view";
 import { privatePage, shellSource } from "../src/launchpad/page";
 import { startLaunchpad } from "../src/launchpad/server";
 import { checkBundledPage } from "../src/launchpad/start-check";
+import { readFolderCatalog } from "../src/organizations/catalog";
 import { parseShell } from "../src/shell/contract";
 import { shellFonts } from "../src/shell/fonts";
+import { toolsEnvironmentOf } from "../src/tools/overview";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 
@@ -125,6 +127,117 @@ posixTest(
 );
 
 posixTest(
+  "locally: whether this identity maintains a module's declared repository, GitHub's answer behind the token",
+  async () => {
+    await folderFixture(async (folder) => {
+      await writeOrganization(folder, "omega_GEN3", {
+        slug: "omega",
+        forge: "omega-forge",
+        state: "current",
+        modules: [
+          {
+            id: "deals",
+            slot: {
+              git: { url: "git@github.com:omega-forge/deals.git" },
+            },
+          },
+          { id: "orders" },
+          {
+            id: "elsewhere",
+            slot: { git: { url: "https://github.com/other-org/x.git" } },
+          },
+        ],
+      });
+      // The catalog carries the module's repository page, read from its slot.
+      const read = await readFolderCatalog(folder);
+      const omega = read.organizations.find(
+        (entry) => entry.organization === "omega",
+      );
+      expect(
+        omega?.modules.map((module) => [module.module, module.url ?? null]),
+      ).toEqual([
+        ["deals", "https://github.com/omega-forge/deals"],
+        ["orders", null],
+        ["elsewhere", "https://github.com/other-org/x"],
+      ]);
+      const asked: string[] = [];
+      const home = join(folder, "..", "home");
+      await mkdir(join(home, "bin"), { recursive: true });
+      await Bun.write(join(home, "bin", "gh"), "#!/bin/sh\nexit 1\n");
+      await Bun.$`chmod 755 ${join(home, "bin", "gh")}`;
+      const app = await startLaunchpad(
+        folder,
+        undefined,
+        undefined,
+        undefined,
+        {},
+        toolsEnvironmentOf(
+          { PATH: join(home, "bin"), HOME: home },
+          process.platform,
+          async (command) => {
+            asked.push(command.slice(1).join(" "));
+            return {
+              exitCode: 0,
+              stdout: JSON.stringify({
+                permissions: { admin: false, maintain: true, push: true },
+              }),
+              stderr: "",
+            };
+          },
+        ),
+      );
+      const session = new URL(app.url);
+      const token = session.hash.slice(1);
+      const ask = (path: string, init: RequestInit = {}) =>
+        fetch(new URL(path, session), {
+          ...init,
+          headers: { Authorization: `Bearer ${token}`, ...init.headers },
+        });
+      try {
+        const path = "/api/organizations/omega/modules/deals/maintain";
+        expect((await fetch(new URL(path, session))).status).toBe(403);
+        const answer = await ask(path);
+        expect(answer.status).toBe(200);
+        expect(answer.headers.get("cache-control")).toBe("no-store");
+        expect(await answer.json()).toEqual({
+          kind: "module-maintain",
+          maintain: true,
+        });
+        expect(asked).toEqual(["api repos/omega-forge/deals"]);
+        // No repository declared, one outside the Organization, an unknown
+        // module or Organization: no, without asking GitHub.
+        for (const other of [
+          "/api/organizations/omega/modules/orders/maintain",
+          "/api/organizations/omega/modules/elsewhere/maintain",
+          "/api/organizations/omega/modules/missing/maintain",
+          "/api/organizations/nowhere/modules/deals/maintain",
+        ])
+          expect(await (await ask(other)).json()).toEqual({
+            kind: "module-maintain",
+            maintain: false,
+          });
+        expect(asked).toEqual(["api repos/omega-forge/deals"]);
+        expect(
+          (
+            await ask(path, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Origin: session.origin,
+              },
+              body: "{}",
+            })
+          ).status,
+        ).toBe(405);
+      } finally {
+        await app.close();
+      }
+    });
+  },
+  30_000,
+);
+
+posixTest(
   "hosted: the script, the fonts and the document only after the gateway's admission",
   async () => {
     const parent = await realpath(
@@ -214,6 +327,15 @@ posixTest(
       expect(await answered.json()).toEqual({
         kind: "organization-owner",
         owner: false,
+      });
+      // The Steward's question of "Přístup k modulu" (S15): the same.
+      const maintain = `${base}/api/organizations/example/modules/deals/maintain`;
+      expect((await fetch(maintain, { headers: { host } })).status).toBe(401);
+      const maintained = await fetch(maintain, { headers: valid });
+      expect(maintained.status).toBe(200);
+      expect(await maintained.json()).toEqual({
+        kind: "module-maintain",
+        maintain: false,
       });
     } finally {
       await app.close();

@@ -362,7 +362,9 @@ function isModule(value: unknown): value is CatalogModule {
     (entry.file === undefined || text(entry.file)) &&
     (entry.preparationRefused === undefined ||
       entry.preparationRefused === true) &&
-    (entry.display === undefined || isDisplay(entry.display))
+    (entry.display === undefined || isDisplay(entry.display)) &&
+    (entry.url === undefined ||
+      (text(entry.url) && entry.url.startsWith("https://github.com/")))
   );
 }
 // The default app's display text (decision F36): bounded strings only.
