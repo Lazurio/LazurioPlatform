@@ -254,18 +254,129 @@ test("a write the account does not take is put back in its place", async () => {
   expect(unsent).toEqual([]);
 });
 
-test("a failed write does not undo a later click on the same favourite", async () => {
-  const pending: ((ok: boolean) => void)[] = [];
+// Clicks on one favourite while its writes are under way (Pablo's review of
+// #159): one write per favourite at a time, in the order of the clicks, so
+// the account ends as the last click wants; a failure is put back only when
+// no later click wants something else, and a later success stands.
+type Write = { method: string; path: string; answer: (ok: boolean) => void };
+function pendingWrites(initial: ReadonlyMap<string, readonly string[]>) {
+  const writes: Write[] = [];
   const favourites = createAccountFavourites(
-    new Map(),
-    () => new Promise<boolean>((resolve) => pending.push(resolve)),
+    initial,
+    (method, path) =>
+      new Promise<boolean>((answer) => writes.push({ method, path, answer })),
   );
+  return { writes, favourites };
+}
+const settle = () => new Promise((done) => setTimeout(done, 0));
+const methods = (writes: readonly Write[]) =>
+  writes.map((write) => write.method);
+
+test("three quick clicks starring a favourite: the first failure does not undo the last click", async () => {
+  const { writes, favourites } = pendingWrites(new Map());
+  const clicks = [1, 2, 3].map(() => favourites.toggle("example", "m:deals"));
+  // Visibly starred at once; one write is under way, the rest wait for it.
+  expect(favourites.list("example")).toEqual(["m:deals"]);
+  expect(methods(writes)).toEqual(["PUT"]);
+  writes[0]?.answer(false);
+  await settle();
+  // The last click still wants the star: it stays and is written again.
+  expect(favourites.list("example")).toEqual(["m:deals"]);
+  expect(methods(writes)).toEqual(["PUT", "PUT"]);
+  writes[1]?.answer(true);
+  expect(await Promise.all(clicks)).toEqual([true, true, true]);
+  expect(favourites.list("example")).toEqual(["m:deals"]);
+  expect(writes[1]?.path).toBe(
+    "/.lazurio/account/favourites/example/module/deals",
+  );
+});
+
+test("three quick clicks unstarring a favourite: it ends unstarred", async () => {
+  const { writes, favourites } = pendingWrites(
+    new Map([["example", ["m:deals", "m:orders"]]]),
+  );
+  const clicks = [1, 2, 3].map(() => favourites.toggle("example", "m:deals"));
+  expect(favourites.list("example")).toEqual(["m:orders"]);
+  expect(methods(writes)).toEqual(["DELETE"]);
+  writes[0]?.answer(false);
+  await settle();
+  expect(favourites.list("example")).toEqual(["m:orders"]);
+  expect(methods(writes)).toEqual(["DELETE", "DELETE"]);
+  writes[1]?.answer(true);
+  expect(await Promise.all(clicks)).toEqual([true, true, true]);
+  expect(favourites.list("example")).toEqual(["m:orders"]);
+});
+
+test("a click undone before its write answers sends nothing more", async () => {
+  const { writes, favourites } = pendingWrites(new Map());
+  const clicks = [
+    favourites.toggle("example", "m:deals"),
+    favourites.toggle("example", "m:deals"),
+  ];
+  expect(favourites.list("example")).toEqual([]);
+  // The account took the star the person no longer wants: it is taken back.
+  writes[0]?.answer(true);
+  await settle();
+  expect(methods(writes)).toEqual(["PUT", "DELETE"]);
+  writes[1]?.answer(true);
+  expect(await Promise.all(clicks)).toEqual([true, true]);
+  expect(favourites.list("example")).toEqual([]);
+  // Refused instead: what the account holds is what the person wants.
+  const refused = pendingWrites(new Map());
+  const again = [
+    refused.favourites.toggle("example", "m:deals"),
+    refused.favourites.toggle("example", "m:deals"),
+  ];
+  refused.writes[0]?.answer(false);
+  expect(await Promise.all(again)).toEqual([true, true]);
+  expect(methods(refused.writes)).toEqual(["PUT"]);
+  expect(refused.favourites.list("example")).toEqual([]);
+});
+
+test("the last click's failure puts back what the account holds, in its place", async () => {
+  const { writes, favourites } = pendingWrites(new Map());
   const first = favourites.toggle("example", "m:deals");
   const second = favourites.toggle("example", "m:deals");
-  expect(favourites.list("example")).toEqual([]);
-  pending[0]?.(false);
-  pending[1]?.(true);
-  expect(await first).toBe(false);
-  expect(await second).toBe(true);
-  expect(favourites.list("example")).toEqual([]);
+  writes[0]?.answer(true);
+  await settle();
+  // The account holds the star; taking it back fails and no click follows.
+  expect(methods(writes)).toEqual(["PUT", "DELETE"]);
+  writes[1]?.answer(false);
+  expect(await first).toBe(true);
+  expect(await second).toBe(false);
+  expect(favourites.list("example")).toEqual(["m:deals"]);
+  // A favourite removed and starred again while the removal fails stays
+  // where the account keeps it, not at the end.
+  const placed = pendingWrites(new Map([["example", ["m:a", "m:b", "m:c"]]]));
+  const out = placed.favourites.toggle("example", "m:b");
+  const back = placed.favourites.toggle("example", "m:b");
+  expect(placed.favourites.list("example")).toEqual(["m:a", "m:c", "m:b"]);
+  placed.writes[0]?.answer(false);
+  expect(await Promise.all([out, back])).toEqual([true, true]);
+  expect(methods(placed.writes)).toEqual(["DELETE"]);
+  expect(placed.favourites.list("example")).toEqual(["m:a", "m:b", "m:c"]);
+});
+
+test("two favourites are written independently", async () => {
+  const { writes, favourites } = pendingWrites(new Map());
+  const deals = favourites.toggle("example", "m:deals");
+  const orders = favourites.toggle("example", "m:orders");
+  // Neither waits for the other.
+  expect(writes.map((write) => write.path)).toEqual([
+    "/.lazurio/account/favourites/example/module/deals",
+    "/.lazurio/account/favourites/example/module/orders",
+  ]);
+  writes[1]?.answer(false);
+  expect(await orders).toBe(false);
+  expect(favourites.list("example")).toEqual(["m:deals"]);
+  writes[0]?.answer(true);
+  expect(await deals).toBe(true);
+  expect(favourites.list("example")).toEqual(["m:deals"]);
+  // The same id in another Organization is another favourite.
+  const other = favourites.toggle("other", "m:deals");
+  expect(writes).toHaveLength(3);
+  writes[2]?.answer(true);
+  expect(await other).toBe(true);
+  expect(favourites.list("other")).toEqual(["m:deals"]);
+  expect(favourites.list("example")).toEqual(["m:deals"]);
 });
