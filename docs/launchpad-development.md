@@ -439,7 +439,8 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   installed here, through the same `t3` launcher the pairing runs (`t3 --version`), and
   says yes only for a Lazurio fork release not older than the first one with the
   hand-off on its channel (`chatPromptsSince` in `chat.ts`: stable
-  `0.0.45-lazurio.2`, preview `0.0.45-preview.20261004.1`). A vanilla upstream
+  `0.0.45-lazurio.2`, released on 2026-10-04 with the overlay of Lazurio/t3code#36,
+  preview `0.0.45-preview.20261004.1`). A vanilla upstream
   build, another shape, a missing launcher, a failure or a workstation (no Chat origin,
   nothing run) is no. The answer is kept five minutes. The page reads it once with the
   entry. Yes: the click opens Chat with the link and copies nothing. No: the click writes
