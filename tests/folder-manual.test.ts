@@ -1067,18 +1067,20 @@ test("a Remote Environment's troubleshooting manual replaces an outdated Codex a
             "## Codex app-server po aktualizaci Codexu",
             "Když `lazurio doctor` hlásí u `codex-app-server` `warn app-server-outdated`, klienti ChatGPT Desktopu pořád mluví se starším app-serverem (`appServerVersion`), než je nainstalovaný Codex (`cliVersion`).",
             "Výměna na chvíli odpojí chaty ChatGPT Desktopu na tomhle Environmentu, proto je to rozhodnutí Operátora: nejdřív se ho zeptej.",
-            "`find ~/.codex/sessions -type f -mmin -15` nic nevypíše",
+            "`find ~/.codex/sessions -type f -mmin -15` musí skončit úspěchem a nic nevypsat. Když něco vypíše, je někdo uprostřed práce, počkej; když selže, ticho neověříš, tak nic neukončuj.",
+            "Pokračuj jen s právě jedním takovým procesem; když žádný není nebo jich je víc, nic neukončuj a řekni to Operátorovi.",
             "sám ho neukončuj: ukončil bys vlastní relaci. Řekni Operátorovi, ať o výměnu požádá z jiného klienta (T3 Code).",
-            "- Jinak ho ukonči `kill -TERM <pid>` a spusť `systemctl --user restart lazurio-codex-app-server.service`.",
+            "- Jinak těsně před ukončením ověř, že PID pořád patří témuž procesu (`ps -o args= -p <pid>` pořád ukazuje `app-server --listen unix://` a `/proc/<pid>/exe` pořád nevede do `~/.codex/packages/app-server-daemon/`); pak ho ukonči `kill -TERM <pid>` a spusť `systemctl --user restart lazurio-codex-app-server.service`.",
             "řekni Operátorovi, že se ChatGPT Desktop znovu připojí při své další akci.",
           ]
         : [
             "## The Codex app-server after a Codex update",
             "When `lazurio doctor` reports `warn app-server-outdated` for `codex-app-server`, ChatGPT Desktop clients still talk to an app-server (`appServerVersion`) older than the installed Codex (`cliVersion`).",
             "Replacing it briefly disconnects ChatGPT Desktop chats in this Environment, so it is the Operator's call: ask them first.",
-            "`find ~/.codex/sessions -type f -mmin -15` prints nothing",
+            "`find ~/.codex/sessions -type f -mmin -15` must succeed and print nothing. When it prints something, someone is mid-turn, so wait; when it fails, you cannot confirm the quiet, so end nothing.",
+            "Continue only with exactly one such process; when there is none or more than one, end nothing and tell the Operator.",
             "do not end it yourself: you would end your own session. Tell the Operator to ask for the replacement from another client (T3 Code).",
-            "- Otherwise end it with `kill -TERM <pid>` and run `systemctl --user restart lazurio-codex-app-server.service`.",
+            "- Otherwise, right before ending it, check that the PID still belongs to the same process (`ps -o args= -p <pid>` still shows `app-server --listen unix://` and `/proc/<pid>/exe` still does not lead into `~/.codex/packages/app-server-daemon/`); then end it with `kill -TERM <pid>` and run `systemctl --user restart lazurio-codex-app-server.service`.",
             "tell the Operator that ChatGPT Desktop reconnects on its next action.",
           ])
         expect([

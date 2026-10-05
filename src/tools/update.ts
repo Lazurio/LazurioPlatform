@@ -126,8 +126,12 @@ export async function toolsUpdate(
         output,
       };
     const after = await status();
+    // Only two read versions prove a change; an after probe that failed or
+    // printed no version says nothing about the app-server (issue #173).
     const versionChanged =
-      before.version !== undefined && before.version !== after.version;
+      before.version !== undefined &&
+      after.version !== undefined &&
+      before.version !== after.version;
     return {
       kind: "tool-updated",
       tool: entry.name,

@@ -2891,16 +2891,20 @@ replaced it.
   strings that differ, it reports `warn app-server-outdated` with exactly those two
   versions as context. A missing or malformed version stays `ok` and adds nothing; no
   path or pid reaches the context. Still never `fail`, never in `recover`.
-- **`lazurio tools update codex`.** When Codex changed its version, the result carries
-  `next`: a Codex app-server that is already running keeps the old version until it is
+- **`lazurio tools update codex`.** When Codex changed its version (both the version
+  before and the version after are read; a failed or versionless after probe proves
+  nothing), the result carries `next`: a Codex app-server that is already running keeps the old version until it is
   replaced, doctor reports it, and the Folder's `manual/troubleshooting.md` describes
   the replacement.
 - **Nothing is killed or restarted automatically.** Point 3 holds: replacing the
   app-server ends live ChatGPT Desktop sessions, so it is the Operator's call. The new
-  troubleshooting section tells the agent to ask first, check that no file under
-  `~/.codex/sessions` changed in the last 15 minutes, end only the unmanaged process
-  (never one its own session runs under; then the Operator asks from another client,
-  T3 Code), restart the unit and verify that the two versions are equal.
+  troubleshooting section tells the agent to ask first, and to check that no file under
+  `~/.codex/sessions` changed in the last 15 minutes. The scan must succeed and print
+  nothing; a failed scan ends nothing. The agent ends only exactly one unmanaged process:
+  none or several end nothing. It never ends one its own session runs under; then the
+  Operator asks from another client, T3 Code. Right before `kill -TERM`, the agent
+  rechecks that the PID is still that process. It then restarts the unit and verifies that
+  the two versions are equal.
 - Template revision `base-instructions-24`.
 
 ## F30 — The Operator replaces the Principal

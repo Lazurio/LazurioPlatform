@@ -1263,10 +1263,10 @@ Nástroj Operátora je první spustitelný soubor svého jména v \`~/.local/bin
 ## Codex app-server po aktualizaci Codexu
 Když \`lazurio doctor\` hlásí u \`codex-app-server\` \`warn app-server-outdated\`, klienti ChatGPT Desktopu pořád mluví se starším app-serverem (\`appServerVersion\`), než je nainstalovaný Codex (\`cliVersion\`). Takový app-server spustil ChatGPT Desktop přes SSH mimo jednotku \`lazurio-codex-app-server.service\`, takže ho aktualizace Codexu ani restart jednotky nenahradí. Výměna na chvíli odpojí chaty ChatGPT Desktopu na tomhle Environmentu, proto je to rozhodnutí Operátora: nejdřív se ho zeptej.
 
-- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace (\`find ~/.codex/sessions -type f -mmin -15\` nic nevypíše); jinak je někdo uprostřed práce, počkej.
-- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Když žádný takový není, nic neukončuj a řekni to Operátorovi.
+- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace: \`find ~/.codex/sessions -type f -mmin -15\` musí skončit úspěchem a nic nevypsat. Když něco vypíše, je někdo uprostřed práce, počkej; když selže, ticho neověříš, tak nic neukončuj.
+- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Pokračuj jen s právě jedním takovým procesem; když žádný není nebo jich je víc, nic neukončuj a řekni to Operátorovi.
 - Když tvůj vlastní shell běží pod tímhle procesem (projdi předky od \`$$\` přes \`ps -o ppid= -p <pid>\`), sám ho neukončuj: ukončil bys vlastní relaci. Řekni Operátorovi, ať o výměnu požádá z jiného klienta (T3 Code).
-- Jinak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Jinak těsně před ukončením ověř, že PID pořád patří témuž procesu (\`ps -o args= -p <pid>\` pořád ukazuje \`app-server --listen unix://\` a \`/proc/<pid>/exe\` pořád nevede do \`~/.codex/packages/app-server-daemon/\`); pak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Ověř, že \`codex app-server daemon version\` hlásí \`appServerVersion\` rovné \`cliVersion\`, a řekni Operátorovi, že se ChatGPT Desktop znovu připojí při své další akci.
 
 ## Identita Environmentu
@@ -1333,10 +1333,10 @@ An Operator tool is the first executable of its name in \`~/.local/bin\` on the 
 ## The Codex app-server after a Codex update
 When \`lazurio doctor\` reports \`warn app-server-outdated\` for \`codex-app-server\`, ChatGPT Desktop clients still talk to an app-server (\`appServerVersion\`) older than the installed Codex (\`cliVersion\`). ChatGPT Desktop started that app-server over SSH outside the unit \`lazurio-codex-app-server.service\`, so neither a Codex update nor a restart of the unit replaces it. Replacing it briefly disconnects ChatGPT Desktop chats in this Environment, so it is the Operator's call: ask them first.
 
-- With their consent, check that no session file changed in the last 15 minutes (\`find ~/.codex/sessions -type f -mmin -15\` prints nothing); otherwise someone is mid-turn, so wait.
-- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. When there is none, end nothing and tell the Operator.
+- With their consent, check that no session file changed in the last 15 minutes: \`find ~/.codex/sessions -type f -mmin -15\` must succeed and print nothing. When it prints something, someone is mid-turn, so wait; when it fails, you cannot confirm the quiet, so end nothing.
+- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. Continue only with exactly one such process; when there is none or more than one, end nothing and tell the Operator.
 - When your own shell runs under that process (walk your ancestry from \`$$\` with \`ps -o ppid= -p <pid>\`), do not end it yourself: you would end your own session. Tell the Operator to ask for the replacement from another client (T3 Code).
-- Otherwise end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Otherwise, right before ending it, check that the PID still belongs to the same process (\`ps -o args= -p <pid>\` still shows \`app-server --listen unix://\` and \`/proc/<pid>/exe\` still does not lead into \`~/.codex/packages/app-server-daemon/\`); then end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Verify that \`codex app-server daemon version\` reports \`appServerVersion\` equal to \`cliVersion\`, and tell the Operator that ChatGPT Desktop reconnects on its next action.
 
 ## The Environment's identity
@@ -1404,10 +1404,10 @@ Nástroj Operátora je první spustitelný soubor svého jména v \`~/.local/bin
 ## Codex app-server po aktualizaci Codexu
 Když \`lazurio doctor\` hlásí u \`codex-app-server\` \`warn app-server-outdated\`, klienti ChatGPT Desktopu pořád mluví se starším app-serverem (\`appServerVersion\`), než je nainstalovaný Codex (\`cliVersion\`). Takový app-server spustil ChatGPT Desktop přes SSH mimo jednotku \`lazurio-codex-app-server.service\`, takže ho aktualizace Codexu ani restart jednotky nenahradí. Výměna na chvíli odpojí chaty ChatGPT Desktopu na tomhle Environmentu, proto je to rozhodnutí Operátora: nejdřív se ho zeptej.
 
-- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace (\`find ~/.codex/sessions -type f -mmin -15\` nic nevypíše); jinak je někdo uprostřed práce, počkej.
-- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Když žádný takový není, nic neukončuj a řekni to Operátorovi.
+- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace: \`find ~/.codex/sessions -type f -mmin -15\` musí skončit úspěchem a nic nevypsat. Když něco vypíše, je někdo uprostřed práce, počkej; když selže, ticho neověříš, tak nic neukončuj.
+- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Pokračuj jen s právě jedním takovým procesem; když žádný není nebo jich je víc, nic neukončuj a řekni to Operátorovi.
 - Když tvůj vlastní shell běží pod tímhle procesem (projdi předky od \`$$\` přes \`ps -o ppid= -p <pid>\`), sám ho neukončuj: ukončil bys vlastní relaci. Řekni Operátorovi, ať o výměnu požádá z jiného klienta (T3 Code).
-- Jinak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Jinak těsně před ukončením ověř, že PID pořád patří témuž procesu (\`ps -o args= -p <pid>\` pořád ukazuje \`app-server --listen unix://\` a \`/proc/<pid>/exe\` pořád nevede do \`~/.codex/packages/app-server-daemon/\`); pak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Ověř, že \`codex app-server daemon version\` hlásí \`appServerVersion\` rovné \`cliVersion\`, a řekni Operátorovi, že se ChatGPT Desktop znovu připojí při své další akci.
 
 ## Aktuální checkouty Organizací a modulů
@@ -1490,10 +1490,10 @@ An Operator tool is the first executable of its name in \`~/.local/bin\` on the 
 ## The Codex app-server after a Codex update
 When \`lazurio doctor\` reports \`warn app-server-outdated\` for \`codex-app-server\`, ChatGPT Desktop clients still talk to an app-server (\`appServerVersion\`) older than the installed Codex (\`cliVersion\`). ChatGPT Desktop started that app-server over SSH outside the unit \`lazurio-codex-app-server.service\`, so neither a Codex update nor a restart of the unit replaces it. Replacing it briefly disconnects ChatGPT Desktop chats in this Environment, so it is the Operator's call: ask them first.
 
-- With their consent, check that no session file changed in the last 15 minutes (\`find ~/.codex/sessions -type f -mmin -15\` prints nothing); otherwise someone is mid-turn, so wait.
-- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. When there is none, end nothing and tell the Operator.
+- With their consent, check that no session file changed in the last 15 minutes: \`find ~/.codex/sessions -type f -mmin -15\` must succeed and print nothing. When it prints something, someone is mid-turn, so wait; when it fails, you cannot confirm the quiet, so end nothing.
+- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. Continue only with exactly one such process; when there is none or more than one, end nothing and tell the Operator.
 - When your own shell runs under that process (walk your ancestry from \`$$\` with \`ps -o ppid= -p <pid>\`), do not end it yourself: you would end your own session. Tell the Operator to ask for the replacement from another client (T3 Code).
-- Otherwise end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Otherwise, right before ending it, check that the PID still belongs to the same process (\`ps -o args= -p <pid>\` still shows \`app-server --listen unix://\` and \`/proc/<pid>/exe\` still does not lead into \`~/.codex/packages/app-server-daemon/\`); then end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Verify that \`codex app-server daemon version\` reports \`appServerVersion\` equal to \`cliVersion\`, and tell the Operator that ChatGPT Desktop reconnects on its next action.
 
 ## Current checkouts of Organizations and modules
@@ -1577,10 +1577,10 @@ Nástroj Operátora je první spustitelný soubor svého jména v \`~/.local/bin
 ## Codex app-server po aktualizaci Codexu
 Když \`lazurio doctor\` hlásí u \`codex-app-server\` \`warn app-server-outdated\`, klienti ChatGPT Desktopu pořád mluví se starším app-serverem (\`appServerVersion\`), než je nainstalovaný Codex (\`cliVersion\`). Takový app-server spustil ChatGPT Desktop přes SSH mimo jednotku \`lazurio-codex-app-server.service\`, takže ho aktualizace Codexu ani restart jednotky nenahradí. Výměna na chvíli odpojí chaty ChatGPT Desktopu na tomhle Environmentu, proto je to rozhodnutí Operátora: nejdřív se ho zeptej.
 
-- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace (\`find ~/.codex/sessions -type f -mmin -15\` nic nevypíše); jinak je někdo uprostřed práce, počkej.
-- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Když žádný takový není, nic neukončuj a řekni to Operátorovi.
+- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace: \`find ~/.codex/sessions -type f -mmin -15\` musí skončit úspěchem a nic nevypsat. Když něco vypíše, je někdo uprostřed práce, počkej; když selže, ticho neověříš, tak nic neukončuj.
+- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Pokračuj jen s právě jedním takovým procesem; když žádný není nebo jich je víc, nic neukončuj a řekni to Operátorovi.
 - Když tvůj vlastní shell běží pod tímhle procesem (projdi předky od \`$$\` přes \`ps -o ppid= -p <pid>\`), sám ho neukončuj: ukončil bys vlastní relaci. Řekni Operátorovi, ať o výměnu požádá z jiného klienta (T3 Code).
-- Jinak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Jinak těsně před ukončením ověř, že PID pořád patří témuž procesu (\`ps -o args= -p <pid>\` pořád ukazuje \`app-server --listen unix://\` a \`/proc/<pid>/exe\` pořád nevede do \`~/.codex/packages/app-server-daemon/\`); pak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Ověř, že \`codex app-server daemon version\` hlásí \`appServerVersion\` rovné \`cliVersion\`, a řekni Operátorovi, že se ChatGPT Desktop znovu připojí při své další akci.
 
 ## Aktuální checkouty Organizací a modulů
@@ -1664,10 +1664,10 @@ An Operator tool is the first executable of its name in \`~/.local/bin\` on the 
 ## The Codex app-server after a Codex update
 When \`lazurio doctor\` reports \`warn app-server-outdated\` for \`codex-app-server\`, ChatGPT Desktop clients still talk to an app-server (\`appServerVersion\`) older than the installed Codex (\`cliVersion\`). ChatGPT Desktop started that app-server over SSH outside the unit \`lazurio-codex-app-server.service\`, so neither a Codex update nor a restart of the unit replaces it. Replacing it briefly disconnects ChatGPT Desktop chats in this Environment, so it is the Operator's call: ask them first.
 
-- With their consent, check that no session file changed in the last 15 minutes (\`find ~/.codex/sessions -type f -mmin -15\` prints nothing); otherwise someone is mid-turn, so wait.
-- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. When there is none, end nothing and tell the Operator.
+- With their consent, check that no session file changed in the last 15 minutes: \`find ~/.codex/sessions -type f -mmin -15\` must succeed and print nothing. When it prints something, someone is mid-turn, so wait; when it fails, you cannot confirm the quiet, so end nothing.
+- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. Continue only with exactly one such process; when there is none or more than one, end nothing and tell the Operator.
 - When your own shell runs under that process (walk your ancestry from \`$$\` with \`ps -o ppid= -p <pid>\`), do not end it yourself: you would end your own session. Tell the Operator to ask for the replacement from another client (T3 Code).
-- Otherwise end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Otherwise, right before ending it, check that the PID still belongs to the same process (\`ps -o args= -p <pid>\` still shows \`app-server --listen unix://\` and \`/proc/<pid>/exe\` still does not lead into \`~/.codex/packages/app-server-daemon/\`); then end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Verify that \`codex app-server daemon version\` reports \`appServerVersion\` equal to \`cliVersion\`, and tell the Operator that ChatGPT Desktop reconnects on its next action.
 
 ## Current checkouts of Organizations and modules
@@ -1750,10 +1750,10 @@ Nástroj Operátora je první spustitelný soubor svého jména v \`~/.local/bin
 ## Codex app-server po aktualizaci Codexu
 Když \`lazurio doctor\` hlásí u \`codex-app-server\` \`warn app-server-outdated\`, klienti ChatGPT Desktopu pořád mluví se starším app-serverem (\`appServerVersion\`), než je nainstalovaný Codex (\`cliVersion\`). Takový app-server spustil ChatGPT Desktop přes SSH mimo jednotku \`lazurio-codex-app-server.service\`, takže ho aktualizace Codexu ani restart jednotky nenahradí. Výměna na chvíli odpojí chaty ChatGPT Desktopu na tomhle Environmentu, proto je to rozhodnutí Operátora: nejdřív se ho zeptej.
 
-- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace (\`find ~/.codex/sessions -type f -mmin -15\` nic nevypíše); jinak je někdo uprostřed práce, počkej.
-- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Když žádný takový není, nic neukončuj a řekni to Operátorovi.
+- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace: \`find ~/.codex/sessions -type f -mmin -15\` musí skončit úspěchem a nic nevypsat. Když něco vypíše, je někdo uprostřed práce, počkej; když selže, ticho neověříš, tak nic neukončuj.
+- Najdi neřízený proces \`codex … app-server --listen unix://\` (\`pgrep -af 'app-server --listen unix://'\`): ten, jehož \`/proc/<pid>/exe\` nevede do \`~/.codex/packages/app-server-daemon/\`, kde běží daemon jednotky. Pokračuj jen s právě jedním takovým procesem; když žádný není nebo jich je víc, nic neukončuj a řekni to Operátorovi.
 - Když tvůj vlastní shell běží pod tímhle procesem (projdi předky od \`$$\` přes \`ps -o ppid= -p <pid>\`), sám ho neukončuj: ukončil bys vlastní relaci. Řekni Operátorovi, ať o výměnu požádá z jiného klienta (T3 Code).
-- Jinak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Jinak těsně před ukončením ověř, že PID pořád patří témuž procesu (\`ps -o args= -p <pid>\` pořád ukazuje \`app-server --listen unix://\` a \`/proc/<pid>/exe\` pořád nevede do \`~/.codex/packages/app-server-daemon/\`); pak ho ukonči \`kill -TERM <pid>\` a spusť \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Ověř, že \`codex app-server daemon version\` hlásí \`appServerVersion\` rovné \`cliVersion\`, a řekni Operátorovi, že se ChatGPT Desktop znovu připojí při své další akci.
 
 ## Aktuální checkouty Organizací a modulů
@@ -1836,10 +1836,10 @@ An Operator tool is the first executable of its name in \`~/.local/bin\` on the 
 ## The Codex app-server after a Codex update
 When \`lazurio doctor\` reports \`warn app-server-outdated\` for \`codex-app-server\`, ChatGPT Desktop clients still talk to an app-server (\`appServerVersion\`) older than the installed Codex (\`cliVersion\`). ChatGPT Desktop started that app-server over SSH outside the unit \`lazurio-codex-app-server.service\`, so neither a Codex update nor a restart of the unit replaces it. Replacing it briefly disconnects ChatGPT Desktop chats in this Environment, so it is the Operator's call: ask them first.
 
-- With their consent, check that no session file changed in the last 15 minutes (\`find ~/.codex/sessions -type f -mmin -15\` prints nothing); otherwise someone is mid-turn, so wait.
-- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. When there is none, end nothing and tell the Operator.
+- With their consent, check that no session file changed in the last 15 minutes: \`find ~/.codex/sessions -type f -mmin -15\` must succeed and print nothing. When it prints something, someone is mid-turn, so wait; when it fails, you cannot confirm the quiet, so end nothing.
+- Find the unmanaged \`codex … app-server --listen unix://\` process (\`pgrep -af 'app-server --listen unix://'\`): the one whose \`/proc/<pid>/exe\` does not lead into \`~/.codex/packages/app-server-daemon/\`, where the unit's daemon runs. Continue only with exactly one such process; when there is none or more than one, end nothing and tell the Operator.
 - When your own shell runs under that process (walk your ancestry from \`$$\` with \`ps -o ppid= -p <pid>\`), do not end it yourself: you would end your own session. Tell the Operator to ask for the replacement from another client (T3 Code).
-- Otherwise end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
+- Otherwise, right before ending it, check that the PID still belongs to the same process (\`ps -o args= -p <pid>\` still shows \`app-server --listen unix://\` and \`/proc/<pid>/exe\` still does not lead into \`~/.codex/packages/app-server-daemon/\`); then end it with \`kill -TERM <pid>\` and run \`systemctl --user restart lazurio-codex-app-server.service\`.
 - Verify that \`codex app-server daemon version\` reports \`appServerVersion\` equal to \`cliVersion\`, and tell the Operator that ChatGPT Desktop reconnects on its next action.
 
 ## Current checkouts of Organizations and modules

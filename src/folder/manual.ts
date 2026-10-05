@@ -855,20 +855,20 @@ const codexAppServer: readonly Text[] = [
   ),
   blank,
   t(
-    "- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace (`find ~/.codex/sessions -type f -mmin -15` nic nevypíše); jinak je někdo uprostřed práce, počkej.",
-    "- With their consent, check that no session file changed in the last 15 minutes (`find ~/.codex/sessions -type f -mmin -15` prints nothing); otherwise someone is mid-turn, so wait.",
+    "- Po souhlasu ověř, že se za posledních 15 minut nezměnil žádný soubor relace: `find ~/.codex/sessions -type f -mmin -15` musí skončit úspěchem a nic nevypsat. Když něco vypíše, je někdo uprostřed práce, počkej; když selže, ticho neověříš, tak nic neukončuj.",
+    "- With their consent, check that no session file changed in the last 15 minutes: `find ~/.codex/sessions -type f -mmin -15` must succeed and print nothing. When it prints something, someone is mid-turn, so wait; when it fails, you cannot confirm the quiet, so end nothing.",
   ),
   t(
-    "- Najdi neřízený proces `codex … app-server --listen unix://` (`pgrep -af 'app-server --listen unix://'`): ten, jehož `/proc/<pid>/exe` nevede do `~/.codex/packages/app-server-daemon/`, kde běží daemon jednotky. Když žádný takový není, nic neukončuj a řekni to Operátorovi.",
-    "- Find the unmanaged `codex … app-server --listen unix://` process (`pgrep -af 'app-server --listen unix://'`): the one whose `/proc/<pid>/exe` does not lead into `~/.codex/packages/app-server-daemon/`, where the unit's daemon runs. When there is none, end nothing and tell the Operator.",
+    "- Najdi neřízený proces `codex … app-server --listen unix://` (`pgrep -af 'app-server --listen unix://'`): ten, jehož `/proc/<pid>/exe` nevede do `~/.codex/packages/app-server-daemon/`, kde běží daemon jednotky. Pokračuj jen s právě jedním takovým procesem; když žádný není nebo jich je víc, nic neukončuj a řekni to Operátorovi.",
+    "- Find the unmanaged `codex … app-server --listen unix://` process (`pgrep -af 'app-server --listen unix://'`): the one whose `/proc/<pid>/exe` does not lead into `~/.codex/packages/app-server-daemon/`, where the unit's daemon runs. Continue only with exactly one such process; when there is none or more than one, end nothing and tell the Operator.",
   ),
   t(
     "- Když tvůj vlastní shell běží pod tímhle procesem (projdi předky od `$$` přes `ps -o ppid= -p <pid>`), sám ho neukončuj: ukončil bys vlastní relaci. Řekni Operátorovi, ať o výměnu požádá z jiného klienta (T3 Code).",
     "- When your own shell runs under that process (walk your ancestry from `$$` with `ps -o ppid= -p <pid>`), do not end it yourself: you would end your own session. Tell the Operator to ask for the replacement from another client (T3 Code).",
   ),
   t(
-    "- Jinak ho ukonči `kill -TERM <pid>` a spusť `systemctl --user restart lazurio-codex-app-server.service`.",
-    "- Otherwise end it with `kill -TERM <pid>` and run `systemctl --user restart lazurio-codex-app-server.service`.",
+    "- Jinak těsně před ukončením ověř, že PID pořád patří témuž procesu (`ps -o args= -p <pid>` pořád ukazuje `app-server --listen unix://` a `/proc/<pid>/exe` pořád nevede do `~/.codex/packages/app-server-daemon/`); pak ho ukonči `kill -TERM <pid>` a spusť `systemctl --user restart lazurio-codex-app-server.service`.",
+    "- Otherwise, right before ending it, check that the PID still belongs to the same process (`ps -o args= -p <pid>` still shows `app-server --listen unix://` and `/proc/<pid>/exe` still does not lead into `~/.codex/packages/app-server-daemon/`); then end it with `kill -TERM <pid>` and run `systemctl --user restart lazurio-codex-app-server.service`.",
   ),
   t(
     "- Ověř, že `codex app-server daemon version` hlásí `appServerVersion` rovné `cliVersion`, a řekni Operátorovi, že se ChatGPT Desktop znovu připojí při své další akci.",
