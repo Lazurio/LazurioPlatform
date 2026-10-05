@@ -103,6 +103,21 @@ export const entries = Object.freeze({
   organization: handoverEntry("workspace.example.lazurio.io"),
   personal: handoverEntry("example.lazurio.io"),
 });
+// Root decision 0191 (F38): the entry of a Machine whose roster routes the
+// Environment browser's view, as Machines writes `entry.browser`.
+export function withBrowser(
+  entry: ReturnType<typeof handoverEntry>,
+  host: string,
+  listenPort = 4848,
+) {
+  return {
+    ...entry,
+    browser: {
+      external_origin: `https://browser.${host}`,
+      listen_port: listenPort,
+    },
+  };
+}
 
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
@@ -175,6 +190,21 @@ export const bindings = Object.freeze({
   }),
   // A Team Environment and an Automated Environment with their entry.
   teamEntry: binding({ ...organization, entry: entries.organization }),
+  // Root decision 0191: the entry with the Environment browser's view, on a
+  // work Environment of one operator, a Team Environment and a personal one.
+  organizationBrowser: binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: withBrowser(entries.organization, "workspace.example.lazurio.io"),
+  }),
+  teamBrowser: binding({
+    ...organization,
+    entry: withBrowser(entries.organization, "workspace.example.lazurio.io"),
+  }),
+  personalBrowser: binding({
+    ...personal,
+    entry: withBrowser(entries.personal, "example.lazurio.io"),
+  }),
   automatedEntry: binding({
     ...organization,
     owner: { ...organization.owner, assignment: assignments.automation },

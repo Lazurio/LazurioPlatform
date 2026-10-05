@@ -258,6 +258,16 @@
             "external_origin": { "description": "Origin of Lazurio MausBot on the gateway.", "$ref": "#/$defs/https_origin" },
             "listen_port": { "description": "Loopback port Lazurio MausBot listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
           }
+        },
+        "browser": {
+          "description": "View of the Environment browser of this Machine (root decision 0191), present only on a Machine whose roster routes it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "listen_port"],
+          "properties": {
+            "external_origin": { "description": "Origin of the Environment browser view on the gateway.", "$ref": "#/$defs/https_origin" },
+            "listen_port": { "description": "Loopback port the Environment browser view listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
+          }
         }
       }
     },

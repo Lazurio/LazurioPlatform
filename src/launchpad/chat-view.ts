@@ -19,7 +19,9 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
     !isHttpsOrigin(entry.launchpadOrigin) ||
     !isHttpsOrigin(entry.t3codeOrigin) ||
     !isModuleOriginTemplate(entry.moduleOriginTemplate) ||
-    (entry.mausbotOrigin !== undefined && !isHttpsOrigin(entry.mausbotOrigin))
+    (entry.mausbotOrigin !== undefined &&
+      !isHttpsOrigin(entry.mausbotOrigin)) ||
+    (entry.browserOrigin !== undefined && !isHttpsOrigin(entry.browserOrigin))
   )
     return null;
   return Object.freeze({
@@ -29,6 +31,9 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
     ...(entry.mausbotOrigin === undefined
       ? {}
       : { mausbotOrigin: entry.mausbotOrigin }),
+    ...(entry.browserOrigin === undefined
+      ? {}
+      : { browserOrigin: entry.browserOrigin }),
   });
 }
 
