@@ -162,6 +162,8 @@ posixTest(
       ],
     });
 
+    // No job yet: the newest is not found.
+    expect((await get("/api/content/jobs/latest")).status).toBe(404);
     gated = true;
     const started = await post("/api/content/install", {});
     expect(started.status).toBe(202);
@@ -185,6 +187,11 @@ posixTest(
         { item: { kind: "personalspace" }, key: "find", state: "running" },
       ],
     });
+    // The newest job, for a page that did not start it.
+    expect(
+      ((await (await get("/api/content/jobs/latest")).json()) as { id: string })
+        .id,
+    ).toBe(job);
     open();
     expect(await untilEnded(get, job)).toEqual({
       id: job,
@@ -230,6 +237,11 @@ posixTest(
     expect((await get("/api/content/install")).status).toBe(405);
     expect((await post("/api/content", {})).status).toBe(405);
     expect((await get(`/api/content/jobs/${"0".repeat(32)}`)).status).toBe(404);
+    // After it ended, still the newest, the same as by its id.
+    expect(await (await get("/api/content/jobs/latest")).json()).toEqual(
+      await (await get(`/api/content/jobs/${job}`)).json(),
+    );
+    expect((await post("/api/content/jobs/latest", {})).status).toBe(405);
     expect((await get("/api/content/jobs/not-an-id")).status).toBe(404);
   },
   60_000,

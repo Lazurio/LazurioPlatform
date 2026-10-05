@@ -1667,8 +1667,10 @@ of it.
   "Stahuji moduly", "Instaluji", "Kontroluji" / "Hledám tvůj osobní prostor",
   "Zakládám", "Stahuji", "Kontroluji"), read from `GET /api/content/jobs/<id>` every
   second. A stop shows one plain sentence by the step, the command and the detail under
-  "Podrobnosti", and "Vyřešit v Chatu". The last job's id is kept per Environment in
-  this browser, so a reload during a run or after a stop still shows it. Any other
+  "Podrobnosti", and "Vyřešit v Chatu". On load the page reads the Launchpad's newest
+  job (`GET /api/content/jobs/latest`), not anything kept in the browser, so a reload,
+  another tab or another device shows the same run or stop, and the line in Apps agrees
+  with the line Chat and Automate draw from the shell document. Any other
   answer of the routes (none on a Launchpad without them) hides the group.
 - **"Vyřešit v Chatu"** hands the prompt `prepare-content` to Chat ([prompt
   hand-off](#prompt-hand-off-to-chat)): by link where Chat takes prompts and this

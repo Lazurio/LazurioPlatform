@@ -315,6 +315,7 @@ test("the client lists, installs everything with {} and follows the job to its e
       reads += 1;
       return { status: 200, value: reads < 3 ? runningJob : failedJob };
     },
+    "GET /api/content/jobs/latest": () => ({ status: 200, value: failedJob }),
   });
   const client = createContentClient(transport);
   expect((await client.list())?.items.length).toBe(2);
@@ -325,6 +326,8 @@ test("the client lists, installs everything with {} and follows the job to its e
   });
   expect(seen).toEqual(["running", "running", "failed"]);
   expect(last?.failure?.key).toBe("preparation");
+  // The newest job of the Launchpad, whichever page started it.
+  expect((await client.latest())?.id).toBe("job-1");
   expect(requests[1]).toEqual(["POST", "/api/content/install", {}]);
   // Named items go as the request's `items`.
   await client.install([{ kind: "organization", login: "example" }]);
@@ -340,6 +343,8 @@ test("the client: no route, another shape or a failed request is nothing, never 
   expect(await none.list()).toBeNull();
   expect(await none.install()).toEqual({ kind: "failed" });
   expect(await none.job("job-1")).toBeNull();
+  // No job yet (404): no newest job.
+  expect(await none.latest()).toBeNull();
   const broken = createContentClient(async () => {
     throw new Error("offline");
   });

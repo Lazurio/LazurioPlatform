@@ -8,6 +8,7 @@
 //   POST /api/content/install    {} or { items: [...] }
 //                                → 202 { job } · 409 running, with its id · 403
 //   GET  /api/content/jobs/<id>  → { id, state, steps: [...], failure? }
+//   GET  /api/content/jobs/latest → the newest job, the same shape · 404
 //
 // A step's and a failure's `item` names one item of the list. The contract
 // fixes its meaning, not its spelling, so it is read in the forms a producer
@@ -351,6 +352,19 @@ export function createContentClient(transport: ContentTransport) {
         );
         const job = status === 200 ? parseContentJob(value) : null;
         return job?.id === id ? job : null;
+      } catch {
+        return null;
+      }
+    },
+    /** The newest job of this Launchpad, or null when there is none yet or
+     * it is unreadable. */
+    async latest(): Promise<ContentJob | null> {
+      try {
+        const { status, value } = await transport(
+          "GET",
+          "/api/content/jobs/latest",
+        );
+        return status === 200 ? parseContentJob(value) : null;
       } catch {
         return null;
       }

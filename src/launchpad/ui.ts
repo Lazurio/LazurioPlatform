@@ -248,7 +248,6 @@ const content = createContentPanel({
         many: "appsModulesMany",
       })
     ].replace("{count}", String(count)),
-  environment: () => environmentKey(),
   changed: () => {
     // A finished installation brings its modules into Apps.
     const state = content.fact().state;

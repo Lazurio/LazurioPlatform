@@ -22,11 +22,6 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Environment is prepared by its hosting) and only where the content routes
 // answer. Every value from the server is drawn with textContent.
 
-/** Where this page keeps the id of the last installation, per Environment,
- * so that a reload during a run or after a stop still shows it. */
-export const contentJobKey = (environment: string): string =>
-  `lazurio.content-job:${environment}`;
-
 export function createContentPanel(
   options: Readonly<{
     client: ContentClient;
@@ -37,8 +32,6 @@ export function createContentPanel(
     modules: (login: string) => number | null;
     /** "5 modulů": the count in the page's language. */
     pluralModules: (count: number) => string;
-    /** The Environment's id, for the stored job; null until known. */
-    environment: () => string | null;
     /** The content or its preparation changed: the line, the tour and the
      * catalog follow. */
     changed: () => void;
@@ -88,24 +81,6 @@ export function createContentPanel(
     fold.append(element("summary", "", summary), element("pre", "", text));
     return fold;
   };
-
-  function storeJob(id: string | null) {
-    const environment = options.environment();
-    if (environment === null) return;
-    try {
-      if (id === null) localStorage.removeItem(contentJobKey(environment));
-      else localStorage.setItem(contentJobKey(environment), id);
-    } catch {}
-  }
-  function storedJob(): string | null {
-    const environment = options.environment();
-    if (environment === null) return null;
-    try {
-      return localStorage.getItem(contentJobKey(environment));
-    } catch {
-      return null;
-    }
-  }
 
   function steps(views: readonly StepView[], copy: Copy): HTMLElement {
     const marks = {
@@ -237,7 +212,6 @@ export function createContentPanel(
     if (following !== id) return;
     following = null;
     if (last === null) message = options.copy().contentLost;
-    else if (last.state === "succeeded") storeJob(null);
     await refresh({ restore: false });
   }
 
@@ -252,7 +226,6 @@ export function createContentPanel(
     const answer = await options.client.install();
     starting = false;
     if (answer.kind === "started" || answer.kind === "running") {
-      storeJob(answer.job);
       job = null;
       render();
       options.changed();
@@ -266,17 +239,16 @@ export function createContentPanel(
     options.changed();
   }
 
-  /** Reads what lives here again; on the first read also the last
-   * installation this page started, when it is still known. */
+  /** Reads what lives here again; on the first read also the newest
+   * installation of this Launchpad, whichever browser or tab started it, so
+   * a reload, another tab or another device shows the same run or stop. */
   async function refresh(
     request: Readonly<{ restore?: boolean }> = {},
   ): Promise<void> {
     const read = await options.client.list();
     list = read;
     if (request.restore !== false && following === null) {
-      const id = storedJob();
-      const last = id === null ? null : await options.client.job(id);
-      if (id !== null && last === null) storeJob(null);
+      const last = await options.client.latest();
       if (last !== null) {
         job = last;
         if (last.state === "running") void follow(last.id);
