@@ -845,6 +845,17 @@ const en = {
   machineKindWorkstation: "Your computer",
   machineTechnicalKind: "Technical kind",
   machineSupport: "For support",
+  browserToggle: "Browser",
+  browserTitle: "Environment browser",
+  browserReload: "Reload",
+  browserOpenTab: "Open in a new tab",
+  browserClose: "Close",
+  browserFrame: "Windows of the Environment browser",
+  browserLoading: "Opening the Environment browser…",
+  browserUnavailable:
+    "The Environment browser is not available right now; try to reload it in a moment.",
+  browserFailed:
+    "The Environment browser could not be loaded here; open it in a new tab, where you can sign in again.",
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
@@ -1679,6 +1690,17 @@ const cs: Record<MessageKey, string> = {
   machineKindWorkstation: "Tvůj počítač",
   machineTechnicalKind: "Technický druh",
   machineSupport: "Pro podporu",
+  browserToggle: "Prohlížeč",
+  browserTitle: "Prohlížeč Environmentu",
+  browserReload: "Načíst znovu",
+  browserOpenTab: "Otevřít v nové kartě",
+  browserClose: "Zavřít",
+  browserFrame: "Okna prohlížeče Environmentu",
+  browserLoading: "Otevírá se prohlížeč Environmentu…",
+  browserUnavailable:
+    "Prohlížeč Environmentu teď není k dispozici; zkus ho za chvíli načíst znovu.",
+  browserFailed:
+    "Prohlížeč Environmentu se tu nepodařilo načíst; otevři ho v nové kartě, kde se můžeš znovu přihlásit.",
 };
 export function messages(
   locale: unknown,

@@ -464,8 +464,11 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   with `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
   cookie. The account is not part of the preview: a browser automation, or a small
   stub in front of the hosted proxy, stands in for the gateway's relay of
-  `/.lazurio/account/…`. Screenshots come from Chrome through
-  playwright-core.
+  `/.lazurio/account/…`. The hosted entry also routes the Environment browser's view
+  ([the right panel](#the-right-panel-the-environment-browser)): agent-browser is not
+  run, the Launchpad answers the view with a synthetic token on the origin the preview
+  prints as `browser`, and a browser automation stands in for that origin.
+  Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
@@ -1331,7 +1334,7 @@ hosted, the fragment token locally):
 
 | Route | Answer |
 |---|---|
-| `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate, mausbotOrigin?} \| null}`: the recorded entry's public parts, read-only; the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
+| `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate, mausbotOrigin?, browserOrigin?} \| null}`: the recorded entry's public parts, read-only (`browserOrigin` offers [the right panel](#the-right-panel-the-environment-browser)); the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
 | `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON or a credential of another shape); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
 | `GET /api/chat/prompt-handoff` | `{kind: "chat-prompt-handoff", accepted}`: whether Chat on this Environment takes a prepared prompt by link ([prompt hand-off](#prompt-hand-off-to-chat)); `accepted: false` on a workstation without running anything. Any other method: 405. |
 
@@ -1681,6 +1684,65 @@ Chrome) against a temporary Folder and home: the Documents folder, a task folder
 upload with its progress and a taken name, the drop overlay, an empty and a missing
 folder, light and dark, a 390 px wide screen with its sheet, and Czech, without page
 errors.
+
+## The right panel: the Environment browser
+
+Root decision 0191 point 8a (#207, [F38's addendum of
+2026-10-05](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
+the Environment browser, and in the second wave the desktop, are views of the
+Environment in each app's right panel, never a fourth mode beside Chat · Apps ·
+Automate. The Launchpad's own right panel shows, when the person opens it, the view of
+every window, the same view T3 Code's panel embeds (Lazurio/t3code#41); the Launchpad
+builds no viewer of its own.
+
+- **Offered** only where `GET /api/entry` answers an entry with `browserOrigin` (the
+  handover's `entry.browser`): never on a workstation (no entry), on a Remote
+  Environment whose gateway routes no view, or in Recovery mode.
+- **The toggle** "Prohlížeč" / "Browser" (Iconoir's app-window) stands in the head of
+  each page: beside Guide on the Apps home, last among the header's actions in Settings
+  and Files, in the Marketplace's head; one at a time, only its icon below 768 px. The
+  module's information page has no head row for it; a panel left open stays open
+  there, as across every move within the page. Pressed, it takes the quiet surface. The
+  panel is closed on every page load and nothing is remembered.
+- **The panel** is an `<aside>` after the page in the `.app` row, so the page shrinks:
+  beside the rail and the column the page and the panel share the width (the panel
+  360–960 px), and the Apps tiles count their columns from their own width, as the
+  wireframe does (prototypes-lazurio#10). Below 1100 px there is no room for the page
+  beside it, so it covers the window like a sheet with Close in view, and the rail, the
+  column and the page are inert behind it. Its slim header has "Prohlížeč
+  Environmentu" / "Environment browser", Reload, "Otevřít v nové kartě" / "Open in a
+  new tab" and Close; Escape inside it closes it. The first-run tour steps aside while
+  it is open.
+- **What it shows** (`browser-panel-view.ts`, pure; `browser-panel.ts` draws it).
+  Opening and Reload ask `GET /.lazurio/browser.json` on this origin without a session
+  (every window): `credentials: "same-origin"`, no cache, no redirect followed, given
+  up after 20 s. The view is embedded only from `{available: true, view}` whose `view`
+  is an https URL on exactly the recorded `browserOrigin`, without credentials, as
+  written and never on the page's own origin, in a frame with `allow="clipboard-read;
+  clipboard-write; fullscreen"`, `referrerpolicy="no-referrer"` and the sandbox of T3
+  Code's panel (the view keeps its own origin and cookie and cannot navigate the
+  Launchpad). Each answer builds a new frame and closing removes it, so a closed panel
+  streams nothing. Otherwise one sentence: `available: false` says the Environment
+  browser is not available right now; no usable answer (an expired session, a refusal,
+  a timeout, another shape) says to open it in a new tab, where the gateway's sign-in
+  can show, which a frame cannot.
+- **"Open in a new tab"** leads to the view once it is known and to the hand-over
+  `/.lazurio/browser` otherwise. The view's address carries the dashboard's token in
+  its fragment: it lives only in the frame and that link while the panel is open, and
+  never in `localStorage`, `sessionStorage` or the Folder.
+- **Verified** by `tests/browser-panel-view.test.ts` (where it is offered, from the
+  projected handovers with and without the route; the view accepted from the server's
+  own resolution and refused in every other shape; the read's request and its failures;
+  what each state draws) and on 2026-10-05 in Chrome against the hosted preview in
+  Czech and English at 1440×900, 1024×768 and 390×844 and against a workstation
+  preview: the toggle on the Apps home, Settings, Files and the Marketplace and none on
+  the workstation, the page shrinking beside the panel, the frame's attributes with no
+  referrer, the view's own cookie and its top navigation refused by the sandbox, Reload
+  with a new frame, Close and Escape returning the focus, the sheet with the page inert,
+  both sentences with the hand-over link, and Recovery mode closing the panel. These are
+  no rendered-page CI gates (root decision 0178). A real gateway, agent-browser's
+  dashboard in the frame and the gateway's framing rules were **not** exercised; they
+  belong to the DEV-6646 integration review.
 
 ## First run of an Environment
 

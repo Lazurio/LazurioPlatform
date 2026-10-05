@@ -5,6 +5,8 @@ import { environmentName } from "../shell/view";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
 import { pluralKey } from "./apps-view";
+import { createBrowserPanel } from "./browser-panel";
+import { browserPanelOrigin } from "./browser-panel-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -281,7 +283,9 @@ const tour = createTour({
     automate: entry?.mausbotOrigin !== undefined,
   }),
   columnHead: () => columnHead,
-  off: () => recoveryMode !== null,
+  // Recovery mode has no tour, and it steps aside while the person looks at
+  // the Environment browser in the right panel.
+  off: () => recoveryMode !== null || browser.isOpen(),
 });
 /** Draws what the first run says now: the line (Apps is drawn again only
  * when it changed, or when `redraw` asks, so a running preparation does not
@@ -410,6 +414,14 @@ const recovery = createRecoveryPanel({
   },
   copy: () => copy,
   t3codeOrigin: () => chatHref(entry),
+});
+// The right panel (decision F38's addendum of 2026-10-05): the Environment
+// browser's view, offered only where the recorded entry routes it and never
+// in Recovery mode; closed until the person opens it.
+const browser = createBrowserPanel({
+  copy: () => copy,
+  origin: () => browserPanelOrigin(entry, recoveryMode !== null),
+  changed: () => tour.update(),
 });
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
 // the sheet of a narrow viewport. It shows its first route while it is
@@ -542,6 +554,7 @@ function enterRecovery(mode: RecoveryMode) {
   if (recoveryMode !== null) return;
   recoveryMode = mode;
   clearInterval(updateTimer);
+  browser.render();
   // Nothing of the Folder can be read, its language neither: the browser's.
   if (!loaded) {
     locale = navigator.language.startsWith("cs") ? "cs" : "en";
@@ -566,6 +579,7 @@ function relabel() {
   shell.relabel();
   recovery.render();
   files.relabel();
+  browser.relabel();
 }
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
@@ -856,6 +870,7 @@ async function readEntry() {
   }
   recovery.render();
   catalog.render();
+  browser.render();
   if (entry === null) return;
   try {
     const { value, ok } = await get("/api/chat/prompt-handoff");

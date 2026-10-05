@@ -129,9 +129,10 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-blue-500); }
 .section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-blue-500); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
-.tile-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-@media (max-width: 1100px) { .tile-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .tile-grid { grid-template-columns: minmax(0, 1fr); } }
+/* Three columns on a full page, fewer as the page narrows, beside the open
+   right panel too: the grid counts its columns from its own width, as the
+   shell wireframe does (prototypes-lazurio#10). */
+.tile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 16px; }
 .tile-wrap { position: relative; display: grid; min-width: 0; }
 .tile { position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-width: 0; min-height: 88px; padding: 16px 18px; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); font: inherit; text-align: left; text-decoration: none; cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease; }
 button.tile { height: auto; justify-content: flex-start; white-space: normal; box-shadow: none; }
@@ -241,7 +242,7 @@ pre:empty { display: none; }
 .badge[data-outcome="failed"] { color: var(--destructive); }
 .badge[data-outcome="ok"] { color: var(--success-fg); }
 #recovery-status:empty { display: none; }
-html[data-mode="recovery"] lazurio-rail, html[data-mode="recovery"] .column, html[data-mode="recovery"] .nav-toggle, html[data-mode="recovery"] #crumb-parent { display: none !important; }
+html[data-mode="recovery"] lazurio-rail, html[data-mode="recovery"] .column, html[data-mode="recovery"] .nav-toggle, html[data-mode="recovery"] #crumb-parent, html[data-mode="recovery"] .browser-toggle, html[data-mode="recovery"] .browser-panel { display: none !important; }
 html[data-mode="recovery"] .app { margin-left: 0; border-left: 0; }
 
 /* Controls: black buttons, quiet outline, the design system's radius. */
@@ -359,6 +360,32 @@ a.files-name:hover { text-decoration: underline; }
 .files-drop p { max-width: 32rem; padding: 2.5rem 3rem; border: 2px dashed var(--lz-accent); border-radius: var(--radius-card); background: var(--card); color: var(--fg); font-size: 15px; font-weight: var(--lz-weight-akce); text-align: center; overflow-wrap: anywhere; }
 #files-status:empty { display: none; }
 
+/* The right panel (decision F38's addendum of 2026-10-05, root decision
+   0191 point 8a): the view of the Environment browser after the page in the
+   .app row, so the page shrinks; beside the rail and the column the page
+   and the panel share the width. Closed by default. The Browser toggle
+   stands in the head of each page: beside Guide on the Apps home, in the
+   header of Settings and Files, in the Marketplace's head; pressed, it takes
+   the quiet surface. Below 1100 px there is no room for the page beside the
+   panel, so the panel covers the window like a sheet, its Close in view. */
+button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
+.apps-head .browser-toggle, .market-head .browser-toggle { font-weight: var(--lz-weight-akce); }
+.market-head .browser-toggle { margin-left: auto; }
+.browser-panel { position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 72px) - var(--column-width)) / 2), 960px); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); }
+.browser-head { display: flex; flex: none; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--lz-line-faint); }
+.browser-title { flex: 1; min-width: 0; overflow: hidden; font-size: 14px; font-weight: var(--lz-weight-akce); text-overflow: ellipsis; white-space: nowrap; }
+.browser-title:focus { outline: none; }
+.browser-title:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; border-radius: 4px; }
+.browser-actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.browser-action { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted-fg); font: 400 13px/1 var(--font-sans); text-decoration: none; white-space: nowrap; cursor: pointer; }
+.browser-action:hover { background: var(--hover); color: var(--fg); }
+button.browser-action { width: 30px; padding: 0; }
+.browser-body { display: flex; flex: 1; min-height: 0; background: var(--lz-gray-25); }
+.browser-frame { display: block; flex: 1; width: 100%; height: 100%; border: 0; background: var(--lz-white); }
+.browser-message { margin: auto; max-width: 30rem; padding: 24px; color: var(--muted-fg); font-size: 14px; line-height: 1.5; text-align: center; }
+@media (max-width: 1099px) { .browser-panel { position: fixed; inset: 0; z-index: 50; width: auto; height: auto; border-left: 0; } }
+@media (max-width: 767px) { .browser-toggle-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+
 /* Narrow viewport: the column is an off-canvas sheet beside the rail,
    opened from a button at the top of the page (T3 Code ui/sidebar.tsx below
    768 px; how the shell collapses is open in the target shell). */
@@ -428,7 +455,8 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <!-- Icons: Iconoir (MIT, https://iconoir.com; licence in
      src/shell/vendor/LICENSE-iconoir.txt), the design system's interface set,
      exactly as the shell wireframe draws them (prototypes-lazurio 1cbad15,
-     Icon.tsx), inlined. -->
+     Icon.tsx), inlined. i-browser, which the wireframe does not draw, is
+     Iconoir's app-window (iconoir-react 7.12.1 AppWindow). -->
 <svg hidden aria-hidden="true">
 <symbol id="i-general" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-machine" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M6 18.01L6.01 17.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.01L6.01 5.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.4V2.6C2 2.26863 2.26863 2 2.6 2H21.4C21.7314 2 22 2.26863 22 2.6V9.4C22 9.73137 21.7314 10 21.4 10H2.6C2.26863 10 2 9.73137 2 9.4Z" stroke="currentColor"/><path d="M2 21.4V14.6C2 14.2686 2.26863 14 2.6 14H21.4C21.7314 14 22 14.2686 22 14.6V21.4C22 21.7314 21.7314 22 21.4 22H2.6C2.26863 22 2 21.7314 2 21.4Z" stroke="currentColor"/></symbol>
@@ -460,6 +488,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <symbol id="i-warning" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M20.0429 21H3.95705C2.41902 21 1.45658 19.3364 2.22324 18.0031L10.2662 4.01533C11.0352 2.67792 12.9648 2.67791 13.7338 4.01532L21.7768 18.0031C22.5434 19.3364 21.581 21 20.0429 21Z" stroke="currentColor" stroke-linecap="round"/><path d="M12 9V13" stroke="currentColor" stroke-linecap="round"/><path d="M12 17.01L12.01 16.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M5 13L9 17L19 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M6.75827 17.2426L12.0009 12M17.2435 6.75736L12.0009 12M12.0009 12L6.75827 6.75736M12.0009 12L17.2435 17.2426" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-browser" viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M2 19V5C2 3.89543 2.89543 3 4 3H20C21.1046 3 22 3.89543 22 5V19C22 20.1046 21.1046 21 20 21H4C2.89543 21 2 20.1046 2 19Z" stroke="currentColor"/><path d="M2 7L22 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 5.01L5.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5.01L8.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5.01L11.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-star-filled" viewBox="0 0 24 24" fill="currentColor" stroke-width="1.5"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 <!-- Level 1, the rail of Organizations (decision F36 and its addendum of
@@ -529,6 +558,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 <button type="button" class="ghost" id="recovery-refresh" data-section-action="recovery"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="recoveryAgain">Check again</span></button>
+<button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button>
 </div>
 </header>
 
@@ -538,7 +568,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
      module's overview `/o/<org>/<module>` from a tile's menu; drawn by
      catalog-panel.ts. -->
 <main id="view-catalog" class="container wide" data-view="catalog">
-<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"></div><a class="apps-guide" id="catalog-guide" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a></header>
+<header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"></div><a class="apps-guide" id="catalog-guide" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="appsGuide">Guide</span></a><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
 <p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>
 <div id="catalog-body" class="stack"></div>
 </main>
@@ -546,7 +576,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <!-- The Marketplace (decision F36 addendum of 2026-10-04): where modules
      will be added to the Environment; for now it says it is coming. -->
 <main id="view-marketplace" class="container" data-view="marketplace" hidden>
-<header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div></header>
+<header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
 <p class="empty" id="marketplace-text"></p>
 </main>
 
@@ -624,6 +654,22 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 </section>
 </main>
 </div>
+<!-- The right panel (decision F38's addendum of 2026-10-05, root decision
+     0191 point 8a): the view of every window of the Environment browser, the
+     same view every app of the Environment embeds, never a viewer of our
+     own; drawn by browser-panel.ts. Its link leads to the view, or to the
+     hand-over, which passes the gateway's sign-in a frame cannot show. -->
+<aside class="browser-panel" id="browser-panel" aria-labelledby="browser-title" hidden>
+<header class="browser-head">
+<h2 class="browser-title" id="browser-title" tabindex="-1" data-message="browserTitle">Environment browser</h2>
+<div class="browser-actions">
+<button type="button" class="browser-action" id="browser-reload"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="browserReload">Reload</span></button>
+<a class="browser-action" id="browser-tab" href="/.lazurio/browser" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg><span data-message="browserOpenTab">Open in a new tab</span></a>
+<button type="button" class="browser-action" id="browser-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="browserClose">Close</span></button>
+</div>
+</header>
+<div class="browser-body" id="browser-body"><p class="browser-message" id="browser-message" role="status" aria-live="polite"></p></div>
+</aside>
 </div>
 <div id="files-drop" class="files-drop" hidden><p id="files-drop-text"></p></div>
 <div id="toast" class="toast-region" role="status" aria-live="polite"></div>
