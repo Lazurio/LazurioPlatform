@@ -1,6 +1,8 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  accountCacheKey,
   accountDocumentPath,
+  cachedAccountFor,
   pageAccountJson,
   readAccountJson,
   readShellAccount,
@@ -972,4 +974,80 @@ test("one request per page load: the rail and Apps share the page's answer", asy
   expect(parseShellAccount(await first)).not.toBeNull();
   await pageAccountJson();
   expect(requests).toBe(1);
+});
+
+// The remembered account (Matěj 2026-10-05: the rail took seconds to appear):
+// a valid answer is kept, a refusal or no relay removes it, a slow or failed
+// answer keeps it, and it is used only for the same operator.
+const memoryStore = () => {
+  const values = new Map<string, string>();
+  return {
+    values,
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+    removeItem: (key: string) => void values.delete(key),
+  };
+};
+
+test("the account this origin read last draws the rail at once, for the same operator only", async () => {
+  const store = memoryStore();
+  const quiet = () => {};
+  expect(cachedAccountFor("example", store)).toBeNull();
+  // A valid answer is remembered.
+  await readAccountJson(
+    async () => answer(200, accountDocument()),
+    1_000,
+    quiet,
+    store,
+  );
+  expect(store.values.has(accountCacheKey)).toBe(true);
+  const remembered = cachedAccountFor(null, store);
+  expect(remembered).not.toBeNull();
+  const login = remembered?.operator.login ?? null;
+  if (login !== null) {
+    expect(cachedAccountFor(login.toUpperCase(), store)).not.toBeNull();
+    expect(cachedAccountFor("someone-else", store)).toBeNull();
+  }
+  // A slow or failing answer keeps it.
+  for (const failing of [answer(502, "bad gateway"), answer(504, "timeout")]) {
+    await readAccountJson(async () => failing, 1_000, quiet, store);
+    expect(cachedAccountFor(null, store)).not.toBeNull();
+  }
+  await readAccountJson(
+    async () => {
+      throw new TypeError("network");
+    },
+    1_000,
+    quiet,
+    store,
+  );
+  expect(cachedAccountFor(null, store)).not.toBeNull();
+  // A refusal or no relay removes it.
+  for (const status of [401, 403, 404]) {
+    await readAccountJson(
+      async () => answer(200, accountDocument()),
+      1_000,
+      quiet,
+      store,
+    );
+    await readAccountJson(
+      async () => answer(status, { error: "x" }),
+      1_000,
+      quiet,
+      store,
+    );
+    expect([status, cachedAccountFor(null, store)]).toEqual([status, null]);
+  }
+  // An answer that is no account document is never remembered, and a
+  // remembered value that no longer parses is dropped.
+  await readAccountJson(
+    async () => answer(200, { schema: "other" }),
+    1_000,
+    quiet,
+    store,
+  );
+  expect(store.values.has(accountCacheKey)).toBe(false);
+  store.values.set(accountCacheKey, "{not json");
+  expect(cachedAccountFor(null, store)).toBeNull();
+  expect(store.values.has(accountCacheKey)).toBe(false);
 });

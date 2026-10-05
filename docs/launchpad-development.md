@@ -393,6 +393,12 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     never polls. Apps reads the same answer (`src/launchpad/account.ts`), so the page
     asks once. Apps takes two things of it: `preferences.openApps` and `favourites`
     keyed by the Organization slug.
+  - The rail draws at once from the account document this origin read last
+    (`localStorage` `lazurio.account.v1`, `cachedAccountFor`), only when it belongs to
+    this Environment's operator, and the fresh answer replaces it when it arrives.
+    A valid answer is remembered; a refusal (`401`, `403`) or no relay (`404`) removes
+    it; a slow or failed answer keeps it. It holds only what the document holds, never
+    a token (Matěj 2026-10-05: the rail took seconds to appear).
   - The rail's merge (F37 point 4, `src/shell/merge.ts`). `parseShellAccount` in
     `contract.ts` reads `lazurio.account.v1` with the same entry parsers as
     `lazurio.shell.v1` (https only, `isEnvironmentId` and the base-host identity, unknown

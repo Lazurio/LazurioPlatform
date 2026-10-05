@@ -1,4 +1,4 @@
-import { pageAccountJson, readShellAccount } from "./account";
+import { cachedAccountFor, pageAccountJson, readShellAccount } from "./account";
 import {
   currentEnvironment,
   parseShell,
@@ -73,6 +73,7 @@ let requested = false;
 let accountRequested = false;
 
 function redraw(): void {
+  useRemembered();
   current = local === null ? null : mergeAccount(local, account);
   accountLast =
     current === null ? new Map() : accountLastBySpace(current, account);
@@ -86,12 +87,29 @@ export function provideShell(shell: Shell): void {
   redraw();
 }
 
+/** The rail at once from the account this origin read last, then the
+ * fresh answer (account.ts, `accountCacheKey`). The remembered one is used
+ * only for this Environment's operator, so it waits for the document. */
+let rememberedUsed = false;
+function useRemembered(): void {
+  if (rememberedUsed || account !== null || local === null) return;
+  rememberedUsed = true;
+  const remembered = cachedAccountFor(local.operator.login);
+  if (remembered === null) return;
+  account = remembered;
+}
+
 function requestAccount(): void {
   if (accountRequested) return;
   accountRequested = true;
   void readShellAccount(pageAccountJson).then((read) => {
-    if (read === null) return;
-    account = read;
+    // A fresh answer replaces the remembered one; without one, the
+    // remembered one stays only while this origin still keeps it (a
+    // refusal removed it).
+    const next =
+      read ?? (local === null ? null : cachedAccountFor(local.operator.login));
+    if (next === account) return;
+    account = next;
     redraw();
   });
 }
