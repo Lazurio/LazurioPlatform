@@ -1,38 +1,24 @@
-import {
-  cachedAccountFor,
-  pageAccountJson,
-  readShellAccount,
-  rememberAccount,
-} from "./account";
-import {
-  type AccountVisit,
-  currentEnvironment,
-  parseShell,
-  type Shell,
-  type ShellAccount,
-} from "./contract";
+import { pageAccountJson } from "./account";
+import { parseShell, type Shell, type ShellAccount } from "./contract";
 import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
 import { appOf, keptVisit, reportLast } from "./last";
-import { accountLastBySpace, mergeAccount } from "./merge";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
+import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
   type ColumnSetupLine,
-  columnSetupLine,
-  environmentGlyph,
-  environmentName,
-  environmentSettingsHref,
-  environmentWho,
+  columnHead,
   hereOf,
   initialsOf,
+  railHome,
   railSpaces,
   type ShellApp,
   type SwitcherSection,
+  type SwitchTab,
   shellApps,
   switcherSections,
-  switchTabs,
 } from "./view";
 
 // The Lazurio shell as framework-free custom elements (decision F36,
@@ -50,16 +36,20 @@ import {
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
 // their own origin once (the forks). A host that provides it marks
 // `<html data-lazurio-shell="host">` so nothing is fetched twice. Alongside
-// it, in either case, the elements read the person's account once
-// (`/.lazurio/account/environments`, account.ts) and draw the two merged
-// (merge.ts, F37): this Environment as its document says, and the other
-// spaces and Environments of the person signed in at the browser. Until the
-// account answers, and whenever it cannot, they draw the document alone.
+// it the elements draw the person's account merged in (merge.ts, F37): this
+// Environment as its document says, and the other spaces and Environments
+// of the person signed in at the browser. By default they read the account
+// on their own origin once (`/.lazurio/account/environments`, account.ts);
+// a host that has it marks `<html data-lazurio-account="host">` and calls
+// `provideAccount`, and then nothing is read, remembered or reported
+// (state.ts, F36's addendum of 2026-10-05). Until there is an account, and
+// whenever there is none, they draw the document alone.
 //
 // Attributes: `app` on the rail (`chat`, `apps`, `automate`: a click on a
 // space stays in that app), `space` on both (the space you are in, when the
 // host knows it better than the document: a workstation opened for one
-// Organization), `active` (`chat`, `apps`, `automate` or `settings`) and
+// Organization; on a page that is no Environment's, the Organization whose
+// Dashboard it is), `active` (`chat`, `apps`, `automate` or `settings`) and
 // `settings` (the Settings address) on the head.
 //
 // Events, both cancelable and composed, so a host can take a click over:
@@ -69,81 +59,35 @@ import {
 
 const logo = vendorText("symbol-color.svg");
 
-// This Environment's document, the person's account and the two merged
-// (what the elements draw).
-let local: Shell | null = null;
-let account: ShellAccount | null = null;
-let current: Shell | null = null;
-let accountLast: ReadonlyMap<string, AccountVisit> = new Map();
-const listeners = new Set<() => void>();
+// The page's document, the person's account and the two merged (what the
+// elements draw), shared by every element of the page.
+const state = createShellState({
+  source: () =>
+    accountSourceOf(document.documentElement.dataset.lazurioAccount),
+  read: pageAccountJson,
+  report: reportLast,
+});
 let requested = false;
-let accountRequested = false;
-
-function redraw(): void {
-  useRemembered();
-  keepFresh();
-  current = local === null ? null : mergeAccount(local, account);
-  accountLast =
-    current === null ? new Map() : accountLastBySpace(current, account);
-  for (const listener of listeners) listener();
-}
 
 /** Gives the elements their document; they redraw (merged with the
- * person's account once it has answered). */
+ * person's account once there is one). */
 export function provideShell(shell: Shell): void {
-  local = shell;
-  redraw();
+  state.provideShell(shell);
 }
 
-/** The rail at once from the account this origin remembered, then the
- * fresh answer (account.ts, `accountCacheKey`). Both directions need this
- * Environment's operator, so they wait for the document: the remembered
- * account is used only when it is the operator's own, and the fresh one is
- * kept only then (a Team Environment, which names no operator, does
- * neither). */
-let rememberedUsed = false;
-function useRemembered(): void {
-  if (rememberedUsed || account !== null || local === null) return;
-  rememberedUsed = true;
-  const remembered = cachedAccountFor(local.operator.login);
-  if (remembered === null) return;
-  account = remembered;
-}
-
-/** This page's fresh answer, once read, and whether it was offered to this
- * origin's memory (once, as soon as the document names the operator). */
-let fresh: ShellAccount | null = null;
-let freshOffered = false;
-function keepFresh(): void {
-  if (fresh === null || freshOffered || local === null) return;
-  freshOffered = true;
-  rememberAccount(fresh, local.operator.login);
-}
-
-function requestAccount(): void {
-  if (accountRequested) return;
-  accountRequested = true;
-  void readShellAccount(pageAccountJson).then((read) => {
-    if (read !== null) {
-      fresh = read;
-      account = read;
-      redraw();
-      return;
-    }
-    // Without a fresh answer, the remembered one stays only while this
-    // origin still keeps it (a refusal removed it).
-    const next = local === null ? null : cachedAccountFor(local.operator.login);
-    if (next === account) return;
-    account = next;
-    redraw();
-  });
+/** Gives the elements the person's account on a host's page (`<html
+ * data-lazurio-account="host">`): the document `parseShellAccount` read, or
+ * null for none. They redraw; nothing is requested, remembered or
+ * reported. */
+export function provideAccount(account: ShellAccount | null): void {
+  state.provideAccount(account);
 }
 
 function requestShell(): void {
-  requestAccount();
+  state.requestAccount();
   if (
     requested ||
-    local !== null ||
+    state.local() !== null ||
     document.documentElement.dataset.lazurioShell === "host"
   )
     return;
@@ -161,7 +105,8 @@ function requestShell(): void {
 }
 
 // Where you last were in each space, in this browser: a click on a space in
-// the rail returns there. Only Environment ids of the document are kept.
+// the rail returns there. Only Environment ids of the document are kept,
+// and nothing from a page that is no Environment's (`keptVisit`).
 const lastKey = "lazurio.shell.last";
 function lastBySpace(): Record<string, string> {
   try {
@@ -227,7 +172,7 @@ function organizationMark(
 
 abstract class ShellElement extends HTMLElement {
   protected readonly root: ShadowRoot;
-  private readonly redraw = () => this.render();
+  private unlisten: (() => void) | null = null;
   constructor(css: string) {
     super();
     this.root = this.attachShadow({ mode: "open" });
@@ -236,12 +181,13 @@ abstract class ShellElement extends HTMLElement {
     this.root.adoptedStyleSheets = [sheet];
   }
   connectedCallback() {
-    listeners.add(this.redraw);
+    this.unlisten ??= state.listen(() => this.render());
     requestShell();
     this.render();
   }
   disconnectedCallback() {
-    listeners.delete(this.redraw);
+    this.unlisten?.();
+    this.unlisten = null;
   }
   attributeChangedCallback() {
     if (this.isConnected) this.render();
@@ -250,6 +196,7 @@ abstract class ShellElement extends HTMLElement {
     const lang = this.getAttribute("lang");
     return shellMessages(lang === "cs" || lang === "en" ? lang : shell.locale);
   }
+  /** The space you are in; null on the personal Dashboard. */
   protected here(shell: Shell): string | null {
     return hereOf(shell, this.getAttribute("space"));
   }
@@ -408,13 +355,20 @@ class Switcher {
     const copy = this.copy;
     const group = element("div", "switcher-group");
     if (section.head !== null) {
-      const { organization, href } = section.head;
+      const { organization, href, current } = section.head;
       const head = this.track(this.host.link(href, "switcher-head"));
       head.append(
         organizationMark(organization.avatar, initialsOf(organization.name)),
         element("span", "", organization.name),
         element("span", "switcher-head-meta", copy.organizationDashboard),
       );
+      // On the Organization's Dashboard its head is where you are.
+      if (current) {
+        head.setAttribute("aria-current", "page");
+        const here = element("span", "switcher-here");
+        here.append(icon("check", 14), copy.here);
+        head.append(here);
+      }
       group.append(head);
     } else group.append(element("div", "switcher-title", section.title));
     for (const row of section.rows) {
@@ -489,12 +443,12 @@ export class LazurioRail extends ShellElement {
 
   /** Opens the jump to any Environment (⌘⇧E). */
   openJump() {
-    const shell = current;
+    const shell = state.drawn();
     if (shell === null || this.jump === null) return;
     const dialog = this.jump;
     const switcher = new Switcher(this, shell, this.copy(shell), {
       here: this.here(shell),
-      app: this.app(),
+      app: this.stayIn(shell) ?? "apps",
       all: true,
       popover: false,
       close: () => dialog.close(),
@@ -504,6 +458,13 @@ export class LazurioRail extends ShellElement {
     switcher.focus();
   }
 
+  /** The app a click stays in: the rail's own (`app`) on an Environment's
+   * page; none on a page that is no Environment's (F36's addendum of
+   * 2026-10-05), where a space opens the app its last visit was in. */
+  private stayIn(shell: Shell): ShellApp | null {
+    return shell.current === null ? null : this.app();
+  }
+
   private withTip<T extends HTMLElement>(node: T, title: string, sub: string) {
     node.dataset.tip = title;
     node.dataset.tipSub = sub;
@@ -511,40 +472,58 @@ export class LazurioRail extends ShellElement {
   }
 
   protected render() {
-    const shell = current;
+    const shell = state.drawn();
     if (shell === null) {
       this.root.replaceChildren();
       return;
     }
     const copy = this.copy(shell);
     const here = this.here(shell);
+    // This browser's memory of the space's last Environment; nothing from a
+    // page that is no Environment's.
     const kept = keptVisit(shell, here);
     if (kept !== null) remember(kept.space, kept.environment);
-    // The last Environment used (S8, last.ts): a host that names its app.
-    reportLast(shell, appOf(this.getAttribute("app")), here);
-    // Where you were last in each other space: the account's memory (every
-    // Environment is its own origin, so this browser's memory on this
-    // origin knows little else), else this browser's; in the space you are
-    // in, this Environment.
+    // The last Environment used (S8, last.ts): a host that names its app,
+    // never a host that provides the account (state.ts) or a page that is
+    // no Environment's (last.ts).
+    state.report(appOf(this.getAttribute("app")), here);
+    const app = this.stayIn(shell);
+    const accountLast = state.lastBySpace();
     const last = lastBySpace();
     const spaces = railSpaces(shell, copy, {
       here,
-      app: this.app(),
-      last: (space) =>
-        (space === here ? null : accountLast.get(space)?.environment) ??
-        last[space] ??
-        null,
+      app,
+      last:
+        app === null
+          ? // A page that is no Environment's: the account's last visit,
+            // in its app; this origin keeps none.
+            (space) => accountLast.get(space) ?? null
+          : // Where you were last in each other space: the account's
+            // memory (every Environment is its own origin, so this
+            // browser's memory on this origin knows little else), else
+            // this browser's; in the space you are in, this Environment.
+            (space) => {
+              const browser = last[space];
+              return (
+                (space === here ? null : accountLast.get(space)?.environment) ??
+                (typeof browser === "string" ? browser : null)
+              );
+            },
     });
     const nav = element("nav");
     nav.setAttribute("aria-label", copy.rail);
 
+    // The logo: the personal Dashboard, the page you are on when you are on
+    // it (F36's addendum of 2026-10-05). A host's own path announces
+    // `lazurio-navigate`, as every link on the page's origin does.
+    const dashboard = railHome(shell, this.getAttribute("space"));
     const home = this.withTip(
-      element("a", "item home"),
+      this.link(dashboard.href, "item home"),
       copy.dashboard,
       copy.dashboardSub,
     );
-    home.href = shell.dashboard;
     home.setAttribute("aria-label", copy.dashboard);
+    if (dashboard.current) home.setAttribute("aria-current", "page");
     // The logo on a white disc, so it reads the same in every app's colours.
     const disc = element("span", "disc");
     const image = element("img");
@@ -584,22 +563,20 @@ export class LazurioRail extends ShellElement {
     });
     if (shell.addOrganization !== null) {
       const add = this.withTip(
-        element("a", "item add"),
+        this.link(shell.addOrganization, "item add"),
         copy.addOrganization,
         "",
       );
-      add.href = shell.addOrganization;
       add.setAttribute("aria-label", copy.addOrganization);
       add.append(icon("plus", 18));
       scroll.append(add);
     }
 
     const account = this.withTip(
-      element("a", "item account"),
+      this.link(shell.account, "item account"),
       copy.account,
       copy.accountSub,
     );
-    account.href = shell.account;
     account.setAttribute("aria-label", copy.account);
     const photo = () => {
       const mark = element("span", "avatar");
@@ -673,19 +650,12 @@ export class LazurioColumnHead extends ShellElement {
     this.open?.close();
   }
 
-  private settingsHref(shell: Shell): string {
-    const own = this.getAttribute("settings");
-    if (own) return own;
-    const environment = currentEnvironment(shell);
-    return environment === null ? "" : environmentSettingsHref(environment);
-  }
-
-  /** Opens the list of this space's Environments under the picker. */
   /** Opens the list of this space's Environments under the picker, in the
    * top layer (a popover): the host's sidebar may clip or stack over its
    * children, the top layer is above both. A click outside or Escape closes
-   * it (light dismiss). */
-  private toggle(picker: HTMLButtonElement, shell: Shell) {
+   * it (light dismiss). On an Organization's Dashboard the list is that
+   * Organization's, its head the current row. */
+  private toggle(picker: HTMLButtonElement, shell: Shell, here: string) {
     if (this.open !== null) {
       this.open.close();
       return;
@@ -701,7 +671,7 @@ export class LazurioColumnHead extends ShellElement {
       this.open = null;
     };
     const switcher = new Switcher(this, shell, copy, {
-      here: this.here(shell),
+      here,
       app: this.activeApp() ?? "apps",
       all: false,
       popover: true,
@@ -760,21 +730,25 @@ export class LazurioColumnHead extends ShellElement {
 
   protected render() {
     this.open?.close();
-    const shell = current;
+    const shell = state.drawn();
     if (shell === null) {
       this.root.replaceChildren();
       return;
     }
     const copy = this.copy(shell);
-    const here = this.here(shell);
-    // The last Environment used (S8, last.ts): Chat, Apps or Automate.
-    reportLast(shell, appOf(this.getAttribute("active")), here);
-    const environment = currentEnvironment(shell);
-    if (environment === null || here === null) {
+    const model = columnHead(shell, copy, {
+      space: this.getAttribute("space"),
+      active: this.getAttribute("active"),
+      settings: this.getAttribute("settings"),
+    });
+    // Nothing on the personal Dashboard (F36's addendum of 2026-10-05).
+    if (model === null) {
       this.root.replaceChildren();
       return;
     }
-    const name = environmentName(environment, copy);
+    // The last Environment used (S8, last.ts): Chat, Apps or Automate.
+    state.report(appOf(this.getAttribute("active")), model.here);
+    const name = model.picker.title;
 
     const picker = element("button", "pick");
     picker.type = "button";
@@ -782,7 +756,7 @@ export class LazurioColumnHead extends ShellElement {
     picker.setAttribute("aria-expanded", "false");
     picker.setAttribute("aria-label", fillShell(copy.pick, { name }));
     const glyph = element("span", "pick-glyph");
-    const look = environmentGlyph(shell, environment, here);
+    const look = model.picker.glyph;
     if (look.kind === "avatar")
       glyph.append(
         organizationMark(
@@ -796,24 +770,36 @@ export class LazurioColumnHead extends ShellElement {
     const text = element("span", "pick-text");
     text.append(
       element("span", "pick-title", name),
-      element("span", "pick-who", environmentWho(environment, copy)),
+      element("span", "pick-who", model.picker.who),
     );
     picker.append(glyph, text, icon("chevron-down", 14));
-    picker.addEventListener("click", () => this.toggle(picker, shell));
+    picker.addEventListener("click", () =>
+      this.toggle(picker, shell, model.here),
+    );
 
-    const gear = this.link(this.settingsHref(shell), "gear");
+    // The Settings of exactly what the picker names: the Environment's, or
+    // on an Organization's Dashboard the Organization's.
+    const gear = this.link(model.gear.href, "gear");
     // The first-run tour rings the gear and the tabs (root decision 0188).
     gear.dataset.tour = "gear";
-    gear.setAttribute("aria-label", copy.settings);
-    gear.title = copy.settings;
-    if (this.getAttribute("active") === "settings")
-      gear.setAttribute("aria-current", "page");
+    gear.setAttribute("aria-label", model.gear.label);
+    gear.title = model.gear.label;
+    if (model.gear.current) gear.setAttribute("aria-current", "page");
     gear.append(icon("settings", 18));
 
     const row = element("div", "row");
     row.append(picker, gear);
+    const head = element("div", "head");
+    head.append(row);
+    // No switch on an Organization's Dashboard.
+    if (model.tabs !== null) head.append(this.appSwitch(model.tabs, copy));
+    if (model.setup !== null)
+      head.append(setupLine(model.setup, copy.setupLabel));
+    this.root.replaceChildren(head);
+  }
 
-    const tabs = switchTabs(shell, copy, this.activeApp());
+  /** The switch Chat · Apps · Automate. */
+  private appSwitch(tabs: readonly SwitchTab[], copy: ShellCopy): HTMLElement {
     const nav = element("nav", "switch");
     nav.setAttribute("aria-label", copy.switchLabel);
     nav.append(
@@ -850,11 +836,7 @@ export class LazurioColumnHead extends ShellElement {
         return anchor;
       }),
     );
-    const head = element("div", "head");
-    head.append(row, nav);
-    const line = columnSetupLine(shell, copy, this.activeApp());
-    if (line !== null) head.append(setupLine(line, copy.setupLabel));
-    this.root.replaceChildren(head);
+    return nav;
   }
 }
 

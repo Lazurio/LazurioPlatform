@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import { shellDocument } from "../src/launchpad/shell-document";
 import {
+  accountCacheKey,
+  accountDocumentPath,
+  readAccountJson,
+} from "../src/shell/account";
+import {
   parseShell,
   parseShellAccount,
   type Shell,
@@ -9,6 +14,7 @@ import {
 import { createLastReport, keptVisit, lastVisit } from "../src/shell/last";
 import { accountLastBySpace, mergeAccount } from "../src/shell/merge";
 import { shellMessages } from "../src/shell/messages";
+import { accountSourceOf, createShellState } from "../src/shell/state";
 import {
   columnHead,
   columnSetupLine,
@@ -535,6 +541,159 @@ test("nothing is reported or remembered from a page that is no Environment's", a
   // The switch and the setup line have nothing to show there.
   expect(switchTabs(shell, cs, "apps")).toEqual([]);
   expect(columnSetupLine(shell, cs, "chat")).toBeNull();
+});
+
+// Who provides the account.
+
+const spyStore = () => {
+  const calls: string[] = [];
+  const values = new Map<string, string>();
+  return {
+    calls,
+    values,
+    getItem: (key: string) => {
+      calls.push(`get ${key}`);
+      return values.get(key) ?? null;
+    },
+    setItem: (key: string, value: string) => {
+      calls.push(`set ${key}`);
+      values.set(key, value);
+    },
+    removeItem: (key: string) => {
+      calls.push(`remove ${key}`);
+      values.delete(key);
+    },
+  };
+};
+const answer = (body: unknown) =>
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+const quiet = () => {};
+
+// A state of the elements with every effect observed: the account read
+// through a fetcher spy, the browser's memory, and the report's transport.
+const observed = (source: "host" | "origin") => {
+  const requests: string[] = [];
+  const sent: string[] = [];
+  const lines: string[] = [];
+  const store = spyStore();
+  let asked = 0;
+  const state = createShellState({
+    source: () => {
+      asked += 1;
+      return source;
+    },
+    read: () =>
+      readAccountJson(
+        async (path) => {
+          requests.push(path);
+          return answer(accountDocument());
+        },
+        1_000,
+        quiet,
+        store,
+      ),
+    report: createLastReport(async (body) => {
+      sent.push(body);
+    }),
+    store,
+    log: (line) => lines.push(line),
+  });
+  return { state, requests, sent, lines, store, asked: () => asked };
+};
+
+test("the account's source is the document's marker: the host only for exactly `host`", () => {
+  expect(accountSourceOf("host")).toBe("host");
+  for (const marker of [undefined, null, "", "HOST", "origin", "true"])
+    expect(accountSourceOf(marker)).toBe("origin");
+});
+
+test("a host that provides the account: no request for it, no remembered account read or written, no report of the last Environment", async () => {
+  const { state, requests, sent, lines, store, asked } = observed("host");
+  const changes: number[] = [];
+  state.listen(() => changes.push(changes.length));
+  state.requestAccount();
+  // An Environment's page in host mode too: the host owns the account.
+  state.provideShell(parsed(environmentDocument()));
+  const read = visited();
+  state.provideAccount(read);
+  state.report("apps", "example");
+  state.report("chat", "example");
+  await new Promise((done) => setTimeout(done, 10));
+  expect(requests).toEqual([]);
+  expect(store.calls).toEqual([]);
+  expect(sent).toEqual([]);
+  expect(lines).toEqual([]);
+  // The provided account is what the elements draw, merged as always.
+  expect(state.drawn()).toEqual(
+    mergeAccount(parsed(environmentDocument()), read),
+  );
+  expect(state.lastBySpace().get("example")).toEqual({
+    environment: "vm-03.example",
+    app: "chat",
+  });
+  expect(changes.length).toBe(2);
+  // None is none: the host's own document alone.
+  const host = parsed(hostDocument());
+  state.provideShell(host);
+  state.provideAccount(null);
+  expect(state.drawn()).toBe(host);
+  expect(store.calls).toEqual([]);
+  // The marker is read once per page.
+  expect(asked()).toBe(1);
+});
+
+test("without the marker the elements read, remember and report on their own origin as before, and a provided account is ignored with one debug line", async () => {
+  const { state, requests, sent, lines, store } = observed("origin");
+  // The person's own personal Remote Environment: it keeps her account.
+  const personal = parsed({
+    ...environmentDocument(),
+    current: "ada",
+    environments: [
+      {
+        id: "ada",
+        label: null,
+        kind: "personal",
+        organizations: [],
+        assignee: null,
+        apps: {
+          apps: "https://launchpad.ada.lazurio.io/",
+          chat: null,
+          automate: null,
+        },
+      },
+    ],
+    organizations: [],
+  });
+  const answered = new Promise<void>((done) => {
+    const stop = state.listen(() => {
+      if (state.drawn()?.organizations.length === 2) {
+        stop();
+        done();
+      }
+    });
+  });
+  state.provideShell(personal);
+  state.requestAccount();
+  state.requestAccount();
+  await answered;
+  expect(requests).toEqual([accountDocumentPath]);
+  expect(store.calls).toEqual([
+    `get ${accountCacheKey}`,
+    `set ${accountCacheKey}`,
+  ]);
+  state.report("apps", "personal");
+  state.report("chat", "personal");
+  expect(sent.map((body) => JSON.parse(body))).toEqual([
+    { environment: "ada", app: "apps", organization: null },
+  ]);
+  const before = state.drawn();
+  state.provideAccount(account({ lastBySpace: {} }));
+  expect(state.drawn()).toBe(before);
+  expect(lines).toHaveLength(1);
+  expect(lines[0]).toContain('data-lazurio-account="host"');
 });
 
 // Environment pages are unchanged.
