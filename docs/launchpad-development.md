@@ -353,6 +353,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   2026-10-05). A hosted work, Team or Automated Environment lists the Organization that
   owns it (the handover's owner slug, `ownerOrganization`) first among its
   `organizations`, whether or not the Folder holds that Organization or can read it.
+  The handover names the owner by its lowercased GitHub login (`conceptlinelazurio`),
+  the Folder by its own slug (`conceptline`). The catalog entry bound to that login,
+  or carrying that slug, is the same Organization and keeps its slug; it is never
+  listed twice.
   Until it can, the document knows the Organization by its slug alone: the slug as the
   name, its Dashboard address, no avatar. Before this, a work Environment whose
   Organization checkout lacked its canonical documents fell into the person's own space
