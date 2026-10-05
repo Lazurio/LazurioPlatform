@@ -4292,7 +4292,7 @@ nothing is renamed or removed, and an Environment's page is drawn as before.
    Environment's id or `null`; `null` says the page belongs to no Environment. The
    parser takes an explicit `null` only, with any `environments` or none; a missing
    `current` stays invalid, and `setup`, which describes the current Environment, must
-   then be absent. Only a host produces such a document; a Launchpad always names its
+   then be absent (not even `null`). Only a host produces such a document; a Launchpad always names its
    own Environment. `currentEnvironment` returns `ShellEnvironment | null`, and every
    consumer handles null: no switch, no setup line, no report of the last Environment
    (`lastVisit` is null), and the Launchpad's Apps behaves as before.

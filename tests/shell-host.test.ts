@@ -145,7 +145,7 @@ test("a page that is no Environment's: `current: null` is a document with or wit
     expect(parseShell(hostDocument({ current }))).toBeNull();
   // What the current Environment lacks needs a current Environment.
   expect(parseShell(hostDocument({ setup: { github: "missing" } }))).toBeNull();
-  expect(parseShell(hostDocument({ setup: null }))?.setup).toBeUndefined();
+  expect(parseShell(hostDocument({ setup: null }))).toBeNull();
   // A Launchpad's own document always names its Environment.
   const hosted = shellDocument({
     preset: "hosted-organization-personal",

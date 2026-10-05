@@ -455,7 +455,8 @@ export function parseShellSetup(
  * refused), and every Organization an Environment names is listed. The
  * Dashboard's addresses are https URLs or paths on the page's own origin.
  * The optional `setup` (root decision 0188) is absent, null or in its exact
- * shape, and only beside a current Environment, which it describes. */
+ * shape beside a current Environment, which it describes, and absent (not
+ * even null) on a page that belongs to no Environment. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (!isPageUrl(input.dashboard) || !isPageUrl(input.account)) return null;
@@ -470,7 +471,10 @@ export function parseShell(input: unknown): Shell | null {
   )
     return null;
   const setup = parseShellSetup(input.setup);
-  if (setup === false || (current === null && setup !== undefined)) return null;
+  // `setup` describes the current Environment, so a page that belongs to no
+  // Environment carries none at all: absent, not even null.
+  if (setup === false || (current === null && input.setup !== undefined))
+    return null;
   return Object.freeze({
     schema: shellSchema,
     locale: shared.locale,
