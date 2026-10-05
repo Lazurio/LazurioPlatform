@@ -255,6 +255,7 @@ const teamPublication: Text = t(
 );
 
 function workingHere(preset: PresetName): readonly Text[] {
+  const team = preset === "hosted-organization-team";
   return [
     t("## Draft, Publikace, Release", "## Draft, Publication, Release"),
     t(
@@ -386,34 +387,62 @@ function workingHere(preset: PresetName): readonly Text[] {
       "Nothing remains locally outside the PR.",
     ),
     blank,
-    t(
-      "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?",
-      "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
-    ),
-    same("```"),
-    blank,
-    t(
-      "Anglicky zní závěrečná dvojotázka: “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?” Volbu vždy nabídni; nikdy ji nerozhoduj za Operátora.",
-      "In Czech the closing pair reads: „Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Operator.",
-    ),
-    blank,
-    t(
-      "- Na explicitní „Publikuj“ v threadu: mergni metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
-      "- On an explicit “Publish” in the thread: merge with a method the repository allows and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
-    ),
+    ...(team
+      ? [
+          t(
+            "Komu mám říct, aby tyhle změny publikoval?",
+            "Whom should I ask to publish these changes?",
+          ),
+          same("```"),
+          blank,
+          t(
+            "Anglicky zní závěrečná otázka: “Whom should I ask to publish these changes?” Na týmovém Environmentu Publikovat tvým jménem nenabízej: změny vždy schválí a publikuje jmenovaný člověk (viz níže).",
+            "In Czech the closing question reads: „Komu mám říct, aby tyhle změny publikoval?“ In a Team Environment never offer to Publish in the Operator's name: a named person always approves and publishes (see below).",
+          ),
+          blank,
+          t(
+            "- Na týmovém Environmentu nemerguj ani na „Publikuj“ v threadu: předej pull request člověku, kterého Operátor jmenuje, jako při každém předání níže. Až ho ten člověk publikuje, aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`), a přes `runtime.url` aplikace ověř, že je změna vidět.",
+            "- In a Team Environment never merge, not even on “Publish” in the thread: hand the pull request to the person the Operator names, as in every handover below. Once that person has published it, update the clean checkout the application in this Environment runs from (`git pull --ff-only`) and check through the application's `runtime.url` that the change is visible.",
+          ),
+        ]
+      : [
+          t(
+            "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?",
+            "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
+          ),
+          same("```"),
+          blank,
+          t(
+            "Anglicky zní závěrečná dvojotázka: “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?” Volbu vždy nabídni; nikdy ji nerozhoduj za Operátora.",
+            "In Czech the closing pair reads: „Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Operator.",
+          ),
+          blank,
+        ]),
+    ...(team
+      ? []
+      : [
+          t(
+            "- Na explicitní „Publikuj“ v threadu: mergni metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
+            "- On an explicit “Publish” in the thread: merge with a method the repository allows and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
+          ),
+        ]),
     t(
       "- Při předání: vyžádej review od oprávněného Kolegy, kterého Operátor zvolil, přiřaď mu pull request a @zmínkou mu předej odpovědnost. Žádost o review znamená „zkontroluj“; assignee vlastní další krok a upravuje PR branch přímo. Přiřazení nevytváří žádná práva a nenahrazuje pokyn k Publikaci.",
       "- On a handover: request review from the eligible Kolega the Operator chose, assign them the pull request and hand over the responsibility with an @mention. A reviewer request means “check”; the assignee owns the next step and edits the PR branch directly. Assignment creates no rights and replaces no Publication instruction.",
     ),
-    t(
-      "- Když GitHub Operátorovi merge nedovolí, řekni to v handoffu; merge se neobchází. Bez zeleného PR se nic neděje.",
-      "- When GitHub does not allow the Operator to merge, say so in the handoff; the merge is not bypassed. Without a green PR nothing happens.",
-    ),
+    ...(team
+      ? []
+      : [
+          t(
+            "- Když GitHub Operátorovi merge nedovolí, řekni to v handoffu; merge se neobchází. Bez zeleného PR se nic neděje.",
+            "- When GitHub does not allow the Operator to merge, say so in the handoff; the merge is not bypassed. Without a green PR nothing happens.",
+          ),
+        ]),
     t(
       "- Po každé Publikaci se zeptej „jaký je další krok a co dalšího můžeme dotáhnout?“ a stručně to navrhni.",
       "- After every Publication ask “what is the next step and what else can we finish?” and propose it briefly.",
     ),
-    ...(preset === "hosted-organization-team" ? [blank, teamPublication] : []),
+    ...(team ? [blank, teamPublication] : []),
     blank,
     t(
       "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",

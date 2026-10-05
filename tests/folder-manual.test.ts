@@ -1240,6 +1240,27 @@ test("missing rights are escalated on every preset; only the Team hands every pu
           sentence,
           workingHere.includes(sentence),
         ]).toEqual([journey.preset, sentence, team]);
+      // The handoff offers no Publication in the Operator's name and no
+      // merge on "Publish" in a Team Environment; elsewhere it does.
+      expect([
+        journey.preset,
+        locale,
+        workingHere.includes(
+          locale === "cs"
+            ? "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?"
+            : "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
+        ),
+        workingHere.includes(
+          locale === "cs"
+            ? "- Na explicitní „Publikuj“ v threadu: mergni"
+            : "- On an explicit “Publish” in the thread: merge",
+        ),
+        workingHere.includes(
+          locale === "cs"
+            ? "- Na týmovém Environmentu nemerguj ani na „Publikuj“ v threadu"
+            : "- In a Team Environment never merge, not even on “Publish” in the thread",
+        ),
+      ]).toEqual([journey.preset, locale, !team, !team, team]);
       // AGENTS.md says it too; elsewhere Publication stays the Operator's.
       expect(
         outputs["AGENTS.md"].includes(

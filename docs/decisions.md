@@ -3110,9 +3110,12 @@ explicitly, and whoever confirms it answers for it.
   escalated, not lost) and the attribution of root decision 0148. Root decision 0148's
   "a person reviews and merges every pull request from a Team Workspace" holds again as
   written. The root register records the same change.
-- **Generated Folder.** On the Team preset, the Publication line of `AGENTS.md` and the
-  Team paragraph of `manual/working-here.md` say this. Other presets keep "Publication
-  belongs to the Operator". Template revision `base-instructions-26`.
+- **Generated Folder.** On the Team preset, the Publication line of `AGENTS.md`, the Team
+  paragraph of `manual/working-here.md` and its handoff say this. The handoff ends with
+  "Komu mám říct, aby tyhle změny publikoval?" instead of the pair "Mám změny Publikovat
+  tvým jménem? Nebo …", and "Publish" in the thread leads to the handover, never to a merge.
+  Other presets keep "Publication belongs to the Operator", the pair of questions and the
+  merge on "Publish". Template revision `base-instructions-26`.
 
 ## F32 — Teams are not a presentation axis of the Launchpad: an Environment is one workspace
 
