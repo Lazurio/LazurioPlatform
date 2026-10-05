@@ -1143,13 +1143,19 @@ never hard-coded.
 2. **With push:** the usual Draft path (worktree and pull request).
 3. **Without push:** no pull request. An issue in that repository with what should change,
    why, and the proposed text or diff, checked for duplicates and content like every
-   issue. It @mentions the people who may make the change: the owners of the affected
-   paths in the repository's CODEOWNERS (the first of `.github/CODEOWNERS`, `CODEOWNERS`,
-   `docs/CODEOWNERS`, as GitHub reads them), otherwise the Organization's Owners
-   (`gh api "orgs/<org>/members?role=admin"`), bots left out. A mention, not an
-   assignment: the issue mandate of root decision 0163 still forbids assigning except to
-   escalate a missing right. The agent tells the Operator the issue's URL and whom it
-   mentioned. A change already in a worktree goes into the issue as a diff.
+   issue. It @mentions the people who may make the change: the owners the repository's
+   CODEOWNERS names for the affected paths (the first of `.github/CODEOWNERS`,
+   `CODEOWNERS`, `docs/CODEOWNERS`, as GitHub reads them; the last matching line holds),
+   otherwise, when there is no CODEOWNERS or it names nobody but bots for those paths,
+   the Organization's Owners (`gh api "orgs/<org>/members?role=admin"`), bots left out.
+   On a Team Environment that list needs the brokered token's `members: read`
+   (Lazurio/github-app#18); without it GitHub answers an empty list, not an error. When
+   the lookup still finds nobody, the agent files the issue without a mention and tells
+   the Operator to pass the link to whoever manages the Organization; it never guesses.
+   A mention, not an assignment: the issue mandate of root decision 0163 still forbids
+   assigning except to escalate a missing right. The agent tells the Operator the issue's
+   URL and whom it mentioned. A change already in a worktree goes into the issue as a
+   diff.
 4. **Never around the rights:** no fork, no push to another repository or under another
    identity.
 5. **The Team preset** follows the same rule: the Team's grant may be read only too (the
