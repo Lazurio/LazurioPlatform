@@ -520,9 +520,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   - **Links.** The logo, "+" and the account announce `lazurio-navigate` when the host
     names them by path, so a single-page host moves without a reload.
   - **Assets.** The host serves `shell.js` and the four fonts at
-    `/.lazurio/fonts/<file>` on its own origin. A release artifact with the script,
-    the DOM-free parsers, the fonts and their hashes is promised by the same addendum
-    (point 9) and built by a separate task.
+    `/.lazurio/fonts/<file>` on its own origin. It takes them from the release
+    artifact `lazurio-shell.tar.gz` (the addendum's point 9), which also carries the
+    DOM-free parsers and the hashes of every file; `docs/update.md`, "The shell
+    artifact", says what it holds and how a host verifies it.
 - **What the Environment still lacks** (root decision 0188, additive in v1): the
   document's optional `setup` for the current Environment, `{github: "connected" |
   "missing", content?: "ready" | "missing" | "failed", item?: {kind: "organization",
