@@ -145,6 +145,33 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
       );
       expect(activation.purpose[locale].length).toBeGreaterThan(20);
     }
+  // A tool that writes outside (mail, messages, forms, connected
+  // applications) points to the Draft-first rule: an unfinished Draft, and the
+  // Operator's explicit “Publish” for it is the full mandate to finish it
+  // (decision F14, addendum 2026-10-05).
+  for (const [name, writesOutside] of [
+    ["gh", false],
+    ["composio", true],
+    ["wacli", true],
+    ["gogcli", true],
+    ["neon", false],
+  ] as const)
+    for (const locale of ["cs", "en"] as const)
+      expect([
+        name,
+        locale,
+        findTool(name)?.activation?.usage[locale].endsWith(
+          locale === "cs"
+            ? " je Publikace: připrav Draft a nedokončuj ho; výslovné „Publikuj“ Operátora k tomu Draftu je plný mandát k jeho dokončení (`manual/working-here.md`)."
+            : " is a Publication: prepare the Draft and leave it unfinished; the Operator's explicit “Publish” for that Draft is the full mandate to finish it (`manual/working-here.md`).",
+        ),
+      ]).toEqual([name, locale, writesOutside]);
+  expect(findTool("composio")?.activation?.usage.cs).toContain(
+    "`composio execute`. Zápis viditelný navenek (odeslání, odevzdání formuláře, zveřejnění, smazání) je Publikace: připrav Draft a nedokončuj ho;",
+  );
+  expect(findTool("composio")?.activation?.usage.en).toContain(
+    "`composio execute`. An externally visible write (sending, submitting a form, publishing, deleting) is a Publication: prepare the Draft and leave it unfinished;",
+  );
   expect(findTool("gogcli")).toMatchObject({
     command: "gog",
     versionArgs: ["--version"],
@@ -492,7 +519,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-26");
+  expect(instructionTemplateRevision).toBe("base-instructions-27");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -515,7 +542,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-26");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-27");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(

@@ -1272,8 +1272,8 @@ test("missing rights are escalated on every preset; only the Team hands every pu
       expect(
         outputs["AGENTS.md"].includes(
           locale === "cs"
-            ? "Publikace (merge, nasazení, odeslání) patří Operátorovi a vyžaduje jeho explicitní pokyn v aktuálním threadu."
-            : "Publication (merge, deploy, send) belongs to the Operator and needs their explicit instruction in the current thread.",
+            ? "Publikace (odeslání, odevzdání, merge, nasazení, jiné dokončení viditelné navenek) patří Operátorovi."
+            : "Publication (sending, submitting, a merge, a deployment, any other externally visible finishing) belongs to the Operator.",
         ),
       ).toBe(!team);
       expect(
@@ -1283,6 +1283,80 @@ test("missing rights are escalated on every preset; only the Team hands every pu
             : "On a Team Environment an update affects all its Operators",
         ),
       ).toBe(journey.preset === "hosted-organization-team");
+    }
+});
+
+// Every task is a Draft first: the pull request for code, the unfinished
+// state inside an external application (an e-mail, a form, a message), even
+// when the Operator asked straight away to "send". The Operator's explicit
+// "Publish" for that Draft is the full mandate to finish it (decision F14,
+// addendum 2026-10-05). AGENTS.md says it on every preset; the Team keeps its
+// named publisher of pull requests (F31).
+test("every task is a Draft first and an explicit “Publish” for it is the mandate to finish it", () => {
+  const lines = {
+    cs: {
+      other:
+        "- Tvoje práce je u každého úkolu Draft: u kódu pull request, v externí aplikaci připravený a nedokončený stav přímo v ní (e-mail jako koncept v Outlooku, vyplněný a neodeslaný formulář, neodeslaná zpráva). Publikace (odeslání, odevzdání, merge, nasazení, jiné dokončení viditelné navenek) patří Operátorovi. Draft mu vždy předej, i když tě požádal rovnou „pošli“. Jeho výslovné „Publikuj“ k tomu Draftu v aktuálním threadu je plný mandát k dokončení: dokonči ho a ohlas, že je hotovo (`manual/working-here.md`).",
+      team: "- Tvoje práce je Draft ve worktree a pull requestu. Z týmového Environmentu změny vždy schválí a publikuje jmenovaný člověk a odpovídá za ně; sám nemerguj. Když je práce hotová, zeptej se Operátora „Komu mám říct, aby tyhle změny publikoval?“ a předej mu pull request. V externí aplikaci připrav Draft přímo v ní a nedokončuj ho (e-mail jako koncept, vyplněný a neodeslaný formulář, neodeslaná zpráva), i když tě připojený Operátor požádal rovnou „pošli“; jeho výslovné „Publikuj“ k tomu Draftu je plný mandát k dokončení: dokonči ho a ohlas, že je hotovo (`manual/working-here.md`).",
+      draft:
+        "- **Draft** je tvoje práce: vratný a hlavně editovatelný kus práce, změna ve worktree, rozepsaný e-mail, otevřený pull request.",
+      publication: "- **Publikace** je akt,",
+      first:
+        "- **Nejdřív Draft, pak Publikace.** Platí pro každý úkol: kód, e-mail, zprávu, pozvánku, vyplnění formuláře i jinou práci v externí aplikaci. U kódu je Draftem pull request. V externí aplikaci připrav Draft přímo v ní a předej ho Operátorovi nedokončený (e-mail jako koncept v Outlooku, vyplněný a neodeslaný formulář, neodeslaná zpráva); uprav ho podle jeho připomínek. Pokyn „pošli e-mail …“ na začátku úkolu je zadání Draftu, ne Publikace. Výslovné „Publikuj“ (nebo jednoznačné „odešli to“) k tomu konkrétnímu Draftu je plný mandát Operátora k jeho dokončení: odešli, odevzdej nebo zveřejni ho, podle toho, co dokončení v té aplikaci znamená, a ohlas, že je hotovo.",
+      teamFirst:
+        " Pull request z týmového Environmentu ale vždy publikuje jmenovaný člověk (odstavec o týmovém Environmentu níže).",
+      release: "- **Release** je vydání",
+      write:
+        "proveď až na výslovné „Publikuj“ Operátora k připravenému Draftu (oddíl Draft, Publikace, Release výše); do té doby připrav koncept.",
+      old: "Publikace (merge, nasazení, odeslání) patří Operátorovi",
+    },
+    en: {
+      other:
+        "- In every task your work is a Draft: for code the pull request; in an external application the prepared, unfinished state inside it (an e-mail as a draft in Outlook, a filled-in form not submitted, an unsent message). Publication (sending, submitting, a merge, a deployment, any other externally visible finishing) belongs to the Operator. Always hand them the Draft, even when they asked you straight away to “send”. Their explicit “Publish” for that Draft in the current thread is the full mandate to finish it: finish it and report that it is done (`manual/working-here.md`).",
+      team: "- Your work is a Draft in a worktree and a pull request. A named person always approves and publishes the changes from a Team Environment and answers for them; never merge yourself. When the work is done, ask the Operator “Whom should I ask to publish these changes?” and hand that person the pull request. In an external application prepare the Draft inside it and leave it unfinished (an e-mail as a draft, a filled-in form not submitted, an unsent message), even when the connected Operator asked you straight away to “send”; their explicit “Publish” for that Draft is the full mandate to finish it: finish it and report that it is done (`manual/working-here.md`).",
+      draft:
+        "- **Draft** is your work: a revertible and, above all, editable piece of work, a change in a worktree, a drafted e-mail, an open pull request.",
+      publication: "- **Publication** is the act",
+      first:
+        "- **A Draft first, then Publication.** This holds for every task: code, an e-mail, a message, an invitation, filling in a form and any other work in an external application. For code the Draft is the pull request. In an external application prepare the Draft inside it and hand it to the Operator unfinished (an e-mail as a draft in Outlook, a filled-in form not submitted, an unsent message); revise it according to their comments. An instruction “send an e-mail …” at the start of a task is the brief for a Draft, not a Publication. An explicit “Publish” (or an unambiguous “send it”) for that particular Draft is the Operator's full mandate to finish it: send, submit or make it public, whatever finishing means in that application, and report that it is done.",
+      teamFirst:
+        " A pull request from a Team Environment, however, is always published by a named person (the Team Environment paragraph below).",
+      release: "- **Release** is a tagged version",
+      write:
+        "only on the Operator's explicit “Publish” for the prepared Draft (the section Draft, Publication, Release above); until then, prepare a draft.",
+      old: "Publication (merge, deploy, send) belongs to the Operator",
+    },
+  } as const;
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const text = lines[locale];
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const agents = outputs["AGENTS.md"].split("\n");
+      const team = journey.preset === "hosted-organization-team";
+      expect([
+        journey.preset,
+        locale,
+        agents.includes(text.other),
+        agents.includes(text.team),
+      ]).toEqual([journey.preset, locale, !team, team]);
+      // The manual states the rule on every preset, right after Publication
+      // and before Release, and a connected application's write points to it.
+      const workingHere = outputs["manual/working-here.md"];
+      const lineOf = (start: string) =>
+        workingHere.split("\n").findIndex((line) => line.startsWith(start));
+      expect(workingHere).toContain(text.draft);
+      expect(workingHere.split("\n")).toContain(
+        team ? `${text.first}${text.teamFirst}` : text.first,
+      );
+      expect(lineOf(text.first)).toBe(lineOf(text.publication) + 1);
+      expect(lineOf(text.release)).toBe(lineOf(text.first) + 1);
+      expect(workingHere).toContain(text.write);
+      for (const path of outputPaths)
+        expect(outputs[path]).not.toContain(text.old);
     }
 });
 
