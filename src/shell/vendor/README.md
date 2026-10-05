@@ -86,8 +86,11 @@ The shell and the Launchpad page draw their interface icons from Iconoir
 interface (`content/brand/icons/icons.md`). The path data is copied exactly as
 the shell wireframe draws it (`HumanAndMachine-ai/prototypes-lazurio` 1cbad15,
 `app/v1/src/Icon.tsx`, `iconoir-react` 7.12.1) into `src/shell/icons.ts` and the
-page's inlined symbols. Its licence is copied byte-for-byte from the design
-system at the pinned commit (`content/brand/icons/LICENSE-iconoir.txt`).
+page's inlined symbols. The page's `i-browser` (the right panel's Browser
+toggle), which the wireframe does not draw, is Iconoir's `app-window` exactly
+as `iconoir-react` 7.12.1 ships it (`AppWindow`). Iconoir's licence is copied
+byte-for-byte from the design system at the pinned commit
+(`content/brand/icons/LICENSE-iconoir.txt`).
 
 | File | Source path | SHA-256 |
 | --- | --- | --- |
