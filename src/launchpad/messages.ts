@@ -95,7 +95,7 @@ const en = {
   toolsTeamGithub: teamGithubText.en,
   toolsTeamGithubLogout: teamGithubLogoutText.en,
   toolsShared:
-    "This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.",
+    "This is the whole Team's shared Environment. Sign in here with team accounts, such as a shared mailbox or calendar. Whatever you sign in here, anyone in the Team can use. Connect your personal accounts in your own Environment.",
   toolsRefresh: "Refresh status",
   toolsLoading: "Reading tools…",
   toolsLoadFailed:
@@ -111,8 +111,12 @@ const en = {
   toolsInstalledNoVersion: "Installed, version unknown",
   toolsNotInstalled: "Not installed",
   toolsVersionError: "The version check failed: {error}.",
-  toolsOutsideStandard:
-    "Found outside ~/.local/bin, the standard place for tools. It works; it is only reported.",
+  toolsFixWithAgent: "Fix with an agent",
+  toolsFixWithAgentNamed: "Fix {name} with an agent",
+  toolsFixPromptHint:
+    "Copy this prompt and paste it into a new chat in this Environment. The agent puts the tool where it belongs; nothing is reinstalled and your sign-in stays.",
+  toolsFixPrompt:
+    "Task: the tool `{command}` works in this Environment, but it does not run from the standard place `~/.local/bin/{command}`; it now runs from `{path}`. Straighten it: put only a link or wrapper to the working program into `~/.local/bin`, so that `{command}` runs from there. Reinstall nothing, change no version and leave the sign-in and settings alone. If it cannot be done without a change outside the home directory, change nothing and tell me why. Proof: `command -v {command}` prints `~/.local/bin/{command}` (expanded to the home directory), `{command} --version` answers with the same version as before, and `lazurio tools status --json` shows `standardPath: true` for it.",
   toolsSetupLaunchpad: "Set up in Launchpad",
   toolsSetupAgent: "Set up with an agent",
   toolsEnabled: "Enabled",
@@ -928,7 +932,7 @@ const cs: Record<MessageKey, string> = {
   toolsTeamGithub: teamGithubText.cs,
   toolsTeamGithubLogout: teamGithubLogoutText.cs,
   toolsShared:
-    "Tenhle Environment je sdílený. Účty přihlášené v nástroji platí pro celý Environment a používají je všichni jeho operátoři.",
+    "Tohle je společný Environment celého Teamu. Přihlašujte se tu týmovými účty, třeba společnou schránkou nebo kalendářem. Co tu přihlásíte, může používat každý z Teamu. Svoje osobní účty propojujte ve svém vlastním Environmentu.",
   toolsRefresh: "Obnovit stav",
   toolsLoading: "Načítají se nástroje…",
   toolsLoadFailed:
@@ -944,8 +948,12 @@ const cs: Record<MessageKey, string> = {
   toolsInstalledNoVersion: "Nainstalováno, verze neznámá",
   toolsNotInstalled: "Není nainstalováno",
   toolsVersionError: "Zjištění verze selhalo: {error}.",
-  toolsOutsideStandard:
-    "Nalezeno mimo ~/.local/bin, standardní místo pro nástroje. Funguje; jen se to hlásí.",
+  toolsFixWithAgent: "Opravit s agentem",
+  toolsFixWithAgentNamed: "Opravit {name} s agentem",
+  toolsFixPromptHint:
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu na tomhle Environmentu. Agent nástroj srovná na jeho místo; nic se nepřeinstaluje a přihlášení zůstane.",
+  toolsFixPrompt:
+    "Úkol: nástroj `{command}` na tomhle Environmentu funguje, ale nespouští se ze standardního místa `~/.local/bin/{command}`; teď se spouští z `{path}`. Srovnej to: do `~/.local/bin` dej jen link nebo wrapper na fungující program, aby se `{command}` spouštěl odtud. Nic nepřeinstalovávej, neměň verzi a nesahej na přihlášení ani nastavení. Když to bez změny mimo domovský adresář nejde, nic neměň a řekni mi proč. Důkaz: `command -v {command}` vypíše `~/.local/bin/{command}` (rozbalené na domovský adresář), `{command} --version` odpoví stejnou verzí jako předtím a `lazurio tools status --json` u něj ukáže `standardPath: true`.",
   toolsSetupLaunchpad: "Nastavení v Launchpadu",
   toolsSetupAgent: "Nastavení s agentem",
   toolsEnabled: "Zapnuto",

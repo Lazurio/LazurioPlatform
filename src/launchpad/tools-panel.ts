@@ -294,15 +294,15 @@ export function createToolsPanel(
     else loginDialog.setAttribute("open", "");
     loginHeading.focus();
     if (overview?.sharedEnvironment === true) {
-      // Everyone on a shared Environment uses what is signed in here.
+      // Everyone on a shared Environment uses what is signed in here. The
+      // dialog's status says it once; the page already shows the same note.
       phase("confirm", copy.toolsShared);
       const go = element("button", "", copy.toolsLoginContinue);
       go.type = "button";
       go.addEventListener("click", () => void begin());
-      const warning = element("p", "tools-warning", copy.toolsShared);
       const row = element("p", "tool-actions");
       row.append(go);
-      loginBody.replaceChildren(warning, row);
+      loginBody.replaceChildren(row);
       go.focus();
       return;
     }
@@ -885,7 +885,12 @@ export function createToolsPanel(
       title.append(element("code", "", tool.command));
     text.append(title, element("p", "row-desc", toolDescription(tool, copy)));
 
-    const view = toolStatusView(tool, copy, overview?.hosted === true);
+    const view = toolStatusView(
+      tool,
+      copy,
+      overview?.hosted === true,
+      overview?.sharedEnvironment === true,
+    );
     // On a Team Environment gh working as the Organization's App identity
     // reads "Works as lazurio-for-github[bot]".
     const team = overview?.sharedEnvironment === true;
@@ -983,6 +988,29 @@ export function createToolsPanel(
       controls.append(signOut);
     }
     if (tool.setup !== "launchpad") controls.append(agent);
+    // A tool outside the standard place on a hosted Machine (0161 point 6):
+    // one action that hands the straightening to an agent, and no sentence
+    // about paths.
+    if (view.fix) {
+      const fix = button(
+        copy.toolsFixWithAgent,
+        tool.name,
+        "fix",
+        () =>
+          openPrompt(
+            fill(copy.toolsFixWithAgentNamed, { name: tool.name }),
+            copy.toolsFixPromptHint,
+            fill(copy.toolsFixPrompt, {
+              command: tool.command,
+              path: tool.path ?? "",
+            }),
+            fix,
+          ),
+        fill(copy.toolsFixWithAgentNamed, { name: tool.name }),
+      );
+      fix.disabled = false;
+      controls.append(fix);
+    }
     if (tool.tier === "required")
       controls.append(element("span", "always-on", copy.toolsAlwaysOn));
     else {

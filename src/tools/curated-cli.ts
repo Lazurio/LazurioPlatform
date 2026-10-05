@@ -75,7 +75,7 @@ function environmentUnreadable(
 
 /** On an Environment shared by several operators (the Team preset). */
 export const sharedSignInsText =
-  "Warning: this Environment is shared. Accounts signed in to the tool apply to the whole Environment and are shared by all its operators.";
+  "Warning: this is the whole Team's shared Environment. Sign in with team accounts only; whatever is signed in here, anyone in the Team can use. Personal accounts belong in your own Environment.";
 
 export type CuratedOutput = Readonly<{
   code: number;

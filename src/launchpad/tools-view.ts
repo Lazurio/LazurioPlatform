@@ -310,14 +310,20 @@ export type ToolStatusView = Readonly<{
   path: string | null;
   /** Things to look at, one sentence each. */
   notes: readonly string[];
+  /** Installed outside the standard place on a hosted Machine (decision
+   * 0161 point 6): the card offers "Fix with an agent" and says nothing a
+   * person would have to decode (Matěj 2026-10-05). */
+  fix: boolean;
 }>;
 
-/** On a hosted Machine a tool outside `~/.local/bin` is something to look at
- * (decision 0161); on a local workstation any tool on PATH is fine. */
+/** On a hosted Machine a tool outside `~/.local/bin` is something an agent
+ * straightens (decision 0161); on a local workstation any tool on PATH is
+ * fine. People see no sentence about paths, only the fix action. */
 export function toolStatusView(
   tool: ToolOverview,
   copy: Copy,
   hosted: boolean,
+  team = false,
 ): ToolStatusView {
   if (!tool.installed)
     return {
@@ -325,15 +331,12 @@ export function toolStatusView(
       headline: copy.toolsNotInstalled,
       path: null,
       notes: [],
+      fix: false,
     };
-  const notes = [
-    ...(tool.versionError === undefined
+  const notes =
+    tool.versionError === undefined
       ? []
-      : [fill(copy.toolsVersionError, { error: tool.versionError })]),
-    ...(hosted && tool.standardPath === false
-      ? [copy.toolsOutsideStandard]
-      : []),
-  ];
+      : [fill(copy.toolsVersionError, { error: tool.versionError })];
   return {
     state: notes.length === 0 ? "ready" : "attention",
     headline:
@@ -347,6 +350,9 @@ export function toolStatusView(
           ? `${tool.path} → ${tool.realPath}`
           : tool.path,
     notes,
+    // A Team's gh is the Organization's brokered gh, which the Machine
+    // installs where it belongs: nothing to fix.
+    fix: hosted && tool.standardPath === false && !(team && tool.name === "gh"),
   };
 }
 
