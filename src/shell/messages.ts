@@ -28,6 +28,9 @@ export type ShellCopy = Readonly<{
   who: Readonly<Record<ShellEnvironmentKind, string>>;
   pick: string;
   settings: string;
+  /** The gear on an Organization's Dashboard (F36's addendum of
+   * 2026-10-05). */
+  organizationSettings: string;
   switcher: string;
   searchIn: string;
   searchAll: string;
@@ -90,6 +93,7 @@ const en: ShellCopy = {
   },
   pick: "{name}, switch Environment",
   settings: "Environment Settings",
+  organizationSettings: "Organization Settings",
   switcher: "Go to an Environment",
   searchIn: "Search in {name}…",
   searchAll: "Environment or Organization…",
@@ -150,6 +154,7 @@ const cs: ShellCopy = {
   },
   pick: "{name}, přepnout Environment",
   settings: "Nastavení Environmentu",
+  organizationSettings: "Nastavení Organizace",
   switcher: "Přejít na Environment",
   searchIn: "Hledat v {name}…",
   searchAll: "Environment nebo Organizace…",

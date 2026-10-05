@@ -11,7 +11,10 @@ import { organizationOf, personalSpace, type ShellApp } from "./view";
 // never blocks drawing, it outlives a navigation (`keepalive`), and any
 // failure is silent (no gateway relay yet, a workstation, an expired
 // session). Kept apart from the rail's merge of the account's Environments,
-// which reads the account; this only writes the one fact.
+// which reads the account; this only writes the one fact. A page that is no
+// Environment's (F36's addendum of 2026-10-05, the Dashboard) reports
+// nothing, and a host that provides the account itself is never reported
+// to (the elements skip the report, `state.ts`).
 
 export const lastPath = "/.lazurio/account/last";
 
@@ -24,20 +27,35 @@ export type LastVisit = Readonly<{
   organization: string | null;
 }>;
 
-/** What a page of `app` in `space` reports, from the shell document. */
+/** What a page of `app` in `space` reports, from the shell document; null
+ * on a page that is no Environment's, which reports nothing. */
 export function lastVisit(
   shell: Shell,
   app: ShellApp,
-  space: string,
-): LastVisit {
+  space: string | null,
+): LastVisit | null {
+  const environment = currentEnvironment(shell);
+  if (environment === null) return null;
   return {
-    environment: currentEnvironment(shell).id,
+    environment: environment.id,
     app,
     organization:
-      space === personalSpace
+      space === null || space === personalSpace
         ? null
         : (organizationOf(shell, space)?.slug ?? null),
   };
+}
+
+/** What this browser keeps of a page for the rail (`lazurio.shell.last`:
+ * the last Environment of the space you are in, on this origin): the space
+ * and the current Environment; nothing from a page that is no
+ * Environment's. */
+export function keptVisit(
+  shell: Shell,
+  space: string | null,
+): Readonly<{ space: string; environment: string }> | null {
+  if (shell.current === null || space === null) return null;
+  return { space, environment: shell.current };
 }
 
 type Send = (body: string) => Promise<unknown>;
@@ -54,17 +72,18 @@ const send: Send = (body) =>
   });
 
 /** A reporter that sends once, the first time it is asked with a known
- * app; later calls do nothing (one report per full page load: a page's
- * script runs once per load). */
+ * app on an Environment's page; later calls do nothing (one report per full
+ * page load: a page's script runs once per load), and a page that is no
+ * Environment's never sends. */
 export function createLastReport(transport: Send = send) {
   let reported = false;
-  return (shell: Shell, app: ShellApp | null, space: string): void => {
+  return (shell: Shell, app: ShellApp | null, space: string | null): void => {
     if (reported || app === null) return;
-    reported = true;
     try {
-      void transport(JSON.stringify(lastVisit(shell, app, space))).catch(
-        () => undefined,
-      );
+      const visit = lastVisit(shell, app, space);
+      if (visit === null) return;
+      reported = true;
+      void transport(JSON.stringify(visit)).catch(() => undefined);
     } catch {
       // Silent: the report is never worth an error on the page.
     }

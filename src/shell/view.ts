@@ -1,4 +1,5 @@
 import {
+  type AccountVisit,
   currentEnvironment,
   type Shell,
   type ShellEnvironment,
@@ -13,6 +14,14 @@ import { fillShell, type ShellCopy } from "./messages";
 // elements.ts only draw it. Every Environment is named one way everywhere:
 // by its own name or its kind, with a line saying who it is for, never by
 // the machine's technical name.
+//
+// A page that is no Environment's (F36's addendum of 2026-10-05, a host such
+// as the Dashboard; `current: null`) is the personal Dashboard or an
+// Organization's Dashboard, as the host's `space` attribute names it
+// (`pageOf`). There the rail rings that Organization or, on the personal
+// Dashboard, marks the logo; the column head names the Organization with
+// the gear of its Settings and no switch, and draws nothing on the personal
+// Dashboard. An Environment's page is drawn exactly as before.
 
 /** A space of the rail: your personal space or one Organization. */
 export const personalSpace = "personal";
@@ -67,24 +76,59 @@ export const organizationOf = (
 ): ShellOrganization | undefined =>
   shell.organizations.find((entry) => sameSlug(entry.slug, slug));
 
-/** The space you are in: the one the host names (`space`, a workstation
- * opened for one Organization), otherwise the current Environment's: a
- * personal one or a workstation is personal, any other its first
- * Organization's. */
-export function hereOf(shell: Shell, space: string | null): string {
-  if (
-    space !== null &&
-    (space === personalSpace || organizationOf(shell, space) !== undefined)
-  )
-    return space === personalSpace
-      ? space
-      : (organizationOf(shell, space)?.slug ?? space);
+/** Where a page is (F36's addendum of 2026-10-05): in an Environment, in
+ * the space you are in there; or, on a page that is no Environment's, on an
+ * Organization's Dashboard or on the personal Dashboard. */
+export type ShellPage =
+  | Readonly<{
+      kind: "environment";
+      environment: ShellEnvironment;
+      /** The space you are in (`hereOf`). */
+      space: string;
+    }>
+  | Readonly<{ kind: "organization"; organization: ShellOrganization }>
+  | Readonly<{ kind: "dashboard" }>;
+
+/** Where the page is. With a current Environment: the space the host names
+ * (`space`, a workstation opened for one Organization) when it is
+ * `personal` or a listed Organization, otherwise the current Environment's:
+ * a personal one or a workstation is personal, any other its first
+ * Organization's. Without one (`current: null`): the Dashboard of the
+ * Organization `space` names; without it, with `personal` or with a slug the
+ * document does not list, the personal Dashboard. */
+export function pageOf(shell: Shell, space: string | null): ShellPage {
+  const named =
+    space === null || space === personalSpace
+      ? undefined
+      : organizationOf(shell, space);
   const current = currentEnvironment(shell);
-  return current.kind === "personal" ||
-    current.kind === "workstation" ||
-    current.organizations.length === 0
-    ? personalSpace
-    : (current.organizations[0] ?? personalSpace);
+  if (current === null)
+    return named === undefined
+      ? { kind: "dashboard" }
+      : { kind: "organization", organization: named };
+  const here =
+    space === personalSpace
+      ? personalSpace
+      : named !== undefined
+        ? named.slug
+        : current.kind === "personal" ||
+            current.kind === "workstation" ||
+            current.organizations.length === 0
+          ? personalSpace
+          : (current.organizations[0] ?? personalSpace);
+  return { kind: "environment", environment: current, space: here };
+}
+
+/** The space you are in, in the document's spelling: on an Environment's
+ * page as `pageOf` says, on an Organization's Dashboard that Organization,
+ * and none (null) on the personal Dashboard. */
+export function hereOf(shell: Shell, space: string | null): string | null {
+  const page = pageOf(shell, space);
+  return page.kind === "environment"
+    ? page.space
+    : page.kind === "organization"
+      ? page.organization.slug
+      : null;
 }
 
 /** The Environments of a space, in document order: your personal ones and
@@ -159,15 +203,19 @@ export type RailSpace = Readonly<{
 
 /** The rail: your personal space, then every Organization of the document
  * in its order. A click leads to the space's last Environment (`last`, by
- * space, what this browser remembers), else its first, in the same app;
- * a space without one leads to its Dashboard. */
+ * space: the account's or what this browser remembers), else its first;
+ * a space without one leads to its Dashboard. On an Environment's page it
+ * stays in the rail's app (`app`). On a page that is no Environment's
+ * (`app` null, F36's addendum of 2026-10-05) there is no app to stay in: the
+ * last Environment opens in the app its visit recorded, any other in Apps.
+ * `here` is the space ringed; none on the personal Dashboard. */
 export function railSpaces(
   shell: Shell,
   copy: ShellCopy,
   options: Readonly<{
-    here: string;
-    app: ShellApp;
-    last: (space: string) => string | null;
+    here: string | null;
+    app: ShellApp | null;
+    last: (space: string) => string | AccountVisit | null;
   }>,
 ): readonly RailSpace[] {
   const space = (
@@ -178,8 +226,14 @@ export function railSpaces(
   ): RailSpace => {
     const environments = spaceEnvironments(shell, id);
     const remembered = options.last(id);
-    const last = environments.find((entry) => entry.id === remembered);
+    const visit =
+      typeof remembered === "string"
+        ? { environment: remembered, app: null }
+        : remembered;
+    const last = environments.find((entry) => entry.id === visit?.environment);
     const target = last ?? environments[0];
+    const app =
+      options.app ?? (last === undefined ? null : visit?.app) ?? "apps";
     return Object.freeze({
       space: id,
       title,
@@ -198,10 +252,7 @@ export function railSpaces(
             ]
               .filter((part) => part !== null)
               .join(" · "),
-      href:
-        target === undefined
-          ? dashboard
-          : environmentHref(target, id, options.app),
+      href: target === undefined ? dashboard : environmentHref(target, id, app),
       active: options.here === id,
       ...marks,
     });
@@ -218,6 +269,19 @@ export function railSpaces(
       }),
     ),
   ];
+}
+
+/** The logo at the top of the rail: the personal Dashboard, marked as the
+ * page you are on (`aria-current="page"`) when you are on it (F36's
+ * addendum of 2026-10-05); no space is ringed then. */
+export function railHome(
+  shell: Shell,
+  space: string | null,
+): Readonly<{ href: string; current: boolean }> {
+  return Object.freeze({
+    href: shell.dashboard,
+    current: pageOf(shell, space).kind === "dashboard",
+  });
 }
 
 /** What the picker shows of an Environment: its glyph, its name and who it
@@ -264,10 +328,12 @@ export type SwitcherRow = Readonly<{
 export type SwitcherSection = Readonly<{
   space: string;
   title: string;
-  /** An Organization's head above its Environments: its Dashboard. */
+  /** An Organization's head above its Environments: its Dashboard,
+   * `current` on that Dashboard (a page that is no Environment's). */
   head: Readonly<{
     organization: ShellOrganization;
     href: string;
+    current: boolean;
   }> | null;
   rows: readonly SwitcherRow[];
 }>;
@@ -277,12 +343,14 @@ export type SwitcherSection = Readonly<{
  * head and its Environments, the current one marked, filtered by `query`
  * against the space, the name and who it is for. A space keeps its head
  * while it matches and stays listed empty only when it is the one asked
- * for. */
+ * for. On an Organization's Dashboard (no current Environment, `here` that
+ * Organization) its head is the current row and no Environment is; on the
+ * personal Dashboard (`here` null) nothing is current. */
 export function switcherSections(
   shell: Shell,
   copy: ShellCopy,
   options: Readonly<{
-    here: string;
+    here: string | null;
     all: boolean;
     app: ShellApp;
     query: string;
@@ -307,7 +375,7 @@ export function switcherSections(
   };
   const spaces = options.all
     ? [personalSpace, ...shell.organizations.map((entry) => entry.slug)]
-    : [options.here];
+    : [options.here ?? personalSpace];
   return spaces.flatMap((space): SwitcherSection[] => {
     const organization =
       space === personalSpace ? undefined : organizationOf(shell, space);
@@ -318,7 +386,11 @@ export function switcherSections(
     const head =
       organization !== undefined &&
       matches(organization.name, copy.organizationDashboard)
-        ? { organization, href: organization.dashboard }
+        ? {
+            organization,
+            href: organization.dashboard,
+            current: shell.current === null && options.here === space,
+          }
         : null;
     if (rows.length === 0 && head === null && (options.all || words !== ""))
       return [];
@@ -337,13 +409,16 @@ export type SwitchTab = Readonly<{
 }>;
 
 /** The switch Chat · Apps · Automate of the current Environment, `active`
- * being the app the switch sits in (none inside Settings). */
+ * being the app the switch sits in (none inside Settings); none on a page
+ * that is no Environment's. */
 export function switchTabs(
   shell: Shell,
   copy: ShellCopy,
   active: ShellApp | null,
 ): readonly SwitchTab[] {
-  const { apps } = currentEnvironment(shell);
+  const environment = currentEnvironment(shell);
+  if (environment === null) return [];
+  const { apps } = environment;
   const href: Readonly<Record<ShellApp, string | null>> = {
     chat: apps.chat,
     apps: apps.apps,
@@ -395,7 +470,7 @@ function launchpadHref(
  * starts the action on arrival; "Vyřešit v Chatu" opens Chat with the
  * prepared prompt by its id (and the login the fork needs, Lazurio/t3code
  * #36), never its text. Apps and Settings say it themselves, so nothing
- * there. */
+ * there, nor on a page that is no Environment's. */
 export function columnSetupLine(
   shell: Shell,
   copy: ShellCopy,
@@ -404,7 +479,9 @@ export function columnSetupLine(
   const setup = shell.setup;
   if (setup === undefined || (active !== "chat" && active !== "automate"))
     return null;
-  const { apps } = currentEnvironment(shell);
+  const environment = currentEnvironment(shell);
+  if (environment === null) return null;
+  const { apps } = environment;
   if (setup.github === "missing")
     return {
       tone: "info",
@@ -455,4 +532,111 @@ export function columnSetupLine(
         text: fillShell(copy.setupOrganizationMissing, { name: item.name }),
         links: [{ label: copy.setupDownload, href: install }],
       };
+}
+
+/** The Settings of an Environment, the gear's address beside its picker:
+ * `/settings` of its Launchpad (Apps), a path when Apps is this origin's. */
+export function environmentSettingsHref(environment: ShellEnvironment): string {
+  const apps = environment.apps.apps;
+  return apps.startsWith("/") ? "/settings" : new URL("settings", apps).href;
+}
+
+/** The Organization Settings, the gear's address on an Organization's
+ * Dashboard: `<its Dashboard page>/settings`, the base "Přístup k modulu"
+ * builds on (`moduleAccessUrl` in the Launchpad's `apps-view.ts`). A page on
+ * this origin (a path) stays a path. */
+export function organizationSettingsHref(dashboard: string): string {
+  const url = new URL(dashboard, "https://page.invalid");
+  url.pathname = `${url.pathname.replace(/\/+$/, "")}/settings`;
+  return dashboard.startsWith("/") ? `${url.pathname}${url.search}` : url.href;
+}
+
+/** The head of an app's left column as `<lazurio-column-head>` draws it:
+ * the picker and what it names, the gear beside it (the Settings of exactly
+ * that), the switch Chat · Apps · Automate and the setup line. */
+export type ColumnHead = Readonly<{
+  /** The space the picker's list shows. */
+  here: string;
+  picker: Readonly<{
+    glyph: EnvironmentGlyph;
+    title: string;
+    /** The line under the title. */
+    who: string;
+  }>;
+  gear: Readonly<{
+    href: string;
+    label: string;
+    /** Inside those Settings (`active="settings"`): `aria-current`. */
+    current: boolean;
+  }>;
+  /** The switch; null on an Organization's Dashboard, which has none. */
+  tabs: readonly SwitchTab[] | null;
+  setup: ColumnSetupLine | null;
+}>;
+
+/** What the column head shows, from the host's attributes (`space`,
+ * `active`, `settings`). On an Environment's page: the Environment picker
+ * (its glyph, name and who it is for), the gear of the Environment's
+ * Settings (`settings`, else its Launchpad's `/settings`), the switch and
+ * the setup line, as before. On an Organization's Dashboard (F36's addendum
+ * of 2026-10-05, a page that is no Environment's with the Organization in
+ * `space`): the picker names the Organization (its avatar, its name,
+ * "Organization Dashboard"), the gear opens the Organization Settings
+ * (`settings`, else `<its Dashboard page>/settings`), and there is no switch
+ * and no setup line. On the personal Dashboard: nothing (null). `active`
+ * `settings` marks the gear in either. */
+export function columnHead(
+  shell: Shell,
+  copy: ShellCopy,
+  options: Readonly<{
+    space: string | null;
+    active: string | null;
+    settings: string | null;
+  }>,
+): ColumnHead | null {
+  const page = pageOf(shell, options.space);
+  if (page.kind === "dashboard") return null;
+  // An empty attribute is none, as the gear always read it.
+  const own =
+    options.settings === null || options.settings === ""
+      ? null
+      : options.settings;
+  const inSettings = options.active === "settings";
+  if (page.kind === "organization") {
+    const { organization } = page;
+    return {
+      here: organization.slug,
+      picker: {
+        glyph: { kind: "avatar", organization },
+        title: organization.name,
+        who: copy.organizationDashboard,
+      },
+      gear: {
+        href: own ?? organizationSettingsHref(organization.dashboard),
+        label: copy.organizationSettings,
+        current: inSettings,
+      },
+      tabs: null,
+      setup: null,
+    };
+  }
+  const { environment, space } = page;
+  const app = (shellApps as readonly (string | null)[]).includes(options.active)
+    ? (options.active as ShellApp)
+    : null;
+  return {
+    here: space,
+    picker: {
+      glyph: environmentGlyph(shell, environment, space),
+      title: environmentName(environment, copy),
+      who: environmentWho(environment, copy),
+    },
+    gear: {
+      href: own ?? environmentSettingsHref(environment),
+      label: copy.settings,
+      current: inSettings,
+    },
+    tabs: switchTabs(shell, copy, app),
+    setup: columnSetupLine(shell, copy, app),
+  };
 }

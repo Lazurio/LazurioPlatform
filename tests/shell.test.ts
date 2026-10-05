@@ -617,7 +617,7 @@ test("the parser refuses what the elements could not draw safely", () => {
     variant((value) => (value.account = "http://dashboard.example.invalid/")),
   ).toBeNull();
   expect(
-    variant((value) => (value.addOrganization = "/add-organization")),
+    variant((value) => (value.addOrganization = "//add-organization")),
   ).toBeNull();
   expect(
     variant((value) => {

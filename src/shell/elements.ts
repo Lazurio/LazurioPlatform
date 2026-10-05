@@ -5,6 +5,7 @@ import {
   rememberAccount,
 } from "./account";
 import {
+  type AccountVisit,
   currentEnvironment,
   parseShell,
   type Shell,
@@ -12,7 +13,7 @@ import {
 } from "./contract";
 import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
-import { appOf, reportLast } from "./last";
+import { appOf, keptVisit, reportLast } from "./last";
 import { accountLastBySpace, mergeAccount } from "./merge";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { columnHeadCss, railCss, railWidth } from "./styles";
@@ -22,6 +23,7 @@ import {
   columnSetupLine,
   environmentGlyph,
   environmentName,
+  environmentSettingsHref,
   environmentWho,
   hereOf,
   initialsOf,
@@ -72,7 +74,7 @@ const logo = vendorText("symbol-color.svg");
 let local: Shell | null = null;
 let account: ShellAccount | null = null;
 let current: Shell | null = null;
-let accountLast: ReadonlyMap<string, string> = new Map();
+let accountLast: ReadonlyMap<string, AccountVisit> = new Map();
 const listeners = new Set<() => void>();
 let requested = false;
 let accountRequested = false;
@@ -248,7 +250,7 @@ abstract class ShellElement extends HTMLElement {
     const lang = this.getAttribute("lang");
     return shellMessages(lang === "cs" || lang === "en" ? lang : shell.locale);
   }
-  protected here(shell: Shell): string {
+  protected here(shell: Shell): string | null {
     return hereOf(shell, this.getAttribute("space"));
   }
   protected app(): ShellApp {
@@ -295,7 +297,7 @@ class Switcher {
     private readonly shell: Shell,
     private readonly copy: ShellCopy,
     private readonly options: {
-      here: string;
+      here: string | null;
       app: ShellApp;
       all: boolean;
       popover: boolean;
@@ -516,7 +518,8 @@ export class LazurioRail extends ShellElement {
     }
     const copy = this.copy(shell);
     const here = this.here(shell);
-    remember(here, shell.current);
+    const kept = keptVisit(shell, here);
+    if (kept !== null) remember(kept.space, kept.environment);
     // The last Environment used (S8, last.ts): a host that names its app.
     reportLast(shell, appOf(this.getAttribute("app")), here);
     // Where you were last in each other space: the account's memory (every
@@ -528,7 +531,9 @@ export class LazurioRail extends ShellElement {
       here,
       app: this.app(),
       last: (space) =>
-        (space === here ? null : accountLast.get(space)) ?? last[space] ?? null,
+        (space === here ? null : accountLast.get(space)?.environment) ??
+        last[space] ??
+        null,
     });
     const nav = element("nav");
     nav.setAttribute("aria-label", copy.rail);
@@ -671,9 +676,8 @@ export class LazurioColumnHead extends ShellElement {
   private settingsHref(shell: Shell): string {
     const own = this.getAttribute("settings");
     if (own) return own;
-    const apps = currentEnvironment(shell).apps.apps;
-    if (sameOrigin(apps)) return "/settings";
-    return new URL("settings", apps).href;
+    const environment = currentEnvironment(shell);
+    return environment === null ? "" : environmentSettingsHref(environment);
   }
 
   /** Opens the list of this space's Environments under the picker. */
@@ -766,6 +770,10 @@ export class LazurioColumnHead extends ShellElement {
     // The last Environment used (S8, last.ts): Chat, Apps or Automate.
     reportLast(shell, appOf(this.getAttribute("active")), here);
     const environment = currentEnvironment(shell);
+    if (environment === null || here === null) {
+      this.root.replaceChildren();
+      return;
+    }
     const name = environmentName(environment, copy);
 
     const picker = element("button", "pick");
