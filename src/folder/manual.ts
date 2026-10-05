@@ -246,11 +246,12 @@ const missingRights: readonly Text[] = [
   ),
 ];
 
-// Who may say "Publish" in a Team Environment (decision F31): the agent acts
-// as the Team's brokered identity, never as the connected person.
+// Who publishes from a Team Environment (decision F31, addendum 2026-10-05):
+// the agent acts as the Team's brokered identity, which belongs to no person,
+// so a named person always approves and publishes, and answers for it.
 const teamPublication: Text = t(
-  "**Na týmovém Environmentu** jednáš na GitHubu jako brokerovaná identita Organizace, ne jako připojený člověk, a nic jiného nepředstíráš (decision F31). Živá práva jsou tu práva té identity: granty Teamu a branch rules. Pokyn k Publikaci dává člen Teamu připojený v aktuálním threadu; když práva Teamu nebo branch rules merge nedovolí, předej pull request oprávněnému Kolegovi jako při každém předání. Přísnější pravidlo Organizace, například že pull requesty z týmového Environmentu merguje vždy člověk, má přednost.",
-  "**In a Team Environment** you act on GitHub as the brokered Organization identity, not as the connected person, and you pretend nothing else (decision F31). The live rights here are that identity's: the Team's grants and the branch rules. The instruction to Publish comes from the Team member connected in the current thread; when the Team's rights or the branch rules do not allow the merge, hand the pull request to an eligible Kolega as in any handover. A stricter rule of the Organization, for example that a person always merges pull requests from a Team Environment, takes precedence.",
+  "**Na týmovém Environmentu** jednáš na GitHubu jako identita Teamu (Lazurio for GitHub), ne jako připojený člověk, a nic jiného nepředstíráš (decision F31). Ta identita nepatří žádnému člověku: otevírá pull requesty, ale změny z tohohle Environmentu vždy schválí a publikuje jmenovaný člověk, který za ně pak odpovídá. Sám nemerguj, ani na pokyn z chatu. Když je práce hotová, zeptej se Operátora: „Komu mám říct, aby tyhle změny publikoval?“ Tomu člověku vyžádej review, přiřaď mu pull request a @zmínkou mu předej odpovědnost za Publikaci. Operátorovi pak řekni, kdo publikaci teď drží.",
+  "**In a Team Environment** you act on GitHub as the Team's identity (Lazurio for GitHub), not as the connected person, and you pretend nothing else (decision F31). That identity belongs to no person: it opens pull requests, but a named person always approves and publishes the changes from this Environment and answers for them. Never merge yourself, not even on an instruction in the chat. When the work is done, ask the Operator: “Whom should I ask to publish these changes?” Request that person's review, assign them the pull request and hand them the responsibility for the Publication with an @mention. Then tell the Operator who holds the publication now.",
 );
 
 function workingHere(preset: PresetName): readonly Text[] {

@@ -3091,6 +3091,29 @@ change.
 | Identify the connected person and use their rights | The Environment cannot tell reliably who is connected; a guess is not an identity; rejected |
 | The Team's identity, its rights and the branch rules, on the instruction of the connected member (selected) | GitHub stays the only access authority, and an Organization tightens it with branch rules |
 
+**Addendum 2026-10-05 (Matěj): a named person always publishes from a Team Environment.**
+Matěj: the gh of a Team Environment belongs to no person but to a team permission. In a
+paid GitHub Organization that permission may only open pull requests, and a person has
+to approve them. So the agent always hands the publication to someone ("Komu mám říct,
+aby tyhle změny publikoval?"): someone has to confirm the work from a Team Environment
+explicitly, and whoever confirms it answers for it.
+- **Changed: point 2.** The connected Team member's instruction in the thread no longer
+  publishes. The agent never merges from a Team Environment, not even on an instruction in
+  the chat. When the work is done, it asks the Operator whom to ask to publish. It
+  requests that person's review, assigns them the pull request and hands them the
+  responsibility with an @mention. Then it tells the Operator who holds the publication.
+  The person approves and publishes under their own GitHub account and answers for it.
+- **Changed: the alternatives table.** "A person always merges" was rejected as the
+  product default on 2026-10-02; it is now the product default. Point 3 (a stricter rule of
+  the Organization) has nothing left to tighten for merging and stays for other rules.
+- **Unchanged.** Point 1 (the Team's identity and its rights), point 4 (a refused push is
+  escalated, not lost) and the attribution of root decision 0148. Root decision 0148's
+  "a person reviews and merges every pull request from a Team Workspace" holds again as
+  written. The root register records the same change.
+- **Generated Folder.** On the Team preset, the Publication line of `AGENTS.md` and the
+  Team paragraph of `manual/working-here.md` say this. Other presets keep "Publication
+  belongs to the Operator". Template revision `base-instructions-26`.
+
 ## F32 — Teams are not a presentation axis of the Launchpad: an Environment is one workspace
 
 **Decided by Matěj 2026-10-02 (plan DEV-6638, issue #120); implemented in this
