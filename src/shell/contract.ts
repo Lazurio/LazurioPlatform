@@ -7,8 +7,16 @@
 // knows one Environment, its own; the Dashboard fills the others later
 // through the Lazurio account, in this same shape, so the elements do not
 // change. Pure: no DOM and no I/O, shared by the producer, the page and the
-// elements. The producer and the elements ship in one binary and no fork
-// reads it yet, so the shape changes in place, without a compatibility layer.
+// elements.
+//
+// Additive only (F36's addendum of 2026-10-05): a host page that is no
+// Environment's (the Dashboard) produces `lazurio.shell.v1` and
+// `lazurio.account.v1` itself while it pins one release's library, so a
+// release never removes, renames or narrows a member of either document.
+// It may add members and accept what it refused before; a change that
+// would break a v1 document is that document's v2 (`lazurio.shell.v2`,
+// `lazurio.account.v2`), decided and announced first. This ends "changed in
+// place" of the Organization-rail addendum.
 
 export const shellSchema = "lazurio.shell.v1";
 
@@ -72,7 +80,10 @@ export type ShellOrganization = Readonly<{
   /** An https URL of the GitHub Organization's avatar; null shows its
    * initials. */
   avatar: string | null;
-  /** The Organization's page in the Dashboard (the head of the picker). */
+  /** The Organization's page in the Dashboard (the head of the picker): an
+   * https URL, or in `lazurio.shell.v1` a path on the page's own origin (a
+   * host that is the Dashboard); always https in `lazurio.account.v1`, which
+   * crosses origins. */
   dashboard: string;
 }>;
 
@@ -114,15 +125,21 @@ export type Shell = Readonly<{
   schema: typeof shellSchema;
   /** The language of the person's profile; the elements speak it. */
   locale: "cs" | "en";
-  /** The id of the Environment this document is served from. */
-  current: string;
+  /** The id of the Environment this document is served from; null on a
+   * page that belongs to no Environment (F36's addendum of 2026-10-05: a
+   * host's page such as the Dashboard's). Only a host produces null; a
+   * Launchpad always names its own Environment. */
+  current: string | null;
   /** What the current Environment still lacks (additive in v1); absent
-   * when there is nothing to say or nothing known. */
+   * when there is nothing to say or nothing known, and always absent on a
+   * page that belongs to no Environment. */
   setup?: ShellSetup;
   operator: ShellOperator;
   environments: readonly ShellEnvironment[];
   organizations: readonly ShellOrganization[];
-  /** The personal Dashboard (the logo at the top of the rail). */
+  /** The personal Dashboard (the logo at the top of the rail). The three
+   * Dashboard addresses are https URLs, or paths on the page's own origin
+   * (a host that is the Dashboard). */
   dashboard: string;
   /** The account settings in the Dashboard (the account at the bottom). */
   account: string;
@@ -160,9 +177,14 @@ export function isShellUrl(value: unknown): value is string {
   }
 }
 
-/** The Apps address: an https URL, or a path on the document's own origin
- * (`/…`, never `//…`). */
-const isAppsUrl = (value: unknown): value is string =>
+/** An address of `lazurio.shell.v1`, which is always the page's own document
+ * (its host provides it, or the elements read it on the page's own origin):
+ * an https URL, or a path on that origin (`/…`, never `//…`, no fragment).
+ * Apps takes it (a workstation's Launchpad, whose port changes with every
+ * start), and since F36's addendum of 2026-10-05 so do the Dashboard's
+ * addresses (`dashboard`, `account`, `addOrganization`, an Organization's
+ * `dashboard`), so that a host that is the Dashboard names its own pages. */
+const isPageUrl = (value: unknown): value is string =>
   isShellUrl(value) ||
   (text(value, 512) &&
     /^\/(?!\/)[^\s\\]*$/.test(value) &&
@@ -253,7 +275,7 @@ function apps(value: unknown): ShellApps | null {
   if (!isRecord(value)) return null;
   const nullable = (entry: unknown) => entry === null || isShellUrl(entry);
   if (
-    !isAppsUrl(value.apps) ||
+    !isPageUrl(value.apps) ||
     !nullable(value.chat) ||
     !nullable(value.automate)
   )
@@ -307,7 +329,8 @@ function organization(value: unknown): ShellOrganization | null {
     !isShellSlug(value.slug) ||
     !text(name, 128) ||
     !(avatar === null || isShellUrl(avatar)) ||
-    !isShellUrl(dashboard)
+    // A path only in `lazurio.shell.v1`: `parseShellAccount` narrows it.
+    !isPageUrl(dashboard)
   )
     return null;
   return Object.freeze({
@@ -427,24 +450,35 @@ export function parseShellSetup(
  * may add some); every known member must have its exact shape, Environment
  * ids are in the DNS form of `isEnvironmentId` and a hosted entry's is the
  * base host of its Apps address, ids and slugs are unique,
- * `current` names an Environment and every Organization an Environment names
- * is listed. The optional `setup` (root decision 0188) is absent, null or
- * in its exact shape. */
+ * `current` names an Environment or is null (explicitly: a page that
+ * belongs to no Environment, with any Environments or none; absent is
+ * refused), and every Organization an Environment names is listed. The
+ * Dashboard's addresses are https URLs or paths on the page's own origin.
+ * The optional `setup` (root decision 0188) is absent, null or in its exact
+ * shape beside a current Environment, which it describes, and absent (not
+ * even null) on a page that belongs to no Environment. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
-  if (!isShellUrl(input.dashboard) || !isShellUrl(input.account)) return null;
-  if (!(input.addOrganization === null || isShellUrl(input.addOrganization)))
+  if (!isPageUrl(input.dashboard) || !isPageUrl(input.account)) return null;
+  if (!(input.addOrganization === null || isPageUrl(input.addOrganization)))
     return null;
   const shared = entries(input);
   if (shared === null) return null;
-  if (!shared.environments.some((entry) => entry.id === input.current))
+  const current = input.current;
+  if (
+    current !== null &&
+    !shared.environments.some((entry) => entry.id === current)
+  )
     return null;
   const setup = parseShellSetup(input.setup);
-  if (setup === false) return null;
+  // `setup` describes the current Environment, so a page that belongs to no
+  // Environment carries none at all: absent, not even null.
+  if (setup === false || (current === null && input.setup !== undefined))
+    return null;
   return Object.freeze({
     schema: shellSchema,
     locale: shared.locale,
-    current: input.current as string,
+    current: current as string | null,
     ...(setup === undefined ? {} : { setup }),
     operator: shared.operator,
     environments: shared.environments,
@@ -481,6 +515,10 @@ export type AccountLast = Readonly<{
   organization: string | null;
 }>;
 
+/** The last visit of one space (`lastBySpace`): the Environment and the
+ * app the person was in there. */
+export type AccountVisit = Readonly<{ environment: string; app: VisitApp }>;
+
 export type AccountFavourite = Readonly<{
   kind: "module" | "repository";
   /** A module id, or a production repository's name. */
@@ -500,9 +538,7 @@ export type ShellAccount = Readonly<{
   /** The last Environment overall; null when none is known. */
   last: AccountLast | null;
   /** The last Environment per space: `personal` and Organization slugs. */
-  lastBySpace: Readonly<
-    Record<string, Readonly<{ environment: string; app: VisitApp }>>
-  >;
+  lastBySpace: Readonly<Record<string, AccountVisit>>;
   /** Favourites by Organization slug, only for the requesting
    * Environment's Organization(s). */
   favourites: Readonly<Record<string, readonly AccountFavourite[]>>;
@@ -513,17 +549,21 @@ const accountPersonalSpace = "personal";
 
 /** The account document, when the input is a valid `lazurio.account.v1`;
  * null otherwise, as a whole. The shared entries are read by the shell's own
- * parser (`entries`), with one addition: an Environment of the account is
- * another origin, so its Apps address is an absolute https URL, never a path.
- * The account-only members may be absent (`last` none, `lastBySpace` and
- * `favourites` empty, `openApps` `tab`); present, they have their exact
- * shape and name only listed Environments and Organizations. Members this
- * version does not know are ignored. */
+ * parser (`entries`), with one narrowing: the account crosses origins (the
+ * Dashboard answers it to every Environment), so an Environment's Apps
+ * address and an Organization's Dashboard page are absolute https URLs,
+ * never paths. The account-only members may be absent (`last` none,
+ * `lastBySpace` and `favourites` empty, `openApps` `tab`); present, they
+ * have their exact shape and name only listed Environments and
+ * Organizations. Members this version does not know are ignored. */
 export function parseShellAccount(input: unknown): ShellAccount | null {
   if (!isRecord(input) || input.schema !== accountSchema) return null;
   const shared = entries(input);
   if (shared === null) return null;
-  if (shared.environments.some((entry) => !isShellUrl(entry.apps.apps)))
+  if (
+    shared.environments.some((entry) => !isShellUrl(entry.apps.apps)) ||
+    shared.organizations.some((entry) => !isShellUrl(entry.dashboard))
+  )
     return null;
   const ids = new Set(shared.environments.map((entry) => entry.id));
   const slugOf = new Map(
@@ -550,10 +590,7 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
     });
   }
 
-  const lastBySpace: Record<
-    string,
-    Readonly<{ environment: string; app: VisitApp }>
-  > = {};
+  const lastBySpace: Record<string, AccountVisit> = {};
   if (input.lastBySpace !== undefined) {
     if (!isRecord(input.lastBySpace)) return null;
     for (const [space, value] of Object.entries(input.lastBySpace)) {
@@ -637,8 +674,10 @@ export function dashboardSlug(slug: string): string | null {
   return canonical === "" ? null : canonical;
 }
 
-/** The Environment the document is served from. */
-export function currentEnvironment(shell: Shell): ShellEnvironment {
+/** The Environment the document is served from; null on a page that
+ * belongs to no Environment (`current: null`). */
+export function currentEnvironment(shell: Shell): ShellEnvironment | null {
+  if (shell.current === null) return null;
   const found = shell.environments.find((entry) => entry.id === shell.current);
   // parseShell guarantees it; a producer's document is parsed before use.
   if (found === undefined) throw new Error("No current Environment");

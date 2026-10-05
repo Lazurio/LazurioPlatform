@@ -132,6 +132,9 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
    app's colours (Matěj 2026-10-04); white whatever the roles say. */
 .home .disc { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: var(--lz-white); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08); }
 .home img { width: 20px; height: 20px; display: block; }
+/* On the personal Dashboard (F36's addendum of 2026-10-05) the logo is the
+   page you are on: the design system's quiet surface behind the disc. */
+.home[aria-current="page"] { background: var(--shell-selected); }
 .search { width: 36px; height: 32px; }
 .divider { width: 32px; height: 1px; margin: 4px 0; flex: none; background: var(--shell-line); }
 .scroll { display: flex; width: 100%; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 10px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }

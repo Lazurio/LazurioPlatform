@@ -157,7 +157,10 @@ const catalog = createCatalogPanel({
     )?.avatar ?? null,
   environment: () => {
     if (shellDocument === null) return null;
+    // A Launchpad's document always names its own Environment; only a host
+    // page that is no Environment's has none (F36's addendum of 2026-10-05).
     const current = currentEnvironment(shellDocument);
+    if (current === null) return null;
     return {
       name: environmentName(current, shellMessages(locale)),
       icon: (
@@ -215,7 +218,8 @@ function firstRunFacts(): TourFacts | null {
 // The Environment's id, the key of the tour:
 // the shell document's, once asked for; without it the Machine's name.
 function environmentKey(): string | null {
-  if (shellDocument !== null) return shellDocument.current;
+  if (shellDocument !== null && shellDocument.current !== null)
+    return shellDocument.current;
   if (!shellRead || profileState === null) return null;
   return profileState.machine ?? "local";
 }

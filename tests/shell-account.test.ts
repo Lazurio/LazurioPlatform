@@ -529,8 +529,8 @@ test("the account's last Environment per space, by the merged space's id, only f
   });
   const merged = mergeAccount(local, read);
   expect([...accountLastBySpace(merged, read)]).toEqual([
-    ["personal", "ada"],
-    ["Example", "vm-03.example"],
+    ["personal", { environment: "ada", app: "apps" }],
+    ["Example", { environment: "vm-03.example", app: "chat" }],
   ]);
   // The rail leads there, with its "last" line.
   const last = accountLastBySpace(merged, read);
@@ -808,7 +808,7 @@ test("the account in another language: every Environment is named as without the
   );
   expect(merged.organizations).toEqual(same.organizations);
   expect([...accountLastBySpace(merged, read)]).toEqual([
-    ["Example", "vm-03.example"],
+    ["Example", { environment: "vm-03.example", app: "chat" }],
   ]);
   // No English word of the account reaches the Czech picker.
   const sections = switcherSections(merged, cs, {

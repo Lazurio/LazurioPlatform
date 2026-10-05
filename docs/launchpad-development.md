@@ -326,9 +326,12 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   fallbacks, the design system's selection rule),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
   below), `account.ts` and `merge.ts` (the person's account and its merge into the
-  rail, below), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/` (tokens,
-  logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
+  rail, below), `state.ts` (what the elements draw, shared by the page's elements and
+  free of the DOM: the page's document, the person's account, the merge, and who
+  provides the account), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
+  (tokens, logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
   `tests/shell-last.test.ts`, `tests/shell-account.test.ts`,
+  `tests/shell-host.test.ts`, `tests/shell-interface.test.ts`,
   `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
@@ -390,7 +393,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   - The library reads `GET /.lazurio/account/environments` once per page load
     (`src/shell/account.ts`: same origin, no token, no redirect followed, given up
     after 4 s), alongside `/.lazurio/shell.json`, on the Launchpad page too, and
-    never polls. Apps reads the same answer (`src/launchpad/account.ts`), so the page
+    never polls. A host page that provides the account itself reads, keeps and
+    reports nothing (below). Apps reads the same answer (`src/launchpad/account.ts`), so the page
     asks once. Apps takes two things of it: `preferences.openApps` and `favourites`
     keyed by the Organization slug.
   - The rail draws at once from the account this origin remembered
@@ -465,7 +469,57 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
-  addendum of 2026-10-04); `tests/shell-interface.test.ts` keeps every promised name.
+  addendum of 2026-10-04, grown by the addendum of 2026-10-05 with what a host page
+  needs); `tests/shell-interface.test.ts` keeps every promised name.
+- **A host page that is no Environment's** ([F36's addendum of
+  2026-10-05](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
+  the Dashboard). Such a host provides both documents itself and draws the same rail
+  and column head:
+
+  ```html
+  <html lang="cs" data-lazurio-shell="host" data-lazurio-account="host">
+  <script type="module" src="/.lazurio/shell.js"></script>
+  <lazurio-rail space="example"></lazurio-rail>
+  <lazurio-column-head space="example" settings="/orgs/example/settings/general"></lazurio-column-head>
+  ```
+
+  ```js
+  import { parseShell, parseShellAccount, provideShell, provideAccount } from "/.lazurio/shell.js";
+  const shell = parseShell(shellJson); // its own lazurio.shell.v1, current: null
+  if (shell !== null) provideShell(shell);
+  provideAccount(parseShellAccount(accountJson)); // null: no account
+  ```
+
+  - **Its document** has `current: null` (explicit; absent is refused, and `setup`
+    must then be absent too), carries Environments and Organizations of its own or
+    none (the account brings the person's), and may name its own pages by path:
+    `dashboard`, `account`, `addOrganization` and an Organization's `dashboard`
+    (`/…`, never `//…`, no fragment). The account document stays https only. Both
+    documents are additive only from now on; a breaking change is a v2.
+  - **The account** comes only from `provideAccount` on a page marked
+    `data-lazurio-account="host"`: no request to `/.lazurio/account/environments`, no
+    remembered account read or written, no `PUT /.lazurio/account/last`
+    (`src/shell/state.ts`). Without the mark a provided account is ignored with one
+    debug line.
+  - **Where the page is** comes from `space`: an Organization the document lists is
+    that Organization's Dashboard; without it, `personal` or an unlisted slug is the
+    personal Dashboard (`pageOf` in `view.ts`). The rail rings that Organization, or on
+    the personal Dashboard no space, and marks the logo (`aria-current="page"`, the
+    quiet surface). It keeps no last Environment and reports none; a space opens the
+    account's last visit there in its app, else its first Environment's Apps, else its
+    Dashboard (`railSpaces` with no app of its own).
+  - **The column head** (`columnHead` in `view.ts`) on an Organization's Dashboard:
+    the Organization's avatar (or initials), its name and "Dashboard Organizace"; the
+    list under it with the Organization's head marked "tady jsi" and its Environments;
+    the gear to the Organization Settings (`settings`, else `<its dashboard>/settings`,
+    "Nastavení Organizace", marked by `active="settings"`); no switch. On the personal
+    Dashboard it draws nothing.
+  - **Links.** The logo, "+" and the account announce `lazurio-navigate` when the host
+    names them by path, so a single-page host moves without a reload.
+  - **Assets.** The host serves `shell.js` and the four fonts at
+    `/.lazurio/fonts/<file>` on its own origin. A release artifact with the script,
+    the DOM-free parsers, the fonts and their hashes is promised by the same addendum
+    (point 9) and built by a separate task.
 - **What the Environment still lacks** (root decision 0188, additive in v1): the
   document's optional `setup` for the current Environment, `{github: "connected" |
   "missing", content?: "ready" | "missing" | "failed", item?: {kind: "organization",
