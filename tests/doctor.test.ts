@@ -840,6 +840,59 @@ test.skipIf(process.platform === "win32")(
       [codex, "app-server", "daemon", "version"],
     ]);
 
+    // `codex app-server daemon version` on a hosted Environment: the managed
+    // daemon answers with its package's version; an app-server a client
+    // started over SSH outside the unit answers with its own and none for
+    // the managed package (issue #173).
+    const daemonAnswer = (appServerVersion: unknown, managed: unknown) =>
+      `${JSON.stringify({
+        status: "running",
+        ...(managed === undefined ? {} : { backend: "pid" }),
+        managedCodexPath:
+          "/home/operator/.codex/packages/app-server-daemon/current/bin/codex",
+        managedCodexVersion: managed ?? null,
+        socketPath:
+          "/home/operator/.codex/app-server-control/app-server-control.sock",
+        cliVersion: "0.160.0",
+        appServerVersion,
+      })}\n`;
+    const current = await doctorOf({
+      daemon: daemonAnswer("0.160.0", "0.160.0"),
+    });
+    expect([current.check, current.code]).toEqual([
+      { id: "codex-app-server", outcome: "ok" },
+      0,
+    ]);
+    // A version Codex does not report as one is no fact: ok, and nothing of
+    // it reaches the context.
+    for (const malformed of [
+      "0.154.0 (deleted)",
+      "/home/operator/.local/bin/codex",
+      "0.154",
+      154,
+      null,
+    ])
+      expect([
+        malformed,
+        (await doctorOf({ daemon: daemonAnswer(malformed, undefined) })).check,
+      ]).toEqual([malformed, { id: "codex-app-server", outcome: "ok" }]);
+
+    // The stale app-server: both versions, nothing else (no path, no pid);
+    // attention, never broken.
+    const stale = await doctorOf({
+      daemon: daemonAnswer("0.154.0", undefined),
+    });
+    expect([stale.check, stale.code, stale.json.verdict]).toEqual([
+      {
+        id: "codex-app-server",
+        outcome: "warn",
+        reason: "app-server-outdated",
+        context: { appServerVersion: "0.154.0", cliVersion: "0.160.0" },
+      },
+      exitAttention,
+      "attention",
+    ]);
+
     const warned: readonly [Parameters<typeof doctorOf>[0], unknown][] = [
       [
         { daemon: '{"status":"notRunning"}\n' },

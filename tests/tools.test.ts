@@ -32,7 +32,7 @@ import {
   versionOf,
   xdgOf,
 } from "../src/tools/status";
-import { toolsUpdate } from "../src/tools/update";
+import { codexUpdatedNext, toolsUpdate } from "../src/tools/update";
 
 const posix = process.platform !== "win32";
 
@@ -311,6 +311,42 @@ test.skipIf(!posix)(
     if (installed.kind === "tool-updated") {
       expect(installed.before.version).toBe("0.99.0");
       expect(installed.after.version).toBe("0.100.0");
+      // A running app-server keeps 0.99.0: the answer says so and points to
+      // doctor and the manual; nothing is stopped (F29, issue #173).
+      expect(installed.next).toBe(codexUpdatedNext);
+    }
+    expect(codexUpdatedNext).toBe(
+      "A Codex app-server that is already running keeps the old version until it is replaced; nothing was stopped or restarted. In a Remote Environment, lazurio doctor reports it (codex-app-server, app-server-outdated) and the Folder's manual/troubleshooting.md says how to replace it, with the Operator's consent.",
+    );
+    // The same version again: nothing keeps an older one, no next step.
+    const again = await toolsUpdate({ ...common, tool: "codex" });
+    expect(again).toMatchObject({ kind: "tool-updated", changed: false });
+    expect(again.kind === "tool-updated" && "next" in again).toBe(false);
+    // Another tool's version change says nothing about Codex.
+    expect(updated.kind === "tool-updated" && "next" in updated).toBe(false);
+    // An after probe that prints no version or fails proves no change: no
+    // next step.
+    for (const posix of [
+      `echo "garbled" > "${join(bin, "codex.version")}"; echo installed`,
+      `printf '#!/bin/sh\\nexit 1\\n' > "${join(bin, "codex")}"; echo installed`,
+    ]) {
+      await fakeTool(bin, "codex", "0.99.0");
+      const unread = await toolsUpdate({
+        ...common,
+        tool: "codex",
+        catalog: catalog([
+          {
+            name: "codex",
+            updater: { kind: "installer", posix, windows: "exit 1" },
+          },
+        ]),
+      });
+      expect(unread).toMatchObject({ kind: "tool-updated", tool: "codex" });
+      if (unread.kind === "tool-updated") {
+        expect(unread.before.version).toBe("0.99.0");
+        expect(unread.after.version).toBeUndefined();
+        expect("next" in unread).toBe(false);
+      }
     }
   },
 );

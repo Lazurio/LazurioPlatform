@@ -34,6 +34,7 @@ import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { type ToolSignIn, toolsSignIn, toolsStatus } from "../tools/status";
 import {
   codexAppServerReasons,
+  isCodexVersion,
   observeCodexAppServer,
 } from "../update/codex-app-server";
 import type { ErrorContext } from "../update/errors";
@@ -219,6 +220,10 @@ export const doctorContextRules: Readonly<
   // suffix (`-beta`, `+build`, or any word) is free text; it is omitted.
   toolVersion: (value: unknown) =>
     typeof value === "string" && /^[0-9]{1,6}(\.[0-9]{1,6}){0,3}$/.test(value),
+  // The running Codex app-server's version and the CLI's, as Codex reports
+  // them (`codex-app-server` `app-server-outdated`, issue #173).
+  appServerVersion: isCodexVersion,
+  cliVersion: isCodexVersion,
   signIn: oneOf(["signed-in", "signed-out", "unknown"]),
   ssh: oneOf(["linked", "not-linked", "unknown"]),
   organization: (value: unknown) =>
