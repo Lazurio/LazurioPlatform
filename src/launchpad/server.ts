@@ -2,6 +2,12 @@ import { randomBytes } from "node:crypto";
 import { hostname } from "node:os";
 import { join } from "node:path";
 import {
+  type BrowserViewSeams,
+  browserEntryOf,
+  isBrowserSession,
+  resolveBrowserView,
+} from "../browser/view";
+import {
   type ContentHost,
   preparationAnswer,
   processContentHost,
@@ -52,6 +58,7 @@ import {
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
+import { runProcess } from "../update/self-check";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
@@ -119,10 +126,20 @@ const maintainRoute =
  * Lazurio/t3code#35), in the gateway's segment grammar. */
 const promptRoute = /^\/\.lazurio\/prompts\/([A-Za-z0-9._-]+)$/;
 
+/** The Environment browser's view (decision F38): the JSON answer the panels
+ * of the Launchpad and of T3 Code read, and the hand-over a link opens. Both
+ * under `/.lazurio/`, so the gateway forwards them from the forks' origins
+ * too. */
+export const browserViewDocumentPath = "/.lazurio/browser.json";
+export const browserViewPath = "/.lazurio/browser";
+
 /** The Launchpad's own data under `/.lazurio/`, answered after admission
  * like every read; every other path there is the page's static asset. */
 const isLazurioDocument = (path: string) =>
-  path === shellDocumentPath || promptRoute.test(path);
+  path === shellDocumentPath ||
+  path === browserViewDocumentPath ||
+  path === browserViewPath ||
+  promptRoute.test(path);
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
@@ -251,6 +268,14 @@ export async function startLaunchpad(
   // about the content (root decision 0188, setup-state.ts): the content
   // routes below, unless tests supply a stub.
   contentReader?: ContentReader | undefined,
+  // Where the Environment browser's view is asked (decision F38): this
+  // account's agent-browser and the dashboard on loopback. Trusted
+  // composition, never HTTP input; tests supply stubs.
+  browserViewSeams: BrowserViewSeams = Object.freeze({
+    run: runProcess,
+    fetch: (url: string, init: RequestInit) => fetch(url, init),
+    env: process.env,
+  }),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -517,6 +542,40 @@ export async function startLaunchpad(
         } catch {
           return notFound();
         }
+      }
+      if (
+        url.pathname === browserViewDocumentPath ||
+        url.pathname === browserViewPath
+      ) {
+        // The Environment browser's view (decision F38), behind the same
+        // admission as every read: the dashboard's address with the window
+        // of one agent-browser session selected and the dashboard's access
+        // token in the fragment. The JSON answer is for the panels; the
+        // hand-over redirects a link's browser there. Only `session`, and
+        // only a name agent-browser accepts.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        const keys = [...url.searchParams.keys()];
+        const session = url.searchParams.get("session");
+        if (
+          keys.some((key) => key !== "session") ||
+          keys.length > 1 ||
+          (session !== null && !isBrowserSession(session))
+        )
+          return response({ error: "invalid-request" }, 400);
+        server.timeout(request, 30);
+        const view = await resolveBrowserView(
+          browserEntryOf(entry),
+          session,
+          browserViewSeams,
+        );
+        if (url.pathname === browserViewDocumentPath) return response(view);
+        if (!view.available) return response(view, 404);
+        return new Response(null, {
+          status: 302,
+          headers: { ...headers, Location: view.view },
+        });
       }
       const ownerRequest = ownerRoute.exec(url.pathname);
       if (ownerRequest !== null) {
