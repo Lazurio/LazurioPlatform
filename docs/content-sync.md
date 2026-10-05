@@ -241,8 +241,12 @@ Steps: `find`, `create` (only when it creates), `clone`, `check`.
   `<login>/<login>_GEN3`, and GitHub knows that repository as the account's own
   (`personalspace-not-owned`) and private (`personalspace-public`). Then `find` done,
   `clone` skipped, `check`. A checkout of another account, or under another name, is
-  `personalspace-foreign`: nothing is touched, and `GET /api/content` reports the
-  Personalspace `blocked` with that reason instead of `present`.
+  `personalspace-foreign`: nothing is touched. `GET /api/content` makes the same
+  decision (`verifyPersonalspaceCheckout`): it reports the Personalspace `present` only
+  when verified, and otherwise `blocked` with the reason (`personalspace-foreign`,
+  `-not-owned`, `-public`, `github-unavailable`, `github-signed-out`,
+  `github-identity-mismatch`). The catalog and the module lifecycle do not yet make
+  this decision; they read any single directory there (Lazurio/LazurioPlatform#186).
 - **Exists on GitHub:** cloned only. **Missing:** created from
   `Lazurio/PersonalspaceTemplate_GEN3` as a **private** repository of the account
   (`POST /repos/{template}/generate`, `private: true`), refused when GitHub reports it

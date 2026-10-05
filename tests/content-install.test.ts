@@ -837,6 +837,23 @@ posixTest(
       "clone:skipped",
       "check:done",
     ]);
+    // Verified as the account's own and private: present.
+    expect((await contentStatus(folder, host)).items).toEqual([
+      { kind: "personalspace", login: "example", state: "present" },
+    ]);
+    // Signed out, it cannot be verified: blocked, never present.
+    const signedOut = contentHost(
+      world,
+      stubGitHub(world, { viewer: { kind: "signed-out" } }).github,
+    );
+    expect((await contentStatus(folder, signedOut)).items).toEqual([
+      {
+        kind: "personalspace",
+        login: null,
+        state: "blocked",
+        reason: "github-signed-out",
+      },
+    ]);
   },
   30_000,
 );
@@ -931,16 +948,15 @@ posixTest(
         entry.origin,
       );
       expect(calls.some((call) => call.kind === "generate")).toBe(false);
-      // What lives here says so too: a foreign checkout is not "present".
-      if (entry.code === "personalspace-foreign")
-        expect((await contentStatus(folder, host)).items).toEqual([
-          {
-            kind: "personalspace",
-            login: "example",
-            state: "blocked",
-            reason: "personalspace-foreign",
-          },
-        ]);
+      // What lives here says the same: never "present", with the reason.
+      expect((await contentStatus(folder, host)).items).toEqual([
+        {
+          kind: "personalspace",
+          login: "example",
+          state: "blocked",
+          reason: entry.code,
+        },
+      ]);
     }
   },
   60_000,

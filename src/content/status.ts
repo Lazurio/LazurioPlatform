@@ -1,7 +1,6 @@
 import { basename } from "node:path";
 import type { CatalogOrganization } from "../organizations/catalog";
 import { locatePersonalspace } from "../organizations/personalspace";
-import type { ContentGit } from "./git";
 import type { GitHubViewer } from "./github";
 import { type ContentHost, catalogOf, readFolderKind } from "./host";
 import {
@@ -24,21 +23,65 @@ export const personalspaceRepositoryName = (login: string) => `${login}_GEN3`;
 export const personalspaceTemplate = "Lazurio/PersonalspaceTemplate_GEN3";
 
 /** Whether the one directory in `personalspace/` is the viewer's own
- * Personalspace on disk: named `<login>_GEN3` and a checkout whose origin is
- * `<login>/<login>_GEN3` (review of #183: a checkout of another account is
- * never taken for the viewer's). Reads only. */
-export async function holdsViewersPersonalspace(
+ * Personalspace, as a clone would require (review of #183): named
+ * `<login>_GEN3`, a checkout whose origin is `<login>/<login>_GEN3`, and that
+ * repository on GitHub owned by the account and private. The one decision
+ * for the install and for `GET /api/content`; anything else is refused with
+ * its code. Reads only. */
+export async function verifyPersonalspaceCheckout(
   directory: string,
   viewer: GitHubViewer,
-  git: ContentGit,
-): Promise<boolean> {
+  host: Pick<ContentHost, "git" | "github">,
+): Promise<
+  | Readonly<{ ok: true; repository: string }>
+  | Readonly<{
+      ok: false;
+      code:
+        | "personalspace-foreign"
+        | "personalspace-not-owned"
+        | "personalspace-public"
+        | "github-unavailable";
+      detail: string;
+    }>
+> {
   const name = personalspaceRepositoryName(viewer.login);
-  if (basename(directory).toLowerCase() !== name.toLowerCase()) return false;
-  const observed = await git.inspect(directory);
-  return (
-    observed.kind === "checkout" &&
-    sameRepository(observed.repository, `${viewer.login}/${name}`)
-  );
+  const expected = `${viewer.login}/${name}`;
+  const observed =
+    basename(directory).toLowerCase() === name.toLowerCase()
+      ? await host.git.inspect(directory)
+      : null;
+  if (
+    observed?.kind !== "checkout" ||
+    !sameRepository(observed.repository, expected)
+  )
+    return {
+      ok: false,
+      code: "personalspace-foreign",
+      detail: `personalspace/ holds a checkout that is not ${expected}; it was left untouched`,
+    };
+  const answer = await host.github.repository(viewer.login, name);
+  if (answer.kind === "unavailable")
+    return {
+      ok: false,
+      code: "github-unavailable",
+      detail: "GitHub did not answer for the Personalspace repository",
+    };
+  if (
+    answer.kind === "missing" ||
+    answer.repository.owner.databaseId !== viewer.databaseId
+  )
+    return {
+      ok: false,
+      code: "personalspace-not-owned",
+      detail: `${expected} is not a repository owned by ${viewer.login}`,
+    };
+  if (!answer.repository.private)
+    return {
+      ok: false,
+      code: "personalspace-public",
+      detail: `${answer.repository.fullName} is public; a Personalspace must be private`,
+    };
+  return { ok: true, repository: answer.repository.fullName };
 }
 
 /** The Organizations of the catalog bound to `login` (case-insensitive, as
@@ -99,23 +142,27 @@ async function personalspaceItem(
     });
   const mismatch = viewer !== null && !viewerMayHold(scope, viewer);
   if (located.kind === "owner") {
-    // Another account's checkout is not this one's Personalspace.
-    if (
-      viewer !== null &&
-      !mismatch &&
-      !(await holdsViewersPersonalspace(located.directory, viewer, host.git))
-    )
-      return Object.freeze({
-        kind: "personalspace",
-        login,
-        state: "blocked",
-        reason: "personalspace-foreign",
-      });
+    // Present only when it is verifiably the account's own Personalspace,
+    // the same decision as the install's: unverifiable or another account's
+    // is blocked with the reason, never present.
+    const verified =
+      viewer === null || mismatch
+        ? null
+        : await verifyPersonalspaceCheckout(located.directory, viewer, host);
+    if (verified?.ok === true)
+      return Object.freeze({ kind: "personalspace", login, state: "present" });
     return Object.freeze({
       kind: "personalspace",
       login,
-      state: "present",
-      ...(mismatch ? { reason: "github-identity-mismatch" } : {}),
+      state: "blocked",
+      reason:
+        verified !== null
+          ? verified.code
+          : mismatch
+            ? "github-identity-mismatch"
+            : answer.kind === "signed-out"
+              ? "github-signed-out"
+              : "github-unavailable",
     });
   }
   if (viewer === null || mismatch)
