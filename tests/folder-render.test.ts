@@ -109,6 +109,25 @@ for (const journey of journeys.filter((entry) => entry.os !== "windows"))
       ).toMatchSnapshot();
     });
 
+// Decision F28 and its addendum of 2026-10-05: towards people the place an
+// agent works in is the Environment, and Czech-speaking agents may also say
+// „prostředí“. Every preset, both locales.
+test("towards people the place is the Environment, in Czech also „prostředí“", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const)
+      expect(
+        renderInstructions({
+          preset: journey.preset,
+          machine: journey.machine,
+          profile: presetProfile(journey.preset, journey.os, { locale }),
+        }).split("\n"),
+      ).toContain(
+        locale === "cs"
+          ? "- Lidem říkej tomu, kde pracuješ, Environment (česky i prostředí; ten Environment, na tomto Environmentu) a hostovanému Remote Environment; slova Mašina, VM ani server jim neříkej. Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura)."
+          : "- Towards people, call the place you work in the Environment (in Czech also „prostředí“), and a hosted one a Remote Environment; do not say Machine, VM or server to them. Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
+      );
+});
+
 test("relationships render only when the recorded binding carries them, one line per peer", () => {
   const profile = presetProfile("hosted-personal", "linux");
   const plain = renderInstructions({

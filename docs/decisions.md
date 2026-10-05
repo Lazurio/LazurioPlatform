@@ -1011,6 +1011,73 @@ on a hosted work Environment on 2026-10-03. The rule from now on:
 - `v0.1.8-rc.14` is superseded by `rc.15` for hosted Environments; `rc.14` is not to be
   pinned on any of them.
 
+**Addendum 2026-10-05, decided by Matěj: every task is a Draft first, and "Publish" is
+the mandate to finish it.** In a pilot customer's meeting a person wrote "pošli e-mail …"
+and the agent sent the e-mail at once, which scared them. Matěj's rule is the core concept
+of the root rules this decision carried over ("Tvoje práce je Draft … Publikace patří
+Operátorovi … „Publikuj“"). `manual/working-here.md` already defined Draft and
+Publication, but the generated `AGENTS.md` stated the rule only for worktrees and pull
+requests, and nothing said that an e-mail or a message is a Draft first, even when the
+person asked straight away to "send". The rule as Matěj refined it the same day:
+
+1. **Every task.** Code, an e-mail, a message, an invitation, filling in a form and any
+   other work in an external application.
+2. **Code.** The Draft is the pull request, as before.
+3. **An external application.** The agent prepares the Draft inside that application and
+   hands it back to the Operator unfinished: an e-mail as a draft in Outlook, a filled-in
+   form not submitted, an unsent message. "Send an e-mail …" at the start of a task is
+   the brief for a Draft, not a Publication.
+4. **„Publikuj“ / "Publish"** for that exact Draft is the Operator's full mandate to
+   finish it: send it, submit it, make it public, whatever finishing means in that
+   application. The agent then finishes it and reports that it is done.
+
+What changes:
+
+- **`AGENTS.md`, the Publication line**, states the four points on every preset except
+  the Team preset. On the Team preset the line keeps F31's named person who publishes
+  pull requests and adds points 3 and 4 for an external application, with the connected
+  Operator's "Publish".
+- **`manual/working-here.md`, "Draft, Publication, Release"**, gains the bullet "A Draft
+  first, then Publication" right after Publication, with all four points; on the Team
+  preset it adds that a pull request from a Team Environment is always published by a
+  named person. The Draft bullet spells "e-mail" like the rest of the section. The "A
+  write is a Publication" bullet of the connected applications points to the same rule.
+  It said "the Operator's explicit instruction for that operation", which a "send …" at
+  the start of a task could be read to satisfy.
+- **The usage of the catalog tools that write outside** (`src/tools/catalog.ts`,
+  rendered into `manual/this-machine.md` and the Launchpad's Tools panel) points to the
+  same rule. Composio's externally visible write (now naming the submission of a form),
+  a wacli message and a gogcli mail, calendar change or file share are a Publication:
+  prepare the Draft and leave it unfinished; the Operator's explicit "Publish" for that
+  Draft is the full mandate to finish it (`manual/working-here.md`). The old "needs the
+  Operator's instruction" is gone.
+- **Czech „prostředí“** next to Environment: the F28 addendum of the same day.
+
+Unchanged:
+
+- Publication belongs to the Operator. Their live rights to the exact operation decide
+  whether they may approve it, and the instruction holds in the current thread only. The
+  mandate of "Publish" grants no access the Operator does not have.
+- On the Team preset F31's addendum of 2026-10-05 holds: the agent never merges a pull
+  request, a named person publishes it, and the handoff asks "Komu mám říct, aby tyhle
+  změny publikoval?".
+- Release, the pull-request lifecycle (Draft PR, Ready, the assignee) and full access
+  (root decision 0172: a capability, not consent).
+- "Lazurio" and "Launchpad" from the Operator still mean this Environment's Launchpad
+  ("Otevři mi Lazurio").
+- No behavior of the product changes; only the generated instructions and the catalog's
+  usage texts do.
+
+Template revision `base-instructions-27`, so every Folder re-renders on its next
+refresh or product upgrade. Unit tests check, on every preset in both locales:
+- the Publication line, Team against the other presets;
+- the new bullet right after Publication and before Release, with the Team's named
+  publisher only on the Team preset;
+- the pointer of a connected application's write;
+- that no output keeps the old Publication line;
+- that the usage of Composio, wacli and gogcli ends with the rule, and that of gh and
+  neon does not.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -2909,6 +2976,15 @@ may follow this wording when they are next edited.
 | Czech "prostředí" / "vzdálené prostředí" | A common word that does not read as a name; not chosen by Matěj, so Czech and English texts name the same thing |
 | Rename the identifiers, commands and schemas too | Changes contracts other products read; a separate decision |
 | "Environment" and "Remote Environment" in what people read, "Machine" as the technical term, guarded by a test (selected) | People read one familiar word; contracts stay; regressions are caught |
+
+**Addendum 2026-10-05 (Matěj): Czech-speaking agents may also say „prostředí“.** Next to
+Environment, an agent speaking Czech may call the place it works in *prostředí*. The
+generated rule (`environmentWording`) reads "Environment (česky i prostředí; ten
+Environment, na tomto Environmentu)" in Czech and adds "(in Czech also „prostředí“)" in
+English. This relaxes the "Czech „prostředí“" row of the table above for what agents say;
+Environment stays the name in the Launchpad, the CLI and the generated texts, a hosted
+one stays a Remote Environment, and the guard of point 4 is unchanged. Template revision
+`base-instructions-27` (F14 addendum 2026-10-05).
 
 ## F29 — Entry units of a Remote Environment: the Launchpad, T3 Code and the operator's Codex app-server
 

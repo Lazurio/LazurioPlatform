@@ -100,6 +100,14 @@ const installation = (cs: string, en: string): ToolText => ({
   cs: `${cs} ${never.cs}`,
   en: `${en} ${never.en}`,
 });
+// The usage of a tool that writes outside: the externally visible write is a
+// Publication. The agent prepares the Draft and leaves it unfinished; the
+// Operator's explicit "Publish" for that Draft is the full mandate to finish
+// it (decision F14, addendum 2026-10-05).
+const writingUsage = (cs: string, en: string, write: ToolText): ToolText => ({
+  cs: `${cs} ${write.cs} je Publikace: připrav Draft a nedokončuj ho; výslovné „Publikuj“ Operátora k tomu Draftu je plný mandát k jeho dokončení (\`manual/working-here.md\`).`,
+  en: `${en} ${write.en} is a Publication: prepare the Draft and leave it unfinished; the Operator's explicit “Publish” for that Draft is the full mandate to finish it (\`manual/working-here.md\`).`,
+});
 
 export const toolCatalog: readonly ToolEntry[] = Object.freeze([
   tool({
@@ -223,10 +231,14 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         cs: "Composio CLI pro externí aplikace (pošta, kalendář, chat a další) napojené pro celý tenhle Environment.",
         en: "Composio CLI for external applications (mail, calendar, chat and others) connected for this whole Environment.",
       },
-      usage: {
-        cs: "Přihlášení ověř příkazem `composio whoami`. Aplikaci napojíš příkazem `composio link <toolkit>`, který vrátí odkaz, a ten otevře Operátor; nástroje najdeš přes `composio search` a spustíš přes `composio execute`. Zápis viditelný navenek (odeslání, zveřejnění, smazání) vyžaduje pokyn Operátora.",
-        en: "Check the sign-in with `composio whoami`. Connect an app with `composio link <toolkit>`, which returns a link for the Operator to open; find tools with `composio search` and run them with `composio execute`. An externally visible write (sending, publishing, deleting) needs the Operator's instruction.",
-      },
+      usage: writingUsage(
+        "Přihlášení ověř příkazem `composio whoami`. Aplikaci napojíš příkazem `composio link <toolkit>`, který vrátí odkaz, a ten otevře Operátor; nástroje najdeš přes `composio search` a spustíš přes `composio execute`.",
+        "Check the sign-in with `composio whoami`. Connect an app with `composio link <toolkit>`, which returns a link for the Operator to open; find tools with `composio search` and run them with `composio execute`.",
+        {
+          cs: "Zápis viditelný navenek (odeslání, odevzdání formuláře, zveřejnění, smazání)",
+          en: "An externally visible write (sending, submitting a form, publishing, deleting)",
+        },
+      ),
     },
   }),
   tool({
@@ -260,10 +272,11 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         cs: "WhatsApp CLI pro čtení a odesílání zpráv z WhatsApp účtu Operátora.",
         en: "WhatsApp CLI for reading and sending messages of the Operator's WhatsApp account.",
       },
-      usage: {
-        cs: "Přihlášení ověř příkazem `wacli auth status --json`. Pro čtení používej `--read-only`; odeslání zprávy vyžaduje pokyn Operátora.",
-        en: "Check the sign-in with `wacli auth status --json`. Use `--read-only` for reading; sending a message needs the Operator's instruction.",
-      },
+      usage: writingUsage(
+        "Přihlášení ověř příkazem `wacli auth status --json`. Pro čtení používej `--read-only`.",
+        "Check the sign-in with `wacli auth status --json`. Use `--read-only` for reading.",
+        { cs: "Odeslání zprávy", en: "Sending a message" },
+      ),
     },
   }),
   tool({
@@ -291,10 +304,14 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         cs: "Google Workspace (Gmail, Kalendář, Disk…) z příkazové řádky; alternativa pro Operátory, kteří nechtějí Composio.",
         en: "Google Workspace (Gmail, Calendar, Drive…) from the command line; the alternative for Operators who do not want Composio.",
       },
-      usage: {
-        cs: "Přihlášení ověř příkazem `gog auth list --check --json --no-input`. Pro čtení používej `--readonly` a `--json`; odeslání pošty, změna kalendáře nebo sdílení souboru vyžaduje pokyn Operátora.",
-        en: "Check the sign-in with `gog auth list --check --json --no-input`. Use `--readonly` and `--json` for reading; sending mail, changing a calendar or sharing a file needs the Operator's instruction.",
-      },
+      usage: writingUsage(
+        "Přihlášení ověř příkazem `gog auth list --check --json --no-input`. Pro čtení používej `--readonly` a `--json`.",
+        "Check the sign-in with `gog auth list --check --json --no-input`. Use `--readonly` and `--json` for reading.",
+        {
+          cs: "Odeslání pošty, změna kalendáře nebo sdílení souboru",
+          en: "Sending mail, changing a calendar or sharing a file",
+        },
+      ),
     },
   }),
   tool({
