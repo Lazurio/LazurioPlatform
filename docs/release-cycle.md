@@ -89,6 +89,11 @@ full module journey or Windows acceptance. It never rebuilds the supplied candid
   (`scripts/release-build.ts`) and is asked for its identity before it is uploaded.
   A local build must use an explicit new output directory and never replace an
   installation.
+- One target-independent shell artifact per release, `lazurio-shell.tar.gz`: the
+  shell of the tag for a host outside an Environment, built once by the publishing
+  job (`scripts/release-shell.ts`) and attested with the executables
+  ([product update contract](update.md), *The shell artifact*). It is not an update
+  input, and the qualification journeys do not use it.
 - No source checkout, user Bun/Node/npm, sudo, provider credential or access to a
   private integration repository is required merely to launch the installed CLI and
   Launchpad.

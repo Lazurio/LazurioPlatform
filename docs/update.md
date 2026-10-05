@@ -84,11 +84,12 @@ Lazurio signing keys, no metadata service and no second origin.
 
 **Publishing.** A protected tag `vX.Y.Z` starts `.github/workflows/release.yml`.
 It builds `lazurio-<target>` for every supported target, writes `manifest.json`,
-creates one Sigstore bundle with `actions/attest` whose subjects are the manifest,
-every binary and `install.sh` of the tag, attaches everything to a draft release and
-publishes it once. `install.sh` is not in the manifest, whose targets are executables;
-a client requires its digests to be among the subjects, so an added subject changes
-nothing for it.
+builds the shell artifact `lazurio-shell.tar.gz` (below), creates one Sigstore
+bundle with `actions/attest` whose subjects are the manifest, every binary,
+`install.sh` and the shell artifact of the tag, attaches everything to a draft
+release and publishes it once. `install.sh` and the shell artifact are not in the
+manifest, whose targets are executables; a client requires its digests to be among
+the subjects, so an added subject changes nothing for it.
 Releases are immutable (GitHub immutable releases). Publishing is serialized: the
 publishing job runs in one repository-wide concurrency group that queues and
 never cancels, in the protected environment `release` with a required reviewer.
@@ -121,6 +122,62 @@ first release whose updater exists, raised only with an incompatible change of
 the update protocol. Ordering is the product order, where a prerelease is below
 its final version, so a minimum of `X.Y.Z` would refuse every `X.Y.Z-rc.N`
 client.
+
+**The shell artifact.** `lazurio-shell.tar.gz` is the shell of the tag
+([F36](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer))
+for a host outside an Environment, such as the Lazurio Dashboard: it pins the shell
+of one release by its tag and the asset's digest instead of loading
+`/.lazurio/shell.js` from some Environment. `scripts/release-shell.ts` builds it once
+in the publishing job, because nothing in it depends on a target. The update never
+downloads it, and an installed Lazurio never reads it.
+
+| File | Content |
+| --- | --- |
+| `shell.js` | `/.lazurio/shell.js` byte for byte as every Launchpad of the tag serves it |
+| `contract.js` | `src/shell/contract.ts` alone as an ES module without imports (`parseShell`, `parseShellAccount`, `dashboardSlug` and the rest), for a host's server code and tests: importing `shell.js` defines the elements and so needs a DOM |
+| `contract.d.ts` | its declarations, which need neither DOM nor Bun types |
+| `fonts/*.woff2`, `fonts/LICENSE-*.txt` | the fonts exactly as served at `/.lazurio/fonts/<file>`, where the elements request them, with their licences |
+| `LICENSE`, `NOTICE`, `LICENSE-iconoir.txt` | the Platform's licence and notice, and the licence of the interface icons inside `shell.js` |
+| `artifact.json` | the listing below |
+
+```json
+{
+  "schema": "lazurio.shell-artifact.v1",
+  "version": "1.4.0",
+  "sourceCommit": "<40 hex>",
+  "interface": 1,
+  "files": { "shell.js": "<sha256>", "fonts/inter-tight-latin-wght-normal.woff2": "<sha256>" }
+}
+```
+
+`interface` is the version of the elements' promised interface
+(`src/shell/interface.ts`). `files` names every other file of the archive with its
+SHA-256, and the archive holds nothing else. The archive is deterministic: regular
+files in path order, mode `0644`, owner and group 0, time 0, and a gzip header
+without a time or an operating system, so the same source and Bun give the same
+bytes.
+
+A host verifies the asset of the exact tag it pins, never of `latest`, with the
+check `install.sh` runs on an executable:
+
+```sh
+gh release download <tag> --repo Lazurio/LazurioPlatform \
+  --pattern lazurio-shell.tar.gz --pattern lazurio.sigstore.json
+gh attestation verify lazurio-shell.tar.gz --bundle lazurio.sigstore.json \
+  --repo Lazurio/LazurioPlatform \
+  --signer-workflow Lazurio/LazurioPlatform/.github/workflows/release.yml \
+  --source-ref refs/tags/<tag>
+```
+
+Only then does it unpack the archive, and it requires that `artifact.json` names the
+version of the tag and the commit the attestation names (`sourceRepositoryDigest` of
+the certificate in `--format json`, or enforced with `--source-digest <commit>`), and
+that the unpacked files are exactly the listed ones with their SHA-256. It records
+the tag, the commit and the SHA-256 of the archive as its pin; its vendored copy can
+be checked against `artifact.json` at any time. A Sigstore outage may block a bump;
+it is never a reason to skip the check. The asset exists only for tags whose
+`release.yml` builds it: earlier releases carry none, and an immutable release never
+gains one.
 
 **Check.** The client requests
 `https://github.com/<origin>/releases/latest/download/manifest.json`, records the
