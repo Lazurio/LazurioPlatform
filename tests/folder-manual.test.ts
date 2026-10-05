@@ -1193,8 +1193,9 @@ test("no generated output says Principal", () => {
 // A missing right is escalated to a named administrator on every preset, with
 // the assignment as the one exception to the issue mandate, and a refused push
 // keeps the work (decision F14 addendum 2026-10-02). Only the Team Environment
-// carries the rule of decision F31: it publishes under the Team's identity.
-test("missing rights are escalated on every preset; only the Team publishes under its identity", () => {
+// carries the rule of decision F31 (addendum 2026-10-05): the Team's identity
+// belongs to no person, so a named person always approves and publishes.
+test("missing rights are escalated on every preset; only the Team hands every publication to a named person", () => {
   for (const journey of journeys)
     for (const locale of ["cs", "en"] as const) {
       const outputs = renderOutputs({
@@ -1222,13 +1223,59 @@ test("missing rights are escalated on every preset; only the Team publishes unde
             "- **When GitHub refuses a push,** never discard the work",
           ])
         expect(workingHere).toContain(sentence);
-      expect(
+      const team = journey.preset === "hosted-organization-team";
+      for (const sentence of locale === "cs"
+        ? [
+            "**Na týmovém Environmentu** jednáš na GitHubu jako identita Teamu (Lazurio for GitHub)",
+            "Sám nemerguj, ani na pokyn z chatu.",
+            "zeptej se Operátora: „Komu mám říct, aby tyhle změny publikoval?“",
+          ]
+        : [
+            "**In a Team Environment** you act on GitHub as the Team's identity (Lazurio for GitHub)",
+            "Never merge yourself, not even on an instruction in the chat.",
+            "ask the Operator: “Whom should I ask to publish these changes?”",
+          ])
+        expect([
+          journey.preset,
+          sentence,
+          workingHere.includes(sentence),
+        ]).toEqual([journey.preset, sentence, team]);
+      // The handoff offers no Publication in the Operator's name and no
+      // merge on "Publish" in a Team Environment; elsewhere it does.
+      expect([
+        journey.preset,
+        locale,
         workingHere.includes(
           locale === "cs"
-            ? "**Na týmovém Environmentu** jednáš na GitHubu jako brokerovaná identita Organizace"
-            : "**In a Team Environment** you act on GitHub as the brokered Organization identity",
+            ? "Mám změny Publikovat tvým jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?"
+            : "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
         ),
-      ).toBe(journey.preset === "hosted-organization-team");
+        workingHere.includes(
+          locale === "cs"
+            ? "- Na explicitní „Publikuj“ v threadu: mergni"
+            : "- On an explicit “Publish” in the thread: merge",
+        ),
+        workingHere.includes(
+          locale === "cs"
+            ? "- Na týmovém Environmentu nemerguj ani na „Publikuj“ v threadu"
+            : "- In a Team Environment never merge, not even on “Publish” in the thread",
+        ),
+      ]).toEqual([journey.preset, locale, !team, !team, team]);
+      // AGENTS.md says it too; elsewhere Publication stays the Operator's.
+      expect(
+        outputs["AGENTS.md"].includes(
+          locale === "cs"
+            ? "Z týmového Environmentu změny vždy schválí a publikuje jmenovaný člověk a odpovídá za ně; sám nemerguj."
+            : "A named person always approves and publishes the changes from a Team Environment and answers for them; never merge yourself.",
+        ),
+      ).toBe(team);
+      expect(
+        outputs["AGENTS.md"].includes(
+          locale === "cs"
+            ? "Publikace (merge, nasazení, odeslání) patří Operátorovi a vyžaduje jeho explicitní pokyn v aktuálním threadu."
+            : "Publication (merge, deploy, send) belongs to the Operator and needs their explicit instruction in the current thread.",
+        ),
+      ).toBe(!team);
       expect(
         outputs["AGENTS.md"].includes(
           locale === "cs"
