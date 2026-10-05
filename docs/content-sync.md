@@ -182,8 +182,10 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    manifest binds the login): taken as it is. Absent: cloned into a temporary sibling
    `organizations/.<name>.lazurio-content-<random>/checkout`, verified (the `origin`
    is the expected repository, `HEAD` is `main`, the inspected commit, and the clone's
-   own `lazurio.organization.json` resolves, is an Organization, binds the login and,
-   when it declares `root_repository`, names exactly this repository), then published
+   own `lazurio.organization.json` resolves, is an Organization, binds the login and
+   names exactly this repository in `root_repository`, the same criterion as the
+   lookup below; a commit that does not declare itself the root is never published,
+   `root-declaration-mismatch`), then published
    to the absent `organizations/<repository name>` with a no-replace rename
    (`renamex_np(RENAME_EXCL)` on macOS, `renameat2(RENAME_NOREPLACE)` on Linux). An
    occupied destination is never touched (`destination-occupied`).
@@ -234,7 +236,13 @@ Steps: `find`, `create` (only when it creates), `clone`, `check`.
   login renamed later), nothing is created (`personalspace-elsewhere`) and the person
   decides.
 - **Present locally** (exactly one directory in `personalspace/`, the rule the
-  catalog reads by): `find` done, `clone` skipped, `check`.
+  catalog reads by): it counts only when it is the account's own Personalspace, as a
+  clone would require: the directory is `<login>_GEN3`, its `origin` is
+  `<login>/<login>_GEN3`, and GitHub knows that repository as the account's own
+  (`personalspace-not-owned`) and private (`personalspace-public`). Then `find` done,
+  `clone` skipped, `check`. A checkout of another account, or under another name, is
+  `personalspace-foreign`: nothing is touched, and `GET /api/content` reports the
+  Personalspace `blocked` with that reason instead of `present`.
 - **Exists on GitHub:** cloned only. **Missing:** created from
   `Lazurio/PersonalspaceTemplate_GEN3` as a **private** repository of the account
   (`POST /repos/{template}/generate`, `private: true`), refused when GitHub reports it

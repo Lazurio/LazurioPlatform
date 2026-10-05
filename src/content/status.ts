@@ -1,5 +1,7 @@
+import { basename } from "node:path";
 import type { CatalogOrganization } from "../organizations/catalog";
 import { locatePersonalspace } from "../organizations/personalspace";
+import type { ContentGit } from "./git";
 import type { GitHubViewer } from "./github";
 import { type ContentHost, catalogOf, readFolderKind } from "./host";
 import {
@@ -7,6 +9,7 @@ import {
   type ContentScope,
   type ContentStatus,
   contentScope,
+  sameRepository,
 } from "./model";
 
 // What this Environment should hold and what it holds now (`GET
@@ -19,6 +22,24 @@ import {
  * directory `personalspace/<login>_GEN3`). */
 export const personalspaceRepositoryName = (login: string) => `${login}_GEN3`;
 export const personalspaceTemplate = "Lazurio/PersonalspaceTemplate_GEN3";
+
+/** Whether the one directory in `personalspace/` is the viewer's own
+ * Personalspace on disk: named `<login>_GEN3` and a checkout whose origin is
+ * `<login>/<login>_GEN3` (review of #183: a checkout of another account is
+ * never taken for the viewer's). Reads only. */
+export async function holdsViewersPersonalspace(
+  directory: string,
+  viewer: GitHubViewer,
+  git: ContentGit,
+): Promise<boolean> {
+  const name = personalspaceRepositoryName(viewer.login);
+  if (basename(directory).toLowerCase() !== name.toLowerCase()) return false;
+  const observed = await git.inspect(directory);
+  return (
+    observed.kind === "checkout" &&
+    sameRepository(observed.repository, `${viewer.login}/${name}`)
+  );
+}
 
 /** The Organizations of the catalog bound to `login` (case-insensitive, as
  * GitHub). */
@@ -77,13 +98,26 @@ async function personalspaceItem(
       reason: located.reason,
     });
   const mismatch = viewer !== null && !viewerMayHold(scope, viewer);
-  if (located.kind === "owner")
+  if (located.kind === "owner") {
+    // Another account's checkout is not this one's Personalspace.
+    if (
+      viewer !== null &&
+      !mismatch &&
+      !(await holdsViewersPersonalspace(located.directory, viewer, host.git))
+    )
+      return Object.freeze({
+        kind: "personalspace",
+        login,
+        state: "blocked",
+        reason: "personalspace-foreign",
+      });
     return Object.freeze({
       kind: "personalspace",
       login,
       state: "present",
       ...(mismatch ? { reason: "github-identity-mismatch" } : {}),
     });
+  }
   if (viewer === null || mismatch)
     return Object.freeze({
       kind: "personalspace",

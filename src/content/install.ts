@@ -33,6 +33,7 @@ import {
   verifyOrganizationRole,
 } from "./role";
 import {
+  holdsViewersPersonalspace,
   organizationsOf,
   personalspaceRepositoryName,
   personalspaceTemplate,
@@ -353,10 +354,13 @@ function rootDeclaration(login: string, repository: string) {
     const root = (
       canonical.root_repository as Readonly<Record<string, unknown>> | null
     )?.locator;
+    // The same criterion as discovery (`declaresRoot`): a commit that does
+    // not name this repository its root is never published (review of #183).
     if (
       typeof owner !== "string" ||
       owner.toLowerCase() !== login.toLowerCase() ||
-      (typeof root === "string" && !sameRepository(root, repository))
+      typeof root !== "string" ||
+      !sameRepository(root, repository)
     )
       return "root-declaration-mismatch";
     return null;
@@ -877,6 +881,49 @@ async function findOnGitHub(
   return { repository: `${viewer.login}/${name}`, create: true };
 }
 
+/** An existing checkout in `personalspace/` counts as the viewer's
+ * Personalspace only when it is exactly `<login>/<login>_GEN3` on disk and on
+ * GitHub, owned by the account and private, as a clone would require (review
+ * of #183). Anything else fails closed; the directory is left untouched. */
+async function verifyPresentPersonalspace(
+  directory: string,
+  viewer: GitHubViewer,
+  context: RunContext,
+  steps: Stepper,
+): Promise<string | ItemOutcome> {
+  const name = personalspaceRepositoryName(viewer.login);
+  const expected = `${viewer.login}/${name}`;
+  if (!(await holdsViewersPersonalspace(directory, viewer, context.host.git)))
+    return steps.fail(
+      "find",
+      "personalspace-foreign",
+      `personalspace/ holds a checkout that is not ${expected}; it was left untouched`,
+    );
+  const answer = await context.host.github.repository(viewer.login, name);
+  if (answer.kind === "unavailable")
+    return steps.fail(
+      "find",
+      "github-unavailable",
+      "GitHub did not answer for the Personalspace repository",
+    );
+  if (
+    answer.kind === "missing" ||
+    answer.repository.owner.databaseId !== viewer.databaseId
+  )
+    return steps.fail(
+      "find",
+      "personalspace-not-owned",
+      `${expected} is not a repository owned by ${viewer.login}`,
+    );
+  if (!answer.repository.private)
+    return steps.fail(
+      "find",
+      "personalspace-public",
+      `${answer.repository.fullName} is public; a Personalspace must be private`,
+    );
+  return answer.repository.fullName;
+}
+
 async function installPersonalspace(
   item: Extract<ContentItemRef, { kind: "personalspace" }>,
   context: RunContext,
@@ -903,7 +950,15 @@ async function installPersonalspace(
     );
   let repository: string | null = null;
   if (located.kind === "owner") {
-    steps.done("find", "present in personalspace/");
+    const present = await verifyPresentPersonalspace(
+      located.directory,
+      viewer,
+      context,
+      steps,
+    );
+    if (isOutcome(present)) return present;
+    repository = present;
+    steps.done("find", `${present} present in personalspace/`);
     steps.skipped("clone", "already present");
   } else {
     const found = await findOnGitHub(host.github, viewer, steps);

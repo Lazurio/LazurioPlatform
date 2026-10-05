@@ -519,6 +519,45 @@ posixTest(
 );
 
 posixTest(
+  "a root whose cloned commit does not declare itself the root is never published",
+  async () => {
+    world = await createWorld();
+    // GitHub's default branch answered with a declaring document; the commit
+    // the clone gets declares no root.
+    await alphaRoot("alpha_GEN3", null);
+    await alphaRoot("declaring", "Alpha/alpha_GEN3");
+    await remoteRepository(world, "Alpha/web", (directory) =>
+      writeModule(directory, "alpha", { id: "web" }),
+    );
+    const folder = await presetFolder(world, "local");
+    const stub = stubGitHub(world, {
+      repositories: {
+        "Alpha/alpha_GEN3": {},
+        "Alpha/declaring": {},
+        "Alpha/web": {},
+      },
+    }).github;
+    const github: typeof stub = {
+      ...stub,
+      declaration: (owner: string, name: string) =>
+        `${owner}/${name}`.toLowerCase() === "alpha/alpha_gen3"
+          ? stub.declaration("Alpha", "declaring")
+          : stub.declaration(owner, name),
+    };
+    const { steps, result } = await resolveAlpha(github, folder);
+    expect(summary(steps)).toEqual([
+      "access:done",
+      "root:failed:root-declaration-mismatch",
+    ]);
+    expect(result.kind === "content-install" && result.state).toBe("failed");
+    expect(await exists(join(folder, "organizations", "alpha_GEN3"))).toBe(
+      false,
+    );
+  },
+  30_000,
+);
+
+posixTest(
   "a scan accepts exactly one repository that declares itself the root",
   async () => {
     world = await createWorld();
@@ -800,6 +839,111 @@ posixTest(
     ]);
   },
   30_000,
+);
+
+// A checkout of `fullName` in `directory`, cloned outside the install the way
+// a person or an earlier tool would have left it (origin on github.com).
+async function checkoutOf(fullName: string, directory: string) {
+  const clone = Bun.spawnSync(
+    ["git", "clone", "--quiet", `git@github.com:${fullName}.git`, directory],
+    {
+      env: {
+        PATH: Bun.env.PATH ?? "/usr/bin:/bin",
+        HOME: (world as World).home,
+        ...(world as World).gitEnv,
+      },
+    },
+  );
+  if (clone.exitCode !== 0)
+    throw new Error(`clone failed: ${clone.stderr.toString()}`);
+}
+
+posixTest(
+  "a checkout already in personalspace/ counts only when it is the account's own, private Personalspace",
+  async () => {
+    world = await createWorld();
+    for (const fullName of [
+      "stranger/stranger_GEN3",
+      "example/example_GEN3",
+    ] as const)
+      await remoteRepository(world, fullName, (directory) =>
+        writeFile(join(directory, "README.md"), fullName),
+      );
+    const owned = {
+      owner: { login: "example", databaseId: 12345, kind: "User" as const },
+    };
+    const cases = [
+      // Another account's Personalspace, under its own name.
+      {
+        name: "stranger_GEN3",
+        origin: "stranger/stranger_GEN3",
+        repositories: { "example/example_GEN3": owned },
+        code: "personalspace-foreign",
+      },
+      // Another account's checkout under the viewer's name.
+      {
+        name: "example_GEN3",
+        origin: "stranger/stranger_GEN3",
+        repositories: { "example/example_GEN3": owned },
+        code: "personalspace-foreign",
+      },
+      // The viewer's name and origin, but GitHub does not know it as theirs.
+      {
+        name: "example_GEN3",
+        origin: "example/example_GEN3",
+        repositories: {},
+        code: "personalspace-not-owned",
+      },
+      // Theirs, but public.
+      {
+        name: "example_GEN3",
+        origin: "example/example_GEN3",
+        repositories: { "example/example_GEN3": { ...owned, private: false } },
+        code: "personalspace-public",
+      },
+    ];
+    for (const entry of cases) {
+      const folder = await presetFolder(world, "local");
+      const directory = join(folder, "personalspace", entry.name);
+      await checkoutOf(entry.origin, directory);
+      const { github, calls } = stubGitHub(world, {
+        repositories: entry.repositories,
+      });
+      const host = contentHost(world, github);
+      const steps: ContentStep[] = [];
+      const result = await installContent(
+        folder,
+        { items: [{ kind: "personalspace" }] },
+        (step) => steps.push(step),
+        host,
+      );
+      expect([entry.name, entry.origin, summary(steps)]).toEqual([
+        entry.name,
+        entry.origin,
+        [`find:failed:${entry.code}`],
+      ]);
+      expect(result.kind === "content-install" && result.state).toBe("failed");
+      // Left untouched, and nothing created or cloned.
+      expect(await readdir(join(folder, "personalspace"))).toEqual([
+        entry.name,
+      ]);
+      expect(await readFile(join(directory, "README.md"), "utf8")).toBe(
+        entry.origin,
+      );
+      expect(calls.some((call) => call.kind === "generate")).toBe(false);
+      // What lives here says so too: a foreign checkout is not "present".
+      if (entry.code === "personalspace-foreign")
+        expect((await contentStatus(folder, host)).items).toEqual([
+          {
+            kind: "personalspace",
+            login: "example",
+            state: "blocked",
+            reason: "personalspace-foreign",
+          },
+        ]);
+    }
+  },
+  60_000,
 );
 
 posixTest(

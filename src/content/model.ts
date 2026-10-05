@@ -98,6 +98,7 @@ export const contentFailureCodes = [
   // Personalspace
   "personalspace-ambiguous",
   "personalspace-unavailable",
+  "personalspace-foreign",
   "personalspace-public",
   "personalspace-not-owned",
   "personalspace-elsewhere",
