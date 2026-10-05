@@ -223,6 +223,83 @@ test("a hosted work Environment is named by its kind and its person, never by it
   ]);
 });
 
+test("an Organization's Environment stands in its Organization's space even before the Folder can read that Organization", () => {
+  // Matěj 2026-10-05: a work Environment whose Organization checkout lacked
+  // its canonical documents showed in the rail as "Osobní". The owner comes
+  // from the handover, not from what the Folder holds.
+  const machine = organizationWithEntry(20000, "workspace.example.lazurio.io");
+  const unreadable = organization("example", {
+    organization: null,
+    state: null,
+    executable: false,
+    reason: "canonical-documents-required",
+  });
+  for (const held of [catalog(), catalog(unreadable)]) {
+    const shell = shellDocument({
+      preset: "hosted-organization-personal",
+      machine,
+      locale: "cs",
+      catalog: held,
+    });
+    expect(shell.environments[0]?.organizations).toEqual(["example"]);
+    // Known by its slug alone until the Folder can read it.
+    expect(shell.organizations).toEqual([
+      {
+        slug: "example",
+        name: "example",
+        dashboard: "https://dashboard.lazurio.ai/orgs/example",
+        avatar: null,
+      },
+    ]);
+    expect(hereOf(shell, null)).toBe("example");
+    expect(
+      railSpaces(shell, cs, { here: "example", app: "apps", last: noLast }).map(
+        (space) => [space.space, space.active],
+      ),
+    ).toEqual([
+      ["personal", false],
+      ["example", true],
+    ]);
+    expect(spaceEnvironments(shell, "personal")).toEqual([]);
+  }
+  // Read from the Folder, the owner keeps its name and avatar and comes
+  // first; other Organizations the Folder holds follow, never duplicated.
+  const read = shellDocument({
+    preset: "hosted-organization-personal",
+    machine,
+    locale: "cs",
+    catalog: catalog(
+      organization("alpha"),
+      organization("example", { forgeLogin: "example" }),
+    ),
+  });
+  expect(read.environments[0]?.organizations).toEqual(["example", "alpha"]);
+  expect(read.organizations.map((entry) => [entry.slug, entry.name])).toEqual([
+    ["example", "Example Example"],
+    ["alpha", "Alpha Example"],
+  ]);
+  // Team and Automated Environments the same; a personal Environment
+  // belongs to no Organization.
+  for (const binding of [bindings.assignedTeam, bindings.team]) {
+    const team = shellDocument({
+      preset: "hosted-organization-team",
+      machine: binding as MachineBinding,
+      locale: "cs",
+      catalog: catalog(),
+    });
+    expect(team.environments[0]?.organizations).toEqual(["example"]);
+    expect(hereOf(team, null)).toBe("example");
+  }
+  const personal = shellDocument({
+    preset: "hosted-personal",
+    machine: personalWithEntry(),
+    locale: "cs",
+    catalog: catalog(organization("example")),
+  });
+  expect(personal.environments[0]?.organizations).toEqual([]);
+  expect(hereOf(personal, null)).toBe("personal");
+});
+
 test("an assigned work Environment says whose it is; an Automated one is its persona's; a Team one its Team's", () => {
   const work = shellDocument({
     preset: "hosted-organization-personal",

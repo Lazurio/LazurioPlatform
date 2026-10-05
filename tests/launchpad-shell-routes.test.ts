@@ -310,7 +310,9 @@ posixTest(
         // Named by its kind, never by its machine.
         label: null,
         kind: "work",
-        organizations: [],
+        // The Organization that owns it, by its handover, though the Folder
+        // holds none yet.
+        organizations: ["example"],
         assignee: null,
         apps: {
           apps: "https://launchpad.workspace.example.lazurio.io/",

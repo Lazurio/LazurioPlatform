@@ -349,6 +349,15 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   same value from the registry's Apps address. The rail's memory of the last
   Environment, kept under the bare name, stops matching once and falls back to the
   space's first Environment. Tests: `tests/shell-environment-id.test.ts`.
+- **An Organization's Environment is in its Organization's space** (Matěj
+  2026-10-05). A hosted work, Team or Automated Environment lists the Organization that
+  owns it (the handover's owner slug, `ownerOrganization`) first among its
+  `organizations`, whether or not the Folder holds that Organization or can read it.
+  Until it can, the document knows the Organization by its slug alone: the slug as the
+  name, its Dashboard address, no avatar. Before this, a work Environment whose
+  Organization checkout lacked its canonical documents fell into the person's own space
+  and the rail showed it as "Osobní". A personal Environment still belongs to no
+  Organization. Tests: `tests/shell.test.ts`.
 - **Routes.** `/.lazurio/shell.js`, `/.lazurio/fonts/<file>` and
   `/.lazurio/stones/<file>` beside the page's routes (`src/launchpad/page.ts`);
   `/.lazurio/shell.json`, `/.lazurio/prompts/<id>`, `/api/organizations/<org>/owner`,
