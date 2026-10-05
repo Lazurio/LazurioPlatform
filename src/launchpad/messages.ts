@@ -442,7 +442,9 @@ const en = {
   chat: "Chat",
   mausbot: "Lazurio MausBot",
   catalogModules: "Modules",
-  catalogNoModules: "This Organization declares no modules.",
+  catalogNoModules:
+    "You have no modules here yet. Ask the Organization's Admin for access.",
+  catalogPersonalspaceEmpty: "Your personal space is empty for now.",
   catalogSectionWorkspace: "Workspace",
   catalogSectionProductionspace: "Productionspace",
   catalogCheckedOut: "Checked out",
@@ -1271,7 +1273,9 @@ const cs: Record<MessageKey, string> = {
   chat: "Chat",
   mausbot: "Lazurio MausBot",
   catalogModules: "Moduly",
-  catalogNoModules: "Tahle Organizace nedeklaruje žádné moduly.",
+  catalogNoModules:
+    "Zatím tu nemáš žádné moduly. O přístup požádej Admina Organizace.",
+  catalogPersonalspaceEmpty: "Osobní prostor je zatím prázdný.",
   catalogSectionWorkspace: "Workspace",
   catalogSectionProductionspace: "Productionspace",
   catalogCheckedOut: "Naklonovaný",

@@ -919,7 +919,18 @@ export function createCatalogPanel(
       group.organization.reason === undefined &&
       setup === null
     )
-      parts.push(element("p", "intro", copy.catalogNoModules));
+      // Plain words for an empty space (the wireframe, Matěj and Anička
+      // 2026-10-04): the personal space is simply empty; in an
+      // Organization the person has no module here yet and whom to ask.
+      parts.push(
+        element(
+          "p",
+          "intro",
+          group.sections === null
+            ? copy.catalogPersonalspaceEmpty
+            : copy.catalogNoModules,
+        ),
+      );
     parts.push(...sections.map((part) => section(part, group, owner)));
     return parts;
   }
