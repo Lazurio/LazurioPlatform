@@ -294,15 +294,15 @@ export function createToolsPanel(
     else loginDialog.setAttribute("open", "");
     loginHeading.focus();
     if (overview?.sharedEnvironment === true) {
-      // Everyone on a shared Environment uses what is signed in here.
+      // Everyone on a shared Environment uses what is signed in here. The
+      // dialog's status says it once; the page already shows the same note.
       phase("confirm", copy.toolsShared);
       const go = element("button", "", copy.toolsLoginContinue);
       go.type = "button";
       go.addEventListener("click", () => void begin());
-      const warning = element("p", "tools-warning", copy.toolsShared);
       const row = element("p", "tool-actions");
       row.append(go);
-      loginBody.replaceChildren(warning, row);
+      loginBody.replaceChildren(row);
       go.focus();
       return;
     }

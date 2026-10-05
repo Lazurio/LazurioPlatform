@@ -95,7 +95,7 @@ const en = {
   toolsTeamGithub: teamGithubText.en,
   toolsTeamGithubLogout: teamGithubLogoutText.en,
   toolsShared:
-    "This Environment is shared. Accounts signed in to a tool apply to the whole Environment and are used by all its operators.",
+    "This is the whole Team's shared Environment. Sign in here with team accounts, such as a shared mailbox or calendar. Whatever you sign in here, anyone in the Team can use. Connect your personal accounts in your own Environment.",
   toolsRefresh: "Refresh status",
   toolsLoading: "Reading tools…",
   toolsLoadFailed:
@@ -928,7 +928,7 @@ const cs: Record<MessageKey, string> = {
   toolsTeamGithub: teamGithubText.cs,
   toolsTeamGithubLogout: teamGithubLogoutText.cs,
   toolsShared:
-    "Tenhle Environment je sdílený. Účty přihlášené v nástroji platí pro celý Environment a používají je všichni jeho operátoři.",
+    "Tohle je společný Environment celého Teamu. Přihlašujte se tu týmovými účty, třeba společnou schránkou nebo kalendářem. Co tu přihlásíte, může používat každý z Teamu. Svoje osobní účty propojujte ve svém vlastním Environmentu.",
   toolsRefresh: "Obnovit stav",
   toolsLoading: "Načítají se nástroje…",
   toolsLoadFailed:

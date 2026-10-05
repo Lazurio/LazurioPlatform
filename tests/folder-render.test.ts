@@ -360,3 +360,32 @@ test("the Steward preset renders the persona, its bot team and the publication r
       expect(output).not.toMatch(/\bperson(a|y|ou)\b/);
     }
 });
+
+// On the Team's shared Environment the agent asks for a team account before it
+// connects an application, and Composio itself is signed in with a team account;
+// no other preset says so (DEV-6637, 2026-10-05).
+test("only the Team's shared Environment asks for a team account before connecting an application", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const output = renderInstructions({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const team = journey.preset === "hosted-organization-team";
+      for (const sentence of locale === "cs"
+        ? [
+            "i do samotného Composia týmový účet; osobní účet sem nepatří.",
+            "„Tohle napojení bude sdílené celým Teamem. Jaký týmový účet mám připojit? Svůj osobní Outlook si napojte ve svém Environmentu.“",
+          ]
+        : [
+            "including a team account for Composio itself; a personal account does not belong here.",
+            "“This connection will be shared by the whole Team. Which team account should I connect? Connect your personal Outlook in your own Environment.”",
+          ])
+        expect([journey.preset, locale, output.includes(sentence)]).toEqual([
+          journey.preset,
+          locale,
+          team,
+        ]);
+    }
+});

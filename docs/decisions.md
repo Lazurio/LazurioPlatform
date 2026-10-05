@@ -2086,6 +2086,24 @@ chats.**
 client. Paths such as `~/.codex/attachments/` and the `codex` tool keep their names. Earlier
 entries in this log keep "Codex Desktop" as history. Template revision `base-instructions-23`.
 
+**Addendum 2026-10-05 (Matěj): team accounts on the Team's shared Environment.** On the
+Team Environment people signed in to Composio and connected applications with their
+personal accounts. Some also used the Team Environment for work that belongs in their
+own. Composio on the Team Environment stays exactly as on a personal one (Tools →
+Composio → Sign in, then the agent connects an application). The words change; the
+mechanism does not:
+- **People.** The shared notice on the Team Environment's Tools page, in the sign-in
+  dialog and in a sign-in result now reads: "This is the whole Team's shared Environment.
+  Sign in here with team accounts, such as a shared mailbox or calendar. Whatever you sign
+  in here, anyone in the Team can use. Connect your personal accounts in your own
+  Environment." `lazurio tools login` prints the same warning.
+- **Agents.** The Folder's shared sign-ins rule adds two things. Composio itself is signed
+  in with a team account. Before connecting an application, the agent says in one sentence
+  that the connection will be shared by the whole Team and asks which team account to
+  connect, pointing personal accounts to the person's own Environment.
+- Which team accounts exist is the Organization's choice; Lazurio neither creates nor
+  checks them. Template revision `base-instructions-25`.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**
