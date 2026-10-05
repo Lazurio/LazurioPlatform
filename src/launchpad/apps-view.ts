@@ -85,6 +85,14 @@ export type TileTarget =
 
 /** The target of one module's tile. `entry` is the recorded hosted entry
  * (null on a workstation). */
+/** The space the Apps home shows, for the rail: the personal space, or the
+ * Organization by its slug. An Organization the Folder cannot read has no
+ * slug; it is not the personal space either, so this is null and the rail
+ * takes the space from this Environment's document, its owning Organization
+ * (Matěj 2026-10-05: a work Environment showed as "Osobní"). */
+export const appsSpaceOf = (scope: CatalogGroupEntry): string | null =>
+  scope.sections === null ? "personal" : scope.organization.organization;
+
 export function tileTarget(
   catalog: Catalog,
   organization: CatalogOrganization,

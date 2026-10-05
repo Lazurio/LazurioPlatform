@@ -1,4 +1,9 @@
-import { pageAccountJson, readShellAccount } from "./account";
+import {
+  cachedAccountFor,
+  pageAccountJson,
+  readShellAccount,
+  rememberAccount,
+} from "./account";
 import {
   currentEnvironment,
   parseShell,
@@ -73,6 +78,8 @@ let requested = false;
 let accountRequested = false;
 
 function redraw(): void {
+  useRemembered();
+  keepFresh();
   current = local === null ? null : mergeAccount(local, account);
   accountLast =
     current === null ? new Map() : accountLastBySpace(current, account);
@@ -86,12 +93,46 @@ export function provideShell(shell: Shell): void {
   redraw();
 }
 
+/** The rail at once from the account this origin remembered, then the
+ * fresh answer (account.ts, `accountCacheKey`). Both directions need this
+ * Environment's operator, so they wait for the document: the remembered
+ * account is used only when it is the operator's own, and the fresh one is
+ * kept only then (a Team Environment, which names no operator, does
+ * neither). */
+let rememberedUsed = false;
+function useRemembered(): void {
+  if (rememberedUsed || account !== null || local === null) return;
+  rememberedUsed = true;
+  const remembered = cachedAccountFor(local.operator.login);
+  if (remembered === null) return;
+  account = remembered;
+}
+
+/** This page's fresh answer, once read, and whether it was offered to this
+ * origin's memory (once, as soon as the document names the operator). */
+let fresh: ShellAccount | null = null;
+let freshOffered = false;
+function keepFresh(): void {
+  if (fresh === null || freshOffered || local === null) return;
+  freshOffered = true;
+  rememberAccount(fresh, local.operator.login);
+}
+
 function requestAccount(): void {
   if (accountRequested) return;
   accountRequested = true;
   void readShellAccount(pageAccountJson).then((read) => {
-    if (read === null) return;
-    account = read;
+    if (read !== null) {
+      fresh = read;
+      account = read;
+      redraw();
+      return;
+    }
+    // Without a fresh answer, the remembered one stays only while this
+    // origin still keeps it (a refusal removed it).
+    const next = local === null ? null : cachedAccountFor(local.operator.login);
+    if (next === account) return;
+    account = next;
     redraw();
   });
 }

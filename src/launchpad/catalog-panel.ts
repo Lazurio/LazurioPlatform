@@ -19,6 +19,7 @@ import {
   appsScope,
   appsScopes,
   appsSections,
+  appsSpaceOf,
   favoriteTiles,
   moduleAccessTarget,
   moduleDescription,
@@ -128,8 +129,10 @@ export function createCatalogPanel(
      * read. */
     environment: () => HomeEnvironment | null;
     /** The Organization (or `personal`) the Apps home now shows: the shell
-     * marks it as the space you are in. */
-    space: (space: string) => void;
+     * marks it as the space you are in. Null: not known here (an
+     * Organization the Folder cannot read); the shell takes this
+     * Environment's own space. */
+    space: (space: string | null) => void;
     /** "+ Nový modul": hands the prepared prompt to Chat, by link where
      * Chat takes it, otherwise through the clipboard; resolves to what
      * happened. */
@@ -1216,12 +1219,7 @@ export function createCatalogPanel(
     }
     const scope = appsScope(catalog, route, copy);
     const selection = catalogSelection(catalog, route);
-    if (scope !== null)
-      options.space(
-        scope.sections === null
-          ? "personal"
-          : (scope.organization.organization ?? "personal"),
-      );
+    if (scope !== null) options.space(appsSpaceOf(scope));
     home.href = scopeRoute(catalog, scope);
     if (
       (route.view === "home" || route.view === "organization") &&

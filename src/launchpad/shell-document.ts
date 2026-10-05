@@ -238,7 +238,7 @@ export function shellDocument(
   // name, no avatar) until the Folder holds it readable.
   const owner = ownerOrganization(machine, kind);
   // The handover names the owner by its lowercased GitHub login
-  // (`conceptlinelazurio`), the Folder by its own slug (`conceptline`): the
+  // (`examplelazurio`), the Folder by its own slug (`example`): the
   // catalog entry bound to that login or carrying that slug is the same
   // Organization, never a second one.
   const same = (left: string | null | undefined, right: string) =>

@@ -1,9 +1,12 @@
 import { afterEach, expect, test } from "bun:test";
 import {
+  accountCacheKey,
   accountDocumentPath,
+  cachedAccountFor,
   pageAccountJson,
   readAccountJson,
   readShellAccount,
+  rememberAccount,
 } from "../src/shell/account";
 import {
   parseShell,
@@ -972,4 +975,145 @@ test("one request per page load: the rail and Apps share the page's answer", asy
   expect(parseShellAccount(await first)).not.toBeNull();
   await pageAccountJson();
   expect(requests).toBe(1);
+});
+
+// The remembered account (Matěj 2026-10-05: the rail took seconds to appear):
+// only an Environment that belongs to one person keeps one, and only that
+// person's; a refusal or no relay removes it, a slow or failed answer keeps
+// it, and it holds only the members the parser reads.
+const memoryStore = () => {
+  const values = new Map<string, string>();
+  return {
+    values,
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+    removeItem: (key: string) => void values.delete(key),
+  };
+};
+const operatorOf = (login: string | null) => ({
+  operator: {
+    initials: login === null ? null : login.slice(0, 1).toUpperCase(),
+    login,
+    avatar: null,
+  },
+});
+const quiet = () => {};
+
+test("an Environment that belongs to one person keeps that person's account, and only theirs", () => {
+  const store = memoryStore();
+  const ada = account();
+  expect(cachedAccountFor("ada", store)).toBeNull();
+  rememberAccount(ada, "Ada", store);
+  expect(cachedAccountFor("ada", store)).toEqual(ada);
+  expect(cachedAccountFor("ADA", store)).toEqual(ada);
+  expect(cachedAccountFor("bob", store)).toBeNull();
+  expect(cachedAccountFor(null, store)).toBeNull();
+  // Someone else's fresh answer on this origin removes it.
+  rememberAccount(account(operatorOf("bob")), "ada", store);
+  expect(store.values.has(accountCacheKey)).toBe(false);
+  // An account that names no login is nobody's.
+  rememberAccount(account(operatorOf(null)), "ada", store);
+  expect(store.values.has(accountCacheKey)).toBe(false);
+});
+
+test("a shared Environment neither keeps nor shows one person's account to the next (two operators)", () => {
+  // A Team Environment names no operator (shell-document.ts, `operatorLogin`).
+  const store = memoryStore();
+  rememberAccount(account(), null, store);
+  expect(store.values.has(accountCacheKey)).toBe(false);
+  // What an earlier release kept on such an origin is never shown either...
+  store.values.set(accountCacheKey, JSON.stringify(accountDocument()));
+  expect(cachedAccountFor(null, store)).toBeNull();
+  // ...and the next person's fresh answer removes it.
+  rememberAccount(account(operatorOf("bob")), null, store);
+  expect(store.values.has(accountCacheKey)).toBe(false);
+});
+
+test("only the members the parser reads are kept, never anything else the answer carried", () => {
+  const store = memoryStore();
+  type Doc = Record<string, unknown> & {
+    operator: Record<string, unknown>;
+    environments: Record<string, unknown>[];
+    organizations: Record<string, unknown>[];
+  };
+  const document = JSON.parse(
+    JSON.stringify(
+      accountDocument({
+        token: "sentinel-top",
+        last: {
+          environment: "ada",
+          app: "apps",
+          organization: null,
+          token: "sentinel-last",
+        },
+        lastBySpace: {
+          personal: {
+            environment: "ada",
+            app: "chat",
+            token: "sentinel-space",
+          },
+        },
+        favourites: {
+          example: [
+            { kind: "module", id: "pricebook", token: "sentinel-favourite" },
+          ],
+        },
+        preferences: { openApps: "same", token: "sentinel-preferences" },
+      }),
+    ),
+  ) as Doc;
+  document.operator.token = "sentinel-operator";
+  const first = document.environments[0] as Record<string, unknown> & {
+    apps: Record<string, unknown>;
+  };
+  first.token = "sentinel-environment";
+  first.apps.token = "sentinel-apps";
+  (document.organizations[0] as Record<string, unknown>).token =
+    "sentinel-organization";
+  const read = parseShellAccount(document);
+  if (read === null) throw new Error("Expected a valid account document");
+  rememberAccount(read, "ada", store);
+  const kept = store.values.get(accountCacheKey) ?? "";
+  expect(kept).not.toBe("");
+  expect(kept).not.toContain("sentinel");
+  expect(cachedAccountFor("ada", store)).toEqual(read);
+});
+
+test("reading keeps nothing; a refusal or no relay removes the remembered account, a slow or failed answer keeps it", async () => {
+  const store = memoryStore();
+  await readAccountJson(
+    async () => answer(200, accountDocument()),
+    1_000,
+    quiet,
+    store,
+  );
+  expect(store.values.has(accountCacheKey)).toBe(false);
+  rememberAccount(account(), "ada", store);
+  for (const failing of [answer(502, "bad gateway"), answer(504, "timeout")]) {
+    await readAccountJson(async () => failing, 1_000, quiet, store);
+    expect(cachedAccountFor("ada", store)).not.toBeNull();
+  }
+  await readAccountJson(
+    async () => {
+      throw new TypeError("network");
+    },
+    1_000,
+    quiet,
+    store,
+  );
+  expect(cachedAccountFor("ada", store)).not.toBeNull();
+  for (const status of [401, 403, 404]) {
+    rememberAccount(account(), "ada", store);
+    await readAccountJson(
+      async () => answer(status, { error: "x" }),
+      1_000,
+      quiet,
+      store,
+    );
+    expect([status, cachedAccountFor("ada", store)]).toEqual([status, null]);
+  }
+  // A remembered value that no longer parses is dropped.
+  store.values.set(accountCacheKey, "{not json");
+  expect(cachedAccountFor("ada", store)).toBeNull();
+  expect(store.values.has(accountCacheKey)).toBe(false);
 });

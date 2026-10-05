@@ -353,8 +353,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   2026-10-05). A hosted work, Team or Automated Environment lists the Organization that
   owns it (the handover's owner slug, `ownerOrganization`) first among its
   `organizations`, whether or not the Folder holds that Organization or can read it.
-  The handover names the owner by its lowercased GitHub login (`conceptlinelazurio`),
-  the Folder by its own slug (`conceptline`). The catalog entry bound to that login,
+  The handover names the owner by its lowercased GitHub login (`examplelazurio`),
+  the Folder by its own slug (`example`). The catalog entry bound to that login,
   or carrying that slug, is the same Organization and keeps its slug; it is never
   listed twice.
   Until it can, the document knows the Organization by its slug alone: the slug as the
@@ -393,6 +393,19 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     never polls. Apps reads the same answer (`src/launchpad/account.ts`), so the page
     asks once. Apps takes two things of it: `preferences.openApps` and `favourites`
     keyed by the Organization slug.
+  - The rail draws at once from the account this origin remembered
+    (`localStorage` `lazurio.account.v1`), and the fresh answer replaces it when it
+    arrives (Matěj 2026-10-05: the rail took seconds to appear). Only an Environment
+    that belongs to one person remembers one, and only that person's: the account's
+    operator must be the Environment's own (`operator.login` of the shell document:
+    the owner of a personal Remote Environment, the assigned operator of a work one,
+    the responsible operator of an Automated one) when the fresh answer is kept
+    (`rememberAccount`) and when it is used (`cachedAccountFor`). A Team Environment
+    and a workstation name no operator, so they neither keep nor use one: another
+    person may open a shared origin, and only the fresh answer is theirs. Another
+    person's fresh answer, a refusal (`401`, `403`) or no relay (`404`) removes it; a
+    slow or failed answer keeps it. It holds only the members `parseShellAccount`
+    reads, never anything else the answer carried, so never a token.
   - The rail's merge (F37 point 4, `src/shell/merge.ts`). `parseShellAccount` in
     `contract.ts` reads `lazurio.account.v1` with the same entry parsers as
     `lazurio.shell.v1` (https only, `isEnvironmentId` and the base-host identity, unknown
