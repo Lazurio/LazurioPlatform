@@ -157,12 +157,15 @@ export function contentSteps(
 }
 
 /** Where the content stands, for the banner, the tour and the shell:
- * `loading` until the first answer; `none` where there is nothing to
- * prepare here (no content routes, not allowed, no items); `failed` while the
- * last installation stopped at an item that is still not here; `missing`
- * with the first item that is not here; `ready` otherwise. */
+ * `loading` until the first answer; `unknown` when the answer could not be
+ * read (a failed request or another shape), which says nothing about the
+ * content; `none` where there is nothing to prepare here (not allowed, no
+ * items); `failed` while the last installation stopped at an item that is
+ * still not here; `missing` with the first item that is not here; `ready`
+ * otherwise. */
 export type ContentFact =
   | Readonly<{ state: "loading" }>
+  | Readonly<{ state: "unknown" }>
   | Readonly<{ state: "none" }>
   | Readonly<{ state: "ready" }>
   | Readonly<{ state: "missing"; item: ContentItem }>
@@ -173,8 +176,9 @@ export function contentFact(
   job: ContentJob | null,
 ): ContentFact {
   if (list === "loading") return { state: "loading" };
-  if (list === null || !list.allowed || list.items.length === 0)
-    return { state: "none" };
+  // Unreadable is not "nothing to prepare" (the Steward's review of #180).
+  if (list === null) return { state: "unknown" };
+  if (!list.allowed || list.items.length === 0) return { state: "none" };
   const missing = list.items.filter((item) => item.state !== "present");
   if (job?.state === "failed") {
     const failure = job.failure;

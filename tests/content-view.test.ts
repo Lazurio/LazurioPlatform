@@ -174,7 +174,8 @@ test("the Personalspace: “Zakládám” only where it is created", () => {
 
 test("where the content stands: missing, failed while still not here, ready", () => {
   expect(contentFact("loading", null)).toEqual({ state: "loading" });
-  expect(contentFact(null, null)).toEqual({ state: "none" });
+  // Unreadable is not "nothing to prepare".
+  expect(contentFact(null, null)).toEqual({ state: "unknown" });
   expect(contentFact(list({ allowed: false, items: [] }), null)).toEqual({
     state: "none",
   });

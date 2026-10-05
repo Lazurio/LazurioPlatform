@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { ContentItem } from "../src/launchpad/content-client";
-import type { ContentFact } from "../src/launchpad/content-view";
+import { type ContentFact, contentFact } from "../src/launchpad/content-view";
 import {
   appsSetupLine,
   composioFact,
@@ -181,6 +181,44 @@ test("an Environment usable at first sight starts with the tour done", () => {
     ),
   ).toBeNull();
   expect(firstProgress(fresh("hosted-organization-team"))).toBeNull();
+});
+
+test("a content read that fails first never finishes the tour; after it recovers the tour starts", () => {
+  // The Steward's review of #180: GitHub connected, GET /api/content failed
+  // once on the first visit.
+  const unreadable = contentFact(null, null);
+  expect(unreadable).toEqual({ state: "unknown" });
+  const failedRead = fresh("hosted-personal", {
+    github: "connected",
+    content: unreadable,
+  });
+  // Nothing is decided or stored, and the tour waits.
+  expect(firstProgress(failedRead)).toBeNull();
+  expect(tourStep(failedRead, P, null)).toBeNull();
+  expect(tourStep(failedRead, P, "machine")).toBeNull();
+  // The route recovers and reports the Personalspace absent: a fresh tour
+  // leads to it.
+  const recovered = fresh("hosted-personal", {
+    github: "connected",
+    content: contentFact(
+      {
+        allowed: true,
+        items: [{ ...personalspace, state: "absent" }],
+      },
+      null,
+    ),
+  });
+  expect(recovered.content.state).toBe("missing");
+  expect(firstProgress(recovered)).toEqual(P);
+  expect(tourStep(recovered, firstProgress(recovered), null)).toBe(
+    "gear-prepare",
+  );
+  // Without GitHub the tour starts whatever the content read says.
+  const signedOut = fresh("hosted-personal", { content: unreadable });
+  expect(firstProgress(signedOut)).toEqual(P);
+  expect(tourStep(signedOut, P, null)).toBe("gear");
+  // The line says nothing it does not know.
+  expect(appsSetupLine(failedRead, cs)).toBeNull();
 });
 
 test("stored progress keeps well-formed entries only, per Environment", () => {

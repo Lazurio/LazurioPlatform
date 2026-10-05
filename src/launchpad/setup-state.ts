@@ -50,12 +50,14 @@ export function shellSetup(
 ): ShellSetup | undefined {
   if (!signsInAsPerson(input.preset) || input.github === "unknown")
     return undefined;
-  const fact =
-    input.list === null
-      ? ({ state: "none" } as const)
-      : contentFact(input.list, input.job);
+  const fact = contentFact(input.list, input.job);
   const base = { github: input.github } as const;
-  if (fact.state === "none" || fact.state === "loading") return base;
+  if (
+    fact.state === "none" ||
+    fact.state === "loading" ||
+    fact.state === "unknown"
+  )
+    return base;
   if (fact.state === "ready") return { ...base, content: "ready" };
   const item = fact.item;
   const read =

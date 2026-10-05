@@ -209,7 +209,7 @@ function firstRunFacts(): TourFacts | null {
     content: content.fact(),
   };
 }
-// The Environment's id, the key of the tour and of the last installation:
+// The Environment's id, the key of the tour:
 // the shell document's, once asked for; without it the Machine's name.
 function environmentKey(): string | null {
   if (shellDocument !== null) return shellDocument.current;
@@ -315,7 +315,7 @@ function takeStart() {
     return;
   }
   const fact = content.fact();
-  if (fact.state === "loading") return;
+  if (fact.state === "loading" || fact.state === "unknown") return;
   pendingStart = null;
   if (fact.state === "missing" || fact.state === "failed") void content.start();
 }

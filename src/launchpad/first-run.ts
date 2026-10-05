@@ -151,16 +151,18 @@ export type TourFacts = Readonly<{
 /** Progress for an Environment seen for the first time: one that is
  * already usable (GitHub connected, its content here or nothing to prepare)
  * needs no tour, so it starts done; a workstation's Launchpad, whose
- * loopback origin changes with every start, does not repeat it then. Null
- * while the facts are not known yet. */
+ * loopback origin changes with every start, does not repeat it then. Without
+ * GitHub it is not usable whatever the content. Null, so nothing is stored
+ * yet, while a fact that decides it is not known: GitHub's state, or the
+ * content still loading or unreadable (the Steward's review of #180: a failed
+ * read must not finish the tour for good). */
 export function firstProgress(facts: TourFacts): TourProgress | null {
   if (!signsInAsPerson(facts.preset)) return null;
-  if (facts.github === "unknown" || facts.content.state === "loading")
-    return null;
-  const usable =
-    facts.github === "connected" &&
-    (facts.content.state === "ready" || facts.content.state === "none");
-  return usable
+  if (facts.github === "unknown") return null;
+  if (facts.github === "missing") return freshTourProgress;
+  const content = facts.content.state;
+  if (content === "loading" || content === "unknown") return null;
+  return content === "ready" || content === "none"
     ? Object.freeze({ ...freshTourProgress, done: true })
     : freshTourProgress;
 }
@@ -193,7 +195,7 @@ export function tourStep(
   )
     return "composio";
   const content = facts.content;
-  if (content.state === "loading") return null;
+  if (content.state === "loading" || content.state === "unknown") return null;
   if (content.state === "failed" && settings === null) return null;
   if (content.state === "missing" || content.state === "failed")
     return settings === "machine"
