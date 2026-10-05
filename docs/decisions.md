@@ -4060,7 +4060,9 @@ and their new-tab arrows, and the Organization picker in the home's head.
    `addOrganization` (`https://dashboard.lazurio.ai/add-organization`). An
    Organization's slug is its manifest's (any nonblank text, here at most 128 characters
    without control characters), never held to the GitHub login's rule, which applies
-   only to `forgeLogin`.
+   only to `forgeLogin`. *(Changing in place ended with the addendum of 2026-10-05
+   below: a host outside this repository now produces both v1 documents, so they are
+   additive only and a breaking change is a v2.)*
 5. **Apps column:** "Všechny moduly", "Soubory", the favourites ("Oblíbené"; a hint
    while there are none) and, at the foot, "Marketplace" marked "již brzy", whose page
    says it is coming. No search and no module list; a module's overview is reached from
@@ -4275,6 +4277,121 @@ dark tone, was byte-identical to `main` before the disc; with the disc, every
 differing pixel lies inside it. The roles were checked with T3 Code's default dark
 theme and its light "ocean" theme, mapped as the wireframe maps them. These are no
 rendered-page CI gates (root decision 0178).
+
+**Addendum 2026-10-05 (decided by Matěj, Organization Admin, plan DEV-6645): a host page
+that is no Environment's; the Dashboard hosts the shell.** The Dashboard is rebuilt on
+the Platform's stack and hosts the same `<lazurio-rail>` and `<lazurio-column-head>` as
+Apps, Chat and Automate. On an Organization's Dashboard the column head names the
+Organization and its gear opens the Organization Settings, as the [target
+shell](launchpad-development.md#target-shell) says. Interface v1 served the apps of an
+Environment, and a Dashboard page belongs to none. This addendum adds to interface v1
+and to both v1 documents for a host page that is no Environment's (the Dashboard);
+nothing is renamed or removed, and an Environment's page is drawn as before.
+
+1. **A page that is no Environment's.** In `lazurio.shell.v1`, `current` is an
+   Environment's id or `null`; `null` says the page belongs to no Environment. The
+   parser takes an explicit `null` only, with any `environments` or none; a missing
+   `current` stays invalid, and `setup`, which describes the current Environment, must
+   then be absent. Only a host produces such a document; a Launchpad always names its
+   own Environment. `currentEnvironment` returns `ShellEnvironment | null`, and every
+   consumer handles null: no switch, no setup line, no report of the last Environment
+   (`lastVisit` is null), and the Launchpad's Apps behaves as before.
+2. **Both v1 documents are additive from now on.** The host produces
+   `lazurio.shell.v1` and `lazurio.account.v1` itself and pins one release's parser, so
+   a release never removes, renames or narrows a member of either; it may add members
+   and accept what it refused before. A change that would break a v1 document is that
+   document's v2 (`lazurio.shell.v2`, `lazurio.account.v2`), decided and announced
+   first. This ends "changed in place" of the Organization-rail addendum, point 4.
+3. **A host that provides the account.** `<html data-lazurio-shell="host">` keeps its
+   meaning. New: `<html data-lazurio-account="host">`. The host provides the person's
+   account itself with `provideAccount(account)` (the document `parseShellAccount`
+   read; null for none), and the elements redraw. They then never request
+   `/.lazurio/account/environments`, never read or write the remembered account
+   (`lazurio.account.v1` in `localStorage`) and never send `PUT /.lazurio/account/last`.
+   Without the attribute nothing changes, and a provided account is ignored with one
+   debug line rather than raced against the elements' own read. `/.lazurio/shell.js`
+   exports `provideShell`, `provideAccount`, `parseShell` and `parseShellAccount`. There
+   are no JSON islands: the Dashboard is a single page that reads its own JSON and hands
+   both documents over.
+4. **The host's own pages by path.** In `lazurio.shell.v1`, which is always the page's
+   own document, `dashboard`, `account`, `addOrganization` and an Organization's
+   `dashboard` may be a path on the page's own origin (`/…`, never `//…`, no fragment),
+   as Apps already may. `lazurio.account.v1` keeps absolute https addresses, because it
+   crosses origins. The logo, "+" and the account announce `lazurio-navigate` when the
+   host names them by path, as every link on the page's origin does.
+5. **Where the page is.** On a page with `current: null` the `space` attribute (rail and
+   column head) names the Organization whose Dashboard this is. Without it, with
+   `personal`, or with a slug the document does not list, the page is the personal
+   Dashboard. The rail rings that Organization; on the personal Dashboard it rings no
+   space, and the logo gets `aria-current="page"` and the design system's quiet surface.
+   The rail keeps no last Environment (`lazurio.shell.last`) and reports none from such
+   a page. A click on a space leads to the account's last Environment there, in the app
+   the account recorded (`lastBySpace`; `accountLastBySpace` keeps `{environment, app}`),
+   else to its first Environment's Apps, else to its Dashboard. On an Environment's page
+   the rail keeps its `app`, as before.
+6. **The column head on an Organization's Dashboard** (`current: null`, the
+   Organization in `space`). The picker names the Organization: its avatar (its initials
+   without one), its name and the line "Dashboard Organizace" / "Organization
+   Dashboard". Its list shows that Organization, its head row marked "tady jsi", then
+   its Environments, none of them current; "Všechny Organizace" widens it as before. The
+   gear opens the Organization Settings: the `settings` attribute, else `<the
+   Organization's dashboard>/settings`, the base "Přístup k modulu" builds on. It is
+   named "Nastavení Organizace" / "Organization Settings", and `active="settings"` marks
+   it. There is no switch Chat · Apps · Automate there. On the personal Dashboard the
+   column head draws nothing.
+7. **Interface v1 grows; the version stays 1** (`src/shell/interface.ts`): the rail's
+   attributes `app` and `space`; the column head's attributes `settings` and `space`,
+   and `settings` as a value of `active`; the document attributes
+   `data-lazurio-shell="host"` and `data-lazurio-account="host"`; the exports
+   `provideShell`, `provideAccount`, `parseShell` and `parseShellAccount`. All but the
+   account's worked before and are promised now. Nothing is renamed or removed.
+8. **Fonts** stay at `/.lazurio/fonts/<file>` on the host's origin: a host serves the
+   four font files there, as every origin of an Environment does.
+9. **Distribution, the promise** (built by a separate task). Every release attaches a
+   shell artifact `lazurio-shell.tar.gz`, attested together with the executables (F13).
+   It contains `shell.js`, byte for byte the `/.lazurio/shell.js` that release's
+   executables serve; a DOM-free `contract.js` with the parsers, for a host's server and
+   tests; the fonts with their licences; and `artifact.json` with the SHA-256 of every
+   file. A host pins one release by its tag and the artifact's digest. Releases are
+   immutable, so the first artifact comes with the first tag after that task.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A fake "Dashboard" Environment in the host's document | Passes the old parser, but shows an Environment that does not exist, says Chat and Automate do not run there and reports it as the last Environment; rejected |
+| JSON islands (`<script type="application/json">`) the elements read | Meant for a server-rendered host; the Dashboard is a single page that reads its own JSON and calls `provideShell` and `provideAccount`; not needed, and adding them later is additive |
+| A third element for an Organization's head | Clean, but it duplicates the picker and its list and adds one more slot to every host; rejected |
+| Interface v2 | Not needed: nothing is renamed or removed |
+| `current: null` with the existing `space`, `settings` and `active` attributes, a host-provided account and the host's pages by path (selected) | Reuses the column head and its list; where the page is stays in attributes, as on the Launchpad; an Environment's page is unchanged |
+
+Verified by unit tests (`tests/shell-host.test.ts`, `tests/shell-interface.test.ts` and
+the existing shell suites): the parser with `current: null` (with and without
+Environments; absent, undefined, empty or another type refused; `setup` refused there),
+paths for the host's own pages and https only in the account document (`//`, a fragment,
+space, a backslash, a relative path, http and script refused); the merge of a host's
+document; where the page is; the rail's ring and the logo on both Dashboards; a space's
+target from the account's visit in its app, else Apps, else its Dashboard, and the rail's
+own app on an Environment's page; the column head's model on an Organization's Dashboard
+in both languages (avatar or initials, the gear from the attribute or derived, also as a
+path, `active="settings"`) and nothing on the personal Dashboard; the picker's list with
+the Organization's head current and no Environment; no report and nothing kept from such
+a page (a transport spy); a host that provides the account (a fetcher, store and
+transport spy see nothing, and the marker is read once) against the default, which reads,
+keeps and reports once; the column head of Environment pages equal to the pieces it drew
+before; and interface v1 with the new names. Nine of the new guards (the host's three,
+`lastVisit` and the kept visit on such a page, the head's mark, the visit's app, `setup`
+beside `current: null`, https in the account) were each broken once on purpose, and each
+time a test failed. In Chrome 1440×900, on a harness page with `/.lazurio/shell.js`
+built from this revision and the host's documents provided: the personal Dashboard (logo
+marked, no space ringed, no column head, ⌘⇧E with nothing current), an Organization's
+Dashboard (its head, the list under the picker with "tady jsi", widened to all
+Organizations), Organization Settings (the gear marked), in Czech and the head in
+English; no request to `/.lazurio/account/*` or `/.lazurio/shell.json` and nothing in
+`localStorage`; the logo and the account announced `lazurio-navigate` with the host's
+paths. An Environment's page built from `main` and from this revision was byte-identical
+at rest, with the list under the picker and with ⌘⇧E, and asked for the same requests.
+Not exercised: the Dashboard itself, the release artifact (point 9), colour roles and a
+dark host, narrow widths, and browsers other than Chrome. These are no rendered-page CI
+gates (root decision 0178).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
