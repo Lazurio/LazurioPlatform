@@ -4740,3 +4740,32 @@ the hosted context asked once) and on a Remote Environment on 2026-10-05: the th
 units rendered here are byte-identical to the ones that ran there under systemd, three
 sessions worked in their own windows of one Chrome with a shared cookie, screenshots
 answered in about 60 ms, and the view of each session was selected by its link.
+
+**Addendum 2026-10-05 (#207): the Launchpad's right panel.** Root decision 0191 point
+8a (Matěj, 2026-10-05) gives the Launchpad a right panel of its own, in which the
+person opens the Environment browser by hand; "Not decided here" above names it as
+#207. It is implemented in this revision as [the right
+panel](launchpad-development.md#the-right-panel-the-environment-browser) describes;
+the points above do not change.
+
+1. **Offered** only where the recorded entry carries `browserOrigin` (point 1's
+   `entry.browser`), never on a workstation or in Recovery mode, behind a "Prohlížeč"
+   / "Browser" toggle in the head of each page; closed by default and remembered
+   nowhere.
+2. **The view of every window, embedded.** Each opening and Reload asks point 5's
+   `GET /.lazurio/browser.json` without a session and frames its `view` only as an
+   https URL on exactly the recorded origin, never the page's own, with the clipboard
+   and full screen allowed, no referrer and the sandbox of T3 Code's panel
+   (Lazurio/t3code#41). The Launchpad builds no viewer of its own.
+3. **The token stays out of storage.** The view's address lives only in the frame and
+   the panel's "Open in a new tab" link while the panel is open. Without a usable
+   answer that link is the hand-over `/.lazurio/browser`, which passes the gateway's
+   sign-in that a frame cannot show.
+4. **Layout**, this implementation's choice for the integration review: the panel
+   follows the page in its row, so the page shrinks, and covers the window as a sheet
+   below 1100 px.
+
+The desktop, the Bitwarden extension, an automatic profile wipe and per-site sign-out
+stay where "Not decided here" puts them. Verified by `tests/browser-panel-view.test.ts`
+and in Chrome against the hosted and workstation previews with a stand-in for the
+view; a real gateway and agent-browser's dashboard in the frame were not exercised.
