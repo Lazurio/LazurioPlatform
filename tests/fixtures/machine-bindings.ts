@@ -130,22 +130,28 @@ export function binding(document: unknown) {
 }
 const { team: _, ...withoutTeam } = organization.owner;
 // An Organization work VM of one operator (no Team) with its entry on `port`,
-// for the Machine hostname `host`.
+// for the Machine hostname `host`; with `browser`, the entry also routes the
+// Environment browser's view (root decision 0191).
 export function organizationWithEntry(
   listenPort = 20000,
   host = "workspace.example.lazurio.io",
+  browser = false,
 ) {
+  const entry = handoverEntry(host, listenPort);
   return binding({
     ...organization,
     owner: withoutTeam,
-    entry: handoverEntry(host, listenPort),
+    entry: browser ? withBrowser(entry, host) : entry,
   });
 }
-// A personal VM of `example` with its entry on `port`.
-export function personalWithEntry(listenPort = 20000) {
+// A personal VM of `example` with its entry on `port`, and with `browser`
+// the Environment browser's view.
+export function personalWithEntry(listenPort = 20000, browser = false) {
+  const host = "example.lazurio.io";
+  const entry = handoverEntry(host, listenPort);
   return binding({
     ...personal,
-    entry: handoverEntry("example.lazurio.io", listenPort),
+    entry: browser ? withBrowser(entry, host) : entry,
   });
 }
 // The Automated Environment of decision 0169 as the binding records it: a work

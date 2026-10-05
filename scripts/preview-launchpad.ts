@@ -12,7 +12,11 @@
 // a synthetic home for Files and Tools. Prints one JSON line: `url` to open
 // (local: with the fragment token) and, hosted, `proxy`: a loopback listener
 // that adds the gateway's Host and cookie, which a browser automation routes
-// the entry's origin through. Synthetic names only; stop it with Ctrl-C.
+// the entry's origin through, and `browser`: the origin of the Environment
+// browser's view the entry routes (decision F38). Agent-browser is not run:
+// the Launchpad answers the view there with a synthetic token, and a browser
+// automation stands in for that origin. Synthetic names only; stop it with
+// Ctrl-C.
 import {
   mkdir,
   mkdtemp,
@@ -53,6 +57,7 @@ const role =
     : "owner";
 const host =
   mode === "personal" ? "example.lazurio.io" : "vm-01.example.lazurio.io";
+const browserOrigin = `https://browser.${host}`;
 const parent = await realpath(
   await mkdtemp(join(tmpdir(), "launchpad-preview-")),
 );
@@ -77,8 +82,8 @@ else {
     preset,
     machine:
       mode === "personal"
-        ? personalWithEntry(listenPort)
-        : organizationWithEntry(listenPort, host),
+        ? personalWithEntry(listenPort, true)
+        : organizationWithEntry(listenPort, host, true),
     profile: presetProfile(preset, os, { locale }),
   });
 }
@@ -239,6 +244,26 @@ const app = await startLaunchpad(
   undefined,
   undefined,
   { home, platform: process.platform, folder },
+  undefined,
+  undefined,
+  // The Environment browser's view (decision F38): agent-browser's dashboard
+  // answers its address with a synthetic token and no session runs; nothing
+  // is started.
+  {
+    run: async () => ({
+      exitCode: 0,
+      stdout: JSON.stringify({
+        success: true,
+        data: {
+          access_urls: [
+            `${browserOrigin}/#dashboard-access-token=${"0".repeat(64)}`,
+          ],
+        },
+      }),
+    }),
+    fetch: async () => Response.json([]),
+    env: { HOME: home },
+  },
 );
 let proxy: string | null = null;
 if (mode !== "local") {
@@ -275,4 +300,11 @@ if (mode !== "local") {
   });
   proxy = `http://127.0.0.1:${server.port}`;
 }
-console.log(JSON.stringify({ url: app.url, proxy, folder }));
+console.log(
+  JSON.stringify({
+    url: app.url,
+    proxy,
+    browser: mode === "local" ? null : browserOrigin,
+    folder,
+  }),
+);
