@@ -149,6 +149,7 @@ test("one status line per tool: version and path, or not installed, and what to 
     headline: "Not installed",
     path: null,
     notes: [],
+    fix: false,
   });
   expect(toolStatusView(tool(), cs, true).headline).toBe("Není nainstalováno");
   expect(
@@ -168,8 +169,11 @@ test("one status line per tool: version and path, or not installed, and what to 
     headline: "Installed, version 0.7.1",
     path: "/home/o/.local/bin/composio",
     notes: [],
+    fix: false,
   });
-  // A link is shown with where it leads; a PATH entry elsewhere is a note.
+  // A link is shown with where it leads. A PATH entry elsewhere on a hosted
+  // Machine says nothing a person would have to decode: the card offers "Fix
+  // with an agent" (Matěj 2026-10-05).
   const elsewhere = tool({
     installed: true,
     version: "0.7.1",
@@ -178,22 +182,38 @@ test("one status line per tool: version and path, or not installed, and what to 
     standardPath: false,
   });
   expect(toolStatusView(elsewhere, en, true)).toEqual({
-    state: "attention",
+    state: "ready",
     headline: "Installed, version 0.7.1",
     path: "/opt/bin/composio → /opt/composio/0.7.1/composio",
-    notes: [en.toolsOutsideStandard],
+    notes: [],
+    fix: true,
   });
-  expect(toolStatusView(elsewhere, cs, true).notes).toEqual([
-    cs.toolsOutsideStandard,
+  expect(toolStatusView(elsewhere, cs, true).notes).toEqual([]);
+  expect([en.toolsFixWithAgent, cs.toolsFixWithAgent]).toEqual([
+    "Fix with an agent",
+    "Opravit s agentem",
   ]);
-  // On a local workstation any tool on PATH is fine: no note, normal state.
+  // A Team's gh is the Organization's brokered gh, installed by the Machine
+  // outside ~/.local/bin on purpose: nothing to fix there; another tool is.
+  const brokered = tool({
+    name: "gh",
+    installed: true,
+    version: "2.101.0",
+    path: "/usr/local/bin/gh",
+    realPath: "/usr/local/bin/gh",
+    standardPath: false,
+  });
+  expect(toolStatusView(brokered, en, true, true).fix).toBe(false);
+  expect(toolStatusView(brokered, en, true, false).fix).toBe(true);
+  expect(toolStatusView(elsewhere, en, true, true).fix).toBe(true);
+  // On a local workstation any tool on PATH is fine: nothing to fix.
   expect(toolStatusView(elsewhere, en, false)).toEqual({
     state: "ready",
     headline: "Installed, version 0.7.1",
     path: "/opt/bin/composio → /opt/composio/0.7.1/composio",
     notes: [],
+    fix: false,
   });
-  expect(en.toolsOutsideStandard).toContain("~/.local/bin");
   expect(
     toolStatusView(
       tool({
@@ -210,6 +230,7 @@ test("one status line per tool: version and path, or not installed, and what to 
     headline: "Installed, version unknown",
     path: "/home/o/.local/bin/composio",
     notes: ["The version check failed: exit 7."],
+    fix: false,
   });
 });
 

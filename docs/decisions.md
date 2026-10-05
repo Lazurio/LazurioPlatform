@@ -2102,7 +2102,19 @@ mechanism does not:
   that the connection will be shared by the whole Team and asks which team account to
   connect, pointing personal accounts to the person's own Environment.
 - Which team accounts exist is the Organization's choice; Lazurio neither creates nor
-  checks them. Template revision `base-instructions-25`.
+  checks them.
+- **No path notices for people (Matěj the same day: "Takovéhle věci tam nemůžeme psát").**
+  A hosted tool outside `~/.local/bin` (decision 0161 point 6) no longer shows "Found
+  outside ~/.local/bin… it is only reported", and its card no longer turns yellow. The card
+  offers **Fix with an agent** instead. It opens a short prepared prompt: put only a link or
+  wrapper into `~/.local/bin`; reinstall nothing, change no version, leave the sign-in
+  alone; prove it with `command -v`, `--version` and `standardPath: true`. A Team's gh is
+  the Organization's brokered gh, which the Machine installs outside `~/.local/bin` on
+  purpose: it gets neither the notice nor the button. Agents and doctor keep the fact
+  (`standardPath` in `lazurio tools status --json`).
+- The sign-in dialog on the Team Environment showed the shared notice twice (status and a
+  box); it shows it once.
+- Template revision `base-instructions-25`.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
