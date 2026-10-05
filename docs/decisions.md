@@ -516,6 +516,54 @@ included. `docs/organization-contract.md` now says "never trusted by name" inste
 | No role: GitHub denies what the account cannot read anyway | An Admin-only slot readable by a Builder (a public or wider-granted repository) would land on a Builder's Environment; the role scope decides before any provider operation, as in the resident |
 | The resident's per-slot WRITE readiness gate for Builder and Steward | One unwritable module would block the whole install; the role is confirmed on the root and children are reported one by one (F9) |
 
+**Addendum 2026-10-05, decided by Matěj: the Reader role.** Roles come from GitHub
+rights. In an Organization, regular people and the Team Environment get read-only access
+to the knowledge base, the planning (Mission Control application and data) and the
+Organization's root repository; only the Organization's Owners write, from their own
+Environments. Point 4 knew Admin, Steward and Builder; a person with only `read` on the
+root resolved to `role-unverified`, so once the grants are lowered every regular person
+could no longer install or re-install their Organization (the Environment's first run,
+"Obsah Environmentu").
+
+1. **Reader.** A fourth role, confirmed live like the others: `read` or `triage` on the
+   root repository **and** an active membership in the Organization (any role, not a
+   pending invitation). The permission alone is not enough: a public root answers `read`
+   to every account, so it names no one of the Organization. An outside collaborator who
+   only reads is therefore not a Reader; one with `write` stays a Builder, as before.
+2. **Scope.** The same as a Builder's: everything except the restricted (Admin-only)
+   slots and the slots below them, `excluded_by_role_scope` without any provider
+   operation. The clones are ordinary clones; they are read-only because GitHub refuses
+   the account's pushes. Nothing locally marks them read-only: GitHub is the only access
+   authority.
+3. **Live resolution** (the Launchpad, so the first run and "Obsah Environmentu"):
+   Admin, Steward, Builder, Reader, in this order. Membership is asked as before; a
+   Reader needs no further GitHub call.
+4. **The CLI accepts `--role reader`** next to `--role builder|steward`, so a person
+   (or their agent) can install from a terminal with the role GitHub confirms. Anyone
+   may choose a narrower role GitHub confirms. The bare form stays the Admin
+   installation; when GitHub does not confirm an Owner, its failure detail now names the
+   `--role` forms, because the Launchpad's prompt for Chat names the bare command. The
+   resident CLI knows no Reader; the Platform's CLI goes beyond it here.
+5. **Nothing demands write.** Installation reads every repository it clones (`readable`,
+   GitHub's `pull`), the product update never touches content, and the doctor reads only
+   the Folder; a clean checkout is pulled with `git pull --ff-only`, which needs read.
+
+Unchanged: the role decides scope only, never access, and nothing is recorded; an
+asserted role GitHub does not confirm fails closed (`role-unverified`) before anything is
+cloned; Team and Automated Environments stay prepared by the hosting. Tests: the
+verification for every permission tier and membership state, live and asserted; the
+install scope of a live and an asserted Reader (restricted slots excluded and never asked
+of GitHub, read-only children cloned, membership asked); fail-closed cases for read
+without membership; the CLI's `--role reader` and the bare form's hint.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Reader by `read` on the root alone | A public root answers `read` to every account; anyone could install an Organization's ordinary scope as its "Reader"; rejected |
+| Grant regular people `write` again so they stay Builders | Contradicts the direction: only Owners write to the knowledge base, planning and root; rejected |
+| Only the Launchpad resolves a Reader, no `--role reader` | A Reader could not install from a terminal at all (the bare form is Admin-only); rejected |
+| The bare CLI form resolves the role live, as the Launchpad | Changes the decided Admin-installation contract of point 4; the failure detail names the `--role` forms instead |
+| Mark a Reader's clones read-only locally (a disabled push URL) | A local ACL next to GitHub's; GitHub already refuses the push; rejected |
+
 ## F10 — Workspace presets and typed owner requests
 
 **Accepted direction (2026-09-19); amended and accepted by Matěj 2026-09-22;
@@ -1077,6 +1125,78 @@ refresh or product upgrade. Unit tests check, on every preset in both locales:
 - that no output keeps the old Publication line;
 - that the usage of Composio, wacli and gogcli ends with the rule, and that of gh and
   neon does not.
+
+**Addendum 2026-10-05 (second), decided by Matěj: a change to a repository the agent only
+reads is proposed as an issue there.** Roles come from GitHub rights (F9 addendum of the
+same day): regular people and the Team Environment read the knowledge base, the planning
+and the Organization's root repository, and only the Organization's Owners write. An agent
+without write must therefore propose a change as an issue in that repository instead of a
+pull request, mentioning the people who can make it; who they are is derived from GitHub,
+never hard-coded.
+
+1. **Check first.** Before proposing a change to a repository, the agent checks its live
+   permission: `gh api repos/<owner>/<repo> --jq .permissions.push`. On the Team preset
+   gh is the brokered app installation, whose REST `permissions` answer false even with
+   write (they describe a user, not an installation), so there a dry-run push decides:
+   `git push --dry-run origin HEAD` in the repository's checkout sends nothing, and a
+   refusal means no push.
+2. **With push:** the usual Draft path (worktree and pull request).
+3. **Without push:** no pull request. An issue in that repository with what should change,
+   why, and the proposed text or diff, checked for duplicates and content like every
+   issue. It @mentions the people who may make the change: the owners the repository's
+   CODEOWNERS names for the affected paths (the first of `.github/CODEOWNERS`,
+   `CODEOWNERS`, `docs/CODEOWNERS`, as GitHub reads them; the last matching line holds),
+   otherwise, when there is no CODEOWNERS or it names nobody but bots for those paths,
+   the Organization's Owners (`gh api "orgs/<org>/members?role=admin"`), bots left out.
+   On a Team Environment that list needs the brokered token's `members: read`
+   (Lazurio/github-app#18); without it GitHub answers an empty list, not an error. When
+   the lookup still finds nobody, the agent files the issue without a mention and tells
+   the Operator to pass the link to whoever manages the Organization; it never guesses.
+   A mention, not an assignment: the issue mandate of root decision 0163 still forbids
+   assigning except to escalate a missing right. The agent tells the Operator the issue's
+   URL and whom it mentioned. A change already in a worktree goes into the issue as a
+   diff.
+4. **Never around the rights:** no fork, no push to another repository or under another
+   identity.
+5. **The Team preset** follows the same rule: the Team's grant may be read only too (the
+   broker minting read and issue tokens for read grants is separate work in
+   `Lazurio/github-app`).
+
+**Reconciled with the escalation of a missing right** (addendum 2026-10-02 and F31 point
+4): that rule is about an operation the agent cannot do without the right (a new
+repository, a Team's grant, a secret, a setting) and assigns an issue in the
+Organization's root to an administrator. A repository the agent only reads is not a
+missing right: the agent does not ask for write access to it and proposes the change
+there. The `AGENTS.md` escalation line says so in one sentence, and its section in
+`manual/working-here.md` opens with that bullet.
+
+What changes:
+- **`AGENTS.md`** gains the proposal line, with the Team's check on the Team preset, right
+  before the escalation line, which gains the reconciling sentence.
+- **`manual/working-here.md`** gains the section "A repository you only read: propose the
+  change in an issue" right before "When you lack the rights for something"; the
+  knowledge section names the proposal issue next to the pull request.
+- **`manual/troubleshooting.md`** (presets with Organizations): when bringing a diverged
+  checkout back cannot push, work in a repository the agent only reads is proposed as an
+  issue there.
+
+Unchanged: the issue mandate of root decision 0163 (filing without asking, no closing,
+prioritizing or assigning beyond the escalation), Draft and Publication, F31's named
+publisher on the Team preset, and every behavior of the product. Template revision
+`base-instructions-28`. Unit tests check, on every preset in both locales, the exact
+proposal line (Team against the others) right before the escalation line with its new
+sentence, the manual section before the missing rights with its carve-out first, the Team
+check and Team bullet only on the Team preset, the CODEOWNERS paths, the Owners command
+without bots, the ban on forks and the troubleshooting pointer where Organizations are
+held.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Escalate a read-only repository as a missing right (ask for write) | Contradicts the direction (only Owners write) and floods the Owners with grant requests instead of content; rejected |
+| A fork and a pull request from it | Gets around the rights the Organization chose; rejected by Matěj |
+| Assign the proposal issue to the people who can make it | Root decision 0163 forbids assigning beyond the escalation; a mention notifies them; rejected |
+| A fixed list of implementers in the Folder | Names drift and would be a roster; CODEOWNERS and the Owners are read live; rejected |
+| `gh api … .permissions` on the Team preset too | An installation token answers false even with write, so a Team with write would never open pull requests; a dry-run push instead |
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 

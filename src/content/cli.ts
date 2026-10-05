@@ -23,7 +23,7 @@ import {
 /** `lazurio organization install` and `lazurio personalspace install`: the
  * terminal surface of content installation. The Launchpad's
  * `POST /api/content/install` runs the same core. */
-export const contentHelp = `organization install <github-login> [--role builder|steward] [--root <owner>/<repository>] [--folder <absolute Folder>] [--json]
+export const contentHelp = `organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <absolute Folder>] [--json]
   Installs the Organization bound to that GitHub login into the Folder: its
   root repository first (cloned into a temporary sibling, verified — remote,
   branch main, and its own lazurio.organization.json binding the login — and
@@ -44,12 +44,15 @@ export const contentHelp = `organization install <github-login> [--role builder|
   one that does not; root-not-found or root-ambiguous after the scan). The scope follows the person's role in the Organization, as
   the resident CLI's: without --role it is the Admin installation, the full
   one, and runs only when GitHub confirms through gh an active Owner
-  membership; --role builder or --role steward installs everything except
-  the restricted (Admin-only) slots and the slots below them, reported
-  excluded_by_role_scope and never asked of GitHub, and runs only when
-  GitHub confirms write (Builder) or maintain (Steward) on the root
-  repository. An Admin may choose either narrower role. A role GitHub does
-  not confirm fails closed before anything is cloned (role-unverified). Only
+  membership; --role builder, --role steward or --role reader installs
+  everything except the restricted (Admin-only) slots and the slots below
+  them, reported excluded_by_role_scope and never asked of GitHub, and runs
+  only when GitHub confirms write (Builder) or maintain (Steward) on the
+  root repository, or read or triage on it together with an active
+  membership in the Organization (Reader, whose clones GitHub keeps
+  read-only). Anyone may choose a narrower role GitHub confirms. A role
+  GitHub does not confirm fails closed before anything is cloned
+  (role-unverified). Only
   on a workstation (local) and a work Environment
   (hosted-organization-personal, its own Organization only). One JSON line
   per step with --json, then the result.
@@ -71,8 +74,13 @@ usage or not allowed on this Environment.`;
 
 export class ContentUsageError extends Error {}
 
+/** The roles `--role` names; the Admin installation is the bare form. */
+const scopedRoles = ["builder", "steward", "reader"] as const;
+const isScopedRole = (value: string): value is (typeof scopedRoles)[number] =>
+  (scopedRoles as readonly string[]).includes(value);
+
 const usage =
-  "Usage: organization install <github-login> [--role builder|steward] [--root <owner>/<repository>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
+  "Usage: organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
 
 /** Whether `args` is a content command (the dispatcher's question). */
 export const isContentCommand = (args: readonly string[]) =>
@@ -138,10 +146,10 @@ export async function runContentCommand(
     (!organization && (noun !== "personalspace" || rest.length !== 0)) ||
     (!organization &&
       (values.root !== undefined || values.role !== undefined)) ||
-    // As the resident CLI: an Admin installs without --role.
-    (values.role !== undefined &&
-      values.role !== "builder" &&
-      values.role !== "steward") ||
+    // As the resident CLI: an Admin installs without --role. The resident
+    // knows no Reader; this CLI accepts it (decision F9, addendum
+    // 2026-10-05).
+    (values.role !== undefined && !isScopedRole(values.role)) ||
     (values.root !== undefined && !repositoryPattern.test(values.root)) ||
     (values.folder !== undefined &&
       (!isAbsolute(values.folder) || resolve(values.folder) !== values.folder))
@@ -173,7 +181,7 @@ export async function runContentCommand(
       ? {
           roles: {
             [key]:
-              values.role === "builder" || values.role === "steward"
+              values.role !== undefined && isScopedRole(values.role)
                 ? values.role
                 : ("admin" as const),
           },
