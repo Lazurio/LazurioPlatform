@@ -1360,6 +1360,124 @@ test("every task is a Draft first and an explicit “Publish” for it is the ma
     }
 });
 
+// A change to a repository the agent only reads is proposed as an issue in
+// that repository, never as a pull request or a fork, and mentions the
+// people GitHub names as able to make it (decision F14, addendum
+// 2026-10-05). It complements the escalation of a missing right, which no
+// longer covers a repository the agent only reads. On a Team Environment
+// gh's REST permissions describe no app installation, so a dry-run push
+// decides.
+test("a change to a repository the agent only reads is proposed as an issue there", () => {
+  const lines = {
+    cs: {
+      other:
+        "- Než navrhneš změnu v repozitáři, ověř živě své právo k němu: `gh api repos/<owner>/<repo> --jq .permissions.push`. S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
+      team: "- Než navrhneš změnu v repozitáři, ověř živě, jestli do něj identita Teamu smí pushovat: `git push --dry-run origin HEAD` v jeho checkoutu (brokerovaná identita hlásí v `gh api … --jq .permissions` false i s právem zápisu). S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
+      rights:
+        "- Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, Operátorovi dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (`manual/working-here.md`).",
+      heading: "## Repozitář, který jen čteš: změnu navrhni v issue",
+      checkOther:
+        "- **Ověř živé právo.** `gh api repos/<owner>/<repo> --jq .permissions`; rozhoduje `push`.",
+      checkTeam:
+        "- **Ověř živé právo.** Na týmovém Environmentu je `gh` brokerovaná identita Teamu",
+      teamSame:
+        "- **Na týmovém Environmentu** platí totéž: grant Teamu k repozitáři může být jen ke čtení.",
+      fragments: [
+        "- **Bez práva push** pull request nezkoušej. Do toho repozitáře zapiš issue s návrhem: co se má změnit, proč, a navržený text nebo diff.",
+        "(GitHub použije první z `.github/CODEOWNERS`, `CODEOWNERS` a `docs/CODEOWNERS`)",
+        `\`gh api "orgs/<org>/members?role=admin" --jq '.[] | select(.type != "Bot") | .login'\``,
+        "@zmínka stačí, issue jim nepřiřazuj.",
+        "- **Nic neobcházej.** Neforkuj a nepushuj do jiného repozitáře ani pod jinou identitou.",
+        "- **Ohlas to.** Operátorovi dej URL issue a koho jsi zmínil.",
+        "do repozitáře, který jen čteš, jako issue s návrhem (výše)",
+      ],
+      rightsHeading: "## Když na něco nemáš práva",
+      carveOut:
+        "- **Repozitář, který jen čteš, chybějící právo není.** Změnu jeho obsahu navrhni issue v tom repozitáři (předchozí oddíl) a o zápis do něj nežádej.",
+      checkout: "; práci v repozitáři, který jen čteš, tam navrhni jako issue.",
+    },
+    en: {
+      other:
+        "- Before you propose a change to a repository, check your live right to it: `gh api repos/<owner>/<repo> --jq .permissions.push`. With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the repository's CODEOWNERS, otherwise the Organization's Owners, no bots. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
+      team: "- Before you propose a change to a repository, check live whether the Team's identity may push to it: `git push --dry-run origin HEAD` in its checkout (the brokered identity's `gh api … --jq .permissions` answers false even with write). With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the repository's CODEOWNERS, otherwise the Organization's Owners, no bots. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
+      rights:
+        "- When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the Operator a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (`manual/working-here.md`).",
+      heading: "## A repository you only read: propose the change in an issue",
+      checkOther:
+        "- **Check the live right.** `gh api repos/<owner>/<repo> --jq .permissions`; `push` decides.",
+      checkTeam:
+        "- **Check the live right.** In a Team Environment `gh` is the Team's brokered identity",
+      teamSame:
+        "- **In a Team Environment** the same holds: the Team's grant on a repository may be read only.",
+      fragments: [
+        "- **Without push,** do not try a pull request. File an issue in that repository with the proposal: what should change, why, and the proposed text or diff.",
+        "(GitHub uses the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`)",
+        `\`gh api "orgs/<org>/members?role=admin" --jq '.[] | select(.type != "Bot") | .login'\``,
+        "An @mention is enough; do not assign the issue.",
+        "- **Bypass nothing.** Do not fork, and do not push to another repository or under another identity.",
+        "- **Report it.** Give the Operator the issue's URL and whom you mentioned.",
+        "or to a repository you only read as an issue with the proposal (above)",
+      ],
+      rightsHeading: "## When you lack the rights for something",
+      carveOut:
+        "- **A repository you only read is not a missing right.** Propose a change to its content as an issue in that repository (previous section) and do not ask for write access to it.",
+      checkout:
+        "; propose work in a repository you only read as an issue there.",
+    },
+  } as const;
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const text = lines[locale];
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const team = journey.preset === "hosted-organization-team";
+      // AGENTS.md: the proposal, with the check of this preset's identity,
+      // right before the escalation of a missing right, which excludes it.
+      const agents = outputs["AGENTS.md"].split("\n");
+      expect([
+        journey.preset,
+        locale,
+        agents.includes(text.other),
+        agents.includes(text.team),
+      ]).toEqual([journey.preset, locale, !team, team]);
+      expect(agents.indexOf(text.rights)).toBe(
+        agents.indexOf(team ? text.team : text.other) + 1,
+      );
+      // The manual: its own section right before the missing rights, whose
+      // first bullet sends a repository the agent only reads back to it.
+      const workingHere = outputs["manual/working-here.md"];
+      const manual = workingHere.split("\n");
+      const lineOf = (start: string) =>
+        manual.findIndex((line) => line.startsWith(start));
+      expect(lineOf(text.heading)).toBeGreaterThan(-1);
+      expect(lineOf(text.heading)).toBeLessThan(lineOf(text.rightsHeading));
+      expect(
+        manual[lineOf(text.rightsHeading) + 3]?.startsWith(text.carveOut),
+      ).toBe(true);
+      expect([
+        journey.preset,
+        locale,
+        lineOf(text.checkOther) > -1,
+        lineOf(text.checkTeam) > -1,
+        workingHere.includes(text.teamSame),
+      ]).toEqual([journey.preset, locale, !team, team, team]);
+      for (const fragment of text.fragments)
+        expect([
+          journey.preset,
+          locale,
+          workingHere.includes(fragment),
+        ]).toEqual([journey.preset, locale, true]);
+      // Bringing a diverged checkout back points to the proposal too, where
+      // the Environment holds Organizations.
+      expect(outputs["manual/troubleshooting.md"].includes(text.checkout)).toBe(
+        journey.preset !== "hosted-personal",
+      );
+    }
+});
+
 // Accumulated worktrees can be traced and cleaned up: every worktree keeps a
 // sidecar with the plan, the pull request and the agent session that made it
 // (root decision 0049).

@@ -56,9 +56,9 @@ export type InstallRequest = Readonly<{
    * `--root`). */
   roots?: Readonly<Record<string, string>> | undefined;
   /** The role the caller asks for in an Organization, by lowercase GitHub
-   * login: `admin` for the CLI's bare form, `builder` or `steward` for its
-   * `--role`; absent (the Launchpad), the role is resolved live. Either
-   * way GitHub must confirm it. */
+   * login: `admin` for the CLI's bare form, `builder`, `steward` or
+   * `reader` for its `--role`; absent (the Launchpad), the role is resolved
+   * live. Either way GitHub must confirm it. */
   roles?: Readonly<Record<string, OrganizationRole>> | undefined;
 }>;
 
@@ -620,6 +620,8 @@ async function installOrganization(
     rootPermission = access.repository.permission;
   }
   // The person's live role decides the scope; nothing starts without one.
+  // A Steward or Builder is confirmed by the root's permission alone; an
+  // Admin, a Reader and a live resolution also need the membership.
   const requested = context.roles[login.toLowerCase()] ?? null;
   const membership =
     requested === "steward" || requested === "builder"
@@ -630,11 +632,14 @@ async function installOrganization(
     membership,
     rootPermission,
   });
+  // Only the CLI's bare form asks for `admin`; its agent learns there that
+  // the narrower roles are named with --role (the Launchpad's prompt for
+  // Chat names the bare command).
   if (role.kind === "unverified")
     return steps.fail(
       "access",
       "role-unverified",
-      `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}`,
+      `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}${requested === "admin" ? "; without --role this is the Admin installation: name the role GitHub confirms with --role steward, --role builder or --role reader" : ""}`,
     );
   const found =
     resolution.kind === "resolved"

@@ -232,7 +232,7 @@ test("the role GitHub confirms, and the scope it gives", () => {
   const member = { kind: "member", state: "active", role: "member" } as const;
   const none = { kind: "none" } as const;
   const verify = (
-    requested: "admin" | "steward" | "builder" | null,
+    requested: "admin" | "steward" | "builder" | "reader" | null,
     membership: Parameters<typeof verifyOrganizationRole>[0]["membership"],
     rootPermission: "admin" | "maintain" | "write" | "triage" | "read" | null,
   ) => {
@@ -249,7 +249,19 @@ test("the role GitHub confirms, and the scope it gives", () => {
   expect(verify(null, member, "admin")).toBe("steward:exclude");
   expect(verify(null, member, "maintain")).toBe("steward:exclude");
   expect(verify(null, member, "write")).toBe("builder:exclude");
-  expect(verify(null, member, "triage")).toBe("unverified");
+  // A Reader: read or triage on the root, and an active member.
+  expect(verify(null, member, "triage")).toBe("reader:exclude");
+  expect(verify(null, member, "read")).toBe("reader:exclude");
+  // Read alone names no one: a public root answers read to every account.
+  expect(verify(null, none, "read")).toBe("unverified");
+  expect(verify(null, none, "triage")).toBe("unverified");
+  expect(
+    verify(null, { kind: "member", state: "pending", role: "member" }, "read"),
+  ).toBe("unverified");
+  expect(verify(null, { kind: "unavailable" }, "read")).toBe("unverified");
+  expect(verify(null, member, null)).toBe("unverified");
+  // Write needs no membership (as before): an outside collaborator Builder.
+  expect(verify(null, none, "write")).toBe("builder:exclude");
   expect(verify(null, none, null)).toBe("unverified");
   expect(verify("admin", owner, null)).toBe("admin:include");
   expect(verify("admin", member, "admin")).toBe("unverified");
@@ -260,6 +272,16 @@ test("the role GitHub confirms, and the scope it gives", () => {
   expect(verify("steward", owner, "write")).toBe("unverified");
   expect(verify("builder", owner, "admin")).toBe("builder:exclude");
   expect(verify("builder", none, "read")).toBe("unverified");
+  expect(verify("builder", member, "triage")).toBe("unverified");
+  expect(verify("reader", member, "read")).toBe("reader:exclude");
+  expect(verify("reader", member, "triage")).toBe("reader:exclude");
+  // Anyone may choose the narrowest scope GitHub confirms.
+  expect(verify("reader", member, "write")).toBe("reader:exclude");
+  expect(verify("reader", owner, "admin")).toBe("reader:exclude");
+  expect(verify("reader", none, "read")).toBe("unverified");
+  expect(verify("reader", none, "admin")).toBe("unverified");
+  expect(verify("reader", { kind: "unavailable" }, "read")).toBe("unverified");
+  expect(verify("reader", member, null)).toBe("unverified");
   expect(classifySlotAccess({ default_access: "private" })).toBe("restricted");
   expect(classifySlotAccess({ default_access: "role_based" })).toBe("ordinary");
   expect(classifySlotAccess({})).toBe("ordinary");
@@ -270,7 +292,7 @@ test("the role GitHub confirms, and the scope it gives", () => {
 async function installAlpha(
   github: ReturnType<typeof stubGitHub>["github"],
   folder: string,
-  roles?: Record<string, "admin" | "steward" | "builder">,
+  roles?: Record<string, "admin" | "steward" | "builder" | "reader">,
 ) {
   const steps: ContentStep[] = [];
   const result = await installContent(
@@ -299,7 +321,7 @@ const results = (
     : {};
 
 posixTest(
-  "a Builder or Steward never gets the restricted slots, and GitHub is not asked for them",
+  "a Builder, Steward or Reader never gets the restricted slots, and GitHub is not asked for them",
   async () => {
     world = await createWorld();
     await alphaRemotes(world);
@@ -310,11 +332,23 @@ posixTest(
       ["steward", "maintain", { alpha: "steward" } as const],
       // An Admin may choose the narrower Builder scope.
       ["builder", "admin", { alpha: "builder" } as const],
+      // Resolved live: an active member who only reads the root.
+      ["reader", "read", undefined],
+      // Asserted: triage on the root, an active member.
+      ["reader", "triage", { alpha: "reader" } as const],
     ] as const) {
       const folder = await presetFolder(world, "local");
+      // A Reader reads every repository it gets and writes none of them:
+      // read is all the install asks of a repository.
+      const readOnly = role === "reader";
       const { github, calls } = stubGitHub(world, {
         repositories: {
-          ...alphaReadable,
+          ...Object.fromEntries(
+            Object.keys(alphaReadable).map((name) => [
+              name,
+              readOnly ? { permission: "read" as const } : {},
+            ]),
+          ),
           "Alpha/alpha_GEN3": { permission },
         },
         membership:
@@ -339,6 +373,8 @@ posixTest(
       expect(scoped["workspace/secret"]).toBe("excluded_by_role_scope");
       expect(scoped["workspace/secret/db"]).toBe("excluded_by_role_scope");
       expect(scoped["workspace/web"]).toBe("materialized");
+      expect(scoped["mission-control"]).toBe("materialized");
+      expect(scoped["productionspace/firmware"]).toBe("materialized");
       expect(
         await exists(
           join(folder, "organizations", "alpha_GEN3", "workspace", "secret"),
@@ -353,9 +389,9 @@ posixTest(
         ),
       ).toBe(false);
       // An asserted Steward or Builder is confirmed by the repository
-      // permission alone; the membership is not asked.
+      // permission alone; the membership is not asked. A Reader's is.
       expect(calls.some((call) => call.kind === "membership")).toBe(
-        roles === undefined,
+        roles === undefined || role === "reader",
       );
     }
   },
@@ -384,10 +420,18 @@ posixTest(
       [{ kind: "none" }, "write", { alpha: "steward" }],
       // Asserted Builder with read only.
       [{ kind: "none" }, "read", { alpha: "builder" }],
-      // Resolved live (the Launchpad): neither an Owner nor write.
-      [{ kind: "member", state: "active", role: "member" }, "read", undefined],
+      // Resolved live (the Launchpad): read, but not a member (a public
+      // root answers read to every account).
+      [{ kind: "none" }, "read", undefined],
       // Resolved live while GitHub does not answer the membership.
       [{ kind: "unavailable" }, "read", undefined],
+      // Asserted Reader: not a member, or a pending invitation.
+      [{ kind: "none" }, "read", { alpha: "reader" }],
+      [
+        { kind: "member", state: "pending", role: "member" },
+        "triage",
+        { alpha: "reader" },
+      ],
     ] as const) {
       const folder = await presetFolder(world, "local");
       const { github, calls } = stubGitHub(world, {

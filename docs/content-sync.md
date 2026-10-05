@@ -164,20 +164,29 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 1. **access** — gh's account, then the root repository (below), then GitHub's answer
    for it through that account: it must exist, be readable and belong to the login.
    Then the person's **live role** in the Organization (review of root decision 0188,
-   as the resident `lazurio organization install --role builder|steward` scopes it),
+   as the resident `lazurio organization install --role builder|steward` scopes it,
+   and the Reader of decision F9's addendum of 2026-10-05),
    which GitHub must confirm through the same account before anything is cloned:
    **Admin** by an active Owner membership (`GET /user/memberships/orgs/<org>`, role
    `admin`, as `organization-owner.ts` reads it), **Steward** by `maintain` on the root
    repository (the Steward's grant, as `module-maintainer.ts` reads it), **Builder** by
-   `write` on it (the resident's Builder gate reads WRITE). The CLI matches the
-   resident exactly: `lazurio organization install <login>` is the Admin installation
-   (the full one) and runs only for a verified Admin; `lazurio organization install
-   <login> --role builder|steward` is the role-scoped one (an Admin may choose it too);
-   `--role admin` does not exist. The Launchpad picks the form from the live role, in
-   the order Admin, Steward, Builder. A role GitHub does not confirm, the bare form for
-   anyone but a verified Admin, or a live resolution that finds none of the three fails
-   closed with `role-unverified`. The role decides scope only, never access, and
-   nothing is recorded.
+   `write` on it (the resident's Builder gate reads WRITE), **Reader** by `read` or
+   `triage` on it together with an active membership (any role, not pending): a public
+   root answers `read` to every account, so the permission alone names no one of the
+   Organization, and an outside collaborator who only reads is not a Reader. The CLI
+   matches the resident and adds the Reader: `lazurio organization install <login>` is
+   the Admin installation (the full one) and runs only for a verified Admin;
+   `lazurio organization install <login> --role builder|steward|reader` is the
+   role-scoped one (anyone may choose a narrower role GitHub confirms); `--role admin`
+   does not exist. The resident CLI knows no `--role reader`. The Launchpad picks the
+   form from the live role, in the order Admin, Steward, Builder, Reader. A role GitHub
+   does not confirm, the bare form for anyone but a verified Admin (its failure names
+   the `--role` forms), or a live resolution that finds none of the four fails closed
+   with `role-unverified`. The role decides scope only, never access, and nothing is
+   recorded. A Reader's clones are ordinary clones: they are read-only because GitHub
+   refuses the account's pushes, and nothing in installation, the product update or
+   the doctor asks for write on a repository (pulling a clean checkout with
+   `git pull --ff-only` needs read only).
 2. **root** — present in the Folder (an Organization of the catalog whose canonical
    manifest binds the login): taken as it is. Absent: cloned into a temporary sibling
    `organizations/.<name>.lazurio-content-<random>/checkout`, verified (the `origin`
@@ -196,7 +205,7 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    `workspace/<module>/db`) are the Organization's own bootstrap (B7) and are left out
    (`excluded`). The role scope comes first: a restricted (Admin-only,
    `default_access` `restricted` or `private`) slot and every slot below it are in
-   scope only for a verified Admin; for a Steward or Builder they are
+   scope only for a verified Admin; for a Steward, Builder or Reader they are
    `excluded_by_role_scope` without any provider operation. A slot whose access
    declaration (its own or one above it) is malformed (`classifySlotAccess` →
    `unknown`) is `blocked` (`access-classification-unknown`) for every role, also
@@ -207,7 +216,8 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    stops its siblings; unreachable children are reported, not failures of the run.
    Unlike the resident's role gate, a Builder's or Steward's missing WRITE on one
    child repository does not block the whole install: the role is confirmed on the
-   root, and each child is cloned when it can be read.
+   root, and each child is cloned when it can be read. A Reader gets the same children
+   as a Builder, cloned with read.
 4. **preparation** — the declared preparation (`lazurio.preparation`, decision F34)
    of each module this run cloned, through the module core's `prepare` (the same as
    `lazurio module prepare`). Production Space repositories are never prepared. A
@@ -265,7 +275,7 @@ read (status, catalog) removes anything.
 
 ### Surfaces
 
-- `lazurio organization install <github-login> [--role builder|steward] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
+- `lazurio organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
   (`--root` is the explicit source of [the root](#where-the-root-repository-is), verified
   the same way)
   and `lazurio personalspace install [--folder <Folder>] [--json]`: one line per step

@@ -1,18 +1,27 @@
 // The person's LIVE role in the Organization an install targets (review of
 // root decision 0188, 2026-10-04), as the resident `lazurio organization
 // install <login> [--role builder|steward]` scopes it
-// (`R:lazurio/organization-install-lib.mjs`, `installRestrictedSlotPolicy`):
+// (`R:lazurio/organization-install-lib.mjs`, `installRestrictedSlotPolicy`),
+// plus the Reader of Matěj's direction of 2026-10-05 (decision F9, addendum
+// 2026-10-05), which the resident does not know:
 // - a verified Admin gets the full installation, restricted (Admin-only)
 //   slots included;
-// - a Builder or Steward gets everything else: restricted slots and every
-//   slot below one are excluded before any provider operation
+// - a Steward, Builder or Reader gets everything else: restricted slots and
+//   every slot below one are excluded before any provider operation
 //   (`excluded_by_role_scope`);
 // - a role that cannot be verified fails closed (`role-unverified`) before
 //   anything is cloned.
 // GitHub is the only authority; nothing here is recorded or cached, and the
-// role decides only the install's scope, never access.
+// role decides only the install's scope, never access: a Reader's clones are
+// read-only because GitHub refuses their pushes, not because of anything
+// here.
 
-export const organizationRoles = ["admin", "steward", "builder"] as const;
+export const organizationRoles = [
+  "admin",
+  "steward",
+  "builder",
+  "reader",
+] as const;
 export type OrganizationRole = (typeof organizationRoles)[number];
 
 export const isOrganizationRole = (value: unknown): value is OrganizationRole =>
@@ -61,6 +70,9 @@ const atLeast = (
   floor: RepositoryPermission,
 ) => permission !== null && rank[permission] >= rank[floor];
 
+const isActiveMember = (membership: MembershipAnswer) =>
+  membership.kind === "member" && membership.state === "active";
+
 const isOwner = (membership: MembershipAnswer) =>
   membership.kind === "member" &&
   membership.state === "active" &&
@@ -75,11 +87,14 @@ const verified = (role: OrganizationRole): RoleVerification =>
 
 /** The role GitHub confirms now. `requested` is the role the caller asks
  * for — `admin` for the CLI's bare `organization install <login>` (the
- * resident's Admin installation), `builder` or `steward` for its `--role` —
- * or null to resolve it live (the Launchpad picks the form from the live
- * role): Admin by an active Owner membership, Steward by
- * `maintain` on the root repository (the Steward's grant), Builder by
- * `write` on it (the resident's Builder gate reads WRITE). An asserted role
+ * resident's Admin installation), `builder`, `steward` or `reader` for its
+ * `--role` — or null to resolve it live (the Launchpad picks the form from
+ * the live role, in the order Admin, Steward, Builder, Reader): Admin by an
+ * active Owner membership, Steward by `maintain` on the root repository (the
+ * Steward's grant), Builder by `write` on it (the resident's Builder gate
+ * reads WRITE), Reader by `read` or `triage` on it together with an active
+ * membership (a public root answers `read` to every account, so the
+ * permission alone names no one of the Organization). An asserted role
  * GitHub does not confirm, and a live resolution that finds none of them,
  * is `unverified`: the caller fails closed. */
 export function verifyOrganizationRole(
@@ -118,15 +133,30 @@ export function verifyOrganizationRole(
           kind: "unverified",
           detail: "the account has no write permission on the root repository",
         };
+  if (requested === "reader")
+    return isActiveMember(membership) && atLeast(rootPermission, "read")
+      ? verified("reader")
+      : {
+          kind: "unverified",
+          detail: !isActiveMember(membership)
+            ? membership.kind === "unavailable"
+              ? "GitHub did not answer the Organization membership"
+              : "the account is not an active member of the Organization"
+            : "the account has no read permission on the root repository",
+        };
   if (admin) return verified("admin");
   if (atLeast(rootPermission, "maintain")) return verified("steward");
   if (atLeast(rootPermission, "write")) return verified("builder");
+  if (isActiveMember(membership) && atLeast(rootPermission, "read"))
+    return verified("reader");
   return {
     kind: "unverified",
     detail:
       membership.kind === "unavailable" && rootPermission === null
         ? "GitHub did not answer the membership or the root repository's permission"
-        : "the account is neither an Owner nor has write permission on the root repository",
+        : membership.kind === "unavailable"
+          ? "the account has no write permission on the root repository and GitHub did not answer the Organization membership"
+          : "the account is neither an Owner, nor has write permission on the root repository, nor is an active member who reads it",
   };
 }
 

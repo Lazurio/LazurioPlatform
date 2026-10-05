@@ -209,6 +209,64 @@ const lazurio: readonly Text[] = [
   ),
 ];
 
+// A change to a repository the agent only reads (decision F14 addendum
+// 2026-10-05): GitHub's rights decide who writes; without push the agent
+// proposes the change as an issue in that repository and mentions the people
+// GitHub names as able to make it, never a fork. On a Team Environment gh is
+// the brokered app installation, whose REST `permissions` answer false even
+// with write, so a dry-run push decides there.
+function readOnlyProposal(preset: PresetName): readonly Text[] {
+  const team = preset === "hosted-organization-team";
+  return [
+    t(
+      "## Repozitář, který jen čteš: změnu navrhni v issue",
+      "## A repository you only read: propose the change in an issue",
+    ),
+    t(
+      "Kdo do repozitáře zapisuje, rozhoduje GitHub. V Organizaci mají lidé i týmový Environment znalostní bázi, plánování (Mission Control) a kořenový repozitář Organizace často jen ke čtení a zapisují do nich Owneři Organizace ze svých Environmentů. Než navrhneš změnu obsahu repozitáře:",
+      "GitHub decides who writes to a repository. In an Organization, people and the Team Environment often only read the knowledge base, the planning (Mission Control) and the Organization's root repository, and the Organization's Owners write to them from their own Environments. Before you propose a change to a repository's content:",
+    ),
+    blank,
+    team
+      ? t(
+          "- **Ověř živé právo.** Na týmovém Environmentu je `gh` brokerovaná identita Teamu a její `gh api repos/<owner>/<repo> --jq .permissions` hlásí false i s právem zápisu, protože popisuje uživatele, ne instalaci aplikace. Rozhoduje proto `git push --dry-run origin HEAD` v checkoutu repozitáře: nic neodešle, a když GitHub push odmítne, právo push nemáš. Lokální checkout ani dřívější odpověď nejsou důkaz.",
+          "- **Check the live right.** In a Team Environment `gh` is the Team's brokered identity, and its `gh api repos/<owner>/<repo> --jq .permissions` answers false even with write, because it describes a user, not an app installation. So `git push --dry-run origin HEAD` in the repository's checkout decides: it sends nothing, and when GitHub refuses the push, you have no push. A local checkout or an earlier answer is no proof.",
+        )
+      : t(
+          "- **Ověř živé právo.** `gh api repos/<owner>/<repo> --jq .permissions`; rozhoduje `push`. Lokální checkout ani dřívější odpověď nejsou důkaz.",
+          "- **Check the live right.** `gh api repos/<owner>/<repo> --jq .permissions`; `push` decides. A local checkout or an earlier answer is no proof.",
+        ),
+    t(
+      "- **S právem push** jdi obvyklou cestou Draftu: worktree a pull request (Draft a Publikace výše).",
+      "- **With push,** take the usual Draft path: a worktree and a pull request (Draft and Publication above).",
+    ),
+    t(
+      "- **Bez práva push** pull request nezkoušej. Do toho repozitáře zapiš issue s návrhem: co se má změnit, proč, a navržený text nebo diff. Duplicity a obsah zkontroluj jako u každého issue; když issue zapsat nejde, platí oddíl o otevřených otázkách výše.",
+      "- **Without push,** do not try a pull request. File an issue in that repository with the proposal: what should change, why, and the proposed text or diff. Check duplicates and content as for every issue; when filing is not possible, the section on open questions above holds.",
+    ),
+    t(
+      '- **Zmiň ty, kdo ji smí provést,** zjištěné živě z GitHubu, nikdy z paměti ani z pevného seznamu: vlastníky dotčených cest z CODEOWNERS repozitáře (GitHub použije první z `.github/CODEOWNERS`, `CODEOWNERS` a `docs/CODEOWNERS`); když ho repozitář nemá, Ownery Organizace (`gh api "orgs/<org>/members?role=admin" --jq \'.[] | select(.type != "Bot") | .login\'`). Boty vynech. @zmínka stačí, issue jim nepřiřazuj.',
+      "- **Mention the people who may make it,** found live on GitHub, never from memory or a fixed list: the owners of the affected paths in the repository's CODEOWNERS (GitHub uses the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`); when the repository has none, the Organization's Owners (`gh api \"orgs/<org>/members?role=admin\" --jq '.[] | select(.type != \"Bot\") | .login'`). Leave bots out. An @mention is enough; do not assign the issue.",
+    ),
+    t(
+      "- **Nic neobcházej.** Neforkuj a nepushuj do jiného repozitáře ani pod jinou identitou.",
+      "- **Bypass nothing.** Do not fork, and do not push to another repository or under another identity.",
+    ),
+    t(
+      "- **Ohlas to.** Operátorovi dej URL issue a koho jsi zmínil. Změnu, kterou už máš ve worktree, dej do issue jako diff; nic nezůstává jen lokálně.",
+      "- **Report it.** Give the Operator the issue's URL and whom you mentioned. A change you already have in a worktree goes into the issue as a diff; nothing stays only local.",
+    ),
+    ...(team
+      ? [
+          t(
+            "- **Na týmovém Environmentu** platí totéž: grant Teamu k repozitáři může být jen ke čtení.",
+            "- **In a Team Environment** the same holds: the Team's grant on a repository may be read only.",
+          ),
+        ]
+      : []),
+  ];
+}
+
 // The escalation of a missing right (decision F14 addendum 2026-10-02): the
 // most common stall on hosted work Environments was work waiting for "the
 // administrator" with nobody named. Assigning the issue is the one exception
@@ -220,6 +278,10 @@ const missingRights: readonly Text[] = [
     "When work stalls on a missing right, never leave it hanging without an owner:",
   ),
   blank,
+  t(
+    "- **Repozitář, který jen čteš, chybějící právo není.** Změnu jeho obsahu navrhni issue v tom repozitáři (předchozí oddíl) a o zápis do něj nežádej. Tenhle oddíl platí pro úkon, který bez práva neuděláš: nový repozitář, grant Teamu, secret, nastavení.",
+    "- **A repository you only read is not a missing right.** Propose a change to its content as an issue in that repository (previous section) and do not ask for write access to it. This section is for an operation you cannot do without the right: a new repository, a Team's grant, a secret, a setting.",
+  ),
   t(
     "- **Zjisti, kdo to smí.** Živě, ne z paměti: Owneři Organizace (`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`) a správce, kterého jmenuje `AGENTS.md` Organizace. Jména drží Organizace, ne tenhle manuál.",
     "- **Find out who may grant it.** Live, not from memory: the Organization's Owners (`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`) and the administrator the Organization's `AGENTS.md` names. The Organization holds the names, not this manual.",
@@ -481,6 +543,8 @@ function workingHere(preset: PresetName): readonly Text[] {
       "- **When filing is not possible** (Issues are disabled, the account lacks the right, the network is unavailable or you are not sure the content may go into that repository), bypass nothing and do not file it in another Organization. Return to the Operator the sanitized issue text, the exact target repository and the reason you did not file it.",
     ),
     blank,
+    ...readOnlyProposal(preset),
+    blank,
     ...missingRights,
     blank,
     t(
@@ -488,8 +552,8 @@ function workingHere(preset: PresetName): readonly Text[] {
       "## Knowledge belongs where others find it",
     ),
     t(
-      "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree; GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Operátor do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost.",
-      "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree; a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Operator may place in that store; Personalspace and cross-Organization isolation always take precedence.",
+      "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree, do repozitáře, který jen čteš, jako issue s návrhem (výše); GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které Operátor do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost.",
+      "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree, or to a repository you only read as an issue with the proposal (above); a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the Operator may place in that store; Personalspace and cross-Organization isolation always take precedence.",
     ),
     blank,
     t("## Organizace", "## Organizations"),
@@ -859,8 +923,8 @@ const checkouts: readonly Text[] = [
     "  - Leave a merge or rebase in progress alone and tell the Operator; someone may be working on it right now.",
   ),
   t(
-    "- Když kterýkoli z těchto kroků nejde dokončit (vnořený repozitář nemá remote, GitHub push odmítne, chybí právo nebo přesun selže), checkout nesrovnávej. Nech ho i vnořený repozitář přesně tak, jak jsou, řekni Operátorovi, co zůstalo neuložené a kde, a chybějící právo eskaluj podle `manual/working-here.md`.",
-    "- When any of these steps cannot be completed (the nested repository has no remote, GitHub refuses the push, a right is missing or the move fails), do not align the checkout. Leave it and the nested repository exactly as they are, tell the Operator what remained unsaved and where, and escalate a missing right as `manual/working-here.md` describes.",
+    "- Když kterýkoli z těchto kroků nejde dokončit (vnořený repozitář nemá remote, GitHub push odmítne, chybí právo nebo přesun selže), checkout nesrovnávej. Nech ho i vnořený repozitář přesně tak, jak jsou, řekni Operátorovi, co zůstalo neuložené a kde, a chybějící právo eskaluj podle `manual/working-here.md`; práci v repozitáři, který jen čteš, tam navrhni jako issue.",
+    "- When any of these steps cannot be completed (the nested repository has no remote, GitHub refuses the push, a right is missing or the move fails), do not align the checkout. Leave it and the nested repository exactly as they are, tell the Operator what remained unsaved and where, and escalate a missing right as `manual/working-here.md` describes; propose work in a repository you only read as an issue there.",
   ),
   t(
     "- Teprve potom checkout srovnej s remote příkazem `git checkout -B <branch> origin/<branch>`. Netrackovaný soubor odmítne přepsat, ignorovaný ale přepíše. Proto nejdřív porovnej cesty, které se změní (`git diff --name-only HEAD origin/<branch>`), s netrackovanými a ignorovanými položkami (`git status --porcelain --ignored`). Když se jakákoli cesta kryje nebo Git srovnání odmítne, zastav se a řekni to Operátorovi.",

@@ -551,6 +551,10 @@ posixTest(
     expect(JSON.parse(bare.at(-1) as string).failure.code).toBe(
       "role-unverified",
     );
+    // Its agent learns there how to name a narrower role.
+    expect(JSON.parse(bare.at(-1) as string).failure.detail).toEndWith(
+      "without --role this is the Admin installation: name the role GitHub confirms with --role steward, --role builder or --role reader",
+    );
     // The same account with --role builder: confirmed by write.
     expect(
       await runContentCommand(
@@ -568,6 +572,53 @@ posixTest(
         () => contentHost(world as World, member.github),
       ),
     ).toBe(0);
+
+    // A Reader: an active member who only reads the root. The Builder
+    // form fails closed for that account, --role reader installs.
+    const reader = stubGitHub(world, {
+      repositories: { "Alpha/alpha_GEN3": { permission: "read" } },
+      membership: { kind: "member", state: "active", role: "member" },
+    });
+    const asBuilder: string[] = [];
+    expect(
+      await runContentCommand(
+        [
+          "organization",
+          "install",
+          "Alpha",
+          "--role",
+          "builder",
+          "--folder",
+          folder,
+          "--json",
+        ],
+        cliContext(world.home),
+        (line) => asBuilder.push(line),
+        () => contentHost(world as World, reader.github),
+      ),
+    ).toBe(1);
+    expect(JSON.parse(asBuilder.at(-1) as string).failure.code).toBe(
+      "role-unverified",
+    );
+    const asReader: string[] = [];
+    expect(
+      await runContentCommand(
+        [
+          "organization",
+          "install",
+          "Alpha",
+          "--role",
+          "reader",
+          "--folder",
+          folder,
+          "--json",
+        ],
+        cliContext(world.home),
+        (line) => asReader.push(line),
+        () => contentHost(world as World, reader.github),
+      ),
+    ).toBe(0);
+    expect(JSON.parse(asReader.at(-1) as string).items[0].role).toBe("reader");
 
     // An Organization none of whose repositories declares itself the root
     // fails the run (exit 1), with its code.
@@ -617,7 +668,9 @@ posixTest(
       ["personalspace", "install", "extra"],
       ["personalspace", "install", "--root", "Alpha/alpha_GEN3"],
       ["personalspace", "install", "--role", "admin"],
+      ["personalspace", "install", "--role", "reader"],
       ["organization", "install", "Alpha", "--role", "owner"],
+      ["organization", "install", "Alpha", "--role", "Reader"],
       // As the resident CLI: an Admin installs without --role.
       ["organization", "install", "Alpha", "--role", "admin"],
       ["personalspace", "install", "--folder", "relative/Folder"],
