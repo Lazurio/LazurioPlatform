@@ -1,4 +1,5 @@
 import {
+  type AccountVisit,
   dashboardSlug,
   type Shell,
   type ShellAccount,
@@ -153,16 +154,19 @@ function described(
   });
 }
 
-/** The last Environment the account remembers for each space of a merged
+/** The last visit the account remembers for each space of a merged
  * document, by the space's id there (`personal` or the merged Organization
- * slug): only Environments the merged document lists, never for a Dashboard
- * slug that is ambiguous among the local or the account's Organizations, and
- * only for a slug that names one space there. Empty without the account. */
+ * slug): the Environment and the app it was in (a page that is no
+ * Environment's opens that app, F36's addendum of 2026-10-05; an
+ * Environment's page keeps its own). Only Environments the merged document
+ * lists, never for a Dashboard slug that is ambiguous among the local or the
+ * account's Organizations, and only for a slug that names one space there.
+ * Empty without the account. */
 export function accountLastBySpace(
   merged: Shell,
   account: ShellAccount | null,
-): ReadonlyMap<string, string> {
-  const last = new Map<string, string>();
+): ReadonlyMap<string, AccountVisit> {
+  const last = new Map<string, AccountVisit>();
   if (account === null) return last;
   const ids = new Set(merged.environments.map((entry) => entry.id));
   // The merged document holds every local Organization, so a local
@@ -171,7 +175,7 @@ export function accountLastBySpace(
   for (const [space, visit] of Object.entries(account.lastBySpace)) {
     if (!ids.has(visit.environment)) continue;
     if (space === "personal") {
-      last.set(space, visit.environment);
+      last.set(space, visit);
       continue;
     }
     // Never for an ambiguous Dashboard slug, on either side: the account's
@@ -185,7 +189,7 @@ export function accountLastBySpace(
     );
     const organization = organizations[0];
     if (organizations.length === 1 && organization !== undefined)
-      last.set(organization.slug, visit.environment);
+      last.set(organization.slug, visit);
   }
   return last;
 }

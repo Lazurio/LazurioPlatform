@@ -53,9 +53,9 @@ test("what a page reports: this Environment as the document names it, the app an
     organization: "example",
   });
   // By the document's own slug, whatever case the host named it in.
-  expect(lastVisit(shell, "apps", "EXAMPLE").organization).toBe("example");
-  expect(lastVisit(shell, "apps", "personal").organization).toBeNull();
-  expect(lastVisit(shell, "apps", "unknown").organization).toBeNull();
+  expect(lastVisit(shell, "apps", "EXAMPLE")?.organization).toBe("example");
+  expect(lastVisit(shell, "apps", "personal")?.organization).toBeNull();
+  expect(lastVisit(shell, "apps", "unknown")?.organization).toBeNull();
 });
 
 test("the app an element names: Chat, Apps or Automate; Settings and nothing are none", () => {
