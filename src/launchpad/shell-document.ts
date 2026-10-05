@@ -199,6 +199,24 @@ export function environmentId(machine: MachineBinding | null): string {
   return isEnvironmentId(machine?.name) ? machine.name : workstationId;
 }
 
+/** The Organization that owns a hosted work, Team or Automated Environment,
+ * by its handover's owner slug, whether or not the Folder holds that
+ * Organization or can read it: such an Environment is never put in the
+ * person's own space (Matěj 2026-10-05: a work Environment whose Organization
+ * was not readable yet showed as "Osobní"). Null for a personal Environment,
+ * a workstation, or an owner slug the shell contract does not take. */
+export function ownerOrganization(
+  machine: MachineBinding | null,
+  kind: ShellEnvironmentKind,
+): string | null {
+  if (kind === "personal" || kind === "workstation" || machine === null)
+    return null;
+  if (machine.owner.kind !== "organization") return null;
+  return isShellSlug(machine.owner.organization)
+    ? machine.owner.organization
+    : null;
+}
+
 /** This Environment's shell document. `computer` is the host name of the
  * computer a workstation runs on; `setup` what the Environment still lacks
  * (root decision 0188, setup-state.ts), when the server knows it. */
@@ -215,7 +233,24 @@ export function shellDocument(
   const { machine } = input;
   const entry = machine?.entry;
   const kind = presetKinds[input.preset];
-  const organizations = shellOrganizations(input.catalog);
+  const held = shellOrganizations(input.catalog);
+  // The owning Organization first; known by its slug alone (no display
+  // name, no avatar) until the Folder holds it readable.
+  const owner = ownerOrganization(machine, kind);
+  const ownerEntry =
+    owner === null
+      ? undefined
+      : (held.find((entry) => entry.slug.toLowerCase() === owner) ??
+        Object.freeze({
+          slug: owner,
+          name: owner,
+          dashboard: organizationDashboardUrl(owner),
+          avatar: null,
+        }));
+  const organizations =
+    ownerEntry === undefined
+      ? held
+      : [ownerEntry, ...held.filter((entry) => entry !== ownerEntry)];
   const login = operatorLogin(machine);
   const id = environmentId(machine);
   const document = {
