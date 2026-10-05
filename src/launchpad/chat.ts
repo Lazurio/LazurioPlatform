@@ -16,12 +16,15 @@ import { ownerAnswerMs } from "./owner-answer";
 /** The public parts of the recorded entry (`GET /api/entry`): the origins the
  * page links to, so the page composes none. The admission values (auth
  * endpoint, cookie name, ports) stay on the server. `mausbotOrigin` only on a
- * Machine that runs Lazurio MausBot. */
+ * Machine that runs Lazurio MausBot; `browserOrigin` only where the gateway
+ * routes the Environment browser's view (decision F38): the page opens the
+ * view through `/.lazurio/browser.json`, never by this origin alone. */
 export type PublicEntry = Readonly<{
   launchpadOrigin: string;
   t3codeOrigin: string;
   moduleOriginTemplate: string;
   mausbotOrigin?: string;
+  browserOrigin?: string;
 }>;
 
 export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
@@ -33,6 +36,9 @@ export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
     ...(entry.mausbotOrigin === undefined
       ? {}
       : { mausbotOrigin: entry.mausbotOrigin }),
+    ...(entry.browserOrigin === undefined
+      ? {}
+      : { browserOrigin: entry.browserOrigin }),
   });
 }
 

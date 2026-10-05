@@ -1888,6 +1888,59 @@ function operatorClient(
   ];
 }
 
+// The Environment browser (root decision 0191, decision F38): one shared
+// Chromium per Environment, a window per thread through `lazurio browser
+// window`, worked in with agent-browser, watched and taken over by the person
+// through the view the gateway routes. Rendered only where the recorded entry
+// has the view.
+function environmentBrowser(preset: PresetName): readonly Text[] {
+  const team = preset === "hosted-organization-team";
+  return [
+    t("## Prohlížeč Environmentu", "## The Environment browser"),
+    t(
+      `Tenhle Environment má jeden sdílený prohlížeč: Chromium na virtuální obrazovce \`:1\` s jedním trvalým profilem (decision 0191). Přihlášení v něm patří Environmentu: sdílí je všechna vlákna, agenti a boti${team ? " a celý Team" : ""}. Pro práci v prohlížeči používej tenhle prohlížeč, ne vlastní: Operátor tě v něm vidí a může převzít ovládání.`,
+      `This Environment has one shared browser: Chromium on the virtual screen \`:1\` with one persistent profile (decision 0191). Its sign-ins belong to the Environment: every thread, agent and bot${team ? " and the whole Team" : ""} share them. Use this browser for browser work, not one of your own: the Operator sees you in it and can take over.`,
+    ),
+    blank,
+    t(
+      "- **Tvoje okno.** Na začátku práce s prohlížečem spusť `lazurio browser window` (případně `--url <adresa>`). Otevře okno tvého vlákna, nebo najde to, které už máš, a vypíše jméno sezení, odkaz na pohled a příkaz, kterým v okně pracuješ. Jméno sezení plyne z vlákna (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); jinak ho zadej `--session <jméno>`.",
+      "- **Your window.** When you start browser work, run `lazurio browser window` (optionally `--url <address>`). It opens your thread's window, or finds the one you have, and prints the session name, the link to the view and the command to work in the window with. The session name follows from the thread (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); otherwise give it with `--session <name>`.",
+    ),
+    t(
+      '- **Práce v okně.** `agent-browser --cdp 9222 --session <sezení> <příkaz>`: například `open <url>`, `snapshot -i`, `click @e1`, `fill @e2 "text"`, `screenshot <soubor>`, `get url`. Vždy s `--cdp 9222` a svým `--session`: bez `--cdp` by agent-browser spustil vlastní prohlížeč bez přihlášení Environmentu a Operátor by ho neviděl. Nepoužívej `window new` (otevře izolované okno bez přihlášení), `--profile`, `--headed` ani `set device`.',
+      '- **Working in the window.** `agent-browser --cdp 9222 --session <session> <command>`: for example `open <url>`, `snapshot -i`, `click @e1`, `fill @e2 "text"`, `screenshot <file>`, `get url`. Always with `--cdp 9222` and your `--session`: without `--cdp` agent-browser starts a browser of its own, without the Environment\'s sign-ins and invisible to the Operator. Do not use `window new` (it opens an isolated window without sign-ins), `--profile`, `--headed` or `set device`.',
+    ),
+    t(
+      "- **Pohled pro Operátora.** Když začneš, pošli Operátorovi odkaz, který vypíše `lazurio browser window` (nebo `lazurio browser link`). Otevře ho v pravém panelu ChatGPT Desktopu (dřív Codex Desktop), v panelu Browser webového T3 Code, v pravém panelu Launchpadu, v tabu nebo na telefonu připojeném do tailnetu a uvidí tvoje okno živě.",
+      "- **The Operator's view.** When you start, send the Operator the link `lazurio browser window` (or `lazurio browser link`) prints. They open it in ChatGPT Desktop's right panel (formerly Codex Desktop), in web T3 Code's Browser panel, in the Launchpad's right panel, in a tab or on a phone on the tailnet, and see your window live.",
+    ),
+    t(
+      "- **Přihlášení a ověření.** Na přihlašovací stránce, 2FA nebo CAPTCHA se zastav, řekni Operátorovi, ať v pohledu převezme ovládání, a počkej na jeho odpověď. Hesla ani kódy nevyplňuj sám a nežádej o ně v chatu; dokud ovládá Operátor, okno neovládej a nefoť. Přihlášení pak platí pro celý Environment: neodhlašuj se a nemaž cookies ani data prohlížeče.",
+      "- **Sign-in and verification.** At a sign-in page, 2FA or a CAPTCHA, stop, ask the Operator to take over in the view and wait for their answer. Never fill in passwords or codes yourself or ask for them in the chat; while the Operator is in control, do not drive or capture the window. The sign-in then holds for the whole Environment: do not sign out or clear cookies or browser data.",
+    ),
+    t(
+      "- **`localhost`.** Prohlížeč Environmentu otevře i `localhost` tohoto Environmentu, takže rozpracovanou stránku Operátor uvidí v pohledu.",
+      "- **`localhost`.** The Environment browser also opens this Environment's `localhost`, so the Operator sees work in progress in the view.",
+    ),
+    t(
+      "- **Konec.** Své okno zavři příkazem `agent-browser --cdp 9222 --session <sezení> tab close`. Prohlížeč ani jeho služby nevypínej a nerestartuj: zavřel bys okna ostatních vláken.",
+      "- **When done.** Close your window with `agent-browser --cdp 9222 --session <session> tab close`. Never stop or restart the browser or its services: that would close the other threads' windows.",
+    ),
+    t(
+      "- **Když nefunguje.** `lazurio doctor` (kontrola `environment-browser`) řekne, která služba neběží: `lazurio-display`, `lazurio-browser` nebo `lazurio-browser-view`.",
+      "- **When it does not work.** `lazurio doctor` (check `environment-browser`) says which service is not running: `lazurio-display`, `lazurio-browser` or `lazurio-browser-view`.",
+    ),
+    ...(team
+      ? [
+          t(
+            "- **Týmový Environment.** Přihlášení v prohlížeči vidí celý Team a jeho agenti; patří sem týmové a firemní účty nebo účty, které je v pořádku s Teamem sdílet.",
+            "- **Team Environment.** The whole Team and its agents see the browser's sign-ins; Team and company accounts belong here, or accounts that are fine to share with the Team.",
+          ),
+        ]
+      : []),
+  ];
+}
+
 function thisMachine(source: InstructionSource): string {
   const { preset, machine } = source;
   const { locale } = source.profile;
@@ -1969,6 +2022,9 @@ function thisMachine(source: InstructionSource): string {
       ...boundaries(preset),
       ...botTeam(preset, machine),
       ...(machine === null ? [] : [blank, ...operatorClient(preset, machine)]),
+      ...(entry?.browserOrigin === undefined
+        ? []
+        : [blank, ...environmentBrowser(preset)]),
       blank,
       ...enabledToolsSection(
         source.tools,

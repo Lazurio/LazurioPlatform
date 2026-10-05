@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { browserHelp, runBrowserCommand } from "./browser/cli";
 import {
   ContentUsageError,
   contentHelp,
@@ -203,6 +204,10 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // The link alone on stdout; the notice follows on stderr.
   if (args[0] === "chat")
     return emit(await runChatCommand(args.slice(1), processContext()));
+  // The Environment browser (decision F38): a thread's window and the link to
+  // its view.
+  if (args[0] === "browser")
+    return emit(await runBrowserCommand(args.slice(1), processContext()));
   // The link or path alone on stdout; the note follows on stderr.
   if (args[0] === "files")
     return emit(
@@ -444,6 +449,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(recoverHelp);
     console.log(doctorHelp);
     console.log(chatHelp);
+    console.log(browserHelp);
     console.log(filesHelp);
     console.log(machineHelp);
     return 0;

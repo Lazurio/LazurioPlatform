@@ -1,3 +1,8 @@
+import {
+  browserUnits,
+  environmentBrowserReasons,
+  observeEnvironmentBrowser,
+} from "../browser/units";
 import { machineIdentity } from "../folder/machine-binding";
 import { presetNames } from "../folder/presets";
 import {
@@ -81,6 +86,7 @@ export const doctorCheckIds = [
   // Machine
   "machine-entry",
   "codex-app-server",
+  "environment-browser",
 ] as const;
 export type DoctorCheckId = (typeof doctorCheckIds)[number];
 
@@ -112,6 +118,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "launchpad-health": "launchpad",
     "machine-entry": "machine",
     "codex-app-server": "machine",
+    "environment-browser": "machine",
   });
 
 export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
@@ -169,6 +176,7 @@ export const doctorReasons: readonly string[] = Object.freeze([
     ...ownReasons,
     ...catalogReasons,
     ...codexAppServerReasons,
+    ...environmentBrowserReasons,
   ]),
 ]);
 
@@ -224,6 +232,8 @@ export const doctorContextRules: Readonly<
   // them (`codex-app-server` `app-server-outdated`, issue #173).
   appServerVersion: isCodexVersion,
   cliVersion: isCodexVersion,
+  // Which of the Environment browser's units a finding is about (F38).
+  unit: oneOf(browserUnits),
   signIn: oneOf(["signed-in", "signed-out", "unknown"]),
   ssh: oneOf(["linked", "not-linked", "unknown"]),
   organization: (value: unknown) =>
@@ -578,6 +588,8 @@ export type DoctorEnvironment = RecoveryEnvironment &
     /** Run each installed tool's sign-in probe: it may contact the tool's
      * provider, so only on an explicit request. */
     signIn?: boolean | undefined;
+    /** Tests only: the loopback probes of the Environment browser (F38). */
+    fetch?: ((url: string, init: RequestInit) => Promise<Response>) | undefined;
   }>;
 
 export const doctorVerdict = (checks: readonly DoctorCheck[]): DoctorVerdict =>
@@ -645,6 +657,24 @@ export async function collectDoctor(
     tools: environment.tools,
   });
 
+  const browser = await observeEnvironmentBrowser({
+    platform,
+    env,
+    supervised: service !== null,
+    hosted: async () =>
+      environment.hostedFolder !== undefined &&
+      (await environment.hostedFolder()) !== undefined,
+    entry:
+      handover?.context.entry?.browser === undefined
+        ? undefined
+        : {
+            origin: handover.context.entry.browser.external_origin,
+            listenPort: handover.context.entry.browser.listen_port,
+          },
+    run,
+    fetch: environment.fetch ?? ((url, init) => fetch(url, init)),
+  });
+
   const recovered = recovery.checks;
   const facts = observed.facts;
   const [version, available, refresh, template] = productChecks(
@@ -679,6 +709,12 @@ export async function collectDoctor(
       answerOf(answer),
     ),
     check("codex-app-server", codex.outcome, codex.reason, codex.context),
+    check(
+      "environment-browser",
+      browser.outcome,
+      browser.reason,
+      browser.context,
+    ),
   ];
   // Group order, stable within a group.
   const ordered = doctorGroups.flatMap((group) =>

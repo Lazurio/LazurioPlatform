@@ -9,13 +9,16 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#304** into `main` (commit
-`3d49ac09dd01868805bfb44bc1d99f8140d3bfe9`, SHA-256
-`b9f9a127bc50c290f99f8332120f0efe2ef42482815d1d79dda7810fb656cfd7`), which adds the
-optional `entry.mausbot` ([below](#the-hosted-entry-decision-f16)) and changes nothing
-else. No Machines release carries it yet, so the provenance names no version and no
-tag; the first release that does may add them with the same digest, and a digest
-other than this one is a new re-pin. Before it, the pin was the merge of Machines
+from the merge of Machines pull request **#398** into `main` (commit
+`b831308f153519747ebcb4d2d9690c1b9a865a9b`, SHA-256
+`475c5197b7c2d812dda960aa30f23a709837dca0560579e5c1c5d4f822d1506e`), which adds the
+optional `entry.browser` ([below](#the-hosted-entry-decision-f16), decision F38) and
+changes nothing else. No Machines release carries it yet, so the provenance names no
+version and no tag; the first release that does may add them with the same digest,
+and a digest other than this one is a new re-pin. Before it, the pin was the merge of
+Machines pull request **#304** (commit `3d49ac09dd01868805bfb44bc1d99f8140d3bfe9`,
+SHA-256 `b9f9a127bc50c290f99f8332120f0efe2ef42482815d1d79dda7810fb656cfd7`), which
+added the optional `entry.mausbot`; before that, the merge of Machines
 pull request **#277** (commit `e41eb68453f3f8a6568f99c523aeaaf8cfa5ea0a`, SHA-256
 `0313169bb859aa7ee8372a96425c44e6b113bdeb4bcbd0bd490de76630f6479a`), which added the
 third `owner.assignment` kind `automation` to the v0.12.93 schema. The previous pin was
@@ -328,7 +331,9 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
   "t3code":    { "external_origin": "https://t3code.<vm>.<org>.lazurio.io" },
   "modules":   { "origin_template": "https://{module}.<vm>.<org>.lazurio.io" },
   "mausbot":   { "external_origin": "https://mausbot.<vm>.<org>.lazurio.io",
-                 "listen_port": 4102 }
+                 "listen_port": 4102 },
+  "browser":   { "external_origin": "https://browser.<vm>.<org>.lazurio.io",
+                 "listen_port": 4848 }
 }
 ```
 
@@ -336,6 +341,12 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
 (DEV-6632, decision 0169; pending the Machines pull request that writes it, see
 [the pin](#one-upstream-contract)). Absent, the Machine has no MausBot and the
 Launchpad shows nothing for it.
+
+`browser` is optional and present only on a Machine whose gateway roster routes the
+Environment browser's view (root decision 0191, [F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
+the view's origin and the loopback port its dashboard listens on. It is also the
+signal the installer converges the browser's units on. Absent, the Environment has no
+Environment browser.
 
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
@@ -352,8 +363,10 @@ The binding records it one member to one, as `entry` next to the relationships:
 | `modules.origin_template` | `moduleOriginTemplate` | `{module}` exactly once, as the whole first label; https, no port, path or query |
 | `mausbot.external_origin` | `mausbotOrigin` (optional) | as `externalOrigin` |
 | `mausbot.listen_port` | `mausbotListenPort` (optional) | as `listenPort` |
+| `browser.external_origin` | `browserOrigin` (optional) | as `externalOrigin` |
+| `browser.listen_port` | `browserListenPort` (optional) | as `listenPort` |
 
-The two MausBot fields are recorded both or neither, and absent (never `null`) when the
+The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
 handover has no `mausbot`, so an entry recorded from an older handover is unchanged
 byte for byte. A present but invalid `mausbot` refuses the whole handover
 (`machine-context-invalid`), as every other entry value does.

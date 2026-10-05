@@ -79,6 +79,12 @@ function entry(input: HandoverEntry): MachineEntry {
             mausbotOrigin: input.mausbot.external_origin,
             mausbotListenPort: input.mausbot.listen_port,
           }),
+      ...(input.browser === undefined
+        ? {}
+        : {
+            browserOrigin: input.browser.external_origin,
+            browserListenPort: input.browser.listen_port,
+          }),
     });
   } catch {
     throw new MachineContextError("machine-context-invalid");

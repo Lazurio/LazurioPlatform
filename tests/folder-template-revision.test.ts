@@ -21,8 +21,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-28",
-  digest: "f54fd086c6e2784e47700ccf8a9be3b5cb2a15df421fef6730dc433898b46b08",
+  revision: "base-instructions-29",
+  digest: "c874470619ac0df32f2d07d280adeb6c8886c4c26d3263dcc9ed1d74fd2573e9",
 } as const;
 
 const optionalTools = activatableTools()
@@ -73,6 +73,19 @@ const environments = [
     machine: bindings.automatedEntry,
     os: "linux",
   },
+  // With the Environment browser's view (root decision 0191, F38): its
+  // section renders only there, with the Team line on a Team Environment.
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organizationBrowser,
+    os: "linux",
+  },
+  {
+    preset: "hosted-organization-team",
+    machine: bindings.teamBrowser,
+    os: "linux",
+  },
+  { preset: "hosted-personal", machine: bindings.personalBrowser, os: "linux" },
 ] as const;
 
 function compositions() {
