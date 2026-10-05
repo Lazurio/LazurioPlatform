@@ -9,13 +9,16 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#304** into `main` (commit
-`3d49ac09dd01868805bfb44bc1d99f8140d3bfe9`, SHA-256
-`b9f9a127bc50c290f99f8332120f0efe2ef42482815d1d79dda7810fb656cfd7`), which adds the
-optional `entry.mausbot` ([below](#the-hosted-entry-decision-f16)) and changes nothing
-else. No Machines release carries it yet, so the provenance names no version and no
-tag; the first release that does may add them with the same digest, and a digest
-other than this one is a new re-pin. Before it, the pin was the merge of Machines
+from the merge of Machines pull request **#398** into `main` (commit
+`b831308f153519747ebcb4d2d9690c1b9a865a9b`, SHA-256
+`475c5197b7c2d812dda960aa30f23a709837dca0560579e5c1c5d4f822d1506e`), which adds the
+optional `entry.browser` ([below](#the-hosted-entry-decision-f16), decision F38) and
+changes nothing else. No Machines release carries it yet, so the provenance names no
+version and no tag; the first release that does may add them with the same digest,
+and a digest other than this one is a new re-pin. Before it, the pin was the merge of
+Machines pull request **#304** (commit `3d49ac09dd01868805bfb44bc1d99f8140d3bfe9`,
+SHA-256 `b9f9a127bc50c290f99f8332120f0efe2ef42482815d1d79dda7810fb656cfd7`), which
+added the optional `entry.mausbot`; before that, the merge of Machines
 pull request **#277** (commit `e41eb68453f3f8a6568f99c523aeaaf8cfa5ea0a`, SHA-256
 `0313169bb859aa7ee8372a96425c44e6b113bdeb4bcbd0bd490de76630f6479a`), which added the
 third `owner.assignment` kind `automation` to the v0.12.93 schema. The previous pin was
