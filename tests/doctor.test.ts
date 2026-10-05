@@ -351,6 +351,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "launchpad-health skipped not-supervised",
     "machine-entry skipped not-hosted",
     "codex-app-server skipped no-user-manager",
+    "environment-browser skipped no-user-manager",
   ]);
   expect(find(result.json, "tool", "gh")).toEqual({
     id: "tool",

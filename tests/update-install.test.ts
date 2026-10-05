@@ -1026,3 +1026,79 @@ test("lazurio install asks the hosted context and says what became of the Codex 
   );
   expect(asked).toBe(0);
 });
+
+test("on a supervised hosted base whose handover routes the browser's view, install also converges the Environment browser's units; the hosted context is asked once", async () => {
+  const { input, commands } = await scene();
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  const units = join(root, "config/systemd/user");
+  let asked = 0;
+  const hosted = async () => {
+    asked++;
+    return true;
+  };
+  const browserEntry = async () => ({
+    origin: "https://browser.workspace.example.lazurio.io",
+    listenPort: 4848,
+  });
+  // Without the view in the handover: nothing of the browser.
+  expect(
+    await performInstall({ ...input, service: { folder }, hosted }),
+  ).toMatchObject({
+    kind: "installed",
+    codexAppServer: { state: "enabled" },
+    environmentBrowser: { state: "skipped-not-declared" },
+  });
+  expect(asked).toBe(1);
+  expect((await readdir(units)).sort()).toEqual(
+    [codexAppServerUnit, launchpadUnit].sort(),
+  );
+  // With it: three more units, enabled and started after the Codex unit.
+  commands.length = 0;
+  asked = 0;
+  expect(
+    await performInstall({
+      ...input,
+      service: { folder },
+      hosted,
+      browserEntry,
+    }),
+  ).toMatchObject({
+    kind: "installed",
+    environmentBrowser: { state: "enabled" },
+  });
+  expect(asked).toBe(1);
+  expect((await readdir(units)).sort()).toEqual(
+    [
+      codexAppServerUnit,
+      launchpadUnit,
+      "lazurio-browser-view.service",
+      "lazurio-browser.service",
+      "lazurio-display.service",
+    ].sort(),
+  );
+  expect(commands.slice(-4)).toEqual([
+    ["systemctl", "--user", "daemon-reload"],
+    [
+      "systemctl",
+      "--user",
+      "enable",
+      "lazurio-display.service",
+      "lazurio-browser.service",
+      "lazurio-browser-view.service",
+    ],
+    ["systemctl", "--user", "try-restart", "lazurio-browser-view.service"],
+    [
+      "systemctl",
+      "--user",
+      "start",
+      "lazurio-display.service",
+      "lazurio-browser.service",
+      "lazurio-browser-view.service",
+    ],
+  ]);
+  // A workstation: no hosted operator, nothing of the browser.
+  expect(
+    await performInstall({ ...input, service: { folder }, browserEntry }),
+  ).toMatchObject({ environmentBrowser: { state: "skipped-not-hosted" } });
+});

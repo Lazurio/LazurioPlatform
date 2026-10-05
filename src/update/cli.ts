@@ -1,6 +1,11 @@
 import { lstat, mkdtemp, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { handoverBrowserEntry } from "../browser/entry";
+import {
+  convergeEnvironmentBrowser,
+  type EnvironmentBrowser,
+} from "../browser/units";
 import {
   type FolderRefresh,
   folderRefreshText,
@@ -245,6 +250,15 @@ export async function updateEnvironment(
         run: context.run ?? runProcess,
         hosted: hostedOperator(context),
       }),
+    browserUnits: () =>
+      convergeEnvironmentBrowser({
+        base,
+        platform: context.platform,
+        env: context.env,
+        run: context.run ?? runProcess,
+        hosted: hostedOperator(context),
+        entry: () => handoverBrowserEntry(),
+      }),
     run: context.run,
     ...context.environment,
   });
@@ -435,6 +449,13 @@ const codexFinding = (value: CodexAppServer | undefined): string[] =>
     ? [value.next]
     : [];
 
+/** The Environment browser's units in words (decision F38): what a person or
+ * agent does when they are not set up; nothing when they are or need not be. */
+const browserFinding = (value: EnvironmentBrowser | undefined): string[] =>
+  value?.state === "foreign-unit" || value?.state === "failed"
+    ? [value.next]
+    : [];
+
 /** What a person reads after `lazurio install`: the verification, the
  * outcome, the command's PATH entry with whatever the operator or an agent
  * should do, and on a first installation the first step. */
@@ -483,6 +504,11 @@ async function installText(
           "The Codex app-server daemon starts with this Environment (lazurio-codex-app-server.service).",
         ]
       : codexFinding(result.codexAppServer)),
+    ...(result.environmentBrowser?.state === "enabled"
+      ? [
+          "The Environment browser starts with this Environment (lazurio-display, lazurio-browser and lazurio-browser-view services).",
+        ]
+      : browserFinding(result.environmentBrowser)),
     ...(standard
       ? []
       : [
@@ -609,6 +635,7 @@ export async function runInstallCommand(
       service:
         values.folder === undefined ? undefined : { folder: values.folder },
       hosted: hostedOperator(context),
+      browserEntry: () => handoverBrowserEntry(),
       release:
         directory === undefined
           ? undefined
@@ -744,12 +771,14 @@ export async function runUpdateCommand(
             }`,
             ...refresh(result.folderRefresh),
             ...codexFinding(result.codexAppServer),
+            ...browserFinding(result.environmentBrowser),
           ].join("\n")
         : result.kind === "up-to-date"
           ? [
               `Lazurio ${result.running} is up to date.`,
               ...refresh(result.folderRefresh),
               ...codexFinding(result.codexAppServer),
+              ...browserFinding(result.environmentBrowser),
             ].join("\n")
           : "",
     );

@@ -1,5 +1,11 @@
 import { copyFile, lstat, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
+import {
+  type BrowserEntry,
+  convergeEnvironmentBrowser,
+  type EnvironmentBrowser,
+  environmentBrowserFailed,
+} from "../browser/units";
 import { activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
 import {
@@ -143,6 +149,9 @@ export type InstallInput = Readonly<{
    * supervised. Absent: not hosted. On a hosted supervised base the Codex
    * app-server unit is converged (decision F29). */
   hosted?: (() => Promise<boolean>) | undefined;
+  /** The handover's `entry.browser`, asked only on a supervised hosted base
+   * (decision F38); absent: none, so nothing is converged. */
+  browserEntry?: (() => Promise<BrowserEntry | undefined>) | undefined;
   run?: ProcessRunner | undefined;
   healthDeadlineMs?: number | undefined;
 }>;
@@ -162,6 +171,9 @@ export type InstallResult =
       /** Only on a supervised base (its Launchpad unit is this base's): what
        * became of the Codex app-server unit. */
       codexAppServer?: CodexAppServer;
+      /** Only on a supervised base: what became of the Environment
+       * browser's units (decision F38). */
+      environmentBrowser?: EnvironmentBrowser;
     }>
   /** The offline update: a newer executable over an existing installation. */
   | Readonly<{
@@ -174,6 +186,7 @@ export type InstallResult =
       serviceInstalled: boolean;
       entry: PathEntry | null;
       codexAppServer?: CodexAppServer;
+      environmentBrowser?: EnvironmentBrowser;
     }>
   | ErrorResult;
 
@@ -447,14 +460,31 @@ async function install(input: InstallInput): Promise<InstallResult> {
       throw new UpdateFailure("activation-failed", { stage: "service" });
   }
   // Only after the Launchpad's unit is in place, with or without `--service`,
-  // and whatever it answers, the installation stands.
+  // and whatever it answers, the installation stands. The hosted context is
+  // asked once for both convergences.
+  let hostedAnswer: Promise<boolean> | undefined;
+  const hosted = () => {
+    hostedAnswer ??= (input.hosted ?? (async () => false))();
+    return hostedAnswer;
+  };
   const codexAppServer: CodexAppServer | undefined = await convergeEntryUnits({
     base,
     platform: input.platform,
     env: input.env,
     run: input.run ?? runProcess,
-    hosted: input.hosted ?? (async () => false),
+    hosted,
   }).catch(() => codexAppServerFailed("unit"));
+  // The Environment browser's units the same way (decision F38): only for
+  // the hosted operator of a handover that routes the browser's view.
+  const environmentBrowser: EnvironmentBrowser | undefined =
+    await convergeEnvironmentBrowser({
+      base,
+      platform: input.platform,
+      env: input.env,
+      run: input.run ?? runProcess,
+      hosted,
+      entry: input.browserEntry ?? (async () => undefined),
+    }).catch(() => environmentBrowserFailed("unit"));
   // Last, and never a reason to fail: the product is installed whatever
   // happens to its PATH entry, and the result says what it found.
   const entry = await ensurePathEntry({
@@ -475,6 +505,7 @@ async function install(input: InstallInput): Promise<InstallResult> {
       serviceInstalled: service !== undefined,
       entry,
       ...(codexAppServer === undefined ? {} : { codexAppServer }),
+      ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
     });
   return Object.freeze({
     kind: "installed" as const,
@@ -483,5 +514,6 @@ async function install(input: InstallInput): Promise<InstallResult> {
     serviceInstalled: service !== undefined,
     entry,
     ...(codexAppServer === undefined ? {} : { codexAppServer }),
+    ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
   });
 }

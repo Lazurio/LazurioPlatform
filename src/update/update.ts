@@ -1,6 +1,10 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  type EnvironmentBrowser,
+  environmentBrowserFailed,
+} from "../browser/units";
+import {
   type FolderRefresh,
   folderRefreshNeeded,
 } from "../folder/refresh-needed";
@@ -75,6 +79,10 @@ export type UpdateEnvironment = Readonly<{
    * supervised hosted base (`convergeEntryUnits`, decision F29); undefined
    * when there is nothing to converge. Absent: nothing is converged. */
   entryUnits?: (() => Promise<CodexAppServer | undefined>) | undefined;
+  /** After a successful run: converge the Environment browser's units of a
+   * supervised hosted base (`convergeEnvironmentBrowser`, decision F38);
+   * undefined when there is nothing to converge. Absent: nothing. */
+  browserUnits?: (() => Promise<EnvironmentBrowser | undefined>) | undefined;
   run?: ProcessRunner | undefined;
   now?: (() => Date) | undefined;
   download?: Partial<DownloadPolicy> | undefined;
@@ -260,6 +268,8 @@ export type UpdateResult =
       folderRefresh: FolderRefresh | null;
       /** Supervised base only: the Codex app-server unit (decision F29). */
       codexAppServer?: CodexAppServer;
+      /** Supervised base only: the Environment browser's units (F38). */
+      environmentBrowser?: EnvironmentBrowser;
     }>
   | Readonly<{
       kind: "updated";
@@ -270,6 +280,7 @@ export type UpdateResult =
       /** The Folder renders an older template revision than `to`. */
       folderRefresh: FolderRefresh | null;
       codexAppServer?: CodexAppServer;
+      environmentBrowser?: EnvironmentBrowser;
     }>
   | ErrorResult;
 
@@ -304,14 +315,26 @@ export async function performUpdate(
   // After the run, outside the lock, as `lazurio install` does: the entry
   // units of a supervised hosted base. Never a reason for the result to
   // change; after a refusal nothing is converged.
-  if (result.kind === "error" || environment.entryUnits === undefined)
-    return result;
-  const codexAppServer = await environment
-    .entryUnits()
-    .catch(() => codexAppServerFailed("unit"));
-  return codexAppServer === undefined
+  if (result.kind === "error") return result;
+  const codexAppServer =
+    environment.entryUnits === undefined
+      ? undefined
+      : await environment
+          .entryUnits()
+          .catch(() => codexAppServerFailed("unit"));
+  const environmentBrowser =
+    environment.browserUnits === undefined
+      ? undefined
+      : await environment
+          .browserUnits()
+          .catch(() => environmentBrowserFailed("unit"));
+  return codexAppServer === undefined && environmentBrowser === undefined
     ? result
-    : Object.freeze({ ...result, codexAppServer });
+    : Object.freeze({
+        ...result,
+        ...(codexAppServer === undefined ? {} : { codexAppServer }),
+        ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
+      });
 }
 
 const updateOnce = (
