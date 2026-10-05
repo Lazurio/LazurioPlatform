@@ -4539,3 +4539,87 @@ and Apps fall back silently, exactly as without the account document.
    rule for writes).
 4. Platform: the second document in `contract.ts`, the merge, `PUT last`, and the Apps
    consumers.
+
+## F38 — The Environment browser of a Remote Environment: one Chromium, a window per thread, a view behind the gateway
+
+**Decided by Matěj 2026-10-05 (plan DEV-6646, root decision 0191); implemented in this
+revision.** Agents on a Remote Environment had no browser a person can see: web T3
+Code has none, and the built-in browser of ChatGPT Desktop (formerly Codex Desktop) or
+desktop T3 Code runs on the laptop, out of reach of an agent on the Environment over
+SSH (Lazurio/t3code#28). Root decision 0191 gives every Remote Environment one browser
+whose sign-ins belong to the Environment, a window per thread and a view in the right
+panel of every app.
+
+1. **Three installer units, converged like F29.** On a supervised base, for the
+   declared operator of a handover whose `entry` carries `browser` (Machines writes it
+   for a guest whose roster routes `browser.`), `install` and `update` ensure
+   `lazurio-display.service` (Xvfb on `:1`), `lazurio-browser.service` (the newest
+   Chrome for Testing agent-browser installed, headed on the screen, profile
+   `~/.local/share/lazurio-browser/profile`, DevTools on loopback port 9222) and
+   `lazurio-browser-view.service` (agent-browser's dashboard for the entry's origin
+   and port). Texts, directives and reasons: [product update](update.md#state-on-disk).
+   Same rules as F29: the marker is ownership, text is rewritten only when it differs,
+   the result `environmentBrowser` never fails an install or update; the screen and the
+   browser are never stopped or restarted by them, the view only when its own text
+   changed. A handover without `entry.browser` writes and stops nothing.
+2. **One profile, the Environment's sign-ins** (0191 points 1 and 10). The profile is
+   outside the Folder and the install base and is never copied. Every thread, agent
+   and bot shares it. Wiping it is the hand-over's manual step before a Work
+   Environment passes to another person.
+3. **A window per thread: `lazurio browser window`.** agent-browser binds a pinned
+   session to one tab but opens it in the most recently used window, and Chrome does
+   not paint a background tab: on 2026-10-05 a screenshot of a background tab on a
+   Remote Environment timed out after 20 s while the foreground tab answered in 0.07 s.
+   agent-browser's `window new` opens an isolated context without the Environment's
+   sign-ins. So the command creates the window itself, in the default context (CDP
+   `Target.createTarget` with `newWindow`), binds the thread's session to it with
+   agent-browser's own `tab <targetId>`, pins it and sizes it with `set viewport`
+   (the view maps pointer events with that viewport). Idempotent: a session whose
+   bound window is still open gets it back. The session name is `--session`, else
+   `AGENT_BROWSER_SESSION` (T3 Code sets it per thread), else `codex-<CODEX_THREAD_ID>`,
+   else `claude-<CLAUDE_CODE_SESSION_ID>`. The command goes when agent-browser opens a
+   pinned session's tab in a new window of the default context itself.
+4. **Agents work with agent-browser** (CLI-first, root 0162): `agent-browser --cdp 9222
+   --session <name> <command>`, explicit in every call. No user-level agent-browser
+   configuration: it would redirect Lazurio MausBot's own browser before its turn
+   (0191, third wave).
+5. **The view and its link.** The view is agent-browser's dashboard behind the
+   gateway's `lazurio_app` route: admission is the gateway's, and the dashboard keeps
+   its own access token and its Origin check (lazurio.io is not a public suffix, so
+   every `*.lazurio.io` app is same-site; the Origin check is the barrier in front of
+   its command endpoint). `GET /.lazurio/browser.json?session=<name>` answers
+   `{available, view, session}` for the panels; `GET /.lazurio/browser?session=<name>`
+   redirects a link's browser to the view. The view's address is the dashboard's
+   origin, the session's window selected by its stream port (from the dashboard's own
+   list on loopback) and the token, read from `agent-browser dashboard start` with
+   the unit's settings, only in the fragment, the way the Launchpad pairs T3 Code and
+   MausBot. `view=.html` works around agent-browser serving `/?port=…` as
+   `application/octet-stream` (vercel-labs/agent-browser#2046).
+6. **Folder manual.** Where the recorded entry has the view, AGENTS.md has one line and
+   `manual/this-machine.md` a section: the window, the commands, the link for the
+   Operator, stopping at a sign-in, 2FA or CAPTCHA for the Operator to take over, the
+   shared sign-ins and the Team line (template revision `base-instructions-29`).
+7. **A fact in doctor.** `environment-browser`: the three units, then the DevTools and
+   the view on loopback; never `fail`, never in `recover`.
+
+**Not decided here.** The Launchpad's right panel (0191 point 8a, #207), the
+Bitwarden extension (#204), the desktop and Computer Use (second wave), an automatic
+profile wipe and per-site sign-out.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| An MCP server or a Lazurio browser tool | Root 0162 and 0191 point 4 (CLI-first, documented tools); rejected |
+| A Chrome per thread (`--session` with its own browser) | Separate sign-ins per thread, against 0191 point 1; rejected |
+| Tabs of one window | A background tab does not paint: its view freezes and its screenshots hang; rejected |
+| agent-browser `window new` | An isolated context without the Environment's sign-ins, never disposed; rejected |
+| `~/.agent-browser/config.json` with `cdp` | Redirects every agent-browser invocation, MausBot's own included; rejected until the third wave |
+| The gateway rewrites Host and Origin to loopback | Removes the dashboard's own Origin check in front of its command endpoint; rejected |
+| A viewer of our own (MausBot's `browser-live`) | Own machinery while the dashboard already shows, lists and takes input; kept as the fallback |
+| Units for the screen, the browser and agent-browser's dashboard, a window per thread through CDP, the dashboard behind the gateway with its token handed over by the Launchpad (selected) | One browser, documented upstream tools, the gap filled by one command and two routes |
+
+Verified by `tests/environment-browser.test.ts` (units, convergence, doctor, view,
+window, CLI, routes), `tests/update-install.test.ts` (convergence with the Codex unit,
+the hosted context asked once) and on a Remote Environment on 2026-10-05: the three
+units rendered here are byte-identical to the ones that ran there under systemd, three
+sessions worked in their own windows of one Chrome with a shared cookie, screenshots
+answered in about 60 ms, and the view of each session was selected by its link.

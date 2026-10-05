@@ -328,7 +328,9 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
   "t3code":    { "external_origin": "https://t3code.<vm>.<org>.lazurio.io" },
   "modules":   { "origin_template": "https://{module}.<vm>.<org>.lazurio.io" },
   "mausbot":   { "external_origin": "https://mausbot.<vm>.<org>.lazurio.io",
-                 "listen_port": 4102 }
+                 "listen_port": 4102 },
+  "browser":   { "external_origin": "https://browser.<vm>.<org>.lazurio.io",
+                 "listen_port": 4848 }
 }
 ```
 
@@ -336,6 +338,12 @@ reads it: a Platform vendoring the earlier schema refuses the whole handover.
 (DEV-6632, decision 0169; pending the Machines pull request that writes it, see
 [the pin](#one-upstream-contract)). Absent, the Machine has no MausBot and the
 Launchpad shows nothing for it.
+
+`browser` is optional and present only on a Machine whose gateway roster routes the
+Environment browser's view (root decision 0191, [F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
+the view's origin and the loopback port its dashboard listens on. It is also the
+signal the installer converges the browser's units on. Absent, the Environment has no
+Environment browser.
 
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
@@ -352,8 +360,10 @@ The binding records it one member to one, as `entry` next to the relationships:
 | `modules.origin_template` | `moduleOriginTemplate` | `{module}` exactly once, as the whole first label; https, no port, path or query |
 | `mausbot.external_origin` | `mausbotOrigin` (optional) | as `externalOrigin` |
 | `mausbot.listen_port` | `mausbotListenPort` (optional) | as `listenPort` |
+| `browser.external_origin` | `browserOrigin` (optional) | as `externalOrigin` |
+| `browser.listen_port` | `browserListenPort` (optional) | as `listenPort` |
 
-The two MausBot fields are recorded both or neither, and absent (never `null`) when the
+The two MausBot fields, like the two browser fields, are recorded both or neither, and absent (never `null`) when the
 handover has no `mausbot`, so an entry recorded from an older handover is unchanged
 byte for byte. A present but invalid `mausbot` refuses the whole handover
 (`machine-context-invalid`), as every other entry value does.

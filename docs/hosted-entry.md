@@ -117,6 +117,7 @@ Machine binding in the Folder, shown and never edited in the Launchpad.
 | Launchpad origin, auth endpoint, cookie name, loopback port | `entry.launchpad.*` | `entry.externalOrigin`, `authCheckUrl`, `authCookieName`, `listenPort` |
 | T3 Code origin | `entry.t3code.external_origin` | `entry.t3codeOrigin` |
 | Lazurio MausBot origin and loopback port (optional) | `entry.mausbot.*` | `entry.mausbotOrigin`, `mausbotListenPort` |
+| Environment browser view origin and loopback port (optional, F38) | `entry.browser.*` | `entry.browserOrigin`, `browserListenPort` |
 | A module's origin | `entry.modules.origin_template` | `entry.moduleOriginTemplate`, filled by `moduleOrigin(template, moduleId)` |
 
 The Platform composes nothing but this one substitution: `moduleOrigin` fills the one
@@ -209,6 +210,12 @@ Lazurio MausBot is entered the same way when the entry records it
 ([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin` is in the
 public parts, the loopback port is not, and the code rides only in the fragment of
 `<mausbotOrigin>/pair`.
+The Environment browser's view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway))
+follows the same pattern: `browserOrigin` is in the public parts, the loopback port is
+not; `GET /.lazurio/browser.json` and the hand-over `GET /.lazurio/browser` answer the
+view's address with the dashboard's access token only in the fragment, behind this
+admission and on the forks' origins too (the gateway forwards `/.lazurio/*` to the
+Launchpad).
 
 ### Files links (decision F35)
 

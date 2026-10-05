@@ -517,6 +517,37 @@ updater and converges nothing; the next `install --base` or update does.
 `skipped`, never `fail`; [doctor](launchpad-development.md#doctor)); `lazurio recover` and
 Recovery mode do not look at it.
 
+**The Environment browser's units ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)).**
+On the same supervised hosted base, and only when the Machine handover's `entry`
+carries `browser` (Machines writes it for a guest whose gateway roster routes
+`browser.`), `install` and `update` ensure three more units the same way, after the
+Codex unit:
+
+- `lazurio-display.service`: `Xvfb :1 -screen 0 1920x1080x24 -nolisten tcp`, the
+  Environment's virtual screen, with a start that waits for the screen's socket;
+  `ConditionFileIsExecutable=/usr/bin/Xvfb` (Machines' package).
+- `lazurio-browser.service`: the newest Chrome for Testing agent-browser installed
+  under `~/.agent-browser/browsers/` (the path Machines' AppArmor profile admits),
+  `exec`'d by `/bin/sh` so Chrome is the unit's main process, headed on `DISPLAY=:1`,
+  profile `~/.local/share/lazurio-browser/profile`, DevTools on loopback port 9222;
+  `BindsTo=`/`After=` the display, `Restart=always`, and `RestartPreventExitStatus=78`
+  for "no Chrome to run".
+- `lazurio-browser-view.service`: `agent-browser dashboard start --port <entry.browser
+  .listen_port> --allowed-origins <entry.browser.external_origin>`, oneshot with
+  `RemainAfterExit=yes`, `KillMode=process`, `ExecStop=` `dashboard stop` and
+  `AGENT_BROWSER_CDP=9222`, so what the dashboard runs uses the Environment browser.
+
+The screen's and the browser's texts name no base, Folder or address; the view's names
+the entry's port and origin. Each is written when its text differs (then one
+`daemon-reload`), all three are enabled and started; `install` and `update` never stop
+or restart the screen or the browser (that would close every agent's window), and
+restart the view only when its own text changed. The result carries
+`environmentBrowser`: `{"state":"enabled"}`, `{"state":"skipped-not-hosted"}`,
+`{"state":"skipped-not-declared"}` (no `entry.browser`; nothing is written or stopped),
+`{"state":"foreign-unit","unit","next"}` or `{"state":"failed","step","next"}`; never a
+reason to fail. The hosted context is asked once for both convergences. `lazurio
+doctor` reports it as `environment-browser`.
+
 ## Offline update
 
 A Machine delivered by Machines receives the Platform from a custody-staged,
