@@ -20,7 +20,10 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   Folder's content lock is held outside this Launchpad), `403` when this
 //   Environment does not install that content (`{ "error": "not-allowed",
 //   "reason": … }`);
-// - `GET /api/content/jobs/<id>`: `{ id, state, steps, failure? }`.
+// - `GET /api/content/jobs/<id>`: `{ id, state, steps, failure? }`;
+// - `GET /api/content/jobs/latest`: the newest job of this Launchpad in the
+//   same shape, `404` before the first one, so every browser of the
+//   Environment sees the same last installation.
 // An Organization's scope follows the person's role, which the request does
 // not carry: the core resolves it live from GitHub through gh (an Owner's
 // membership, `maintain` or `write` on the root repository) and fails closed
@@ -131,7 +134,12 @@ export function createContentRoutes(
       const job = jobRoute.exec(url.pathname);
       if (request.method !== "GET")
         return response({ error: "method-not-allowed" }, 405);
-      const found = job === null ? undefined : jobs.get(job[1] as string);
+      const found =
+        url.pathname === "/api/content/jobs/latest"
+          ? jobs.latest()
+          : job === null
+            ? undefined
+            : jobs.get(job[1] as string);
       return found === undefined
         ? response({ error: "not-found" }, 404)
         : response(found);

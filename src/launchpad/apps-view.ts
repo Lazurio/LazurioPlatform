@@ -11,7 +11,6 @@ import {
   semanticAppIconKey,
   stoneOf,
 } from "../shell/stones";
-import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import {
   type CatalogGroupEntry,
   type CatalogModuleEntry,
@@ -31,35 +30,6 @@ import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
-
-/** Reuse Settings > Tools' observed sign-in. Neither an empty catalog nor
- * an unavailable probe means signed out; Teams use brokered GitHub. */
-export function appsGithubNotice(
-  overview:
-    | (Pick<ToolsOverview, "revision" | "sharedEnvironment"> &
-        Readonly<{
-          tools: readonly Pick<ToolOverview, "name" | "installed" | "signIn">[];
-        }>)
-    | null,
-  copy: Copy,
-  currentRevision: number | null,
-) {
-  const github = overview?.tools.find((tool) => tool.name === "gh");
-  if (
-    currentRevision === null ||
-    overview?.revision !== currentRevision ||
-    overview.sharedEnvironment !== false ||
-    !github?.installed ||
-    github.signIn?.state !== "signed-out"
-  )
-    return null;
-  return {
-    title: copy.appsGithubSignInTitle,
-    description: copy.appsGithubSignInDescription,
-    action: copy.appsGithubSignInAction,
-    href: "/settings/tools",
-  } as const;
-}
 
 // Pure presentation of the Apps home and its column (decision F36 and its
 // addendum of 2026-10-04): one Organization at a time, its name on top and

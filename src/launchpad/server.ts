@@ -54,7 +54,9 @@ import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
 import { createContentRoutes } from "./content-routes";
+import { prepareContext } from "./content-view";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
+import { signsInAsPerson } from "./first-run";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
 import { BodyTooLarge, readJsonBody } from "./json-body";
@@ -64,11 +66,19 @@ import { createMaintainerCheck } from "./module-maintainer";
 import { createOwnerCheck } from "./organization-owner";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import {
+  isOrganizationPrompt,
   isPromptId,
+  prepareContentDocument,
   promptAudience,
   promptDocument,
   promptOrganization,
 } from "./prompts";
+import {
+  type ContentReader,
+  createGithubProbe,
+  readContent,
+  shellSetup,
+} from "./setup-state";
 import { shellDocument } from "./shell-document";
 import {
   checkBundledPage,
@@ -237,6 +247,10 @@ export async function startLaunchpad(
   // module core's preparation. Trusted composition, never HTTP input; tests
   // supply a stub GitHub and local repositories.
   contentHost?: ContentHost | undefined,
+  // What the shell document's `setup` and the prompt `prepare-content` read
+  // about the content (root decision 0188, setup-state.ts): the content
+  // routes below, unless tests supply a stub.
+  contentReader?: ContentReader | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -289,6 +303,11 @@ export async function startLaunchpad(
   const owners = createOwnerCheck(toolsEnvironment);
   const maintainers = createMaintainerCheck(toolsEnvironment);
   const chatPrompts = createChatPromptCheck(toolsEnvironment);
+  // What this Environment still lacks (root decision 0188), for the shell
+  // document's `setup` and the prompt `prepare-content`: GitHub's sign-in of
+  // its person, kept a minute, and its content as the content routes report
+  // it (below).
+  const github = createGithubProbe(toolsEnvironment);
   let closing = false;
   const headers = {
     "Cache-Control": "no-store",
@@ -312,6 +331,7 @@ export async function startLaunchpad(
         prepare: async (name) => preparationAnswer(await modules.prepare(name)),
       }),
   });
+  const contentState: ContentReader = contentReader ?? content;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: entry === null ? 0 : entry.listenPort,
@@ -391,13 +411,30 @@ export async function startLaunchpad(
           const current = await withFolderReadLock(state, () =>
             readFolderState(state),
           );
+          const preset = current.preferences.preset.name;
+          // GitHub and the content only where the Environment signs in as
+          // its person; the first answer of `gh` is awaited a few seconds
+          // at most (setup-state.ts).
+          server.timeout(request, 30);
+          const [catalog, setup] = await Promise.all([
+            readFolderCatalog(folder),
+            signsInAsPerson(preset)
+              ? Promise.all([github.state(), readContent(contentState)])
+                  .then(([state, read]) =>
+                    shellSetup({ preset, github: state, ...read }),
+                  )
+                  // What the Environment lacks never costs the rail.
+                  .catch(() => undefined)
+              : undefined,
+          ]);
           return response(
             shellDocument({
-              preset: current.preferences.preset.name,
+              preset,
               machine: current.preferences.machine,
               locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
-              catalog: await readFolderCatalog(folder),
+              catalog,
               computer: hostname(),
+              ...(setup === undefined ? {} : { setup }),
             }),
           );
         } catch {
@@ -416,12 +453,39 @@ export async function startLaunchpad(
         const notFound = () => response({ error: "not-found" }, 404);
         const id = promptRequest[1] as string;
         const login = url.searchParams.get("org");
-        if (
-          !isPromptId(id) ||
-          login === null ||
-          [...url.searchParams.keys()].length !== 1
-        )
+        const keys = [...url.searchParams.keys()];
+        if (!isPromptId(id) || keys.some((key) => key !== "org"))
           return notFound();
+        if (!isOrganizationPrompt(id)) {
+          // The Folder's prompt (`prepare-content`): only on an Environment
+          // that signs in as its person, only while the last installation
+          // stopped, and, when the link names a login, only for the content
+          // of that login (the Organization, or the person for the
+          // Personalspace).
+          if (keys.length > 1) return notFound();
+          try {
+            const current = await withFolderReadLock(state, () =>
+              readFolderState(state),
+            );
+            if (!signsInAsPerson(current.preferences.preset.name))
+              return notFound();
+            const copy = messages(
+              current.preferences.profile.locale === "cs" ? "cs" : "en",
+            );
+            const read = await readContent(contentState);
+            const context = prepareContext(read.list, read.job, copy);
+            if (
+              context === null ||
+              (login !== null &&
+                context.login?.toLowerCase() !== login.toLowerCase())
+            )
+              return notFound();
+            return response(prepareContentDocument(folder, context, copy));
+          } catch {
+            return notFound();
+          }
+        }
+        if (login === null || keys.length !== 1) return notFound();
         try {
           const organization = promptOrganization(
             await readFolderCatalog(folder),
@@ -778,11 +842,13 @@ export async function startLaunchpad(
           const value = stateFields(input, withSignIn ? ["signIn"] : []);
           if (withSignIn && typeof value.signIn !== "boolean")
             return response({ error: "invalid-sign-in" }, 400);
-          return response(
-            await toolsOverview(folder, toolsEnvironment, {
-              signIn: value.signIn === true,
-            }),
-          );
+          const overview = await toolsOverview(folder, toolsEnvironment, {
+            signIn: value.signIn === true,
+          });
+          // The shell document's GitHub follows this reading.
+          const gh = overview.tools.find((tool) => tool.name === "gh");
+          if (gh !== undefined) github.remember(gh.installed, gh.signIn);
+          return response(overview);
         }
         if (
           url.pathname.startsWith("/api/tools/") &&
@@ -866,6 +932,8 @@ export async function startLaunchpad(
             tool === "gh"
               ? githubRefusal(await folderPreset(folder), tool, action, logins)
               : undefined;
+          // A sign-in or sign-out of gh changes what the shell says.
+          if (tool === "gh") github.forget();
           if (url.pathname === "/api/tools/logout") {
             // gh first removes this Machine's SSH key from the account.
             server.timeout(request, 180);

@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  appsGithubNotice,
   appsScope,
   appsScopes,
   appsSections,
@@ -518,102 +517,4 @@ test("every vendored file has the hash its README records", async () => {
     const bytes = await readFile(join(directory, file ?? ""));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(hash ?? "");
   }
-});
-
-// An empty Apps catalog does not establish whether GitHub is signed in.
-// Apps consumes the same observed status as Settings > Tools.
-test("Apps directs a confirmed signed-out GitHub to the existing Tools flow", () => {
-  const status = {
-    revision: 1,
-    sharedEnvironment: false,
-    tools: [
-      { name: "gh", installed: true, signIn: { state: "signed-out" as const } },
-    ],
-  };
-  expect(appsGithubNotice(status, cs, 1)).toEqual({
-    title: "Přihlas se ke GitHubu",
-    description: cs.appsGithubSignInDescription,
-    action: cs.appsGithubSignInAction,
-    href: "/settings/tools",
-  });
-  expect(appsGithubNotice(status, en, 1)?.title).toBe("Sign in to GitHub");
-  expect(
-    appsGithubNotice({ ...status, sharedEnvironment: true }, cs, 1),
-  ).toBeNull();
-  for (const signIn of [
-    undefined,
-    { state: "unknown" as const },
-    { state: "signed-in" as const },
-  ])
-    expect(
-      appsGithubNotice(
-        {
-          ...status,
-          tools: [
-            {
-              name: "gh",
-              installed: true,
-              ...(signIn === undefined ? {} : { signIn }),
-            },
-          ],
-        },
-        cs,
-        1,
-      ),
-    ).toBeNull();
-  expect(appsGithubNotice(null, cs, 1)).toBeNull();
-  expect(appsGithubNotice({ ...status, tools: [] }, cs, 1)).toBeNull();
-  expect(
-    appsGithubNotice(
-      {
-        ...status,
-        tools: [
-          {
-            name: "gh",
-            installed: false,
-            signIn: { state: "signed-out" as const },
-          },
-        ],
-      },
-      cs,
-      1,
-    ),
-  ).toBeNull();
-  expect(
-    appsGithubNotice(
-      {
-        ...status,
-        tools: [
-          {
-            name: "codex",
-            installed: true,
-            signIn: { state: "signed-out" as const },
-          },
-        ],
-      },
-      cs,
-      1,
-    ),
-  ).toBeNull();
-});
-
-test("Apps never reuses a Tools observation across a personal/Team profile revision", () => {
-  const personal = {
-    revision: 1,
-    sharedEnvironment: false,
-    tools: [
-      { name: "gh", installed: true, signIn: { state: "signed-out" as const } },
-    ],
-  };
-  // The new profile is rendered before its delayed Tools response arrives.
-  expect(appsGithubNotice(personal, cs, 1)).not.toBeNull();
-  expect(appsGithubNotice(personal, cs, 2)).toBeNull();
-  const team = { ...personal, revision: 2, sharedEnvironment: true };
-  expect(appsGithubNotice(team, cs, 2)).toBeNull();
-  // Neither the Team observation nor a late old personal response can be
-  // reused on the next personal revision; wait for its own observation.
-  expect(appsGithubNotice(team, cs, 3)).toBeNull();
-  expect(appsGithubNotice(personal, cs, 3)).toBeNull();
-  expect(appsGithubNotice({ ...personal, revision: 3 }, cs, 3)).not.toBeNull();
-  expect(appsGithubNotice(personal, cs, null)).toBeNull();
 });

@@ -3,6 +3,8 @@ import type { ToolSignIn } from "../tools/status";
 import type { MessageKey } from "./messages";
 import {
   answerWithin,
+  autoEnable,
+  connectionLine,
   curatedActions,
   currentNotes,
   installOutcome,
@@ -14,6 +16,7 @@ import {
   loginProgress,
   loginStepOrder,
   loginSteps,
+  loginTitle,
   logoutOutcome,
   nextNotes,
   nextSelection,
@@ -23,7 +26,6 @@ import {
   parseToolsOverview,
   qrImageSource,
   signedInMessage,
-  signInLine,
   sourceLink,
   sshOutcome,
   type ToolChange,
@@ -31,6 +33,7 @@ import {
   takesNote,
   teamInstallOutcome,
   toolChangeOutcome,
+  toolDescription,
   toolGroups,
   toolStatusView,
 } from "./tools-view";
@@ -77,7 +80,7 @@ export function createToolsPanel(
   const dialogClose = find<HTMLButtonElement>("#tools-prompt-close");
   const dialogStatus = find<HTMLSpanElement>("#tools-prompt-status");
   const loginDialog = find<HTMLDialogElement>("#tools-login");
-  const loginTitle = find<HTMLHeadingElement>("#tools-login-title");
+  const loginHeading = find<HTMLHeadingElement>("#tools-login-title");
   const loginStepList = find<HTMLOListElement>("#tools-login-steps");
   const loginStatus = find<HTMLParagraphElement>("#tools-login-status");
   const loginBody = find<HTMLDivElement>("#tools-login-body");
@@ -284,19 +287,12 @@ export function createToolsPanel(
       challenge: null,
       qr: null,
     };
-    loginTitle.textContent = fill(
-      mode === "install"
-        ? copy.toolsLoginTitleInstall
-        : mode === "ssh"
-          ? copy.toolsLoginTitleSsh
-          : copy.toolsLoginTitle,
-      { name: tool.name },
-    );
+    loginHeading.textContent = loginTitle(tool.name, mode, copy);
     loginStatus.textContent = "";
     loginBody.replaceChildren();
     if (typeof loginDialog.showModal === "function") loginDialog.showModal();
     else loginDialog.setAttribute("open", "");
-    loginTitle.focus();
+    loginHeading.focus();
     if (overview?.sharedEnvironment === true) {
       // Everyone on a shared Environment uses what is signed in here.
       phase("confirm", copy.toolsShared);
@@ -466,17 +462,32 @@ export function createToolsPanel(
       box.textContent = value;
       return box;
     };
+    // The provider's page, as the dialog's primary button (the
+    // wireframe's "Otevřít GitHub"), in a new tab.
     const link = (href: string, label: string) => {
-      const anchor = element("a", "", label);
+      const anchor = element("a", "button primary tools-open", label);
       anchor.href = href;
       anchor.target = "_blank";
       anchor.rel = "noopener noreferrer";
-      const row = element("p", "");
+      const row = element("p", "tool-actions");
       row.append(anchor);
       return row;
     };
     if (challenge.kind === "device-code") {
       const url = loginLink(challenge.url, "github.com");
+      // The code and a button that copies it, only when the person clicks.
+      const row = element("div", "tools-code-row");
+      const copyCode = element("button", "", copy.toolsLoginCopyCode);
+      copyCode.type = "button";
+      copyCode.addEventListener("click", () => {
+        void navigator.clipboard.writeText(challenge.code).then(
+          () => {
+            copyCode.textContent = copy.toolsLoginCodeCopied;
+          },
+          () => undefined,
+        );
+      });
+      row.append(code(challenge.code, copy.toolsLoginCodeLabel), copyCode);
       loginBody.replaceChildren(
         element(
           "p",
@@ -485,9 +496,9 @@ export function createToolsPanel(
             ? copy.toolsLoginRefreshText
             : copy.toolsLoginGhText,
         ),
-        element("p", "tools-muted", copy.toolsLoginCodeLabel),
-        code(challenge.code, copy.toolsLoginCodeLabel),
+        row,
         ...(url === null ? [] : [link(url, copy.toolsLoginGhLink)]),
+        element("p", "tools-muted", copy.toolsLoginGhHint),
       );
       return;
     }
@@ -563,6 +574,27 @@ export function createToolsPanel(
     return form;
   }
 
+  // "Hotovo": closes the dialog of a finished sign-in.
+  function doneRow(): HTMLElement {
+    const row = element("p", "tool-actions tools-login-done");
+    const done = element("button", "primary", options.copy().toolsLoginDone);
+    done.type = "button";
+    done.addEventListener("click", () => loginDialog.close());
+    row.append(done);
+    return row;
+  }
+
+  // A sign-in completed in this Launchpad session turns "Používají agenti"
+  // on (Matěj 2026-10-04), after the reading that follows it, so the change
+  // is made at the current revision; never for a tool signed in before.
+  function afterSignIn(name: string, state: LoginView) {
+    void refresh({ signIn: true }).then(() => {
+      const tool = overview?.tools.find((entry) => entry.name === name);
+      if (tool !== undefined && autoEnable(tool, state))
+        void toggle(tool, true);
+    });
+  }
+
   function signedIn(state: LoginView) {
     const current = flow;
     if (current === null) return;
@@ -579,8 +611,14 @@ export function createToolsPanel(
     }
     if (ssh !== null) {
       phase("signed-in", ssh.message);
-      loginBody.replaceChildren(element("p", "tools-muted", ssh.detail));
-      void refresh({ signIn: true });
+      // Which key it uses is for support: folded.
+      const more = element("details", "tools-login-more");
+      more.append(
+        element("summary", "", copy.contentDetails),
+        element("p", "tools-muted", ssh.detail),
+      );
+      loginBody.replaceChildren(more, doneRow());
+      afterSignIn(current.tool.name, state);
       return;
     }
     const message = signedInMessage(state, copy);
@@ -591,10 +629,11 @@ export function createToolsPanel(
       !(state.kind === "signed-in" && state.already === true)
         ? [element("p", "tools-muted", copy.toolsLoginWacliSync)]
         : []),
+      doneRow(),
     );
     if (current.tool.name === "composio") void organizations();
     // The card's sign-in line follows.
-    void refresh({ signIn: true });
+    afterSignIn(current.tool.name, state);
   }
 
   async function organizations() {
@@ -605,7 +644,7 @@ export function createToolsPanel(
     const status = element("p", "tools-muted", copy.toolsComposioOrgLoading);
     status.setAttribute("aria-live", "polite");
     box.append(status);
-    loginBody.append(box);
+    loginBody.insertBefore(box, loginBody.querySelector(".tools-login-done"));
     let value: unknown = null;
     try {
       ({ value } = await options.post("/api/tools/composio/organizations", {}));
@@ -831,10 +870,11 @@ export function createToolsPanel(
     return box;
   }
 
-  // One settings row per tool (the row pattern of T3 Code's settings): name,
-  // purpose and state on the left, the one action and the switch on the
-  // right; the path, what agents are told, the note and the agent's prompt
-  // behind "Details".
+  // One settings row per tool (the row pattern of T3 Code's settings): its
+  // real name, one plain sentence on what it is for and whether it is
+  // connected (Matěj 2026-10-04) on the left, the one action and the switch
+  // on the right; the version, the path, what agents are told, the note and
+  // the agent's prompt behind "Details".
   function card(tool: ToolOverview, copy: Copy): HTMLLIElement {
     const item = element("li", "row");
     item.dataset.tool = tool.name;
@@ -843,70 +883,29 @@ export function createToolsPanel(
     const title = element("h3", "row-title", tool.name);
     if (tool.command !== tool.name)
       title.append(element("code", "", tool.command));
-    text.append(title, element("p", "row-desc", tool.purpose));
+    text.append(title, element("p", "row-desc", toolDescription(tool, copy)));
 
     const view = toolStatusView(tool, copy, overview?.hosted === true);
-    const status = element("p", "row-status");
-    const headline = element("span", "tool-state", view.headline);
-    headline.dataset.state = view.state;
-    const separator = element("span", "", " · ");
-    separator.setAttribute("aria-hidden", "true");
-    // The sign-in, and for gh the SSH key as its own part of the same line
-    // (version · signed in as X · SSH key linked), so a key that is not
-    // linked can carry the warning colour.
-    const ssh = tool.signIn?.ssh;
     // On a Team Environment gh working as the Organization's App identity
     // reads "Works as lazurio-for-github[bot]".
     const team = overview?.sharedEnvironment === true;
-    const who =
-      tool.signIn === undefined || ssh === undefined
-        ? signInLine(tool, copy, team)
-        : signInLine(
-            {
-              ...tool,
-              signIn: {
-                state: tool.signIn.state,
-                ...(tool.signIn.account === undefined
-                  ? {}
-                  : { account: tool.signIn.account }),
-                ...(tool.signIn.organization === undefined
-                  ? {}
-                  : { organization: tool.signIn.organization }),
-                ...(tool.signIn.identity === undefined
-                  ? {}
-                  : { identity: tool.signIn.identity }),
-              },
-            },
-            copy,
-            team,
-          );
-    const signIn = element("span", "tool-signin", who);
-    signIn.dataset.state = tool.signIn?.state ?? "unchecked";
-    status.append(headline, separator, signIn);
-    if (ssh !== undefined) {
+    const line = connectionLine(tool, copy, team);
+    const status = element("p", "row-status");
+    const signIn = element("span", "tool-signin", line.text);
+    signIn.dataset.state = line.state;
+    status.append(signIn);
+    // gh's SSH key, as its own part of the line, only when it needs the
+    // person (not linked, in the warning colour) or on a Team Environment.
+    const ssh = tool.signIn?.ssh;
+    if (line.ssh !== null && ssh !== undefined) {
       const dot = element("span", "", " · ");
       dot.setAttribute("aria-hidden", "true");
-      // A Team Environment works in GitHub through Lazurio for GitHub: its
-      // gh line says so instead of inviting a person to link a key.
-      const key = element(
-        "span",
-        "tool-ssh",
-        overview?.sharedEnvironment === true
-          ? copy.toolsSshTeam
-          : ssh.state === "linked"
-            ? copy.toolsSshLinked
-            : ssh.state === "not-linked"
-              ? copy.toolsSshNotLinked
-              : copy.toolsSshUnknown,
-      );
-      key.dataset.state =
-        overview?.sharedEnvironment === true ? "team" : ssh.state;
+      const key = element("span", "tool-ssh", line.ssh);
+      key.dataset.state = team ? "team" : ssh.state;
       status.append(dot, key);
     }
     text.append(status);
-    for (const note of view.notes)
-      text.append(element("p", "row-status tool-attention", note));
-    if (tool.name === "gh" && overview?.sharedEnvironment === true) {
+    if (tool.name === "gh" && team) {
       // Not a warning here: a Team Environment is not signed in personally.
       signIn.dataset.state = "team";
       text.append(element("p", "tool-team", copy.toolsTeamGithub));
@@ -1023,6 +1022,23 @@ export function createToolsPanel(
       fill(copy.toolsDetailsNamed, { name: tool.name }),
     );
     const body = element("div", "details-body");
+    // The installation: version, anything to look at, where it is, and for
+    // gh whether the SSH key of this Environment is linked.
+    const installation = element("section", "");
+    const headline = element("p", "tool-state", view.headline);
+    headline.dataset.state = view.state;
+    installation.append(element("h4", "", copy.toolsInstallLabel), headline);
+    for (const note of view.notes)
+      installation.append(element("p", "tool-attention", note));
+    if (ssh !== undefined && !team && line.ssh === null)
+      installation.append(
+        element(
+          "p",
+          "tools-muted",
+          ssh.state === "linked" ? copy.toolsSshLinked : copy.toolsSshUnknown,
+        ),
+      );
+    body.append(installation);
     if (view.path !== null) {
       const where = element("section", "");
       where.append(
@@ -1318,6 +1334,24 @@ export function createToolsPanel(
     notice = null;
     void refresh({ signIn: true });
   });
+
+  /** Opens a tool's sign-in as its row's "Připojit" does, when the row
+   * offers one: the arrival of "Připojit GitHub" from the line in Apps or
+   * the shell's column head (root decision 0188). True when it opened. */
+  function openSignIn(name: string): boolean {
+    if (overview === null || busy || loginDialog.open) return false;
+    const tool = overview.tools.find((entry) => entry.name === name);
+    if (tool === undefined) return false;
+    const { primary } = curatedActions(
+      tool,
+      options.copy(),
+      overview.sharedEnvironment === true,
+    );
+    if (primary === null || primary.mode === "install-only") return false;
+    openLogin(tool, primary.mode);
+    return true;
+  }
+
   render();
-  return { refresh };
+  return { refresh, openSignIn };
 }

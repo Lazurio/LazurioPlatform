@@ -176,6 +176,16 @@ nav.switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; pad
 a.tab:hover { color: var(--shell-ink); }
 .tab[aria-current="page"] { background: var(--shell-raised); box-shadow: var(--shell-raised-shadow); color: var(--shell-ink); }
 .tab[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+/* The line under the switch until the Environment is usable (root decision
+   0188): one sentence and its buttons, in the host's colours; a stopped
+   preparation in the danger colour. */
+.setup { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border: 1px solid var(--shell-line); border-radius: var(--lz-radius-md); color: var(--shell-ink); font-size: 12.5px; line-height: 1.35; }
+.setup > svg { flex: none; color: var(--shell-ink-muted); }
+.setup-text { flex: 1 1 calc(100% - 26px); min-width: 0; }
+.setup-links { display: flex; flex-wrap: wrap; gap: 4px 12px; padding-left: 24px; }
+.setup-link { color: var(--shell-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; }
+.setup[data-tone="failed"] { border-color: color-mix(in oklab, var(--lz-danger) 55%, transparent); }
+.setup[data-tone="failed"] > svg { color: var(--lz-danger); }
 /* A dark host without colour roles (data-host-tone="dark", from
    --lazurio-host-tone or the host's background): no frame, light text, a
    translucent hover. A role the host sets wins. The marks and the list
@@ -198,6 +208,7 @@ a.tab:hover { color: var(--shell-ink); }
   .gear { width: 40px; height: 40px; }
   nav.switch { grid-template-columns: 1fr; }
   .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .setup { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .pick > svg { transition: none; } }
 `;

@@ -224,7 +224,7 @@ test("the Launchpad's Team gh row offers Sign out exactly for a person's account
     "Pracuje jako lazurio-for-github[bot]",
   );
   expect(signInLine(bot, copy, false)).toBe(
-    "Signed in as lazurio-for-github[bot]",
+    "Connected as lazurio-for-github[bot]",
   );
   expect(
     signInLine(
@@ -232,7 +232,7 @@ test("the Launchpad's Team gh row offers Sign out exactly for a person's account
       copy,
       true,
     ),
-  ).toBe("Signed in as annavesela");
+  ).toBe("Connected as annavesela");
   // "Install" on the Team row ends with the Team sentence, not a sign-in.
   expect(
     teamInstallOutcome(

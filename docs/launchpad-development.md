@@ -440,6 +440,23 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04); `tests/shell-interface.test.ts` keeps every promised name.
+- **What the Environment still lacks** (root decision 0188, additive in v1): the
+  document's optional `setup` for the current Environment, `{github: "connected" |
+  "missing", content?: "ready" | "missing" | "failed", item?: {kind: "organization",
+  name, login} | {kind: "personalspace", login | null}}`. Present only where the
+  Environment signs in as its person and gh's state is known (`setup-state.ts`: this
+  Environment's `gh`, kept a minute and replaced by Nástroje's readings and every
+  sign-in or sign-out through the Launchpad); `content` only where the content routes
+  answer, `item` the first content not here or the one that stopped. `parseShell`
+  takes it absent, null or in its exact shape and refuses the document otherwise, as
+  for every known member. `<lazurio-column-head>` shows it as one line under the switch
+  in Chat and Automate only (`columnSetupLine` in `view.ts`): "Bez GitHubu agenti
+  nepracují." · "Připojit GitHub", "<Organizace> tu ještě není." · "Stáhnout", "Osobní
+  prostor tu ještě není." · "Připravit", "Příprava se zastavila." · "Vyřešit v Chatu"
+  (Chat's origin with `#lazurio-prompt=prepare-content&lazurio-org=<login>`, the page
+  reloaded when only its fragment differs, so the fork reads it as it starts) and
+  "Zkusit znovu". The buttons lead to the Launchpad's Settings with a start request.
+  No attribute, event or property of the interface changes.
 - **Colours** (F36's addendum of 2026-10-04, evening; root decision 0187). The elements
   have no palette of their own: they take the colours of the app they sit in. A host
   sets the colour roles below as custom properties on its document (`:root`), from its
@@ -496,8 +513,18 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   the fragment token locally), answers `application/json`, `Cache-Control: no-store`:
   `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
   person's language (the Folder's profile locale), `cwd` the absolute root of the
-  Organization on this Environment (`<Folder>/organizations/<directory>`). Only the id
-  `new-module` exists (`src/launchpad/prompts.ts`, its text `newModulePrompt`); the
+  Organization on this Environment (`<Folder>/organizations/<directory>`). Two ids
+  exist (`src/launchpad/prompts.ts`). `prepare-content` ("Vyřešit v Chatu", root
+  decision 0188) is the Folder's: only where the Environment signs in as its person,
+  only while the last installation the content routes report stopped, its text the
+  wireframe's `preparePrompt` with the step and the detail of that stop (find the
+  cause, fix it, finish with `lazurio organization install <login>` or `lazurio
+  personalspace install`, verify with `lazurio doctor` and the modules' tests, report,
+  ask before anything outside the Environment), its `cwd` the Lazurio Folder's root
+  (the Organization may not be here yet). Its `org` is optional and, when given, must
+  be the login of the content that stopped (the Organization's, or the person's for the
+  Personalspace); today's fork sends it with every link. `new-module` is an
+  Organization's (its text `newModulePrompt`); the
   Organization is the one Organization of the Folder whose manifest binds that GitHub
   login. Each prompt names who may get it: `new-module` only where this Environment's
   GitHub identity is an Owner of the Organization, the tile's live check
@@ -572,7 +599,7 @@ the frame.
 | Environment profile: Workspace preset, Language, Detail, Coordination, Preview, Apply previewed change, the status line | Settings → General, one group of rows; Preview and Apply in its last row |
 | Reload profile | Settings → General, page action in the header |
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
-| This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"), one row per recorded fact |
+| This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"): "Obsah Environmentu", then the kind, whom it belongs to and who works in it in a person's words, the recorded technical facts folded under "Pro podporu" (root decision 0188) |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
 | Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
@@ -1358,24 +1385,32 @@ the profile is loaded (with `signIn: true`, so the sign-in probes run), after ev
 change (without them; the last known sign-ins stay on the cards) and on "Refresh
 status" (with them again), and shows:
 
-- a short introduction: what tools are, that "Used by agents" guides the agents on this
-  Environment to use a tool, and that installing, uninstalling, signing in and signing
-  out are separate acts (Matěj's wording, 2026-09-28; said once per page, not
-  on every row);
+- no introduction (root decision 0188, Matěj 2026-10-04: no paragraph that only
+  restates the page); each tier's note is one short line: "Bez nich tu nic nefunguje.",
+  "Hodí se skoro každému.", "Zapni jen to, co používáš.";
 - on a shared Environment (the Team preset) the warning that signed-in accounts are
   shared by all operators; it is repeated in the confirmation of an enable;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
-  a settings group of rows. A row carries on the left the tool's name, its one-line
-  purpose and one status line (installed version or "not installed", then the
-  sign-in), a failed version check below it, and on the right the one action
-  ("Install and sign in", "Sign in", "Link SSH key" before "Sign out", "Sign out" or,
-  for a tool an agent sets up, "Set up with an agent") and the switch with its visible
-  label "Used by agents" / "Používají agenti" ("Always on" for a required tool). The sign-in reads: "Signed in as <account>" (with the
-  organization for composio), "Signed in", "Not signed in", "Sign-in unknown" or
-  "Sign-in not checked"; for gh the line goes on with "· SSH key linked", "· SSH key
-  not linked" (in the warning colour) or "· SSH key not verified" (F19 addendum
-  2026-09-28), and a signed-in gh whose key is not linked shows "Link SSH key" as the
-  row's primary action. On a Team Environment (the preset `hosted-organization-team`,
+  a settings group of rows. A row carries on the left the tool's real name (gh,
+  composio, wacli, gogcli, neon: what an agent says and what is searched for), one
+  plain sentence on what it is for (root decision 0188; `toolDescription` in
+  `tools-view.ts`, a page-only text: the catalog's `activation.purpose` is rendered into
+  the agents' generated files and stays as it is) and one line of its state
+  (`connectionLine`): "Připojeno jako <account>" / "Connected as <account>" (with the
+  organization for composio), "Nepřipojeno", "Připojení nezjištěno", "Připojení se
+  nezjišťovalo", or "Ještě není přidané" when it is not installed. The installed
+  version, a failed version check, a PATH outside the standard and whether gh's SSH key
+  is linked are in its Details; only a key that is not linked stays on the line, in
+  the warning colour. On the right the one action ("Připojit" / "Connect"; "Přidat a
+  připojit" / "Add and connect" when it is not installed yet; "Link SSH key" before
+  "Odpojit" / "Disconnect"; or, for a tool an agent sets up, "Připojit s pomocí agenta" /
+  "Connect with an agent") and the switch with its visible label
+  "Used by agents" / "Používají agenti" ("Always on" for a required tool). A signed-in
+  gh whose key is not linked shows "Link SSH key" as the row's primary action. A
+  sign-in completed in this Launchpad session turns the switch on (`autoEnable`, Matěj
+  2026-10-04): after the reading that follows the sign-in, so the change is made at the
+  current revision, never for a tool that was signed in before (`already`), and the
+  person may turn it off again. On a Team Environment (the preset `hosted-organization-team`,
   the shared case) the gh row has no "Sign in" or "Link SSH key", and "Install" instead
   of "Install and sign in" while gh is missing (its notice ends with the Team
   sentence); a subdued sentence says that this Team Environment works in GitHub through
@@ -1566,15 +1601,86 @@ upload with its progress and a taken name, the drop overlay, an empty and a miss
 folder, light and dark, a 390 px wide screen with its sheet, and Czech, without page
 errors.
 
-## GitHub sign-in guidance on Apps
+## First run of an Environment
 
-Apps reads the same in-memory Tools overview as Settings, including its first
-sign-in probe and refresh after login/logout. The observation must match the
-currently rendered profile revision: a delayed answer from a prior personal or
-Team preset is ignored until Tools reports the new revision. An installed `gh` reported as signed
-out displays a nonblocking Czech/English notice linking to `/settings/tools`, where
-the existing curated GitHub login runs. Existing apps and Chat remain available.
-An unknown, unprobed or failed status never claims the person is signed out, and a
-Team Environment never offers personal GitHub login. This adds no probe, API,
-credential store or automatic Organization clone. An empty catalog alone is not
-an authentication failure; without a sign-in notice it says there are no apps yet.
+Root decision 0188 (Matěj 2026-10-04), after the wireframe of
+HumanAndMachine-ai/prototypes-lazurio 45c92830 (`setup.tsx`, `screens/Tour.tsx`,
+`screens/Prepare.tsx`). Only where the Environment signs in to GitHub as its person:
+the presets `hosted-personal`, `hosted-organization-personal` and `local`. A Team or an
+Automated Environment acts through the Organization's app or its persona and gets none
+of it.
+
+- **The facts** are read live, never stored: GitHub from Settings → Nástroje's own
+  reading of the profile shown (`githubFact` in `first-run.ts`: an unknown, unprobed,
+  stale or Team reading says nothing; gh not installed is missing, "Připojit" installs
+  it first), Composio from the same reading, and the content from the content routes
+  (`content-client.ts`, `content-view.ts`).
+- **The line** (`appsSetupLine`): until GitHub and the content are there, Apps says it in
+  one line under the head with its buttons: "GitHub není připojený. Bez něj tu nic
+  nefunguje." · "Připojit GitHub"; "<Organizace> tu ještě není." · "Stáhnout"; "Osobní
+  prostor tu ještě není." · "Připravit"; "Příprava se zastavila." · "Vyřešit v Chatu",
+  "Zkusit znovu". No empty card beside it. Chat and Automate show it in the shell's
+  column head from the shell document's `setup` (below), so the forks' own interface
+  does not change.
+- **Start requests.** A button of the line leads to Settings, where the action starts
+  on arrival: `/settings/tools#lazurio-start=sign-in-gh` opens gh's sign-in once Nástroje
+  have read gh, `/settings/machine#lazurio-start=install-content` starts the
+  installation once the content is read and something is missing. Within the page the
+  request travels in memory; from Chat or Automate the column head links to the
+  Launchpad's origin (`apps` of the shell document) with the fragment. `readFragment`
+  takes the fragment apart: the request, and the rest, which locally is the session
+  token (`#<token>&lazurio-start=…`).
+- **The tour** (`tour.ts` over the rules of `first-run.ts`): a ring around a real
+  element (the column head's gear and tabs carry `data-tour`) and a bubble beside it
+  with at most a dozen words; the layer lets every click through, so the person does
+  each step. Stops: gear → Settings; Nástroje → "Připojit" at gh; Composio with "Teď
+  ne"; Tento Environment → "Stáhnout" / "Připravit"; then Apps, Chat, Automate and the
+  gear ("Nastavení je vždycky tady"). "Ukončit" puts it away; it steps aside while a
+  dialog is open and waits while its element is not on the page (a preparation that
+  runs); a stopped preparation belongs to the line and Chat, so the tour waits for it
+  in Settings.
+- **Where the progress lives.** In this browser's `localStorage`, per Environment
+  (`lazurio.tour:<Environment id>`, the shell document's `current`): Composio put off,
+  the position in the introduction and done. Not in the Folder's preferences: they are
+  schema-versioned, revisioned state whose every change rewrites the agents'
+  instructions and moves the revision under the profile form and Nástroje, and the
+  Folder's `.lazurio/` admits no entry it does not know (`folder-state-unrecognized`
+  stops the Launchpad). The progress is the person's UI memory, as favourites are
+  until the account holds them. An Environment already usable at first sight (GitHub
+  connected, its content here or nothing to prepare) starts with the tour done, so a
+  workstation, whose loopback origin changes with every start, does not repeat it.
+- **Tento Environment** says what a person needs (`environmentFacts` in
+  `machine-view.ts`, the wireframe's `ThisEnvironment`): "Druh" ("Osobní Remote
+  Environment", "Pracovní Remote Environment", "Týmový Remote Environment",
+  "Automatizovaný Environment", "Tvůj počítač"), "Patří" ("tobě (@login)" or the
+  Organization's name) and "Pracuje v něm" ("jen ty", "@assignee", "Team …",
+  "automatizace, odpovídá @…"); the technical name and kind, the owner and assignment as
+  recorded, the tailnet node, the host and the relationships are folded under "Pro
+  podporu". A workstation says only "Tvůj počítač". No introduction.
+- **Obsah Environmentu** (`content-panel.ts`) in Settings → Tento Environment, above
+  those facts: a row per item of `GET /api/content`
+  (the personal Environment holds the Personalspace, a work one its Organization, a
+  workstation both; the content routes decide), the one action ("Stáhnout",
+  "Připravit", "Stáhnout vše", "Zkusit znovu"; disabled with "Nejdřív připoj GitHub v
+  Nástrojích." without GitHub) posting `POST /api/content/install` with `{}`, and while
+  it runs the job's steps in plain words ("Ověřuji přístup", "Stahuji Organizaci",
+  "Stahuji moduly", "Instaluji", "Kontroluji" / "Hledám tvůj osobní prostor",
+  "Zakládám", "Stahuji", "Kontroluji"), read from `GET /api/content/jobs/<id>` every
+  second. A stop shows one plain sentence by the step, the command and the detail under
+  "Podrobnosti", and "Vyřešit v Chatu". On load the page reads the Launchpad's newest
+  job (`GET /api/content/jobs/latest`), not anything kept in the browser, so a reload,
+  another tab or another device shows the same run or stop, and the line in Apps agrees
+  with the line Chat and Automate draw from the shell document. Any other
+  answer of the routes (none on a Launchpad without them) hides the group.
+- **"Vyřešit v Chatu"** hands the prompt `prepare-content` to Chat ([prompt
+  hand-off](#prompt-hand-off-to-chat)): by link where Chat takes prompts and this
+  Launchpad serves that prompt for the login it names (asked before the click, so the
+  click itself opens the tab), otherwise through the clipboard with the same text
+  built in the page.
+- **Tests.** `tests/first-run.test.ts` (the tour's rules ported from the wireframe's
+  `setup.test.ts`, the stops' words, the line per state, GitHub's fact, the stored
+  progress, the fragment), `tests/content-client.test.ts` (the client against stubs of
+  the fixed API), `tests/content-view.test.ts` (steps, the stop, the prompt) and
+  `tests/first-run-shell.test.ts` (the shell document's `setup`, the column head's
+  line, the GitHub probe, `prepare-content` over HTTP, the auto-on rule and the
+  Nástroje texts).

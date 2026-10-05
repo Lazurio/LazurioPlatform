@@ -287,6 +287,10 @@ read (status, catalog) removes anything.
   (`{ kind: "organization", login }` or `{ kind: "personalspace" }`), a failed step has a
   stable `code` and an English `detail` for agents. Jobs are in the Launchpad's memory;
   the last 16 stay readable.
+- `GET /api/content/jobs/latest`: the newest of them in the same shape, `404` before the
+  first. The Launchpad page reads it on load, so a reload, another tab or another device
+  shows the same run or stop as the page that started it, and the line in Apps agrees
+  with the shell document's `setup`, which reads the same newest job.
 
 Failure codes are `contentFailureCodes` in `src/content/model.ts`; the Organization
 `check` fails with the catalog's own reason (`organization-conflict`, …).

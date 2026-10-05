@@ -364,3 +364,95 @@ export function switchTabs(
     }),
   );
 }
+
+/** A link of the column head's setup line. */
+export type SetupLink = Readonly<{ label: string; href: string }>;
+
+export type ColumnSetupLine = Readonly<{
+  tone: "info" | "failed";
+  icon: "key" | "download" | "warning";
+  text: string;
+  links: readonly SetupLink[];
+}>;
+
+/** An address of the Launchpad of the current Environment (its Apps), with
+ * the fragment that starts an action on arrival. */
+function launchpadHref(
+  apps: string,
+  path: string,
+  start: "sign-in-gh" | "install-content",
+): string {
+  const fragment = `#lazurio-start=${start}`;
+  if (!apps.startsWith("https:")) return `/${path}${fragment}`;
+  return `${new URL(path, apps).href}${fragment}`;
+}
+
+/** The line the column head shows in Chat and Automate until the current
+ * Environment is usable (root decision 0188; the wireframe's `SetupBanner`
+ * in the column, prototypes-lazurio 45c92830): without GitHub agents do not
+ * work; with it, its Organization or Personalspace is not here yet, or its
+ * preparation stopped. Each button leads to the Launchpad's Settings, which
+ * starts the action on arrival; "Vyřešit v Chatu" opens Chat with the
+ * prepared prompt by its id (and the login the fork needs, Lazurio/t3code
+ * #36), never its text. Apps and Settings say it themselves, so nothing
+ * there. */
+export function columnSetupLine(
+  shell: Shell,
+  copy: ShellCopy,
+  active: ShellApp | null,
+): ColumnSetupLine | null {
+  const setup = shell.setup;
+  if (setup === undefined || (active !== "chat" && active !== "automate"))
+    return null;
+  const { apps } = currentEnvironment(shell);
+  if (setup.github === "missing")
+    return {
+      tone: "info",
+      icon: "key",
+      text: copy.setupGithub,
+      links: [
+        {
+          label: copy.setupGithubAction,
+          href: launchpadHref(apps.apps, "settings/tools", "sign-in-gh"),
+        },
+      ],
+    };
+  const install = launchpadHref(
+    apps.apps,
+    "settings/machine",
+    "install-content",
+  );
+  const item = setup.item;
+  if (setup.content === "failed") {
+    const login = item?.login ?? null;
+    const resolve =
+      apps.chat === null || login === null
+        ? []
+        : [
+            {
+              label: copy.setupResolve,
+              href: `${new URL(apps.chat).origin}/#lazurio-prompt=prepare-content&lazurio-org=${encodeURIComponent(login)}`,
+            },
+          ];
+    return {
+      tone: "failed",
+      icon: "warning",
+      text: copy.setupFailed,
+      links: [...resolve, { label: copy.setupRetry, href: install }],
+    };
+  }
+  if (setup.content !== "missing" || item === undefined) return null;
+  return item.kind === "personalspace"
+    ? {
+        tone: "info",
+        icon: "download",
+        text: copy.setupPersonalMissing,
+        links: [{ label: copy.setupPrepare, href: install }],
+      }
+    : {
+        tone: "info",
+        icon: "download",
+        text: fillShell(copy.setupOrganizationMissing, { name: item.name }),
+        links: [{ label: copy.setupDownload, href: install }],
+      };
+}
