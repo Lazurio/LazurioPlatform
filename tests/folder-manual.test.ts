@@ -1371,8 +1371,8 @@ test("a change to a repository the agent only reads is proposed as an issue ther
   const lines = {
     cs: {
       other:
-        "- Než navrhneš změnu v repozitáři, ověř živě své právo k němu: `gh api repos/<owner>/<repo> --jq .permissions.push`. S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
-      team: "- Než navrhneš změnu v repozitáři, ověř živě, jestli do něj identita Teamu smí pushovat: `git push --dry-run origin HEAD` v jeho checkoutu (brokerovaná identita hlásí v `gh api … --jq .permissions` false i s právem zápisu). S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
+        "- Než navrhneš změnu v repozitáři, ověř živě své právo k němu: `gh api repos/<owner>/<repo> --jq .permissions.push`. S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky dotčených cest z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů; když nikoho nezjistíš, issue zapiš bez zmínky. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
+      team: "- Než navrhneš změnu v repozitáři, ověř živě, jestli do něj identita Teamu smí pushovat: `git push --dry-run origin HEAD` v jeho checkoutu (brokerovaná identita hlásí v `gh api … --jq .permissions` false i s právem zápisu). S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky dotčených cest z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů; když nikoho nezjistíš, issue zapiš bez zmínky. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
       rights:
         "- Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, Operátorovi dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (`manual/working-here.md`).",
       heading: "## Repozitář, který jen čteš: změnu navrhni v issue",
@@ -1384,9 +1384,11 @@ test("a change to a repository the agent only reads is proposed as an issue ther
         "- **Na týmovém Environmentu** platí totéž: grant Teamu k repozitáři může být jen ke čtení.",
       fragments: [
         "- **Bez práva push** pull request nezkoušej. Do toho repozitáře zapiš issue s návrhem: co se má změnit, proč, a navržený text nebo diff.",
-        "(GitHub použije první z `.github/CODEOWNERS`, `CODEOWNERS` a `docs/CODEOWNERS`)",
+        "(GitHub použije první z `.github/CODEOWNERS`, `CODEOWNERS` a `docs/CODEOWNERS`, pro každou cestu platí poslední odpovídající řádek)",
         `\`gh api "orgs/<org>/members?role=admin" --jq '.[] | select(.type != "Bot") | .login'\``,
         "@zmínka stačí, issue jim nepřiřazuj.",
+        "když CODEOWNERS chybí nebo pro dotčené cesty neurčuje nikoho kromě botů, Ownery Organizace",
+        "Když ani tak nikoho nezjistíš (prázdná odpověď nebo chyba), issue zapiš bez @zmínky a Operátorovi řekni, že na GitHubu nešlo zjistit, kdo změnu smí provést, ať odkaz na issue předá tomu, kdo Organizaci spravuje; nikoho si nedomýšlej.",
         "- **Nic neobcházej.** Neforkuj a nepushuj do jiného repozitáře ani pod jinou identitou.",
         "- **Ohlas to.** Operátorovi dej URL issue a koho jsi zmínil.",
         "do repozitáře, který jen čteš, jako issue s návrhem (výše)",
@@ -1398,8 +1400,8 @@ test("a change to a repository the agent only reads is proposed as an issue ther
     },
     en: {
       other:
-        "- Before you propose a change to a repository, check your live right to it: `gh api repos/<owner>/<repo> --jq .permissions.push`. With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the repository's CODEOWNERS, otherwise the Organization's Owners, no bots. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
-      team: "- Before you propose a change to a repository, check live whether the Team's identity may push to it: `git push --dry-run origin HEAD` in its checkout (the brokered identity's `gh api … --jq .permissions` answers false even with write). With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the repository's CODEOWNERS, otherwise the Organization's Owners, no bots. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
+        "- Before you propose a change to a repository, check your live right to it: `gh api repos/<owner>/<repo> --jq .permissions.push`. With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the owners of the affected paths in the repository's CODEOWNERS, otherwise the Organization's Owners, no bots; when you find nobody, file the issue without a mention. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
+      team: "- Before you propose a change to a repository, check live whether the Team's identity may push to it: `git push --dry-run origin HEAD` in its checkout (the brokered identity's `gh api … --jq .permissions` answers false even with write). With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the owners of the affected paths in the repository's CODEOWNERS, otherwise the Organization's Owners, no bots; when you find nobody, file the issue without a mention. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
       rights:
         "- When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the Operator a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (`manual/working-here.md`).",
       heading: "## A repository you only read: propose the change in an issue",
@@ -1411,9 +1413,11 @@ test("a change to a repository the agent only reads is proposed as an issue ther
         "- **In a Team Environment** the same holds: the Team's grant on a repository may be read only.",
       fragments: [
         "- **Without push,** do not try a pull request. File an issue in that repository with the proposal: what should change, why, and the proposed text or diff.",
-        "(GitHub uses the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`)",
+        "(GitHub uses the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`; for each path the last matching line holds)",
         `\`gh api "orgs/<org>/members?role=admin" --jq '.[] | select(.type != "Bot") | .login'\``,
         "An @mention is enough; do not assign the issue.",
+        "when there is no CODEOWNERS or it names nobody but bots for the affected paths, the Organization's Owners",
+        "When you still find nobody (an empty answer or an error), file the issue without an @mention and tell the Operator that GitHub did not show who may make the change, so they pass the issue's link to whoever manages the Organization; never guess anyone.",
         "- **Bypass nothing.** Do not fork, and do not push to another repository or under another identity.",
         "- **Report it.** Give the Operator the issue's URL and whom you mentioned.",
         "or to a repository you only read as an issue with the proposal (above)",
