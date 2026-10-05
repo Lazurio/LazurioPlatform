@@ -11,7 +11,8 @@ direction and an architecture review. Where a canonical upstream decision contra
 a Platform proposal, upstream wins and the proposal is rewritten; where Matěj's
 direction changes upstream behaviour, the change is listed as a required upstream
 amendment below. F8–F12 are accepted direction; F8 is implemented for Linux (see F8),
-F9–F12 are not implemented.
+F9–F12 are not implemented. (Later status is in each decision: F9's installation
+half is implemented since its addendum of 2026-10-04.)
 
 ## F0 — Confirmed vocabulary and responsibility split
 
@@ -439,7 +440,8 @@ upstream decision 0137 and requires the amendment listed above. The contract is 
 
 ## F9 — Update Lazurio and Synchronize content are separate operations
 
-**Accepted direction (2026-09-19), not implemented.** "Update Lazurio" changes product
+**Accepted direction (2026-09-19); installation implemented 2026-10-04 (addendum
+below), synchronization not.** "Update Lazurio" changes product
 bytes; its contract is the product update document (`docs/update.md`, separate PR).
 "Synchronize content" changes Organization repositories; its contract is
 [content synchronization](content-sync.md). They have separate commands, buttons,
@@ -447,6 +449,72 @@ locks and outcomes. Product update never clones, stashes, regenerates preference
 upgrades tools or runs data migrations. Content synchronization is explicit only and
 blocks on dirty or wrong-branch checkouts instead of stashing and switching, a
 deliberate change from the legacy engine that requires the 0129 amendment above.
+
+### Addendum of 2026-10-04: content installation, the Personalspace and the presets
+
+**Decided by Matěj (Organization Admin) on 2026-10-04; root decision 0188 in
+`HumanAndMachines/Lazurio` (being written); implemented (DEV-6644).** Content
+synchronization gains its first implemented half: **installation**, which materializes
+an Environment's absent content into its Folder and changes nothing that is present.
+Contract and details: [content synchronization, Installation](content-sync.md#installation--implemented-2026-10-04).
+
+1. **The content follows the Environment's kind**, the Folder's preset: `local` holds
+   its Organizations and the Personalspace; `hosted-personal` only the person's
+   Personalspace, never an Organization repository; `hosted-organization-personal`
+   only the Organization of its handover, never a Personalspace;
+   `hosted-organization-team` and `hosted-organization-steward` are prepared by the
+   hosting, and the operation answers `prepared-by-hosting` and does nothing.
+2. **One core, three surfaces:** `lazurio organization install <github-login>`,
+   `lazurio personalspace install` and the Launchpad's `GET /api/content`,
+   `POST /api/content/install` and `GET /api/content/jobs/<id>`. One operation at a time
+   per Folder, by a kernel lock in the install base. Never implicit, never product
+   update.
+3. **An Organization:** the root first (temporary sibling, verified remote, branch,
+   commit and own declaration, no-replace rename; an occupied destination is never
+   touched), the manifest re-read from that commit, then the declared children the
+   Environment's GitHub sign-in can read (workspace modules, root-level applications,
+   Production Space repositories; unreachable ones reported, not failures), the
+   declared preparation of the modules it cloned, and the doctor's catalog check.
+4. **The person's live role scopes an Organization** (review of root decision 0188 by
+   the Organization Steward and a Codex review, 2026-10-04), as the resident
+   `lazurio organization install --role builder|steward` does: only a verified Admin
+   (an active Owner membership) gets the full installation; a Steward (`maintain` on
+   the root repository) or Builder (`write` on it) gets everything except the
+   restricted (Admin-only) slots and the slots below them, `excluded_by_role_scope`
+   without any provider operation; a role GitHub does not confirm fails closed
+   (`role-unverified`) before anything is cloned. The CLI matches the resident: the
+   bare `lazurio organization install <login>` is the Admin installation and fails
+   closed for anyone but a verified Admin; `--role builder|steward` is the scoped
+   one; there is no `--role admin`. The Launchpad picks the form from the live role.
+5. **The Personalspace** is `<login>/<login>_GEN3` in `personalspace/<login>_GEN3`
+   (the resident's naming). Existing on GitHub (private, the account's own): cloned
+   only. Missing: created from `Lazurio/PersonalspaceTemplate_GEN3` as a private
+   repository of the account, then cloned. GitHub's `template_repository` is only a
+   guard against a second one (`personalspace-elsewhere`), never the recognition: a
+   Personalspace created before the template has no template link.
+
+**The root repository (Matěj, 2026-10-05).** A name is never trusted, it is only a
+candidate, accepted after the repository declares itself the root (its own
+`lazurio.organization.json` binds the login and names exactly that repository as
+`root_repository`). The target source is the Dashboard's Organization record, fed by
+the Organization's Lazurio for GitHub app installation; until it exists the interim
+sources are the conventional name `<login>/<login>_GEN3` and then a scan of the
+Organization's readable repositories (exactly one must declare itself:
+`root-not-found`, `root-ambiguous`). The CLI's `--root` stays an explicit source,
+verified the same way. The verification stays with every source, the Dashboard
+included. `docs/organization-contract.md` now says "never trusted by name" instead of
+"never derived". Details: [content synchronization](content-sync.md#where-the-root-repository-is).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Recognize the Personalspace by `template_repository` | Misses every Personalspace made before the template, then creates a second one; rejected as the rule, kept as a guard |
+| The root only from an explicit name (no discovery) | The Launchpad could not install an Organization the Folder does not hold; superseded on 2026-10-05 by name candidate and scan, each verified |
+| Trust `<login>/<login>_GEN3` as the root by its name, as the resident does | A repository of that name that is not the root (a fork, a rename, a placeholder) would be installed as one; the name is only a candidate |
+| Fail the run when a module's preparation is refused | The content is in place and a start prepares again (F34); reported in the step instead |
+| Materialize `infra` and repository databases with the modules | F33 leaves them out of the composition; databases are the Organization's own bootstrap (B7) |
+| Hold the Folder operation lock for the whole install | Every Folder read (status, preset) would wait behind a clone; a separate content lock instead |
+| No role: GitHub denies what the account cannot read anyway | An Admin-only slot readable by a Builder (a public or wider-granted repository) would land on a Builder's Environment; the role scope decides before any provider operation, as in the resident |
+| The resident's per-slot WRITE readiness gate for Builder and Steward | One unwritable module would block the whole install; the role is confirmed on the root and children are reported one by one (F9) |
 
 ## F10 — Workspace presets and typed owner requests
 

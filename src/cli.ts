@@ -1,4 +1,10 @@
 import { parseArgs } from "node:util";
+import {
+  ContentUsageError,
+  contentHelp,
+  isContentCommand,
+  runContentCommand,
+} from "./content/cli";
 import { doctorHelp, runDoctorCommand } from "./doctor/cli";
 import { filesHelp, runFilesCommand } from "./files/cli";
 import { FolderAdoptionError } from "./folder/handover-layout";
@@ -256,6 +262,18 @@ async function runOtherCommand(args: string[]): Promise<number> {
       return 2;
     }
   }
+  if (isContentCommand(args)) {
+    // One line per step as it happens, then the result.
+    try {
+      return await runContentCommand(args, processContext(), (line) =>
+        console.log(line),
+      );
+    } catch (error) {
+      if (!(error instanceof ContentUsageError)) throw error;
+      console.error(`${error.message}\n${contentHelp}`);
+      return 2;
+    }
+  }
   if (args[0] === "organization" || args[0] === "module") {
     try {
       const { code, text } = await runCatalogCommand(args, processContext());
@@ -420,6 +438,7 @@ No files, locks, provider requests or applications are created. Output may conta
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     console.log(catalogHelp);
+    console.log(contentHelp);
     console.log(moduleHelp);
     console.log(updateHelp);
     console.log(recoverHelp);
