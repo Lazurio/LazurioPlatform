@@ -6,6 +6,7 @@ import {
   appsScope,
   appsScopes,
   appsSections,
+  appsSpaceOf,
   favoriteTiles,
   moduleAccessTarget,
   moduleAccessUrl,
@@ -128,6 +129,44 @@ const entry: PublicEntry = {
 
 test("the catalog fixture is one the page accepts", () => {
   expect(parseCatalog(JSON.parse(JSON.stringify(catalog)))).not.toBeNull();
+});
+
+test("the space Apps reports to the rail: the Organization's slug, the personal space, or none for an Organization the Folder cannot read", () => {
+  const home = appsScope(catalog, { view: "home" }, cs);
+  if (home === null) throw new Error("The fixture has an Organization");
+  expect(appsSpaceOf(home)).toBe("example");
+  const personal = appsScopes(
+    {
+      kind: "catalog",
+      organizations: [],
+      personalspace: organization("personalspace", [module("diary")], {
+        directory: "personalspace",
+      }),
+    },
+    cs,
+  ).find((group) => group.sections === null);
+  if (personal === undefined)
+    throw new Error("The fixture has a personal space");
+  expect(appsSpaceOf(personal)).toBe("personal");
+  // Matěj 2026-10-05: an Organization checkout without its canonical
+  // documents has no slug; it is not the personal space.
+  const unreadable = appsScope(
+    {
+      kind: "catalog",
+      organizations: [
+        organization("example", [], {
+          organization: null,
+          state: null,
+          executable: false,
+          reason: "canonical-documents-required",
+        }),
+      ],
+    },
+    { view: "home" },
+    cs,
+  );
+  if (unreadable === null) throw new Error("The fixture has an Organization");
+  expect(appsSpaceOf(unreadable)).toBeNull();
 });
 
 test("the home shows the first Organization; an Organization or module route its own; a missing one none", () => {

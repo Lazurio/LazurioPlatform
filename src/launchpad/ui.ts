@@ -174,9 +174,12 @@ const catalog = createCatalogPanel({
   // The space the Apps home shows: on a workstation with several
   // Organizations the rail and the picker name the one opened.
   space: (space) => {
-    for (const element of [rail, columnHead])
-      if (element !== null && element.getAttribute("space") !== space)
+    for (const element of [rail, columnHead]) {
+      if (element === null) continue;
+      if (space === null) element.removeAttribute("space");
+      else if (element.getAttribute("space") !== space)
         element.setAttribute("space", space);
+    }
   },
   newModule: (prompt) => handOver(prompt),
   // The person's account through this Environment's gateway (account.ts):
