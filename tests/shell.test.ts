@@ -25,10 +25,13 @@ import {
 } from "../src/shell/view";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
 import {
+  binding,
   bindings,
+  handoverEntry,
   organizationWithEntry,
   personalWithEntry,
 } from "./fixtures/machine-bindings";
+import machineContext from "./fixtures/machine-context.json";
 
 // Decision F36 and its addendum of 2026-10-04: the Lazurio shell's data
 // contract `lazurio.shell.v1`, its producer for what this Environment knows
@@ -298,6 +301,41 @@ test("an Organization's Environment stands in its Organization's space even befo
   });
   expect(personal.environments[0]?.organizations).toEqual([]);
   expect(hereOf(personal, null)).toBe("personal");
+});
+
+test("the owner named by its GitHub login is the Folder's Organization of another slug, never a second one", () => {
+  // The handover names the owner by its lowercased GitHub login
+  // (`examplelazurio`), the Folder by its own slug (`example`), as for
+  // Organizations whose login and slug differ.
+  const { team: _team, ...owner } = machineContext.owner;
+  const machine = binding({
+    ...machineContext,
+    owner: { ...owner, organization: "examplelazurio" },
+    entry: handoverEntry("workspace.examplelazurio.lazurio.io"),
+  }) as MachineBinding;
+  const shell = shellDocument({
+    preset: "hosted-organization-personal",
+    machine,
+    locale: "cs",
+    catalog: catalog(
+      organization("alpha"),
+      organization("example", { forgeLogin: "ExampleLazurio" }),
+    ),
+  });
+  expect(shell.environments[0]?.organizations).toEqual(["example", "alpha"]);
+  expect(shell.organizations.map((entry) => entry.slug)).toEqual([
+    "example",
+    "alpha",
+  ]);
+  expect(hereOf(shell, null)).toBe("example");
+  // Not readable yet: known by the login until the Folder can read it.
+  const unread = shellDocument({
+    preset: "hosted-organization-personal",
+    machine,
+    locale: "cs",
+    catalog: catalog(),
+  });
+  expect(unread.environments[0]?.organizations).toEqual(["examplelazurio"]);
 });
 
 test("an assigned work Environment says whose it is; an Automated one is its persona's; a Team one its Team's", () => {

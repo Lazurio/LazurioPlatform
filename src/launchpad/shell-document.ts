@@ -237,10 +237,24 @@ export function shellDocument(
   // The owning Organization first; known by its slug alone (no display
   // name, no avatar) until the Folder holds it readable.
   const owner = ownerOrganization(machine, kind);
-  const ownerEntry =
+  // The handover names the owner by its lowercased GitHub login
+  // (`conceptlinelazurio`), the Folder by its own slug (`conceptline`): the
+  // catalog entry bound to that login or carrying that slug is the same
+  // Organization, never a second one.
+  const same = (left: string | null | undefined, right: string) =>
+    typeof left === "string" && left.toLowerCase() === right.toLowerCase();
+  const ownerSlug =
     owner === null
+      ? null
+      : (input.catalog.organizations.find(
+          (entry) =>
+            entry.organization !== null &&
+            (same(entry.forgeLogin, owner) || same(entry.organization, owner)),
+        )?.organization ?? owner);
+  const ownerEntry =
+    owner === null || ownerSlug === null
       ? undefined
-      : (held.find((entry) => entry.slug.toLowerCase() === owner) ??
+      : (held.find((entry) => same(entry.slug, ownerSlug)) ??
         Object.freeze({
           slug: owner,
           name: owner,
