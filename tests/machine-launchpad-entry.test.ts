@@ -42,10 +42,15 @@ async function adoptedFolder() {
 }
 
 // The supervised Launchpad of `folder`: it records every restart, and fails
-// the restart or never answers again when told to.
+// the restart, never answers again or has a health probe that throws when
+// told to.
 function supervised(
   folder: string | undefined,
-  options: Readonly<{ fails?: boolean; answers?: boolean }> = {},
+  options: Readonly<{
+    fails?: boolean;
+    answers?: boolean;
+    probeThrows?: boolean;
+  }> = {},
 ) {
   const restarts: number[] = [];
   const service: ServiceControl = {
@@ -54,7 +59,10 @@ function supervised(
       restarts.push(Date.now());
       if (options.fails) throw new Error("Service restart failed");
     },
-    launchpadVersion: async () => (options.answers === false ? null : "1.0.0"),
+    launchpadVersion: async () => {
+      if (options.probeThrows) throw new Error("health I/O failed");
+      return options.answers === false ? null : "1.0.0";
+    },
   };
   const seams: LaunchpadSeams = {
     service: async () => service,
@@ -91,6 +99,12 @@ test("only the installer's unit that starts this Folder is restarted, and it mus
     "restart-failed",
   );
   expect(silent.restarts).toHaveLength(1);
+  // A health probe that throws is a failed restart, never an error.
+  const throwing = supervised(folder, { probeThrows: true });
+  expect(await restartLaunchpadForEntry(folder, throwing.seams)).toBe(
+    "restart-failed",
+  );
+  expect(throwing.restarts).toHaveLength(1);
 
   const healthy = supervised(folder);
   expect(await restartLaunchpadForEntry(folder, healthy.seams)).toBe(
@@ -154,6 +168,24 @@ test.skipIf(process.platform === "win32")(
       });
       expect(elsewhere.restarts).toHaveLength(0);
 
+      // The health probe throws after the restart (review of d4fa5bf): the
+      // Folder already holds the new entry, so the refresh stays a success
+      // and only says that the restart failed.
+      const throwing = supervised(folder, { probeThrows: true });
+      expect(
+        await refreshMachineFolderAndLaunchpad(
+          folder,
+          organizationWithEntry(20003, host, true),
+          undefined,
+          throwing.seams,
+        ),
+      ).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 4, launchpad: "restart-failed" },
+      });
+      expect(throwing.restarts).toHaveLength(1);
+      expect(await recordedEntry(folder)).toContain('"listenPort":20003');
+
       // Without the Launchpad's seams (the library callers), the refresh
       // restarts nothing and answers as before.
       expect(
@@ -163,7 +195,7 @@ test.skipIf(process.platform === "win32")(
           undefined,
           undefined,
         ),
-      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 4 } });
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 5 } });
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

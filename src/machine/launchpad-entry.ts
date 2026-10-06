@@ -62,14 +62,16 @@ export async function restartLaunchpadForEntry(
 ): Promise<LaunchpadEntryRestart> {
   const service = await seams.service().catch(() => null);
   if (service === null || service.folder !== folder) return "not-supervised";
-  try {
-    await service.restartLaunchpad();
-  } catch {
-    return "restart-failed";
-  }
-  return (await waitForLaunchpad(service, seams.version, {
-    deadlineMs: seams.deadlineMs,
-  }))
-    ? "restarted"
-    : "restart-failed";
+  // The Folder already holds the new entry: no failure past this point may
+  // turn the refresh into an operation failure, a rejected health probe
+  // included (as in the update activation).
+  const healthy = await service
+    .restartLaunchpad()
+    .then(() =>
+      waitForLaunchpad(service, seams.version, {
+        deadlineMs: seams.deadlineMs,
+      }),
+    )
+    .catch(() => false);
+  return healthy ? "restarted" : "restart-failed";
 }
