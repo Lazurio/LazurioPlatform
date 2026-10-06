@@ -20,7 +20,7 @@ import {
   initialsOf,
   railSpaces,
   spaceEnvironments,
-  switcherSections,
+  switcherList,
   switchTabs,
 } from "../src/shell/view";
 import { folderFixture, writeOrganization } from "./fixtures/catalog-folder";
@@ -212,18 +212,30 @@ test("a hosted work Environment is named by its kind and its person, never by it
     // A click stays in the app the rail sits in (Chat).
     ["example", "https://t3code.workspace.example.lazurio.io/", true],
   ]);
-  // The picker's list: the Organization's head (its Dashboard), then its
-  // Environments, the current one marked.
-  const [section] = switcherSections(shell, cs, {
+  // The picker's list: its Environments, the current one marked, and no
+  // head (F36's addendum of 2026-10-06); the jump keeps the Organization's
+  // head, which leads to its Dashboard.
+  const [section] = switcherList(shell, cs, {
+    kind: "picker",
     here: "example",
-    all: false,
+    widened: false,
     app: "apps",
     query: "",
-  });
-  expect(section?.head?.href).toBe("https://dashboard.lazurio.ai/orgs/example");
+  }).sections;
+  expect(section?.head).toBeNull();
   expect(section?.rows.map((row) => [row.name, row.who, row.current])).toEqual([
     ["Pracovní", "pracovní", true],
   ]);
+  const jump = switcherList(shell, cs, {
+    kind: "jump",
+    here: "example",
+    widened: false,
+    app: "apps",
+    query: "",
+  }).sections;
+  expect(jump.find((entry) => entry.space === "example")?.head?.href).toBe(
+    "https://dashboard.lazurio.ai/orgs/example",
+  );
 });
 
 test("an Organization's Environment stands in its Organization's space even before the Folder can read that Organization", () => {
@@ -405,12 +417,13 @@ test("a personal Remote Environment carries its owner's initials and photo and b
   expect(shell.operator.initials).toBe("EX");
   expect(shell.operator.avatar).toBe("https://github.com/example.png?size=96");
   expect(hereOf(shell, null)).toBe("personal");
-  const [personal] = switcherSections(shell, en, {
+  const [personal] = switcherList(shell, en, {
+    kind: "picker",
     here: "personal",
-    all: false,
+    widened: false,
     app: "apps",
     query: "",
-  });
+  }).sections;
   expect(personal?.rows[0]?.glyph).toEqual({ kind: "initials", text: "EX" });
   expect(personal?.rows[0]?.name).toBe("Personal");
 });
@@ -547,14 +560,17 @@ test("several Organizations: a space's Environments, its last one remembered, th
     ],
     ["south", "https://mausbot.vm-1.south.lazurio.io/", "1 Environment"],
   ]);
-  // The list under the picker: this space only.
-  const one = switcherSections(shell, en, {
+  // The list under the picker: this space only, without a title or a head.
+  const one = switcherList(shell, en, {
+    kind: "picker",
     here: "north",
-    all: false,
+    widened: false,
     app: "apps",
     query: "",
-  });
-  expect(one.map((section) => section.space)).toEqual(["north"]);
+  }).sections;
+  expect(
+    one.map((section) => [section.space, section.title, section.head]),
+  ).toEqual([["north", null, null]]);
   expect(
     one[0]?.rows.map((row) => [row.id, row.name, row.who, row.current]),
   ).toEqual([
@@ -564,36 +580,61 @@ test("several Organizations: a space's Environments, its last one remembered, th
     ["vm-3.north", "Work", "@person-3", true],
     ["laptop", "This computer", "this computer", false],
   ]);
-  // "All Organizations" (and ⌘⇧E): every space, each Organization with its
-  // head; a query keeps what matches.
-  const all = switcherSections(shell, en, {
+  // ⌘⇧E: every space, each Organization with its head; "All
+  // Organizations" under the picker: every space by its title, no head. A
+  // query keeps what matches.
+  const all = switcherList(shell, en, {
+    kind: "jump",
     here: "north",
-    all: true,
+    widened: false,
     app: "apps",
     query: "",
-  });
+  }).sections;
   expect(all.map((section) => [section.space, section.head !== null])).toEqual([
     ["personal", false],
     ["north", true],
     ["south", true],
   ]);
-  const found = switcherSections(shell, en, {
+  const widened = switcherList(shell, en, {
+    kind: "picker",
     here: "north",
-    all: true,
+    widened: true,
     app: "apps",
-    query: "steward",
-  });
+    query: "",
+  }).sections;
   expect(
-    found.map((section) => [section.space, section.rows.map((row) => row.id)]),
-  ).toEqual([["south", ["vm-1.south"]]]);
-  expect(
-    switcherSections(shell, en, {
+    widened.map((section) => [section.space, section.title, section.head]),
+  ).toEqual([
+    ["personal", "Personal", null],
+    ["north", "North Example", null],
+    ["south", "South Example", null],
+  ]);
+  for (const kind of ["jump", "picker"] as const) {
+    const found = switcherList(shell, en, {
+      kind,
       here: "north",
-      all: true,
+      widened: true,
+      app: "apps",
+      query: "steward",
+    });
+    expect(
+      found.sections.map((section) => [
+        section.space,
+        section.rows.map((row) => row.id),
+      ]),
+    ).toEqual([["south", ["vm-1.south"]]]);
+    const none = switcherList(shell, en, {
+      kind,
+      here: "north",
+      widened: true,
       app: "apps",
       query: "nothing like that",
-    }),
-  ).toEqual([]);
+    });
+    expect([none.sections, none.nothing]).toEqual([
+      [],
+      "Nothing like that here.",
+    ]);
+  }
 });
 
 test("the parser refuses what the elements could not draw safely", () => {

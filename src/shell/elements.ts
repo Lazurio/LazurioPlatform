@@ -20,11 +20,13 @@ import {
   railHome,
   railSpaces,
   type ShellApp,
+  type SwitcherKind,
   type SwitcherSection,
   type SwitchTab,
   shellApps,
   signedOutRail,
-  switcherSections,
+  switcherKey,
+  switcherList,
 } from "./view";
 
 // The Lazurio shell as framework-free custom elements (decision F36,
@@ -253,68 +255,99 @@ abstract class ShellElement extends HTMLElement {
   protected abstract render(): void;
 }
 
-/** The list of Environments, as a popover under the picker (one space,
- * widened by "Všechny Organizace") or as the ⌘⇧E dialog (every space). */
+/** Where you are in a list: the check, and its word ("tady jsi") for screen
+ * readers only (design-system-lazurio#62). */
+function checkMark(word: string): HTMLSpanElement {
+  const mark = element("span", "switcher-check");
+  mark.append(icon("check", 14), element("span", "sr-only", word));
+  return mark;
+}
+
+/** The list of Environments, as a popover under the picker (the space you
+ * are in, widened by "Všechny Organizace") or as the ⌘⇧E dialog (every
+ * space), drawn from `switcherList` (F36's addendum of 2026-10-06): one line
+ * per Environment, a search field only where the list has one, the keys of
+ * `switcherKey`. With the field the focus stays in it and the cursor marks
+ * the entry Enter opens; without it (the picker of a handful of
+ * Environments) the focus itself is the cursor: it lands on the current
+ * Environment, else the first, and moves with the arrows, Home, End and the
+ * pointer. */
 class Switcher {
   readonly box = element("div", "switcher-box");
+  private readonly search = element("label", "switcher-search");
   private readonly input = element("input");
   private readonly list = element("div", "switcher-list");
   private readonly foot = element("div", "switcher-foot");
   private query = "";
+  private widened = false;
   private cursor = 0;
   private links: HTMLAnchorElement[] = [];
+  private widen: HTMLButtonElement | null = null;
   constructor(
     private readonly host: ShellElement,
     private readonly shell: Shell,
     private readonly copy: ShellCopy,
     private readonly options: {
+      kind: SwitcherKind;
       here: string | null;
       app: ShellApp;
-      all: boolean;
-      popover: boolean;
       close: () => void;
     },
   ) {
-    const search = element("label", "switcher-search");
     this.input.type = "search";
     this.input.setAttribute("aria-label", copy.switcher);
     this.input.addEventListener("input", () => {
       this.query = this.input.value;
-      this.cursor = 0;
       this.fill();
     });
-    this.input.addEventListener("keydown", (event) => this.key(event));
-    search.append(
+    this.search.append(
       icon("search", 16),
       this.input,
       element("span", "kbd", "⌘⇧E"),
     );
     this.box.setAttribute("role", "dialog");
     this.box.setAttribute("aria-label", copy.switcher);
-    this.box.append(search, this.list, this.foot);
+    // Focused only when the list offers nothing else to focus.
+    this.box.tabIndex = -1;
+    this.box.addEventListener("keydown", (event) => this.key(event));
+    this.box.append(this.list, this.foot);
     this.fill();
   }
+  /** Where the focus lands when the list is shown or widened: the search
+   * field where there is one, else the entry under the cursor, else
+   * "Všechny Organizace"; the entry under the cursor is scrolled into
+   * view. */
   focus() {
-    this.input.focus();
+    this.mark();
+    if (this.field()) this.input.focus();
+    else (this.links[this.cursor] ?? this.widen ?? this.box).focus();
+  }
+  private field(): boolean {
+    return this.search.parentNode === this.box;
   }
   private key(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      this.options.close();
-      return;
-    }
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      const count = this.links.length;
-      if (count === 0) return;
-      this.cursor =
-        (this.cursor + (event.key === "ArrowDown" ? 1 : -1) + count) % count;
+    // A key with a modifier is the browser's or the host's (⌘⇧E itself).
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const target = event.target;
+    const action = switcherKey(event.key, {
+      cursor: this.cursor,
+      count: this.links.length,
+      focus:
+        target === this.input
+          ? "field"
+          : target instanceof HTMLAnchorElement && this.links.includes(target)
+            ? "entry"
+            : "other",
+    });
+    if (action === null) return;
+    event.preventDefault();
+    if (action.kind === "close") this.options.close();
+    else if (action.kind === "open") this.links[this.cursor]?.click();
+    else {
+      this.cursor = action.cursor;
       this.mark();
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      this.links[this.cursor]?.click();
+      // On an entry the focus moves with the cursor.
+      if (target !== this.input) this.links[this.cursor]?.focus();
     }
   }
   private mark() {
@@ -322,53 +355,63 @@ class Switcher {
       link.classList.toggle("is-cursor", index === this.cursor);
     this.links[this.cursor]?.scrollIntoView({ block: "nearest" });
   }
-  private fill() {
-    const copy = this.copy;
-    const options = this.options;
-    const sections = switcherSections(this.shell, copy, {
-      here: options.here,
-      all: options.all,
-      app: options.app,
+  /** Draws the list afresh, the cursor on its start (`switcherList`). */
+  private fill(): void {
+    const list = switcherList(this.shell, this.copy, {
+      kind: this.options.kind,
+      here: this.options.here,
+      widened: this.widened,
+      app: this.options.app,
       query: this.query,
     });
-    const scope = sections[0]?.title ?? copy.personal;
-    this.input.placeholder = options.all
-      ? copy.searchAll
-      : fillShell(copy.searchIn, { name: scope });
+    // The search field only where the list has one.
+    if (list.search === null) this.search.remove();
+    else {
+      this.input.placeholder = list.search;
+      if (!this.field()) this.box.prepend(this.search);
+    }
     this.links = [];
     this.list.replaceChildren(
-      ...sections.map((section) => this.section(section)),
+      ...list.sections.map((section) => this.section(section)),
     );
-    if (this.links.length === 0 && (options.all || this.query.trim() !== ""))
-      this.list.append(element("p", "switcher-empty", copy.nothing));
-    this.cursor = Math.min(this.cursor, Math.max(0, this.links.length - 1));
+    if (list.nothing !== null)
+      this.list.append(element("p", "switcher-empty", list.nothing));
+    this.cursor = Math.min(list.start, Math.max(0, this.links.length - 1));
     this.mark();
-    const hints: Node[] = [];
-    if (!options.all) {
+    const foot: Node[] = [];
+    this.widen = null;
+    if (list.widen !== null) {
       const widen = element("button", "switcher-widen");
       widen.type = "button";
-      widen.append(icon("globe", 14), copy.widen);
+      widen.append(icon("globe", 14), list.widen);
       widen.addEventListener("click", () => {
-        options.all = true;
-        this.cursor = 0;
+        this.widened = true;
         this.fill();
-        this.input.focus();
+        this.focus();
       });
-      hints.push(widen);
+      this.widen = widen;
+      foot.push(widen);
     }
-    const hint = (key: string, word: string) => {
+    for (const { key, word } of list.hints) {
       const span = element("span");
       span.append(element("span", "kbd", key), ` ${word}`);
-      return span;
-    };
-    hints.push(hint("↑↓", copy.choose), hint("Enter", copy.go));
-    if (!options.popover) hints.push(hint("Esc", copy.close));
-    this.foot.replaceChildren(...hints);
+      foot.push(span);
+    }
+    this.foot.replaceChildren(...foot);
+    this.foot.hidden = foot.length === 0;
   }
   private track(link: HTMLAnchorElement) {
     const at = this.links.length;
     this.links.push(link);
     link.addEventListener("mouseenter", () => {
+      this.cursor = at;
+      this.mark();
+      // Without the field the focus is the cursor, so Enter opens what the
+      // pointer marks.
+      if (!this.field()) link.focus({ preventScroll: true });
+    });
+    link.addEventListener("focus", () => {
+      if (this.cursor === at) return;
       this.cursor = at;
       this.mark();
     });
@@ -381,44 +424,38 @@ class Switcher {
     if (section.head !== null) {
       const { organization, href, current } = section.head;
       const head = this.track(this.host.link(href, "switcher-head"));
-      head.append(
-        organizationMark(organization.avatar, initialsOf(organization.name)),
-        element("span", "", organization.name),
-        element("span", "switcher-head-meta", copy.organizationDashboard),
-      );
+      const meta = element("span", "switcher-head-meta");
       // On the Organization's Dashboard its head is where you are.
       if (current) {
         head.setAttribute("aria-current", "page");
-        const here = element("span", "switcher-here");
-        here.append(icon("check", 14), copy.here);
-        head.append(here);
-      }
+        meta.append(checkMark(copy.here));
+      } else meta.textContent = copy.organizationDashboard;
+      head.append(
+        organizationMark(organization.avatar, initialsOf(organization.name)),
+        element("span", "switcher-head-name", organization.name),
+        meta,
+      );
       group.append(head);
-    } else group.append(element("div", "switcher-title", section.title));
+    }
+    if (section.title !== null)
+      group.append(element("div", "switcher-title", section.title));
     for (const row of section.rows) {
       const link = this.track(this.host.link(row.href, "switcher-row"));
       if (row.current) link.setAttribute("aria-current", "page");
       const glyph = element("span", "switcher-glyph");
       if (row.glyph.kind === "initials") glyph.textContent = row.glyph.text;
       else glyph.append(icon(row.glyph.icon, 16));
-      link.append(
-        glyph,
+      const text = element("span", "switcher-copy");
+      text.append(
         element("span", "switcher-name", row.name),
         element("span", "switcher-who", row.who),
       );
-      if (row.current) {
-        const here = element("span", "switcher-here");
-        here.append(icon("check", 14), copy.here);
-        link.append(here);
-      }
+      link.append(glyph, text);
+      if (row.current) link.append(checkMark(copy.here));
       group.append(link);
     }
-    if (
-      section.head !== null &&
-      section.rows.length === 0 &&
-      this.query.trim() === ""
-    )
-      group.append(element("p", "switcher-empty", copy.noEnvironment));
+    if (section.empty !== null)
+      group.append(element("p", "switcher-empty", section.empty));
     return group;
   }
 }
@@ -473,10 +510,9 @@ export class LazurioRail extends ShellElement {
     if (shell === null || this.jump === null) return false;
     const dialog = this.jump;
     const switcher = new Switcher(this, shell, this.copy(shell), {
+      kind: "jump",
       here: this.here(shell),
       app: this.stayIn(shell) ?? "apps",
-      all: true,
-      popover: false,
       close: () => dialog.close(),
     });
     dialog.replaceChildren(switcher.box);
@@ -548,7 +584,7 @@ export class LazurioRail extends ShellElement {
         item.sub,
       );
       link.setAttribute("aria-label", item.label);
-      link.append(item.kind === "home" ? logoDisc() : icon("key", 22));
+      link.append(item.kind === "home" ? logoDisc() : icon("key", 20));
       nav.append(link);
     }
     this.labelled(nav);
@@ -625,7 +661,7 @@ export class LazurioRail extends ShellElement {
     search.type = "button";
     search.setAttribute("aria-label", copy.jump);
     search.setAttribute("aria-keyshortcuts", "Meta+Shift+E Control+Shift+E");
-    search.append(icon("search", 18));
+    search.append(icon("search", 16));
     search.addEventListener("click", () => this.openJump());
 
     const scroll = element("div", "scroll");
@@ -641,7 +677,7 @@ export class LazurioRail extends ShellElement {
       if (index === 0) {
         const mark = element("span", "initials");
         if (space.initials !== null) mark.textContent = space.initials;
-        else mark.append(icon("user", 18));
+        else mark.append(icon("user", 16));
         link.append(mark);
       } else link.append(organizationMark(space.avatar, space.initials ?? ""));
       scroll.append(link);
@@ -653,7 +689,7 @@ export class LazurioRail extends ShellElement {
         "",
       );
       add.setAttribute("aria-label", copy.addOrganization);
-      add.append(icon("plus", 18));
+      add.append(icon("plus", 16));
       scroll.append(add);
     }
 
@@ -667,7 +703,7 @@ export class LazurioRail extends ShellElement {
       const mark = element("span", "avatar");
       if (shell.operator.initials !== null)
         mark.textContent = shell.operator.initials;
-      else mark.append(icon("user", 18));
+      else mark.append(icon("user", 16));
       return mark;
     };
     if (shell.operator.avatar !== null) {
@@ -709,7 +745,8 @@ export class LazurioColumnHead extends ShellElement {
    * top layer (a popover): the host's sidebar may clip or stack over its
    * children, the top layer is above both. A click outside or Escape closes
    * it (light dismiss). On an Organization's Dashboard the list is that
-   * Organization's, its head the current row. */
+   * Organization's Environments, none of them current; the list never leads
+   * to the Dashboard itself (F36's addendum of 2026-10-06). */
   private toggle(picker: HTMLButtonElement, shell: Shell, here: string) {
     if (this.open !== null) {
       this.open.close();
@@ -726,10 +763,9 @@ export class LazurioColumnHead extends ShellElement {
       this.open = null;
     };
     const switcher = new Switcher(this, shell, copy, {
+      kind: "picker",
       here,
       app: this.activeApp() ?? "apps",
-      all: false,
-      popover: true,
       close,
     });
     const rect = picker.getBoundingClientRect();
@@ -738,7 +774,9 @@ export class LazurioColumnHead extends ShellElement {
     box.popover = "auto";
     box.style.top = `${rect.bottom + 6}px`;
     box.style.left = `${rect.left}px`;
-    box.style.width = `${Math.min(Math.max(rect.width, 400), window.innerWidth - rect.left - 8)}px`;
+    // As wide as the picker, at least 280 px (the wireframe's compact
+    // picker), never past the window.
+    box.style.width = `${Math.min(Math.max(rect.width, 280), window.innerWidth - rect.left - 8)}px`;
     box.addEventListener("toggle", (event) => {
       if ((event as ToggleEvent).newState === "closed") {
         close();

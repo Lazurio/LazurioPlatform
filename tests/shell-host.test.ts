@@ -24,7 +24,7 @@ import {
   pageOf,
   railHome,
   railSpaces,
-  switcherSections,
+  switcherList,
   switchTabs,
 } from "../src/shell/view";
 import { accountDocument } from "./fixtures/account-document";
@@ -451,29 +451,36 @@ test("the Settings beside a picker: an Organization's under its page, an Environ
   ).toBe("/settings");
 });
 
-test("the picker's list on an Organization's Dashboard marks the Organization's head as where you are, and no Environment", () => {
+test("the picker's list on an Organization's Dashboard lists its Environments, none current and no head; the jump marks the Organization's head as where you are", () => {
   const shell = dashboardPage();
-  const [section] = switcherSections(shell, cs, {
+  // F36's addendum of 2026-10-06: the picker picks Environments only; the
+  // Organization's Dashboard is its name in the page's head.
+  const picker = switcherList(shell, cs, {
+    kind: "picker",
     here: hereOf(shell, "example"),
-    all: false,
+    widened: false,
     app: "apps",
     query: "",
   });
-  expect(section?.head?.current).toBe(true);
-  expect(section?.head?.href).toBe("https://dashboard.lazurio.ai/orgs/example");
+  const [section] = picker.sections;
+  expect(picker.sections).toHaveLength(1);
+  expect(section?.head).toBeNull();
   expect(section?.rows.map((row) => [row.id, row.current, row.href])).toEqual([
     ["vm-01.example", false, "https://launchpad.vm-01.example.lazurio.io/"],
     ["vm-03.example", false, "https://launchpad.vm-03.example.lazurio.io/"],
   ]);
-  // "Všechny Organizace": only that Organization's head is where you are.
-  const all = switcherSections(shell, cs, {
+  // Nothing current: the cursor starts on the first Environment.
+  expect(picker.start).toBe(0);
+  // ⌘⇧E: only that Organization's head is where you are.
+  const jump = switcherList(shell, cs, {
+    kind: "jump",
     here: "example",
-    all: true,
+    widened: false,
     app: "apps",
     query: "",
   });
   expect(
-    all.map((entry) => [
+    jump.sections.map((entry) => [
       entry.space,
       entry.head?.current ?? null,
       entry.rows.some((row) => row.current),
@@ -483,28 +490,49 @@ test("the picker's list on an Organization's Dashboard marks the Organization's 
     ["example", true, false],
     ["other-example", false, false],
   ]);
+  expect(jump.sections[1]?.head?.href).toBe(
+    "https://dashboard.lazurio.ai/orgs/example",
+  );
+  // "Všechny Organizace" widens the picker to every space, still without a
+  // head.
+  const widened = switcherList(shell, cs, {
+    kind: "picker",
+    here: "example",
+    widened: true,
+    app: "apps",
+    query: "",
+  });
+  expect(widened.sections.map((entry) => entry.head)).toEqual(
+    widened.sections.map(() => null),
+  );
   // The personal Dashboard: nothing is where you are.
-  const personal = switcherSections(shell, cs, {
+  const personal = switcherList(shell, cs, {
+    kind: "jump",
     here: null,
-    all: true,
+    widened: false,
     app: "apps",
     query: "",
   });
   expect(
-    personal.some(
+    personal.sections.some(
       (entry) =>
         entry.head?.current === true || entry.rows.some((row) => row.current),
     ),
   ).toBe(false);
-  // An Environment's page marks its Environment, never a head.
-  const [environment] = switcherSections(parsed(environmentDocument()), cs, {
+  // An Environment's page marks its Environment, never a head, and the
+  // picker's cursor starts there.
+  const environment = switcherList(parsed(environmentDocument()), cs, {
+    kind: "picker",
     here: "example",
-    all: false,
+    widened: false,
     app: "apps",
     query: "",
   });
-  expect(environment?.head?.current).toBe(false);
-  expect(environment?.rows.map((row) => row.current)).toEqual([true]);
+  expect(environment.sections[0]?.head).toBeNull();
+  expect(environment.sections[0]?.rows.map((row) => row.current)).toEqual([
+    true,
+  ]);
+  expect(environment.start).toBe(0);
 });
 
 // Nothing reported or remembered.

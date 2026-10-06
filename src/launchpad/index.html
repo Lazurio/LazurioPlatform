@@ -58,7 +58,7 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 
 /* The frame: the rail is fixed on the left and sets --lazurio-rail-width;
    the app sits beside it on the white surface, as a fork's root does. */
-.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 72px); background: var(--bg); border-left: 1px solid var(--lz-line); }
+.app { display: flex; min-height: 100vh; margin-left: var(--lazurio-rail-width, 64px); background: var(--bg); border-left: 1px solid var(--lz-line); }
 .column { position: sticky; top: 0; z-index: 20; display: flex; flex: none; flex-direction: column; gap: 10px; width: var(--column-width); height: 100vh; padding: 16px 10px 10px; background: var(--lz-gray-25); border-right: 1px solid var(--lz-line-faint); }
 .column-apps, .column-settings { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
 .column-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; }
@@ -371,7 +371,7 @@ a.files-name:hover { text-decoration: underline; }
 button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
 .apps-head .browser-toggle, .market-head .browser-toggle { font-weight: var(--lz-weight-akce); }
 .market-head .browser-toggle { margin-left: auto; }
-.browser-panel { position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 72px) - var(--column-width)) / 2), 960px); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); }
+.browser-panel { position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); }
 .browser-head { display: flex; flex: none; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--lz-line-faint); }
 .browser-title { flex: 1; min-width: 0; overflow: hidden; font-size: 14px; font-weight: var(--lz-weight-akce); text-overflow: ellipsis; white-space: nowrap; }
 .browser-title:focus { outline: none; }
@@ -390,10 +390,10 @@ button.browser-action { width: 30px; padding: 0; }
    opened from a button at the top of the page (T3 Code ui/sidebar.tsx below
    768 px; how the shell collapses is open in the target shell). */
 @media (max-width: 767px) {
-  .column { position: fixed; z-index: 30; left: var(--lazurio-rail-width, 72px); width: min(var(--column-width), calc(100vw - var(--lazurio-rail-width, 72px) - 0.75rem)); transform: translateX(calc(-100% - var(--lazurio-rail-width, 72px))); visibility: hidden; transition: transform 0.2s, visibility 0s linear 0.2s; box-shadow: 0 0 48px rgb(0 0 0 / 25%); }
+  .column { position: fixed; z-index: 30; left: var(--lazurio-rail-width, 64px); width: min(var(--column-width), calc(100vw - var(--lazurio-rail-width, 64px) - 0.75rem)); transform: translateX(calc(-100% - var(--lazurio-rail-width, 64px))); visibility: hidden; transition: transform 0.2s, visibility 0s linear 0.2s; box-shadow: 0 0 48px rgb(0 0 0 / 25%); }
   .app[data-nav-open] .column { transform: none; visibility: visible; transition: transform 0.2s; }
   .app[data-nav-open] .backdrop { display: block; position: fixed; inset: 0; z-index: 29; background: rgb(0 0 0 / 28%); }
-  .nav-toggle { display: inline-flex; position: fixed; z-index: 25; top: 10px; left: calc(var(--lazurio-rail-width, 72px) + 10px); height: 32px; padding: 0 8px; border-color: var(--lz-line); background: var(--card); color: var(--fg); }
+  .nav-toggle { display: inline-flex; position: fixed; z-index: 25; top: 10px; left: calc(var(--lazurio-rail-width, 64px) + 10px); height: 32px; padding: 0 8px; border-color: var(--lz-line); background: var(--card); color: var(--fg); }
   .topbar { padding: 0 16px 0 58px; }
   .container, .container.wide { padding: 20px 14px 48px; }
   #view-catalog { padding-top: 56px; }
