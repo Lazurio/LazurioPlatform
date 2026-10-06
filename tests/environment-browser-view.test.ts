@@ -611,6 +611,13 @@ test("the remote selection reaches the person for copy and cut, read when it may
   await until(() =>
     view.of("selection").some((message) => message.text === "jiný výběr"),
   );
+  // A navigation clears it: a copy must not take the old page's text.
+  browser.emit(
+    "Page.frameNavigated",
+    { frame: { id: `F-S-${id(1)}`, url: "https://example.org/" } },
+    `S-${id(1)}`,
+  );
+  await until(() => view.of("selection").at(-1)?.text === "");
   // Read in the view's isolated world; the Runtime domain is never enabled,
   // which pages could detect as automation.
   expect(browser.called("Page.createIsolatedWorld")[0]?.params).toMatchObject({
@@ -959,6 +966,21 @@ test("the extension declines passkeys and leaves other credentials alone", async
   );
 });
 
+test("the extension turns Chrome's own context menu off and leaves a page's own menu working", () => {
+  const listeners: ((event: Event) => void)[] = [];
+  const window = {
+    addEventListener: (type: string, listener: (event: Event) => void) => {
+      if (type === "contextmenu") listeners.push(listener);
+    },
+  };
+  new Function("window", browserExtensionFiles["menu.js"] as string)(window);
+  const event = new Event("contextmenu", { cancelable: true });
+  // The page's own handler ran before (a target or capture listener) and
+  // drew its menu; the extension only keeps Chrome's away.
+  for (const listener of listeners) listener(event);
+  expect(event.defaultPrevented).toBe(true);
+});
+
 test("the extension moves a second tab of a window into a window of its own", async () => {
   const moved: unknown[] = [];
   let listener:
@@ -1000,14 +1022,21 @@ test("the extension is written next to the profile and only when it differs", as
     ),
   ) as {
     permissions?: unknown;
-    content_scripts: { world: string; run_at: string }[];
+    content_scripts: { js: string[]; world?: string; run_at: string }[];
   };
   // No permission at all, and the passkey script runs before the page.
   expect(manifest.permissions).toBeUndefined();
   expect(manifest.content_scripts[0]).toMatchObject({
+    js: ["webauthn.js"],
     world: "MAIN",
     run_at: "document_start",
   });
+  // The menu script runs in the extension's own world, at the start too.
+  expect(manifest.content_scripts[1]).toMatchObject({
+    js: ["menu.js"],
+    run_at: "document_start",
+  });
+  expect(manifest.content_scripts[1]?.world).toBeUndefined();
 });
 
 test("serve takes exactly a loopback port and an origin", () => {

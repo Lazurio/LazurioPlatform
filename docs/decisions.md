@@ -5194,7 +5194,9 @@ F38 points 1, 5 and 6 as stated below; points 2–4 and 7 stand.
        Lazurio/LazurioPlatform#204), answers every WebAuthn request of a page
        (`navigator.credentials` with `publicKey`) with `NotAllowedError` at once, and
        reports no platform authenticator and no conditional mediation. Chrome's
-       native passkey window never opens, and sites offer another way.
+       native passkey window never opens, and sites offer another way;
+     - turns Chrome's own context menu off: it too would open outside the page.
+       A page's own menu still works.
    - The view server keeps a DevTools session on every page:
      - **JavaScript dialogs** (alert, confirm, prompt, beforeunload) show in the view
        and are answered from it;

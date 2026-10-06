@@ -993,7 +993,11 @@ export class BrowserHub {
         if (frame?.parentId !== undefined) return;
         if (typeof frame?.id === "string") tab.mainFrameId = frame.id;
         tab.world = null;
-        tab.selection = "";
+        // A new document has no selection: a copy must not take the old one.
+        if (tab.selection !== "") {
+          tab.selection = "";
+          this.broadcast(tab, { t: "selection", text: "" });
+        }
         void this.history(tab);
         return;
       }

@@ -5,13 +5,15 @@ import { writeDurableFile } from "../../update/durable-file";
 
 /** The Lazurio extension of the Environment browser (decision F39 point 7),
  * loaded with `--load-extension` from a directory next to the profile, never
- * inside it. Two jobs, no permissions:
+ * inside it. Three jobs, no permissions:
  * - a tab a page opens in a window that already has one moves into a window
  *   of its own, because Chrome paints only visible windows and the people's
  *   view shows one tab per person's tab (point 2);
  * - until the Environment's Bitwarden holds its passkeys (0191 point 17), a
  *   WebAuthn request is declined at once, so Chrome's own passkey window,
- *   which the view cannot show and which blocks the page, never opens. */
+ *   which the view cannot show and which blocks the page, never opens;
+ * - Chrome's own context menu never opens either: it would sit outside the
+ *   page, where nobody sees it. A page's own menu still works. */
 
 export const browserExtensionDirectory = (home: string) =>
   join(home, ".local", "share", "lazurio-browser", "extension");
@@ -32,6 +34,13 @@ const manifest = `${JSON.stringify(
         all_frames: true,
         match_about_blank: true,
         world: "MAIN",
+      },
+      {
+        matches: ["<all_urls>"],
+        js: ["menu.js"],
+        run_at: "document_start",
+        all_frames: true,
+        match_about_blank: true,
       },
     ],
   },
@@ -96,11 +105,19 @@ const webauthn = `// Lazurio (decision F39, root decision 0191 point 17): until 
 })();
 `;
 
+const menu = `// Lazurio (decision F39 point 7): Chrome's own context menu would open
+// outside the page, where the people's view cannot show it. It is turned off
+// for every page; a page's own menu, which it draws itself, still works. This
+// listener runs last (the window, in the bubbling phase), after the page's.
+window.addEventListener("contextmenu", (event) => event.preventDefault());
+`;
+
 export const browserExtensionFiles: Readonly<Record<string, string>> =
   Object.freeze({
     "manifest.json": manifest,
     "background.js": background,
     "webauthn.js": webauthn,
+    "menu.js": menu,
   });
 
 /** One digest of every file, carried in the browser unit's text, so a new
