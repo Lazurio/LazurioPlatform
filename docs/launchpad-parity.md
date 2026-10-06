@@ -17,7 +17,7 @@ candidate qualifies for the switch yet, and the resident Launchpad still serves 
 hosted Machine. The analysis below is kept as written at the citations' revisions.
 
 This document replaces the two-move plan of
-`docs/hosted-launchpad-switch-plan.md` (branch `claude/DEV-6626-distribution-and-migration`)
+the hosted switch drafted in pull request #53 (withdrawn there, never merged)
 and keeps its facts. It depends on the Recovery mode shaping
 ([`docs/recovery-mode.md`](recovery-mode.md), decision
 [F21](decisions.md#f21--recovery-mode-instead-of-rollback)) and on F20 (first
