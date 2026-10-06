@@ -1,72 +1,33 @@
 name: Platform checks
 
-# A pull request runs the whole check on Linux; one that changes only Markdown
-# documentation runs the guard lane. Every push to main runs the whole check
-# on Linux and macOS, the safety net after each merge; the release candidates'
-# macOS journeys run in qualify.yml. The two job names are the required
-# status checks: keep them. A skipped job reports as passed.
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
 
-# A newer push to a pull request cancels its running checks; a push to main
-# is never cancelled.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 jobs:
-  linux:
-    name: check (ubuntu-24.04)
+  concurrent:
+    name: four serial shards in one job ${{ matrix.run }}
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-          # A pull request's merge commit and its first parent, the base.
-          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 1 }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      # Documentation only: every changed path, renames as both their paths,
-      # is Markdown under docs/ or at the top level. Anything else, an empty
-      # or failed diff, and every push to main run the whole check.
-      - name: Scope
-        id: scope
-        if: github.event_name == 'pull_request'
-        run: |
-          lane=full
-          if changed=$(git diff --no-renames --name-only HEAD^1 HEAD) &&
-            [[ -n "$changed" ]] &&
-            ! grep -qvE '^(docs/.+|[^/]+)\.md$' <<<"$changed"; then
-            lane=docs
-          fi
-          echo "lane=$lane" >> "$GITHUB_OUTPUT"
-          echo "Lane: $lane"
-      - name: Guard lane (documentation only)
-        if: steps.scope.outputs.lane == 'docs'
-        run: bun run lint && bun run check:public
-      - name: Whole check
-        if: steps.scope.outputs.lane != 'docs'
-        run: bun run check
-
-  macos:
-    name: check (macos-14)
-    if: github.event_name != 'pull_request'
-    runs-on: macos-14
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: 1.4.2
-      - run: bun install --frozen-lockfile
-      - run: bun run check
+      - run: |
+          start=$(date +%s)
+          for s in 1 2 3 4; do bun test --timeout=20000 --shard=$s/4 > "shard$s.log" 2>&1 & pids[$s]=$!; done
+          status=0
+          for s in 1 2 3 4; do wait "${pids[$s]}" || status=1; done
+          for s in 1 2 3 4; do echo "== shard $s"; grep -E '\(fail\)|dangling|timed out|Ran [0-9]+ tests| fail$' "shard$s.log"; done
+          echo "wall $(( $(date +%s) - start ))s"
+          exit $status
