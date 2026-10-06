@@ -1,5 +1,7 @@
 # Lazurio Platform
 
+> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](docs/environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+
 **Install Lazurio with one command** (Linux x64 and arm64, macOS on Apple silicon):
 
 ```sh

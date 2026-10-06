@@ -1,5 +1,7 @@
 # Machines handover consumer — limited Linux pilot
 
+> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+
 Machines owns provisioning, networking, firewall, SSH and the infrastructure
 gateway. Platform owns the environment inside the delivered Machine. This boundary
 does not authorize deployment, restart, access changes or resident removal.
