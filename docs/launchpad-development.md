@@ -91,26 +91,34 @@ Organization's avatar is recognised at a glance. The avatar is the GitHub
 Organization's, cached by the Dashboard on each GitHub sync and changed only on GitHub.
 The active space has the design system's selected look (B3, design-system-lazurio#57):
 the quiet surface around its avatar with a hairline; no ring, no pill on the edge and no
-fill in the Organization's colour. The tooltip shows the space's name, the number of its
-Environments and the last one used. Clicking an Organization returns to the Environment
-last used in it, in the same app (Chat stays Chat); without a remembered one it opens the
-Organization's first Environment, and with no Environment at all the Organization's
-Dashboard. The personal space opens the personal Remote Environment, or the last
-personal Environment used. Dedicated servers are never Environments and appear neither
-in the rail nor in the picker; they belong to the Organization Settings (Owner only).
+fill in the Organization's colour. The rail is one step of the grid wide (64 px): every
+item is 40 px around a 32 px mark with concentric corners, an item under the pointer
+brings the quiet surface and keeps its shape, and the personal space is a white monogram
+with a hairline, never an ink block (prototypes-lazurio #11). The tooltip shows the
+space's name, the number of its Environments and the last one used. Clicking an
+Organization returns to the Environment last used in it, in the same app (Chat stays
+Chat); without a remembered one it opens the Organization's first Environment, and with
+no Environment at all the Organization's Dashboard. The personal space opens the
+personal Remote Environment, or the last personal Environment used. Dedicated servers
+are never Environments and appear neither in the rail nor in the picker; they belong to
+the Organization Settings (Owner only).
 
 **Column head: the Environment picker.** Above Chat · Apps · Automate the picker names
 the Environment: its name, below it whom it serves, and the Organization's avatar as its
-glyph. Its dropdown lists the Environments of the current space by name. The
-Organization stands above its Environments as a head row that opens the Organization's
-Dashboard; the Dashboard is never one more row beside the Environments. "This computer",
-a workstation that carries several Organizations, appears in every Organization it
-carries and opens for that Organization, so the Organization is part of the address of
-every app (in the wireframe `#/e/<env>/<app>/o-<org>`). "Všechny Organizace" (all
-Organizations) widens the list; search, ↑↓ and Enter work in it. The dropdown overlays
-the column only while it is open, so a fork's sidebar keeps its content. ⌘⇧E stays the
-global jump dialog. On an Organization's Dashboard the picker names the Organization,
-and the column has no second Organization block under it.
+glyph. Its dropdown lists the Environments of the current space, one line each: a small
+glyph, the name and, quieter beside it, whom it serves. It never leads to the
+Organization's Dashboard, which is never one more row beside the Environments: the
+Organization's name in the page's head opens it (in Apps), as do ⌘⇧E and the personal
+Dashboard's Organizations (prototypes-lazurio #17). "This computer", a workstation that
+carries several Organizations, appears in every Organization it carries and opens for
+that Organization, so the Organization is part of the address of every app (in the
+wireframe `#/e/<env>/<app>/o-<org>`). "Všechny Organizace" (all Organizations), the only
+thing at the dropdown's foot, widens the list. A search field appears only past seven
+Environments and once widened; ↑↓, Home, End and Enter work with or without it. The
+dropdown overlays the column only while it is open, so a fork's sidebar keeps its
+content. ⌘⇧E stays the global jump dialog, with the Organizations' heads. On an
+Organization's Dashboard the picker names the Organization, and the column has no second
+Organization block under it.
 
 **Environment names say what the Environment is for.** A Team Environment is
 "Team <name>", a work Environment "Pracovní", an Automated Environment the persona's
@@ -127,10 +135,14 @@ Diagnostics, in Servers and in the address. The address bar keeps it (root decis
 **Selection is the quiet surface** (the design system's variant A,
 HumanAndMachine-ai/design-system-lazurio#54). A selected row, menu item or navigation
 item and the picker take a surface one step darker (`gray-100`) and semibold type, and
-in a list a check with a word ("tady jsi", you are here). The picker has no frame until
+in a list a check, whose word ("tady jsi", you are here) only screen readers hear
+(design-system-lazurio#62). The picker has no frame until
 it is hovered or open. Nothing is selected by an edge on the left: in the design system
 that is `lz-edge`, "something to resolve". The Organization's colour stays in its avatar
-and never marks the active element; there are no drop shadows and no all-caps labels.
+and never marks the active element. Nothing in the page's flow has a drop shadow; only a
+layer floating above the page (a menu, the list under the picker, the ⌘⇧E dialog, a
+label) has the one shadow and a hairline (design-system-lazurio#59). There are no
+all-caps labels.
 This replaces the first target's active Environment filled with the Organization's
 accent and ringed, and closes the question of an Organization accent token without a
 new token.
@@ -177,11 +189,13 @@ information page is reached only from its tile's menu.
   opens the Dashboard. The Dashboard account remembers the last Environment, because
   every Environment has its own address.
 - **Header.** The Organization's name, and under it the Environment's name with its
-  kind icon. It never says "sdílený Teamem"; it says "offline" only when the
-  Environment is not running. The Guide is only the link at the top right; there is no
-  Guide tile. On a computer with several Organizations the Organization comes from the
-  address, chosen in the rail or the column head's picker, so the home needs no
-  Organization picker of its own.
+  kind icon. The Organization's name is a link to its Dashboard, underlined only under
+  the pointer (prototypes-lazurio #17); the personal space's "Osobní" is not. It never
+  says "sdílený Teamem"; it says "offline" only when the Environment is not running.
+  The Guide is only the link at the top right; there is no Guide tile. On a computer
+  with several Organizations the Organization comes from the address, chosen in the
+  rail or the column head's picker, so the home needs no Organization picker of its
+  own.
 - **Column.** Under the column head the Apps column holds only Všechny moduly (all
   modules), Soubory (Files, decision F35), Oblíbené (the favourites, pinned) and, at
   its bottom, the Marketplace. There is no module list (its rows led to technical
@@ -333,7 +347,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   (tokens, logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
   `tests/shell-last.test.ts`, `tests/shell-account.test.ts`,
   `tests/shell-host.test.ts`, `tests/shell-signed-out.test.ts`,
-  `tests/shell-interface.test.ts`,
+  `tests/shell-picker.test.ts`, `tests/shell-interface.test.ts`,
   `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
@@ -432,12 +446,13 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     structure (ids, apps, spaces, last Environments) stays. The operator
     becomes the person signed in at the browser. A space without an Environment (an
     Organization from the person's memberships) keeps its avatar in the rail, says
-    "No Environment yet · opens its Dashboard", and leads to its Dashboard; the
-    picker's "All Organizations" lists it with its head and "You have no Environment
-    here." A click on another space leads to the account's last Environment there
-    (`lastBySpace`), else this browser's memory, else its first. Without the account
-    (404 on today's gateways, 401 or 403, slow, not a valid document) the rail is
-    exactly this Environment's, with one debug line in the console and no error shown.
+    "No Environment yet · opens its Dashboard", and leads to its Dashboard; ⌘⇧E lists
+    it with its head and "You have no Environment here.", and the picker, which has no
+    heads, leaves it out even widened. A click on another space leads to the account's
+    last Environment there (`lastBySpace`), else this browser's memory, else its
+    first. Without the account (404 on today's gateways, 401 or 403, slow, not a valid
+    document) the rail is exactly this Environment's, with one debug line in the
+    console and no error shown.
   - Where apps open (S18, `app-opening.ts`): tiles, the column's favourites, "Otevřít
     aplikaci" and the lifecycle's "Otevřít" open in a new tab (`tab`, also without the
     account) or navigate this window (`same`), never in a frame. On a workstation the
@@ -473,6 +488,16 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
+- **The look** ([F36's addendum of 2026-10-06 on the rail and the
+  picker](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)):
+  the wireframe at prototypes-lazurio 1acd615 and the design system at
+  design-system-lazurio fdcc9b4. A 64 px rail of 40 px items around 32 px marks; three
+  radii, one per kind of thing; one shadow, only for the list, the ⌘⇧E dialog and the
+  rail's label. The picker's list is one line per Environment of the space, without the
+  Organization's head, with a search field only past seven Environments and only
+  "Všechny Organizace" at its foot; ⌘⇧E keeps the heads (`switcherList` and its keys,
+  `switcherKey`, in `view.ts`). The Organization's name in the Apps head links to its
+  Dashboard (`appsHeading` in `apps-view.ts`).
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04, grown by the addendum of 2026-10-05 with what a host page
   needs and by the addendum of 2026-10-06 with `parseShellSignedOut`);
@@ -516,7 +541,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     Dashboard (`railSpaces` with no app of its own).
   - **The column head** (`columnHead` in `view.ts`) on an Organization's Dashboard:
     the Organization's avatar (or initials), its name and "Dashboard Organizace"; the
-    list under it with the Organization's head marked "tady jsi" and its Environments;
+    list under it with its Environments, none current (⌘⇧E marks the Organization's head
+    as where you are; the picker has no head since F36's addendum of 2026-10-06);
     the gear to the Organization Settings (`settings`, else `<its dashboard>/settings`,
     "Nastavení Organizace", marked by `active="settings"`); no switch. On the personal
     Dashboard it draws nothing.
@@ -581,12 +607,12 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   | `--lazurio-surface` | the rail, the column behind the head | its sidebar's background |
   | `--lazurio-ink` | names, icons on hover | its sidebar's text |
   | `--lazurio-ink-muted` | who an Environment is for, icons, meta | its sidebar's muted text |
-  | `--lazurio-line` | hairlines and borders | its sidebar's border |
+  | `--lazurio-line` | hairlines and borders, the active tab's edge | its sidebar's border |
   | `--lazurio-line-strong` | the hairline around the active space in the rail (and the logo on the personal Dashboard) | the border of its selected row; the design system's `gray-300` |
-  | `--lazurio-hover` | a row under the pointer | its row hover |
+  | `--lazurio-hover` | a row or a rail item under the pointer | its row hover |
   | `--lazurio-selected` | the selected row, the open picker | its selected row |
   | `--lazurio-control` | the track of the app switch | its control or input surface |
-  | `--lazurio-raised` | the active tab of the switch, an Organization's mark | its active row or raised surface |
+  | `--lazurio-raised` | the active tab of the switch, an Organization's mark, your personal monogram | its active row or raised surface |
   | `--lazurio-overlay` | the list under the picker, the ⌘⇧E dialog, menus | its popover or menu background |
   | `--lazurio-overlay-ink` | text in them | its popover text |
   | `--lazurio-focus` | the focus ring | its focus ring |
