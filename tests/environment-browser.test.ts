@@ -409,6 +409,57 @@ const started = (urls: unknown) => ({
   data: { access_urls: urls, port: 4848 },
 });
 
+// A thread asks for its own window before its agent opened one (the Browser
+// panel of a new T3 Code thread): the view opens the thread's window first,
+// so the person and the agent see the same window. Found on the first
+// Environment: the panel showed the list of every window and the person
+// followed another session's window while the agent worked in the thread's.
+test("the view of a thread without a window opens that window first, and falls back to every window when it cannot", async () => {
+  const env = { HOME: "/home/operator", XDG_RUNTIME_DIR: "/run/user/1000" };
+  const sessions: { engine: string; port: number; session: string }[] = [
+    { engine: "chrome", port: 42337, session: "other" },
+  ];
+  const ok = dashboard(
+    started([`${origin}/#dashboard-access-token=${token}`]),
+    sessions,
+  );
+  const opened: string[] = [];
+  const openWindow = async (session: string) => {
+    opened.push(session);
+    sessions.push({ engine: "chrome", port: 45229, session });
+  };
+  const thread = "t3-3745367c-d453-41df-b948-75e29eff8651";
+  expect(
+    await resolveBrowserView(entry, thread, { ...ok, env, openWindow }),
+  ).toEqual({
+    available: true,
+    view: `${origin}/?port=45229&view=.html#dashboard-access-token=${token}`,
+    session: thread,
+  });
+  expect(opened).toEqual([thread]);
+  // Its window runs now: asked again, nothing is opened.
+  await resolveBrowserView(entry, thread, { ...ok, env, openWindow });
+  expect(opened).toEqual([thread]);
+  // Every window (no session) never opens one.
+  await resolveBrowserView(entry, null, { ...ok, env, openWindow });
+  expect(opened).toEqual([thread]);
+  // The window cannot be opened: the view of every window, as before.
+  const failing = async () => {
+    throw new Error("browser-unreachable");
+  };
+  expect(
+    await resolveBrowserView(entry, "t3-another", {
+      ...ok,
+      env,
+      openWindow: failing,
+    }),
+  ).toEqual({
+    available: true,
+    view: `${origin}/#dashboard-access-token=${token}`,
+    session: "t3-another",
+  });
+});
+
 test("the view: the dashboard's token from agent-browser's own answer, the session's window by its stream port", async () => {
   const env = { HOME: "/home/operator", XDG_RUNTIME_DIR: "/run/user/1000" };
   const ok = dashboard(
@@ -593,6 +644,54 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
   await expect(
     ensureThreadWindow("codex-c", undefined, refused.seams),
   ).rejects.toEqual(new BrowserWindowFailure("window-create-failed"));
+});
+
+// Review of 24ab283: the Launchpad's view (a T3 thread's panel) and the CLI can
+// ask for the same thread's window at the same moment. Both saw no binding and
+// each created a window; the binding kept the second, the first was orphaned
+// and the person and the agent could again see different windows. The check
+// and the creation now run under one lock of the account.
+test("two simultaneous requests for one thread's window create it once and both get it", async () => {
+  const runtime = await temporary("browser-window-lock-");
+  const socketDir = join(runtime, "agent-browser");
+  await mkdir(socketDir, { mode: 0o700 });
+  const created: string[] = [];
+  const open = new Set<string>();
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 30));
+  const seams: WindowSeams = {
+    env: { HOME: "/home/operator", XDG_RUNTIME_DIR: runtime },
+    // agent-browser's `tab <id>` writes the binding the next check reads.
+    run: async (command) => {
+      await pause();
+      const index = command.indexOf("tab");
+      if (index !== -1 && command[index - 1] === "--no-pin-tab") {
+        const session = command[command.indexOf("--session") + 1];
+        await writeFile(
+          join(socketDir, `${session}.target`),
+          JSON.stringify({ targetId: command[index + 1] }),
+        );
+      }
+      return { exitCode: 0, stdout: "" };
+    },
+    targets: async () => new Set(open),
+    cdp: async () => {
+      await pause();
+      const id = `WINDOW_${created.length + 1}`;
+      created.push(id);
+      open.add(id);
+      return { targetId: id };
+    },
+  };
+  const [first, second] = await Promise.all([
+    ensureThreadWindow("t3-new", undefined, seams),
+    ensureThreadWindow("t3-new", undefined, seams),
+  ]);
+  expect(created).toEqual(["WINDOW_1"]);
+  expect([first.targetId, second.targetId]).toEqual(["WINDOW_1", "WINDOW_1"]);
+  expect([first.created, second.created].sort()).toEqual([false, true]);
+  expect(
+    JSON.parse(await readFile(join(socketDir, "t3-new.target"), "utf8")),
+  ).toEqual({ targetId: "WINDOW_1" });
 });
 
 // ---- The recorded entry ------------------------------------------------------

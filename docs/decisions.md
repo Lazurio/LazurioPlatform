@@ -4806,3 +4806,36 @@ keep running, as with an update. A Folder that an older Platform refreshed takes
 entry when the update to this one restarts the Launchpad. After a manual restart, the
 panel above, the view in a frame on T3 Code's origin and a sign-in through the view
 worked on that Environment (#201, #202).
+
+**Addendum 2026-10-06: a thread's view opens its window; the manual names the open
+browser.** On the first Environment the Organization Admin opened web T3 Code's Browser
+panel in a new thread and asked the agent whether it could reach "the open browser".
+Two things went wrong:
+- The thread had no window yet, so `browser.json?session=t3-<thread>` answered the view
+  of every window. He clicked into another session's window while the agent opened and
+  worked in the thread's own window: the person and the agent looked at different
+  windows.
+- The agent first took "the open browser" for T3 Code's own preview tools, which drive
+  a browser on the person's computer and do not exist in web T3. It answered that it
+  could not see the page before it used the Environment browser.
+
+Decided, within point 5 and point 6:
+1. **A view asked for a session opens that session's window when it has none**, with
+   `ensureThreadWindow`, exactly as `lazurio browser window` does, and then answers
+   that window's view. The person and the thread's agent always see the same window.
+   The check and the creation run under one kernel lock of the account
+   (`$XDG_RUNTIME_DIR/lazurio-browser-window.lock`), shared with `lazurio browser
+   window`, so a panel opening while the agent starts never makes two windows. If the
+   window cannot be opened, the answer stays the view of every window. A view asked
+   without a session (the Launchpad's panel) opens nothing.
+2. **The manual says "the open browser" is the Environment browser.** It names T3
+   Code's preview tools and the desktop apps' built-in browsers as a browser on the
+   Operator's computer, says a T3 thread's Browser panel shows that thread's window,
+   and gives `curl -s http://127.0.0.1:9222/json/list` to see what the windows have
+   open. Template revision `base-instructions-30`.
+
+Not decided here: the view's own interface. The agent-browser dashboard is the pilot's
+view. Its input sends punctuation with ASCII codes as Windows virtual-key codes, so `.`
+arrives as Delete (vercel-labs/agent-browser#1380, fix #1382 open), and its sessions,
+activity and console columns are too much for people. A view in the shape of the
+right-panel browser of ChatGPT/Codex Desktop is the second phase (DEV-6646).

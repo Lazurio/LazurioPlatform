@@ -1903,6 +1903,10 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
     ),
     blank,
     t(
+      "- **„Otevřený prohlížeč“ je tenhle.** Když Operátor mluví o prohlížeči, který má otevřený, nebo se ptá, co v něm je, myslí prohlížeč Environmentu: ten vidí v panelu Browser webového T3 Code, v pravém panelu Launchpadu i z tvého odkazu. Panel Browser ve vlákně T3 ukazuje okno tohoto vlákna. Nástroje náhledu T3 Code (`preview_*`) a vestavěný prohlížeč desktopových aplikací ovládají prohlížeč na Operátorově počítači, ne tenhle; ve webovém T3 nejsou. Co je v oknech Environmentu otevřené, vypíše `curl -s http://127.0.0.1:9222/json/list` (adresa a titulek každé stránky).",
+      "- **\"The open browser\" is this one.** When the Operator talks about the browser they have open, or asks what is in it, they mean the Environment browser: they see it in web T3 Code's Browser panel, in the Launchpad's right panel and from your link. The Browser panel of a T3 thread shows that thread's window. T3 Code's preview tools (`preview_*`) and the built-in browser of desktop apps drive a browser on the Operator's computer, not this one; web T3 has none. `curl -s http://127.0.0.1:9222/json/list` lists what the Environment's windows have open (each page's address and title).",
+    ),
+    t(
       "- **Tvoje okno.** Na začátku práce s prohlížečem spusť `lazurio browser window` (případně `--url <adresa>`). Otevře okno tvého vlákna, nebo najde to, které už máš, a vypíše jméno sezení, odkaz na pohled a příkaz, kterým v okně pracuješ. Jméno sezení plyne z vlákna (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); jinak ho zadej `--session <jméno>`.",
       "- **Your window.** When you start browser work, run `lazurio browser window` (optionally `--url <address>`). It opens your thread's window, or finds the one you have, and prints the session name, the link to the view and the command to work in the window with. The session name follows from the thread (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); otherwise give it with `--session <name>`.",
     ),

@@ -215,7 +215,8 @@ follows the same pattern: `browserOrigin` is in the public parts, the loopback p
 not; `GET /.lazurio/browser.json` and the hand-over `GET /.lazurio/browser` answer the
 view's address with the dashboard's access token only in the fragment, behind this
 admission and on the forks' origins too (the gateway forwards `/.lazurio/*` to the
-Launchpad).
+Launchpad). Asked for a session that has no window yet, they open that session's window
+first, so a T3 thread's panel shows the thread's own window (F38, addendum 2026-10-06).
 
 ### Files links (decision F35)
 

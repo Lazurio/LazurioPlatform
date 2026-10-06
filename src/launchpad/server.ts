@@ -7,6 +7,7 @@ import {
   isBrowserSession,
   resolveBrowserView,
 } from "../browser/view";
+import { cdpSeams, ensureThreadWindow } from "../browser/window";
 import {
   type ContentHost,
   preparationAnswer,
@@ -275,6 +276,8 @@ export async function startLaunchpad(
     run: runProcess,
     fetch: (url: string, init: RequestInit) => fetch(url, init),
     env: process.env,
+    openWindow: (session: string) =>
+      ensureThreadWindow(session, undefined, cdpSeams(process.env, runProcess)),
   }),
 ) {
   const pill = installed?.pill;
