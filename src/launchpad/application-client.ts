@@ -1,9 +1,24 @@
 import { request as httpRequest } from "node:http";
 import { stateFields } from "../folder/state";
 
+// The transport deadlines of a request. Preparation and start-time checks may
+// use the core's ten-minute budget plus cleanup and application launch; every
+// other operation gets the normal deadline. A test passes shorter ones to
+// observe which deadline an operation gets without waiting for it.
+export const applicationRequestDeadlines = Object.freeze({
+  normalMs: 30_000,
+  preparationMs: 660_000,
+});
+
 // Explicit existing session transport, not discovery, a token store or another
 // lifecycle owner. CLI input arrives on stdin, never in argv or shell history.
-export async function requestApplication(input: unknown) {
+export async function requestApplication(
+  input: unknown,
+  deadlines: Readonly<{
+    normalMs: number;
+    preparationMs: number;
+  }> = applicationRequestDeadlines,
+) {
   const value = stateFields(input, ["sessionUrl", "operation", "selection"]);
   if (
     typeof value.sessionUrl !== "string" ||
@@ -44,13 +59,11 @@ export async function requestApplication(input: unknown) {
       {
         method: "POST",
         agent: false,
-        // Preparation and start-time checks may use the core's ten-minute
-        // budget plus cleanup and application launch.
         // A transport deadline is not cancellation or evidence of rollback.
         signal: AbortSignal.timeout(
           ["prepare", "clean-prepare", "start"].includes(operation)
-            ? 660_000
-            : 30_000,
+            ? deadlines.preparationMs
+            : deadlines.normalMs,
         ),
         headers: {
           "Content-Type": "application/json",
