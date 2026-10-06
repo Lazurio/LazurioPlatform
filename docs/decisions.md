@@ -5316,3 +5316,32 @@ users without GitHub, routine internal sharing and mandatory Admin approval
 of each device without weakening repository governance. Full/app separation,
 indirect remote access, broker publication denial and existing-session
 revocation require new consumer evidence before broader entry is enabled.
+
+Reconciled before publication, 2026-10-06 (evening):
+
+1. **Device approval.** An approval binds one concrete device, its owner's
+   account and one target Organization. On a tailnet that serves several
+   Organizations, each Organization's Admin approves entry into that
+   Organization; an approval for one Organization never opens another, and
+   one device may carry approvals for several Organizations. Until the record
+   moves to Auth, a single writer holds approvals: the network intent in the
+   host owner's Deployment Repository, created as a reviewed change from live
+   state and enforced by Machines (Plan, Permit, readback). The Dashboard
+   never rewrites it by writing to Headscale directly. Moving the record to
+   Auth is a separate migration with no period of two writers.
+2. **Shares follow the assignment.** Both full and application shares are
+   bound to the originating assignment: they end when that assignment is lost
+   or reassigned, when the sharer or the recipient loses membership, or when
+   the target is rebound, and a later restoration does not revive them. An
+   application share grants at most basic `user` entry.
+3. **App-only access excludes the browser and desktop.** Application access
+   never includes the Environment's browser or desktop (`browser.`,
+   `desktop.`) or any other path that controls the whole Environment. The
+   shared gateway cookie of root decision 0191 (point 8b) is not an
+   application grant; the gateway checks every target separately. Point 10 of
+   decision 0191 (wipe the browser profile before a work Environment is
+   reassigned to another person) still applies; 0192 only removes forced
+   sign-out for ordinary sharing.
+4. **Team Environment entry.** An Admin manages who may enter a Team
+   Environment. Until Auth grants replace it, membership of the Environment's
+   GitHub Team decides entry as the marked migration implementation.
