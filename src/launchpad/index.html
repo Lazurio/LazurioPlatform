@@ -120,6 +120,10 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .apps-environment { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); font-size: 15px; font-weight: var(--lz-weight-akce); }
 .apps-environment .icon { width: 15px; height: 15px; }
 .apps-title, .module-title { font-size: 28px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.2; }
+/* The Organization's name opens its Dashboard (F36's addendum of 2026-10-06,
+   the wireframe's .lp-head__link): the heading's look, underlined on hover. */
+.apps-title-link { color: inherit; text-decoration: none; }
+.apps-title-link:hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .apps-guide { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .apps-guide:hover { color: var(--fg); }
 .org-mark { display: grid; flex: none; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--lz-white); box-shadow: inset 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 12px; font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }

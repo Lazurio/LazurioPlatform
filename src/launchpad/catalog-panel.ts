@@ -16,6 +16,7 @@ import { appLinkTarget, startThenOpen } from "./app-opening";
 import {
   type AppsSection,
   type AppsTile,
+  appsHeading,
   appsScope,
   appsScopes,
   appsSections,
@@ -823,15 +824,17 @@ export function createCatalogPanel(
 
   function drawHead(group: CatalogGroupEntry | null) {
     const copy = options.copy();
-    const heading = element(
-      "h1",
-      "apps-title",
-      group === null
-        ? copy.homeTitle
-        : group.sections === null
-          ? copy.appsPersonal
-          : group.name,
-    );
+    // The Organization's name opens its Dashboard (F36's addendum of
+    // 2026-10-06): in this window, as "Přístup k modulu" does.
+    const name = appsHeading(group, copy, options.dashboard);
+    const heading = element("h1", "apps-title");
+    if (name.link === null) heading.textContent = name.text;
+    else {
+      const link = element("a", "apps-title-link", name.text);
+      link.href = name.link.href;
+      link.title = name.link.title;
+      heading.append(link);
+    }
     heading.tabIndex = -1;
     heading.dataset.pageHeading = "";
     const where = element("div", "apps-where");

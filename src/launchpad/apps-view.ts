@@ -383,6 +383,28 @@ export function favoriteTiles(
   ).filter((tile) => tile.favorite);
 }
 
+/** The head of the Apps home (F36's addendum of 2026-10-06; the wireframe's
+ * `LaunchpadHome`, prototypes-lazurio 1acd615): the Organization's name, a
+ * link to its Dashboard page as the shell document names it (`dashboard`,
+ * looked up by the Organization slug), since the Environment picker no longer
+ * leads there. The personal space ("Osobní"), the home without a group
+ * ("Launchpad") and an Organization without such a page stay plain text. */
+export function appsHeading(
+  group: CatalogGroupEntry | null,
+  copy: Copy,
+  dashboard: (slug: string) => string | null,
+): Readonly<{ text: string; link: { href: string; title: string } | null }> {
+  if (group === null) return { text: copy.homeTitle, link: null };
+  if (group.sections === null) return { text: copy.appsPersonal, link: null };
+  const slug = group.organization.organization;
+  const href = slug === null ? null : dashboard(slug);
+  return {
+    text: group.name,
+    link:
+      href === null ? null : { href, title: copy.appsOrganizationDashboard },
+  };
+}
+
 /** "Přístup k modulu" (root decision 0185 S15, issue #151): the module in
  * its Organization's Dashboard, Nastavení Organizace → Moduly → the module
  * (`<Organization page>/settings?tab=modules&module=<id>`), opened in this
