@@ -4665,13 +4665,15 @@ opens (point 6) and the gear's surface under the pointer; the active space's hai
 surface are the wireframe's pixel for pixel (1 px `gray-300`, 3 px `gray-100`). The column
 head was also drawn in T3 Code's default dark sidebar at its narrowest (208 px) and at
 264 px, its light one, MausBot's Midnight (320 px), a dark host without roles and a 64 px
-host, where the picker and the gear stand as 48 px squares and nothing overflows. The keyboard, the pointer, widening and searching, more than
-seven Environments, an Organization's Dashboard with and without Environments, ⌘⇧E on it,
-and a dark theme's roles were driven in the same page; in the Launchpad's preview (a
-temporary fixture Folder) the head's link, its look under the pointer, a click into the
-Dashboard and the rail at 64 px beside the column. Not exercised: the Dashboard and the
-forks themselves, which take this with a release and a pin, narrow widths, and browsers
-other than Chrome. These are no rendered-page CI gates (root decision 0178).
+host, where the picker and the gear stand as 48 px squares and nothing overflows. The
+keyboard, the pointer, widening and searching, more than seven Environments, an
+Organization's Dashboard with and without Environments, ⌘⇧E on it, and a dark theme's
+roles were driven in the same page; in the Launchpad's preview (a temporary fixture
+Folder) the head's link, its look under the pointer, a click into the Dashboard, the rail
+at 64 px beside the column and the column head. Not exercised: the Dashboard and the
+forks themselves, which take this with a release and a pin, the page at narrow window
+widths, and browsers other than Chrome. These are no rendered-page CI gates (root
+decision 0178).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
