@@ -557,7 +557,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   | `--lazurio-ink` | names, icons on hover | its sidebar's text |
   | `--lazurio-ink-muted` | who an Environment is for, icons, meta | its sidebar's muted text |
   | `--lazurio-line` | hairlines and borders | its sidebar's border |
-  | `--lazurio-line-strong` | the ring of the active space in the rail | a stronger border, or the text mixed into the background |
+  | `--lazurio-line-strong` | the hairline around the active space in the rail (and the logo on the personal Dashboard) | the border of its selected row; the design system's `gray-300` |
   | `--lazurio-hover` | a row under the pointer | its row hover |
   | `--lazurio-selected` | the selected row, the open picker | its selected row |
   | `--lazurio-control` | the track of the app switch | its control or input surface |

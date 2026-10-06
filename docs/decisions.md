@@ -4233,7 +4233,7 @@ the colours of the app it sits in.
    | `--lazurio-ink` | names, icons on hover |
    | `--lazurio-ink-muted` | the line saying who an Environment is for, icons, meta |
    | `--lazurio-line` | hairlines and borders |
-   | `--lazurio-line-strong` | the ring of the active space in the rail |
+   | `--lazurio-line-strong` | the hairline around the active space in the rail (until 2026-10-06 a ring; #209) |
    | `--lazurio-hover` | a row under the pointer |
    | `--lazurio-selected` | the selected row and the open picker (the quiet surface) |
    | `--lazurio-control` | the track of the app switch |
