@@ -215,9 +215,15 @@ keys, tokens and tool configuration; the operator's tools and their versions; an
 in the legacy tree.
 
 **When a check fails.** No way back is offered. The agent stops at that step, reports
-the step and the state, and repairs forward in the new Folder by the manual; what it
-cannot repair goes into an issue with the inventory, as Recovery mode does (decision
-8). State is recognized from disk alone:
+the step and the state, and repairs forward in the new Folder by the manual. What it
+cannot repair goes into an issue under the same boundary as Recovery mode (F21, decision
+8): the issue in this public repository carries only structured fields that pass the
+deterministic sanitizing gate (Platform version, platform, migration step, failed check
+identifiers, the state row below, Folder and template revision). The inventory itself
+never leaves the computer: Organization and repository names, paths, Git status,
+stashes, worktrees and home links stay in the local recovery bundle, and the agent
+attaches a redacted excerpt only after reading it under the same gate; the operator sees
+the exact body that left. State is recognized from disk alone:
 
 | `<home>/Lazurio` | `Lazurio.legacy-*` | Meaning | Next |
 | --- | --- | --- | --- |
@@ -258,7 +264,8 @@ install base.
 > After every step run its check. There is no way back to the old checkout. If a check
 > fails or the state is not one the manual names, stop and tell me the step and the
 > exact state, then repair forward by the manual; what you cannot repair, file as an
-> issue with the inventory.
+> issue with only the structured, sanitized fields the manual names. Keep the inventory
+> on this computer and show me the exact issue body that left.
 
 ## 5. Before the root repository is archived
 
