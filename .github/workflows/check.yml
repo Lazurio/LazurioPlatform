@@ -1,10 +1,10 @@
 name: Platform checks
 
-# A pull request runs the static checks and the tests in four shards, each on
-# its own Linux runner; one that changes only Markdown documentation runs the
-# guard lane. Every push to main runs the same on Linux and the whole check on
-# macOS, the safety net after each merge; the release candidates' macOS
-# journeys run in qualify.yml.
+# A pull request runs the static checks and the tests, the tests in four
+# worker processes (`bun test --parallel`) on one Linux runner; one that
+# changes only Markdown documentation runs the guard lane. Every push to main
+# runs the same on Linux and the whole check on macOS, the safety net after
+# each merge; the release candidates' macOS journeys run in qualify.yml.
 #
 # `check (ubuntu-24.04)` and `check (macos-14)` are the required status
 # checks: keep their names. A skipped job reports as passed, so the Linux one
@@ -73,13 +73,9 @@ jobs:
         run: bun run check:static
 
   tests:
-    name: tests (${{ matrix.shard }}/4)
+    name: tests
     needs: scope
     if: needs.scope.outputs.lane != 'docs'
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -90,8 +86,12 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      # A shard runs its files one after another on a runner of its own.
-      - run: bun test --shard=${{ matrix.shard }}/4
+      # One worker per vCPU of the runner (3, 5 and 6 measured slower). The
+      # recorded per-file durations start the slowest files first; a missing
+      # or stale entry only changes the order. Four workers share the runner,
+      # so a test without its own timeout gets 20 s instead of 5 s before it
+      # counts as hung.
+      - run: bun test --parallel=4 --timings=tests/timings.json --timeout=20000
 
   linux:
     name: check (ubuntu-24.04)
