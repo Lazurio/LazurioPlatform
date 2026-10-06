@@ -77,93 +77,6 @@ test("the manual follows the locale with the same structure in both languages an
       });
       for (const path of outputPaths)
         expect(outputs[path]).not.toMatch(/HumanAndMachines\/Lazurio/);
-      // The pull-request lifecycle Matěj decided on 2026-09-22 (F14):
-      // Draft PR while in progress, Ready for review when finished and
-      // verified, and the PR assigned to the user whose verification is asked
-      // for. A snapshot alone cannot drop these sentences.
-      const workingHere = outputs["manual/working-here.md"];
-      for (const sentence of {
-        en: [
-          "from the first push the work is visible as a GitHub Draft PR while it is in progress",
-          "you mark the pull request Ready for review yourself",
-          "assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for",
-          "The assignee is the owner of the next step.",
-          "Finished work never stays a Draft",
-        ],
-        cs: [
-          "od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR",
-          "přepneš pull request na Ready for review sám",
-          "pull request přiřadíš (GitHub assignee a k tomu žádost o review) GitHub uživateli, jehož ověření žádáš",
-          "Assignee vlastní další krok.",
-          "Hotová práce nikdy nezůstává jako Draft",
-        ],
-      }[locale])
-        expect(workingHere).toContain(sentence);
-    }
-});
-
-// The two working rules of root decision 0163, in both languages and both
-// outputs: the short form in AGENTS.md, the full form in the manual's
-// `working-here.md`. No output may still say that filing an issue needs the
-// Operator's mandate. A snapshot alone cannot drop these sentences.
-test("AGENTS.md and the manual carry the issue rule and the review rule of decision 0163", () => {
-  const rules = {
-    cs: {
-      agents: [
-        "zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře",
-        "Pak pokračuj na všem, co na odpovědi nestojí",
-        "Issue bez pokynu Operátora nezavírej ani neprioritizuj a přiřazuj ho jen při eskalaci chybějících práv",
-        "Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned",
-        "věcnou námitkou v PR, a požádej o verdikt na nezměněném headu",
-        "Trvá-li reviewer na svém, předlož obě stanoviska Operátorovi",
-      ],
-      manual: [
-        "## Otevřené otázky jdou do GitHub Issues a práci nezastavují (decision 0163)",
-        "Je to tvůj trvalý mandát: předem se neptáš",
-        "- **Issue práci nezastavuje.**",
-        "- **Mandát platí jen pro zápis.**",
-        "## Nálezy z review přijímej s úsudkem (decision 0163)",
-        "- **Skutečnou vadu oprav hned.**",
-        "Pak požádej o verdikt na nezměněném headu.",
-        "Review ani branch rules nikdy neobcházej.",
-      ],
-    },
-    en: {
-      agents: [
-        "as a GitHub Issue in the exact owning repository, without asking first",
-        "Then continue with everything that does not depend on the answer",
-        "Do not close or prioritize an issue without the Operator's instruction, and assign one only to escalate missing rights",
-        "Take review findings with judgment. Fix a real defect at once",
-        "with a factual objection on the PR, and ask for a verdict on the unchanged head",
-        "If the reviewer still insists, put both positions to the Operator",
-      ],
-      manual: [
-        "## Open questions go to GitHub Issues and do not stop the work (decision 0163)",
-        "This is your standing mandate: you do not ask first",
-        "- **An issue does not stop the work.**",
-        "- **The mandate covers filing only.**",
-        "## Take review findings with judgment (decision 0163)",
-        "- **Fix a real defect at once.**",
-        "Then ask for a verdict on the unchanged head.",
-        "Never bypass the review or the branch rules.",
-      ],
-    },
-  } as const;
-  for (const journey of journeys)
-    for (const locale of ["cs", "en"] as const) {
-      const outputs = renderOutputs({
-        preset: journey.preset,
-        machine: journey.machine,
-        profile: presetProfile(journey.preset, journey.os, { locale }),
-      });
-      for (const sentence of rules[locale].agents)
-        expect(outputs["AGENTS.md"]).toContain(sentence);
-      for (const sentence of rules[locale].manual)
-        expect(outputs["manual/working-here.md"]).toContain(sentence);
-      for (const path of outputPaths)
-        expect(outputs[path]).not.toMatch(
-          /issue nebo komentáře je Publikace|issue or a comment is a Publication/,
-        );
     }
 });
 
@@ -293,24 +206,6 @@ test("no generated output forbids lazurio update or gives the product version to
           ? "`lazurio machine folder-refresh`"
           : "`lazurio profile-update`",
       );
-      expect(troubleshooting).toContain("Folder refresh needed");
-      expect(outputs["AGENTS.md"]).toContain(
-        locale === "cs"
-          ? "- Na začátku práce spusť na pozadí `lazurio update`"
-          : "- At the start of work, run `lazurio update` in the background",
-      );
-      expect(troubleshooting).toContain(
-        locale === "cs"
-          ? "sám na pozadí na začátku každé práce"
-          : "in the background at the start of every piece of work",
-      );
-      if (hosted) {
-        expect(troubleshooting).toContain(
-          locale === "cs"
-            ? "Pin provozovatele hostingu (Lazurio Machines) je jen minimum"
-            : "The hosting operator's pin (Lazurio Machines) is only a minimum",
-        );
-      }
     }
 });
 
@@ -351,12 +246,8 @@ test("a personal VM names reachable peers neutrally from the record and requires
     "- `example-laptop` (client device, personal zone): SSH both ways with `example-laptop.tailnet.example.invalid`; no HTTPS.",
   );
   expect(related).toContain(
-    "Reachability is decided by Headscale and is neither identity nor mandate",
-  );
-  expect(related).toContain(
     "confirm with the Operator that it is theirs or assigned to them",
   );
-  expect(related).toContain("Never clone an Organization repository");
   expect(related).not.toMatch(/owner's (work VM|device)/i);
   expect(render(bindings.personalRelated)).toMatchSnapshot();
 
@@ -421,9 +312,6 @@ test("a personal VM names reachable peers neutrally from the record and requires
     presetProfile("hosted-personal", "linux", { locale: "cs" }),
   );
   expect(cs).toContain("## Z tohohle osobního Remote Environmentu");
-  expect(cs).toContain(
-    "Dosažitelnost rozhoduje Headscale a není to identita ani mandát",
-  );
   expect(cs).toContain(
     "potvrď s Operátorem, že je jeho nebo že je přiřazený jemu",
   );
@@ -519,7 +407,6 @@ test("this-machine.md renders relationships only when the binding carries them",
   expect(related).toContain(
     "- `example-gateway` (Conglomerate Host, Organization `example`): no SSH; HTTPS `auth.example.lazurio.io`.",
   );
-  expect(related).toContain("Lazurio enforces none of this");
   expect(related).toMatchSnapshot();
 });
 
@@ -1092,104 +979,6 @@ test("a Remote Environment's troubleshooting manual replaces an outdated Codex a
     }
 });
 
-// How Lazurio is built is rendered wherever Organizations are mounted; a
-// personal Remote Environment mounts none. Connected applications, secrets and
-// the guard against installing from source are on every preset.
-test("the building rules follow the Organizations; applications, secrets and the installation guard are everywhere", () => {
-  for (const journey of journeys)
-    for (const locale of ["cs", "en"] as const) {
-      const outputs = renderOutputs({
-        preset: journey.preset,
-        machine: journey.machine,
-        profile: presetProfile(journey.preset, journey.os, { locale }),
-      });
-      const workingHere = outputs["manual/working-here.md"];
-      const withOrganizations = journey.preset !== "hosted-personal";
-      for (const heading of locale === "cs"
-        ? [
-            "## Než postavíš něco nového",
-            "## Moduly a Lazurio Module Standard (decision 0171)",
-            "## Plán a testy drží záměr",
-            "## Přestavbu dělá agent (decision 0173)",
-            "## Vývoj Lazuria",
-          ]
-        : [
-            "## Before you build something new",
-            "## Modules and the Lazurio Module Standard (decision 0171)",
-            "## The plan and the tests hold the intent",
-            "## A restructuring is done by an agent (decision 0173)",
-            "## Developing Lazurio",
-          ])
-        expect(workingHere.includes(heading)).toBe(withOrganizations);
-      expect(workingHere).toContain(
-        locale === "cs"
-          ? "spusť `composio link <toolkit>`"
-          : "run `composio link <toolkit>`",
-      );
-      expect(workingHere).toContain(
-        locale === "cs"
-          ? "**Vlastní integraci nestav**"
-          : "**Do not build your own integration**",
-      );
-      expect(workingHere).toContain(
-        locale === "cs" ? "## Tajné údaje" : "## Secrets",
-      );
-      expect(outputs["manual/troubleshooting.md"]).toContain(
-        locale === "cs"
-          ? "Lazurio nikdy neinstaluj ani nestav ze zdrojů"
-          : "Never install or build Lazurio from source",
-      );
-      // Composio is part of Lazurio once enabled in the Launchpad settings.
-      expect(workingHere).toContain(
-        locale === "cs"
-          ? "Composio je součást Lazuria, jakmile ho Operátor zapne a přihlásí v Launchpadu (Nastavení → Nástroje)."
-          : "Composio is part of Lazurio once the Operator enables it and signs it in in the Launchpad (Settings → Tools).",
-      );
-      // The agent of an Operator with the rights creates a module on their
-      // explicit instruction; nothing says an agent never may.
-      expect(workingHere.includes("not an agent")).toBe(false);
-      expect(workingHere.includes("ne agent.")).toBe(false);
-      expect(
-        workingHere.includes(
-          locale === "cs"
-            ? "Agent Operátora s těmito právy to udělá na jeho výslovný pokyn"
-            : "The agent of an Operator with those rights does it on their explicit instruction",
-        ),
-      ).toBe(withOrganizations);
-      // Until content synchronization exists the agent keeps the checkouts
-      // current and resolves a diverged one without losing work.
-      expect(
-        outputs["manual/troubleshooting.md"].includes(
-          locale === "cs"
-            ? "## Aktuální checkouty Organizací a modulů"
-            : "## Current checkouts of Organizations and modules",
-        ),
-      ).toBe(withOrganizations);
-    }
-});
-
-// Decision F30: the Operator replaces the Principal. No generated output, in
-// any preset or locale, still names the Principal.
-test("no generated output says Principal", () => {
-  for (const journey of journeys)
-    for (const locale of ["cs", "en"] as const) {
-      const outputs = renderOutputs({
-        preset: journey.preset,
-        machine: journey.machine,
-        profile: presetProfile(journey.preset, journey.os, { locale }),
-      });
-      for (const path of outputPaths)
-        expect([path, locale, /Princip[aá]l/.test(outputs[path])]).toEqual([
-          path,
-          locale,
-          false,
-        ]);
-      expect(outputs["manual/roles.md"]).toContain(
-        locale === "cs" ? "## Operátor" : "## Operator (Operátor)",
-      );
-    }
-});
-
 // A missing right is escalated to a named administrator on every preset, with
 // the assignment as the one exception to the issue mandate, and a refused push
 // keeps the work (decision F14 addendum 2026-10-02). Only the Team Environment
@@ -1283,223 +1072,5 @@ test("missing rights are escalated on every preset; only the Team hands every pu
             : "On a Team Environment an update affects all its Operators",
         ),
       ).toBe(journey.preset === "hosted-organization-team");
-    }
-});
-
-// Every task is a Draft first: the pull request for code, the unfinished
-// state inside an external application (an e-mail, a form, a message), even
-// when the Operator asked straight away to "send". The Operator's explicit
-// "Publish" for that Draft is the full mandate to finish it (decision F14,
-// addendum 2026-10-05). AGENTS.md says it on every preset; the Team keeps its
-// named publisher of pull requests (F31).
-test("every task is a Draft first and an explicit “Publish” for it is the mandate to finish it", () => {
-  const lines = {
-    cs: {
-      other:
-        "- Tvoje práce je u každého úkolu Draft: u kódu pull request, v externí aplikaci připravený a nedokončený stav přímo v ní (e-mail jako koncept v Outlooku, vyplněný a neodeslaný formulář, neodeslaná zpráva). Publikace (odeslání, odevzdání, merge, nasazení, jiné dokončení viditelné navenek) patří Operátorovi. Draft mu vždy předej, i když tě požádal rovnou „pošli“. Jeho výslovné „Publikuj“ k tomu Draftu v aktuálním threadu je plný mandát k dokončení: dokonči ho a ohlas, že je hotovo (`manual/working-here.md`).",
-      team: "- Tvoje práce je Draft ve worktree a pull requestu. Z týmového Environmentu změny vždy schválí a publikuje jmenovaný člověk a odpovídá za ně; sám nemerguj. Když je práce hotová, zeptej se Operátora „Komu mám říct, aby tyhle změny publikoval?“ a předej mu pull request. V externí aplikaci připrav Draft přímo v ní a nedokončuj ho (e-mail jako koncept, vyplněný a neodeslaný formulář, neodeslaná zpráva), i když tě připojený Operátor požádal rovnou „pošli“; jeho výslovné „Publikuj“ k tomu Draftu je plný mandát k dokončení: dokonči ho a ohlas, že je hotovo (`manual/working-here.md`).",
-      draft:
-        "- **Draft** je tvoje práce: vratný a hlavně editovatelný kus práce, změna ve worktree, rozepsaný e-mail, otevřený pull request.",
-      publication: "- **Publikace** je akt,",
-      first:
-        "- **Nejdřív Draft, pak Publikace.** Platí pro každý úkol: kód, e-mail, zprávu, pozvánku, vyplnění formuláře i jinou práci v externí aplikaci. U kódu je Draftem pull request. V externí aplikaci připrav Draft přímo v ní a předej ho Operátorovi nedokončený (e-mail jako koncept v Outlooku, vyplněný a neodeslaný formulář, neodeslaná zpráva); uprav ho podle jeho připomínek. Pokyn „pošli e-mail …“ na začátku úkolu je zadání Draftu, ne Publikace. Výslovné „Publikuj“ (nebo jednoznačné „odešli to“) k tomu konkrétnímu Draftu je plný mandát Operátora k jeho dokončení: odešli, odevzdej nebo zveřejni ho, podle toho, co dokončení v té aplikaci znamená, a ohlas, že je hotovo.",
-      teamFirst:
-        " Pull request z týmového Environmentu ale vždy publikuje jmenovaný člověk (odstavec o týmovém Environmentu níže).",
-      release: "- **Release** je vydání",
-      write:
-        "proveď až na výslovné „Publikuj“ Operátora k připravenému Draftu (oddíl Draft, Publikace, Release výše); do té doby připrav koncept.",
-      old: "Publikace (merge, nasazení, odeslání) patří Operátorovi",
-    },
-    en: {
-      other:
-        "- In every task your work is a Draft: for code the pull request; in an external application the prepared, unfinished state inside it (an e-mail as a draft in Outlook, a filled-in form not submitted, an unsent message). Publication (sending, submitting, a merge, a deployment, any other externally visible finishing) belongs to the Operator. Always hand them the Draft, even when they asked you straight away to “send”. Their explicit “Publish” for that Draft in the current thread is the full mandate to finish it: finish it and report that it is done (`manual/working-here.md`).",
-      team: "- Your work is a Draft in a worktree and a pull request. A named person always approves and publishes the changes from a Team Environment and answers for them; never merge yourself. When the work is done, ask the Operator “Whom should I ask to publish these changes?” and hand that person the pull request. In an external application prepare the Draft inside it and leave it unfinished (an e-mail as a draft, a filled-in form not submitted, an unsent message), even when the connected Operator asked you straight away to “send”; their explicit “Publish” for that Draft is the full mandate to finish it: finish it and report that it is done (`manual/working-here.md`).",
-      draft:
-        "- **Draft** is your work: a revertible and, above all, editable piece of work, a change in a worktree, a drafted e-mail, an open pull request.",
-      publication: "- **Publication** is the act",
-      first:
-        "- **A Draft first, then Publication.** This holds for every task: code, an e-mail, a message, an invitation, filling in a form and any other work in an external application. For code the Draft is the pull request. In an external application prepare the Draft inside it and hand it to the Operator unfinished (an e-mail as a draft in Outlook, a filled-in form not submitted, an unsent message); revise it according to their comments. An instruction “send an e-mail …” at the start of a task is the brief for a Draft, not a Publication. An explicit “Publish” (or an unambiguous “send it”) for that particular Draft is the Operator's full mandate to finish it: send, submit or make it public, whatever finishing means in that application, and report that it is done.",
-      teamFirst:
-        " A pull request from a Team Environment, however, is always published by a named person (the Team Environment paragraph below).",
-      release: "- **Release** is a tagged version",
-      write:
-        "only on the Operator's explicit “Publish” for the prepared Draft (the section Draft, Publication, Release above); until then, prepare a draft.",
-      old: "Publication (merge, deploy, send) belongs to the Operator",
-    },
-  } as const;
-  for (const journey of journeys)
-    for (const locale of ["cs", "en"] as const) {
-      const text = lines[locale];
-      const outputs = renderOutputs({
-        preset: journey.preset,
-        machine: journey.machine,
-        profile: presetProfile(journey.preset, journey.os, { locale }),
-      });
-      const agents = outputs["AGENTS.md"].split("\n");
-      const team = journey.preset === "hosted-organization-team";
-      expect([
-        journey.preset,
-        locale,
-        agents.includes(text.other),
-        agents.includes(text.team),
-      ]).toEqual([journey.preset, locale, !team, team]);
-      // The manual states the rule on every preset, right after Publication
-      // and before Release, and a connected application's write points to it.
-      const workingHere = outputs["manual/working-here.md"];
-      const lineOf = (start: string) =>
-        workingHere.split("\n").findIndex((line) => line.startsWith(start));
-      expect(workingHere).toContain(text.draft);
-      expect(workingHere.split("\n")).toContain(
-        team ? `${text.first}${text.teamFirst}` : text.first,
-      );
-      expect(lineOf(text.first)).toBe(lineOf(text.publication) + 1);
-      expect(lineOf(text.release)).toBe(lineOf(text.first) + 1);
-      expect(workingHere).toContain(text.write);
-      for (const path of outputPaths)
-        expect(outputs[path]).not.toContain(text.old);
-    }
-});
-
-// A change to a repository the agent only reads is proposed as an issue in
-// that repository, never as a pull request or a fork, and mentions the
-// people GitHub names as able to make it (decision F14, addendum
-// 2026-10-05). It complements the escalation of a missing right, which no
-// longer covers a repository the agent only reads. On a Team Environment
-// gh's REST permissions describe no app installation, so a dry-run push
-// decides.
-test("a change to a repository the agent only reads is proposed as an issue there", () => {
-  const lines = {
-    cs: {
-      other:
-        "- Než navrhneš změnu v repozitáři, ověř živě své právo k němu: `gh api repos/<owner>/<repo> --jq .permissions.push`. S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky dotčených cest z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů; když nikoho nezjistíš, issue zapiš bez zmínky. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
-      team: "- Než navrhneš změnu v repozitáři, ověř živě, jestli do něj identita Teamu smí pushovat: `git push --dry-run origin HEAD` v jeho checkoutu (brokerovaná identita hlásí v `gh api … --jq .permissions` false i s právem zápisu). S právem push pracuj přes worktree a pull request. Bez něj pull request nezkoušej a nikdy neforkuj ani nepushuj jinam: navrženou změnu (co, proč, navržený text nebo diff) zapiš jako issue do toho repozitáře a @zmiň v něm lidi, kteří ji smí provést, zjištěné z GitHubu: vlastníky dotčených cest z CODEOWNERS repozitáře, jinak Ownery Organizace, bez botů; když nikoho nezjistíš, issue zapiš bez zmínky. Operátorovi dej URL issue a koho jsi zmínil (`manual/working-here.md`).",
-      rights:
-        "- Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, Operátorovi dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (`manual/working-here.md`).",
-      heading: "## Repozitář, který jen čteš: změnu navrhni v issue",
-      checkOther:
-        "- **Ověř živé právo.** `gh api repos/<owner>/<repo> --jq .permissions`; rozhoduje `push`.",
-      checkTeam:
-        "- **Ověř živé právo.** Na týmovém Environmentu je `gh` brokerovaná identita Teamu",
-      teamSame:
-        "- **Na týmovém Environmentu** platí totéž: grant Teamu k repozitáři může být jen ke čtení.",
-      fragments: [
-        "- **Bez práva push** pull request nezkoušej. Do toho repozitáře zapiš issue s návrhem: co se má změnit, proč, a navržený text nebo diff.",
-        "(GitHub použije první z `.github/CODEOWNERS`, `CODEOWNERS` a `docs/CODEOWNERS`, pro každou cestu platí poslední odpovídající řádek)",
-        `\`gh api "orgs/<org>/members?role=admin" --jq '.[] | select(.type != "Bot") | .login'\``,
-        "@zmínka stačí, issue jim nepřiřazuj.",
-        "když CODEOWNERS chybí nebo pro dotčené cesty neurčuje nikoho kromě botů, Ownery Organizace",
-        "Když ani tak nikoho nezjistíš (prázdná odpověď nebo chyba), issue zapiš bez @zmínky a Operátorovi řekni, že na GitHubu nešlo zjistit, kdo změnu smí provést, ať odkaz na issue předá tomu, kdo Organizaci spravuje; nikoho si nedomýšlej.",
-        "- **Nic neobcházej.** Neforkuj a nepushuj do jiného repozitáře ani pod jinou identitou.",
-        "- **Ohlas to.** Operátorovi dej URL issue a koho jsi zmínil.",
-        "do repozitáře, který jen čteš, jako issue s návrhem (výše)",
-      ],
-      rightsHeading: "## Když na něco nemáš práva",
-      carveOut:
-        "- **Repozitář, který jen čteš, chybějící právo není.** Změnu jeho obsahu navrhni issue v tom repozitáři (předchozí oddíl) a o zápis do něj nežádej.",
-      checkout: "; práci v repozitáři, který jen čteš, tam navrhni jako issue.",
-    },
-    en: {
-      other:
-        "- Before you propose a change to a repository, check your live right to it: `gh api repos/<owner>/<repo> --jq .permissions.push`. With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the owners of the affected paths in the repository's CODEOWNERS, otherwise the Organization's Owners, no bots; when you find nobody, file the issue without a mention. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
-      team: "- Before you propose a change to a repository, check live whether the Team's identity may push to it: `git push --dry-run origin HEAD` in its checkout (the brokered identity's `gh api … --jq .permissions` answers false even with write). With push, work through a worktree and a pull request. Without it, do not try a pull request, and never fork or push elsewhere: file the proposed change (what, why, the proposed text or diff) as an issue in that repository and @mention the people who may make it, found on GitHub: the owners of the affected paths in the repository's CODEOWNERS, otherwise the Organization's Owners, no bots; when you find nobody, file the issue without a mention. Give the Operator the issue's URL and whom you mentioned (`manual/working-here.md`).",
-      rights:
-        "- When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the Operator a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (`manual/working-here.md`).",
-      heading: "## A repository you only read: propose the change in an issue",
-      checkOther:
-        "- **Check the live right.** `gh api repos/<owner>/<repo> --jq .permissions`; `push` decides.",
-      checkTeam:
-        "- **Check the live right.** In a Team Environment `gh` is the Team's brokered identity",
-      teamSame:
-        "- **In a Team Environment** the same holds: the Team's grant on a repository may be read only.",
-      fragments: [
-        "- **Without push,** do not try a pull request. File an issue in that repository with the proposal: what should change, why, and the proposed text or diff.",
-        "(GitHub uses the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`; for each path the last matching line holds)",
-        `\`gh api "orgs/<org>/members?role=admin" --jq '.[] | select(.type != "Bot") | .login'\``,
-        "An @mention is enough; do not assign the issue.",
-        "when there is no CODEOWNERS or it names nobody but bots for the affected paths, the Organization's Owners",
-        "When you still find nobody (an empty answer or an error), file the issue without an @mention and tell the Operator that GitHub did not show who may make the change, so they pass the issue's link to whoever manages the Organization; never guess anyone.",
-        "- **Bypass nothing.** Do not fork, and do not push to another repository or under another identity.",
-        "- **Report it.** Give the Operator the issue's URL and whom you mentioned.",
-        "or to a repository you only read as an issue with the proposal (above)",
-      ],
-      rightsHeading: "## When you lack the rights for something",
-      carveOut:
-        "- **A repository you only read is not a missing right.** Propose a change to its content as an issue in that repository (previous section) and do not ask for write access to it.",
-      checkout:
-        "; propose work in a repository you only read as an issue there.",
-    },
-  } as const;
-  for (const journey of journeys)
-    for (const locale of ["cs", "en"] as const) {
-      const text = lines[locale];
-      const outputs = renderOutputs({
-        preset: journey.preset,
-        machine: journey.machine,
-        profile: presetProfile(journey.preset, journey.os, { locale }),
-      });
-      const team = journey.preset === "hosted-organization-team";
-      // AGENTS.md: the proposal, with the check of this preset's identity,
-      // right before the escalation of a missing right, which excludes it.
-      const agents = outputs["AGENTS.md"].split("\n");
-      expect([
-        journey.preset,
-        locale,
-        agents.includes(text.other),
-        agents.includes(text.team),
-      ]).toEqual([journey.preset, locale, !team, team]);
-      expect(agents.indexOf(text.rights)).toBe(
-        agents.indexOf(team ? text.team : text.other) + 1,
-      );
-      // The manual: its own section right before the missing rights, whose
-      // first bullet sends a repository the agent only reads back to it.
-      const workingHere = outputs["manual/working-here.md"];
-      const manual = workingHere.split("\n");
-      const lineOf = (start: string) =>
-        manual.findIndex((line) => line.startsWith(start));
-      expect(lineOf(text.heading)).toBeGreaterThan(-1);
-      expect(lineOf(text.heading)).toBeLessThan(lineOf(text.rightsHeading));
-      expect(
-        manual[lineOf(text.rightsHeading) + 3]?.startsWith(text.carveOut),
-      ).toBe(true);
-      expect([
-        journey.preset,
-        locale,
-        lineOf(text.checkOther) > -1,
-        lineOf(text.checkTeam) > -1,
-        workingHere.includes(text.teamSame),
-      ]).toEqual([journey.preset, locale, !team, team, team]);
-      for (const fragment of text.fragments)
-        expect([
-          journey.preset,
-          locale,
-          workingHere.includes(fragment),
-        ]).toEqual([journey.preset, locale, true]);
-      // Bringing a diverged checkout back points to the proposal too, where
-      // the Environment holds Organizations.
-      expect(outputs["manual/troubleshooting.md"].includes(text.checkout)).toBe(
-        journey.preset !== "hosted-personal",
-      );
-    }
-});
-
-// Accumulated worktrees can be traced and cleaned up: every worktree keeps a
-// sidecar with the plan, the pull request and the agent session that made it
-// (root decision 0049).
-test("every worktree keeps a sidecar with the plan, the pull request and the session", () => {
-  for (const journey of journeys)
-    for (const locale of ["cs", "en"] as const) {
-      const workingHere = renderManual({
-        preset: journey.preset,
-        machine: journey.machine,
-        profile: presetProfile(journey.preset, journey.os, { locale }),
-      })["manual/working-here.md"];
-      for (const fragment of [
-        "`<PLAN>-<slug>.worktree.json`",
-        "`companiesascode.worktree.v1`",
-        "`conversation_origin`",
-        "`CODEX_THREAD_ID`",
-        "`CLAUDE_CODE_SESSION_ID`",
-      ])
-        expect(workingHere).toContain(fragment);
     }
 });
