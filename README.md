@@ -91,3 +91,4 @@ See [provenance](docs/decisions.md#provenance-and-publication) and
 
 New first-party source is available under [Elastic License 2.0](LICENSE)
 (`Elastic-2.0`), a source-available license. See [scope and notices](docs/licensing.md).
+
