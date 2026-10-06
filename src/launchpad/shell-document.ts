@@ -31,9 +31,13 @@ export { dashboardSlug };
 // Dashboard fills the other Environments later through the Lazurio account.
 
 /** The Lazurio Dashboard: the personal one, the account settings, adding an
- * Organization, and an Organization's page `/orgs/<slug>`. */
-export const dashboardUrl = "https://dashboard.lazurio.ai/";
-export const accountUrl = "https://dashboard.lazurio.ai/settings";
+ * Organization, and an Organization's page `/orgs/<slug>`. The personal one
+ * is the Dashboard's home `/home`, which never redirects (root decision 0185:
+ * `/` is the landing, which may send the person on to an Environment), and
+ * the account settings are `/settings/account`; both addresses are the same
+ * in the Dashboard's current interface and in its v2 (DEV-6645). */
+export const dashboardUrl = "https://dashboard.lazurio.ai/home";
+export const accountUrl = "https://dashboard.lazurio.ai/settings/account";
 export const addOrganizationUrl =
   "https://dashboard.lazurio.ai/add-organization";
 
