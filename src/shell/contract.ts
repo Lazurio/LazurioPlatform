@@ -16,7 +16,9 @@
 // It may add members and accept what it refused before; a change that
 // would break a v1 document is that document's v2 (`lazurio.shell.v2`,
 // `lazurio.account.v2`), decided and announced first. This ends "changed in
-// place" of the Organization-rail addendum.
+// place" of the Organization-rail addendum. A host page with nobody signed in
+// has a third document of its own, `lazurio.shell-signed-out.v1` (below,
+// F36's addendum of 2026-10-06), under the same rule.
 
 export const shellSchema = "lazurio.shell.v1";
 
@@ -183,7 +185,9 @@ export function isShellUrl(value: unknown): value is string {
  * Apps takes it (a workstation's Launchpad, whose port changes with every
  * start), and since F36's addendum of 2026-10-05 so do the Dashboard's
  * addresses (`dashboard`, `account`, `addOrganization`, an Organization's
- * `dashboard`), so that a host that is the Dashboard names its own pages. */
+ * `dashboard`), so that a host that is the Dashboard names its own pages.
+ * The signed-out document's `signIn`, also the page's own, follows the same
+ * rule (F36's addendum of 2026-10-06). */
 const isPageUrl = (value: unknown): value is string =>
   isShellUrl(value) ||
   (text(value, 512) &&
@@ -486,6 +490,44 @@ export function parseShell(input: unknown): Shell | null {
     dashboard: input.dashboard,
     account: input.account,
     addOrganization: input.addOrganization as string | null,
+  });
+}
+
+// A host page with nobody signed in (F36's addendum of 2026-10-06):
+// `lazurio.shell-signed-out.v1`, a document of its own beside
+// `lazurio.shell.v1`. The Dashboard serves its page to anyone; signed out it
+// has no person, and `operator`, which every signed-in consumer reads, stays
+// required. This document says only what the rail draws then: the language
+// and where sign-in starts. An Environment never needs it, because its
+// gateway signs the person in before any page is served: the Launchpad never
+// produces it, and the elements' own read of `/.lazurio/shell.json` takes
+// only `lazurio.shell.v1`. Additive only, as the other two documents: a
+// change that would break it is its v2.
+
+export const shellSignedOutSchema = "lazurio.shell-signed-out.v1";
+
+export type ShellSignedOut = Readonly<{
+  schema: typeof shellSignedOutSchema;
+  /** The language of the page; the elements speak it. */
+  locale: "cs" | "en";
+  /** Where sign-in starts; the logo and the key lead there. An https URL,
+   * or a path on the page's own origin (`/…`, never `//…`, no fragment), as
+   * the Dashboard's addresses of `lazurio.shell.v1`. */
+  signIn: string;
+}>;
+
+/** The signed-out document, when the input is a valid
+ * `lazurio.shell-signed-out.v1`; null otherwise. Members this version does not
+ * know are ignored (a later producer may add some); `locale` and `signIn` must
+ * have their exact shape. A host without a sign-in has none to provide. */
+export function parseShellSignedOut(input: unknown): ShellSignedOut | null {
+  if (!isRecord(input) || input.schema !== shellSignedOutSchema) return null;
+  if (input.locale !== "cs" && input.locale !== "en") return null;
+  if (!isPageUrl(input.signIn)) return null;
+  return Object.freeze({
+    schema: shellSignedOutSchema,
+    locale: input.locale,
+    signIn: input.signIn,
   });
 }
 

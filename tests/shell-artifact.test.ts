@@ -263,7 +263,7 @@ posixTest(
   },
 );
 
-test("contract.js reads both documents in code without a DOM, as the source does", async () => {
+test("contract.js reads the documents in code without a DOM, as the source does", async () => {
   // The guard of this test: no DOM here, so any access would throw.
   expect("document" in globalThis).toBe(false);
   // One module on its own: nothing imported, so nothing of the elements.
@@ -295,6 +295,18 @@ test("contract.js reads both documents in code without a DOM, as the source does
       accountDocument({ schema: "lazurio.account.v0" }),
     ),
   ).toBeNull();
+  // A host page with nobody signed in (F36's addendum of 2026-10-06).
+  const signedOut = {
+    schema: "lazurio.shell-signed-out.v1",
+    locale: "en",
+    signIn: "/auth/sign-in",
+  };
+  expect(packedContract.parseShellSignedOut(signedOut)).not.toBeNull();
+  expect(packedContract.parseShellSignedOut(signedOut)).toEqual(
+    contract.parseShellSignedOut(signedOut),
+  );
+  expect(packedContract.parseShellSignedOut(shell)).toBeNull();
+  expect(packedContract.parseShell(signedOut)).toBeNull();
   expect(packedContract.dashboardSlug("Example")).toBe(
     contract.dashboardSlug("Example"),
   );
@@ -311,10 +323,10 @@ test("contract.d.ts types every export of contract.js for a host with neither DO
   await writeFile(
     host,
     [
-      `import { ${names}, type Shell, type ShellAccount } from "./contract.js";`,
+      `import { ${names}, type Shell, type ShellAccount, type ShellSignedOut } from "./contract.js";`,
       `export const used = [${names}];`,
-      "export const read = (value: unknown): readonly [Shell | null, ShellAccount | null] =>",
-      "  [parseShell(value), parseShellAccount(value)];",
+      "export const read = (value: unknown): readonly [Shell | null, ShellAccount | null, ShellSignedOut | null] =>",
+      "  [parseShell(value), parseShellAccount(value), parseShellSignedOut(value)];",
       "",
     ].join("\n"),
   );
