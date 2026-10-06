@@ -646,6 +646,54 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
   ).rejects.toEqual(new BrowserWindowFailure("window-create-failed"));
 });
 
+// Review of 24ab283: the Launchpad's view (a T3 thread's panel) and the CLI can
+// ask for the same thread's window at the same moment. Both saw no binding and
+// each created a window; the binding kept the second, the first was orphaned
+// and the person and the agent could again see different windows. The check
+// and the creation now run under one lock of the account.
+test("two simultaneous requests for one thread's window create it once and both get it", async () => {
+  const runtime = await temporary("browser-window-lock-");
+  const socketDir = join(runtime, "agent-browser");
+  await mkdir(socketDir, { mode: 0o700 });
+  const created: string[] = [];
+  const open = new Set<string>();
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 30));
+  const seams: WindowSeams = {
+    env: { HOME: "/home/operator", XDG_RUNTIME_DIR: runtime },
+    // agent-browser's `tab <id>` writes the binding the next check reads.
+    run: async (command) => {
+      await pause();
+      const index = command.indexOf("tab");
+      if (index !== -1 && command[index - 1] === "--no-pin-tab") {
+        const session = command[command.indexOf("--session") + 1];
+        await writeFile(
+          join(socketDir, `${session}.target`),
+          JSON.stringify({ targetId: command[index + 1] }),
+        );
+      }
+      return { exitCode: 0, stdout: "" };
+    },
+    targets: async () => new Set(open),
+    cdp: async () => {
+      await pause();
+      const id = `WINDOW_${created.length + 1}`;
+      created.push(id);
+      open.add(id);
+      return { targetId: id };
+    },
+  };
+  const [first, second] = await Promise.all([
+    ensureThreadWindow("t3-new", undefined, seams),
+    ensureThreadWindow("t3-new", undefined, seams),
+  ]);
+  expect(created).toEqual(["WINDOW_1"]);
+  expect([first.targetId, second.targetId]).toEqual(["WINDOW_1", "WINDOW_1"]);
+  expect([first.created, second.created].sort()).toEqual([false, true]);
+  expect(
+    JSON.parse(await readFile(join(socketDir, "t3-new.target"), "utf8")),
+  ).toEqual({ targetId: "WINDOW_1" });
+});
+
 // ---- The recorded entry ------------------------------------------------------
 
 test("the entry records the browser's view both or neither, by the wire rules", () => {

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
+import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
 import { browserCdpPort, browserWindowSize } from "./units";
 import { isBrowserSession } from "./view";
@@ -89,6 +90,28 @@ export class BrowserWindowFailure extends Error {
 }
 
 const commandTimeoutMs = 30_000;
+// Longer than one creation (a CDP call and two agent-browser commands).
+const windowLockTimeoutMs = 90_000;
+
+/** One lock for every window check-and-create of this account: the CLI
+ * (`lazurio browser window`) and the Launchpad's view (a T3 thread's panel)
+ * may ask for the same thread's window at the same moment, and two creations
+ * would leave the person and the agent in different windows. A kernel
+ * `flock` (src/platform/flock.ts): the next holder re-reads the binding and
+ * converges. It lives next to agent-browser's directory, never inside it, so
+ * agent-browser never reads it as a session. Null where there is no runtime
+ * directory, and then no binding to find either. */
+export function windowLockPath(
+  env: Readonly<Record<string, string | undefined>>,
+): string | null {
+  const runtime = env.XDG_RUNTIME_DIR;
+  if (runtime !== undefined && isAbsolute(runtime))
+    return join(runtime, "lazurio-browser-window.lock");
+  const sockets = agentBrowserSocketDirectory(env);
+  return sockets === undefined
+    ? null
+    : join(dirname(sockets), "lazurio-browser-window.lock");
+}
 
 /** The target the session is bound to, from agent-browser's binding file
  * (`<socket dir>/<session>.target`, `{"targetId": …}`), when it is still a
@@ -140,8 +163,29 @@ function agentBrowser(seams: WindowSeams, args: readonly string[]) {
 
 /** The session's window: the bound one while it is open, otherwise a new
  * window in the default context bound to the session, pinned, at the
- * thread window's size (which is also the view's viewport). */
+ * thread window's size (which is also the view's viewport). Checked and
+ * created under the account's window lock (`windowLockPath`). */
 export async function ensureThreadWindow(
+  session: string,
+  url: string | undefined,
+  seams: WindowSeams,
+): Promise<ThreadWindow> {
+  const path = windowLockPath(seams.env);
+  let lock: FileLock | null = null;
+  if (path !== null)
+    try {
+      lock = await acquireFileLock(path, { timeoutMs: windowLockTimeoutMs });
+    } catch {
+      throw new BrowserWindowFailure("window-create-failed");
+    }
+  try {
+    return await ensureThreadWindowLocked(session, url, seams);
+  } finally {
+    await lock?.release();
+  }
+}
+
+async function ensureThreadWindowLocked(
   session: string,
   url: string | undefined,
   seams: WindowSeams,

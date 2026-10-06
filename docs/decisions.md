@@ -4823,8 +4823,11 @@ Decided, within point 5 and point 6:
 1. **A view asked for a session opens that session's window when it has none**, with
    `ensureThreadWindow`, exactly as `lazurio browser window` does, and then answers
    that window's view. The person and the thread's agent always see the same window.
-   If the window cannot be opened, the answer stays the view of every window. A view
-   asked without a session (the Launchpad's panel) opens nothing.
+   The check and the creation run under one kernel lock of the account
+   (`$XDG_RUNTIME_DIR/lazurio-browser-window.lock`), shared with `lazurio browser
+   window`, so a panel opening while the agent starts never makes two windows. If the
+   window cannot be opened, the answer stays the view of every window. A view asked
+   without a session (the Launchpad's panel) opens nothing.
 2. **The manual says "the open browser" is the Environment browser.** It names T3
    Code's preview tools and the desktop apps' built-in browsers as a browser on the
    Operator's computer, says a T3 thread's Browser panel shows that thread's window,
