@@ -493,11 +493,12 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   the wireframe at prototypes-lazurio 1acd615 and the design system at
   design-system-lazurio fdcc9b4. A 64 px rail of 40 px items around 32 px marks; three
   radii, one per kind of thing; one shadow, only for the list, the ⌘⇧E dialog and the
-  rail's label. The picker's list is one line per Environment of the space, without the
-  Organization's head, with a search field only past seven Environments and only
-  "Všechny Organizace" at its foot; ⌘⇧E keeps the heads (`switcherList` and its keys,
-  `switcherKey`, in `view.ts`). The Organization's name in the Apps head links to its
-  Dashboard (`appsHeading` in `apps-view.ts`).
+  rail's label; the picker (`lz-picker`, 52 px with its two lines) beside a 48 px gear;
+  every icon at the wireframe's stroke of 1.6. The picker's list is one line per
+  Environment of the space, without the Organization's head, with a search field only
+  past seven Environments and only "Všechny Organizace" at its foot; ⌘⇧E keeps the
+  heads (`switcherList` and its keys, `switcherKey`, in `view.ts`). The Organization's
+  name in the Apps head links to its Dashboard (`appsHeading` in `apps-view.ts`).
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04, grown by the addendum of 2026-10-05 with what a host page
   needs and by the addendum of 2026-10-06 with `parseShellSignedOut`);

@@ -1,9 +1,10 @@
 // Icons of the shell elements: Iconoir (MIT, https://iconoir.com; licence in
 // vendor/LICENSE-iconoir.txt), the interface set the Lazurio design system
 // mandates (design-system-lazurio `content/brand/icons/icons.md`). The path
-// data is exactly what the shell wireframe draws (prototypes-lazurio 1cbad15,
-// `app/v1/src/Icon.tsx`, iconoir-react 7.12.1), at its stroke of 1.5, built as
-// SVG elements from fixed data of this module.
+// data is exactly what the shell wireframe draws (prototypes-lazurio 1acd615,
+// `app/v1/src/Icon.tsx`, iconoir-react 7.12.1), at its stroke of 1.6 (1.5
+// until F36's addendum of 2026-10-06), built as SVG elements from fixed data
+// of this module.
 
 const paths = {
   search:
@@ -43,7 +44,7 @@ export function icon(name: ShellIcon, size = 18): SVGSVGElement {
   svg.setAttribute("width", String(size));
   svg.setAttribute("height", String(size));
   svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke-width", "1.5");
+  svg.setAttribute("stroke-width", "1.6");
   svg.setAttribute("aria-hidden", "true");
   // Fixed path data of this module, never data from a document.
   svg.innerHTML = paths[name];

@@ -4565,39 +4565,53 @@ prototypes-lazurio `1acd615` (`app/v1/src/Rail.tsx`, `Switcher.tsx`, `EnvPicker.
    full-weight text and the check; the word "tady jsi" is there for screen readers only,
    and the row keeps `aria-current="page"`. An entry under the pointer or the cursor is
    on paper (`lz-menu-item:hover`; was `gray-50`).
-5. **The keys, with or without the field.** ↓ and ↑ (wrapping), Home, End, Enter and
+5. **The picker and its gear** (`lz-picker`, `lz-picker-row` and `lz-button--icon`, as
+   the wireframe draws them since prototypes-lazurio #8): the picker is at least the
+   grid's 48 px tall, with 8 px around and 12 px between its parts and `radius-md`, so 52
+   px with its two lines (was 47); its glyph is 32 px with `radius-sm` (was 30), an
+   Organization's mark or your monogram 24 px inside it and the kind's icon filling it,
+   in the picker's ink; the name is 15 px (`--lz-size-nav`, was 14), whom it serves 14 px
+   (`--lz-size-meta`, was 12). The gear stands 4 px beside it, a 48 px square with
+   `radius-sm` in the picker's ink (was 40 px wide and muted), the quiet surface under
+   the pointer. In a narrow host (`@container (max-width: 160px)`) both are 48 px
+   squares, one above the other, so the host's column needs 48 px for them (44 px
+   before). Every interface icon, the shell's and the Launchpad page's, is drawn at the
+   wireframe's stroke of 1.6 (was 1.5). As the glyph takes the picker's ink, a kind's icon
+   is light on a dark host without roles (it stayed near-black, issue #169).
+6. **The keys, with or without the field.** ↓ and ↑ (wrapping), Home, End, Enter and
    Escape work in the list. Without the search field the focus lands on the current
    Environment, else the first (on "Všechny Organizace" where the space has none), and
    moves with the arrows, Home, End and the pointer, so Enter opens what is marked and a
    screen reader names each row. With the field the focus stays in it, the cursor marks
    the entry Enter opens, and Home and End move the field's caret. Escape closes the list,
    and the focus returns to the picker.
-6. **⌘⇧E keeps the Organization's heads** (`lz-menu__head`), above the same one-line
+7. **⌘⇧E keeps the Organization's heads** (`lz-menu__head`), above the same one-line
    rows: a head has a 24 px mark with `radius-sm` (was 20 px with 5 px), the
    Organization's name and "Dashboard Organizace", and on that Organization's Dashboard
    the check, its word for screen readers only. Its search field and the hints ↑↓ · Enter
    · Esc stay.
-7. **The Organization's name in the Apps head opens its Dashboard** (the wireframe's
+8. **The Organization's name in the Apps head opens its Dashboard** (the wireframe's
    `.lp-head__link`): a link to the Organization's page as the shell document names it,
    in the same window, titled "Dashboard Organizace", in the heading's colour without an
    underline, underlined (2 px, 4 px below) under the pointer. The personal space
    ("Osobní") and an Organization the document does not name stay plain text. An
    Organization's Dashboard is reached by its name there, by ⌘⇧E and from the personal
    Dashboard's Organizations, as the wireframe says.
-8. **Colour roles.** No role is added, renamed or removed. What they colour changes in
-   four places: `--lazurio-raised`, `--lazurio-line` and `--lazurio-ink` also colour your
+9. **Colour roles.** No role is added, renamed or removed. What they colour changes in
+   five places: `--lazurio-raised`, `--lazurio-line` and `--lazurio-ink` also colour your
    personal monogram (the rail's labels and the account's initials keep inverting the
    host's colours); `--lazurio-hover` also a rail item under the pointer; `--lazurio-line`
-   also the active tab's hairline; the list's border is its own line (14 % of the
-   overlay's ink, was 22 %). Without roles the rail is paper. The logo's disc stays white.
-9. **Versions and vendoring.** `lazurio.shell.v1`, `lazurio.account.v1`,
-   `lazurio.shell-signed-out.v1` and the elements' interface v1 do not change: no member,
-   attribute, value, event, export or property is added, renamed or removed.
-   `--lazurio-rail-width` keeps its name and carries 64px; a host that lays its content
-   out with `var(--lazurio-rail-width, 0px)` follows, and the Launchpad's own fallbacks
-   are 64px. `src/shell/vendor/lazurio/tokens.css` is re-vendored byte for byte from
-   design-system-lazurio `fdcc9b4` (#58's comment on the radii and #59's
-   `--lz-shadow-float`); the logo, the stones and Iconoir's licence are unchanged.
+   also the active tab's hairline; `--lazurio-ink` the gear at rest (was
+   `--lazurio-ink-muted`); the list's border is its own line (14 % of the overlay's ink,
+   was 22 %). Without roles the rail is paper. The logo's disc stays white.
+10. **Versions and vendoring.** `lazurio.shell.v1`, `lazurio.account.v1`,
+    `lazurio.shell-signed-out.v1` and the elements' interface v1 do not change: no
+    member, attribute, value, event, export or property is added, renamed or removed.
+    `--lazurio-rail-width` keeps its name and carries 64px; a host that lays its content
+    out with `var(--lazurio-rail-width, 0px)` follows, and the Launchpad's own fallbacks
+    are 64px. `src/shell/vendor/lazurio/tokens.css` is re-vendored byte for byte from
+    design-system-lazurio `fdcc9b4` (#58's comment on the radii and #59's
+    `--lz-shadow-float`); the logo, the stones and Iconoir's licence are unchanged.
 
 This supersedes, in the Organization-rail addendum of 2026-10-04, point 2's list (the
 Organization's head opening its Dashboard and the current Environment "checked as "tady
@@ -4608,17 +4622,16 @@ Environments, none current; ⌘⇧E marks the head). It keeps B3, the logo's dis
 without an edge, the colour roles, the signed-out rail, and everything the elements read,
 remember and report.
 
-**Left as they are.** These differ from the wireframe and are not part of Anička's four
-revisions: the picker's button and its gear keep the size of the wireframe's
-Organization rail (prototypes-lazurio 1cbad15), 47 px tall beside a 40 px gear, where
-the wireframe draws `lz-picker` (52 px) and a 48 px `lz-button--icon` since
-prototypes-lazurio #8; the icons keep their stroke of 1.5 (the wireframe 1.6). Two
-follow the shell's own rules rather than the wireframe's mapping: under a host's roles
-the rail's hover is `--lazurio-hover`, and on a light host the active tab keeps its
-`line` hairline, where `shell-theme.css` maps them to the selected surface and no edge;
-and a jump head's top corners are `radius-sm`, as the wireframe draws them, not the
-`radius-md` − 1 px that design-system-lazurio #58 gives a head lying at the top edge of a
-menu, which a ⌘⇧E head never does.
+**Where the shell keeps its own rule.** Four details follow the shell's rules rather than
+the wireframe's or the design system's: under a host's roles the rail's and the picker's
+hover are `--lazurio-hover`, and on a light host the active tab keeps its `line`
+hairline, where `shell-theme.css` maps them to the selected surface and no edge; the
+gear's surface under the pointer is the quiet surface of the column's other controls
+(`gray-100` without roles), where the design system's quiet button takes paper, which
+does not show on the paper column (under roles both are `--lazurio-hover`); and a jump
+head's top corners are `radius-sm`, as the wireframe draws them, not the `radius-md` −
+1 px that design-system-lazurio #58 gives a head lying at the top edge of a menu, which a
+⌘⇧E head never does.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -4645,10 +4658,14 @@ Launchpad (a 264 px column on paper), measured with `getBoundingClientRect` and
 `getComputedStyle`: the rail, its items, marks, divider, "+", photo, logo, hover, label and
 active space, the list under the picker (280 × 224 px for five Environments, 34 px rows,
 the check, the hidden word, the foot, widened) and the ⌘⇧E dialog (its radius, shadow,
-border, heads and rows) equal the wireframe's in every value but the picker's button,
-left as it is, and where the focus lands as the list opens (point 5); the active space's
-hairline and surface are the wireframe's pixel for pixel (1 px `gray-300`, 3 px
-`gray-100`). The keyboard, the pointer, widening and searching, more than
+border, heads and rows) and the column head (the picker 191 × 52 px beside the 48 px
+gear in the 264 px column, its 32 px glyph, the name and the line, the icons at 1.6, the
+switch 49 px) equal the wireframe's in every value but where the focus lands as the list
+opens (point 6) and the gear's surface under the pointer; the active space's hairline and
+surface are the wireframe's pixel for pixel (1 px `gray-300`, 3 px `gray-100`). The column
+head was also drawn in T3 Code's default dark sidebar at its narrowest (208 px) and at
+264 px, its light one, MausBot's Midnight (320 px), a dark host without roles and a 64 px
+host, where the picker and the gear stand as 48 px squares and nothing overflows. The keyboard, the pointer, widening and searching, more than
 seven Environments, an Organization's Dashboard with and without Environments, ⌘⇧E on it,
 and a dark theme's roles were driven in the same page; in the Launchpad's preview (a
 temporary fixture Folder) the head's link, its look under the pointer, a click into the

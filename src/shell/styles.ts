@@ -189,25 +189,34 @@ ${base}
 ${switcherCss}
 :host { display: block; }
 .head { display: flex; flex-direction: column; gap: 8px; }
-.row { display: flex; align-items: stretch; gap: 6px; }
-.pick { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: var(--lz-radius-md); background: transparent; color: var(--shell-ink); text-align: left; cursor: pointer; }
+/* The picker and the gear of what it names, side by side (lz-picker-row). */
+.row { display: flex; align-items: center; gap: var(--lz-space-4); }
+/* The Environment picker (lz-picker): no frame, the quiet surface under the
+   pointer and while its list is open. */
+.pick { display: flex; flex: 1; min-width: 0; min-height: var(--lz-space-48); align-items: center; gap: var(--lz-space-12); padding: var(--lz-space-8); border: 0; border-radius: var(--lz-radius-md); background: transparent; color: var(--shell-ink); text-align: left; cursor: pointer; }
 .pick:hover { background: var(--shell-hover); }
 .pick[aria-expanded="true"] { background: var(--shell-selected); }
-.pick-glyph { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border-radius: var(--lz-radius-sm); color: var(--shell-mark-ink); font-size: 11px; font-weight: 700; }
-.pick-glyph .org-mark { width: 24px; height: 24px; font-size: 9px; }
+/* Its glyph (lz-picker__mark), in the picker's ink: an Organization's mark
+   or your monogram inside it, or the kind's icon filling it. */
+.pick-glyph { display: grid; width: var(--lz-space-32); height: var(--lz-space-32); flex: none; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); color: var(--shell-ink); font-size: var(--lz-size-meta); font-weight: var(--lz-weight-akce); }
+.pick-glyph > svg { display: block; width: 100%; height: auto; }
+.pick-glyph .org-mark { width: 24px; height: 24px; font-size: 10px; }
 /* Your personal Environment's glyph: your monogram as the rail draws it. */
-.pick-glyph .initials { display: grid; width: 24px; height: 24px; place-items: center; border-radius: var(--lz-radius-sm); background: var(--shell-mark); box-shadow: inset 0 0 0 1px var(--shell-mark-line); color: var(--shell-mark-ink); }
-.pick-text { display: grid; flex: 1; min-width: 0; line-height: 1.25; }
+.pick-glyph .initials { display: grid; width: 24px; height: 24px; place-items: center; border-radius: var(--lz-radius-sm); background: var(--shell-mark); box-shadow: inset 0 0 0 1px var(--shell-mark-line); color: var(--shell-mark-ink); font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+.pick-text { display: grid; flex: 1; min-width: 0; line-height: normal; }
 .pick-title, .pick-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pick-title { font-size: 14px; font-weight: 650; }
-.pick-who { color: var(--shell-ink-muted); font-size: 12px; }
+.pick-title { font-size: var(--lz-size-nav); font-weight: var(--lz-weight-akce); }
+.pick-who { color: var(--shell-ink-muted); font-size: var(--lz-size-meta); }
 .pick > svg { flex: none; color: var(--shell-ink-muted); transition: transform 0.15s; }
 .pick[aria-expanded="true"] > svg { transform: rotate(180deg); }
-.gear { display: grid; width: 40px; flex: none; place-items: center; border-radius: var(--lz-radius-sm); color: var(--shell-ink-muted); text-decoration: none; }
-.gear:hover { background: var(--shell-hover); color: var(--shell-ink); }
-.gear[aria-current="page"] { background: var(--shell-selected); color: var(--shell-ink); }
+/* The gear (lz-button--quiet lz-button--icon): a square of the grid's
+   48 px, in the picker's ink. Under the pointer it takes the quiet surface
+   of the column's other controls. */
+.gear { display: grid; width: var(--lz-space-48); height: var(--lz-space-48); flex: none; place-items: center; border-radius: var(--lz-radius-sm); color: var(--shell-ink); text-decoration: none; }
+.gear:hover { background: var(--shell-hover); }
+.gear[aria-current="page"] { background: var(--shell-selected); }
 nav.switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px; border-radius: var(--lz-radius-md); background: var(--shell-control); }
-.tab { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px 5px; border-radius: calc(var(--lz-radius-md) - 2px); color: var(--shell-ink-muted); font-size: 11px; font-weight: 550; line-height: 1.25; text-decoration: none; }
+.tab { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px 5px; border-radius: calc(var(--lz-radius-md) - 2px); color: var(--shell-ink-muted); font-size: 11px; font-weight: 550; line-height: normal; text-decoration: none; }
 a.tab:hover { color: var(--shell-ink); }
 .tab[aria-current="page"] { background: var(--shell-raised); box-shadow: var(--shell-raised-shadow); color: var(--shell-ink); }
 .tab[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
@@ -238,9 +247,8 @@ a.tab:hover { color: var(--shell-ink); }
 :host { container-type: inline-size; }
 @container (max-width: 160px) {
   .row { flex-direction: column; align-items: center; }
-  .pick { flex: none; justify-content: center; padding: 7px; }
+  .pick { flex: none; justify-content: center; }
   .pick-text, .pick > svg { display: none; }
-  .gear { width: 40px; height: 40px; }
   nav.switch { grid-template-columns: 1fr; }
   .tab span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .setup { display: none; }
