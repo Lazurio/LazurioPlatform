@@ -880,6 +880,38 @@ test("an own tab an agent bound itself to stays open; an own tab nobody opened c
   ).toBe(false);
 });
 
+test("a tab a page opened closes when nobody views it, unless an agent is bound to it; the agent's own tab stays", async () => {
+  // id(1) is an agent's window (not opened by the view); its page opens two
+  // tabs, and an agent-browser session is bound to the second.
+  const browser = new FakeBrowser([tab(1)]);
+  await serve(browser, { graceMs: 40, bound: [id(3)] });
+  browser.created(
+    tab(2, {
+      url: "https://example.com/a",
+      openerId: id(1),
+      canAccessOpener: false,
+    }),
+  );
+  browser.created(
+    tab(3, {
+      url: "https://example.com/b",
+      openerId: id(1),
+      canAccessOpener: false,
+    }),
+  );
+  await until(() =>
+    browser
+      .called("Target.closeTarget")
+      .some((c) => c.params.targetId === id(2)),
+  );
+  await settle(120);
+  const closed = browser
+    .called("Target.closeTarget")
+    .map((c) => c.params.targetId);
+  expect(closed).not.toContain(id(3));
+  expect(closed).not.toContain(id(1));
+});
+
 test("a tab that goes away tells its viewers", async () => {
   const browser = new FakeBrowser([tab(1)]);
   const { base } = await serve(browser);

@@ -5220,10 +5220,13 @@ F38 points 1, 5 and 6 as stated below; points 2–4 and 7 stand.
    - The service listens on loopback only. An agent of the Environment already reaches
      the browser's DevTools, so loopback adds no reach.
 9. **A closed person's tab closes its remote tab** (0191 point 11) after a grace of 30
-   seconds without any viewer. This applies only to a tab the view itself opened, and
-   only when no agent-browser session is bound to it (`<socket dir>/<session>.target`,
-   as F38 point 3 reads it). A view that is opened again within the grace keeps the
-   tab. After a restart of the service the record is gone, and nothing is closed.
+   seconds without any viewer. This applies to a tab the view itself opened and to a
+   tab or pop-up a page opened, and only when no agent-browser session is bound to it
+   (`<socket dir>/<session>.target`, as F38 point 3 reads it). Such a tab that nobody
+   ever views closes after 10 minutes, so pages' new tabs do not pile up in the
+   Environment's memory. An agent's own window is never closed by the view. A view
+   that is opened again within the grace keeps the tab. After a restart of the
+   service the record is gone, and nothing is closed.
 10. **The service replaces the dashboard unit.**
     - `lazurio-browser-view.service` runs `<selector> browser serve --port <port>
       --origin <origin>` as a long-running service (`Type=simple`,

@@ -197,8 +197,10 @@ export class BrowserHub {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly tabs = new Map<string, Tab>();
   private readonly bySession = new Map<string, string>();
-  /** Tabs the view opened, or a page opened from one: the only tabs the
-   * view ever closes (F39 point 9). Lost on restart, on purpose. */
+  /** Tabs the view opened or a page opened: the only tabs the view ever
+   * closes, and only while no agent-browser session is bound to them (F39
+   * point 9). An agent's own window is never one of them. Lost on restart,
+   * on purpose. */
   private readonly ownTabs = new Set<string>();
   private readonly fileChoosers = new Map<string, FileChooser>();
   /** Page targets discovery reported on the current connection. */
@@ -668,10 +670,10 @@ export class BrowserHub {
    * address, so it is announced at its first address, or after 1.5 s. */
   private opened(tab: Tab, openerId: string): void {
     if (!this.tabs.has(openerId)) return;
-    if (this.ownTabs.has(openerId)) {
-      this.ownTabs.add(tab.targetId);
-      this.scheduleGrace(tab, this.unviewedGraceMs);
-    }
+    // A page's new tab or pop-up is nobody's working window unless an agent
+    // binds a session to it: it closes when nobody views it (F39 point 9).
+    this.ownTabs.add(tab.targetId);
+    this.scheduleGrace(tab, this.unviewedGraceMs);
     if (tab.info.url !== "" && tab.info.url !== "about:blank") {
       this.announce(tab, openerId);
       return;
