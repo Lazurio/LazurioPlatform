@@ -409,6 +409,57 @@ const started = (urls: unknown) => ({
   data: { access_urls: urls, port: 4848 },
 });
 
+// A thread asks for its own window before its agent opened one (the Browser
+// panel of a new T3 Code thread): the view opens the thread's window first,
+// so the person and the agent see the same window. Found on the first
+// Environment: the panel showed the list of every window and the person
+// followed another session's window while the agent worked in the thread's.
+test("the view of a thread without a window opens that window first, and falls back to every window when it cannot", async () => {
+  const env = { HOME: "/home/operator", XDG_RUNTIME_DIR: "/run/user/1000" };
+  const sessions: { engine: string; port: number; session: string }[] = [
+    { engine: "chrome", port: 42337, session: "other" },
+  ];
+  const ok = dashboard(
+    started([`${origin}/#dashboard-access-token=${token}`]),
+    sessions,
+  );
+  const opened: string[] = [];
+  const openWindow = async (session: string) => {
+    opened.push(session);
+    sessions.push({ engine: "chrome", port: 45229, session });
+  };
+  const thread = "t3-3745367c-d453-41df-b948-75e29eff8651";
+  expect(
+    await resolveBrowserView(entry, thread, { ...ok, env, openWindow }),
+  ).toEqual({
+    available: true,
+    view: `${origin}/?port=45229&view=.html#dashboard-access-token=${token}`,
+    session: thread,
+  });
+  expect(opened).toEqual([thread]);
+  // Its window runs now: asked again, nothing is opened.
+  await resolveBrowserView(entry, thread, { ...ok, env, openWindow });
+  expect(opened).toEqual([thread]);
+  // Every window (no session) never opens one.
+  await resolveBrowserView(entry, null, { ...ok, env, openWindow });
+  expect(opened).toEqual([thread]);
+  // The window cannot be opened: the view of every window, as before.
+  const failing = async () => {
+    throw new Error("browser-unreachable");
+  };
+  expect(
+    await resolveBrowserView(entry, "t3-another", {
+      ...ok,
+      env,
+      openWindow: failing,
+    }),
+  ).toEqual({
+    available: true,
+    view: `${origin}/#dashboard-access-token=${token}`,
+    session: "t3-another",
+  });
+});
+
 test("the view: the dashboard's token from agent-browser's own answer, the session's window by its stream port", async () => {
   const env = { HOME: "/home/operator", XDG_RUNTIME_DIR: "/run/user/1000" };
   const ok = dashboard(

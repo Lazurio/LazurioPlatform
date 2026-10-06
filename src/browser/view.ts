@@ -38,10 +38,18 @@ export type BrowserViewSeams = Readonly<{
   run: ProcessRunner;
   fetch: (url: string, init: RequestInit) => Promise<Response>;
   env: Readonly<Record<string, string | undefined>>;
+  /** Opens the named session's window when it has none, exactly as `lazurio
+   * browser window` does (`ensureThreadWindow`), so a view asked for a thread
+   * shows that thread's window, the one its agent works in. Absent, or when
+   * it fails: the view of every window. */
+  openWindow?: ((session: string) => Promise<unknown>) | undefined;
 }>;
 
 const commandTimeoutMs = 15_000;
 const sessionsTimeoutMs = 3_000;
+// How long a window just opened may take to appear in the dashboard's list.
+const openedSessionDeadlineMs = 3_000;
+const openedSessionPollMs = 200;
 
 /** The dashboard's access token: `dashboard start` with exactly the unit's
  * settings answers the running dashboard's URL (and starts it, the same way
@@ -158,8 +166,24 @@ export async function resolveBrowserView(
   const token = await accessToken(entry, seams);
   if (token === null)
     return Object.freeze({ available: false, reason: "view-unavailable" });
-  const port =
-    session === null ? null : await sessionPort(entry, session, seams);
+  let port = session === null ? null : await sessionPort(entry, session, seams);
+  // A thread asks for its own window before its agent has opened one (the
+  // Browser panel of a new T3 Code thread): open it now, so the person and
+  // the agent look at the same window instead of the list of every window.
+  if (session !== null && port === null && seams.openWindow !== undefined) {
+    const opened = await seams.openWindow(session).then(
+      () => true,
+      () => false,
+    );
+    const deadline = performance.now() + openedSessionDeadlineMs;
+    while (opened && port === null && performance.now() < deadline) {
+      port = await sessionPort(entry, session, seams);
+      if (port === null)
+        await new Promise((resolve) =>
+          setTimeout(resolve, openedSessionPollMs),
+        );
+    }
+  }
   return Object.freeze({
     available: true,
     view: browserViewUrl(entry.origin, token, port),
