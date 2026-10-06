@@ -60,6 +60,10 @@ export type ShellCopy = Readonly<{
   setupFailed: string;
   setupResolve: string;
   setupRetry: string;
+  /** The rail on a host's page with nobody signed in (F36's addendum of
+   * 2026-10-06): its accessible name, and the key's name and label. */
+  signedOutRail: string;
+  signIn: string;
 }>;
 
 const en: ShellCopy = {
@@ -121,6 +125,8 @@ const en: ShellCopy = {
   setupFailed: "The preparation stopped.",
   setupResolve: "Solve in Chat",
   setupRetry: "Try again",
+  signedOutRail: "Lazurio",
+  signIn: "Sign in with your Lazurio account",
 };
 
 const cs: ShellCopy = {
@@ -182,6 +188,8 @@ const cs: ShellCopy = {
   setupFailed: "Příprava se zastavila.",
   setupResolve: "Vyřešit v Chatu",
   setupRetry: "Zkusit znovu",
+  signedOutRail: "Lazurio",
+  signIn: "Přihlásit Lazurio účtem",
 };
 
 export const shellMessages = (locale: "cs" | "en"): ShellCopy =>
