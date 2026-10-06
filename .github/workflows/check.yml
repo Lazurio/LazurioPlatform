@@ -1,5 +1,14 @@
 name: Platform checks
 
+# A pull request runs the static checks and the tests in four shards, each on
+# its own Linux runner; one that changes only Markdown documentation runs the
+# guard lane. Every push to main runs the same on Linux and the whole check on
+# macOS, the safety net after each merge; the release candidates' macOS
+# journeys run in qualify.yml.
+#
+# `check (ubuntu-24.04)` and `check (macos-14)` are the required status
+# checks: keep their names. A skipped job reports as passed, so the Linux one
+# always runs and fails unless every part it stands for passed.
 on:
   pull_request:
   push:
@@ -8,14 +17,103 @@ on:
 permissions:
   contents: read
 
+# A newer push to a pull request cancels its running checks; a push to main
+# is never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  check:
-    name: check (${{ matrix.os }})
+  scope:
+    name: scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      lane: ${{ steps.scope.outputs.lane }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          # The pull request's merge commit and its first parent, the base.
+          fetch-depth: 2
+      # Documentation only: every changed path, renames as both their paths,
+      # is Markdown under docs/ or at the top level. Anything else, an empty
+      # or failed diff, and every push to main run everything.
+      - id: scope
+        run: |
+          lane=full
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]] &&
+            changed=$(git diff --no-renames --name-only HEAD^1 HEAD) &&
+            [[ -n "$changed" ]] &&
+            ! grep -qvE '^(docs/.+|[^/]+)\.md$' <<<"$changed"; then
+            lane=docs
+          fi
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "Lane: $lane"
+
+  static:
+    name: static checks
+    needs: scope
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Guard lane (documentation only)
+        if: needs.scope.outputs.lane == 'docs'
+        run: bun run lint && bun run check:public
+      - name: Lint, typecheck, public guard, proof build and smoke
+        if: needs.scope.outputs.lane != 'docs'
+        run: bun run check:static
+
+  tests:
+    name: tests (${{ matrix.shard }}/4)
+    needs: scope
+    if: needs.scope.outputs.lane != 'docs'
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
-    runs-on: ${{ matrix.os }}
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      # A shard runs its files one after another on a runner of its own.
+      - run: bun test --shard=${{ matrix.shard }}/4
+
+  linux:
+    name: check (ubuntu-24.04)
+    needs: [scope, static, tests]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - env:
+          LANE: ${{ needs.scope.outputs.lane }}
+          SCOPE: ${{ needs.scope.result }}
+          STATIC: ${{ needs.static.result }}
+          TESTS: ${{ needs.tests.result }}
+        run: |
+          echo "scope: $SCOPE ($LANE), static checks: $STATIC, tests: $TESTS"
+          [[ "$SCOPE" == success && "$STATIC" == success ]] || exit 1
+          [[ "$TESTS" == success || ("$TESTS" == skipped && "$LANE" == docs) ]] || exit 1
+
+  macos:
+    name: check (macos-14)
+    if: github.event_name != 'pull_request'
+    runs-on: macos-14
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
