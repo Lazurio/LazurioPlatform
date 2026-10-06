@@ -23,6 +23,7 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
+import { journeys } from "./fixtures/journeys";
 import {
   assignments,
   binding,
@@ -31,7 +32,6 @@ import {
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
-import { journeys } from "./folder-render.test";
 
 const os = executionOs(process.platform);
 

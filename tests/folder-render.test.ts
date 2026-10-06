@@ -4,25 +4,8 @@ import { renderManual } from "../src/folder/manual";
 import { presetProfile } from "../src/folder/presets";
 import { planInstructions } from "../src/folder/reconcile";
 import { renderInstructions } from "../src/folder/render";
+import { journeys } from "./fixtures/journeys";
 import { bindings } from "./fixtures/machine-bindings";
-
-// Every preset on every OS it is offered for, in both languages.
-export const journeys = [
-  { preset: "local", machine: null, os: "windows" },
-  { preset: "local", machine: null, os: "macos" },
-  { preset: "hosted-personal", machine: bindings.personal, os: "linux" },
-  {
-    preset: "hosted-organization-personal",
-    machine: bindings.organization,
-    os: "linux",
-  },
-  { preset: "hosted-organization-team", machine: bindings.team, os: "linux" },
-  {
-    preset: "hosted-organization-steward",
-    machine: bindings.automated,
-    os: "linux",
-  },
-] as const;
 
 test("all launch journeys render both languages without undefined fragments", () => {
   for (const journey of journeys) {

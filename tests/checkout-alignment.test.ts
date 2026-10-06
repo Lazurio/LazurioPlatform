@@ -6,7 +6,7 @@ import { renderManual } from "../src/folder/manual";
 import { outputPaths } from "../src/folder/outputs";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
-import { journeys } from "./folder-render.test";
+import { journeys } from "./fixtures/journeys";
 
 // The generated "Current checkouts" procedure (decision F17 addendum
 // 2026-10-02) must never lose work. Review found the collision that made an
