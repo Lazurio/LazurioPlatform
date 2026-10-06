@@ -7,6 +7,7 @@ import {
   type Provenance,
   provenanceFindings,
 } from "../scripts/qualify/check-canary";
+import { runChild } from "./fixtures/run-child";
 
 const candidate = "v1.2.0-rc.1";
 const now = new Date("2026-09-02T12:00:00Z");
@@ -186,28 +187,22 @@ afterAll(async () => directory && rm(directory, { recursive: true }));
 test("the CLI: the candidate is the file name; a missing record refuses", async () => {
   directory = await mkdtemp(join(tmpdir(), "canary-"));
   const path = join(directory, `${candidate}.json`);
-  const check = (file: string) => {
-    const child = Bun.spawnSync([process.execPath, "run", script, file], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    return [
-      child.exitCode,
-      `${child.stdout.toString()}${child.stderr.toString()}`.trim(),
-    ];
+  const check = async (file: string) => {
+    const child = await runChild([process.execPath, "run", script, file]);
+    return [child.exitCode, `${child.stdout}${child.stderr}`.trim()];
   };
-  expect(check(path)).toEqual([
+  expect(await check(path)).toEqual([
     1,
     `Refused: the canary of ${candidate} does not pass.\n  no readable canary record for ${candidate}`,
   ]);
   await writeFile(path, JSON.stringify(record()));
-  expect(check(path)).toEqual([
+  expect(await check(path)).toEqual([
     0,
     `The canary of ${candidate} passed: 8 hours on every listed Machine.`,
   ]);
   const renamed = join(directory, "v1.2.0-rc.2.json");
   await writeFile(renamed, JSON.stringify(record()));
-  expect(check(renamed)[0]).toBe(1);
+  expect((await check(renamed))[0]).toBe(1);
 });
 
 const path = `qualification/canary/${candidate}.json`;

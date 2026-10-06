@@ -21,6 +21,7 @@ import { shellFonts } from "../src/shell/fonts";
 import { shellElementInterface } from "../src/shell/interface";
 import { sha256Hex } from "../src/update/manifest";
 import { accountDocument } from "./fixtures/account-document";
+import { runChild } from "./fixtures/run-child";
 
 // Decision F36; docs/update.md "The shell artifact": every release attaches
 // `lazurio-shell.tar.gz`, the shell of that release, for a host outside an
@@ -246,11 +247,8 @@ posixTest(
     await mkdir(directory);
     const file = join(scratch, shellArtifactFile);
     await writeFile(file, archive);
-    const result = Bun.spawnSync(["tar", "-xzf", file, "-C", directory], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    expect(result.stderr.toString()).toBe("");
+    const result = await runChild(["tar", "-xzf", file, "-C", directory]);
+    expect(result.stderr).toBe("");
     expect(result.exitCode).toBe(0);
     const unpacked = [
       ...new Bun.Glob("**").scanSync({ cwd: directory, dot: true }),
@@ -351,15 +349,17 @@ test("contract.d.ts types every export of contract.js for a host with neither DO
 test("the command writes the asset once into an absolute directory and refuses anything else", async () => {
   const place = join(scratch, "command");
   await mkdir(place);
-  const run = (...args: string[]) =>
-    Bun.spawnSync(
-      [
-        process.execPath,
-        "run",
-        join(root, "scripts", "release-shell.ts"),
-        ...args,
-      ],
-      { cwd: place, stdout: "pipe", stderr: "pipe" },
+  const run = async (...args: string[]) =>
+    (
+      await runChild(
+        [
+          process.execPath,
+          "run",
+          join(root, "scripts", "release-shell.ts"),
+          ...args,
+        ],
+        { cwd: place },
+      )
     ).exitCode;
   const named = [
     "--version",
@@ -369,13 +369,13 @@ test("the command writes the asset once into an absolute directory and refuses a
   ];
   const out = join(place, "release");
   // As the publishing job runs it: the bytes of the build above.
-  expect(run(...named, "--out", out)).toBe(0);
+  expect(await run(...named, "--out", out)).toBe(0);
   expect(sha256Hex(await readFile(join(out, shellArtifactFile)))).toBe(
     sha256Hex(archive),
   );
   // A second run never replaces the asset.
   await writeFile(join(out, shellArtifactFile), "earlier");
-  expect(run(...named, "--out", out)).not.toBe(0);
+  expect(await run(...named, "--out", out)).not.toBe(0);
   expect(await readFile(join(out, shellArtifactFile), "utf8")).toBe("earlier");
   // Refused before anything is built or written.
   for (const args of [
@@ -399,7 +399,7 @@ test("the command writes the asset once into an absolute directory and refuses a
     ],
     [...named, "--out", join(place, "c"), "--target", "linux-x64"],
   ])
-    expect(run(...args)).not.toBe(0);
+    expect(await run(...args)).not.toBe(0);
   expect(await readdir(place)).toEqual(["release"]);
 }, 60_000);
 
