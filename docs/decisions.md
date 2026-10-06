@@ -5116,3 +5116,177 @@ view. Its input sends punctuation with ASCII codes as Windows virtual-key codes,
 arrives as Delete (vercel-labs/agent-browser#1380, fix #1382 open), and its sessions,
 activity and console columns are too much for people. A view in the shape of the
 right-panel browser of ChatGPT/Codex Desktop is the second phase (DEV-6646).
+
+## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
+
+**Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
+DEV-6646); implemented in this revision.** On the pilot Environment the view of F38
+point 5, agent-browser's dashboard, was "velmi zabugované" for the Organization Admin:
+- it is a browser inside a browser, with its own sessions and tabs;
+- its second token broke every open view on each restart (#234);
+- its links were pinned to stream ports that change when a session restarts;
+- paste never reached the page;
+- a passkey request opened Chrome's native window outside the page, and the page took
+  no input until someone closed that window on the screen.
+
+The Admin's model replaces it. A person's tab in any app (web T3 Code, ChatGPT/Codex
+Desktop's right panel, a browser, a phone) is a window into exactly one tab of the
+Environment browser. The view is the Platform's own thin service over the Chrome
+DevTools protocol, and agent-browser stays the agents' tool. This decision changes
+F38 points 1, 5 and 6 as stated below; points 2–4 and 7 stand.
+
+1. **Addresses.** The view keeps the gateway's `browser.` origin and loopback port of
+   F38 (`entry.browser`).
+   - `GET /` is a page that opens a new remote tab (`POST /api/tabs`) and replaces its
+     own address with `/t/<id>`, where `<id>` is the tab's DevTools target id.
+     Creation is a POST, so nothing that only fetches `/` opens a tab.
+   - `GET /t/<id>` is the view of that one tab, and `/t/<id>/live` is its WebSocket.
+   - The view page has only a thin bar (back, forward, reload, the address) and takes
+     its title and icon from the remote page. It has no list of sessions or tabs.
+     Chrome reports a target's title only as its address, so the service reads the
+     page's title and icon itself, at each load and every 2 s while someone views
+     the tab.
+2. **Each remote tab is its own window** (0191 point 11), because Chrome paints only
+   visible windows. A tab the view opens is a new window of the default context (CDP
+   `Target.createTarget` with `newWindow`, the sign-ins of F38 point 2). A tab a page
+   opens in an existing window is moved into a window of its own by the Lazurio
+   extension (point 7), which keeps its opener.
+3. **The window takes the person's size.** When a person opens or resizes the view,
+   the window of that tab is resized to the view's page area, clamped to the screen,
+   so the page lays out for the person. With two people on one tab, the last one who
+   acted wins. `lazurio browser window` therefore no longer fixes a thread's viewport
+   (F38 point 3 did, for the dashboard's pointer mapping); it pins the session with
+   `get url`. An agent's own `set viewport` still overrides the page size, and the
+   view then shows the frame scaled.
+4. **Pop-ups and new tabs** (0191 point 12). A page target whose opener is the viewed
+   tab:
+   - **with access to its opener** (`canAccessOpener`: `window.open` with a reference,
+     the shape of "Sign in with Google") is a pop-up. It shows over the page in the
+     same person's tab, and disappears when it closes;
+   - **without access** (`target=_blank`, `noopener`) is a new tab. The view offers
+     it with one click ("Stránka otevřela novou záložku — Otevřít") and posts
+     `lazurio-browser:new-tab` with its `/t/<id>` address to the embedding app. Web
+     T3 Code opens such a tab as a tab of its Browser panel in its own revision
+     (Lazurio/t3code); until then it gets the same one-click bar.
+5. **Co-control** (0191 point 13). Agent and person click and type in the same tab at
+   once. The view never locks out the agent and offers no "take over".
+6. **Input** (0191 point 15).
+   - **Keys** are sent with the person's `key` and `code` and the Windows virtual-key
+     code the person's browser reports, so `.`, `-` and `'` arrive unchanged
+     (Lazurio/LazurioPlatform#218).
+   - **macOS shortcuts** (`⌘` with a letter) become `Ctrl` on the Linux browser.
+   - **Paste** (`⌘V`/`Ctrl+V`) inserts the text of the person's clipboard
+     (`Input.insertText`).
+   - **Copy and cut** put the remote selection into the person's clipboard. The
+     service reads the selection in an isolated world when it may have changed
+     (a released mouse button or key) and when the person presses `Ctrl` or `⌘`,
+     just before a copy. It never enables the Runtime domain: a binding would
+     need it, and pages can detect it as automation during a person's sign-in.
+   - **Touch** is sent as touch, and a tap on a phone opens its keyboard.
+   - The view uses the `paste` and `copy` events, so it needs no clipboard
+     permission even inside an app's frame.
+7. **Nothing outside the page blocks the view** (0191 point 16 and 17).
+   - The browser starts with `--deny-permission-prompts` and the Lazurio extension
+     (`--load-extension`, written by `install` and `update` next to the profile, never
+     into it). The extension:
+     - moves a new tab of a shared window into a window of its own;
+     - until the Environment's Bitwarden is installed (0191 point 17,
+       Lazurio/LazurioPlatform#204), answers every WebAuthn request of a page
+       (`navigator.credentials` with `publicKey`) with `NotAllowedError` at once, and
+       reports no platform authenticator and no conditional mediation. Chrome's
+       native passkey window never opens, and sites offer another way.
+   - The view server keeps a DevTools session on every page:
+     - **JavaScript dialogs** (alert, confirm, prompt, beforeunload) show in the view
+       and are answered from it;
+     - **file choosers** are intercepted on every page. In the view, the person picks
+       files, which are uploaded to the Environment and set on the input. With no
+       person watching, the chooser is dropped rather than shown on the screen.
+   - HTTP authentication and the print preview are not handled in this revision (see
+     Not decided).
+8. **One admission: the gateway** (0191 point 14).
+   - The view has no token of its own.
+   - Every request must name the view's own host. Every WebSocket and every request
+     that changes something must carry the view's own `Origin`. `lazurio.io` is not a
+     public suffix, so another `*.lazurio.io` app is same-site, and the Origin check
+     is the barrier.
+   - Pages may frame the view only from the Environment's own origins
+     (`frame-ancestors 'self' https://*.<parent of the view's host>`).
+   - The service listens on loopback only. An agent of the Environment already reaches
+     the browser's DevTools, so loopback adds no reach.
+9. **A closed person's tab closes its remote tab** (0191 point 11) after a grace of 30
+   seconds without any viewer. This applies only to a tab the view itself opened, and
+   only when no agent-browser session is bound to it (`<socket dir>/<session>.target`,
+   as F38 point 3 reads it). A view that is opened again within the grace keeps the
+   tab. After a restart of the service the record is gone, and nothing is closed.
+10. **The service replaces the dashboard unit.**
+    - `lazurio-browser-view.service` runs `<selector> browser serve --port <port>
+      --origin <origin>` as a long-running service (`Type=simple`,
+      `Restart=always`).
+    - `lazurio-browser.service` gains `--deny-permission-prompts` and
+      `--load-extension`.
+    - A changed text of the browser unit now restarts the browser on `install` and
+      `update`, which changes F38 point 1. That restart closes every window: agents
+      reopen theirs with `lazurio browser window`, and the profile's sign-ins stay.
+      Without it, the extension would wait for an unrelated restart.
+    - The screen is still never restarted.
+11. **The links.**
+    - `lazurio browser window` prints the thread's own view, `https://browser.<…>/t/<id>`.
+    - `GET /.lazurio/browser.json?session=<name>` answers that address for a thread's
+      window: T3 Code's Browser panel frames it unchanged.
+    - Without a session it answers the view's `/`, so the Launchpad's panel opens a
+      new remote tab. The view of all windows is retired (0191 point 18); only the
+      desktop of the second wave shows them all.
+    - `/.lazurio/browser` redirects the same way.
+    - No address carries a token any more.
+12. **Folder manual.** The agent sends its tab's link. It works together with the
+    Operator in the same tab. At a sign-in, 2FA or CAPTCHA it asks the Operator to
+    finish it there and does not type into the same field meanwhile (template revision
+    `base-instructions-31`).
+13. **Doctor** asks the service's `GET /.lazurio/health` on loopback instead of the
+    dashboard's page, which also reports whether the service reaches the browser.
+
+**Failure modes.**
+
+| Failure | What happens |
+| --- | --- |
+| The browser restarts (crash, update) | The service reconnects every 2 s; open views show "reconnecting" and resume on their tab if it survived, else "this tab no longer exists" with "open a new tab" |
+| The tab is closed by an agent or a page | Its views say so and offer a new tab |
+| The person's network drops | The view reconnects with backoff; frames are not queued, the next frame is current |
+| A slow viewer | Frames are acknowledged to Chrome only when every viewer's socket has drained below 1 MiB, so Chrome slows down instead of the service buffering |
+| Two people and an agent type at once | Accepted (co-control); keys interleave as they would on one keyboard |
+| A request from another `*.lazurio.io` page | Refused by the Origin check (403) |
+| A page answers a passkey request before the extension runs | The content script runs at `document_start` in every frame, before page scripts |
+
+**Variants considered.**
+
+| Alternative | Disposition |
+| --- | --- |
+| Keep agent-browser's dashboard and patch it (#1618 for paste) | Its model (sessions and tabs inside one view) is the one the Admin rejected; rejected |
+| noVNC, Selkies or neko for the view | They show the whole screen or the whole browser, not one tab; the desktop of the second wave may use one of them; rejected for the view |
+| browserless or Steel | Separate browser platforms instead of the Environment's one Chromium; rejected |
+| Tabs of one window with a tab strip in the view | Background tabs do not paint, and the Admin rejected switching tabs inside one person's tab; rejected |
+| A token of the view (as the dashboard) | A second admission that broke on restarts; the gateway is the admission; rejected |
+| Chrome policy to block WebAuthn | No policy turns WebAuthn off for every site without its native UI; an extension answers before the page; selected |
+| A thin view service over CDP, one tab per person's tab, an extension for windows and passkeys (selected) | The smallest own piece that gives the Admin's model; everything else stays Chrome, agent-browser and the gateway |
+
+**Not decided here.** The Bitwarden extension and passkeys through it (#204), HTTP
+authentication and print preview in the view, T3 Code's automatic panel tab for a
+page's new tab (Lazurio/t3code), the desktop and Computer Use (second wave) and
+MausBot's move to this browser (third wave).
+
+Verified by:
+- `tests/environment-browser-view.test.ts` against a scripted DevTools peer: routes, the Host and Origin checks, tab creation, pop-up and new-tab classification, the grace close, dialogs, file choosers, the title read from the page, the selection read on demand, frame flow control, reconnecting, and the extension's two scripts;
+- `tests/environment-browser-view-client.test.ts`: input mapping, frames and the protocol;
+- `tests/environment-browser.test.ts`: units, convergence, the browser restart on a changed unit, doctor and links.
+
+Before the release, the service ran against a real headless Chrome for Testing 155 with the extension, viewed in a browser:
+- a new tab from `/`, navigation from the bar, and the page's title;
+- typing `j.-'@`, a paste and a copy;
+- a sign-in pop-up shown in the same tab, which closed itself and reached its opener;
+- the offer of a new tab;
+- a prompt answered in the view;
+- a file uploaded into the page's input;
+- a passkey request declined at once (`NotAllowedError`);
+- the window taking the view's size.
+
+Branded Google Chrome ignores `--load-extension`; Chrome for Testing, which the Environment runs, loads it. The pilot Environment's browser check (decision 0178) follows the release.

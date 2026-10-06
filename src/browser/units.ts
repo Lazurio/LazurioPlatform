@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
+import { layout } from "../update/layout";
 import type { ProcessRunner } from "../update/self-check";
 import {
   detectServiceControl,
@@ -12,16 +13,22 @@ import {
   unitPath,
   userUnitDirectory,
 } from "../update/service-control";
+import {
+  browserExtensionDigest,
+  writeBrowserExtension,
+} from "./people/extension";
 
 /** The Environment browser of a Remote Environment (root decision 0191,
- * decision F38): one virtual screen, one Chromium with one persistent profile
- * that every thread, agent and bot of the Environment shares, and the
- * agent-browser dashboard as the person's view of its windows. Three
- * installer units, converged like the Codex app-server unit (F29): written
- * when their text differs, enabled and started; `install` and `update` never
- * stop the screen or the browser, since that would close every agent's
- * window. Machines delivers the packages (Xvfb, Chrome for Testing through
- * agent-browser) and the gateway route; the Platform owns what runs. */
+ * decisions F38 and F39): one virtual screen, one Chromium with one
+ * persistent profile that every thread, agent and bot of the Environment
+ * shares, and the people's view, where one tab of a person is one remote
+ * tab. Three installer units, converged like the Codex app-server unit (F29):
+ * written when their text differs, enabled and started. `install` and
+ * `update` never stop the screen; they restart the browser only when its own
+ * unit changed (a new flag or a new extension, F39 point 10), since that
+ * closes every agent's window. Machines delivers the packages (Xvfb, Chrome
+ * for Testing through agent-browser) and the gateway route; the Platform
+ * owns what runs. */
 export const displayUnit = "lazurio-display.service";
 export const browserUnit = "lazurio-browser.service";
 export const browserViewUnit = "lazurio-browser-view.service";
@@ -50,13 +57,16 @@ export const browserCdpPort = 9222;
 export const browserProfileDirectory = (home: string) =>
   join(home, ".local", "share", "lazurio-browser", "profile");
 
-/** The size of a thread's window and of its view, so the view's pointer
- * lands where the page is (the dashboard maps clicks with this viewport). */
+/** The size of a thread's window until a person's view resizes it (F39
+ * point 3). */
 export const browserWindowSize = Object.freeze({ width: 1280, height: 800 });
+
+/** The virtual screen; no window grows past it. */
+export const browserScreenSize = Object.freeze({ width: 1920, height: 1080 });
 
 /** What the gateway tells the Environment about the view, from the handover
  * (`entry.browser`, Machines): where the person reaches it and the loopback
- * port the dashboard listens on. Never derived by convention. */
+ * port the view service listens on. Never derived by convention. */
 export type BrowserEntry = Readonly<{ origin: string; listenPort: number }>;
 
 // Chrome for Testing as agent-browser installs it under the operator's home
@@ -70,14 +80,17 @@ const chromeCandidates = [
   "%h/.agent-browser/browsers/chrome-*/chrome-linux64/chrome",
 ];
 
-/** Chrome's flags, one per line of the docs (decision F38):
+/** Chrome's flags, one per line of the docs (decisions F38 and F39):
  * - the persistent profile and loopback DevTools;
  * - no first-run or default-browser questions, nobody answers them;
  * - `--password-store=basic`: no desktop keyring on a virtual screen;
  * - no background throttling: an agent's window keeps working while the
  *   person watches another one;
  * - no crash-restore bubble after a restart of the unit;
- * - the first window at a thread window's size. */
+ * - the first window at a thread window's size;
+ * - permission prompts are denied, never shown where nobody sees them;
+ * - the Lazurio extension (a window per tab, passkeys declined), with the
+ *   feature that turns `--load-extension` off in branded builds disabled. */
 export const browserFlags = Object.freeze([
   "--user-data-dir=%h/.local/share/lazurio-browser/profile",
   `--remote-debugging-port=${browserCdpPort}`,
@@ -89,6 +102,9 @@ export const browserFlags = Object.freeze([
   "--disable-backgrounding-occluded-windows",
   "--hide-crash-restore-bubble",
   `--window-size=${browserWindowSize.width},${browserWindowSize.height + 100}`,
+  "--deny-permission-prompts",
+  "--load-extension=%h/.local/share/lazurio-browser/extension",
+  "--disable-features=DisableLoadExtensionCommandLineSwitch",
 ]);
 
 /** The screen: Xvfb on `:1`, no TCP. `Type=simple` and a start that waits
@@ -116,7 +132,8 @@ export function renderDisplayUnit(): string {
 /** The browser: the newest Chrome for Testing, headed on the screen, `exec`
  * so Chrome is the unit's main process. Bound to the screen; restarted
  * whenever it ends (a person closing the last window included), except when
- * there is no Chrome to run. */
+ * there is no Chrome to run. The extension's digest is part of the text, so
+ * a new extension is a changed unit, which restarts the browser. */
 export function renderBrowserUnit(): string {
   const command = [
     `b=$$(ls -d ${chromeCandidates.join(" ")} 2>/dev/null | sort -V | tail -n 1)`,
@@ -133,6 +150,7 @@ export function renderBrowserUnit(): string {
     "[Service]",
     "Type=simple",
     `Environment=DISPLAY=${browserDisplay}`,
+    `Environment=LAZURIO_BROWSER_EXTENSION=${browserExtensionDigest}`,
     `ExecStart=/bin/sh -c '${command}'`,
     "Restart=always",
     "RestartSec=3",
@@ -144,28 +162,35 @@ export function renderBrowserUnit(): string {
   ].join("\n");
 }
 
-/** The view: agent-browser's own dashboard, allowed for the gateway's origin
- * only, so its access token and its Origin check stay on (decision F38).
- * `dashboard start` detaches and exits, as Codex's daemon does in F29:
- * `oneshot`, `RemainAfterExit=yes`, `KillMode=process`, stopped by agent-
- * browser itself. `AGENT_BROWSER_CDP` makes what the dashboard runs use the
- * Environment browser, never a browser of its own. */
-export function renderBrowserViewUnit(entry: BrowserEntry): string {
+/** The view: the Platform's own people's view (decision F39), this
+ * installation's `lazurio browser serve` on the entry's loopback port for the
+ * gateway's origin. A long-running service, restarted whenever it ends. */
+export function renderBrowserViewUnit(
+  entry: BrowserEntry,
+  selector: string,
+): string {
   return [
     unitMarker,
     "[Unit]",
-    "Description=Lazurio Environment browser view: the agent-browser dashboard behind the gateway",
-    "ConditionFileIsExecutable=%h/.local/bin/agent-browser",
+    "Description=Lazurio Environment browser view: one tab of a person is one tab of the Environment browser",
+    `After=${browserUnit}`,
     "",
     "[Service]",
-    "Type=oneshot",
-    "RemainAfterExit=yes",
-    "KillMode=process",
+    "Type=simple",
     `Environment=PATH=${unitPath}`,
-    `Environment=AGENT_BROWSER_CDP=${browserCdpPort}`,
-    `ExecStart=%h/.local/bin/agent-browser dashboard start --port ${entry.listenPort} --allowed-origins ${systemdQuote(entry.origin)}`,
-    "ExecStop=-%h/.local/bin/agent-browser dashboard stop",
-    "TimeoutStartSec=60",
+    `ExecStart=${[
+      selector,
+      "browser",
+      "serve",
+      "--port",
+      String(entry.listenPort),
+      "--origin",
+      entry.origin,
+    ]
+      .map(systemdQuote)
+      .join(" ")}`,
+    "Restart=always",
+    "RestartSec=2",
     "",
     "[Install]",
     "WantedBy=default.target",
@@ -175,11 +200,12 @@ export function renderBrowserViewUnit(entry: BrowserEntry): string {
 
 export function renderBrowserUnits(
   entry: BrowserEntry,
+  selector: string,
 ): Readonly<Record<BrowserUnit, string>> {
   return Object.freeze({
     [displayUnit]: renderDisplayUnit(),
     [browserUnit]: renderBrowserUnit(),
-    [browserViewUnit]: renderBrowserViewUnit(entry),
+    [browserViewUnit]: renderBrowserViewUnit(entry, selector),
   });
 }
 
@@ -211,15 +237,18 @@ export const environmentBrowserFailed = (
   Object.freeze({ state: "failed", step, next: failedNext });
 
 /** Write what differs, reread the manager once, enable and start all three.
- * `start` of an active unit changes nothing, so the screen and the browser
- * keep running across every install and update. Only the view is restarted,
- * and only when its own text changed (the gateway moved its port or
- * origin): a new dashboard costs a viewer one reload, nothing else. */
+ * `start` of an active unit changes nothing, so the screen keeps running
+ * across every install and update. The view is restarted when its own text
+ * changed (a new installation path, port or origin): a viewer reconnects.
+ * The browser is restarted when its own text changed (F39 point 10): its
+ * windows close, agents open theirs again, the profile keeps its sign-ins. */
 export async function installEnvironmentBrowser(
   input: Readonly<{
     directory: string;
     hosted: boolean;
     entry: BrowserEntry | undefined;
+    /** This installation's `lazurio`, which the view unit runs. */
+    selector: string;
     run: ProcessRunner;
     env: Readonly<Record<string, string | undefined>>;
   }>,
@@ -229,9 +258,12 @@ export async function installEnvironmentBrowser(
     return Object.freeze({ state: "skipped-not-declared" });
   const failed = environmentBrowserFailed;
   const command = { run: input.run, env: input.env };
-  const texts = renderBrowserUnits(input.entry);
+  const texts = renderBrowserUnits(input.entry, input.selector);
   const changed: BrowserUnit[] = [];
   try {
+    const home = input.env.HOME;
+    if (home === undefined || !home.startsWith("/")) return failed("unit");
+    await writeBrowserExtension(home);
     for (const unit of browserUnits) {
       const existing = await readFile(
         join(input.directory, unit),
@@ -257,11 +289,12 @@ export async function installEnvironmentBrowser(
     return failed("reload");
   if (!(await systemctl(command, "enable", ...browserUnits)))
     return failed("enable");
-  if (
-    changed.includes(browserViewUnit) &&
-    !(await systemctl(command, "try-restart", browserViewUnit))
-  )
-    return failed("start");
+  for (const unit of [browserUnit, browserViewUnit] as const)
+    if (
+      changed.includes(unit) &&
+      !(await systemctl(command, "try-restart", unit))
+    )
+      return failed("start");
   if (!(await systemctl(command, "start", ...browserUnits)))
     return failed("start");
   return Object.freeze({ state: "enabled" });
@@ -290,6 +323,7 @@ export async function convergeEnvironmentBrowser(
     directory,
     hosted,
     entry: hosted ? await input.entry().catch(() => undefined) : undefined,
+    selector: layout(input.base).selector,
     run: input.run,
     env: input.env,
   });
@@ -389,7 +423,11 @@ export async function observeEnvironmentBrowser(
   };
   if (!(await answers(`http://127.0.0.1:${browserCdpPort}/json/version`)))
     return warn("browser-not-answering");
-  if (!(await answers(`http://127.0.0.1:${input.entry.listenPort}/`)))
+  if (
+    !(await answers(
+      `http://127.0.0.1:${input.entry.listenPort}/.lazurio/health`,
+    ))
+  )
     return warn("browser-view-not-answering");
   return Object.freeze({ outcome: "ok" as const });
 }

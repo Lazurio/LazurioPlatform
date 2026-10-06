@@ -17,7 +17,7 @@ import {
 } from "../update/errors";
 import { runProcess } from "../update/self-check";
 import { browserCdpPort } from "./units";
-import { browserEntryOf } from "./view";
+import { browserEntryOf, browserViewUrl } from "./view";
 import {
   BrowserWindowFailure,
   cdpSeams,
@@ -27,21 +27,25 @@ import {
 } from "./window";
 
 /** `lazurio browser`: the agent's way into the Environment browser of a
- * Remote Environment (decision F38). */
+ * Remote Environment (decisions F38 and F39). */
 export const browserHelp = `browser window [--session <name>] [--url <url>] [--folder <absolute Folder>] [--json]
   The calling thread's own window of the Environment browser: the one its
   agent-browser session is bound to while it is open, otherwise a new window
   of the shared browser (with the Environment's sign-ins) bound to the
   session. The session is --session, else AGENT_BROWSER_SESSION (T3 Code sets
   it per thread), else codex-<CODEX_THREAD_ID>, else
-  claude-<CLAUDE_CODE_SESSION_ID>. Prints the session, the link to its view
-  for the person and the agent-browser command to work in it. --json prints
+  claude-<CLAUDE_CODE_SESSION_ID>. Prints the session, the link to its tab in
+  the people's view (https://browser.…/t/<id>), where the Operator works in
+  the same tab, and the agent-browser command to work in it. --json prints
   {kind: "browser-window", session, targetId, created, link, command}.
 browser link [--session <name>] [--folder <absolute Folder>] [--json]
-  The link to the view of the session's window (or of every window without a
-  session), for the person: the Launchpad hands the browser over to the view.
+  The link for the person: with a session, the Launchpad's hand-over to that
+  session's tab; without one, the people's view of a new tab.
   Exit status: 0 done, 10 this Environment has no Environment browser, 2
-  usage, 1 failure.`;
+  usage, 1 failure.
+browser serve --port <loopback port> --origin <https://browser.…>
+  The people's view service, as lazurio-browser-view.service runs it; it runs
+  until it is stopped. Not for agents.`;
 
 const synopsis =
   "browser window|link [--session <name>] [--url <url>] [--folder <absolute Folder>] [--json]";
@@ -66,7 +70,7 @@ const text = {
       "The window is open, but agent-browser did not bind the session to it.",
     failed: "lazurio browser failed",
     session: "Session",
-    view: "The person watches and takes over here",
+    view: "The Operator works with you in this tab",
     use: "Work in your window with",
     reused: "Your window is open already.",
     created: "Your window is open.",
@@ -84,21 +88,24 @@ const text = {
       "Okno je otevřené, ale agent-browser k němu sezení nepřipojil.",
     failed: "lazurio browser selhal",
     session: "Sezení",
-    view: "Tady člověk sleduje a přebírá ovládání",
+    view: "Tady s tebou Operátor pracuje ve stejné záložce",
     use: "Ve svém okně pracuj příkazem",
     reused: "Tvoje okno už je otevřené.",
     created: "Tvoje okno je otevřené.",
   },
 } as const;
 
-/** The person's link: the Launchpad's hand-over to the view (it adds the
- * view's access token itself), for one session or for all. */
+/** The person's link for `browser link`: the Launchpad's hand-over to a
+ * session's tab (it opens the window when the session has none), or the
+ * people's view of a new tab without a session. `browser window` prints the
+ * tab's own address instead (`browserViewUrl`). */
 export function browserLink(
   launchpadOrigin: string,
+  browserOrigin: string,
   session: string | null,
 ): string {
   return session === null
-    ? `${launchpadOrigin}/.lazurio/browser`
+    ? browserViewUrl(browserOrigin, null)
     : `${launchpadOrigin}/.lazurio/browser?session=${session}`;
 }
 
@@ -165,7 +172,8 @@ export async function runBrowserCommand(
     locale = state?.preferences.profile.locale === "cs" ? "cs" : "en";
     const copy = text[locale];
     const entry = state?.entry ?? null;
-    if (entry === null || browserEntryOf(entry) === undefined)
+    const browser = browserEntryOf(entry);
+    if (entry === null || browser === undefined)
       return Object.freeze({
         code: exitUpdateAvailable,
         ...(json
@@ -184,8 +192,8 @@ export async function runBrowserCommand(
         : threadSession(values.session, context.env);
     if (named === null && (action === "window" || values.session !== undefined))
       return Object.freeze({ code: exitUsage, stderr: copy["no-session"] });
-    const link = browserLink(entry.externalOrigin, named);
     if (action === "link") {
+      const link = browserLink(entry.externalOrigin, browser.origin, named);
       return Object.freeze({
         code: exitOk,
         stdout: json
@@ -200,6 +208,7 @@ export async function runBrowserCommand(
       context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess),
     );
     const command = browserCommand(session);
+    const link = browserViewUrl(browser.origin, window.targetId);
     if (json)
       return Object.freeze({
         code: exitOk,

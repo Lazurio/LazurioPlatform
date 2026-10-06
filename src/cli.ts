@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { browserHelp, runBrowserCommand } from "./browser/cli";
+import { runViewService } from "./browser/people/serve";
 import {
   ContentUsageError,
   contentHelp,
@@ -194,7 +195,10 @@ export async function runCli(args: string[]): Promise<number> {
   const code = await runOtherCommand(args);
   // Every other command ends with the one-line notice (docs/update.md
   // "Surfaces"): from `last-check.json` only, on stderr, never the network.
-  if (args[0] !== "launchpad") {
+  if (
+    args[0] !== "launchpad" &&
+    !(args[0] === "browser" && args[1] === "serve")
+  ) {
     const notice = await noticeAfterCommand();
     if (notice) console.error(notice);
   }
@@ -205,6 +209,10 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // The link alone on stdout; the notice follows on stderr.
   if (args[0] === "chat")
     return emit(await runChatCommand(args.slice(1), processContext()));
+  // The Environment browser's people's view (decision F39): the service the
+  // view unit runs until it is stopped.
+  if (args[0] === "browser" && args[1] === "serve")
+    return runViewService(args.slice(2), process.env);
   // The Environment browser (decision F38): a thread's window and the link to
   // its view.
   if (args[0] === "browser")

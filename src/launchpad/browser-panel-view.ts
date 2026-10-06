@@ -2,17 +2,17 @@ import type { PublicEntry } from "./chat";
 import type { MessageKey } from "./messages";
 
 // The Launchpad's right panel (decision F38's addendum of 2026-10-05, root
-// decision 0191 point 8a, #207): the view of every window of the Environment
-// browser, the same view every app of the Environment embeds in its right
-// panel; the Launchpad builds no viewer of its own. The panel is offered
-// only where the recorded entry routes the view (`browserOrigin`): never on a
-// workstation, which has no entry, and never in Recovery mode. Opening it
-// asks this origin for `GET /.lazurio/browser.json` without a session (every
-// window) and embeds the view only when its address is an https URL on
-// exactly the recorded origin. The address carries the dashboard's access
-// token in its fragment, so it is never stored: it lives in the frame and in
-// the panel's link while the panel is open, and it is asked for again on
-// every opening and every reload. Pure but for the fetch passed in.
+// decision 0191 points 8a and 18, #207): the people's view of the Environment
+// browser (decision F39), the same view every app of the Environment embeds
+// in its right panel; the Launchpad builds no viewer of its own. The panel is
+// offered only where the recorded entry routes the view (`browserOrigin`):
+// never on a workstation, which has no entry, and never in Recovery mode.
+// Opening it asks this origin for `GET /.lazurio/browser.json` without a
+// session, which answers the view's `/`: a new remote tab, closed again a
+// short while after the panel closes. The view of every window is retired.
+// The panel embeds the view only when its address is an https URL on exactly
+// the recorded origin, and asks again on every opening and every reload.
+// Pure but for the fetch passed in.
 
 type Copy = Readonly<Record<MessageKey, string>>;
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -23,8 +23,8 @@ export const browserViewDocumentPath = "/.lazurio/browser.json";
  * browser to the view, through the gateway's sign-in when the session has
  * expired. A frame cannot show that sign-in page; a new tab can. */
 export const browserHandOverPath = "/.lazurio/browser";
-/** How long the panel waits for the answer: the server may first start
- * agent-browser's dashboard, which it gives 15 s. */
+/** How long the panel waits for the answer; without a session it is
+ * immediate. */
 export const browserViewReadMs = 20_000;
 
 /** The frame's attributes. `allow` lets the view use the clipboard (copying
@@ -79,8 +79,8 @@ export function browserViewAddress(
 }
 
 /** What the open panel shows: the answer still coming, the view, an
- * Environment browser that answered it is not available (agent-browser
- * missing, or no token), or no answer that can be used (an expired session,
+ * Environment browser that answered it is not available, or no answer that
+ * can be used (an expired session,
  * a refusal, a timeout, an answer of another shape). */
 export type BrowserPanelState =
   | Readonly<{ kind: "loading" }>

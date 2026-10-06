@@ -1077,7 +1077,9 @@ test("on a supervised hosted base whose handover routes the browser's view, inst
       "lazurio-display.service",
     ].sort(),
   );
-  expect(commands.slice(-4)).toEqual([
+  // A unit written now is a changed unit: the browser and the view are
+  // restarted if they ran (F39 point 10); `try-restart` starts nothing.
+  expect(commands.slice(-5)).toEqual([
     ["systemctl", "--user", "daemon-reload"],
     [
       "systemctl",
@@ -1087,6 +1089,7 @@ test("on a supervised hosted base whose handover routes the browser's view, inst
       "lazurio-browser.service",
       "lazurio-browser-view.service",
     ],
+    ["systemctl", "--user", "try-restart", "lazurio-browser.service"],
     ["systemctl", "--user", "try-restart", "lazurio-browser-view.service"],
     [
       "systemctl",

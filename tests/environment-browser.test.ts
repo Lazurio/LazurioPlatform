@@ -16,6 +16,7 @@ import {
   browserLink,
   runBrowserCommand,
 } from "../src/browser/cli";
+import { browserExtensionDigest } from "../src/browser/people/extension";
 import {
   browserCdpPort,
   browserUnit,
@@ -57,14 +58,16 @@ import {
 import organizationContext from "./fixtures/machine-context.json";
 import { commitOf, target } from "./fixtures/update-world";
 
-// The Environment browser (root decision 0191, decision F38): its units,
-// their observation, the view's link, a thread's window and the CLI. No real
-// systemd, browser or agent-browser: every command is recorded and answered.
+// The Environment browser (root decision 0191, decisions F38 and F39): its
+// units, their observation, the view's link, a thread's window and the CLI.
+// No real systemd, browser or agent-browser: every command is recorded and
+// answered. The people's view service itself is tested in
+// environment-browser-view.test.ts.
 
 const origin = "https://browser.workspace.example.lazurio.io";
 const { team: _team, ...withoutTeamOwner } = organizationContext.owner;
 const entry = Object.freeze({ origin, listenPort: 4848 });
-const token = "a".repeat(64);
+const selector = "/home/operator/.local/share/lazurio/bin/lazurio";
 
 let root: string | undefined;
 afterEach(async () => {
@@ -78,9 +81,11 @@ async function temporary(prefix: string) {
 
 // ---- Units -------------------------------------------------------------------
 
-// The exact unit texts proven on a Remote Environment on 2026-10-05: Xvfb
-// waits for its socket, Chrome is the browser unit's main process, the
-// dashboard detaches from its oneshot unit.
+// The unit texts: the screen and the browser as proven on a Remote
+// Environment on 2026-10-05 (Xvfb waits for its socket, Chrome is the browser
+// unit's main process), the browser with F39's flags and its extension's
+// digest, and the people's view as a long-running service of this
+// installation.
 const displayLines = [
   unitMarker,
   "[Unit]",
@@ -108,7 +113,8 @@ const browserLines = [
   "[Service]",
   "Type=simple",
   "Environment=DISPLAY=:1",
-  'ExecStart=/bin/sh -c \'b=$$(ls -d %h/.agent-browser/browsers/chrome-*/chrome %h/.agent-browser/browsers/chrome-*/chrome-linux64/chrome 2>/dev/null | sort -V | tail -n 1); [ -x "$$b" ] || exit 78; exec "$$b" --user-data-dir=%h/.local/share/lazurio-browser/profile --remote-debugging-port=9222 --no-first-run --no-default-browser-check --password-store=basic --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --hide-crash-restore-bubble --window-size=1280,900 about:blank\'',
+  `Environment=LAZURIO_BROWSER_EXTENSION=${browserExtensionDigest}`,
+  'ExecStart=/bin/sh -c \'b=$$(ls -d %h/.agent-browser/browsers/chrome-*/chrome %h/.agent-browser/browsers/chrome-*/chrome-linux64/chrome 2>/dev/null | sort -V | tail -n 1); [ -x "$$b" ] || exit 78; exec "$$b" --user-data-dir=%h/.local/share/lazurio-browser/profile --remote-debugging-port=9222 --no-first-run --no-default-browser-check --password-store=basic --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --hide-crash-restore-bubble --window-size=1280,900 --deny-permission-prompts --load-extension=%h/.local/share/lazurio-browser/extension --disable-features=DisableLoadExtensionCommandLineSwitch about:blank\'',
   "Restart=always",
   "RestartSec=3",
   "RestartPreventExitStatus=78",
@@ -118,24 +124,21 @@ const browserLines = [
   "",
 ];
 
-test("the three units render the texts proven on a Remote Environment", () => {
+test("the three units render the screen, the browser with its extension and the people's view", () => {
   expect(renderDisplayUnit().split("\n")).toEqual(displayLines);
   expect(renderBrowserUnit().split("\n")).toEqual(browserLines);
-  expect(renderBrowserViewUnit(entry).split("\n")).toEqual([
+  expect(renderBrowserViewUnit(entry, selector).split("\n")).toEqual([
     unitMarker,
     "[Unit]",
-    "Description=Lazurio Environment browser view: the agent-browser dashboard behind the gateway",
-    "ConditionFileIsExecutable=%h/.local/bin/agent-browser",
+    "Description=Lazurio Environment browser view: one tab of a person is one tab of the Environment browser",
+    "After=lazurio-browser.service",
     "",
     "[Service]",
-    "Type=oneshot",
-    "RemainAfterExit=yes",
-    "KillMode=process",
+    "Type=simple",
     "Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin",
-    "Environment=AGENT_BROWSER_CDP=9222",
-    `ExecStart=%h/.local/bin/agent-browser dashboard start --port 4848 --allowed-origins ${origin}`,
-    "ExecStop=-%h/.local/bin/agent-browser dashboard stop",
-    "TimeoutStartSec=60",
+    `ExecStart=${selector} browser serve --port 4848 --origin ${origin}`,
+    "Restart=always",
+    "RestartSec=2",
     "",
     "[Install]",
     "WantedBy=default.target",
@@ -155,7 +158,7 @@ function recorder(failing: string[] = []) {
   return { commands, run };
 }
 
-test("installed only for a hosted operator whose handover routes the view; never stops the screen or the browser", async () => {
+test("installed only for a hosted operator whose handover routes the view; the browser restarts only when its own unit changed", async () => {
   const directory = join(await temporary("browser-units-"), "units");
   await mkdir(directory, { recursive: true });
   const { commands, run } = recorder();
@@ -166,6 +169,7 @@ test("installed only for a hosted operator whose handover routes the view; never
       directory,
       hosted: false,
       entry,
+      selector,
       run,
       env,
     }),
@@ -175,6 +179,7 @@ test("installed only for a hosted operator whose handover routes the view; never
       directory,
       hosted: true,
       entry: undefined,
+      selector,
       run,
       env,
     }),
@@ -187,6 +192,7 @@ test("installed only for a hosted operator whose handover routes the view; never
       directory,
       hosted: true,
       entry,
+      selector,
       run,
       env,
     }),
@@ -204,9 +210,14 @@ test("installed only for a hosted operator whose handover routes the view; never
       browserUnit,
       browserViewUnit,
     ],
+    ["systemctl", "--user", "try-restart", browserUnit],
     ["systemctl", "--user", "try-restart", browserViewUnit],
     ["systemctl", "--user", "start", displayUnit, browserUnit, browserViewUnit],
   ]);
+  // The extension is written next to the profile, never into it.
+  expect(
+    await readdir(join(root ?? "", ".local/share/lazurio-browser/extension")),
+  ).toEqual(["background.js", "manifest.json", "webauthn.js"]);
   const written = await stat(join(directory, browserUnit));
 
   // Repeated with the same entry: nothing rewritten, no reload, no restart;
@@ -217,6 +228,7 @@ test("installed only for a hosted operator whose handover routes the view; never
       directory,
       hosted: true,
       entry,
+      selector,
       run,
       env,
     }),
@@ -244,6 +256,7 @@ test("installed only for a hosted operator whose handover routes the view; never
       directory,
       hosted: true,
       entry: { origin, listenPort: 4849 },
+      selector,
       run,
       env,
     }),
@@ -271,6 +284,7 @@ test("a unit someone else wrote is left alone, and a refusing manager is a findi
     directory,
     hosted: true,
     entry,
+    selector,
     run,
     env,
   });
@@ -294,6 +308,7 @@ test("a unit someone else wrote is left alone, and a refusing manager is a findi
         directory,
         hosted: true,
         entry,
+        selector,
         run: failing.run,
         env,
       }),
@@ -387,142 +402,46 @@ test("doctor: skipped where the browser cannot be, a warning naming the unit or 
 
 // ---- The view ----------------------------------------------------------------
 
-function dashboard(
-  answer: unknown,
-  sessions: unknown = [],
-): Readonly<{ run: ProcessRunner; fetch: typeof fetch; calls: string[][] }> {
-  const calls: string[][] = [];
-  const run: ProcessRunner = async (command) => {
-    calls.push([...command]);
-    return answer === null
-      ? { exitCode: 1, stdout: "" }
-      : { exitCode: 0, stdout: JSON.stringify(answer) };
-  };
-  const fetcher = (async (url: string, init?: RequestInit) => {
-    calls.push(["fetch", url, new Headers(init?.headers).get("origin") ?? ""]);
-    return Response.json(sessions);
-  }) as typeof fetch;
-  return { run, fetch: fetcher, calls };
-}
-const started = (urls: unknown) => ({
-  success: true,
-  data: { access_urls: urls, port: 4848 },
-});
-
-// A thread asks for its own window before its agent opened one (the Browser
+// A thread asks for its own tab before its agent opened one (the Browser
 // panel of a new T3 Code thread): the view opens the thread's window first,
-// so the person and the agent see the same window. Found on the first
-// Environment: the panel showed the list of every window and the person
-// followed another session's window while the agent worked in the thread's.
-test("the view of a thread without a window opens that window first, and falls back to every window when it cannot", async () => {
-  const env = { HOME: "/home/operator", XDG_RUNTIME_DIR: "/run/user/1000" };
-  const sessions: { engine: string; port: number; session: string }[] = [
-    { engine: "chrome", port: 42337, session: "other" },
-  ];
-  const ok = dashboard(
-    started([`${origin}/#dashboard-access-token=${token}`]),
-    sessions,
-  );
+// so the person and the agent see the same tab. Without a session (the
+// Launchpad's panel) it is a new remote tab: the view of every window is
+// retired (root decision 0191 point 18, decision F39).
+test("the view of a thread is its own tab, opened when it has none; without a session a new tab; nothing when the window cannot be opened", async () => {
   const opened: string[] = [];
   const openWindow = async (session: string) => {
     opened.push(session);
-    sessions.push({ engine: "chrome", port: 45229, session });
+    return { targetId: "A".repeat(32) };
   };
   const thread = "t3-3745367c-d453-41df-b948-75e29eff8651";
-  expect(
-    await resolveBrowserView(entry, thread, { ...ok, env, openWindow }),
-  ).toEqual({
+  expect(await resolveBrowserView(entry, thread, { openWindow })).toEqual({
     available: true,
-    view: `${origin}/?port=45229&view=.html#dashboard-access-token=${token}`,
+    view: `${origin}/t/${"A".repeat(32)}`,
     session: thread,
   });
   expect(opened).toEqual([thread]);
-  // Its window runs now: asked again, nothing is opened.
-  await resolveBrowserView(entry, thread, { ...ok, env, openWindow });
+  // No session: a new remote tab, and no window is opened for it here.
+  expect(await resolveBrowserView(entry, null, { openWindow })).toEqual({
+    available: true,
+    view: `${origin}/`,
+    session: null,
+  });
   expect(opened).toEqual([thread]);
-  // Every window (no session) never opens one.
-  await resolveBrowserView(entry, null, { ...ok, env, openWindow });
-  expect(opened).toEqual([thread]);
-  // The window cannot be opened: the view of every window, as before.
+  // The window cannot be opened: unavailable, never another tab.
   const failing = async () => {
     throw new Error("browser-unreachable");
   };
   expect(
-    await resolveBrowserView(entry, "t3-another", {
-      ...ok,
-      env,
-      openWindow: failing,
-    }),
-  ).toEqual({
-    available: true,
-    view: `${origin}/#dashboard-access-token=${token}`,
-    session: "t3-another",
-  });
-});
-
-test("the view: the dashboard's token from agent-browser's own answer, the session's window by its stream port", async () => {
-  const env = { HOME: "/home/operator", XDG_RUNTIME_DIR: "/run/user/1000" };
-  const ok = dashboard(
-    started([`${origin}/#dashboard-access-token=${token}`]),
-    [
-      { engine: "chrome", port: 42791, session: "codex-thread" },
-      { engine: "chrome", port: 42337, session: "other" },
-    ],
-  );
-  expect(
-    await resolveBrowserView(entry, "codex-thread", { ...ok, env }),
-  ).toEqual({
-    available: true,
-    view: `${origin}/?port=42791&view=.html#dashboard-access-token=${token}`,
-    session: "codex-thread",
-  });
-  // Exactly the unit's settings, on the Environment's own agent-browser, and
-  // the session list asked on loopback with a loopback Origin.
-  expect(ok.calls[0]).toEqual([
-    "/home/operator/.local/bin/agent-browser",
-    "dashboard",
-    "start",
-    "--port",
-    "4848",
-    "--allowed-origins",
-    origin,
-    "--json",
-  ]);
-  expect(ok.calls[1]).toEqual([
-    "fetch",
-    "http://127.0.0.1:4848/api/sessions",
-    "http://127.0.0.1:4848",
-  ]);
-  // A session that is not running yet, or none named: every window.
-  expect(await resolveBrowserView(entry, "unknown", { ...ok, env })).toEqual({
-    available: true,
-    view: `${origin}/#dashboard-access-token=${token}`,
-    session: "unknown",
-  });
-  expect(await resolveBrowserView(entry, null, { ...ok, env })).toMatchObject({
-    available: true,
-    session: null,
-  });
-  // No entry, no agent-browser, another origin or a token of another shape.
-  expect(await resolveBrowserView(undefined, null, { ...ok, env })).toEqual({
+    await resolveBrowserView(entry, "t3-another", { openWindow: failing }),
+  ).toEqual({ available: false, reason: "view-unavailable" });
+  expect(await resolveBrowserView(undefined, null, { openWindow })).toEqual({
     available: false,
     reason: "not-declared",
   });
-  for (const answer of [
-    null,
-    started([]),
-    started([`https://elsewhere.example/#dashboard-access-token=${token}`]),
-    started([`${origin}/#dashboard-access-token=xyz`]),
-    { success: true },
-  ]) {
-    const refused = dashboard(answer);
-    expect(await resolveBrowserView(entry, null, { ...refused, env })).toEqual({
-      available: false,
-      reason: "view-unavailable",
-    });
-  }
-  expect(browserViewUrl(origin, token, null)).toBe(
-    `${origin}/#dashboard-access-token=${token}`,
+  // No address carries a token any more.
+  expect(browserViewUrl(origin, null)).toBe(`${origin}/`);
+  expect(browserViewUrl(origin, "B".repeat(32))).toBe(
+    `${origin}/t/${"B".repeat(32)}`,
   );
   expect(browserEntryOf(null)).toBeUndefined();
   expect(
@@ -586,7 +505,7 @@ function windowSeams(
   return { seams, calls };
 }
 
-test("a thread's window: the bound one while it is open, otherwise a new window of the shared context bound and pinned", async () => {
+test("a thread's window: the bound one while it is open, otherwise a new window of the shared context bound and pinned without a fixed viewport", async () => {
   const socketDir = await temporary("browser-window-");
   // Bound and open: reused, nothing created.
   await writeFile(
@@ -602,7 +521,9 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
   expect(reused.calls).toEqual([]);
 
   // Bound but closed, or never bound: a new window in the default context
-  // (no browserContextId), then agent-browser's own tab binding and pin.
+  // (no browserContextId), then agent-browser's own tab binding and a pin by
+  // a command that changes nothing: the people's view sets the page size
+  // (F39 point 3).
   const created = windowSeams({ socketDir, targets: [] });
   expect(
     await ensureThreadWindow("codex-a", "https://example.com", created.seams),
@@ -629,10 +550,8 @@ test("a thread's window: the bound one while it is open, otherwise a new window 
       "--session",
       "codex-a",
       "--pin-tab",
-      "set",
-      "viewport",
-      "1280",
-      "800",
+      "get",
+      "url",
     ],
   ]);
 
@@ -774,17 +693,20 @@ test.skipIf(process.platform === "win32")(
       session: "codex-019a",
       targetId: "NEWTARGET",
       created: true,
-      link: `${launchpad}/.lazurio/browser?session=codex-019a`,
+      link: `${origin}/t/NEWTARGET`,
       command: "agent-browser --cdp 9222 --session codex-019a",
     });
-    expect(browserLink(launchpad, null)).toBe(`${launchpad}/.lazurio/browser`);
+    expect(browserLink(launchpad, origin, null)).toBe(`${origin}/`);
+    expect(browserLink(launchpad, origin, "codex-019a")).toBe(
+      `${launchpad}/.lazurio/browser?session=codex-019a`,
+    );
     expect(browserCommand("x")).toBe("agent-browser --cdp 9222 --session x");
 
     const link = await runBrowserCommand(
       ["link", "--folder", folder],
       context({ HOME: home }),
     );
-    expect(link).toEqual({ code: 0, stdout: `${launchpad}/.lazurio/browser` });
+    expect(link).toEqual({ code: 0, stdout: `${origin}/` });
 
     // No session from the thread and none named: a usage answer.
     expect(
@@ -852,10 +774,6 @@ async function hostedLaunchpad(withView: boolean) {
     "__Secure-lazurio-workspace=valid"
       ? new Response("ok")
       : new Response("no", { status: 401 });
-  const view = dashboard(
-    started([`${origin}/#dashboard-access-token=${token}`]),
-    [{ engine: "chrome", port: 42791, session: "codex-a" }],
-  );
   const app = await startLaunchpad(
     folder,
     undefined,
@@ -874,7 +792,12 @@ async function hostedLaunchpad(withView: boolean) {
     undefined,
     undefined,
     undefined,
-    { run: view.run, fetch: view.fetch, env: { HOME: "/home/operator" } },
+    {
+      openWindow: async (session: string) => {
+        if (session !== "codex-a") throw new Error("browser-unreachable");
+        return { targetId: "C".repeat(32) };
+      },
+    },
   );
   const base = `http://127.0.0.1:${listenPort}`;
   const valid = {
@@ -907,7 +830,7 @@ test.skipIf(process.platform === "win32")(
       const answer = await hosted.get("/.lazurio/browser.json?session=codex-a");
       expect(answer.status).toBe(200);
       expect(answer.headers.get("cache-control")).toBe("no-store");
-      const view = `${origin}/?port=42791&view=.html#dashboard-access-token=${token}`;
+      const view = `${origin}/t/${"C".repeat(32)}`;
       expect(await answer.json()).toEqual({
         available: true,
         view,
@@ -919,10 +842,14 @@ test.skipIf(process.platform === "win32")(
         view,
       ]);
       expect(handOver.headers.get("referrer-policy")).toBe("no-referrer");
-      // Every window without a session.
+      // A new remote tab without a session.
+      expect(await (await hosted.get("/.lazurio/browser.json")).json()).toEqual(
+        { available: true, view: `${origin}/`, session: null },
+      );
+      // A thread whose window cannot be opened: unavailable, not found.
       expect(
-        await (await hosted.get("/.lazurio/browser.json")).json(),
-      ).toMatchObject({ available: true, session: null });
+        (await hosted.get("/.lazurio/browser?session=codex-b")).status,
+      ).toBe(404);
       // Only `session`, only agent-browser's alphabet, only GET, only
       // admitted.
       for (const path of [

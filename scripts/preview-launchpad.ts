@@ -246,24 +246,9 @@ const app = await startLaunchpad(
   { home, platform: process.platform, folder },
   undefined,
   undefined,
-  // The Environment browser's view (decision F38): agent-browser's dashboard
-  // answers its address with a synthetic token and no session runs; nothing
-  // is started.
-  {
-    run: async () => ({
-      exitCode: 0,
-      stdout: JSON.stringify({
-        success: true,
-        data: {
-          access_urls: [
-            `${browserOrigin}/#dashboard-access-token=${"0".repeat(64)}`,
-          ],
-        },
-      }),
-    }),
-    fetch: async () => Response.json([]),
-    env: { HOME: home },
-  },
+  // The Environment browser's people's view (decision F39): a thread's tab
+  // answers a synthetic target id; nothing is opened.
+  { openWindow: async () => ({ targetId: "0".repeat(32) }) },
 );
 let proxy: string | null = null;
 if (mode !== "local") {

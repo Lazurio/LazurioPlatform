@@ -222,15 +222,16 @@ async function ensureThreadWindowLocked(
     "tab",
     targetId,
   ]).catch(() => "timeout" as const);
+  // Pinned with a command that changes nothing. The page keeps the window's
+  // size, which the people's view sets to the person's page area (F39 point
+  // 3); a fixed viewport served only the dashboard's pointer mapping.
   const pinned = ok(bound)
     ? await agentBrowser(seams, [
         "--session",
         session,
         "--pin-tab",
-        "set",
-        "viewport",
-        String(browserWindowSize.width),
-        String(browserWindowSize.height),
+        "get",
+        "url",
       ]).catch(() => "timeout" as const)
     : "timeout";
   if (!ok(bound) || !ok(pinned)) throw new BrowserWindowFailure("bind-failed");
