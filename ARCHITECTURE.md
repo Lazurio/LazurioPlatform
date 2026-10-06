@@ -346,8 +346,9 @@ Host` is the distinct infrastructure Machine hosting the Conglomerate's services
 such as Headscale and Vaultwarden, not the graph itself or a shared permission grant.
 
 Dashboard initially presents the whole-system overview and reasoning surface. It owns
-neither access nor a parallel copy of truth. GitHub remains access authority for each
-connected Organization, and Machine facts remain local. Personalspace, credentials and
+neither access nor a parallel copy of truth. GitHub remains the source and publication
+authority for each connected Organization (Environment entry: decision 0192), and
+Machine facts remain local. Personalspace, credentials and
 private content are not centralized or crossed. If Dashboard later originates a desired
 change, that intent must write through to the fact's natural owner and the target Machine
 must apply it through the local shared core exposed by CLI and Launchpad. The accepted
@@ -368,9 +369,14 @@ those choices is selected here.
 The public Lazurio Platform must remain independently installable and self-hostable for
 personal and internal Organization use. It does not require Lazurio Account, Dashboard
 or Human and Machine hosting to form a working Lazurio Environment. On a hosted
-workspace the gateway authenticates admission, Account login only names the service
-user, and GitHub stays the only access authority; a self-hoster may supply their own
-qualified gateway configuration ([hosted entry](docs/hosted-entry.md)).
+workspace the gateway authenticates admission and Account login only names the service
+user; a self-hoster may supply their own qualified gateway configuration
+([hosted entry](docs/hosted-entry.md)). GitHub is the authority for source permissions
+and publication (repository grants, Team capabilities, branch rules). Target entry into
+Environments follows decision 0192 ([Environment access](docs/environment-access.md)):
+a Lazurio account, active membership, an Admin-approved device and an Auth entry grant.
+Until Auth grants are deployed, the existing GitHub Team gates are the marked migration
+implementation; no second access list is created.
 An external implementer may help a customer deploy Lazurio for that customer's own
 internal use; that implementation work alone is not a competing managed Lazurio service.
 

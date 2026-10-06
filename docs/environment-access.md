@@ -1,7 +1,7 @@
 # Lazurio account entry and delegated access — approved target
 
 Status: accepted direction of the Operator, 2026-10-06, root decision 0192;
-[public shared contract](https://github.com/HumanAndMachines/Lazurio/pull/504).
+[public shared contract](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/environment-access-model.md).
 This document refines F11/F16/F33/F37 for organizational entry. It does not
 claim that the current gateway, handover, shell or onboarding implements it.
 Existing qualified local/self-hosted operation remains supported; this
@@ -58,6 +58,17 @@ An organizational Environment and its apps require all three:
    and subject, not email, a GitHub login or the current tailnet user name.
 3. An exact full-Environment or named-app grant in the account authority.
 
+**Device approval.** An approval binds one concrete device, its owner's
+account and one target Organization. On a tailnet that serves several
+Organizations, each Organization's Admin approves entry into that
+Organization; an approval for one Organization never opens another, and one
+device may carry approvals for several Organizations. Until the record moves
+to Auth, a single writer holds approvals: the network intent in the host
+owner's Deployment Repository, created as a reviewed change from live state
+and enforced by Machines (Plan, Permit, readback). The Dashboard never
+rewrites it by writing to Headscale directly. Moving the record to Auth is a
+separate migration with no period of two writers.
+
 Auth owns membership, assignments and grants. Dashboard manages that
 canonical authority; Machines/infra own technical deployment and derived
 network/gateway enforcement. Platform consumes the qualified entry contract,
@@ -72,6 +83,10 @@ Team scopes the Environment's repository capability through the existing
 Organization broker, not the personal identity of every visitor. A GitHub
 link alone grants no repository right.
 
+An Admin manages who may enter a Team Environment. Until Auth grants replace
+it, membership of the Environment's GitHub Team decides entry as the marked
+migration implementation.
+
 ## Sharing and remote operations
 
 An Admin manages membership, initial assignments, device admission and
@@ -82,12 +97,26 @@ approve devices, create membership or assign someone else's Environment.
 A user may link two Environments assigned to them in that Organization;
 a matching assignee across Organizations is not a cross-Organization grant.
 
+Both full and application shares are bound to the originating assignment:
+they end when that assignment is lost or reassigned, when the sharer or the
+recipient loses membership, or when the target is rebound, and a later
+restoration does not revive them. An application share grants at most basic
+`user` entry.
+
 Full entry exposes Chat, automation, Launchpad and the runtime's available
 files, credentials and integrations. It is not per-visitor runtime isolation
 and does not by itself delegate grant administration. App-only entry must
 not expose other apps, Chat, automation, shell or Environment credentials,
 including API, WebSocket, download and direct-origin routes. Personalspace
 remains private and is not shared through this work-Environment feature.
+
+Application access never includes the Environment's browser or desktop
+(`browser.`, `desktop.`) or any other path that controls the whole
+Environment. The shared gateway cookie of root decision 0191 (point 8b) is
+not an application grant; the gateway checks every target separately. Point
+10 of decision 0191 (wipe the browser profile before a work Environment is
+reassigned to another person) still applies; 0192 only removes forced
+sign-out for ordinary sharing.
 
 An A → B link includes a destination account, allowed remote operations and
 credentials, not just network ports. All full operators of A can use that
