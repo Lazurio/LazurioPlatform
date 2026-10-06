@@ -16,6 +16,7 @@ import { join, resolve } from "node:path";
 import {
   acquireFolderOperationLock,
   withFolderOperationLock,
+  withFolderReadLock,
 } from "../src/folder/lock";
 import { darwinFilesystemName } from "../src/folder/native-lock";
 
@@ -186,7 +187,13 @@ test.skipIf(process.platform === "win32")(
       consumerPid = Number(output.trim());
       expect(Number.isSafeInteger(consumerPid) && consumerPid > 1).toBe(true);
       process.kill(consumerPid, 0);
-      await withFolderOperationLock(directory, async () => {});
+      // Free while the consumer still runs (it sleeps 30 s). On Linux, Bun
+      // spawns with vfork semantics: the holder resumes, and may exit, before
+      // its child's exec has released the close-on-exec descriptor, so on a
+      // loaded runner the lock can still read busy for a moment (seen once
+      // under parallel test workers). Waiting a bounded 10 s keeps the proof.
+      await withFolderReadLock(directory, async () => {}, 10_000);
+      process.kill(consumerPid, 0);
     } finally {
       if (consumerPid && consumerPid > 1) process.kill(consumerPid, "SIGKILL");
       await rm(directory, { recursive: true, force: true });
