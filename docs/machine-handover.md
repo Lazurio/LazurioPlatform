@@ -210,6 +210,19 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Machine context codes | 2 | As for `folder-init` |
 | stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
 
+The running Launchpad reads its entry only when it starts. So a `refreshed` answer
+that recorded a different entry than the Folder held before also restarts the
+supervised Launchpad (the installer's `lazurio-launchpad.service` of this base that
+starts this Folder) and waits until it answers with the active version, as an update
+activation does. Modules, T3 Code and Codex keep running. The answer then carries
+`"launchpad"`:
+- `restarted`;
+- `restart-failed`: the Folder is refreshed, and the unit keeps restarting on its own;
+- `not-supervised`: no such unit, and the Launchpad takes the entry at its next start.
+
+An unchanged entry restarts nothing and adds nothing to the answer (decision F38,
+addendum 2026-10-06).
+
 Like adoption and initialization recovery, the shared update transaction re-checks
 the claimed boundary of a hosted Folder (`requireFolderBoundary`): before its journal
 is written, before every single replacement, and in `profile-resume` before anything

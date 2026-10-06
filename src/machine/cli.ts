@@ -22,6 +22,11 @@ import {
   MachineContextError,
   readMachineContext,
 } from "./context";
+import {
+  type LaunchpadSeams,
+  recordedEntry,
+  restartLaunchpadForEntry,
+} from "./launchpad-entry";
 import { readLinuxOperator } from "./operator";
 
 export const machineHelp = `machine inspect
@@ -67,7 +72,12 @@ The Environment identity (kind, name, Owner, tailnet node, host) must be the one
 the Folder was adopted for; assignment, relationships and the document digest
 follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the current handover
-renders the same bytes (nothing is written, the revision stays). Blocked with
+renders the same bytes (nothing is written, the revision stays). A refresh
+that records a different entry restarts the supervised Launchpad of this
+Folder, which reads its entry only when it starts, and waits for it to answer;
+modules, T3 Code and Codex keep running. The answer then adds "launchpad":
+restarted, restart-failed or not-supervised (no installer unit of this base
+starts this Folder; the Launchpad takes the entry at its next start). Blocked with
 exit 2, nothing written: folder-not-initialized (run folder-init first),
 folder-binding-changed, folder-state-unrecognized, folder-foreign-entry (a
 top-level entry the Folder does not own or tolerate), drift or unsafe-path with
@@ -157,7 +167,13 @@ function parseMachineArguments(args: string[]) {
   };
 }
 
-export async function runMachineCommand(args: string[]) {
+// `launchpad` is where folder-refresh finds the supervised Launchpad to
+// restart after it recorded a different entry (launchpad-entry.ts); the CLI
+// passes the installed one, and without it nothing is restarted.
+export async function runMachineCommand(
+  args: string[],
+  launchpad?: LaunchpadSeams,
+) {
   const {
     command,
     preset: requestedPreset,
@@ -176,7 +192,12 @@ export async function runMachineCommand(args: string[]) {
     );
     const { code, result } =
       command === "folder-refresh"
-        ? await refreshMachineFolder(folder, machine, requestedPreset)
+        ? await refreshMachineFolderAndLaunchpad(
+            folder,
+            machine,
+            requestedPreset,
+            launchpad,
+          )
         : await initializeMachineFolder(folder, machine, {
             preset: requestedPreset,
             ...values,
@@ -304,6 +325,31 @@ export async function refreshMachineFolder(
     };
   const result = await refreshFolder(folder, machine, undefined, preset);
   return { code: result.kind === "blocked" ? 2 : 0, result };
+}
+
+// The refresh, then the running Launchpad: it read its entry when it started,
+// so a refresh that records a different entry restarts the supervised
+// Launchpad of this Folder and says so in `launchpad`. An unchanged entry
+// (unchanged, blocked, or a refresh of rendered text only) restarts nothing
+// and adds nothing to the answer.
+export async function refreshMachineFolderAndLaunchpad(
+  folder: string,
+  machine: MachineBinding,
+  preset: PresetName | undefined,
+  launchpad: LaunchpadSeams | undefined,
+) {
+  const before = launchpad === undefined ? null : await recordedEntry(folder);
+  const refreshed = await refreshMachineFolder(folder, machine, preset);
+  if (launchpad === undefined || refreshed.result.kind !== "refreshed")
+    return refreshed;
+  if ((await recordedEntry(folder)) === before) return refreshed;
+  return {
+    code: refreshed.code,
+    result: {
+      ...refreshed.result,
+      launchpad: await restartLaunchpadForEntry(folder, launchpad),
+    },
+  };
 }
 
 // The refusal names the entry; the operator decides what to do with it.

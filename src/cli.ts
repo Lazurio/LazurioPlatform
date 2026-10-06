@@ -89,6 +89,7 @@ import {
   versionCommand,
 } from "./update/cli";
 import { selectActivator } from "./update/launchpad-activation";
+import { detectServiceControl } from "./update/service-control";
 
 // Update commands return their own typed output and stable exit status.
 function emit(output: CommandOutput): number {
@@ -218,7 +219,18 @@ async function runOtherCommand(args: string[]): Promise<number> {
     );
   if (args[0] === "machine") {
     try {
-      const { code, result } = await runMachineCommand(args.slice(1));
+      // folder-refresh restarts this base's supervised Launchpad when it
+      // recorded a different entry (src/machine/launchpad-entry.ts).
+      const context = processContext();
+      const { code, result } = await runMachineCommand(args.slice(1), {
+        service: () =>
+          detectServiceControl({
+            base: installBase(context, undefined),
+            platform: context.platform,
+            env: context.env,
+          }),
+        version: context.identity.version,
+      });
       console.log(JSON.stringify(result));
       return code;
     } catch (error) {
