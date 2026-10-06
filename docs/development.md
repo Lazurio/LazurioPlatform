@@ -25,7 +25,9 @@ bun install --frozen-lockfile
 bun run check
 ```
 
-`check` stops on the first failure and runs lint/format verification → strict typecheck → behavioral tests → public-input guard → standalone build → isolated CLI/HTTP smoke. It does not publish, install a product or activate a profile. `bun run format` applies formatting, import organization and safe mechanical fixes to the configured scope; review the diff. `bun run lint`, `bun run typecheck`, `bun test` and `bun run check:public` are available for focused iteration. Tests and build checks remain authoritative together: Bun compilation does not replace TypeScript checking.
+`check` stops on the first failure and runs `check:static` (lint/format verification → strict typecheck → public-input guard → standalone build → isolated CLI/HTTP smoke), then the behavioral tests. It does not publish, install a product or activate a profile. `bun run format` applies formatting, import organization and safe mechanical fixes to the configured scope; review the diff. `bun run lint`, `bun run typecheck`, `bun test` and `bun run check:public` are available for focused iteration. Tests and build checks remain authoritative together: Bun compilation does not replace TypeScript checking.
+
+In CI (`.github/workflows/check.yml`) a pull request runs `check:static` and the tests in four shards (`bun test --shard`), each on its own Linux runner; one that changes only Markdown under `docs/` or at the top level runs lint and the public guard. Every push to `main` runs the same on Linux and the whole `check` on macOS. A test file must therefore pass on its own and never rely on another file having run before it.
 
 ## Comments and contracts
 
