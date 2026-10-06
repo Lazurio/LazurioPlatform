@@ -4777,3 +4777,32 @@ The desktop, the Bitwarden extension, an automatic profile wipe and per-site sig
 stay where "Not decided here" puts them. Verified by `tests/browser-panel-view.test.ts`
 and in Chrome against the hosted and workstation previews with a stand-in for the
 view; a real gateway and agent-browser's dashboard in the frame were not exercised.
+
+**Addendum 2026-10-06: a recorded entry reaches the running Launchpad.** On the first
+Environment that received the browser, the apply recorded `entry.browser` through
+`machine folder-refresh`, and the Launchpad still answered
+`{"available":false,"reason":"not-declared"}`. It reads its entry once, when it starts
+(`readStartState`), and the Platform it ran was already the pinned one, so nothing
+restarted it. Every route a handover gains (this browser, MausBot, a module origin)
+had the same gap.
+
+| Option | Assessment |
+| --- | --- |
+| The Launchpad rereads the entry while it runs | The hosted trust, the listener and every route derive from the entry at start; rereading part of it splits one source into two moments |
+| Machines restarts the unit after an apply | Machines owns neither the Launchpad's unit nor the knowledge of which part of the handover the Launchpad reads |
+| `folder-refresh` restarts the supervised Launchpad (selected) | The Platform command that records the entry also makes the running Launchpad read it, with the `restartLaunchpad` an update activation already uses |
+
+`machine folder-refresh` compares the recorded entry before and after the refresh. When
+a `refreshed` answer recorded a different one, it restarts the installer's unit of
+this base that starts this Folder and waits until the Launchpad answers with the
+active version. The answer adds `launchpad`:
+- `restarted`;
+- `restart-failed`: the Folder is refreshed, the unit keeps restarting on its own and
+  doctor's `launchpad-health` reports it;
+- `not-supervised`: no such unit, and the entry is read at the next start.
+
+Unchanged, blocked and text-only refreshes restart nothing. Modules, T3 Code and Codex
+keep running, as with an update. A Folder that an older Platform refreshed takes its
+entry when the update to this one restarts the Launchpad. After a manual restart, the
+panel above, the view in a frame on T3 Code's origin and a sign-in through the view
+worked on that Environment (#201, #202).
