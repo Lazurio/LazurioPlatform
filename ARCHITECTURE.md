@@ -1,5 +1,7 @@
 # Lazurio Platform architecture
 
+> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](docs/environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+
 Status: implementation contract aligned with decision 0144, updated 2026-09-19. Product direction is supplied
 by Matěj; this document does not claim that the target is deployed. Decision
 amendments and rollout gates are in [decisions](docs/decisions.md).

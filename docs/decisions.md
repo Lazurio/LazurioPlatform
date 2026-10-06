@@ -5299,3 +5299,20 @@ Before the release, the service ran against a real headless Chrome for Testing 1
 - the window taking the view's size.
 
 Branded Google Chrome ignores `--load-extension`; Chrome for Testing, which the Environment runs, loads it. The pilot Environment's browser check (decision 0178) follows the release.
+
+## F40 — Lazurio-account entry, approved devices and internal Environment sharing
+
+Accepted direction, 2026-10-06, root decision 0192. The complete public
+contract and consumer proof gates are [Environment access](environment-access.md).
+This refines organizational admission in F11/F16, assignment and identity
+in F33, and the account-scoped list in F37. Historical statements that bind
+every visitor to GitHub/Team membership or every sharing action to their
+personal infra PR no longer define the target. Local loopback use stays
+independent. No behavior, schema, credential or live access changes here.
+
+Choose one Auth authority with Dashboard management and infra enforcement
+over duplicate Dashboard ACLs or GitHub-only visitor identity: it supports
+users without GitHub, routine internal sharing and mandatory Admin approval
+of each device without weakening repository governance. Full/app separation,
+indirect remote access, broker publication denial and existing-session
+revocation require new consumer evidence before broader entry is enabled.

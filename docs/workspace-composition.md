@@ -1,5 +1,7 @@
 # Workspace composition: the Lazurio Account in the Launchpad and the workspace composed by the Dashboard
 
+> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+
 Status: **shaping, proposal [F33](decisions.md#f33--the-workspace-of-an-environment-is-composed-by-the-dashboard-from-live-github-rights-proposal-partly-decided);
 partly decided by Matěj on 2026-10-02 (sections 1.1 and 1.2), not implemented.** Plan DEV-6638 of the maintainers' Mission Control.
 Nothing in this document changes behaviour, grants access or authorizes cloning a real

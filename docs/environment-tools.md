@@ -1,5 +1,7 @@
 # Environment tools and operator sign-ins
 
+> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+
 Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
 installation and login of three catalog tools (decision F19, below), this document
 does not claim an implemented tool installer, authenticated harness or usable
