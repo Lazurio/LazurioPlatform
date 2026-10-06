@@ -118,6 +118,25 @@ export function createShellState(options: ShellStateOptions) {
 
   let requested = false;
 
+  /** What this page's account read on its own origin answered: still
+   * `pending`, an `account`, or `none` (no relay yet, which is `404` on
+   * today's gateways; a refusal; a slow or failed answer). The last
+   * Environment is reported through the same relay, so only after the read
+   * answered with an account: where it found none the write could only fail
+   * (a `405` without the relay), and the browser would show that failure. A
+   * report asked before the read answered waits for it. */
+  let freshRead: "pending" | "account" | "none" = "pending";
+  let pendingReport: Readonly<{
+    app: ShellApp | null;
+    space: string | null;
+  }> | null = null;
+  function flushReport(): void {
+    const asked = pendingReport;
+    pendingReport = null;
+    if (asked === null || freshRead !== "account" || drawn === null) return;
+    options.report(drawn, asked.app, asked.space);
+  }
+
   return {
     /** The page's document as provided, before the merge: a person's, or
      * the signed-out one. */
@@ -175,9 +194,16 @@ export function createShellState(options: ShellStateOptions) {
         if (read !== null) {
           fresh = read;
           account = read;
+          // The elements report as they redraw; while the read still counts
+          // as pending their reports join the queue, so the first one asked
+          // with an app is the one sent, once.
           redraw();
+          freshRead = "account";
+          flushReport();
           return;
         }
+        freshRead = "none";
+        pendingReport = null;
         // Without a fresh answer, the remembered one stays only while this
         // origin still keeps it (a refusal removed it).
         const next =
@@ -191,9 +217,21 @@ export function createShellState(options: ShellStateOptions) {
     },
     /** The report of the last Environment for an element that names its
      * app; never on a host's page (no `PUT /.lazurio/account/last`), and
-     * `lastVisit` sends nothing from a page that is no Environment's. */
+     * `lastVisit` sends nothing from a page that is no Environment's. On
+     * this origin only once the account read answered with an account: one
+     * asked before then waits for the answer, and none is sent when the
+     * read found no account. */
     report(app: ShellApp | null, space: string | null): void {
-      if (drawn === null || sourceNow() === "host") return;
+      if (sourceNow() === "host" || freshRead === "none") return;
+      if (freshRead === "pending") {
+        if (
+          pendingReport === null ||
+          (pendingReport.app === null && app !== null)
+        )
+          pendingReport = { app, space };
+        return;
+      }
+      if (drawn === null) return;
       options.report(drawn, app, space);
     },
   };
