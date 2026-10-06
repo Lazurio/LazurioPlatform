@@ -18,8 +18,8 @@ import { fillShell, type ShellCopy } from "./messages";
 // A page that is no Environment's (F36's addendum of 2026-10-05, a host such
 // as the Dashboard; `current: null`) is the personal Dashboard or an
 // Organization's Dashboard, as the host's `space` attribute names it
-// (`pageOf`). There the rail rings that Organization or, on the personal
-// Dashboard, marks the logo; the column head names the Organization with
+// (`pageOf`). There the rail marks that Organization as the space you are in
+// or, on the personal Dashboard, the logo; the column head names the Organization with
 // the gear of its Settings and no switch, and draws nothing on the personal
 // Dashboard. An Environment's page is drawn exactly as before.
 
@@ -208,7 +208,7 @@ export type RailSpace = Readonly<{
  * stays in the rail's app (`app`). On a page that is no Environment's
  * (`app` null, F36's addendum of 2026-10-05) there is no app to stay in: the
  * last Environment opens in the app its visit recorded, any other in Apps.
- * `here` is the space ringed; none on the personal Dashboard. */
+ * `here` is the space you are in; none on the personal Dashboard. */
 export function railSpaces(
   shell: Shell,
   copy: ShellCopy,
@@ -273,7 +273,7 @@ export function railSpaces(
 
 /** The logo at the top of the rail: the personal Dashboard, marked as the
  * page you are on (`aria-current="page"`) when you are on it (F36's
- * addendum of 2026-10-05); no space is ringed then. */
+ * addendum of 2026-10-05); no space is marked then. */
 export function railHome(
   shell: Shell,
   space: string | null,

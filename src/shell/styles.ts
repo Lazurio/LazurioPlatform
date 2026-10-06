@@ -36,7 +36,7 @@ const base = `
   --shell-ink: var(--lazurio-ink, var(--lz-ink));
   --shell-ink-muted: var(--lazurio-ink-muted, var(--lz-ink-muted));
   --shell-line: var(--lazurio-line, var(--lz-line));
-  --shell-line-strong: var(--lazurio-line-strong, var(--lz-ink));
+  --shell-line-strong: var(--lazurio-line-strong, var(--lz-gray-300));
   --shell-hover: var(--lazurio-hover, var(--lz-gray-100));
   --shell-selected: var(--lazurio-selected, var(--lz-gray-100));
   --shell-control: var(--lazurio-control, var(--lz-gray-100));
@@ -121,7 +121,6 @@ ${switcherCss}
    (Matěj 2026-10-04): no border, no shadow, no line. */
 :host {
   --shell-surface: var(--lazurio-surface, var(--lz-gray-50));
-  --shell-ring-gap: var(--lazurio-surface, var(--lz-paper));
   --shell-host-tip-sub: color-mix(in srgb, var(--lazurio-surface) 70%, transparent);
 }
 :host { position: fixed; inset: 0 auto 0 0; z-index: 40; display: block; width: ${railWidth}; background: var(--shell-surface); }
@@ -133,8 +132,9 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 .home .disc { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: var(--lz-white); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08); }
 .home img { width: 20px; height: 20px; display: block; }
 /* On the personal Dashboard (F36's addendum of 2026-10-05) the logo is the
-   page you are on: the design system's quiet surface behind the disc. */
-.home[aria-current="page"] { background: var(--shell-selected); }
+   page you are on: the design system's selected look (B3), the quiet surface
+   with a hairline, as the space you are in has it. */
+.home[aria-current="page"] { background: var(--shell-selected); box-shadow: inset 0 0 0 1px var(--shell-line-strong); }
 .search { width: 36px; height: 32px; }
 .divider { width: 32px; height: 1px; margin: 4px 0; flex: none; background: var(--shell-line); }
 .scroll { display: flex; width: 100%; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 10px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
@@ -143,7 +143,13 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 .space:hover .org-mark, .space:hover .initials { border-radius: 14px; }
 .space .org-mark { font-size: 12px; }
 .space .initials { display: grid; place-items: center; background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
-.space[aria-current="true"] .org-mark, .space[aria-current="true"] .initials { box-shadow: 0 0 0 2px var(--shell-ring-gap), 0 0 0 4px var(--shell-line-strong); }
+/* The space you are in: the design system's B3 (design-system-lazurio#57,
+   lz-rail): the quiet surface around its mark with a hairline, never a ring.
+   As in lz-rail, the mark draws them itself with two spread shadows (3 px of
+   surface, then 1 px of hairline), so it keeps its place in the column of
+   marks and the corners stay concentric. */
+.space[aria-current="true"] .org-mark { box-shadow: inset 0 0 0 1px var(--shell-mark-line), 0 0 0 3px var(--shell-selected), 0 0 0 4px var(--shell-line-strong); }
+.space[aria-current="true"] .initials { box-shadow: 0 0 0 3px var(--shell-selected), 0 0 0 4px var(--shell-line-strong); }
 .add { border: 1px dashed var(--shell-line); }
 .account .avatar { display: grid; width: 36px; height: 36px; place-items: center; overflow: hidden; border-radius: 50%; background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 13px; font-weight: var(--lz-weight-akce); object-fit: cover; }
 .tip { position: fixed; z-index: 60; display: grid; max-width: 260px; padding: 6px 10px; border-radius: var(--lz-radius-sm); background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 13px; line-height: 1.3; pointer-events: none; transform: translateY(-50%); box-shadow: 0 4px 14px rgb(0 0 0 / 18%); }
