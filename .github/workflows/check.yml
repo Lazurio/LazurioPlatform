@@ -1,9 +1,8 @@
 name: Platform checks
 
-# Probe for #240 (do not merge): the suite with asynchronous test children
-# under `bun test --parallel` on the pinned Bun 1.4.2, six identical runs with
-# four workers and one each with 3, 5 and 6 workers. Each run prints its
-# per-file durations.
+# Probe for #240 (do not merge): the final test command of the pull request,
+# `bun test --parallel=4 --timeout=20000`, six identical runs with the
+# recorded per-file timings and six without, on the pinned Bun 1.4.2.
 on:
   pull_request:
 
@@ -12,20 +11,12 @@ permissions:
 
 jobs:
   repeat:
-    name: probe ${{ matrix.workers }} workers ${{ matrix.run }}
+    name: probe ${{ matrix.timings }} ${{ matrix.run }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { workers: 4, run: 1 }
-          - { workers: 4, run: 2 }
-          - { workers: 4, run: 3 }
-          - { workers: 4, run: 4 }
-          - { workers: 4, run: 5 }
-          - { workers: 4, run: 6 }
-          - { workers: 3, run: 1 }
-          - { workers: 5, run: 1 }
-          - { workers: 6, run: 1 }
+        timings: [timings, plain]
+        run: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -36,6 +27,7 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - run: bun test --parallel=${{ matrix.workers }} --timings=timings.json --update-timings
-      - if: always()
-        run: cat timings.json
+      - if: matrix.timings == 'timings'
+        run: bun test --parallel=4 --timings=tests/timings.json --timeout=20000
+      - if: matrix.timings == 'plain'
+        run: bun test --parallel=4 --timeout=20000
