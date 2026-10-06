@@ -9,7 +9,10 @@
 // added, in version 1, what a host page that is no Environment's (the
 // Dashboard) needs: the attributes the elements already read, the document
 // attributes of a host that provides the documents, and the exports that
-// hand them over.
+// hand them over. F36's addendum of 2026-10-06 added, in version 1, the
+// export `parseShellSignedOut`: a host page with nobody signed in hands its
+// signed-out document to the same `provideShell`, which accepts it besides
+// `lazurio.shell.v1`.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -44,6 +47,7 @@ export const shellElementInterface = Object.freeze({
     "provideAccount",
     "parseShell",
     "parseShellAccount",
+    "parseShellSignedOut",
   ]),
   /** Custom properties: the rail sets the first on the document; a host may
    * set the second to override the detected tone. The rest are the colour

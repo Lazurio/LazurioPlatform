@@ -332,7 +332,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   provides the account), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
   (tokens, logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
   `tests/shell-last.test.ts`, `tests/shell-account.test.ts`,
-  `tests/shell-host.test.ts`, `tests/shell-interface.test.ts`,
+  `tests/shell-host.test.ts`, `tests/shell-signed-out.test.ts`,
+  `tests/shell-interface.test.ts`,
   `tests/launchpad-shell-routes.test.ts`,
   `tests/apps-view.test.ts`, `tests/account.test.ts`, `tests/app-opening.test.ts`,
   `tests/organization-owner.test.ts`, `tests/module-maintainer.test.ts`.
@@ -474,7 +475,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   and `/.lazurio/`": the rail, and the column head at the top of the fork's sidebar.
 - **The interface the forks build on** is `src/shell/interface.ts` (version 1, F36
   addendum of 2026-10-04, grown by the addendum of 2026-10-05 with what a host page
-  needs); `tests/shell-interface.test.ts` keeps every promised name.
+  needs and by the addendum of 2026-10-06 with `parseShellSignedOut`);
+  `tests/shell-interface.test.ts` keeps every promised name.
 - **A host page that is no Environment's** ([F36's addendum of
   2026-10-05](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   the Dashboard). Such a host provides both documents itself and draws the same rail
@@ -520,6 +522,28 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     Dashboard it draws nothing.
   - **Links.** The logo, "+" and the account announce `lazurio-navigate` when the host
     names them by path, so a single-page host moves without a reload.
+  - **Signed out** ([F36's addendum of
+    2026-10-06](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)).
+    With nobody signed in the page has no `lazurio.shell.v1`, which needs a person. It
+    hands its `lazurio.shell-signed-out.v1` to the same `provideShell`, and no account:
+
+    ```js
+    import { parseShellSignedOut, provideShell, provideAccount } from "/.lazurio/shell.js";
+    const signedOut = parseShellSignedOut({
+      schema: "lazurio.shell-signed-out.v1",
+      locale: "cs",
+      signIn: "/auth/sign-in?return=%2F", // https, or a path on this origin
+    });
+    if (signedOut !== null) provideShell(signedOut);
+    provideAccount(null);
+    ```
+
+    The rail then draws only the Lazurio logo and the key "Přihlásit Lazurio účtem",
+    both leading to `signIn` (a path announces `lazurio-navigate`, as above), and the
+    column head draws nothing. `signIn` follows the rule of the Dashboard's addresses
+    above. A later `provideShell` with the person's `lazurio.shell.v1` draws the full
+    rail again, and a signed-out document after that draws the logo and the key again.
+    A host without a sign-in provides no signed-out document, and its rail stays empty.
   - **Assets.** The host serves `shell.js` and the four fonts at
     `/.lazurio/fonts/<file>` on its own origin. It takes them from the release
     artifact `lazurio-shell.tar.gz` (the addendum's point 9), which also carries the

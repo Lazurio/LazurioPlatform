@@ -4,6 +4,7 @@ import {
   type Shell,
   type ShellEnvironment,
   type ShellOrganization,
+  type ShellSignedOut,
 } from "./contract";
 import { fillShell, type ShellCopy } from "./messages";
 
@@ -21,7 +22,9 @@ import { fillShell, type ShellCopy } from "./messages";
 // (`pageOf`). There the rail marks that Organization as the space you are in
 // or, on the personal Dashboard, the logo; the column head names the Organization with
 // the gear of its Settings and no switch, and draws nothing on the personal
-// Dashboard. An Environment's page is drawn exactly as before.
+// Dashboard. An Environment's page is drawn exactly as before. With nobody
+// signed in (F36's addendum of 2026-10-06, `lazurio.shell-signed-out.v1`) the
+// rail is only the logo and the sign-in key (`signedOutRail`).
 
 /** A space of the rail: your personal space or one Organization. */
 export const personalSpace = "personal";
@@ -281,6 +284,55 @@ export function railHome(
   return Object.freeze({
     href: shell.dashboard,
     current: pageOf(shell, space).kind === "dashboard",
+  });
+}
+
+/** An item of the rail while nobody is signed in. */
+export type SignedOutRailItem = Readonly<{
+  /** `home`: the Lazurio logo at the top; `sign-in`: the key at the foot,
+   * where a person's account stands. */
+  kind: "home" | "sign-in";
+  href: string;
+  /** Its accessible name and the first line of its label. */
+  label: string;
+  /** The label's second line; empty for none. */
+  sub: string;
+}>;
+
+export type SignedOutRail = Readonly<{
+  /** The rail's accessible name. */
+  label: string;
+  items: readonly SignedOutRailItem[];
+}>;
+
+/** The rail on a host's page with nobody signed in (F36's addendum of
+ * 2026-10-06; the Dashboard's wireframe, 2.8): the Lazurio logo and the key
+ * "Přihlásit Lazurio účtem", both leading to where sign-in starts, in the
+ * signed-in rail's order. Nothing else: no search and no ⌘⇧E, no spaces, no
+ * "+" and no account, for there is no person. The logo keeps its name and
+ * label (the Dashboard, which sign-in leads to) and is not the page you are
+ * on: it leads to sign-in, not to this page. */
+export function signedOutRail(
+  signedOut: ShellSignedOut,
+  copy: ShellCopy,
+): SignedOutRail {
+  const item = (entry: SignedOutRailItem) => Object.freeze(entry);
+  return Object.freeze({
+    label: copy.signedOutRail,
+    items: Object.freeze([
+      item({
+        kind: "home",
+        href: signedOut.signIn,
+        label: copy.dashboard,
+        sub: copy.dashboardSub,
+      }),
+      item({
+        kind: "sign-in",
+        href: signedOut.signIn,
+        label: copy.signIn,
+        sub: "",
+      }),
+    ]),
   });
 }
 

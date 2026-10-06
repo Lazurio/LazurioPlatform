@@ -4,7 +4,13 @@ import {
   rememberAccount,
   type Store,
 } from "./account";
-import type { AccountVisit, Shell, ShellAccount } from "./contract";
+import {
+  type AccountVisit,
+  type Shell,
+  type ShellAccount,
+  type ShellSignedOut,
+  shellSignedOutSchema,
+} from "./contract";
 import { accountLastBySpace, mergeAccount } from "./merge";
 import type { ShellApp } from "./view";
 
@@ -14,6 +20,15 @@ import type { ShellApp } from "./view";
 // account's last visit per space. Kept apart from the elements, which need a
 // DOM, so that who reads, remembers and reports the account is tested
 // without one.
+//
+// The page's own document is one of two (F36's addendum of 2026-10-06):
+// `lazurio.shell.v1` while a person is signed in, or, on a host's page with
+// nobody signed in, `lazurio.shell-signed-out.v1`. `provideShell` takes
+// either, and the later replaces the earlier. Signed out there is no person
+// to merge an account into, remember or report: `drawn` is null, so the
+// column head draws nothing, and the rail draws the signed-out document
+// alone (`signedOut`). The account is left as it was; the host provides it
+// as always (none, while nobody is signed in).
 //
 // The account has one of two sources, decided once per page:
 // - This origin (the default: the Launchpad page and the forks). The
@@ -51,7 +66,9 @@ export type ShellStateOptions = Readonly<{
 }>;
 
 export function createShellState(options: ShellStateOptions) {
+  // The page's own document: a person's, or the signed-out one; never both.
   let local: Shell | null = null;
+  let signedOut: ShellSignedOut | null = null;
   let account: ShellAccount | null = null;
   let drawn: Shell | null = null;
   let lastBySpace: ReadonlyMap<string, AccountVisit> = new Map();
@@ -102,10 +119,16 @@ export function createShellState(options: ShellStateOptions) {
   let requested = false;
 
   return {
-    /** The page's document as provided, before the merge. */
-    local: (): Shell | null => local,
-    /** What the elements draw: the document merged with the account. */
+    /** The page's document as provided, before the merge: a person's, or
+     * the signed-out one. */
+    local: (): Shell | ShellSignedOut | null => signedOut ?? local,
+    /** What the elements draw while a person is signed in: the document
+     * merged with the account; null before a document and signed out. */
     drawn: (): Shell | null => drawn,
+    /** The page's signed-out document while nobody is signed in (a host's
+     * page); null otherwise. The rail draws the logo and the sign-in key
+     * from it. */
+    signedOut: (): ShellSignedOut | null => signedOut,
     /** The account's last visit per space of the drawn document. */
     lastBySpace: (): ReadonlyMap<string, AccountVisit> => lastBySpace,
     /** Calls `listener` after every change; returns its removal. */
@@ -115,10 +138,17 @@ export function createShellState(options: ShellStateOptions) {
         listeners.delete(listener);
       };
     },
-    /** Gives the elements their document; they redraw (merged with the
-     * person's account once there is one). */
-    provideShell(shell: Shell): void {
-      local = shell;
+    /** Gives the elements the page's document, which replaces the one
+     * before; they redraw. A person's is merged with their account once
+     * there is one; the signed-out one is drawn alone. */
+    provideShell(shell: Shell | ShellSignedOut): void {
+      if (shell.schema === shellSignedOutSchema) {
+        local = null;
+        signedOut = shell;
+      } else {
+        signedOut = null;
+        local = shell;
+      }
       redraw();
     },
     /** The host's account (parsed by `parseShellAccount`; null: none), only

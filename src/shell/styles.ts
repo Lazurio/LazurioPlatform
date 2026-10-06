@@ -152,6 +152,9 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
 .space[aria-current="true"] .initials { box-shadow: 0 0 0 3px var(--shell-selected), 0 0 0 4px var(--shell-line-strong); }
 .add { border: 1px dashed var(--shell-line); }
 .account .avatar { display: grid; width: 36px; height: 36px; place-items: center; overflow: hidden; border-radius: 50%; background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 13px; font-weight: var(--lz-weight-akce); object-fit: cover; }
+/* With nobody signed in (F36's addendum of 2026-10-06) the sign-in key stands
+   at the foot, where a person's account stands, in the items' colours. */
+.sign-in { margin-top: auto; }
 .tip { position: fixed; z-index: 60; display: grid; max-width: 260px; padding: 6px 10px; border-radius: var(--lz-radius-sm); background: var(--shell-inverse); color: var(--shell-inverse-ink); font-size: 13px; line-height: 1.3; pointer-events: none; transform: translateY(-50%); box-shadow: 0 4px 14px rgb(0 0 0 / 18%); }
 .tip strong { font-weight: 600; }
 .tip span { color: var(--shell-host-tip-sub, rgb(255 255 255 / 70%)); font-size: 12px; }

@@ -1,10 +1,6 @@
 import { expect, test } from "bun:test";
 import { shellDocument } from "../src/launchpad/shell-document";
-import {
-  accountCacheKey,
-  accountDocumentPath,
-  readAccountJson,
-} from "../src/shell/account";
+import { accountCacheKey, accountDocumentPath } from "../src/shell/account";
 import {
   parseShell,
   parseShellAccount,
@@ -14,7 +10,7 @@ import {
 import { createLastReport, keptVisit, lastVisit } from "../src/shell/last";
 import { accountLastBySpace, mergeAccount } from "../src/shell/merge";
 import { shellMessages } from "../src/shell/messages";
-import { accountSourceOf, createShellState } from "../src/shell/state";
+import { accountSourceOf } from "../src/shell/state";
 import {
   columnHead,
   columnSetupLine,
@@ -33,6 +29,7 @@ import {
 } from "../src/shell/view";
 import { accountDocument } from "./fixtures/account-document";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
+import { observedState as observed } from "./fixtures/shell-state";
 
 // F36's addendum of 2026-10-05: a host page that is no Environment's (the
 // Dashboard) hosts the shell. Its `lazurio.shell.v1` has `current: null`
@@ -544,65 +541,6 @@ test("nothing is reported or remembered from a page that is no Environment's", a
 });
 
 // Who provides the account.
-
-const spyStore = () => {
-  const calls: string[] = [];
-  const values = new Map<string, string>();
-  return {
-    calls,
-    values,
-    getItem: (key: string) => {
-      calls.push(`get ${key}`);
-      return values.get(key) ?? null;
-    },
-    setItem: (key: string, value: string) => {
-      calls.push(`set ${key}`);
-      values.set(key, value);
-    },
-    removeItem: (key: string) => {
-      calls.push(`remove ${key}`);
-      values.delete(key);
-    },
-  };
-};
-const answer = (body: unknown) =>
-  new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
-const quiet = () => {};
-
-// A state of the elements with every effect observed: the account read
-// through a fetcher spy, the browser's memory, and the report's transport.
-const observed = (source: "host" | "origin") => {
-  const requests: string[] = [];
-  const sent: string[] = [];
-  const lines: string[] = [];
-  const store = spyStore();
-  let asked = 0;
-  const state = createShellState({
-    source: () => {
-      asked += 1;
-      return source;
-    },
-    read: () =>
-      readAccountJson(
-        async (path) => {
-          requests.push(path);
-          return answer(accountDocument());
-        },
-        1_000,
-        quiet,
-        store,
-      ),
-    report: createLastReport(async (body) => {
-      sent.push(body);
-    }),
-    store,
-    log: (line) => lines.push(line),
-  });
-  return { state, requests, sent, lines, store, asked: () => asked };
-};
 
 test("the account's source is the document's marker: the host only for exactly `host`", () => {
   expect(accountSourceOf("host")).toBe("host");

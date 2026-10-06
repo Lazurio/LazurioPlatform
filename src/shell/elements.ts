@@ -1,5 +1,10 @@
 import { pageAccountJson } from "./account";
-import { parseShell, type Shell, type ShellAccount } from "./contract";
+import {
+  parseShell,
+  type Shell,
+  type ShellAccount,
+  type ShellSignedOut,
+} from "./contract";
 import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
 import { appOf, keptVisit, reportLast } from "./last";
@@ -18,6 +23,7 @@ import {
   type SwitcherSection,
   type SwitchTab,
   shellApps,
+  signedOutRail,
   switcherSections,
 } from "./view";
 
@@ -43,7 +49,10 @@ import {
 // a host that has it marks `<html data-lazurio-account="host">` and calls
 // `provideAccount`, and then nothing is read, remembered or reported
 // (state.ts, F36's addendum of 2026-10-05). Until there is an account, and
-// whenever there is none, they draw the document alone.
+// whenever there is none, they draw the document alone. A host's page with
+// nobody signed in provides `lazurio.shell-signed-out.v1` instead, with the
+// same `provideShell` (F36's addendum of 2026-10-06): the rail then draws the
+// logo and the sign-in key, and the column head nothing.
 //
 // Attributes: `app` on the rail (`chat`, `apps`, `automate`: a click on a
 // space stays in that app), `space` on both (the space you are in, when the
@@ -69,9 +78,12 @@ const state = createShellState({
 });
 let requested = false;
 
-/** Gives the elements their document; they redraw (merged with the
- * person's account once there is one). */
-export function provideShell(shell: Shell): void {
+/** Gives the elements the page's own document, which replaces the one
+ * before; they redraw. `lazurio.shell.v1` (`parseShell`) is drawn merged with
+ * the person's account once there is one; on a host's page with nobody signed
+ * in, `lazurio.shell-signed-out.v1` (`parseShellSignedOut`) is drawn as the
+ * logo and the sign-in key, and the column head draws nothing. */
+export function provideShell(shell: Shell | ShellSignedOut): void {
   state.provideShell(shell);
 }
 
@@ -150,6 +162,17 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+/** The Lazurio logo on a white disc, so it reads the same in every app's
+ * colours. */
+function logoDisc(): HTMLSpanElement {
+  const disc = element("span", "disc");
+  const image = element("img");
+  image.alt = "";
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logo)}`;
+  disc.append(image);
+  return disc;
+}
+
 /** An Organization's avatar, or its initials when there is none or it does
  * not load. */
 function organizationMark(
@@ -192,7 +215,8 @@ abstract class ShellElement extends HTMLElement {
   attributeChangedCallback() {
     if (this.isConnected) this.render();
   }
-  protected copy(shell: Shell): ShellCopy {
+  /** The words in the `lang` attribute's language, else the document's. */
+  protected copy(shell: Readonly<{ locale: Shell["locale"] }>): ShellCopy {
     const lang = this.getAttribute("lang");
     return shellMessages(lang === "cs" || lang === "en" ? lang : shell.locale);
   }
@@ -400,6 +424,8 @@ class Switcher {
 }
 
 // One rail at a time answers ⌘⇧E / Ctrl+Shift+E: the last one connected.
+// The keys are taken only when the jump opens: with nobody signed in, or
+// before the document arrives, there is none, and they stay the browser's.
 let jumpTarget: LazurioRail | null = null;
 let shortcutInstalled = false;
 function installShortcut() {
@@ -415,8 +441,7 @@ function installShortcut() {
     )
       return;
     if (jumpTarget === null || !jumpTarget.isConnected) return;
-    event.preventDefault();
-    jumpTarget.openJump();
+    if (jumpTarget.openJump()) event.preventDefault();
   });
 }
 
@@ -441,10 +466,11 @@ export class LazurioRail extends ShellElement {
     if (jumpTarget === this) jumpTarget = null;
   }
 
-  /** Opens the jump to any Environment (⌘⇧E). */
-  openJump() {
+  /** Opens the jump to any Environment (⌘⇧E); false when there is none to
+   * open: before the document arrives, and with nobody signed in. */
+  openJump(): boolean {
     const shell = state.drawn();
-    if (shell === null || this.jump === null) return;
+    if (shell === null || this.jump === null) return false;
     const dialog = this.jump;
     const switcher = new Switcher(this, shell, this.copy(shell), {
       here: this.here(shell),
@@ -456,6 +482,7 @@ export class LazurioRail extends ShellElement {
     dialog.replaceChildren(switcher.box);
     if (!dialog.open) dialog.showModal();
     switcher.focus();
+    return true;
   }
 
   /** The app a click stays in: the rail's own (`app`) on an Environment's
@@ -471,7 +498,71 @@ export class LazurioRail extends ShellElement {
     return node;
   }
 
+  /** The rail's own label: at once, beside the item under the pointer or
+   * the focus, two lines. Appended as the last child of `nav`. */
+  private labelled(nav: HTMLElement): void {
+    const tip = element("div", "tip");
+    tip.setAttribute("role", "tooltip");
+    tip.hidden = true;
+    tip.append(element("strong"), element("span"));
+    this.tip = tip;
+    nav.append(tip);
+    const show = (event: Event) => {
+      const target = event
+        .composedPath()
+        .find(
+          (node): node is HTMLElement =>
+            node instanceof HTMLElement && node.dataset.tip !== undefined,
+        );
+      if (!target || !this.tip) return;
+      const [title, sub] = [...this.tip.children] as HTMLElement[];
+      if (title) title.textContent = target.dataset.tip ?? "";
+      if (sub) sub.textContent = target.dataset.tipSub ?? "";
+      const rect = target.getBoundingClientRect();
+      this.tip.style.left = `${rect.right + 10}px`;
+      this.tip.style.top = `${rect.top + rect.height / 2}px`;
+      this.tip.hidden = false;
+    };
+    const hide = () => {
+      if (this.tip) this.tip.hidden = true;
+    };
+    nav.addEventListener("pointerover", show);
+    nav.addEventListener("focusin", show);
+    nav.addEventListener("pointerleave", hide);
+    nav.addEventListener("focusout", hide);
+    nav.addEventListener("click", hide);
+  }
+
+  /** The rail with nobody signed in (`signedOutRail`, F36's addendum of
+   * 2026-10-06): the logo and the sign-in key, links in the signed-in rail's
+   * order, labelled as its items are. A path on the page's own origin
+   * announces `lazurio-navigate`, as every link on it does. */
+  private renderSignedOut(signedOut: ShellSignedOut) {
+    const rail = signedOutRail(signedOut, this.copy(signedOut));
+    const nav = element("nav");
+    nav.setAttribute("aria-label", rail.label);
+    for (const item of rail.items) {
+      const link = this.withTip(
+        this.link(item.href, `item ${item.kind}`),
+        item.label,
+        item.sub,
+      );
+      link.setAttribute("aria-label", item.label);
+      link.append(item.kind === "home" ? logoDisc() : icon("key", 22));
+      nav.append(link);
+    }
+    this.labelled(nav);
+    // No jump without a person.
+    this.jump = null;
+    this.root.replaceChildren(nav);
+  }
+
   protected render() {
+    const signedOut = state.signedOut();
+    if (signedOut !== null) {
+      this.renderSignedOut(signedOut);
+      return;
+    }
     const shell = state.drawn();
     if (shell === null) {
       this.root.replaceChildren();
@@ -524,13 +615,7 @@ export class LazurioRail extends ShellElement {
     );
     home.setAttribute("aria-label", copy.dashboard);
     if (dashboard.current) home.setAttribute("aria-current", "page");
-    // The logo on a white disc, so it reads the same in every app's colours.
-    const disc = element("span", "disc");
-    const image = element("img");
-    image.alt = "";
-    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logo)}`;
-    disc.append(image);
-    home.append(disc);
+    home.append(logoDisc());
 
     const search = this.withTip(
       element("button", "item search"),
@@ -596,44 +681,14 @@ export class LazurioRail extends ShellElement {
       account.append(picture);
     } else account.append(photo());
 
-    // The rail's own label: at once, beside the item, two lines.
-    const tip = element("div", "tip");
-    tip.setAttribute("role", "tooltip");
-    tip.hidden = true;
-    tip.append(element("strong"), element("span"));
-    this.tip = tip;
-
     const jump = element("dialog", "switcher-dialog");
     jump.addEventListener("click", (event) => {
       if (event.target === jump) jump.close();
     });
     this.jump = jump;
 
-    nav.append(home, search, element("div", "divider"), scroll, account, tip);
-    const show = (event: Event) => {
-      const target = event
-        .composedPath()
-        .find(
-          (node): node is HTMLElement =>
-            node instanceof HTMLElement && node.dataset.tip !== undefined,
-        );
-      if (!target || !this.tip) return;
-      const [title, sub] = [...this.tip.children] as HTMLElement[];
-      if (title) title.textContent = target.dataset.tip ?? "";
-      if (sub) sub.textContent = target.dataset.tipSub ?? "";
-      const rect = target.getBoundingClientRect();
-      this.tip.style.left = `${rect.right + 10}px`;
-      this.tip.style.top = `${rect.top + rect.height / 2}px`;
-      this.tip.hidden = false;
-    };
-    const hide = () => {
-      if (this.tip) this.tip.hidden = true;
-    };
-    nav.addEventListener("pointerover", show);
-    nav.addEventListener("focusin", show);
-    nav.addEventListener("pointerleave", hide);
-    nav.addEventListener("focusout", hide);
-    nav.addEventListener("click", hide);
+    nav.append(home, search, element("div", "divider"), scroll, account);
+    this.labelled(nav);
     this.root.replaceChildren(nav, jump);
   }
 }

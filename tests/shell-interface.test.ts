@@ -14,7 +14,8 @@ import { columnHead, shellApps } from "../src/shell/view";
 // it only adds names: F36's addendum of 2026-10-05 added, in version 1, the
 // rail's `app` and `space`, the column head's `settings` and `space` and
 // `active="settings"`, the host's document attributes and the script's
-// exports, and removed nothing.
+// exports, and removed nothing; the addendum of 2026-10-06 added the export
+// `parseShellSignedOut`.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -36,6 +37,7 @@ test("the promised interface v1 is exactly this", () => {
       "provideAccount",
       "parseShell",
       "parseShellAccount",
+      "parseShellSignedOut",
     ],
     properties: [
       "--lazurio-rail-width",

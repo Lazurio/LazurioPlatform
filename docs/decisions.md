@@ -4352,7 +4352,8 @@ nothing is renamed or removed, and an Environment's page is drawn as before.
    and `settings` as a value of `active`; the document attributes
    `data-lazurio-shell="host"` and `data-lazurio-account="host"`; the exports
    `provideShell`, `provideAccount`, `parseShell` and `parseShellAccount`. All but the
-   account's worked before and are promised now. Nothing is renamed or removed.
+   account's worked before and are promised now. Nothing is renamed or removed. *(The
+   addendum of 2026-10-06 below adds the export `parseShellSignedOut`.)*
 8. **Fonts** stay at `/.lazurio/fonts/<file>` on the host's origin: a host serves the
    four font files there, as every origin of an Environment does.
 9. **Distribution, the promise** (built by a separate task). Every release attaches a
@@ -4400,6 +4401,106 @@ at rest, with the list under the picker and with ⌘⇧E, and asked for the same
 Not exercised: the Dashboard itself, the release artifact (point 9), colour roles and a
 dark host, narrow widths, and browsers other than Chrome. These are no rendered-page CI
 gates (root decision 0178).
+
+**Addendum 2026-10-06 (plan DEV-6645): a host page with nobody signed in; the rail shows
+the logo and the sign-in key.** The Dashboard serves its page to anyone. Signed out it
+draws "Dashboard potřebuje Lazurio účet." with "Přihlásit se", and its wireframe
+(HumanAndMachine-ai/Dashboard `docs/dashboard-v2-wireframe.md` 2.8, after
+`HumanAndMachine-ai/prototypes-lazurio` `app/v1/src/Rail.tsx`) puts the shell's rail
+beside it: the Lazurio logo leading to sign-in and a key "Přihlásit Lazurio účtem"; no
+search, no spaces, no "+", no account, and no column head. The shell could not draw it:
+`lazurio.shell.v1` requires an `operator`, and signed out there is none, so the
+Dashboard showed an empty rail (HumanAndMachine-ai/Dashboard#255). The wireframe's
+personal space ("this computer only") belongs to a Local Environment's Launchpad, not to
+a host page, and is left out. An Environment never needs any of this: its gateway signs
+the person in before any page is served. It is a host page's capability only, and an
+Environment's page is drawn exactly as before.
+
+1. **The document `lazurio.shell-signed-out.v1`** (`parseShellSignedOut` in
+   `src/shell/contract.ts`): `{ schema, locale, signIn }`. `locale` is `cs` or `en`, as
+   in the other documents. `signIn` is where sign-in starts: an https URL, or a path on
+   the page's own origin under the rule of the Dashboard's addresses in
+   `lazurio.shell.v1` (point 4 of the addendum of 2026-10-05: `/…`, never `//…`, no
+   backslash, no space, no fragment). It is required: a host without a sign-in has none
+   to offer, provides no signed-out document, and its rail stays empty as before.
+   Members the parser does not know are ignored; anything else refuses the document as a
+   whole. Each parser takes only its own document: `parseShell` and `parseShellAccount`
+   refuse this one, and `parseShellSignedOut` refuses theirs.
+2. **A document of its own.** A nullable `operator` in `lazurio.shell.v1` would narrow
+   what every signed-in consumer reads (the merge, the remembered account, the account
+   at the foot of the rail, a host's own types), which point 2 of the addendum of
+   2026-10-05 allows only as `lazurio.shell.v2`. A second, minimal document leaves both
+   v1 documents, their parsers and their consumers as they are, and says only what the
+   rail draws signed out. The same rule holds for it from the start: additive only, and
+   a breaking change is its v2.
+3. **How a host provides it: as it provides `lazurio.shell.v1`.** The page keeps
+   `<html data-lazurio-shell="host">`, parses the document with the shell's parser and
+   hands it to the same `provideShell`, which takes either document. The later replaces
+   the earlier, so signing in and out on the page uses the one call a host already makes.
+   There is no new marker, attribute or event. A host that provides the account provides
+   none while nobody is signed in (`provideAccount(null)`), so a person's account does
+   not outlast their session on the page; signed out the elements draw no account in any
+   case. The elements' own read of `/.lazurio/shell.json` still takes only
+   `lazurio.shell.v1`, so the forks and every Environment's page never meet this
+   document.
+4. **The rail signed out** (`signedOutRail` in `src/shell/view.ts`, drawn by
+   `<lazurio-rail>`): the logo, then the key, both links to `signIn`, in the signed-in
+   rail's order and keyboard order (the logo first, the key at the foot, where the
+   account stands). The logo keeps its name and label ("Dashboard", "tvůj přehled napříč
+   Organizacemi") and is not marked as the page you are on: it leads to sign-in, not to
+   this page. The key is Iconoir's key, named and labelled "Přihlásit Lazurio účtem" /
+   "Sign in with your Lazurio account"; the rail is named "Lazurio". Both take the
+   host's colours through the colour roles (root decision 0187), and no token is added.
+   A path announces `lazurio-navigate`, as every link on the page's origin does, so the
+   host decides whether sign-in navigates. There is no search, no space, no "+" and no
+   account, and ⌘⇧E / Ctrl+Shift+E stay the browser's: the shortcut is now taken only
+   when the jump opens (so also not before the first document arrives).
+5. **The column head** draws nothing signed out, as before any document arrives, and
+   nothing is merged, requested, remembered or reported from a signed-out page
+   (`src/shell/state.ts`).
+6. **Versions.** Neither `lazurio.shell.v1` nor `lazurio.account.v1` changes, and the
+   new document is version 1 of its own schema. Interface v1 of the elements gains the
+   export `parseShellSignedOut`, and `provideShell` accepts one more document. Both only
+   add; nothing is renamed or removed, so the interface stays version 1 (point 7 of the
+   addendum of 2026-10-05) and the shell artifact's `interface` stays 1. A host takes
+   the signed-out rail with the first release after this addendum; an earlier pinned
+   release has no `parseShellSignedOut`.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `operator: null` in `lazurio.shell.v1` | Every signed-in consumer would have to handle a page without a person; for a v1 document that is a narrowing, so a `lazurio.shell.v2`; rejected |
+| A placeholder person in `lazurio.shell.v1` | Draws a personal space and an account that do not exist, and the elements cannot tell it from a real one; rejected |
+| The host draws its own signed-out rail | Every host copies the logo, the key, the colours and the focus order, and they drift; the rail is the shell's (F36); rejected |
+| A second export `provideSignedOut`, or a document attribute for it | A second way to set the page's own document, which then needs an order between the two; rejected |
+| `lazurio.shell-signed-out.v1` with its own parser, handed to the same `provideShell` (selected) | Both v1 documents and every signed-in consumer stay as they are; interface v1 gains one export |
+
+Verified by unit tests (`tests/shell-signed-out.test.ts`, `tests/shell-artifact.test.ts`,
+`tests/shell-interface.test.ts` and the existing shell suites): the parser (valid with a
+path and with https, unknown members ignored; refused without one of its members, with
+another schema or language, a null or empty sign-in, http, `//`, a backslash, a
+fragment, space, credentials, a relative path or a script; each parser refusing the
+others' documents), the rail's model in both languages, the state signed out (no drawn
+document; no request, store, report or debug line), a host switching both ways, and a
+page that reads its account itself; the packed `contract.js` and `contract.d.ts` read
+and type the new document, and interface v1 lists the new export. Six of the new guards
+(the parser's locale and sign-in rules; in the state, the signed-out document replacing a
+person's, a person's replacing it, and `local` naming it; the rail's exact items) were
+each broken once on purpose, and each time a test failed. In
+Chrome 1440×900, on a harness page with `/.lazurio/shell.js` built from this revision
+and the signed-out document provided (`data-lazurio-shell="host"
+data-lazurio-account="host"`): exactly the logo and the key, both to the sign-in path, in
+Czech, in English and with `lang="en"` over a Czech document; their labels under the
+pointer and the focus; Tab reaching the logo, the key, then the page; the column head
+empty; no jump dialog, and ⌘⇧E and Ctrl+Shift+E not taken; both links announcing
+`lazurio-navigate` with the host's path; no request to `/.lazurio/shell.json` or
+`/.lazurio/account/*` and nothing in `localStorage`; a host switching from signed out to
+signed in (the full rail and head, ⌘⇧E opening the jump) and back; and a dark theme's
+colour roles on the rail and the key, with the logo's disc white. The signed-in personal
+and Organization Dashboards (at rest, with the picker's list, with ⌘⇧E) and an
+Environment's page (at rest, with ⌘⇧E and Ctrl+Shift+E, a space under the pointer) were
+byte-identical between `main` and this revision. Not exercised: the Dashboard itself,
+which takes this with a release, narrow widths, and browsers other than Chrome. These are
+no rendered-page CI gates (root decision 0178).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 

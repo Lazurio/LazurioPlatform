@@ -134,7 +134,7 @@ downloads it, and an installed Lazurio never reads it.
 | File | Content |
 | --- | --- |
 | `shell.js` | `/.lazurio/shell.js` byte for byte as every Launchpad of the tag serves it |
-| `contract.js` | `src/shell/contract.ts` alone as an ES module without imports (`parseShell`, `parseShellAccount`, `dashboardSlug` and the rest), for a host's server code and tests: importing `shell.js` defines the elements and so needs a DOM |
+| `contract.js` | `src/shell/contract.ts` alone as an ES module without imports (`parseShell`, `parseShellAccount`, `parseShellSignedOut`, `dashboardSlug` and the rest), for a host's server code and tests: importing `shell.js` defines the elements and so needs a DOM |
 | `contract.d.ts` | its declarations, which need neither DOM nor Bun types |
 | `fonts/*.woff2`, `fonts/LICENSE-*.txt` | the fonts exactly as served at `/.lazurio/fonts/<file>`, where the elements request them, with their licences |
 | `LICENSE`, `NOTICE`, `LICENSE-iconoir.txt` | the Platform's licence and notice, and the licence of the interface icons inside `shell.js` |
