@@ -7,6 +7,46 @@ claim that the current gateway, handover, shell or onboarding implements it.
 Existing qualified local/self-hosted operation remains supported; this
 contract does not introduce a mandatory hosted account into loopback use.
 
+## Accepted trust-based full sharing — Operator clarification, 2026-10-06
+
+Full sharing of an assigned individual work Environment is an intentional
+transfer of **all capabilities available inside** to a trusted person:
+files, processes, agents, browser sessions, passwords/passkeys, personal
+working logins, integrations and existing remote access. The sharing user
+accepts this risk. Do not require sign-out, profile wiping, credential
+replacement, conversion to a Team/broker mode or another Admin approval as
+a prerequisite. Active same-Organization membership and Admin approval of
+the recipient's exact device remain mandatory; friends or family are not
+exceptions. Personalspace is outside this work-sharing feature.
+
+Explain this scope at the normal sharing action, with a clearly labelled
+full-access choice and a separate app-only choice; do not add an approval
+workflow or a new user role. For collaboration without this personal trust,
+use a separate Team Environment. A full grant does not add an Admin role
+to the recipient's Lazurio account, but a privileged identity already
+signed in inside the runtime can technically be used. The product must
+not claim per-person isolation or exclusive human attribution for that
+identity. Named human responsibility and instructions for publication
+remain a process obligation inside this trusted shared runtime.
+
+Full sharing includes existing A-to-B capabilities. Do not require a new
+direct per-person grant to B merely to share A, or disconnect its accounts
+first. The UI/map discloses effective reach; creating a new link still
+checks the actor's link-management authority. Sharing creates no new
+network edge, Organization membership or direct B grant. An existing
+integration credential can have broader reach than the entry grant; that
+is part of the explicitly accepted trust, not an isolation guarantee.
+
+Revoking the share must stop subsequent entry and handle supported active
+sessions within a measured bound. It cannot erase data already copied or
+automatically invalidate credentials copied from external providers.
+Credential rotation and review of persistent changes are separate recovery
+operations when trust is lost, not automatic prerequisites for sharing.
+Tests must not assert isolation of retained personal identities; they
+must cover sharing without forced sign-out, honest scope communication,
+entry revocation and the separate app-only boundary. This decision changes
+no live grants or credentials.
+
 ## Identity, network and entry are distinct
 
 An organizational Environment and its apps require all three:
