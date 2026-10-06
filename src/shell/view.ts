@@ -14,7 +14,9 @@ import { fillShell, type ShellCopy } from "./messages";
 // its list, and the switch Chat · Apps · Automate. The elements in
 // elements.ts only draw it. Every Environment is named one way everywhere:
 // by its own name or its kind, with a line saying who it is for, never by
-// the machine's technical name.
+// the machine's technical name. The list under the picker and the jump to
+// any Environment (⌘⇧E) are one line per Environment (F36's addendum of
+// 2026-10-06, `switcherList`, and the keys of both, `switcherKey`).
 //
 // A page that is no Environment's (F36's addendum of 2026-10-05, a host such
 // as the Dashboard; `current: null`) is the personal Dashboard or an
@@ -366,6 +368,8 @@ export function environmentGlyph(
     : { kind: "icon", icon: kindIcons[environment.kind] };
 }
 
+/** One line of the list: an Environment's glyph, its name and, quieter
+ * beside it, who it is for; the current one is marked. */
 export type SwitcherRow = Readonly<{
   id: string;
   name: string;
@@ -373,41 +377,90 @@ export type SwitcherRow = Readonly<{
   href: string;
   current: boolean;
   /** A row's glyph: your initials for a personal Environment, otherwise its
-   * kind's icon (the Organization stands in the head above). */
+   * kind's icon, never a tile (the space is the picker's own, a title or a
+   * head above). */
   glyph: Exclude<EnvironmentGlyph, { kind: "avatar" }>;
 }>;
 
 export type SwitcherSection = Readonly<{
   space: string;
-  title: string;
-  /** An Organization's head above its Environments: its Dashboard,
-   * `current` on that Dashboard (a page that is no Environment's). */
+  /** The space's name above its rows where nothing else names it: your
+   * personal Environments in the jump, every space once "Všechny
+   * Organizace" widened the picker. Null under an Organization's head and
+   * for the picker's own space. */
+  title: string | null;
+  /** An Organization's head above its Environments, leading to its
+   * Dashboard: only in the jump to any Environment (⌘⇧E), never under the
+   * picker, which picks Environments only. `current` on that Dashboard (a
+   * page that is no Environment's). */
   head: Readonly<{
     organization: ShellOrganization;
     href: string;
     current: boolean;
   }> | null;
   rows: readonly SwitcherRow[];
+  /** The line under an Organization without an Environment while nothing is
+   * searched ("Tady nemáš žádný Environment."); null otherwise. */
+  empty: string | null;
 }>;
 
-/** The list of the picker (one space, `all` false) and of ⌘⇧E (every space,
- * `all` true): your personal Environments, then each Organization with its
- * head and its Environments, the current one marked, filtered by `query`
- * against the space, the name and who it is for. A space keeps its head
- * while it matches and stays listed empty only when it is the one asked
- * for. On an Organization's Dashboard (no current Environment, `here` that
- * Organization) its head is the current row and no Environment is; on the
- * personal Dashboard (`here` null) nothing is current. */
-export function switcherSections(
+/** Where the list of Environments is: under the column head's picker
+ * (`picker`, the space you are in until "Všechny Organizace" widens it) or
+ * the jump to any Environment (`jump`, ⌘⇧E, every space). */
+export type SwitcherKind = "picker" | "jump";
+
+/** The list as the elements draw it (F36's addendum of 2026-10-06, the
+ * wireframe's compact picker, design-system-lazurio `lz-menu-item--compact`). */
+export type SwitcherList = Readonly<{
+  /** The search field's placeholder; null where the list has no field: under
+   * the picker while its space has seven Environments or fewer. */
+  search: string | null;
+  sections: readonly SwitcherSection[];
+  /** "Nic takového tu není." where a list of every space or a search finds
+   * nothing; null otherwise. */
+  nothing: string | null;
+  /** "Všechny Organizace", the only thing at the picker's foot until it
+   * widens the list; null once widened and in the jump. */
+  widen: string | null;
+  /** The keys the jump's foot names (↑↓, Enter, Esc); none under the
+   * picker, which works as any menu. */
+  hints: readonly Readonly<{ key: string; word: string }>[];
+  /** The entry the cursor is on when the list is drawn afresh (it opens,
+   * widens or is searched), heads and rows counted in their order: under
+   * the picker as it opens the current Environment, else the first;
+   * widened, searched and in the jump the first. */
+  start: number;
+}>;
+
+/** The most Environments the picker lists without a search field; a space
+ * with more gets one (Anička 2026-10-04: a handful needs no search). */
+const pickerWithoutSearch = 7;
+
+/** The list of the picker (`picker`: the space you are in, `widened` every
+ * space) and of the jump (`jump`: every space): your personal Environments,
+ * then each Organization's, one line each, the current one marked, filtered
+ * by `query` against the space, the name and who it is for. Only the jump
+ * has an Organization's head, which leads to its Dashboard and stays while
+ * it matches; under the picker an Organization's Dashboard is its name in
+ * the page's head (the Launchpad's Apps). A space stays listed empty only
+ * when it is the one asked for. On an Organization's Dashboard (no current
+ * Environment, `here` that Organization) no Environment is current, and in
+ * the jump its head is; on the personal Dashboard (`here` null) nothing is
+ * current. */
+export function switcherList(
   shell: Shell,
   copy: ShellCopy,
   options: Readonly<{
+    kind: SwitcherKind;
     here: string | null;
-    all: boolean;
+    /** Under the picker: "Všechny Organizace" widened it to every space. */
+    widened: boolean;
     app: ShellApp;
     query: string;
   }>,
-): readonly SwitcherSection[] {
+): SwitcherList {
+  const jump = options.kind === "jump";
+  const all = jump || options.widened;
   const words = options.query.trim().toLocaleLowerCase();
   const matches = (...parts: string[]) =>
     words === "" || parts.join(" ").toLocaleLowerCase().includes(words);
@@ -425,29 +478,111 @@ export function switcherSections(
       glyph,
     });
   };
-  const spaces = options.all
+  const nameOf = (space: string) =>
+    (space === personalSpace ? undefined : organizationOf(shell, space))
+      ?.name ?? copy.personal;
+  const own = options.here ?? personalSpace;
+  const spaces = all
     ? [personalSpace, ...shell.organizations.map((entry) => entry.slug)]
-    : [options.here ?? personalSpace];
-  return spaces.flatMap((space): SwitcherSection[] => {
+    : [own];
+  const sections = spaces.flatMap((space): SwitcherSection[] => {
     const organization =
       space === personalSpace ? undefined : organizationOf(shell, space);
-    const title = organization?.name ?? copy.personal;
+    const name = nameOf(space);
     const rows = spaceEnvironments(shell, space)
       .map((environment) => row(environment, space))
-      .filter((entry) => matches(title, entry.name, entry.who));
+      .filter((entry) => matches(name, entry.name, entry.who));
     const head =
+      jump &&
       organization !== undefined &&
       matches(organization.name, copy.organizationDashboard)
-        ? {
+        ? Object.freeze({
             organization,
             href: organization.dashboard,
             current: shell.current === null && options.here === space,
-          }
+          })
         : null;
-    if (rows.length === 0 && head === null && (options.all || words !== ""))
-      return [];
-    return [Object.freeze({ space, title, head, rows: Object.freeze(rows) })];
+    if (rows.length === 0 && head === null && (all || words !== "")) return [];
+    return [
+      Object.freeze({
+        space,
+        title: head === null && all ? name : null,
+        head,
+        rows: Object.freeze(rows),
+        empty:
+          organization !== undefined && rows.length === 0 && words === ""
+            ? copy.noEnvironment
+            : null,
+      }),
+    ];
   });
+  const entries = sections.flatMap((section) => [
+    ...(section.head === null ? [] : [section.head.current]),
+    ...section.rows.map((entry) => entry.current),
+  ]);
+  const searchable =
+    all || spaceEnvironments(shell, own).length > pickerWithoutSearch;
+  return Object.freeze({
+    search: !searchable
+      ? null
+      : all
+        ? copy.searchAll
+        : fillShell(copy.searchIn, { name: nameOf(own) }),
+    sections: Object.freeze(sections),
+    nothing:
+      entries.length === 0 && (all || words !== "") ? copy.nothing : null,
+    widen: jump || options.widened ? null : copy.widen,
+    hints: Object.freeze(
+      jump
+        ? [
+            { key: "↑↓", word: copy.choose },
+            { key: "Enter", word: copy.go },
+            { key: "Esc", word: copy.close },
+          ]
+        : [],
+    ),
+    start: all || words !== "" ? 0 : Math.max(0, entries.indexOf(true)),
+  });
+}
+
+/** What a key does in the list of Environments: ↓ and ↑ move the cursor
+ * through its entries and wrap; Home and End take the first and the last,
+ * except in the search field, whose caret they move; Enter opens the entry
+ * under the cursor; Escape closes the list. `focus` is where the key was
+ * pressed: the search field, an entry of the list (the picker without a
+ * field moves the focus itself), or another control (the button "Všechny
+ * Organizace"), which keeps every key but Escape. Null: the key is not the
+ * list's. */
+export function switcherKey(
+  key: string,
+  at: Readonly<{
+    cursor: number;
+    count: number;
+    focus: "field" | "entry" | "other";
+  }>,
+):
+  | Readonly<{ kind: "move"; cursor: number }>
+  | Readonly<{ kind: "open" }>
+  | Readonly<{ kind: "close" }>
+  | null {
+  if (key === "Escape") return { kind: "close" };
+  if (at.focus === "other" || at.count === 0) return null;
+  const last = at.count - 1;
+  const cursor = Math.min(Math.max(at.cursor, 0), last);
+  switch (key) {
+    case "ArrowDown":
+      return { kind: "move", cursor: cursor === last ? 0 : cursor + 1 };
+    case "ArrowUp":
+      return { kind: "move", cursor: cursor === 0 ? last : cursor - 1 };
+    case "Home":
+      return at.focus === "entry" ? { kind: "move", cursor: 0 } : null;
+    case "End":
+      return at.focus === "entry" ? { kind: "move", cursor: last } : null;
+    case "Enter":
+      return { kind: "open" };
+    default:
+      return null;
+  }
 }
 
 export type SwitchTab = Readonly<{

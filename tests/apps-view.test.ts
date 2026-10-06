@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  appsHeading,
   appsScope,
   appsScopes,
   appsSections,
@@ -346,6 +347,74 @@ test("favourites: first in their section in the column's order, in the column on
       ["c", "x", "a"],
     ).map((item) => item.key),
   ).toEqual(["c", "a", "b"]);
+});
+
+test("the head links the Organization's name to its Dashboard; the personal space and the home stay plain", () => {
+  // F36's addendum of 2026-10-06: the picker no longer leads to the
+  // Organization's Dashboard; its name in the head does, as the shell
+  // document names the page.
+  const group = appsScope(catalog, { view: "home" }, cs);
+  if (group === null) throw new Error("The fixture has an Organization");
+  const dashboard = (slug: string) =>
+    slug === "example" ? "https://dashboard.lazurio.ai/orgs/example" : null;
+  expect(appsHeading(group, cs, dashboard)).toEqual({
+    text: "Example Company",
+    link: {
+      href: "https://dashboard.lazurio.ai/orgs/example",
+      title: "Dashboard Organizace",
+    },
+  });
+  expect(appsHeading(group, en, dashboard).link?.title).toBe(
+    "Organization Dashboard",
+  );
+  // An Organization the shell document does not name: its name alone.
+  expect(appsHeading(group, cs, () => null)).toEqual({
+    text: "Example Company",
+    link: null,
+  });
+  const unreadable = appsScope(
+    {
+      kind: "catalog",
+      organizations: [
+        organization("example", [], {
+          organization: null,
+          state: null,
+          executable: false,
+          reason: "canonical-documents-required",
+        }),
+      ],
+    },
+    { view: "home" },
+    cs,
+  );
+  if (unreadable === null) throw new Error("The fixture has an Organization");
+  expect(
+    appsHeading(
+      unreadable,
+      cs,
+      () => "https://dashboard.lazurio.ai/orgs/example",
+    ).link,
+  ).toBeNull();
+  // The personal space is "Osobní", never a link; without a group the
+  // home is the Launchpad.
+  const personal = appsScopes(
+    {
+      kind: "catalog",
+      organizations: [],
+      personalspace: organization("personalspace", [module("diary")], {
+        directory: "personalspace",
+      }),
+    },
+    cs,
+  ).find((scope) => scope.sections === null);
+  if (personal === undefined) throw new Error("The fixture has one");
+  expect(
+    appsHeading(personal, cs, () => "https://dashboard.lazurio.ai/home"),
+  ).toEqual({ text: "Osobní", link: null });
+  expect(appsHeading(null, cs, dashboard)).toEqual({
+    text: "Launchpad",
+    link: null,
+  });
 });
 
 test("Přístup k modulu: the module in its Organization's Dashboard, for its Owners and Stewards only", () => {

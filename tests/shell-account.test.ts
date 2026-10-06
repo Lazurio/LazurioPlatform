@@ -21,7 +21,7 @@ import {
   environmentWho,
   railSpaces,
   spaceEnvironments,
-  switcherSections,
+  switcherList,
 } from "../src/shell/view";
 import { accountDocument } from "./fixtures/account-document";
 
@@ -470,32 +470,48 @@ test("spaces without an Environment: the rail shows the Organization's avatar, s
   expect(spaces[0]?.sub).toBe("1 Environment");
   // The example Organization now holds two Environments.
   expect(spaces[1]?.sub).toBe("2 Environments");
-  // "All Organizations" lists the empty one with its Dashboard head and no
-  // row; the elements add "You have no Environment here." under it.
-  const sections = switcherSections(merged, en, {
+  // ⌘⇧E lists the empty one with its Dashboard head, no row and "You have
+  // no Environment here." under it. Under the picker "All Organizations"
+  // leaves it out: the picker has no heads (F36's addendum of 2026-10-06).
+  const sections = switcherList(merged, en, {
+    kind: "jump",
     here: "Example",
-    all: true,
+    widened: false,
     app: "apps",
     query: "",
-  });
+  }).sections;
   expect(
-    sections.map((section) => [section.space, section.rows.length]),
+    sections.map((section) => [
+      section.space,
+      section.rows.length,
+      section.empty,
+    ]),
   ).toEqual([
-    ["personal", 1],
-    ["Example", 2],
-    ["other-example", 0],
+    ["personal", 1, null],
+    ["Example", 2, null],
+    ["other-example", 0, "You have no Environment here."],
   ]);
   expect(sections[2]?.head?.href).toBe(
     "https://dashboard.lazurio.ai/orgs/other-example",
   );
+  expect(
+    switcherList(merged, en, {
+      kind: "picker",
+      here: "Example",
+      widened: true,
+      app: "apps",
+      query: "",
+    }).sections.map((section) => section.space),
+  ).toEqual(["personal", "Example"]);
   // The picker of this space: this Environment checked, the other named by
   // the account's words.
-  const [picker] = switcherSections(merged, en, {
+  const [picker] = switcherList(merged, en, {
+    kind: "picker",
     here: "Example",
-    all: false,
+    widened: false,
     app: "chat",
     query: "",
-  });
+  }).sections;
   expect(
     picker?.rows.map((row) => [row.name, row.who, row.current, row.href]),
   ).toEqual([
@@ -811,9 +827,10 @@ test("the account in another language: every Environment is named as without the
     ["Example", { environment: "vm-03.example", app: "chat" }],
   ]);
   // No English word of the account reaches the Czech picker.
-  const sections = switcherSections(merged, cs, {
+  const { sections } = switcherList(merged, cs, {
+    kind: "jump",
     here: "Example",
-    all: true,
+    widened: false,
     app: "apps",
     query: "",
   });

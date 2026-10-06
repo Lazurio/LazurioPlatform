@@ -4047,7 +4047,10 @@ and their new-tab arrows, and the Organization picker in the home's head.
    Automate. The picker drops its list over the column: the Organization's head
    (`lz-menu__head`) opening its Dashboard, then its Environments with the current one
    checked as "tady jsi", and "Všechny Organizace" widening it to every space. The
-   panel under the head stays the app's own, which is what the forks need.
+   panel under the head stays the app's own, which is what the forks need. *(Since the
+   addendum of 2026-10-06 on the rail and the picker below, the list has no head and
+   one line per Environment, the word "tady jsi" is for screen readers only, and the
+   Organization's name in the page's head opens its Dashboard.)*
 3. **Names.** A hosted Environment is never named by its machine's technical name. A
    Team Environment is its Team's ("Team Sales", by the Team's display name in the
    catalog), an Automated one its persona's Team, a work one "Pracovní", a personal one
@@ -4236,10 +4239,10 @@ the colours of the app it sits in.
    | `--lazurio-ink-muted` | the line saying who an Environment is for, icons, meta |
    | `--lazurio-line` | hairlines and borders |
    | `--lazurio-line-strong` | the hairline around the active space in the rail (until 2026-10-06 a ring; #209) |
-   | `--lazurio-hover` | a row under the pointer |
+   | `--lazurio-hover` | a row under the pointer (since 2026-10-06 also a rail item) |
    | `--lazurio-selected` | the selected row and the open picker (the quiet surface) |
    | `--lazurio-control` | the track of the app switch |
-   | `--lazurio-raised` | the active tab of the switch, an Organization's mark |
+   | `--lazurio-raised` | the active tab of the switch, an Organization's mark (since 2026-10-06 also your personal monogram) |
    | `--lazurio-overlay` | the list under the picker, the ⌘⇧E dialog, menus |
    | `--lazurio-overlay-ink` | text in them |
    | `--lazurio-focus` | the focus ring |
@@ -4251,7 +4254,11 @@ the colours of the app it sits in.
    as the wireframe mixes them (`color-mix` in oklab: 14 % of the ink for lines, 22 %
    for its border, 9 % for faint lines, 5 % for hover, 10 % for the selected row, 62 %
    for muted text). The rail's labels, the personal space's initials and the account's
-   initials invert the host's colours (ink background, surface text).
+   initials invert the host's colours (ink background, surface text). *(Since the
+   addendum of 2026-10-06 on the rail and the picker below: the check's word is for
+   screen readers only, the list's border is its 14 % line, and the personal space's
+   initials are a mark on the raised colour with a hairline; the rail's labels and the
+   account's initials still invert.)*
 2. **Every role is optional, and without roles nothing changes.** An unset role keeps
    the design system's colour, so a host that sets none (the Launchpad page today, the
    Dashboard) looks as before. A value mixed from the overlay stays unset while the host
@@ -4341,7 +4348,9 @@ nothing is renamed or removed, and an Environment's page is drawn as before.
    Organization in `space`). The picker names the Organization: its avatar (its initials
    without one), its name and the line "Dashboard Organizace" / "Organization
    Dashboard". Its list shows that Organization, its head row marked "tady jsi", then
-   its Environments, none of them current; "Všechny Organizace" widens it as before. The
+   its Environments, none of them current; "Všechny Organizace" widens it as before
+   *(since the addendum of 2026-10-06 on the rail and the picker below: its Environments
+   only, none current; the head, current there, is the jump's, ⌘⇧E)*. The
    gear opens the Organization Settings: the `settings` attribute, else `<the
    Organization's dashboard>/settings`, the base "Přístup k modulu" builds on. It is
    named "Nastavení Organizace" / "Organization Settings", and `active="settings"` marks
@@ -4501,6 +4510,170 @@ Environment's page (at rest, with ⌘⇧E and Ctrl+Shift+E, a space under the po
 byte-identical between `main` and this revision. Not exercised: the Dashboard itself,
 which takes this with a release, narrow widths, and browsers other than Chrome. These are
 no rendered-page CI gates (root decision 0178).
+
+**Addendum 2026-10-06, decided by Anička, confirmed by Matěj (plan DEV-6645): the rail
+and the picker as the wireframe revised them.** Anička, the owner of the design system and
+of the shell's UX, revised the shell wireframe, and the design system took each revision
+as its rule: a smaller rail with one corner family and the quiet selection
+(`HumanAndMachine-ai/prototypes-lazurio` #11, `HumanAndMachine-ai/design-system-lazurio`
+#57), three radii, one per kind of thing (#14, #58), one shadow for a floating layer and a
+paper frame (#15, #59), all of 2026-10-04, and a compact Environment picker that leaves the
+Organization's Dashboard to the Organization's name in the page's head (#17 and #62, merged
+on 2026-10-06). On 2026-10-06 Matěj asked that the Environments and the Dashboard follow
+the wireframe, in particular the smaller leftmost column. The elements are built to
+prototypes-lazurio `1acd615` (`app/v1/src/Rail.tsx`, `Switcher.tsx`, `EnvPicker.tsx`,
+`screens/LaunchpadHome.tsx`, `styles.css`, `shell-theme.css`) and design-system-lazurio
+`fdcc9b4`.
+
+1. **The rail** is one step of the design system's grid (`lz-rail`): 64 px instead of
+   72 px, and `--lazurio-rail-width` carries 64px. Every item is 40 px with `radius-md`
+   (was 44 px) and every mark in it, an Organization's avatar and your personal monogram,
+   32 px with `radius-sm` (were 40 px with 12 px), so the corners are concentric (6 + 4 =
+   10). Under the pointer an item brings the quiet surface and its shape never changes
+   (the 14 px corner on hover and its transition are gone). The logo keeps its 32 px white
+   disc with the 20 px logo (the colour addendum's point 3). The search and "+" icons are
+   16 px (were 18), the sign-in key 20 px (was 22), "+" is a 32 px dashed square with
+   `radius-sm`, the account's photo 28 px (was 36), the dividers 24 px (were 32) and the
+   gaps 4 px (were 6). The space you are in keeps B3 (#215): the mark's two spread shadows
+   now fill exactly its 40 px item, as the wireframe's surface on the item does. Your
+   personal space is a monogram like an Organization's without an avatar, on the raised
+   colour with a hairline, never an ink block; the glyph of your personal Environment in
+   the picker is the same monogram. Without roles the rail stands on paper (`--lz-paper`)
+   like the app's column (was `gray-50`), and it still draws no edge toward the app.
+2. **Three radii.** Every corner of the elements but the round logo disc and photo is
+   `radius-xs` (the key label in the ⌘⇧E field), `radius-sm` (controls and marks: a row
+   of the list, an Organization's head in the jump, "Všechny Organizace", the gear, the
+   marks, and the rail's label as the wireframe draws it) or `radius-md` (free-standing
+   objects: the list under the picker, the ⌘⇧E dialog, a rail item, the switch's track,
+   the setup line). An inner corner is the outer minus the gap (the switch's tabs,
+   `radius-md` − 2 px, as before). The shell's 5, 7, 8, 12 and 14 px are gone.
+3. **One shadow, only for a floating layer.** The list under the picker, the ⌘⇧E dialog
+   and the rail's label carry the design system's `--lz-shadow-float` (0 8px 24px, ink at
+   10 %); the list and the dialog keep a `line` hairline (their border was `gray-300`,
+   under roles 22 % of the overlay's ink; now the list's line, 14 %). Nothing in the
+   page's flow has a shadow: the active tab of the switch carries a `line` hairline
+   instead of its drop shadow (nothing on a dark host, as before).
+4. **The picker's list** (`lz-menu-item--compact`, design-system-lazurio #62): the
+   Environments of the space you are in, one line each: a 16 px glyph in a 20 px box
+   without a tile, the name (14 px) and, quieter beside it, whom it serves (13 px); a row
+   is 34 px (was 40). Five Environments take 224 px (was 349 px), and the list is as wide
+   as the picker, at least 280 px (was 400). It has no Organization head and no title, and
+   nothing in it leads to the Organization's Dashboard. A search field appears only when
+   the space has more than seven Environments. The foot holds only "Všechny Organizace",
+   without key hints; widened, the list gets the search field and every space under its
+   name, still without heads, and no foot. The current Environment has the quiet surface,
+   full-weight text and the check; the word "tady jsi" is there for screen readers only,
+   and the row keeps `aria-current="page"`. An entry under the pointer or the cursor is
+   on paper (`lz-menu-item:hover`; was `gray-50`).
+5. **The picker and its gear** (`lz-picker`, `lz-picker-row` and `lz-button--icon`, as
+   the wireframe draws them since prototypes-lazurio #8): the picker is at least the
+   grid's 48 px tall, with 8 px around and 12 px between its parts and `radius-md`, so 52
+   px with its two lines (was 47); its glyph is 32 px with `radius-sm` (was 30), an
+   Organization's mark or your monogram 24 px inside it and the kind's icon filling it,
+   in the picker's ink; the name is 15 px (`--lz-size-nav`, was 14), whom it serves 14 px
+   (`--lz-size-meta`, was 12). The gear stands 4 px beside it, a 48 px square with
+   `radius-sm` in the picker's ink (was 40 px wide and muted), the quiet surface under
+   the pointer. In a narrow host (`@container (max-width: 160px)`) both are 48 px
+   squares, one above the other, so the host's column needs 48 px for them (44 px
+   before). Every interface icon, the shell's and the Launchpad page's, is drawn at the
+   wireframe's stroke of 1.6 (was 1.5). As the glyph takes the picker's ink, a kind's icon
+   is light on a dark host without roles (it stayed near-black, issue #169).
+6. **The keys, with or without the field.** ↓ and ↑ (wrapping), Home, End, Enter and
+   Escape work in the list. Without the search field the focus lands on the current
+   Environment, else the first (on "Všechny Organizace" where the space has none), and
+   moves with the arrows, Home, End and the pointer, so Enter opens what is marked and a
+   screen reader names each row. With the field the focus stays in it, the cursor marks
+   the entry Enter opens, and Home and End move the field's caret. Escape closes the list,
+   and the focus returns to the picker.
+7. **⌘⇧E keeps the Organization's heads** (`lz-menu__head`), above the same one-line
+   rows: a head has a 24 px mark with `radius-sm` (was 20 px with 5 px), the
+   Organization's name and "Dashboard Organizace", and on that Organization's Dashboard
+   the check, its word for screen readers only. Its search field and the hints ↑↓ · Enter
+   · Esc stay.
+8. **The Organization's name in the Apps head opens its Dashboard** (the wireframe's
+   `.lp-head__link`): a link to the Organization's page as the shell document names it,
+   in the same window, titled "Dashboard Organizace", in the heading's colour without an
+   underline, underlined (2 px, 4 px below) under the pointer. The personal space
+   ("Osobní") and an Organization the document does not name stay plain text. An
+   Organization's Dashboard is reached by its name there, by ⌘⇧E and from the personal
+   Dashboard's Organizations, as the wireframe says.
+9. **Colour roles.** No role is added, renamed or removed. What they colour changes in
+   five places: `--lazurio-raised`, `--lazurio-line` and `--lazurio-ink` also colour your
+   personal monogram (the rail's labels and the account's initials keep inverting the
+   host's colours); `--lazurio-hover` also a rail item under the pointer; `--lazurio-line`
+   also the active tab's hairline; `--lazurio-ink` the gear at rest (was
+   `--lazurio-ink-muted`); the list's border is its own line (14 % of the overlay's ink,
+   was 22 %). Without roles the rail is paper. The logo's disc stays white.
+10. **Versions and vendoring.** `lazurio.shell.v1`, `lazurio.account.v1`,
+    `lazurio.shell-signed-out.v1` and the elements' interface v1 do not change: no
+    member, attribute, value, event, export or property is added, renamed or removed.
+    `--lazurio-rail-width` keeps its name and carries 64px; a host that lays its content
+    out with `var(--lazurio-rail-width, 0px)` follows, and the Launchpad's own fallbacks
+    are 64px. `src/shell/vendor/lazurio/tokens.css` is re-vendored byte for byte from
+    design-system-lazurio `fdcc9b4` (#58's comment on the radii and #59's
+    `--lz-shadow-float`); the logo, the stones and Iconoir's licence are unchanged.
+
+This supersedes, in the Organization-rail addendum of 2026-10-04, point 2's list (the
+Organization's head opening its Dashboard and the current Environment "checked as "tady
+jsi""); in the colour addendum, point 1's "a check with a word", its 22 % border of the
+list and its sentence that the personal space's initials invert the host's colours; and in
+the addendum of 2026-10-05, point 6's list with "its head row marked "tady jsi"" (now its
+Environments, none current; ⌘⇧E marks the head). It keeps B3, the logo's disc, the rail
+without an edge, the colour roles, the signed-out rail, and everything the elements read,
+remember and report.
+
+**Where the shell keeps its own rule.** Four details follow the shell's rules rather than
+the wireframe's or the design system's: under a host's roles the rail's and the picker's
+hover are `--lazurio-hover`, and on a light host the active tab keeps its `line`
+hairline, where `shell-theme.css` maps them to the selected surface and no edge; the
+gear's surface under the pointer is the quiet surface of the column's other controls
+(`gray-100` without roles), where the design system's quiet button takes paper, which
+does not show on the paper column (under roles both are `--lazurio-hover`); and a jump
+head's top corners are `radius-sm`, as the wireframe draws them, not the `radius-md` −
+1 px that design-system-lazurio #58 gives a head lying at the top edge of a menu, which a
+⌘⇧E head never does.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the Organization's head in the picker, quieter | The picker would still mix a second level into a choice of Environments, which is what Anička removed; rejected |
+| Keep the cursor on the dialog box without a field, as the wireframe does | Works for the pointer, but a screen reader hears nothing while the arrows move; the focus moves through the rows instead |
+| A DOM test environment (happy-dom) for the elements | A new dependency for what the browser checks below cover; the list's model and keys are pure functions with unit tests, as the shell's other views are |
+| The list's model, keys and the head's link as pure functions, the elements only drawing them (selected) | Behaviour is unit-tested; the look is measured in a browser against the wireframe |
+
+Verified by unit tests (`tests/shell-picker.test.ts`; the existing shell suites updated
+where they asserted the head in the picker; `tests/apps-view.test.ts`): the picker's list
+with five Environments (no head, no title, the current one marked, the cursor on it), the
+search field at seven and past seven Environments and only in the space's count, the foot
+before and after widening, the widened list without heads, the jump's heads, empty line and
+hints, an Organization's Dashboard with and without Environments, the keys (wrapping,
+Home and End only outside the field, another control keeping its keys, an empty list), the
+rail's width as the grid step, and the Apps head's link (an Organization, one the document
+does not name, one the Folder cannot read, the personal space, the home). Twelve guards
+(the heads under the picker, the threshold, the foot, the hints, the cursor's start, the
+title, Home in the field, another control's keys, the wrapping, the width, the head's link
+and the personal space without one) were each broken once on purpose, and each time a test
+failed. In Chrome 1440×900, the wireframe at `1acd615` (its own dev server) and the
+elements built from `main` and from this revision on a harness page laid out as the
+Launchpad (a 264 px column on paper), measured with `getBoundingClientRect` and
+`getComputedStyle`: the rail, its items, marks, divider, "+", photo, logo, hover, label and
+active space, the list under the picker (280 × 224 px for five Environments, 34 px rows,
+the check, the hidden word, the foot, widened) and the ⌘⇧E dialog (its radius, shadow,
+border, heads and rows) and the column head (the picker 191 × 52 px beside the 48 px
+gear in the 264 px column, its 32 px glyph, the name and the line, the icons at 1.6, the
+switch 49 px) equal the wireframe's in every value but where the focus lands as the list
+opens (point 6) and the gear's surface under the pointer; the active space's hairline and
+surface are the wireframe's pixel for pixel (1 px `gray-300`, 3 px `gray-100`). The column
+head was also drawn in T3 Code's default dark sidebar at its narrowest (208 px) and at
+264 px, its light one, MausBot's Midnight (320 px), a dark host without roles and a 64 px
+host, where the picker and the gear stand as 48 px squares and nothing overflows. The
+keyboard, the pointer, widening and searching, more than seven Environments, an
+Organization's Dashboard with and without Environments, ⌘⇧E on it, and a dark theme's
+roles were driven in the same page; in the Launchpad's preview (a temporary fixture
+Folder) the head's link, its look under the pointer, a click into the Dashboard, the rail
+at 64 px beside the column and the column head. Not exercised: the Dashboard and the
+forks themselves, which take this with a release and a pin, the page at narrow window
+widths, and browsers other than Chrome. These are no rendered-page CI gates (root
+decision 0178).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
