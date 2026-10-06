@@ -216,7 +216,9 @@ test("installed only for a hosted operator whose handover routes the view; the b
   ]);
   // The extension is written next to the profile, never into it.
   expect(
-    await readdir(join(root ?? "", ".local/share/lazurio-browser/extension")),
+    (
+      await readdir(join(root ?? "", ".local/share/lazurio-browser/extension"))
+    ).sort(),
   ).toEqual(["background.js", "manifest.json", "menu.js", "webauthn.js"]);
   const written = await stat(join(directory, browserUnit));
 

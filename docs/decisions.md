@@ -5181,7 +5181,9 @@ F38 points 1, 5 and 6 as stated below; points 2–4 and 7 stand.
      service reads the selection in an isolated world when it may have changed
      (a released mouse button or key) and when the person presses `Ctrl` or `⌘`,
      just before a copy. It never enables the Runtime domain: a binding would
-     need it, and pages can detect it as automation during a person's sign-in.
+     need it, and pages can detect it as automation during a person's sign-in. A
+     navigation clears the selection, and a read that a navigation overtook is
+     dropped, so a copy never takes the previous document's text.
    - **Touch** is sent as touch, and a tap on a phone opens its keyboard.
    - The view uses the `paste` and `copy` events, so it needs no clipboard
      permission even inside an app's frame.
@@ -5196,7 +5198,9 @@ F38 points 1, 5 and 6 as stated below; points 2–4 and 7 stand.
        reports no platform authenticator and no conditional mediation. Chrome's
        native passkey window never opens, and sites offer another way;
      - turns Chrome's own context menu off: it too would open outside the page.
-       A page's own menu still works.
+       The prevention runs in the capture phase on the window, so a page that
+       stops the event cannot let it through. The page's handlers still run,
+       and a page's own menu still works.
    - The view server keeps a DevTools session on every page:
      - **JavaScript dialogs** (alert, confirm, prompt, beforeunload) show in the view
        and are answered from it;

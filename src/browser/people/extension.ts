@@ -107,9 +107,10 @@ const webauthn = `// Lazurio (decision F39, root decision 0191 point 17): until 
 
 const menu = `// Lazurio (decision F39 point 7): Chrome's own context menu would open
 // outside the page, where the people's view cannot show it. It is turned off
-// for every page; a page's own menu, which it draws itself, still works. This
-// listener runs last (the window, in the bubbling phase), after the page's.
-window.addEventListener("contextmenu", (event) => event.preventDefault());
+// for every page: in the capture phase on the window, before any handler of
+// the page can stop the event. The page's own handlers still run, so a menu
+// the page draws itself still opens.
+window.addEventListener("contextmenu", (event) => event.preventDefault(), true);
 `;
 
 export const browserExtensionFiles: Readonly<Record<string, string>> =

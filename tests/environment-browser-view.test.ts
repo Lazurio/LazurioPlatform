@@ -66,6 +66,8 @@ class FakeBrowser {
   open = false;
   /** What the page's selection and title read as. */
   selection = "";
+  /** Holds the next selection read until it is opened (ordering tests). */
+  gate: Promise<void> | null = null;
   pageTitle = "Stránka z dokumentu";
 
   constructor(initial: Target[] = []) {
@@ -80,6 +82,24 @@ class FakeBrowser {
     return {
       send: async (method, params = {}, sessionId) => {
         if (!this.open) throw new Error("closed");
+        const expression = String(
+          (params as { expression?: unknown }).expression,
+        );
+        if (
+          method === "Runtime.evaluate" &&
+          expression.includes("getSelection") &&
+          this.gate !== null
+        ) {
+          // The page's answer is what it was when the read was asked.
+          const answer = this.selection;
+          await this.gate;
+          this.calls.push({
+            method,
+            params: { ...params },
+            ...(sessionId === undefined ? {} : { sessionId }),
+          });
+          return { result: { value: answer } };
+        }
         this.calls.push({
           method,
           params: { ...params },
@@ -628,6 +648,47 @@ test("the remote selection reaches the person for copy and cut, read when it may
   view.socket.close();
 });
 
+test("a selection read that a navigation overtook is dropped: a copy never takes the previous document's text", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  const view = await person(base, id(1));
+  await until(() => view.of("info").length > 0);
+  browser.selection = "OLD-DOCUMENT-SECRET";
+  let open = () => {};
+  browser.gate = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  view.send({
+    t: "mouse",
+    type: "mouseReleased",
+    x: 10,
+    y: 10,
+    button: "left",
+    buttons: 0,
+    clickCount: 1,
+    modifiers: 0,
+  });
+  await until(() =>
+    browser.calls.some((c) => c.method === "Page.createIsolatedWorld"),
+  );
+  await settle(80);
+  // The page navigates while the read is still out; then the old answer
+  // comes back.
+  browser.emit(
+    "Page.frameNavigated",
+    { frame: { id: `F-S-${id(1)}`, url: "https://example.org/next" } },
+    `S-${id(1)}`,
+  );
+  await settle(30);
+  browser.gate = null;
+  open();
+  await settle(150);
+  expect(
+    view.of("selection").some((m) => m.text === "OLD-DOCUMENT-SECRET"),
+  ).toBe(false);
+  view.socket.close();
+});
+
 // ---- Pop-ups and new tabs (F39 point 4) --------------------------------------
 
 test("a page that can reach its opener is a pop-up; one that cannot is a new tab", async () => {
@@ -966,18 +1027,41 @@ test("the extension declines passkeys and leaves other credentials alone", async
   );
 });
 
-test("the extension turns Chrome's own context menu off and leaves a page's own menu working", () => {
-  const listeners: ((event: Event) => void)[] = [];
+test("the extension turns Chrome's own context menu off even when the page stops the event, and the page's own menu still opens", () => {
+  // A small model of DOM dispatch on one target under the window: capture
+  // listeners of the window first, then the target's, then the window's
+  // bubbling listeners unless propagation was stopped.
+  const windowCapture: ((event: Event) => void)[] = [];
+  const windowBubble: ((event: Event) => void)[] = [];
   const window = {
-    addEventListener: (type: string, listener: (event: Event) => void) => {
-      if (type === "contextmenu") listeners.push(listener);
+    addEventListener: (
+      type: string,
+      listener: (event: Event) => void,
+      capture?: boolean,
+    ) => {
+      if (type !== "contextmenu") return;
+      (capture === true ? windowCapture : windowBubble).push(listener);
     },
   };
   new Function("window", browserExtensionFiles["menu.js"] as string)(window);
-  const event = new Event("contextmenu", { cancelable: true });
-  // The page's own handler ran before (a target or capture listener) and
-  // drew its menu; the extension only keeps Chrome's away.
-  for (const listener of listeners) listener(event);
+  let pageMenu = 0;
+  const pageHandler = (event: Event) => {
+    pageMenu += 1;
+    event.stopPropagation();
+  };
+  const event = new Event("contextmenu", { bubbles: true, cancelable: true });
+  let stopped = false;
+  const stop = event.stopPropagation.bind(event);
+  event.stopPropagation = () => {
+    stopped = true;
+    stop();
+  };
+  for (const listener of windowCapture) listener(event);
+  pageHandler(event);
+  if (!stopped) for (const listener of windowBubble) listener(event);
+  expect(windowCapture).toHaveLength(1);
+  expect(windowBubble).toHaveLength(0);
+  expect(pageMenu).toBe(1);
   expect(event.defaultPrevented).toBe(true);
 });
 

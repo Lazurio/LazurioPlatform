@@ -84,6 +84,9 @@ type Tab = {
   attaching: boolean;
   /** The view's isolated world in the main frame, until it navigates. */
   world: number | null;
+  /** Counts the main frame's documents: a read that a navigation overtook
+   * belongs to the old document and is dropped. */
+  document: number;
   /** A page opened by another, announced once its address is known. */
   pendingOpen: {
     openerId: string;
@@ -638,6 +641,7 @@ export class BrowserHub {
         watched: false,
         attaching: false,
         world: null,
+        document: 0,
         pendingOpen: null,
         selectionTimer: null,
         metaTimer: null,
@@ -806,7 +810,10 @@ export class BrowserHub {
     if (tab.selectionTimer !== null) return;
     tab.selectionTimer = setTimeout(() => {
       tab.selectionTimer = null;
+      const document = tab.document;
       void this.inWorld(tab, selectionScript).then((value) => {
+        // A navigation overtook the read: it is the old document's text.
+        if (tab.document !== document) return;
         if (typeof value !== "string" || value === tab.selection) return;
         tab.selection = value;
         this.broadcast(tab, { t: "selection", text: value });
@@ -815,8 +822,9 @@ export class BrowserHub {
   }
 
   private async meta(tab: Tab): Promise<void> {
+    const document = tab.document;
     const value = await this.inWorld(tab, metaScript);
-    if (typeof value !== "string") return;
+    if (tab.document !== document || typeof value !== "string") return;
     let read: { title?: unknown; icon?: unknown };
     try {
       read = JSON.parse(value) as { title?: unknown; icon?: unknown };
@@ -993,6 +1001,7 @@ export class BrowserHub {
         if (frame?.parentId !== undefined) return;
         if (typeof frame?.id === "string") tab.mainFrameId = frame.id;
         tab.world = null;
+        tab.document += 1;
         // A new document has no selection: a copy must not take the old one.
         if (tab.selection !== "") {
           tab.selection = "";
