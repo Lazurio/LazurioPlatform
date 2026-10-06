@@ -301,14 +301,20 @@
 	--lz-space-128: 128px; /* = viditelný krok mřížky, dva moduly */
 
 	/* --- Tvar a struktura -------------------------------------------- */
-	/* REVIZE 4. 8. 2026: přibylo `xs` pro formulářová pole. Plochy jsou
-	 * hranaté, takže i ovládací prvky sjely dolů — a pole ještě o stupeň
-	 * níž než tlačítko. Ten rozdíl je jediný, který je v systému žádoucí:
-	 * říká, co se mačká, a co se vyplňuje. `md` už se nepoužívá. */
+	/* Tři poloměry, každý pro jeden druh věci (owner design systému
+	 * 4. 10. 2026): `xs` vstupní pole a štítek dat, `sm` ovládací prvky
+	 * a značky, `md` volně stojící objekty. Výřezy mřížky a pásy stránky
+	 * jsou hranaté. Rozdíl `xs` a `sm` dál říká, co se vyplňuje a co se
+	 * mačká. (Revize 4. 8. 2026 přidala `xs` a `md` dočasně odložila.) */
 	--lz-radius-xs: 3px;
 	--lz-radius-sm: 6px;
 	--lz-radius-md: 10px;
 	--lz-radius-pill: 999px;
+	/* Jediný vržený stín systému (owner design systému 4. 10. 2026). Patří
+	 * jen vrstvě, která pluje nad stránkou: nabídce, popisku, dialogu,
+	 * oznámení, plovoucímu oknu. Vždy spolu s vlasovou linkou `line`.
+	 * Objekt v toku stránky (dlaždice, karta, panel) stín nemá nikdy. */
+	--lz-shadow-float: 0 8px 24px rgba(9, 9, 9, 0.1);
 	/* Mřížka jako nosná struktura, ne dekorace. Konstrukční modul je 64 px,
 	 * ale kreslí se každá druhá linka: viditelný krok je 128 px. Obě hodnoty
 	 * jsou veřejné, aby komponenty nemusely vztah znovu odhadovat. */

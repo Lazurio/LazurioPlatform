@@ -7,20 +7,26 @@ source with new hashes in this file, reviewed like code (decision F36).
 ## Lazurio design system
 
 Source: `HumanAndMachine-ai/design-system-lazurio` at commit
-`5bbc1f78fc5a10f0dcf8936bf54d27da2e2eeafb` (2026-10-04, "Prvky: selection is a
-quiet surface; picker and Organization head (variant A) (#54)"). That commit
-changed only `components.css` and the prvky documentation: the bytes of every
-file below are the same as at the earlier pin
-`4439aef645b7432181216aab3799d7f7819d6592` and at
-`089d6cfbb5386a00e4a9f296f9f10b2901668f11`, the commit the first shell
-wireframe vendored. The shell draws its own components from the tokens and
-mirrors #54's rules (`lz-picker`, `lz-menu__head`, the quiet selected
-surface) in `src/shell/styles.ts`. Matěj allowed publishing these brand assets
-in this public repository (2026-10-03).
+`fdcc9b40ba29e334cf0d5187dd73ea99d7ff63fd` (2026-10-06, "Prvky: compact menu
+item; the picker carries no Organization head; a check without the word
+(#62)"). Since the previous pin `5bbc1f78fc5a10f0dcf8936bf54d27da2e2eeafb`
+(#54) only `tokens.css` of the files below changed, in #58 and #59 (Anička,
+2026-10-04): the comment on the radii now names three radii, one per kind of
+thing (`radius-xs` fields, `radius-sm` controls and marks, `radius-md`
+free-standing objects), and the token `--lz-shadow-float` (0 8px 24px, ink at
+10 %) is new, the one shadow of a layer floating above the page. The logo
+symbol, the stones and Iconoir's licence are byte-for-byte as before. The
+shell draws its own components from the tokens and mirrors the design
+system's rules in `src/shell/styles.ts`: #54's selection (`lz-picker`, the
+quiet selected surface), #57's rail (B3, `lz-rail`), #58's three radii, #59's
+floating layer and paper frame, and #62's compact menu item
+(`lz-menu-item--compact`, the check with its word for screen readers only,
+`lz-menu__head` only in the jump to any Environment). Matěj allowed publishing
+these brand assets in this public repository (2026-10-03).
 
 | File | Source path | SHA-256 |
 | --- | --- | --- |
-| `lazurio/tokens.css` | `tokens.css` | `0e12009f1991993727385308e4cc8cbeb8a0afee28287475d778c96aff09e4ed` |
+| `lazurio/tokens.css` | `tokens.css` | `f5ebb3382c24432f800b86144e549bfc0f064423531d42308f3dd750bd3bb191` |
 | `lazurio/symbol-color.svg` | `content/brand/logo/symbol-color.svg` | `657d021e5fab5f28df6b10488d68f567149783ec51d44f44ba18b129ce9c1941` |
 
 Only the tokens, the logo symbol and the module stones (below) are vendored:
