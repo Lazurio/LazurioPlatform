@@ -32,6 +32,7 @@ import {
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
+import { runChild } from "./fixtures/run-child";
 
 const os = executionOs(process.platform);
 
@@ -322,7 +323,7 @@ test("a personal VM names reachable peers neutrally from the record and requires
 });
 
 // The SSH example is runnable shell, with the host-key pin always present.
-test("the SSH example is a runnable command with a mandatory host-key pin", () => {
+test("the SSH example is a runnable command with a mandatory host-key pin", async () => {
   for (const locale of ["cs", "en"] as const) {
     const machine = renderManual({
       preset: "hosted-personal",
@@ -339,7 +340,7 @@ test("the SSH example is a runnable command with a mandatory host-key pin", () =
     expect(script).toContain(
       'ssh -o HostKeyAlias="$PEER" -o UserKnownHostsFile="$HOME/.ssh/known_hosts_lazurio" -o StrictHostKeyChecking=yes "$TARGET"',
     );
-    const parsed = Bun.spawnSync(["sh", "-n", "-c", script]);
+    const parsed = await runChild(["sh", "-n", "-c", script]);
     expect(parsed.exitCode).toBe(0);
   }
 });

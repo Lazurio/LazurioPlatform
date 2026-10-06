@@ -22,6 +22,7 @@ import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
+import { runChild } from "./fixtures/run-child";
 
 for (const [parentRelative, reference] of [
   ["parent", ".."],
@@ -71,8 +72,8 @@ for (const [parentRelative, reference] of [
             dependencies: { parent: `file:${reference}` },
           }),
         );
-        const installed = Bun.spawnSync({
-          cmd: [
+        const installed = await runChild(
+          [
             process.execPath,
             "--no-env-file",
             "install",
@@ -80,13 +81,13 @@ for (const [parentRelative, reference] of [
             "--backend",
             "copyfile",
           ],
-          cwd: root,
-          env: { HOME: home, PATH: "/usr/bin:/bin" },
-          stdout: "pipe",
-          stderr: "pipe",
-          timeout: 10_000,
-        });
-        expect(installed.exitCode, installed.stderr.toString()).toBe(0);
+          {
+            cwd: root,
+            env: { HOME: home, PATH: "/usr/bin:/bin" },
+            timeout: 10_000,
+          },
+        );
+        expect(installed.exitCode, installed.stderr).toBe(0);
         expect(
           await readFile(
             join(root, "node_modules/child/node_modules/parent/index.js"),
@@ -162,8 +163,8 @@ for (const [dependencyField, reference] of [
           join(root, "second/index.js"),
           "export const value = 1;",
         );
-        const installed = Bun.spawnSync({
-          cmd: [
+        const installed = await runChild(
+          [
             process.execPath,
             "--no-env-file",
             "install",
@@ -171,12 +172,9 @@ for (const [dependencyField, reference] of [
             "--backend",
             "copyfile",
           ],
-          cwd: root,
-          env: { HOME: root, PATH: "/usr/bin:/bin" },
-          stdout: "pipe",
-          stderr: "pipe",
-        });
-        expect(installed.exitCode, installed.stderr.toString()).toBe(0);
+          { cwd: root, env: { HOME: root, PATH: "/usr/bin:/bin" } },
+        );
+        expect(installed.exitCode, installed.stderr).toBe(0);
         expect(
           await readFile(
             join(root, "node_modules/first/node_modules/second/index.js"),

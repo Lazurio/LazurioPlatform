@@ -32,6 +32,7 @@ import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
+import { runChild } from "./fixtures/run-child";
 
 // Content installation (decision F9, addendum of 2026-10-04): the root first
 // into a temporary sibling, verified and published with a no-replace rename;
@@ -905,7 +906,7 @@ posixTest(
 // A checkout of `fullName` in `directory`, cloned outside the install the way
 // a person or an earlier tool would have left it (origin on github.com).
 async function checkoutOf(fullName: string, directory: string) {
-  const clone = Bun.spawnSync(
+  const clone = await runChild(
     ["git", "clone", "--quiet", `git@github.com:${fullName}.git`, directory],
     {
       env: {
@@ -915,8 +916,7 @@ async function checkoutOf(fullName: string, directory: string) {
       },
     },
   );
-  if (clone.exitCode !== 0)
-    throw new Error(`clone failed: ${clone.stderr.toString()}`);
+  if (clone.exitCode !== 0) throw new Error(`clone failed: ${clone.stderr}`);
 }
 
 posixTest(

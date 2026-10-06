@@ -19,6 +19,7 @@ import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { resolveInstallBase } from "../src/update/base";
 import { identityDefines, nativeTarget } from "../src/update/identity";
+import { runChild } from "./fixtures/run-child";
 
 // The REAL executable, compiled the way a release is (`identityDefines`), goes
 // through install -> check -> update against the signed loopback origin, runs
@@ -49,23 +50,20 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     await writeFile(trustedRoot, sigstore.trustedRoot);
     const compile = async (version: string) => {
       const outfile = join(home, `lazurio-${version}`);
-      const build = Bun.spawnSync(
-        [
-          process.execPath,
-          "build",
-          new URL("../src/cli.ts", import.meta.url).pathname,
-          "--compile",
-          "--no-compile-autoload-dotenv",
-          "--no-compile-autoload-bunfig",
-          ...identityDefines(
-            { version, commit, target },
-            { baseUrl: origin.baseUrl, trustedRoot },
-          ),
-          "--outfile",
-          outfile,
-        ],
-        { stdout: "pipe", stderr: "pipe" },
-      );
+      const build = await runChild([
+        process.execPath,
+        "build",
+        new URL("../src/cli.ts", import.meta.url).pathname,
+        "--compile",
+        "--no-compile-autoload-dotenv",
+        "--no-compile-autoload-bunfig",
+        ...identityDefines(
+          { version, commit, target },
+          { baseUrl: origin.baseUrl, trustedRoot },
+        ),
+        "--outfile",
+        outfile,
+      ]);
       expect(build.exitCode).toBe(0);
       return outfile;
     };
