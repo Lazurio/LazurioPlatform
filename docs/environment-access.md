@@ -29,6 +29,18 @@ not claim per-person isolation or exclusive human attribution for that
 identity. Named human responsibility and instructions for publication
 remain a process obligation inside this trusted shared runtime.
 
+**Environment holding several Organizations.** When an individual work
+Environment holds repositories, data or sign-ins of several Organizations,
+its assignee may share it fully only with a person who is an active member
+of each of them (Matěj's decision of 2026-10-06). Sharing checks the
+Organizations connected to the Environment; that a personal sign-in such as
+GitHub can reach further Organizations is explained in the sharing text and
+is the sharer's responsibility. Otherwise only selected applications or a
+Team Environment remain. The target is a GitHub sign-in inside a work
+Environment that reaches only that Environment's Organizations, through an
+OAuth sign-in without personal access tokens; its mechanism is still to be
+qualified.
+
 Full sharing includes existing A-to-B capabilities. Do not require a new
 direct per-person grant to B merely to share A, or disconnect its accounts
 first. The UI/map discloses effective reach; creating a new link still
