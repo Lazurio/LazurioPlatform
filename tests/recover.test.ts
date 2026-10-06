@@ -21,6 +21,7 @@ import { performInstall, renderLaunchpadUnit } from "../src/update/install";
 import { layout, versionExecutable } from "../src/update/layout";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
 import { launchpadUnit, updateUnit } from "../src/update/service-control";
+import { runChild } from "./fixtures/run-child";
 import { commitOf, executable, target } from "./fixtures/update-world";
 
 // `lazurio recover`: every check against a temporary install base, HOME and
@@ -767,11 +768,11 @@ test("canaries in every source never reach the issue body, which passes the gate
   ).toBe(true);
   // The shell text is what a POSIX shell reads: the title survives quoting
   // and the here-document delivers the body unchanged.
-  const shell = Bun.spawnSync(
+  const shell = await runChild(
     ["/bin/sh", "-c", issue.shell.replace(/^gh issue create .*? <</, "cat <<")],
-    { env: {}, stdout: "pipe" },
+    { env: {} },
   );
-  expect(new TextDecoder().decode(shell.stdout)).toBe(issue.body);
+  expect(shell.stdout).toBe(issue.body);
 });
 
 test("--json keeps the sanitized journal on this Machine; the issue never carries it", async () => {

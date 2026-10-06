@@ -9,6 +9,7 @@ import {
   proofInputViolations,
   recognizableCredential,
 } from "../scripts/check-public";
+import { runChild } from "./fixtures/run-child";
 
 test("publication guard rejects secret paths and generated artifacts", () => {
   for (const path of [
@@ -87,34 +88,29 @@ test("real Git index secret cannot be hidden by a safe unstaged replacement", as
   );
   const synthetic = `ghp_${"x".repeat(36)}`;
   try {
-    for (const args of [["init", "--quiet"]])
-      expect(Bun.spawnSync(["git", ...args], { cwd: fixture }).exitCode).toBe(
-        0,
-      );
+    expect(
+      (await runChild(["git", "init", "--quiet"], { cwd: fixture })).exitCode,
+    ).toBe(0);
     await writeFile(join(fixture, "example.txt"), synthetic);
     expect(
-      Bun.spawnSync(["git", "add", "example.txt"], { cwd: fixture }).exitCode,
+      (await runChild(["git", "add", "example.txt"], { cwd: fixture }))
+        .exitCode,
     ).toBe(0);
     await writeFile(join(fixture, "example.txt"), "safe unstaged replacement");
-    const rejected = Bun.spawnSync([process.execPath, script], {
+    const rejected = await runChild([process.execPath, script], {
       cwd: fixture,
-      stdout: "pipe",
-      stderr: "pipe",
     });
     expect(rejected.exitCode).toBe(1);
-    const output =
-      new TextDecoder().decode(rejected.stdout) +
-      new TextDecoder().decode(rejected.stderr);
+    const output = rejected.stdout + rejected.stderr;
     expect(output).toContain("Credential pattern in index: example.txt");
     expect(output).not.toContain(synthetic);
     expect(
-      Bun.spawnSync(["git", "add", "example.txt"], { cwd: fixture }).exitCode,
+      (await runChild(["git", "add", "example.txt"], { cwd: fixture }))
+        .exitCode,
     ).toBe(0);
     await writeFile(join(fixture, "example.txt"), "another safe unstaged edit");
-    const accepted = Bun.spawnSync([process.execPath, script], {
+    const accepted = await runChild([process.execPath, script], {
       cwd: fixture,
-      stdout: "pipe",
-      stderr: "pipe",
     });
     expect(accepted.exitCode).toBe(0);
   } finally {

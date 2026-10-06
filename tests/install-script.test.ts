@@ -22,6 +22,7 @@ import {
   updateTargets,
 } from "../src/update/identity";
 import { renderManifest, sha256Hex } from "../src/update/manifest";
+import { runChild } from "./fixtures/run-child";
 
 // install.sh with `curl` (and optionally `gh`) replaced on PATH: the origin is
 // a directory, nothing touches the network, HOME and TMPDIR are temporary
@@ -443,7 +444,7 @@ test.skipIf(!supported)(
     await writeFile(join(root, "downgrade"), "");
     // The shim is a faithful witness: asked WITHOUT `--proto-redir =https`
     // it follows the plaintext hop and hands out the forged manifest.
-    const lax = Bun.spawnSync(
+    const lax = await runChild(
       [
         join(root, "tools/curl"),
         "--location",
@@ -571,23 +572,20 @@ test.skipIf(!supported)(
       await writeFile(trustedRoot, signer.trustedRoot);
       const commit = "0123456789abcdef0123456789abcdef01234567";
       const outfile = join(build, "lazurio");
-      const compiled = Bun.spawnSync(
-        [
-          process.execPath,
-          "build",
-          new URL("../src/cli.ts", import.meta.url).pathname,
-          "--compile",
-          "--no-compile-autoload-dotenv",
-          "--no-compile-autoload-bunfig",
-          ...identityDefines(
-            { version: "1.1.0", commit, target },
-            { baseUrl: "http://127.0.0.1:9", trustedRoot },
-          ),
-          "--outfile",
-          outfile,
-        ],
-        { stdout: "pipe", stderr: "pipe" },
-      );
+      const compiled = await runChild([
+        process.execPath,
+        "build",
+        new URL("../src/cli.ts", import.meta.url).pathname,
+        "--compile",
+        "--no-compile-autoload-dotenv",
+        "--no-compile-autoload-bunfig",
+        ...identityDefines(
+          { version: "1.1.0", commit, target },
+          { baseUrl: "http://127.0.0.1:9", trustedRoot },
+        ),
+        "--outfile",
+        outfile,
+      ]);
       expect(compiled.exitCode).toBe(0);
       const bytes = new Uint8Array(await readFile(outfile));
       // A verifiable release; ~/.local/bin/lazurio occupied by someone else

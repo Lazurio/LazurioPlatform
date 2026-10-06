@@ -26,6 +26,7 @@ import {
   fakeLoginTools,
   realSshKeygen,
 } from "./fixtures/fake-login-tools";
+import { runChild } from "./fixtures/run-child";
 
 const posix = process.platform !== "win32";
 // The gh sign-in links an SSH key, which needs ssh-keygen.
@@ -637,13 +638,13 @@ test.skipIf(!posix)(
 // ssh-keygen runs only on files under the temporary home; gh and ssh are
 // fakes on a PATH without system directories.
 
-function makeKey(
+async function makeKey(
   directory: string,
   name: string,
   options: Readonly<{ type?: string; passphrase?: string }> = {},
 ) {
   const path = join(directory, ".ssh", name);
-  const result = Bun.spawnSync(
+  const result = await runChild(
     [
       realSshKeygen as string,
       "-q",
@@ -657,7 +658,7 @@ function makeKey(
       "-f",
       path,
     ],
-    { env: { HOME: directory }, stdin: "ignore" },
+    { env: { HOME: directory } },
   );
   if (result.exitCode !== 0) throw new Error("ssh-keygen failed");
   return path;
@@ -758,15 +759,13 @@ test.skipIf(!keygen)(
         },
       });
       // The fingerprint is the one ssh-keygen prints.
-      const listed = Bun.spawnSync([
+      const listed = await runChild([
         realSshKeygen as string,
         "-l",
         "-f",
         `${key}.pub`,
       ]);
-      expect(listed.stdout.toString().split(" ")[1]).toBe(
-        state.ssh.key.fingerprint,
-      );
+      expect(listed.stdout.split(" ")[1]).toBe(state.ssh.key.fingerprint);
       expect((await stat(join(opened.directory, ".ssh"))).mode & 0o777).toBe(
         0o700,
       );
@@ -834,7 +833,7 @@ test.skipIf(!keygen)(
   "gh: an existing default key is used byte for byte; a key already on the account is not added twice",
   async () => {
     const opened = await sshHome();
-    const key = makeKey(opened.directory, "id_ed25519");
+    const key = await makeKey(opened.directory, "id_ed25519");
     const before = {
       private: await readFile(key),
       public: await readFile(`${key}.pub`),
@@ -889,7 +888,7 @@ test.skipIf(!keygen)(
   async () => {
     for (const name of ["id_ed25519", "id_rsa"]) {
       const opened = await sshHome();
-      const made = makeKey(opened.directory, name);
+      const made = await makeKey(opened.directory, name);
       const orphan = await readFile(`${made}.pub`);
       await rm(made);
       const sessions = createLoginSessions(opened.environment);
@@ -920,7 +919,7 @@ test.skipIf(!keygen)(
   "gh: a key in use by another account is reported and no second key is created",
   async () => {
     const opened = await sshHome();
-    const key = makeKey(opened.directory, "id_ed25519");
+    const key = await makeKey(opened.directory, "id_ed25519");
     const bytes = await readFile(key);
     await writeFile(
       join(opened.directory, "gh.foreign"),
@@ -958,10 +957,10 @@ test.skipIf(!keygen)(
   async () => {
     const opened = await sshHome();
     // A different host key for github.com, hashed as HashKnownHosts writes it.
-    const other = makeKey(opened.directory, "other", { type: "ecdsa" });
+    const other = await makeKey(opened.directory, "other", { type: "ecdsa" });
     const knownHosts = join(opened.directory, ".ssh", "known_hosts");
     await writeFile(knownHosts, `github.com ${await publicKey(other)}\n`);
-    Bun.spawnSync([realSshKeygen as string, "-H", "-f", knownHosts], {
+    await runChild([realSshKeygen as string, "-H", "-f", knownHosts], {
       env: { HOME: opened.directory },
     });
     await rm(`${knownHosts}.old`, { force: true });
@@ -991,7 +990,7 @@ test.skipIf(!keygen)(
       file,
       "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl",
     );
-    Bun.spawnSync([realSshKeygen as string, "-H", "-f", file], {
+    await runChild([realSshKeygen as string, "-H", "-f", file], {
       env: { HOME: second.directory },
     });
     await rm(`${file}.old`, { force: true });
@@ -1113,12 +1112,12 @@ test.skipIf(!keygen)(
         // ssh offers id_rsa before id_ed25519; that key belongs to another
         // account.
         prepare: async (directory) => {
-          const rsa = makeKey(directory, "id_rsa", { type: "rsa" });
+          const rsa = await makeKey(directory, "id_rsa", { type: "rsa" });
           await writeFile(
             join(directory, "gh.foreign"),
             `${await publicKey(rsa)}\n`,
           );
-          makeKey(directory, "id_ed25519");
+          await makeKey(directory, "id_ed25519");
         },
         expected: {
           state: "not-linked",
@@ -1128,7 +1127,9 @@ test.skipIf(!keygen)(
       },
       {
         prepare: async (directory) => {
-          makeKey(directory, "id_ed25519", { passphrase: "not-for-agents" });
+          await makeKey(directory, "id_ed25519", {
+            passphrase: "not-for-agents",
+          });
         },
         expected: { state: "not-linked", reason: "key-passphrase" },
       },
@@ -1197,8 +1198,8 @@ test.skipIf(!keygen)(
   "sign-out removes only this Machine's key that Lazurio registered; the key files stay",
   async () => {
     const opened = await sshHome();
-    const key = makeKey(opened.directory, "id_ed25519");
-    const other = makeKey(opened.directory, "elsewhere");
+    const key = await makeKey(opened.directory, "id_ed25519");
+    const other = await makeKey(opened.directory, "elsewhere");
     await writeFile(join(opened.directory, "gh.state"), "octocat\n");
     await writeFile(
       join(opened.directory, "gh.scopes"),

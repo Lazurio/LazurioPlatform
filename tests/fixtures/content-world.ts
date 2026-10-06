@@ -28,6 +28,7 @@ import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./owned-files";
+import { runChild } from "./run-child";
 
 // The world of content installation without a network (synthetic names
 // only): bare repositories under `<world>/remotes/<Owner>/<Repo>.git` reached
@@ -314,7 +315,7 @@ export function stubGitHub(
       // The bare remote by the repository's own spelling (Linux is
       // case-sensitive).
       const spelled = names.get(key) ?? `${owner}/${name}`;
-      const shown = Bun.spawnSync(
+      const shown = await runChild(
         [
           "git",
           "--git-dir",
@@ -326,7 +327,7 @@ export function stubGitHub(
       );
       if (shown.exitCode !== 0) return { kind: "missing" };
       try {
-        return { kind: "file", value: JSON.parse(shown.stdout.toString()) };
+        return { kind: "file", value: JSON.parse(shown.stdout) };
       } catch {
         return { kind: "file", value: null };
       }

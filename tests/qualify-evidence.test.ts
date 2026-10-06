@@ -13,6 +13,7 @@ import {
   renderManifest,
   sha256Hex,
 } from "../src/update/manifest";
+import { runChild } from "./fixtures/run-child";
 
 // Acceptance matrix from docs/release-cycle.md. Keep this independent of the
 // gate implementation: dropping a required journey or target must break a test.
@@ -155,9 +156,9 @@ test("the CLI: run records the command's outcome and exits with it; check reads 
   await writeFile(join(directory, "manifest.json"), manifestBytes);
   await writeFile(join(directory, "lazurio-linux-x64"), bytes["linux-x64"]);
   const out = join(directory, "evidence.jsonl");
-  const run = (journey: string, command: string[]) =>
-    Bun.spawnSync(
-      [
+  const run = async (journey: string, command: string[]) =>
+    (
+      await runChild([
         process.execPath,
         "run",
         script,
@@ -176,14 +177,13 @@ test("the CLI: run records the command's outcome and exits with it; check reads 
         out,
         "--",
         ...command,
-      ],
-      { stdout: "pipe", stderr: "pipe" },
+      ])
     ).exitCode;
-  expect(run("J1", ["true"])).toBe(0);
-  expect(run("J2", ["false"])).toBe(1);
+  expect(await run("J1", ["true"])).toBe(0);
+  expect(await run("J2", ["false"])).toBe(1);
   // A journey names why it failed through the file the wrapper gives it.
   expect(
-    run("J3", [
+    await run("J3", [
       "sh",
       "-c",
       'echo launchpad-not-up > "$LAZURIO_QUALIFY_DETAIL"; exit 1',
@@ -191,7 +191,7 @@ test("the CLI: run records the command's outcome and exits with it; check reads 
   ).toBe(1);
   // Anything outside the enumeration is recorded as a plain exit.
   expect(
-    run("J4", [
+    await run("J4", [
       "sh",
       "-c",
       'echo "a free text" > "$LAZURIO_QUALIFY_DETAIL"; exit 1',
@@ -211,38 +211,30 @@ test("the CLI: run records the command's outcome and exits with it; check reads 
     ["J3", "failed", sha256Hex(bytes["linux-x64"]), "launchpad-not-up"],
     ["J4", "failed", sha256Hex(bytes["linux-x64"]), "exit"],
   ]);
-  const check = Bun.spawnSync(
-    [
-      process.execPath,
-      "run",
-      script,
-      "check",
-      "--manifest",
-      join(directory, "manifest.json"),
-      out,
-    ],
-    { stdout: "pipe", stderr: "pipe" },
-  );
+  const check = await runChild([
+    process.execPath,
+    "run",
+    script,
+    "check",
+    "--manifest",
+    join(directory, "manifest.json"),
+    out,
+  ]);
   expect(check.exitCode).toBe(1);
-  expect(check.stderr.toString()).toContain("linux-x64 J2: failed (exit)");
-  expect(check.stderr.toString()).toContain(
-    "linux-x64 J3: failed (launchpad-not-up)",
-  );
+  expect(check.stderr).toContain("linux-x64 J2: failed (exit)");
+  expect(check.stderr).toContain("linux-x64 J3: failed (launchpad-not-up)");
   const full = join(directory, "full.jsonl");
   await writeFile(full, jsonl(everyLine()));
-  const passed = Bun.spawnSync(
-    [
-      process.execPath,
-      "run",
-      script,
-      "check",
-      "--manifest",
-      join(directory, "manifest.json"),
-      full,
-    ],
-    { stdout: "pipe", stderr: "pipe" },
-  );
-  expect([passed.exitCode, passed.stdout.toString().trim()]).toEqual([
+  const passed = await runChild([
+    process.execPath,
+    "run",
+    script,
+    "check",
+    "--manifest",
+    join(directory, "manifest.json"),
+    full,
+  ]);
+  expect([passed.exitCode, passed.stdout.trim()]).toEqual([
     0,
     "v1.2.0-rc.1 is qualified: J1 J2 J3 J4 J5 J6 ok on linux-x64 and darwin-arm64.",
   ]);
