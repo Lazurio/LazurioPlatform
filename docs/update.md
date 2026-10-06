@@ -586,19 +586,25 @@ Codex unit:
 - `lazurio-browser.service`: the newest Chrome for Testing agent-browser installed
   under `~/.agent-browser/browsers/` (the path Machines' AppArmor profile admits),
   `exec`'d by `/bin/sh` so Chrome is the unit's main process, headed on `DISPLAY=:1`,
-  profile `~/.local/share/lazurio-browser/profile`, DevTools on loopback port 9222;
+  profile `~/.local/share/lazurio-browser/profile`, DevTools on loopback port 9222,
+  `--deny-permission-prompts` and the Lazurio extension
+  (`--load-extension=~/.local/share/lazurio-browser/extension`, [F39](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab)
+  point 7) with `LAZURIO_BROWSER_EXTENSION=<its digest>` in the unit's environment;
   `BindsTo=`/`After=` the display, `Restart=always`, and `RestartPreventExitStatus=78`
   for "no Chrome to run".
-- `lazurio-browser-view.service`: `agent-browser dashboard start --port <entry.browser
-  .listen_port> --allowed-origins <entry.browser.external_origin>`, oneshot with
-  `RemainAfterExit=yes`, `KillMode=process`, `ExecStop=` `dashboard stop` and
-  `AGENT_BROWSER_CDP=9222`, so what the dashboard runs uses the Environment browser.
+- `lazurio-browser-view.service`: the people's view (F39), this base's `<selector>
+  browser serve --port <entry.browser.listen_port> --origin
+  <entry.browser.external_origin>`, a long-running service with `Restart=always`.
 
 The screen's and the browser's texts name no base, Folder or address; the view's names
-the entry's port and origin. Each is written when its text differs (then one
-`daemon-reload`), all three are enabled and started; `install` and `update` never stop
-or restart the screen or the browser (that would close every agent's window), and
-restart the view only when its own text changed. The result carries
+this base's selector and the entry's port and origin. `install` and `update` first
+write the extension's files that differ next to the profile, never into it. Each unit
+is written when its text differs (then one `daemon-reload`), and all three are enabled
+and started. `install` and `update` never stop or restart the screen. They restart the
+browser only when its own text changed: a new flag or a new extension, whose digest is
+in the text. That restart closes every window; agents open theirs again, and the
+profile keeps its sign-ins (F39 point 10). They restart the view when its own text
+changed. The result carries
 `environmentBrowser`: `{"state":"enabled"}`, `{"state":"skipped-not-hosted"}`,
 `{"state":"skipped-not-declared"}` (no `entry.browser`; nothing is written or stopped),
 `{"state":"foreign-unit","unit","next"}` or `{"state":"failed","step","next"}`; never a

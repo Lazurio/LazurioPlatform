@@ -273,9 +273,6 @@ export async function startLaunchpad(
   // account's agent-browser and the dashboard on loopback. Trusted
   // composition, never HTTP input; tests supply stubs.
   browserViewSeams: BrowserViewSeams = Object.freeze({
-    run: runProcess,
-    fetch: (url: string, init: RequestInit) => fetch(url, init),
-    env: process.env,
     openWindow: (session: string) =>
       ensureThreadWindow(session, undefined, cdpSeams(process.env, runProcess)),
   }),
@@ -550,12 +547,12 @@ export async function startLaunchpad(
         url.pathname === browserViewDocumentPath ||
         url.pathname === browserViewPath
       ) {
-        // The Environment browser's view (decision F38), behind the same
-        // admission as every read: the dashboard's address with the window
-        // of one agent-browser session selected and the dashboard's access
-        // token in the fragment. The JSON answer is for the panels; the
-        // hand-over redirects a link's browser there. Only `session`, and
-        // only a name agent-browser accepts.
+        // The Environment browser's people's view (decisions F38 and F39),
+        // behind the same admission as every read: the address of one
+        // agent-browser session's tab, opened when it has none, or of a new
+        // remote tab without a session. The JSON answer is for the panels;
+        // the hand-over redirects a link's browser there. Only `session`,
+        // and only a name agent-browser accepts.
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);

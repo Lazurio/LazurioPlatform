@@ -357,7 +357,8 @@ Launchpad shows nothing for it.
 
 `browser` is optional and present only on a Machine whose gateway roster routes the
 Environment browser's view (root decision 0191, [F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
-the view's origin and the loopback port its dashboard listens on. It is also the
+the view's origin and the loopback port the people's view service listens on (F39).
+It is also the
 signal the installer converges the browser's units on. Absent, the Environment has no
 Environment browser.
 

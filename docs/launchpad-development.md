@@ -1769,9 +1769,10 @@ builds no viewer of its own.
   new tab" and Close; Escape inside it closes it. The first-run tour steps aside while
   it is open.
 - **What it shows** (`browser-panel-view.ts`, pure; `browser-panel.ts` draws it).
-  Opening and Reload ask `GET /.lazurio/browser.json` on this origin without a session
-  (every window): `credentials: "same-origin"`, no cache, no redirect followed, given
-  up after 20 s. The view is embedded only from `{available: true, view}` whose `view`
+  Opening and Reload ask `GET /.lazurio/browser.json` on this origin without a session,
+  which answers the people's view of a new remote tab (F39; the view of every window is
+  retired, root decision 0191 point 18): `credentials: "same-origin"`, no cache, no
+  redirect followed, given up after 20 s. The view is embedded only from `{available: true, view}` whose `view`
   is an https URL on exactly the recorded `browserOrigin`, without credentials, as
   written and never on the page's own origin, in a frame with `allow="clipboard-read;
   clipboard-write; fullscreen"`, `referrerpolicy="no-referrer"` and the sandbox of T3
@@ -1782,9 +1783,7 @@ builds no viewer of its own.
   a timeout, another shape) says to open it in a new tab, where the gateway's sign-in
   can show, which a frame cannot.
 - **"Open in a new tab"** leads to the view once it is known and to the hand-over
-  `/.lazurio/browser` otherwise. The view's address carries the dashboard's token in
-  its fragment: it lives only in the frame and that link while the panel is open, and
-  never in `localStorage`, `sessionStorage` or the Folder.
+  `/.lazurio/browser` otherwise. The view's address carries no token (F39 point 8).
 - **Verified** by `tests/browser-panel-view.test.ts` (where it is offered, from the
   projected handovers with and without the route; the view accepted from the server's
   own resolution and refused in every other shape; the read's request and its failures;

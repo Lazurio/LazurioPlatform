@@ -23,16 +23,16 @@ import {
 import { bindings } from "./fixtures/machine-bindings";
 
 // The Launchpad's right panel (decision F38's addendum of 2026-10-05, root
-// decision 0191 point 8a, #207): offered only where the recorded entry routes
-// the Environment browser's view, never on a workstation or in Recovery mode;
-// it asks this origin for the view of every window and embeds it only on
-// exactly the recorded origin; the address, with its token, is never kept
-// beyond the open panel. The DOM (browser-panel.ts) only draws this.
+// decision 0191 points 8a and 18, #207): offered only where the recorded entry
+// routes the Environment browser's view, never on a workstation or in
+// Recovery mode; it asks this origin for the view without a session, which is
+// the people's view of a new remote tab (decision F39), and embeds it only on
+// exactly the recorded origin. The DOM (browser-panel.ts) only draws this.
 
 const origin = "https://browser.workspace.example.lazurio.io";
 const page = "https://launchpad.workspace.example.lazurio.io";
-const token = "0123456789abcdef".repeat(4);
-const view = browserViewUrl(origin, token, null);
+const target = "0123456789ABCDEF".repeat(2);
+const view = browserViewUrl(origin, null);
 
 // The page's view of the recorded entry, as the server projects it and the
 // page parses `GET /api/entry`.
@@ -73,12 +73,12 @@ test("offered only where the recorded entry routes the view: never on a workstat
 });
 
 test("the view only as an https URL on exactly the recorded origin, as written: the server's own answers pass, nothing else does", async () => {
-  // What the server answers for the panel (no session: every window) and for
-  // a thread's link (a session's window): both are the view.
+  // What the server answers for the panel (no session: a new tab) and for a
+  // thread's link (a session's tab): both are the view.
   expect(browserViewAddress({ available: true, view }, origin, page)).toBe(
     view,
   );
-  const windowView = browserViewUrl(origin, token, 42791);
+  const windowView = browserViewUrl(origin, target);
   expect(
     browserViewAddress(
       { available: true, view: windowView, session: "t3-a" },
@@ -86,19 +86,10 @@ test("the view only as an https URL on exactly the recorded origin, as written: 
       page,
     ),
   ).toBe(windowView);
-  // The server's resolution itself, from the fixture's recorded entry and a
-  // stand-in agent-browser that answers its dashboard's URL.
+  // The server's resolution itself, from the fixture's recorded entry.
   const entry = browserEntryOf(bindings.organizationBrowser.entry);
   const answer = await resolveBrowserView(entry, null, {
-    run: async () => ({
-      exitCode: 0,
-      stdout: JSON.stringify({
-        success: true,
-        data: { access_urls: [`${origin}/#dashboard-access-token=${token}`] },
-      }),
-    }),
-    fetch: async () => Response.json([]),
-    env: { HOME: "/home/operator" },
+    openWindow: async () => ({ targetId: target }),
   });
   expect(browserViewAddress(answer, origin, page)).toBe(view);
 
@@ -115,11 +106,8 @@ test("the view only as an https URL on exactly the recorded origin, as written: 
     { available: true, view: "javascript:alert(1)" },
     // Not https, another origin, a sibling app, a port, credentials.
     { available: true, view: view.replace("https:", "http:") },
-    {
-      available: true,
-      view: `https://elsewhere.example/#dashboard-access-token=${token}`,
-    },
-    { available: true, view: `${page}/#dashboard-access-token=${token}` },
+    { available: true, view: "https://elsewhere.example/" },
+    { available: true, view: `${page}/` },
     { available: true, view: view.replace(origin, `${origin}:8443`) },
     { available: true, view: view.replace("https://", "https://user:secret@") },
     // Not as written: the browser would read another address.
@@ -158,7 +146,7 @@ test("the read: this origin's answer for every window, with the session cookie o
   });
   expect(ok.calls).toHaveLength(1);
   const [call] = ok.calls;
-  // No session: the view of every window. No token or other header: the
+  // No session: a new remote tab. No token or other header: the
   // gateway's session cookie is the credential, sent by the browser itself.
   expect(call?.input).toBe("/.lazurio/browser.json");
   expect(call?.init).toMatchObject({
@@ -188,7 +176,7 @@ test("the read: this origin's answer for every window, with the session cookie o
     () =>
       Response.json({
         available: true,
-        view: `https://elsewhere.example/#dashboard-access-token=${token}`,
+        view: "https://elsewhere.example/",
       }),
     () => {
       throw new TypeError("Failed to fetch: redirect mode is set to error");

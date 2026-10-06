@@ -210,13 +210,16 @@ Lazurio MausBot is entered the same way when the entry records it
 ([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin` is in the
 public parts, the loopback port is not, and the code rides only in the fragment of
 `<mausbotOrigin>/pair`.
-The Environment browser's view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway))
+The Environment browser's people's view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway),
+[F39](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab))
 follows the same pattern: `browserOrigin` is in the public parts, the loopback port is
-not; `GET /.lazurio/browser.json` and the hand-over `GET /.lazurio/browser` answer the
-view's address with the dashboard's access token only in the fragment, behind this
-admission and on the forks' origins too (the gateway forwards `/.lazurio/*` to the
-Launchpad). Asked for a session that has no window yet, they open that session's window
-first, so a T3 thread's panel shows the thread's own window (F38, addendum 2026-10-06).
+not. `GET /.lazurio/browser.json` and the hand-over `GET /.lazurio/browser` answer, behind
+this admission and on the forks' origins too (the gateway forwards `/.lazurio/*` to the
+Launchpad), the view's address of a session's tab, `<browserOrigin>/t/<target id>`, or
+`<browserOrigin>/` for a new tab without a session. No address carries a token: the
+view's only admission is the gateway's. Asked for a session that has no window yet,
+they open that session's window first, so a T3 thread's panel shows the thread's own tab
+(F38, addendum 2026-10-06).
 
 ### Files links (decision F35)
 
