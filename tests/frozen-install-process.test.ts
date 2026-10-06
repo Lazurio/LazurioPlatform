@@ -1,5 +1,8 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, spyOn, test } from "bun:test";
+import { existsSync } from "node:fs";
+import * as fsPromises from "node:fs/promises";
 import {
+  chmod,
   link,
   lstat,
   mkdir,
@@ -15,8 +18,8 @@ import { join, resolve } from "node:path";
 import { preflightBunPreparation } from "../src/modules/bun-preparation";
 import { cleanDerivedDependencies } from "../src/modules/clean-dependencies";
 import {
-  preflightDeclaredBunCheck,
   preflightDeclaredBunPreparation,
+  preflightDeclaredBunStart,
 } from "../src/modules/declared-bun-preparation";
 import {
   runFrozenInstallProcess,
@@ -25,6 +28,7 @@ import {
 import { inspectInstallAuthority } from "../src/modules/install-authority";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
 import { createSessionRunner } from "../src/modules/session-runner";
+import { checkoutRefusal } from "../src/providers/checkout-custody";
 
 const supported = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!supported);
@@ -152,9 +156,11 @@ posixTest(
       if (ready) await writeFile(join(f.directory, "module-data"), "ready");
       const check = await preflightBunPreparation(options);
       try {
-        expect(await check.run(new AbortController().signal)).toEqual({
-          kind: ready ? "prepared" : "preparation-failed",
-        });
+        expect(await check.run(new AbortController().signal)).toEqual(
+          ready
+            ? { kind: "prepared" }
+            : { kind: "preparation-failed", stage: "check" },
+        );
         expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(
           false,
         );
@@ -216,9 +222,11 @@ posixTest(
         },
       });
       try {
-        expect(await preparation.run(new AbortController().signal)).toEqual({
-          kind: fail ? "preparation-failed" : "prepared",
-        });
+        expect(await preparation.run(new AbortController().signal)).toEqual(
+          fail
+            ? { kind: "preparation-failed", stage: "check" }
+            : { kind: "prepared" },
+        );
         expect(verified).toBe(!fail);
         expect(await Bun.file(join(f.directory, "module-data")).text()).toBe(
           "prepared",
@@ -229,6 +237,184 @@ posixTest(
     }
   },
   15_000,
+);
+
+// Decision F34: the start-time step of a declared preparation. The frozen
+// install first (a no-op when node_modules matches the lockfile), then the
+// check; a check that passes is the end of the step, one that fails is
+// followed by the preparation script and the check again, in one run. Every
+// step appends its letter to `steps` (the install through the package's
+// postinstall hook), so their order is observable. A step that exits non-zero
+// is named; nothing after it runs.
+posixTest(
+  "start operation: install, then check; the preparation script only when the check fails; a failing step is named",
+  async () => {
+    const trace = "require('node:fs').appendFileSync('steps', 'i');";
+    const scenario = async (
+      name: string,
+      options: {
+        hook?: string;
+        prepare?: string;
+        installed?: boolean;
+        data?: boolean;
+      },
+    ) => {
+      const f = await fixture(name, options.hook ?? trace);
+      const pkg = await Bun.file(join(f.directory, "package.json")).json();
+      pkg.scripts["prepare:data"] =
+        `"${process.execPath}" --no-env-file prepare.ts`;
+      pkg.scripts["check:data"] =
+        `"${process.execPath}" --no-env-file check.ts`;
+      await writeFile(join(f.directory, "package.json"), JSON.stringify(pkg));
+      await writeFile(
+        join(f.directory, "prepare.ts"),
+        `require('node:fs').appendFileSync('steps', 'p'); ${options.prepare ?? "await Bun.write('module-data', 'ready');"}`,
+      );
+      // Ready: the installed dependency and the prepared data.
+      await writeFile(
+        join(f.directory, "check.ts"),
+        "import { appendFileSync, existsSync, readFileSync } from 'node:fs'; appendFileSync('steps', 'c'); if (!existsSync('node_modules/fixture-dependency/package.json') || !existsSync('module-data') || readFileSync('module-data', 'utf8') !== 'ready') process.exit(23);",
+      );
+      if (options.installed) {
+        // As the Platform installs: Bun's Linux hardlink backend would link
+        // the local dependency's files into node_modules (issue #93).
+        const install = Bun.spawn(
+          [
+            process.execPath,
+            "--no-env-file",
+            "install",
+            "--frozen-lockfile",
+            "--backend",
+            "copyfile",
+          ],
+          {
+            cwd: f.directory,
+            env: f.request.env,
+            stdout: "ignore",
+            stderr: "ignore",
+          },
+        );
+        expect(await install.exited).toBe(0);
+        await rm(join(f.directory, "steps"));
+      }
+      if (options.data)
+        await writeFile(join(f.directory, "module-data"), "ready");
+      // The installed package's file, to tell whether the install wrote it.
+      const installedFile = join(
+        f.directory,
+        "node_modules/fixture-dependency/package.json",
+      );
+      const identity = async () => {
+        try {
+          const { ino, mtimeMs } = await lstat(installedFile);
+          return `${ino}:${mtimeMs}`;
+        } catch {
+          return null;
+        }
+      };
+      const before = await identity();
+      const preparation = await preflightBunPreparation({
+        checkout: f.directory,
+        owner: f.directory,
+        executable: process.execPath,
+        platformExecutable: platform,
+        env: f.request.env,
+        timeoutMs: 10_000,
+        operation: "start",
+        modulePreparationScript: "prepare:data",
+        moduleCheckScript: "check:data",
+        verifyPrepared: async () => true,
+      });
+      try {
+        const result = await preparation.run(new AbortController().signal);
+        const read = async (file: string) =>
+          (await Bun.file(join(f.directory, file)).exists())
+            ? await readFile(join(f.directory, file), "utf8")
+            : null;
+        return {
+          result,
+          // null without an earlier install; true when the install left the
+          // installed package's file as it was.
+          untouched: before === null ? null : before === (await identity()),
+          steps: await read("steps"),
+          dependency: await Bun.file(
+            join(f.directory, "node_modules/fixture-dependency/package.json"),
+          ).exists(),
+          data: await read("module-data"),
+        };
+      } finally {
+        expect(await preparation.close()).toEqual({ kind: "closed" });
+      }
+    };
+    // Ready: one check and no preparation script, but the install is not
+    // free of effects (decision F34 point 1, accepted): Bun runs the
+    // package's own postinstall hook ('i') and copies a local `file:`
+    // dependency into node_modules again on every install, satisfied or not.
+    // A registry dependency that matches is left as it is (Bun reports "no
+    // changes"); that needs the network and is not exercised here.
+    expect(
+      await scenario("start-ready", { installed: true, data: true }),
+    ).toEqual({
+      result: { kind: "prepared" },
+      untouched: false,
+      steps: "ic",
+      dependency: true,
+      data: "ready",
+    });
+    // Prepared data, dependencies missing (a dependency added by an update):
+    // the install repairs it and the passing check starts without the script.
+    expect(await scenario("start-stale", { data: true })).toEqual({
+      result: { kind: "prepared" },
+      untouched: null,
+      steps: "ic",
+      dependency: true,
+      data: "ready",
+    });
+    // A fresh checkout: install, check, preparation, check.
+    expect(await scenario("start-fresh", {})).toEqual({
+      result: { kind: "prepared" },
+      untouched: null,
+      steps: "icpc",
+      dependency: true,
+      data: "ready",
+    });
+    // The install fails: no check, no preparation script.
+    expect(
+      await scenario("start-install-fails", {
+        hook: `${trace} process.exit(7);`,
+      }),
+    ).toEqual({
+      result: { kind: "preparation-failed", stage: "install" },
+      untouched: null,
+      steps: "i",
+      // The failing postinstall hook runs after the dependency is in place.
+      dependency: true,
+      data: null,
+    });
+    // The preparation script fails: no second check.
+    expect(
+      await scenario("start-prepare-fails", { prepare: "process.exit(9);" }),
+    ).toEqual({
+      result: { kind: "preparation-failed", stage: "prepare-script" },
+      untouched: null,
+      steps: "icp",
+      dependency: true,
+      data: null,
+    });
+    // Prepared, yet the check still fails.
+    expect(
+      await scenario("start-still-not-ready", {
+        prepare: "await Bun.write('module-data', 'partial');",
+      }),
+    ).toEqual({
+      result: { kind: "preparation-failed", stage: "check" },
+      untouched: null,
+      steps: "icpc",
+      dependency: true,
+      data: "partial",
+    });
+  },
+  60_000,
 );
 
 posixTest(
@@ -403,6 +589,73 @@ posixTest(
 );
 
 posixTest(
+  "clean dependency removal: a group- or world-writable tree the operator owns is the operator's own (decision F23)",
+  async () => {
+    const f = await fixture("clean-shared-bits");
+    const tree = join(f.directory, "node_modules");
+    await mkdir(join(tree, "package/lib"), { recursive: true });
+    await writeFile(join(tree, "package/package.json"), "{}");
+    await writeFile(join(tree, "package/lib/index.js"), "export {};");
+    // What an install under umask 002 (or 000) leaves behind.
+    await chmod(tree, 0o775);
+    await chmod(join(tree, "package"), 0o777);
+    await chmod(join(tree, "package/lib"), 0o775);
+    await chmod(join(tree, "package/package.json"), 0o664);
+    await chmod(join(tree, "package/lib/index.js"), 0o666);
+    expect(await cleanDerivedDependencies(f.request.authority)).toEqual({
+      kind: "dependencies-removed",
+    });
+    await expect(lstat(tree)).rejects.toThrow();
+    expect(await readFile(join(f.directory, "package.json"), "utf8")).toContain(
+      "synthetic-install-fixture",
+    );
+  },
+);
+
+posixTest(
+  "clean dependency removal refuses an entry another account owns, by its rule and module-relative path, and removes nothing",
+  async () => {
+    for (const [entry, reason] of [
+      ["node_modules/package/lib", "directory-owner"],
+      ["node_modules/package/package.json", "declaration-owner"],
+      ["node_modules", "directory-owner"],
+    ] as const) {
+      const f = await fixture(`clean-foreign-${reason}-${entry.length}`);
+      const tree = join(f.directory, "node_modules");
+      await mkdir(join(tree, "package/lib"), { recursive: true });
+      await writeFile(join(tree, "package/package.json"), "{}");
+      // A faked stat: only root can give an entry to another account.
+      const foreign = join(f.directory, entry);
+      const original = fsPromises.lstat;
+      const spy = spyOn(fsPromises, "lstat").mockImplementation((async (
+        path: Parameters<typeof original>[0],
+        options?: Parameters<typeof original>[1],
+      ) => {
+        const stat = await original(path, options as undefined);
+        if (path === foreign)
+          Object.defineProperty(stat, "uid", { value: stat.uid + 1 });
+        return stat;
+      }) as typeof original);
+      try {
+        const error = await cleanDerivedDependencies(f.request.authority).then(
+          () => null,
+          (thrown: unknown) => thrown,
+        );
+        expect(checkoutRefusal(error, f.directory)).toEqual({
+          reason,
+          file: entry,
+        });
+      } finally {
+        spy.mockRestore();
+      }
+      expect(await readFile(join(tree, "package/package.json"), "utf8")).toBe(
+        "{}",
+      );
+    }
+  },
+);
+
+posixTest(
   "clean preparation refuses a linked dependency root without touching its destination",
   async () => {
     const f = await fixture("clean-linked-root");
@@ -421,8 +674,12 @@ posixTest(
       verifyPrepared: async () => true,
     });
     try {
+      // A symlinked tree is not the checkout's own directory (decision F23),
+      // named by its rule and module-relative path.
       expect(await preparation.run(new AbortController().signal)).toEqual({
         kind: "preparation-failed",
+        reason: "directory-not-regular",
+        file: "node_modules",
       });
       expect(await readFile(join(external, "work"), "utf8")).toBe("preserve");
       expect(await Bun.file(join(f.directory, "marker")).exists()).toBe(false);
@@ -591,7 +848,7 @@ posixTest(
           verifyPrepared: verify,
         }),
       preflightStartCheck: async (plan) =>
-        preflightDeclaredBunCheck({
+        preflightDeclaredBunStart({
           moduleDirectory: f.directory,
           applicationPackage: plan.package,
           executable: process.execPath,
@@ -866,6 +1123,58 @@ posixTest(
     const result = await runFrozenInstallProcess(f.request);
     expect(result.kind).toBe("authority-changed");
     expect("cleanup" in result && result.cleanup).toBe("group-stopped");
+  },
+);
+
+// Issue #140: a frozen install over a node_modules that holds a hard link of
+// a local dependency's file replaces that link, which moves the ctime of the
+// dependency's own file; a poll that reads it at that moment sees it change
+// while it is read. Here every read of dependency/package.json changes its
+// ctime between the reader's two stats while the hook runs (and with
+// `persist` also after it), so the poll is certain to see it.
+posixTest(
+  "a dependency file whose metadata moves while the install runs is read again, not taken as changed; the verification after the install stays strict",
+  async () => {
+    for (const persist of [false, true]) {
+      const f = await fixture(
+        `unsettled-${persist}`,
+        "await Bun.write('started', 'yes'); await Bun.write('installing', 'yes'); await Bun.sleep(500); require('node:fs').unlinkSync('installing');",
+      );
+      const dependency = join(f.directory, "dependency/package.json");
+      const tearing = () =>
+        existsSync(join(f.directory, "installing")) ||
+        (persist && existsSync(join(f.directory, "started")));
+      let torn = 0;
+      const original = fsPromises.open;
+      const spy = spyOn(fsPromises, "open").mockImplementation((async (
+        ...args: Parameters<typeof original>
+      ) => {
+        const handle = await original(...args);
+        if (args[0] !== dependency || !tearing()) return handle;
+        const stat = handle.stat.bind(handle);
+        let calls = 0;
+        handle.stat = (async (...options: Parameters<typeof stat>) => {
+          const observed = await stat(...options);
+          if (calls++ > 0) {
+            torn += 1;
+            Object.defineProperty(observed, "ctimeMs", {
+              value: Number(observed.ctimeMs) + 1,
+            });
+          }
+          return observed;
+        }) as typeof stat;
+        return handle;
+      }) as typeof original);
+      try {
+        const result = await runFrozenInstallProcess(f.request);
+        expect(torn).toBeGreaterThan(0);
+        expect("cleanup" in result && result.cleanup).toBe("group-stopped");
+        if (persist) expect(result.kind).toBe("authority-changed");
+        else expect(result).toMatchObject({ kind: "process-exited", code: 0 });
+      } finally {
+        spy.mockRestore();
+      }
+    }
   },
 );
 

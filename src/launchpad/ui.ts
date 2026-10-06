@@ -1,13 +1,55 @@
+import { currentEnvironment, parseShell, type Shell } from "../shell/contract";
+import { defineShellElements, provideShell } from "../shell/elements";
+import { shellMessages } from "../shell/messages";
+import { environmentName } from "../shell/view";
+import type { ToolsOverview } from "../tools/overview";
+import { accountWriter, readAccount } from "./account";
+import { pluralKey } from "./apps-view";
+import { createBrowserPanel } from "./browser-panel";
+import { browserPanelOrigin } from "./browser-panel-view";
+import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
+import type { PublicEntry } from "./chat";
 import {
-  applicationMessage,
-  discoveredApplicationChoices,
-  localApplicationLink,
-} from "./application-view";
+  chatHref,
+  chatPairLink,
+  chatPromptHref,
+  mausbotPairLink,
+  type PromptLink,
+  parseEntryAnswer,
+  parsePromptHandoff,
+} from "./chat-view";
+import { type ContentTransport, createContentClient } from "./content-client";
+import { createContentPanel } from "./content-panel";
+import { prepareContext, preparePrompt } from "./content-view";
+import { createFilesPanel } from "./files-panel";
+import {
+  appsSetupLine,
+  composioFact,
+  githubFact,
+  readFragment,
+  type SetupAction,
+  type StartRequest,
+  signsInAsPerson,
+  startSection,
+  type TourFacts,
+} from "./first-run";
+import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
+import { createRecoveryPanel } from "./recovery-panel";
+import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
+import { settingsPath } from "./routes";
+import { createShell } from "./shell";
+import { createToolsPanel } from "./tools-panel";
+import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
-import { pillView } from "./update-view";
+import { fill, pillView, pillVisible } from "./update-view";
 
-const token = location.hash.slice(1);
+// The fragment of the first address: locally the session token, and a start
+// request of the first run (`#lazurio-start=…`, root decision 0188) from the
+// line in Apps or the shell's column head in Chat and Automate.
+const fragment = readFragment(location.hash);
+const token = fragment.token;
+let pendingStart: StartRequest | null = fragment.start;
 history.replaceState(null, "", location.pathname);
 const form = document.querySelector<HTMLFormElement>("#profile");
 const choices = document.querySelector<HTMLFieldSetElement>("#choices");
@@ -15,6 +57,11 @@ const apply = document.querySelector<HTMLButtonElement>("#apply");
 const status = document.querySelector<HTMLParagraphElement>("#status");
 const result = document.querySelector<HTMLPreElement>("#result");
 const machine = document.querySelector<HTMLDListElement>("#machine");
+const machineSupport =
+  document.querySelector<HTMLDetailsElement>("#machine-support");
+const machineSupportList = document.querySelector<HTMLDListElement>(
+  "#machine-support-list",
+);
 const presetSelect = document.querySelector<HTMLSelectElement>("#preset");
 const presetSelection =
   document.querySelector<HTMLSpanElement>("#preset-selection");
@@ -26,7 +73,9 @@ if (
   !result ||
   !machine ||
   !presetSelect ||
-  !presetSelection
+  !presetSelection ||
+  !machineSupport ||
+  !machineSupportList
 )
   throw new Error("Missing UI");
 const controls = {
@@ -38,38 +87,396 @@ const controls = {
   machine,
   presetSelect,
   presetSelection,
+  machineSupport,
+  machineSupportList,
 };
-let copy = messages("en");
-type MachinePeer = {
-  name: string;
-  kind: string;
-  zone: string | null;
-  organization: string | null;
-  ssh: { host: string; user: string | null; direction: string } | null;
-  https: string[];
+let locale: "cs" | "en" = "en";
+let copy = messages(locale);
+// The recorded entry's public parts (`GET /api/entry`); null on a workstation
+// and until read. The pairing of Chat and Automate, the tiles' module
+// origins and the Recovery page's T3 Code link.
+let entry: PublicEntry | null = null;
+// Whether Chat on this Environment takes a prepared prompt by link
+// (`GET /api/chat/prompt-handoff`, Lazurio/t3code#35): read once with the
+// entry, no until answered.
+let chatTakesPrompts = false;
+// The Lazurio shell (decision F36): the rail and the switch, drawn from
+// this Environment's `/.lazurio/shell.json`, which the page reads with its
+// own credential and hands over (the forks let the elements read it).
+defineShellElements();
+const columnHead = document.querySelector<HTMLElement>("#column-head");
+const rail = document.querySelector<HTMLElement>("#rail");
+// The documentation of the Launchpad's "Guide" (the root Launchpad's
+// `guideDocumentationUrl`), in the page's language.
+const guide = document.querySelector<HTMLAnchorElement>("#catalog-guide");
+const marketplaceText =
+  document.querySelector<HTMLParagraphElement>("#marketplace-text");
+let shellDocument: Shell | null = null;
+// Whether the shell document was asked for once (read or not).
+let shellRead = false;
+let toolsOverview: ToolsOverview | null = null;
+async function readShell() {
+  try {
+    const response = await fetch("/.lazurio/shell.json", {
+      headers: credential(),
+      cache: "no-store",
+    });
+    denied(response);
+    const parsed = response.ok ? parseShell(await response.json()) : null;
+    if (parsed === null) return;
+    shellDocument = parsed;
+    provideShell(parsed);
+    catalog.render();
+  } catch {
+    // The rail stays empty; the page itself works without it.
+  } finally {
+    shellRead = true;
+    drawMachine();
+    firstRun();
+  }
+}
+// The Launchpad home: the catalog of this Folder's Organizations and modules
+// (launchpad-parity B1), drawn for the route the frame shows.
+const catalog = createCatalogPanel({
+  setupLine: () => {
+    const facts = firstRunFacts();
+    return facts === null ? null : appsSetupLine(facts, copy);
+  },
+  setupAction: (action) => setupAction(action),
+  post: (path, body) => post(path, body),
+  get: (path) => get(path),
+  copy: () => copy,
+  route: () => shell.route(),
+  navigate: (path) => shell.navigate(path),
+  loaded: () => {
+    shell.relabel();
+    drawMachine();
+  },
+  entry: () => entry,
+  avatar: (slug) =>
+    shellDocument?.organizations.find(
+      (organization) => organization.slug.toLowerCase() === slug.toLowerCase(),
+    )?.avatar ?? null,
+  environment: () => {
+    if (shellDocument === null) return null;
+    // A Launchpad's document always names its own Environment; only a host
+    // page that is no Environment's has none (F36's addendum of 2026-10-05).
+    const current = currentEnvironment(shellDocument);
+    if (current === null) return null;
+    return {
+      name: environmentName(current, shellMessages(locale)),
+      icon: (
+        {
+          personal: "user",
+          work: "user",
+          team: "users",
+          automated: "bot",
+          workstation: "laptop",
+        } as const
+      )[current.kind],
+    };
+  },
+  // The space the Apps home shows: on a workstation with several
+  // Organizations the rail and the picker name the one opened.
+  space: (space) => {
+    for (const element of [rail, columnHead]) {
+      if (element === null) continue;
+      if (space === null) element.removeAttribute("space");
+      else if (element.getAttribute("space") !== space)
+        element.setAttribute("space", space);
+    }
+  },
+  newModule: (prompt) => handOver(prompt),
+  // The person's account through this Environment's gateway (account.ts):
+  // plain same-origin requests, never with the Launchpad's local token.
+  readAccount: () => readAccount(),
+  writeAccount: accountWriter(),
+  dashboard: (slug) =>
+    shellDocument?.organizations.find(
+      (organization) => organization.slug.toLowerCase() === slug.toLowerCase(),
+    )?.dashboard ?? null,
+});
+// The first run of an Environment (root decision 0188): the line in Apps
+// until it is usable, "Obsah Environmentu" in Settings → Tento Environment
+// and the tour over the real interface. The facts are read live: GitHub from
+// Settings → Nástroje's reading of the profile shown, the content from the
+// content routes; only the tour's progress is kept, in this browser.
+let profileState: Readonly<{
+  preset: string;
+  revision: number;
+  machine: string | null;
+}> | null = null;
+let githubSeen: ReturnType<typeof githubFact> = "unknown";
+let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
+function firstRunFacts(): TourFacts | null {
+  if (profileState === null) return null;
+  return {
+    preset: profileState.preset,
+    github: githubFact(toolsOverview, profileState.revision),
+    composio: composioFact(toolsOverview),
+    content: content.fact(),
+  };
+}
+// The Environment's id, the key of the tour:
+// the shell document's, once asked for; without it the Machine's name.
+function environmentKey(): string | null {
+  if (shellDocument !== null && shellDocument.current !== null)
+    return shellDocument.current;
+  if (!shellRead || profileState === null) return null;
+  return profileState.machine ?? "local";
+}
+const contentTransport: ContentTransport = async (method, path, body) => {
+  const response = await fetch(path, {
+    method,
+    headers:
+      method === "POST"
+        ? { "Content-Type": "application/json", ...credential() }
+        : credential(),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    cache: "no-store",
+  });
+  denied(response);
+  const value: unknown = await response.json().catch(() => null);
+  const mode = recoveryModeAnswer(response.status, value);
+  if (mode !== null) enterRecovery(mode);
+  return { status: response.status, value };
 };
-type MachineBinding = {
-  kind: string;
-  name: string;
-  owner:
-    | { kind: "principal"; githubLogin: string; githubId: number }
-    | {
-        kind: "organization";
-        organization: string;
-        team: string | null;
-        assignment?:
-          | { kind: "operator"; githubLogin: string; githubId: number }
-          | { kind: "team" };
-      };
-  network: { headscaleHostname: string } | null;
-  host: { kind: string; id: string };
-  relationships?: { zone: string; peers: MachinePeer[] };
-};
+const content = createContentPanel({
+  client: createContentClient(contentTransport),
+  copy: () => copy,
+  github: () =>
+    profileState === null
+      ? "unknown"
+      : githubFact(toolsOverview, profileState.revision),
+  modules: (login) => catalog.modulesOf(login),
+  pluralModules: (count) =>
+    copy[
+      pluralKey(count, {
+        one: "appsModulesOne",
+        few: "appsModulesFew",
+        many: "appsModulesMany",
+      })
+    ].replace("{count}", String(count)),
+  changed: () => {
+    // A finished installation brings its modules into Apps.
+    const state = content.fact().state;
+    if (
+      state === "ready" &&
+      contentSeen !== "ready" &&
+      contentSeen !== "loading" &&
+      contentSeen !== "none"
+    )
+      void catalog.refresh();
+    contentSeen = state;
+    void probePreparePrompt();
+    firstRun();
+  },
+  resolve: () => resolveInChat(),
+});
+const tour = createTour({
+  copy: () => copy,
+  facts: () => firstRunFacts(),
+  environment: () => environmentKey(),
+  route: () => shell.route(),
+  apps: () => ({
+    chat: entry !== null,
+    automate: entry?.mausbotOrigin !== undefined,
+  }),
+  columnHead: () => columnHead,
+  // Recovery mode has no tour, and it steps aside while the person looks at
+  // the Environment browser in the right panel.
+  off: () => recoveryMode !== null || browser.isOpen(),
+});
+/** Draws what the first run says now: the line (Apps is drawn again only
+ * when it changed, or when `redraw` asks, so a running preparation does not
+ * close an open tile menu every second), the tour, and a start request the
+ * page took on arrival. */
+let lineDrawn = "";
+function firstRun(redraw = false) {
+  if (!framed) return;
+  const facts = firstRunFacts();
+  const line = JSON.stringify(
+    facts === null ? null : appsSetupLine(facts, copy),
+  );
+  if (redraw || line !== lineDrawn) {
+    lineDrawn = line;
+    catalog.render();
+  }
+  tour.update();
+  takeStart();
+}
+// A start request (`#lazurio-start=…`, or a button of the line) runs once
+// the page is in its Settings section and knows enough: gh's sign-in opens
+// once Nástroje have read it, the installation starts once the content is
+// read and something is missing.
+function takeStart() {
+  const start = pendingStart;
+  if (start === null || profileState === null) return;
+  const route = shell.route();
+  if (route.view !== "settings" || route.section !== startSection[start])
+    return;
+  if (!signsInAsPerson(profileState.preset)) {
+    pendingStart = null;
+    return;
+  }
+  if (start === "sign-in-gh") {
+    const github = githubFact(toolsOverview, profileState.revision);
+    if (github === "unknown") return;
+    if (github === "connected" || tools.openSignIn("gh")) pendingStart = null;
+    return;
+  }
+  const fact = content.fact();
+  if (fact.state === "loading" || fact.state === "unknown") return;
+  pendingStart = null;
+  if (fact.state === "missing" || fact.state === "failed") void content.start();
+}
+function setupAction(action: SetupAction) {
+  if (action === "resolve-in-chat") {
+    resolveInChat();
+    return;
+  }
+  // The button is a link to its Settings section; the move runs the start.
+  pendingStart = action;
+}
+// Whether this Launchpad serves the prepared prompt of the stop shown, for
+// the login its link names: "Vyřešit v Chatu" then opens Chat by link (the
+// fork fetches the text), otherwise it copies the prompt. Asked before the
+// click, so that the click itself opens the tab.
+let preparePromptServed: string | null = null;
+async function probePreparePrompt() {
+  const context = prepareContext(content.list(), content.job(), copy);
+  const login = context?.login ?? null;
+  if (login === null || entry === null) {
+    preparePromptServed = null;
+    return;
+  }
+  if (preparePromptServed === login) return;
+  try {
+    const response = await fetch(
+      `/.lazurio/prompts/prepare-content?org=${encodeURIComponent(login)}`,
+      { headers: credential(), cache: "no-store" },
+    );
+    const value = response.ok
+      ? ((await response.json()) as { schema?: unknown })
+      : null;
+    preparePromptServed =
+      value?.schema === "lazurio.prompt.v1" ? login : preparePromptServed;
+  } catch {}
+}
+// "Vyřešit v Chatu" (root decision 0188): the wireframe's prompt that
+// finishes the preparation with the same command, tests included; only
+// inserted in Chat, never sent.
+function resolveInChat() {
+  const context = prepareContext(content.list(), content.job(), copy);
+  if (context === null) return;
+  const text = preparePrompt(context.target, context.failure, copy);
+  const linked =
+    context.login !== null && preparePromptServed === context.login;
+  void handOver({
+    id: "prepare-content",
+    organization: linked ? context.login : null,
+    text,
+  }).then((outcome) =>
+    catalog.say(
+      copy[
+        outcome === "handed-over"
+          ? "contentResolveOpened"
+          : outcome === "copied"
+            ? "contentResolveCopied"
+            : "contentResolveCopyFailed"
+      ],
+    ),
+  );
+}
+// The Files page (decision F35): the Documents folder of this Environment.
+// Behind a gateway a download is a plain link the session cookie admits;
+// locally the token is in page memory only, so the page fetches with it.
+const files = createFilesPanel({
+  get: (path) => get(path),
+  credential: () => credential(),
+  linkDownloads: () => !token,
+  denied: (status) => {
+    if (!token && status === 401) location.assign(location.href);
+  },
+  copy: () => copy,
+  locale: () => locale,
+});
+// Settings → Recovery, and in Recovery mode the whole page
+// (docs/recovery.md "The Recovery page"): read on first view, never written.
+const recovery = createRecoveryPanel({
+  get: async () => {
+    const response = await fetch("/api/recovery", {
+      headers: credential(),
+      cache: "no-store",
+    });
+    denied(response);
+    return { value: await response.json(), ok: response.ok };
+  },
+  copy: () => copy,
+  t3codeOrigin: () => chatHref(entry),
+});
+// The right panel (decision F38's addendum of 2026-10-05): the Environment
+// browser's view, offered only where the recorded entry routes it and never
+// in Recovery mode; closed until the person opens it.
+const browser = createBrowserPanel({
+  copy: () => copy,
+  origin: () => browserPanelOrigin(entry, recoveryMode !== null),
+  changed: () => tour.update(),
+});
+// The frame: routes, the catalog and settings navigation, the breadcrumb and
+// the sheet of a narrow viewport. It shows its first route while it is
+// created; `framed` says it exists.
+let framed = false;
+const shell = createShell({
+  copy: () => copy,
+  displayName: (organization) => catalog.displayName(organization),
+  onRoute: (route) => {
+    // The switch marks Apps, the gear Settings (the Organization rail).
+    columnHead?.setAttribute(
+      "active",
+      route.view === "settings" ? "settings" : "apps",
+    );
+    catalog.render(route);
+    // Back on "Všechny moduly" the catalog is read again (the first read
+    // starts below, once the frame exists).
+    if (framed && (route.view === "home" || route.view === "organization"))
+      void catalog.refresh();
+    if (route.view === "marketplace" && marketplaceText !== null) {
+      const name = catalog.scopeName(route);
+      marketplaceText.textContent =
+        copy.appsMarketplaceText +
+        (name === null
+          ? ""
+          : copy.appsMarketplaceOrganization.replace("{name}", name));
+    }
+    files.show(route);
+    if (
+      route.view === "settings" &&
+      route.section === "recovery" &&
+      !recovery.loaded
+    )
+      void recovery.refresh();
+    // Back in Tento Environment the content is read again.
+    if (framed && route.view === "settings" && route.section === "machine")
+      void content.refresh({ restore: false });
+    firstRun();
+  },
+});
+framed = true;
+// A start request in the first address leads to its Settings section.
+if (pendingStart !== null) {
+  const route = shell.route();
+  const section = startSection[pendingStart];
+  if (route.view !== "settings" || route.section !== section)
+    shell.navigate(settingsPath(section));
+}
+
 let current: {
   revision: number;
   preset: { name: string; version: number; selection: string };
+  // The presets a change may end on: the recorded one and the new choices.
   allowedPresets: string[];
-  machine: MachineBinding | null;
+  machine: MachineView | null;
   profile: Record<string, string>;
 };
 let pending: {
@@ -82,61 +489,54 @@ const presetLabels: Record<string, MessageKey> = {
   "hosted-personal": "presetHostedPersonal",
   "hosted-organization-personal": "presetHostedOrganizationPersonal",
   "hosted-organization-team": "presetHostedOrganizationTeam",
+  "hosted-organization-steward": "presetHostedOrganizationSteward",
 };
-// One compact read-only line per recorded peer, in the handover's own words.
-function peerText(peer: MachinePeer): string {
-  const who = [peer.kind, peer.zone, peer.organization]
-    .filter((part) => part !== null)
-    .join(", ");
-  const ssh =
-    peer.ssh === null
-      ? copy.machineNoSsh
-      : `SSH ${peer.ssh.direction} ${peer.ssh.user === null ? "" : `${peer.ssh.user}@`}${peer.ssh.host}`;
-  const https =
-    peer.https.length === 0
-      ? copy.machineNoHttps
-      : `HTTPS ${peer.https.join(", ")}`;
-  return `${peer.name} (${who}): ${ssh}; ${https}`;
+// Settings → Tento Environment (root decision 0188): what a person needs in
+// view, the recorded technical facts folded under "Pro podporu"; rendered as
+// text only, never as editable controls. Drawn again once the catalog (an
+// Organization's name) or the shell document (a Team's name) is read.
+function factRows(facts: readonly Fact[]): HTMLElement[] {
+  return facts.map(([label, value]) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    const main = document.createElement("div");
+    main.className = "row-main";
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const detail = document.createElement("dd");
+    if (typeof value === "string") detail.textContent = value;
+    else {
+      const list = document.createElement("ul");
+      list.replaceChildren(
+        ...value.map((line) => {
+          const item = document.createElement("li");
+          item.textContent = line;
+          return item;
+        }),
+      );
+      detail.replaceChildren(list);
+    }
+    main.append(term, detail);
+    row.append(main);
+    return row;
+  });
 }
-// The immutable part: rendered as text only, never as editable controls.
-function machineRows(
-  binding: MachineBinding | null,
-): [MessageKey, string | string[]][] {
-  if (binding === null) return [["machineKind", copy.machineWorkstation]];
-  const owner =
-    binding.owner.kind === "principal"
-      ? `${binding.owner.githubLogin} (GitHub id ${binding.owner.githubId})`
-      : binding.owner.organization;
-  const assignment =
-    binding.owner.kind === "organization" &&
-    binding.owner.assignment !== undefined
-      ? binding.owner.assignment.kind === "team"
-        ? copy.machineAssignmentTeam
-        : `${binding.owner.assignment.githubLogin} (GitHub id ${binding.owner.assignment.githubId})`
-      : null;
-  return [
-    ["machineKind", binding.kind],
-    ["machineName", binding.name],
-    ["machineOwner", owner],
-    ...(binding.owner.kind === "organization" && binding.owner.team !== null
-      ? ([["machineTeam", binding.owner.team]] as [MessageKey, string][])
-      : []),
-    ...(assignment === null
-      ? []
-      : ([["machineAssignment", assignment]] as [MessageKey, string][])),
-    ["machineTailnet", binding.network?.headscaleHostname ?? copy.machineNone],
-    ["machineHost", `${binding.host.kind} ${binding.host.id}`],
-    ...(binding.relationships === undefined
-      ? []
-      : ([
-          [
-            "machineRelationships",
-            binding.relationships.peers.length === 0
-              ? copy.machineNoPeers
-              : binding.relationships.peers.map(peerText),
-          ],
-        ] as [MessageKey, string | string[]][])),
-  ];
+function drawMachine() {
+  if (!loaded) return;
+  const environment =
+    shellDocument === null ? null : currentEnvironment(shellDocument);
+  const { facts, support } = environmentFacts(
+    {
+      preset: current.preset.name,
+      machine: current.machine,
+      organization: (login) => catalog.organizationName(login),
+      team: environment?.kind === "team" ? environment.label : null,
+    },
+    copy,
+  );
+  controls.machine.replaceChildren(...factRows(facts));
+  controls.machineSupport.hidden = support.length === 0;
+  controls.machineSupportList.replaceChildren(...factRows(support));
 }
 // Local: the fragment token is the credential. Hosted (no token): the
 // gateway's session cookie is, sent by the browser itself; a denial means the
@@ -146,11 +546,57 @@ const credential = (): Record<string, string> =>
 function denied(response: Response) {
   if (!token && response.status === 401) location.assign(location.href);
 }
+// Every refused API route names Recovery mode (docs/update.md "Recovery
+// mode"): the page then becomes the Recovery page and stays it until reload.
+let recoveryMode: RecoveryMode | null = null;
+let updateTimer: ReturnType<typeof setInterval> | undefined;
+function enterRecovery(mode: RecoveryMode) {
+  if (recoveryMode !== null) return;
+  recoveryMode = mode;
+  clearInterval(updateTimer);
+  browser.render();
+  // Nothing of the Folder can be read, its language neither: the browser's.
+  if (!loaded) {
+    locale = navigator.language.startsWith("cs") ? "cs" : "en";
+    copy = messages(locale);
+  }
+  document.documentElement.dataset.mode = "recovery";
+  relabel();
+  shell.pin({ view: "settings", section: "recovery" });
+  recovery.enter(mode);
+}
+function relabel() {
+  document.documentElement.lang = locale;
+  for (const element of document.querySelectorAll<HTMLElement>(
+    "[data-message]",
+  )) {
+    const key = element.dataset.message;
+    if (key && Object.hasOwn(copy, key))
+      element.textContent = copy[key as MessageKey];
+  }
+  if (guide !== null)
+    guide.href = `https://documentation.lazurio.ai/${locale === "en" ? "en" : "cs"}/guide/?utm_source=launchpad&utm_medium=product&utm_campaign=guide`;
+  shell.relabel();
+  recovery.render();
+  files.relabel();
+  browser.relabel();
+}
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...credential() },
     body: JSON.stringify(body),
+    cache: "no-store",
+  });
+  denied(response);
+  const value = await response.json();
+  const mode = recoveryModeAnswer(response.status, value);
+  if (mode !== null) enterRecovery(mode);
+  return { value, ok: response.ok };
+}
+async function get(path: string) {
+  const response = await fetch(path, {
+    headers: credential(),
     cache: "no-store",
   });
   denied(response);
@@ -163,39 +609,28 @@ async function request(path: string, body: unknown) {
   if (!ok) throw new Error(copy.refused);
   return value;
 }
+let loaded = false;
 async function load() {
   current = await request("/api/profile", {});
-  copy = messages(current.profile.locale);
+  loaded = true;
+  locale = current.profile.locale === "cs" ? "cs" : "en";
+  copy = messages(locale);
+  profileState = {
+    preset: current.preset.name,
+    revision: current.revision,
+    machine: current.machine?.name ?? null,
+  };
+  // "Obsah Environmentu" only where the Environment signs in as its person.
+  const person = signsInAsPerson(current.preset.name);
+  content.show(person);
+  if (person) void content.refresh();
   renderUpdate();
-  document.documentElement.lang = current.profile.locale === "cs" ? "cs" : "en";
-  document.title = copy.title;
-  for (const element of document.querySelectorAll<HTMLElement>(
-    "[data-message]",
-  )) {
-    const key = element.dataset.message;
-    if (key && Object.hasOwn(copy, key))
-      element.textContent = copy[key as MessageKey];
-  }
-  controls.machine.replaceChildren(
-    ...machineRows(current.machine).flatMap(([key, value]) => {
-      const term = document.createElement("dt");
-      term.textContent = copy[key];
-      const detail = document.createElement("dd");
-      if (typeof value === "string") detail.textContent = value;
-      else {
-        const list = document.createElement("ul");
-        list.replaceChildren(
-          ...value.map((line) => {
-            const item = document.createElement("li");
-            item.textContent = line;
-            return item;
-          }),
-        );
-        detail.replaceChildren(list);
-      }
-      return [term, detail];
-    }),
-  );
+  // A Team Environment's folder is the whole Team's.
+  files.shared(current.preset.name === "hosted-organization-team");
+  relabel();
+  catalog.render();
+  void readShell();
+  drawMachine();
   controls.presetSelect.replaceChildren(
     ...current.allowedPresets.map(
       (name) =>
@@ -217,7 +652,33 @@ async function load() {
   }
   controls.status.textContent = `${copy.revision} ${current.revision} · ${current.profile.os}`;
   controls.choices.disabled = false;
+  // The tools section follows the same state: locale and revision.
+  void tools.refresh();
 }
+// The tools section (decision F18). A change recorded there moves the Folder
+// revision, so a profile preview made before it is no longer valid.
+const tools = createToolsPanel({
+  observed: (overview) => {
+    toolsOverview = overview;
+    // Once GitHub is connected the content routes may answer otherwise.
+    const github =
+      profileState === null
+        ? "unknown"
+        : githubFact(overview, profileState.revision);
+    if (githubSeen !== "connected" && github === "connected")
+      void content.refresh({ restore: false });
+    githubSeen = github;
+    content.render();
+    firstRun(true);
+  },
+  post,
+  copy: () => copy,
+  changed: async () => {
+    pending = null;
+    controls.apply.disabled = true;
+    await load();
+  },
+});
 controls.form.addEventListener("change", () => {
   pending = null;
   controls.apply.disabled = true;
@@ -280,134 +741,152 @@ controls.apply.addEventListener("click", async () => {
     controls.choices.disabled = false;
   }
 });
+// Chat and Automate (launchpad-parity B8, DEV-6632) are tabs of the switch
+// at the top of the column (decision F36), plain links to the recorded
+// origins. A plain click on one first asks the server for a one-time pairing
+// link on that origin and follows it in this tab, as the resident did
+// (`R:launchpad/public/app.js:2257-2281`); when there is none (no T3
+// launcher, a failed call) it follows the plain origin, where the app itself
+// asks an unpaired browser to pair. Apps on this origin moves within the page.
+const pairing: Readonly<
+  Record<
+    string,
+    Readonly<{
+      path: string;
+      origin: (entry: PublicEntry) => string | undefined;
+      accept: (value: unknown, origin: string) => string | null;
+    }>
+  >
+> = {
+  chat: {
+    path: "/api/chat/pair",
+    origin: (current) => current.t3codeOrigin,
+    accept: chatPairLink,
+  },
+  automate: {
+    path: "/api/mausbot/pair",
+    origin: (current) => current.mausbotOrigin,
+    accept: mausbotPairLink,
+  },
+};
+// The address to follow into Chat or Automate: a one-time pairing link on
+// its origin when the server mints one, otherwise the plain origin.
+async function pairedHref(app: string): Promise<string | null> {
+  const pair = Object.hasOwn(pairing, app) ? pairing[app] : undefined;
+  const plain =
+    entry === null || pair === undefined ? undefined : pair.origin(entry);
+  if (pair === undefined || plain === undefined) return null;
+  try {
+    const { value, ok } = await post(pair.path, {});
+    return (ok && pair.accept(value, plain)) || plain;
+  } catch {
+    return plain;
+  }
+}
+// "+ Nový modul" (decision F36 addendum of 2026-10-04). Where this
+// Environment's Chat takes a prepared prompt by link (Lazurio/t3code#35,
+// the server asks its T3 Code for the version), Chat opens in a new tab
+// through the pairing with the prompt's id and the Organization in the
+// link's fragment, never the text: the fork fetches the text from its own
+// origin and leaves it in a new thread's composer, not sent, and nothing is
+// copied. Otherwise, and when the tab cannot open, the prompt goes to the
+// clipboard (written first, while the page still has the focus) and Chat
+// opens, where the person pastes it into a new chat. A workstation has no
+// Chat origin: the prompt is copied all the same.
+async function handOver(
+  prompt: Readonly<{ id: string; organization: string | null; text: string }>,
+): Promise<NewModuleOutcome> {
+  const current = entry;
+  const link: PromptLink | null =
+    prompt.organization === null
+      ? null
+      : { id: prompt.id, organization: prompt.organization };
+  if (current !== null && chatTakesPrompts && link !== null) {
+    const tab = window.open("about:blank", "_blank");
+    if (tab !== null) {
+      const next = await pairedHref("chat");
+      const href =
+        next === null ? null : chatPromptHref(next, current.t3codeOrigin, link);
+      if (href === null) {
+        tab.close();
+        return "failed";
+      }
+      tab.opener = null;
+      tab.location.href = href;
+      return "handed-over";
+    }
+  }
+  const copying = navigator.clipboard.writeText(prompt.text).then(
+    () => true,
+    () => false,
+  );
+  const tab = current === null ? null : window.open("about:blank", "_blank");
+  if (tab !== null) {
+    const next = await pairedHref("chat");
+    if (next === null) tab.close();
+    else {
+      tab.opener = null;
+      tab.location.href = next;
+    }
+  }
+  return (await copying) ? "copied" : "failed";
+}
+let following = false;
+document.addEventListener("lazurio-app", (event) => {
+  const detail = (event as CustomEvent<{ app?: unknown; href?: unknown }>)
+    .detail;
+  if (typeof detail?.href !== "string" || typeof detail.app !== "string")
+    return;
+  const target = new URL(detail.href, location.href);
+  if (target.origin === location.origin) {
+    event.preventDefault();
+    shell.navigate(target.pathname);
+    return;
+  }
+  const pair = Object.hasOwn(pairing, detail.app)
+    ? pairing[detail.app]
+    : undefined;
+  if (entry === null || pair === undefined || pair.origin(entry) === undefined)
+    return;
+  event.preventDefault();
+  if (following) return;
+  following = true;
+  const { app, href } = detail;
+  void (async () => {
+    location.assign((await pairedHref(app)) ?? href);
+  })();
+});
+// Back from the app restores this page from the bfcache with the click that
+// navigated away still held.
+window.addEventListener("pageshow", () => {
+  following = false;
+});
+async function readEntry() {
+  try {
+    const { value, ok } = await get("/api/entry");
+    entry = ok ? parseEntryAnswer(value) : null;
+  } catch {
+    entry = null;
+  }
+  recovery.render();
+  catalog.render();
+  browser.render();
+  if (entry === null) return;
+  try {
+    const { value, ok } = await get("/api/chat/prompt-handoff");
+    chatTakesPrompts = ok && parsePromptHandoff(value);
+  } catch {
+    chatTakesPrompts = false;
+  }
+}
+void readEntry();
+void readShell();
 load().catch(() => {
   controls.status.textContent = copy.loadFailed;
+  // The tools section says for itself that it could not be read.
+  void tools.refresh();
 });
-
-const appForm = document.querySelector<HTMLFormElement>("#application");
-const appChoices = document.querySelector<HTMLFieldSetElement>("#app-choices");
-const appStatus = document.querySelector<HTMLParagraphElement>("#app-status");
-const appResult = document.querySelector<HTMLPreElement>("#app-result");
-const appLink = document.querySelector<HTMLAnchorElement>("#app-link");
-if (!appForm || !appChoices || !appStatus || !appResult || !appLink)
-  throw new Error("Missing application UI");
-const apps = {
-  form: appForm,
-  choices: appChoices,
-  status: appStatus,
-  result: appResult,
-  link: appLink,
-};
-function clearAppLink() {
-  apps.link.hidden = true;
-  apps.link.removeAttribute("href");
-}
-function clearAppSelectionResult() {
-  clearAppLink();
-  apps.status.textContent = "";
-  apps.result.textContent = "";
-}
-apps.form.addEventListener("input", clearAppSelectionResult);
-controls.form.addEventListener("change", clearAppLink);
-const discover = document.querySelector<HTMLButtonElement>("#app-discover");
-const discovered = document.querySelector<HTMLSelectElement>("#app-discovered");
-const discoveryStatus = document.querySelector<HTMLParagraphElement>(
-  "#app-discovery-status",
-);
-const discoveryResult = document.querySelector<HTMLPreElement>(
-  "#app-discovery-result",
-);
-if (!discover || !discovered || !discoveryStatus || !discoveryResult)
-  throw new Error("Missing discovery UI");
-const discovery = {
-  button: discover,
-  select: discovered,
-  status: discoveryStatus,
-  result: discoveryResult,
-};
-let observedChoices: ReturnType<typeof discoveredApplicationChoices> = [];
-discovery.button.addEventListener("click", async () => {
-  if (apps.choices.disabled) return;
-  clearAppLink();
-  apps.choices.disabled = true;
-  discovery.result.textContent = "";
-  observedChoices = [];
-  discovery.select.replaceChildren(new Option("", ""));
-  discovery.select.disabled = true;
-  discovery.button.disabled = true;
-  discovery.status.textContent = copy.appBusy;
-  try {
-    const { value, ok } = await post("/api/apps/discover", {});
-    discovery.result.textContent = JSON.stringify(value, null, 2);
-    if (!ok || value?.kind !== "applications-observed")
-      throw new Error("Discovery unavailable");
-    observedChoices = discoveredApplicationChoices(value);
-    observedChoices.forEach((selection, index) => {
-      discovery.select.add(
-        new Option(
-          `${selection.company} / ${selection.module} / ${selection.package}`,
-          String(index),
-        ),
-      );
-    });
-    discovery.select.disabled = observedChoices.length === 0;
-    discovery.status.textContent = copy.appDiscoveryNotice;
-  } catch {
-    discovery.status.textContent = copy.appDiscoveryUnavailable;
-  } finally {
-    discovery.button.disabled = false;
-    apps.choices.disabled = false;
-  }
-});
-discovery.select.addEventListener("change", () => {
-  clearAppLink();
-  if (apps.choices.disabled || discovery.select.value === "") return;
-  const selection = observedChoices[Number(discovery.select.value)];
-  if (!selection) return;
-  clearAppSelectionResult();
-  for (const [key, value] of Object.entries(selection)) {
-    const field = apps.form.elements.namedItem(key);
-    if (field instanceof HTMLInputElement) field.value = value;
-  }
-});
-apps.form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const action = event.submitter;
-  if (
-    !(action instanceof HTMLButtonElement) ||
-    !["prepare", "clean-prepare", "start", "status", "open", "stop"].includes(
-      action.value,
-    )
-  )
-    return;
-  const operation = action.value;
-  const selection = Object.fromEntries(new FormData(apps.form).entries());
-  clearAppLink();
-  apps.choices.disabled = true;
-  discovery.button.disabled = true;
-  discovery.select.disabled = true;
-  apps.status.textContent = copy.appBusy;
-  try {
-    const { value, ok } = await post(`/api/apps/${operation}`, selection);
-    apps.result.textContent = JSON.stringify(value, null, 2);
-    const local = current?.profile.access === "local";
-    apps.status.textContent = copy[applicationMessage(value, local)];
-    const link =
-      value?.kind === "local-entrypoint"
-        ? localApplicationLink(value.url)
-        : null;
-    if (ok && local && link) {
-      apps.link.href = link;
-      apps.link.hidden = false;
-    }
-  } catch {
-    apps.status.textContent = copy.appResultUnknown;
-  } finally {
-    apps.choices.disabled = false;
-    discovery.button.disabled = false;
-    discovery.select.disabled = observedChoices.length === 0;
-  }
-});
+void catalog.refresh();
 
 // The update pill (docs/update.md "Surfaces"): the server derives the state;
 // the browser only shows it and sends the one click back with the version it
@@ -424,6 +903,9 @@ const updateError =
 const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
   "#update-state-invalid",
 );
+const updateFolderRefresh = document.querySelector<HTMLParagraphElement>(
+  "#update-folder-refresh",
+);
 if (
   !updateSection ||
   !updateText ||
@@ -431,7 +913,8 @@ if (
   !updateAction ||
   !updateChecked ||
   !updateError ||
-  !updateStateInvalid
+  !updateStateInvalid ||
+  !updateFolderRefresh
 )
   throw new Error("Missing update UI");
 let updateStatus: PillStatus | null = null;
@@ -439,7 +922,9 @@ let updateNote: string | null = null;
 function renderUpdate() {
   if (!updateStatus || !updateSection) return;
   const view = pillView(updateStatus, copy, Date.now());
-  updateSection.hidden = false;
+  // Only while an update is available (pillVisible); the Folder refresh
+  // line below is independent of the pill.
+  updateSection.hidden = !pillVisible(updateStatus);
   if (updateText) updateText.textContent = view.text;
   if (updateNotes) {
     updateNotes.hidden = view.notesUrl === null;
@@ -463,6 +948,26 @@ function renderUpdate() {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
   }
+  // Read-only: the command is shown, never run from here. It stands in its
+  // own selectable monospace line of the sentence.
+  if (updateFolderRefresh) {
+    const refresh = updateStatus.folderRefresh;
+    updateFolderRefresh.hidden = view.folderRefresh === null;
+    if (refresh === null) updateFolderRefresh.replaceChildren();
+    else {
+      const [before, after = ""] = fill(copy.updateFolderRefresh, {
+        recorded: refresh.recorded,
+        product: refresh.product,
+      }).split("{command}");
+      const command = document.createElement("code");
+      command.textContent = refresh.command;
+      updateFolderRefresh.replaceChildren(
+        (before ?? "").trimEnd(),
+        command,
+        after,
+      );
+    }
+  }
 }
 async function refreshUpdate() {
   try {
@@ -471,7 +976,14 @@ async function refreshUpdate() {
       cache: "no-store",
     });
     denied(response);
-    if (!response.ok) return;
+    if (!response.ok) {
+      const mode = recoveryModeAnswer(
+        response.status,
+        await response.json().catch(() => null),
+      );
+      if (mode !== null) enterRecovery(mode);
+      return;
+    }
     updateStatus = (await response.json()) as PillStatus;
     renderUpdate();
   } catch {
@@ -496,5 +1008,5 @@ updateAction.addEventListener("click", async () => {
     renderUpdate();
   }
 });
+updateTimer = setInterval(() => void refreshUpdate(), 10_000);
 void refreshUpdate();
-setInterval(() => void refreshUpdate(), 10_000);

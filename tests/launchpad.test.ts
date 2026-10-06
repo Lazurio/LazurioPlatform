@@ -16,14 +16,15 @@ import {
 import { inspectProfileChange } from "../src/folder/inspect-profile-change";
 import { inspectToolsChange } from "../src/folder/inspect-tools-change";
 import { executionOs } from "../src/folder/platform";
-import { presetProfile } from "../src/folder/presets";
+import { type PresetName, presetProfile } from "../src/folder/presets";
+import { refreshFolder } from "../src/folder/update-profile";
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolSelection } from "../src/tools/catalog";
 import { bindings } from "./fixtures/machine-bindings";
 
 // A hosted Folder as folder-init adopts it, plus a Launchpad session on it.
 async function hostedSession(
-  preset: "hosted-personal" | "hosted-organization-personal",
+  preset: PresetName,
   machine: (typeof bindings)[keyof typeof bindings],
 ) {
   const parent = await realpath(
@@ -293,10 +294,30 @@ test.skipIf(process.platform === "win32")(
         "manual work",
       );
       const html = await (await fetch(url.origin)).text();
-      expect(html).toContain("Lazurio — Profile");
-      expect(html).toContain("This Machine");
+      expect(html).toContain("Lazurio Launchpad");
+      expect(html).toContain("This Environment");
       expect(html).not.toContain('name="access"');
       expect(html).not.toContain(url.hash.slice(1));
+      // The catalog home is the page; the developer form is gone from it.
+      expect(html).toContain('id="catalog-body"');
+      expect(html).not.toContain('id="application"');
+      expect(html).not.toContain("Development fixture only");
+      // Every settings and catalog route serves the same page and nothing
+      // else does: a path outside them needs the credential like any other
+      // request.
+      for (const route of [
+        "/settings",
+        "/settings/general",
+        "/settings/tools",
+        "/o/alpha",
+        "/o/alpha/web",
+        "/o/Alpha%20Co/web",
+      ])
+        expect(await (await fetch(new URL(route, url.origin))).text()).toBe(
+          html,
+        );
+      for (const route of ["/settings/unknown", "/o", "/o/alpha/web/extra"])
+        expect((await fetch(new URL(route, url.origin))).status).toBe(403);
     } finally {
       await app.server.stop(true);
       await rm(parent, { recursive: true, force: true });
@@ -323,6 +344,7 @@ test.skipIf(process.platform === "win32")(
         allowedPresets: [
           "hosted-organization-personal",
           "hosted-organization-team",
+          "hosted-organization-steward",
         ],
         machine: bindings.organization,
         profile: session.profile,
@@ -394,6 +416,77 @@ test.skipIf(process.platform === "win32")(
           })
         ).json(),
       ).toEqual({ kind: "updated", revision: 4 });
+    } finally {
+      await session.close();
+    }
+  },
+);
+
+// Issue #107: on a work VM whose handover states `owner.assignment`, the
+// Launchpad offers only the derived preset, plus the recorded one, which
+// stays valid; any other is refused by the same change use case.
+test.skipIf(process.platform === "win32")(
+  "the Launchpad offers the preset the stated assignment derives and keeps the recorded one",
+  async () => {
+    for (const [machine, derived] of [
+      [bindings.assignedOperator, "hosted-organization-personal"],
+      [bindings.assignedTeam, "hosted-organization-team"],
+      [bindings.automated, "hosted-organization-steward"],
+    ] as const) {
+      const session = await hostedSession(derived, machine);
+      try {
+        const shown = await (await session.call("/api/profile", {})).json();
+        expect(shown.allowedPresets).toEqual([derived]);
+      } finally {
+        await session.close();
+      }
+    }
+    // A Folder that recorded the Steward preset on a work VM without
+    // assignment, whose handover now states one operator.
+    const session = await hostedSession(
+      "hosted-organization-steward",
+      bindings.team,
+    );
+    try {
+      expect(
+        await refreshFolder(session.folder, bindings.assignedOperator),
+      ).toEqual({ kind: "refreshed", revision: 2 });
+      const shown = await (await session.call("/api/profile", {})).json();
+      expect(shown.preset).toEqual({
+        name: "hosted-organization-steward",
+        version: 1,
+        selection: "explicit",
+      });
+      expect(shown.allowedPresets).toEqual([
+        "hosted-organization-personal",
+        "hosted-organization-steward",
+      ]);
+      const refused = await session.call("/api/update", {
+        expectedRevision: 2,
+        preset: "hosted-organization-team",
+        profile: session.profile,
+      });
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toEqual({
+        kind: "blocked",
+        reason: "preset-not-allowed",
+      });
+      expect(
+        await (
+          await session.call("/api/update", {
+            expectedRevision: 2,
+            preset: "hosted-organization-personal",
+            profile: session.profile,
+          })
+        ).json(),
+      ).toEqual({ kind: "updated", revision: 3 });
+      const after = await (await session.call("/api/profile", {})).json();
+      expect(after.preset).toEqual({
+        name: "hosted-organization-personal",
+        version: 1,
+        selection: "derived",
+      });
+      expect(after.allowedPresets).toEqual(["hosted-organization-personal"]);
     } finally {
       await session.close();
     }

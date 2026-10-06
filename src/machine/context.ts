@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import { readCustodiedDeclarationBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
@@ -10,7 +10,7 @@ import schema from "./lazurio-machine.v1.schema.json";
 // validates it. No coercion, defaults, reference downloads or extra properties.
 // Exactly one branch applies, distinguished by machine.kind: an Organization
 // workspace VM on a virtualization host, or the one hosted personal VM of a
-// Principal on a provider estate. Owner and host kinds never mix across branches.
+// person on a provider estate. Owner and host kinds never mix across branches.
 type MachineOperator = Readonly<{
   os_user: string;
   home: string;
@@ -38,10 +38,34 @@ export type MachinePeer = Readonly<{
 export type MachineRelationships<Zone extends MachineZone = MachineZone> =
   Readonly<{ zone: Zone; peers: readonly MachinePeer[] }>;
 // Authored per guest in the owner Deployment Repo and copied by Machines, never
-// inferred. Only the Organization branch carries it.
+// inferred. Only the Organization branch carries it. `automation` (Machines
+// #277, decision 0169) names the responsible operator of an Automated
+// Environment with the operator's shape, never the persona.
 export type OrganizationAssignment =
-  | Readonly<{ kind: "operator"; github_login: string; github_id: number }>
+  | Readonly<{
+      kind: "operator" | "automation";
+      github_login: string;
+      github_id: number;
+    }>
   | Readonly<{ kind: "team" }>;
+// How the Machine is entered through its workspace gateway, rendered by
+// Machines from the same route catalog as the gateway (Machines 0.12.93).
+// Optional and closed on both branches; finished values, never a convention.
+// `mausbot` (DEV-6632) is present only on a Machine that runs Lazurio MausBot;
+// `browser` (root decision 0191, F38) only where the gateway routes the view
+// of the Environment browser.
+export type MachineEntry = Readonly<{
+  launchpad: Readonly<{
+    external_origin: string;
+    auth_check_url: string;
+    auth_cookie_name: string;
+    listen_port: number;
+  }>;
+  t3code: Readonly<{ external_origin: string }>;
+  modules: Readonly<{ origin_template: string }>;
+  mausbot?: Readonly<{ external_origin: string; listen_port: number }>;
+  browser?: Readonly<{ external_origin: string; listen_port: number }>;
+}>;
 type MachineInstalled = Readonly<{
   machines_release: Readonly<{
     repository: string;
@@ -75,6 +99,7 @@ export type OrganizationWorkspaceContext = Readonly<{
   }>;
   network?: MachineNetwork;
   relationships?: MachineRelationships<"work">;
+  entry?: MachineEntry;
   installed: MachineInstalled;
   account: null;
 }>;
@@ -100,6 +125,7 @@ export type PersonalMachineContext = Readonly<{
   }>;
   network: MachineNetwork;
   relationships?: MachineRelationships<"personal">;
+  entry?: MachineEntry;
   installed: MachineInstalled;
   account: null;
 }>;
@@ -146,25 +172,42 @@ export function parseMachineContext(bytes: Uint8Array): MachineContext {
   }
 }
 
+/** Where the handover is read: the platform, the filesystem root the fixed
+ * path lies under and the account that must own it and every parent up to
+ * that root. Production is Linux, `/` and root; a test names a private
+ * directory it owns instead, so the same custody checks, parser and schema
+ * read real files there. A parameter only: no CLI flag or environment
+ * variable reaches it. */
+export type MachineContextSource = Readonly<{
+  platform: string;
+  root: string;
+  custodian: number;
+}>;
+export const productionMachineContextSource: MachineContextSource =
+  Object.freeze({ platform: process.platform, root: "/", custodian: 0 });
+
 // Read-only. A root-issued identity is descriptive context, never an access grant.
 // The production location/custodian cannot be overridden through CLI/env flags.
-export async function readMachineContext() {
-  if (process.platform !== "linux")
+export async function readMachineContext(
+  source: MachineContextSource = productionMachineContextSource,
+) {
+  if (source.platform !== "linux")
     throw new MachineContextError("machine-platform-unsupported");
+  const file = join(source.root, machineContextPath);
   let bytes: Buffer;
   try {
-    for (let path = dirname(machineContextPath); ; path = dirname(path)) {
+    for (let path = dirname(file); ; path = dirname(path)) {
       const stat = await lstat(path);
       if (
         !stat.isDirectory() ||
-        stat.uid !== 0 ||
+        stat.uid !== source.custodian ||
         (stat.mode & 0o022) !== 0 ||
         (await realpath(path)) !== path
       )
         throw new Error("Unsafe Machine context parent");
-      if (path === "/") break;
+      if (path === source.root || path === dirname(path)) break;
     }
-    bytes = await readCustodiedDeclarationBytes(machineContextPath, 0);
+    bytes = await readCustodiedDeclarationBytes(file, source.custodian);
   } catch (error) {
     throw new MachineContextError(
       (error as NodeJS.ErrnoException).code === "ENOENT"

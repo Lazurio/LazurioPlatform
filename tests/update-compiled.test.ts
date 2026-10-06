@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import {
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rm,
@@ -20,8 +21,8 @@ import { resolveInstallBase } from "../src/update/base";
 import { identityDefines, nativeTarget } from "../src/update/identity";
 
 // The REAL executable, compiled the way a release is (`identityDefines`), goes
-// through install -> check -> update -> rollback -> retry against the signed
-// loopback origin. Its origin and trust root are the FIXTURE define; a release
+// through install -> check -> update against the signed loopback origin, runs
+// its Launchpad probe, and serves Recovery mode instead of exiting. Its origin and trust root are the FIXTURE define; a release
 // build has neither. HOME is a temporary directory: the person's real install
 // base is never touched.
 const target = nativeTarget(process.platform, process.arch);
@@ -30,7 +31,7 @@ let root: string | undefined;
 afterAll(async () => root && rm(root, { recursive: true, force: true }));
 
 test.skipIf(!["darwin", "linux"].includes(process.platform))(
-  "a compiled product installs itself, updates to an attested release, rolls back and retries",
+  "a compiled product installs itself, updates to an attested release with no way back, probes its Launchpad and serves Recovery mode",
   async () => {
     // The installed Launchpad answers on a Unix socket under the base, and a
     // socket path is short on macOS: /tmp, not the long per-user tmpdir.
@@ -121,12 +122,17 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect(base.startsWith(home)).toBe(true);
       expect(
         JSON.parse((await run(first, "install", "--json")).stdout),
-      ).toEqual({
+      ).toMatchObject({
         kind: "installed",
         active: "1.0.0",
-        path: join(base, "bin"),
+        path: join(home, ".local", "bin"),
         serviceInstalled: false,
+        entry: { state: "created", target: join(base, "bin", "lazurio") },
       });
+      // The standard entry runs the active version.
+      expect(
+        (await run(join(home, ".local", "bin", "lazurio"), "--version")).stdout,
+      ).toContain("lazurio 1.0.0 ");
       const lazurio = join(base, "bin", "lazurio");
       expect(await run(lazurio, "update", "--check")).toMatchObject({
         code: 10,
@@ -138,6 +144,8 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
         from: "1.0.0",
         to: "1.1.0",
         restartRequired: true,
+        // No Folder is known to this installation.
+        folderRefresh: null,
       });
       // The selector now runs the new bytes, whose self-check the old ran.
       expect((await run(lazurio, "--version")).stdout).toContain(
@@ -148,31 +156,33 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       ).toMatchObject({
         running: "1.1.0",
         active: "1.1.0",
-        previous: "1.0.0",
         highWater: "1.1.0",
+        legacyRollbackState: false,
         updateAvailable: false,
       });
+      // Only the active version is kept, and nothing names another.
+      expect(await readdir(join(base, "versions"))).toEqual(["1.1.0"]);
+      expect((await readdir(base)).sort()).toEqual([
+        "bin",
+        "update",
+        "versions",
+      ]);
       expect(await run(lazurio, "update")).toEqual({
         code: 0,
         stdout: "Lazurio 1.1.0 is up to date.",
         stderr: "",
       });
-      expect((await run(lazurio, "update", "rollback")).stdout).toBe(
-        "Rolled back from 1.1.0 to 1.0.0.",
-      );
-      expect((await run(lazurio, "--version")).stdout).toContain(
-        "lazurio 1.0.0 ",
-      );
-      // Another command ends with the one-line notice, on stderr.
-      const help = await run(lazurio, "--help");
-      expect(help.code).toBe(0);
-      expect(help.stderr).toBe(
-        "Lazurio 1.1.0 is available (running 1.0.0). Run `lazurio update`. https://github.com/Lazurio/LazurioPlatform/releases/tag/v1.1.0",
-      );
-      // The retry after a rollback: equal to the mark, not active.
-      expect((await run(lazurio, "update", "--version", "v1.1.0")).code).toBe(
-        0,
-      );
+      // There is no way back: not as a command, not below the floor by name.
+      expect((await run(lazurio, "update", "rollback")).code).toBe(2);
+      expect(
+        JSON.parse(
+          (await run(lazurio, "update", "--version", "v1.0.0", "--json"))
+            .stdout,
+        ),
+      ).toMatchObject({
+        code: "release-invalid",
+        context: { reason: "below-floor" },
+      });
       expect((await run(lazurio, "--version")).stdout).toContain(
         "lazurio 1.1.0 ",
       );
@@ -189,12 +199,28 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
         detail: "concise",
         coordination: "direct",
       });
-      const launchpad = Bun.spawn(
-        [lazurio, "launchpad", "--folder", folder, "--base", base],
-        { cwd: home, env, stdout: "pipe", stderr: "pipe" },
+      // The Launchpad probe of the compiled bytes: the start sequence against
+      // the real Folder and its embedded page, read-only, on a private socket.
+      const state = join(folder, ".lazurio");
+      const stateBefore = (await readdir(state)).sort();
+      const probe = await run(
+        lazurio,
+        "self-check",
+        "--json",
+        "--base",
+        base,
+        "--folder",
+        folder,
+        "--launchpad",
       );
-      try {
-        const reader = launchpad.stdout.getReader();
+      expect(probe.code).toBe(0);
+      expect(JSON.parse(probe.stdout)).toMatchObject({
+        identity: { version: "1.1.0" },
+        launchpad: { probe: "ok" },
+      });
+      expect((await readdir(state)).sort()).toEqual(stateBefore);
+      const firstLine = async (child: Bun.Subprocess<"ignore", "pipe">) => {
+        const reader = child.stdout.getReader();
         let text = "";
         while (!text.includes("\n")) {
           const { value, done } = await reader.read();
@@ -202,7 +228,14 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
           text += new TextDecoder().decode(value);
         }
         reader.releaseLock();
-        const session = new URL(JSON.parse(text.split("\n")[0] ?? "").url);
+        return JSON.parse(text.split("\n")[0] ?? "");
+      };
+      const launchpad = Bun.spawn(
+        [lazurio, "launchpad", "--folder", folder, "--base", base],
+        { cwd: home, env, stdout: "pipe", stderr: "pipe" },
+      );
+      try {
+        const session = new URL((await firstLine(launchpad)).url);
         const auth = { Authorization: `Bearer ${session.hash.slice(1)}` };
         const status = await (
           await fetch(new URL("/api/update/status", session), { headers: auth })
@@ -232,6 +265,61 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       } finally {
         launchpad.kill("SIGTERM");
         await launchpad.exited;
+      }
+
+      // An interrupted Folder change: the probe refuses by name, and the
+      // Launchpad does not exit — it serves Recovery mode and answers the
+      // health socket with 503, until it is stopped.
+      await mkdir(join(state, "transaction"));
+      const refused = await run(
+        lazurio,
+        "self-check",
+        "--json",
+        "--base",
+        base,
+        "--folder",
+        folder,
+        "--launchpad",
+      );
+      expect([refused.code, JSON.parse(refused.stdout)]).toEqual([
+        1,
+        { launchpadRefused: "folder-transaction-pending" },
+      ]);
+      const recovering = Bun.spawn(
+        [lazurio, "launchpad", "--folder", folder, "--base", base],
+        { cwd: home, env, stdout: "pipe", stderr: "pipe" },
+      );
+      try {
+        const started = await firstLine(recovering);
+        expect(started).toMatchObject({
+          scope: "recovery-mode",
+          check: "start-refused",
+          reason: "folder-transaction-pending",
+        });
+        // The Recovery page from the compiled bundle, and its evidence:
+        // `lazurio recover --json` for this Folder, with the link's credential.
+        const page = await fetch(started.url);
+        expect(page.status).toBe(503);
+        expect(await page.text()).toContain('id="section-recovery"');
+        const evidence = await fetch(new URL("/api/recovery", started.url), {
+          headers: {
+            authorization: `Bearer ${new URL(started.url).hash.slice(1)}`,
+          },
+        });
+        expect(evidence.status).toBe(200);
+        expect(await evidence.json()).toMatchObject({
+          kind: "recovery",
+          verdict: "broken",
+          evidence: { check: "folder-state", code: "folder-state-pending" },
+        });
+        const health = await fetch("http://launchpad/health", {
+          unix: join(base, "update", "launchpad.sock"),
+        });
+        expect(health.status).toBe(503);
+        expect(recovering.exitCode).toBeNull();
+      } finally {
+        recovering.kill("SIGTERM");
+        expect(await recovering.exited).toBe(0);
       }
     } finally {
       await origin.close();

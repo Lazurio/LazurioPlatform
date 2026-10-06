@@ -1,2 +1,6 @@
 node_modules/
 dist/
+.preview/
+
+# Temporary output of an interrupted `bun build --compile`.
+*.bun-build

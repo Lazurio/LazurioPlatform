@@ -1,8 +1,9 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import { instructionTemplateRevision } from "../src/folder/render";
 import { startLaunchpad } from "../src/launchpad/server";
 import {
   type CliContext,
@@ -12,6 +13,10 @@ import {
   selfCheckCommand,
   versionCommand,
 } from "../src/update/cli";
+import {
+  codexAppServerUnit,
+  renderCodexAppServerUnit,
+} from "../src/update/codex-app-server";
 import { updateErrorCodes } from "../src/update/errors";
 import {
   developmentCommit,
@@ -19,12 +24,15 @@ import {
   embeddedIdentity,
   nativeTarget,
 } from "../src/update/identity";
-import { layout, setPrevious } from "../src/update/layout";
-import { launchpadHealth } from "../src/update/service-control";
+import { renderLaunchpadUnit } from "../src/update/install";
+import { layout } from "../src/update/layout";
+import { runProcess } from "../src/update/self-check";
+import { launchpadHealth, launchpadUnit } from "../src/update/service-control";
 import {
   closeSharedSigstore,
   commitOf,
   createWorld,
+  fakeService,
   target,
   type World,
 } from "./fixtures/update-world";
@@ -95,20 +103,14 @@ test("the four exit statuses and one stable code in --json", async () => {
     code: 1,
     stderr: "Update failed: release-invalid",
   });
-  const rollback = await run(["rollback", "--json"], "1.1.0");
-  expect([rollback.code, JSON.parse(rollback.stdout ?? "")]).toEqual([
-    0,
-    { kind: "rolled-back", from: "1.1.0", to: "1.0.0" },
-  ]);
-  expect(await run(["rollback", "--auto"])).toEqual({
-    code: 0,
-    stdout: "Interrupted activation: none.",
-  });
+  // There is no way back: rollback is not a command, with or without --auto.
   for (const usage of [
+    ["rollback"],
+    ["rollback", "--json"],
+    ["rollback", "--auto"],
     ["--version", "latest"],
     ["--version", "v1"],
     ["status", "--check"],
-    ["rollback", "--version", "v1.1.0"],
     ["--auto"],
     ["recover"],
     ["status", "extra"],
@@ -120,6 +122,8 @@ test("the four exit statuses and one stable code in --json", async () => {
   );
   // Every code a result can carry is one of the short list.
   expect(updateErrorCodes).toContain("state-invalid");
+  expect(updateErrorCodes).toContain("activation-unhealthy");
+  expect(updateErrorCodes).not.toContain("rollback-unavailable");
   expect(updateErrorCodes).toHaveLength(15);
 });
 
@@ -132,10 +136,9 @@ test("status is what an observer reads: versions, the age of the last verified c
     kind: "status",
     running: "1.0.0",
     active: "1.0.0",
-    previous: null,
     highWater: null,
     supervised: false,
-    pending: null,
+    legacyRollbackState: false,
     stateInvalid: null,
     lastCheck: { latest: "1.1.0" },
     updateAvailable: true,
@@ -143,8 +146,10 @@ test("status is what an observer reads: versions, the age of the last verified c
   expect(Date.parse(status.lastCheck.checkedAt)).toBeGreaterThan(
     Date.now() - 60_000,
   );
+  expect(Object.keys(status)).not.toContain("previous");
   const requests = world.origin.requests.length;
-  await writeFile(layout(world.base).pending, "garbage");
+  // A marker a v0.1.x updater left and no crash can produce.
+  await writeFile(join(world.base, "update", "pending.json"), "garbage");
   expect(await run(["status"])).toMatchObject({ code: 0 });
   expect((await run(["status"])).stdout).toContain(
     "state-invalid: update/pending.json",
@@ -198,7 +203,6 @@ test("install and self-check through the command surface", async () => {
       )
     ).code,
   ).toBe(2);
-  await setPrevious(fresh, "1.0.0");
   const report = await selfCheckCommand(
     ["--json", "--base", fresh],
     context("1.0.0"),
@@ -207,9 +211,15 @@ test("install and self-check through the command surface", async () => {
     schemaVersion: 1,
     identity: { version: "1.0.0", commit: commitOf("1.0.0"), target },
     fixture: false,
-    base: { active: "1.0.0", previous: "1.0.0", highWater: null },
+    templateRevision: instructionTemplateRevision,
+    base: { active: "1.0.0", highWater: null },
     folder: null,
+    launchpad: null,
   });
+  // The Launchpad probe needs the Folder it would start against.
+  expect(
+    (await selfCheckCommand(["--json", "--launchpad"], context())).code,
+  ).toBe(2);
   // A Folder this version cannot read fails the check without saying why.
   expect(
     await selfCheckCommand(
@@ -225,7 +235,7 @@ test("install and self-check through the command surface", async () => {
 });
 
 test.skipIf(process.platform === "win32")(
-  "the installed Launchpad reports its version on the health socket and commits a switched activation",
+  "the candidate's Launchpad probe starts read-only against the real Folder and names what refuses it",
   async () => {
     world = await createWorld();
     const folder = join(world.root, "Lazurio");
@@ -237,22 +247,59 @@ test.skipIf(process.platform === "win32")(
       detail: "concise",
       coordination: "direct",
     });
-    // Power was lost after the switch to 1.0.0 from an older version.
-    await setPrevious(world.base, "0.9.0");
-    await writeFile(
-      layout(world.base).pending,
-      JSON.stringify({ from: "0.9.0", to: "1.0.0" }),
+    const state = join(folder, ".lazurio");
+    const listing = async () => (await readdir(state)).sort();
+    const before = await listing();
+    const probe = await selfCheckCommand(
+      ["--json", "--base", world.base, "--folder", folder, "--launchpad"],
+      context(),
     );
+    expect(probe.code).toBe(0);
+    expect(JSON.parse(probe.stdout ?? "")).toMatchObject({
+      folder: { preferences: 2 },
+      launchpad: { probe: "ok" },
+    });
+    // Nothing was written: no lock taken, no health socket under the base.
+    expect(await listing()).toEqual(before);
     expect(await launchpadHealth(world.base)).toBeNull();
+    // An interrupted Folder change refuses the start by name, and only that.
+    await mkdir(join(state, "transaction"));
+    expect(
+      await selfCheckCommand(
+        ["--json", "--base", world.base, "--folder", folder, "--launchpad"],
+        context(),
+      ),
+    ).toEqual({
+      code: 1,
+      stdout: JSON.stringify({
+        launchpadRefused: "folder-transaction-pending",
+      }),
+      stderr: "Self-check failed",
+    });
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "the installed Launchpad reports its version on the health socket; there is nothing to commit",
+  async () => {
+    world = await createWorld();
+    const folder = join(world.root, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    expect(await launchpadHealth(world.base)).toBeNull();
+    const before = (await readdir(layout(world.base).update)).sort();
     const app = await startLaunchpad(folder, undefined, undefined, {
       base: world.base,
       version: "1.0.0",
-      commitDelayMs: 300,
     });
     try {
       expect(await launchpadHealth(world.base)).toBe("1.0.0");
-      // Reported at once; committed only after it stayed up for a while.
-      expect(await Bun.file(layout(world.base).pending).exists()).toBe(true);
       // Only one Launchpad serves an install base.
       await expect(
         startLaunchpad(folder, undefined, undefined, {
@@ -260,15 +307,120 @@ test.skipIf(process.platform === "win32")(
           version: "1.0.0",
         }),
       ).rejects.toThrow();
-      for (let attempt = 0; attempt < 100; attempt++) {
-        if (!(await Bun.file(layout(world.base).pending).exists())) break;
-        await Bun.sleep(20);
-      }
-      const status = JSON.parse((await run(["status", "--json"])).stdout ?? "");
-      expect(status).toMatchObject({ pending: null, highWater: "1.0.0" });
+      // It writes no update state of its own: only its socket appears.
+      expect((await readdir(layout(world.base).update)).sort()).toEqual(
+        [...before, "launchpad.sock"].sort(),
+      );
     } finally {
       await app.close();
     }
     expect(await launchpadHealth(world.base)).toBeNull();
   },
 );
+
+// Decision F29: `lazurio update` converges the Codex app-server unit of a
+// supervised base in a Remote Environment, so an Environment switched before
+// this release gets it without --service; it never restarts or stops it.
+test("lazurio update converges the Codex app-server unit on a supervised hosted base, up to date or updated, and leaves an unsupervised base alone", async () => {
+  world = await createWorld();
+  await world.release("1.1.0");
+  const folder = join(world.root, "Lazurio");
+  await mkdir(folder);
+  const config = join(world.root, "config");
+  const units = join(config, "systemd", "user");
+  const commands: string[][] = [];
+  const service = fakeService(world.base, { folder });
+  const linux = (
+    running: string,
+    hostedFolder: () => Promise<string | undefined>,
+  ): CliContext => ({
+    ...context(running),
+    platform: "linux",
+    env: {
+      HOME: world.root,
+      XDG_DATA_HOME: world.root,
+      XDG_CONFIG_HOME: config,
+    },
+    run: async (command, timeoutMs, env) => {
+      if (command[0] !== "systemctl")
+        return runProcess(command, timeoutMs, env);
+      commands.push([...command]);
+      return { exitCode: 0, stdout: "" };
+    },
+    hostedFolder,
+    environment: world.environment(running, { service }),
+  });
+  const update = async (running: string, hosted = true) =>
+    JSON.parse(
+      (
+        await runUpdateCommand(
+          ["--base", world.base, "--json"],
+          linux(running, async () => (hosted ? folder : undefined)),
+        )
+      ).stdout ?? "",
+    );
+
+  // Unsupervised: no key, nothing written, the service manager not asked.
+  const unsupervised = await update("1.0.0");
+  expect(unsupervised).toMatchObject({ kind: "updated", to: "1.1.0" });
+  expect(Object.keys(unsupervised)).not.toContain("codexAppServer");
+  expect(commands).toEqual([]);
+  await expect(readdir(units)).rejects.toThrow();
+
+  // Supervised by this base's Launchpad unit, switched before this release.
+  await mkdir(units, { recursive: true });
+  await writeFile(
+    join(units, launchpadUnit),
+    renderLaunchpadUnit(world.base, folder),
+  );
+  expect(await update("1.1.0", false)).toMatchObject({
+    kind: "up-to-date",
+    codexAppServer: { state: "skipped-not-hosted" },
+  });
+  expect(commands).toEqual([]);
+  expect(await update("1.1.0")).toMatchObject({
+    kind: "up-to-date",
+    codexAppServer: { state: "enabled" },
+  });
+  expect(await readFile(join(units, codexAppServerUnit), "utf8")).toBe(
+    renderCodexAppServerUnit(),
+  );
+  expect(commands).toEqual([
+    ["systemctl", "--user", "daemon-reload"],
+    ["systemctl", "--user", "enable", codexAppServerUnit],
+    ["systemctl", "--user", "start", codexAppServerUnit],
+  ]);
+
+  // An update: the Launchpad restarts (its service), the Codex unit is only
+  // ensured again — identical text, no reload, never a restart or a stop.
+  await world.release("1.2.0");
+  commands.length = 0;
+  const restarts = service.restarts;
+  expect(await update("1.1.0")).toMatchObject({
+    kind: "updated",
+    from: "1.1.0",
+    to: "1.2.0",
+    codexAppServer: { state: "enabled" },
+  });
+  expect(service.restarts).toBe(restarts + 1);
+  expect(commands).toEqual([
+    ["systemctl", "--user", "enable", codexAppServerUnit],
+    ["systemctl", "--user", "start", codexAppServerUnit],
+  ]);
+
+  // A failing start is reported and the update is still a success.
+  const failing = await runUpdateCommand(["--base", world.base], {
+    ...linux("1.2.0", async () => folder),
+    run: async (command, timeoutMs, env) =>
+      command[0] === "systemctl" && command[2] === "start"
+        ? { exitCode: 1, stdout: "" }
+        : command[0] === "systemctl"
+          ? { exitCode: 0, stdout: "" }
+          : runProcess(command, timeoutMs, env),
+  });
+  expect(failing.code).toBe(0);
+  expect(failing.stdout).toContain("Lazurio 1.2.0 is up to date.");
+  expect(failing.stdout).toContain(
+    "The Codex app-server daemon is not set up to start with this Environment",
+  );
+});

@@ -24,6 +24,7 @@ import { updateProfile } from "../src/folder/update-profile";
 import {
   describeFolderAdoption,
   initializeMachineFolder,
+  refreshMachineFolder,
 } from "../src/machine/cli";
 import { bindings, workRelationships } from "./fixtures/machine-bindings";
 
@@ -572,8 +573,12 @@ test.skipIf(process.platform === "win32")(
         JSON.stringify({
           kind: "blocked",
           reason: "preset-ambiguous",
-          allowed: ["hosted-organization-personal", "hosted-organization-team"],
-          next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+          allowed: [
+            "hosted-organization-personal",
+            "hosted-organization-team",
+            "hosted-organization-steward",
+          ],
+          next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Remote Environment is assigned to one operator or shared; the Lazurio Machines resident role passes it from the owner infrastructure.",
         }),
       );
       expect(blocked.code).toBe(2);
@@ -588,7 +593,11 @@ test.skipIf(process.platform === "win32")(
           kind: "blocked",
           reason: "preset-not-allowed",
           derived: null,
-          allowed: ["hosted-organization-personal", "hosted-organization-team"],
+          allowed: [
+            "hosted-organization-personal",
+            "hosted-organization-team",
+            "hosted-organization-steward",
+          ],
           next: "Choose a preset the handover allows; this handover derives none.",
         },
       });
@@ -624,6 +633,217 @@ test.skipIf(process.platform === "win32")(
           result: { kind: "already-adopted", revision: 1, preset: explicit },
         });
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(document);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Decision 0169: the Automated Environment. The `automation` assignment derives
+// the Steward preset; a work VM whose handover states no assignment takes it
+// as an explicit choice. A personal VM never takes it.
+test.skipIf(process.platform === "win32")(
+  "folder-init derives the Steward preset from the automation assignment and takes it explicitly on a work VM without assignment",
+  async () => {
+    for (const [machine, selection] of [
+      [bindings.automated, "derived"],
+      [bindings.team, "explicit"],
+      [bindings.organization, "explicit"],
+    ] as const) {
+      const { parent, folder } = await setup({
+        personalspace: "empty",
+        work: true,
+        legacy: true,
+      });
+      try {
+        const preset = {
+          name: "hosted-organization-steward",
+          version: 1,
+          selection,
+        } as const;
+        const choice =
+          selection === "derived"
+            ? noChoices
+            : { ...noChoices, preset: "hosted-organization-steward" as const };
+        expect(await initializeMachineFolder(folder, machine, choice)).toEqual({
+          code: 0,
+          result: { kind: "initialized", revision: 1, preset },
+        });
+        const document = await readFile(join(folder, "AGENTS.md"), "utf8");
+        expect(document).toContain("`hosted-organization-steward`");
+        expect(document).toContain(
+          "persona's own GitHub user account, a bot account",
+        );
+        expect(document).toContain("## Persona bot team");
+        const manual = await readFile(
+          join(folder, "manual", "this-machine.md"),
+          "utf8",
+        );
+        expect(manual).toContain("OMB_DEFAULT_BOT_CWD");
+        expect(manual).toContain("lazurio/teams/steward.openmaus.json");
+        expect(
+          await initializeMachineFolder(folder, machine, noChoices),
+        ).toEqual({
+          code: 0,
+          result: { kind: "already-adopted", revision: 1, preset },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+    // A used personalspace/ is refused as for every Organization preset, and a
+    // personal VM never takes the Steward preset; nothing is written.
+    const { parent, folder } = await setup({ personalspace: "used" });
+    try {
+      const before = await snapshot(folder);
+      expect(
+        await refusal(
+          initializeMachineFolder(folder, bindings.automated, noChoices),
+        ),
+      ).toEqual({ code: "personalspace-conflict", entry: "personalspace" });
+      expect(
+        await initializeMachineFolder(folder, bindings.personal, {
+          ...noChoices,
+          preset: "hosted-organization-steward",
+        }),
+      ).toEqual({
+        code: 2,
+        result: {
+          kind: "blocked",
+          reason: "preset-not-allowed",
+          derived: "hosted-personal",
+          allowed: ["hosted-personal"],
+          next: "Choose a preset the handover allows, or omit --preset for the derived one.",
+        },
+      });
+      expect(await snapshot(folder)).toEqual(before);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Issue #107: when the handover states `owner.assignment`, the only preset a
+// new Folder may take is the one it derives. An explicit --preset outside it
+// is refused before any write, naming the one allowed choice.
+test.skipIf(process.platform === "win32")(
+  "folder-init with an explicit --preset takes only the preset the stated assignment derives",
+  async () => {
+    for (const [machine, derived, refused] of [
+      [
+        bindings.assignedOperator,
+        "hosted-organization-personal",
+        ["hosted-organization-team", "hosted-organization-steward"],
+      ],
+      [
+        bindings.assignedTeam,
+        "hosted-organization-team",
+        ["hosted-organization-personal", "hosted-organization-steward"],
+      ],
+      [
+        bindings.automated,
+        "hosted-organization-steward",
+        ["hosted-organization-personal", "hosted-organization-team"],
+      ],
+    ] as const) {
+      const { parent, folder } = await setup({ personalspace: "empty" });
+      try {
+        const before = await snapshot(folder);
+        for (const preset of refused)
+          expect(
+            await initializeMachineFolder(folder, machine, {
+              ...noChoices,
+              preset,
+            }),
+          ).toEqual({
+            code: 2,
+            result: {
+              kind: "blocked",
+              reason: "preset-not-allowed",
+              derived,
+              allowed: [derived],
+              next: "Choose a preset the handover allows, or omit --preset for the derived one.",
+            },
+          });
+        expect(await snapshot(folder)).toEqual(before);
+        await expect(
+          initializeHandoverFolder(folder, {
+            preset: refused[0],
+            machine,
+            profile: presetProfile(refused[0], executionOs(process.platform)),
+          }),
+        ).rejects.toThrow("not allowed");
+        expect(await snapshot(folder)).toEqual(before);
+        // The derived preset passed explicitly is recorded as derived.
+        expect(
+          await initializeMachineFolder(folder, machine, {
+            ...noChoices,
+            preset: derived,
+          }),
+        ).toEqual({
+          code: 0,
+          result: {
+            kind: "initialized",
+            revision: 1,
+            preset: { name: derived, version: 1, selection: "derived" },
+          },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+// Issue #107, review of #110: rerunning the command that adopted a Folder is
+// no new preset choice. A Folder adopted with an explicit preset before its
+// handover stated an assignment keeps that preset, and the same folder-init
+// reports it as adopted instead of refusing it; nothing is written.
+test.skipIf(process.platform === "win32")(
+  "folder-init rerun on a Folder whose explicit preset is no longer offered reports it adopted",
+  async () => {
+    const { parent, folder } = await setup({ personalspace: "empty" });
+    try {
+      const preset = "hosted-organization-steward" as const;
+      const explicit = {
+        name: preset,
+        version: 1,
+        selection: "explicit",
+      } as const;
+      expect(
+        await initializeMachineFolder(folder, bindings.team, {
+          ...noChoices,
+          preset,
+        }),
+      ).toEqual({
+        code: 0,
+        result: { kind: "initialized", revision: 1, preset: explicit },
+      });
+      // The owner now states the operator assignment; the refresh keeps the
+      // recorded explicit preset.
+      expect(
+        await refreshMachineFolder(folder, bindings.assignedOperator),
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 2 } });
+      const before = await snapshot(folder);
+      const adopted = {
+        kind: "already-adopted",
+        revision: 2,
+        preset: explicit,
+      } as const;
+      expect(
+        await initializeMachineFolder(folder, bindings.assignedOperator, {
+          ...noChoices,
+          preset,
+        }),
+      ).toEqual({ code: 0, result: adopted });
+      expect(
+        await initializeHandoverFolder(folder, {
+          preset,
+          machine: bindings.assignedOperator,
+          profile: presetProfile(preset, executionOs(process.platform)),
+        }),
+      ).toEqual(adopted);
+      expect(await snapshot(folder)).toEqual(before);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

@@ -1,6 +1,7 @@
 import { lstat, readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
+import { CheckoutRefused } from "../providers/checkout-custody";
 import {
   type inspectInstallAuthority,
   verifyInstallAuthority,
@@ -24,7 +25,7 @@ export async function cleanDerivedDependencies(
       return { kind: "dependencies-absent" as const };
     throw error;
   }
-  const identity = await inspectOwnedDirectory(target);
+  const identity = await inspectCheckoutDirectory(target);
   if (String(identity.dev) !== authority.ownerIdentity.split(":")[0])
     throw new Error("Dependency root is a separate filesystem");
   // Refuse nested mounts and explicit Git metadata. Descendant symlinks are
@@ -37,11 +38,18 @@ export async function cleanDerivedDependencies(
         throw new Error("Git metadata inside dependency cleanup scope");
       const path = join(directory, name);
       const stat = await lstat(path);
-      if (stat.dev !== identity.dev || stat.uid !== process.getuid?.())
-        throw new Error("Foreign dependency tree");
+      if (stat.dev !== identity.dev)
+        throw new Error("Dependency tree spans a mount");
+      // The operator's own tree, whatever its write bits (decision F23);
+      // another account's entry is not, and is named by its rule.
+      if (stat.uid !== process.getuid?.())
+        throw new CheckoutRefused(
+          stat.isDirectory() ? "directory-owner" : "declaration-owner",
+          path,
+        );
       if (stat.isSymbolicLink()) continue;
       if (stat.isDirectory()) {
-        await inspectOwnedDirectory(path);
+        await inspectCheckoutDirectory(path);
         await inspect(path);
       } else if (!stat.isFile()) {
         throw new Error("Non-derived dependency entry");
@@ -53,7 +61,7 @@ export async function cleanDerivedDependencies(
   await inspect(target);
   if (!(await verifyInstallAuthority(authority)))
     return { kind: "authority-changed" as const };
-  const current = await inspectOwnedDirectory(target);
+  const current = await inspectCheckoutDirectory(target);
   if (current.dev !== identity.dev || current.ino !== identity.ino)
     return { kind: "authority-changed" as const };
   signal?.throwIfAborted();

@@ -5,8 +5,6 @@ import type { ActivationStep } from "../src/update/activation";
 import {
   layout,
   readHighWater,
-  readPending,
-  readPrevious,
   readSelector,
   versionDirectory,
 } from "../src/update/layout";
@@ -20,8 +18,8 @@ import {
 } from "./fixtures/update-world";
 
 // A real process runs a real activation and is killed by SIGKILL after each
-// durable step (docs/update.md "Evidence required": kill at every activation
-// step). Whatever it left, the next command converges without manual repair.
+// step (docs/update.md "Evidence required": kill at every activation step).
+// Whatever it left, the next command converges forward without manual repair.
 let world: World;
 afterEach(async () => world?.close());
 afterAll(closeSharedSigstore);
@@ -50,98 +48,58 @@ async function killedAfter(step: ActivationStep, supervised: boolean) {
   expect([step, child.signalCode]).toEqual([step, "SIGKILL"]);
   return {
     active: await readSelector(world.base),
-    previous: await readPrevious(world.base),
-    pending: await readPending(world.base),
     highWater: await readHighWater(world.base),
   };
 }
 
-const supervisedSteps: Record<string, object> = {
-  previous: { active: "1.0.0", pending: null, highWater: null },
-  pending: { active: "1.0.0", pending: { from: "1.0.0", to: "1.1.0" } },
-  switch: { active: "1.1.0", pending: { from: "1.0.0", to: "1.1.0" } },
-  restarted: { active: "1.1.0", pending: { from: "1.0.0", to: "1.1.0" } },
-  // Killed inside the commit: the mark is raised, the marker still there.
-  "high-water": {
-    active: "1.1.0",
-    pending: { from: "1.0.0", to: "1.1.0" },
-    highWater: "1.1.0",
-  },
+// The switch is ONE rename and the commit: whatever step the updater died
+// after, the selector names 1.1.0 and nothing is ever undone. Only the mark
+// may be missing, and a missing mark means the floor is the active version.
+const steps: Record<ActivationStep, object> = {
+  switch: { active: "1.1.0", highWater: null },
+  "high-water": { active: "1.1.0", highWater: "1.1.0" },
+  restarted: { active: "1.1.0", highWater: "1.1.0" },
 };
 
-for (const [step, left] of Object.entries(supervisedSteps))
-  for (const healthy of [true, false])
-    test(`supervised, killed after "${step}", Launchpad ${healthy ? "healthy" : "not healthy"} afterwards: the next update converges`, async () => {
-      expect(await killedAfter(step as ActivationStep, true)).toMatchObject({
-        previous: "1.0.0",
-        highWater: null,
-        ...left,
-      });
-      const switchedBefore = (await readSelector(world.base)) === "1.1.0";
+for (const supervised of [true, false])
+  for (const [step, left] of Object.entries(steps)) {
+    if (!supervised && step === "restarted") continue;
+    test(`${supervised ? "supervised" : "unsupervised"}, killed after "${step}": no marker exists, nothing is undone, and the next update converges forward`, async () => {
+      expect(
+        await killedAfter(step as ActivationStep, supervised),
+      ).toMatchObject(left);
+      expect((await readdir(world.base)).sort()).toEqual([
+        "bin",
+        "update",
+        "versions",
+      ]);
       // After the crash the unit runs whatever the selector names.
-      const service = fakeService(world.base, {
-        unhealthy: healthy ? [] : ["1.1.0"],
-      });
-      service.running = await readSelector(world.base);
-      const status = await readStatus(world.environment("1.0.0", { service }));
-      expect(status.stateInvalid).toBeNull();
+      const service = supervised ? fakeService(world.base) : null;
+      if (service) service.running = await readSelector(world.base);
+      const environment = (running: string) =>
+        world.environment(running, { service, healthDeadlineMs: 200 });
+      expect((await readStatus(environment("1.1.0"))).stateInvalid).toBeNull();
       // The kernel released the dead updater's lock: no `busy`, no repair.
-      const result = await performUpdate(
-        world.environment("1.0.0", { service, healthDeadlineMs: 200 }),
-      );
-      const committed = {
-        active: "1.1.0",
-        previous: "1.0.0",
-        pending: null,
-        highWater: "1.1.0",
-      };
-      const undone = { active: "1.0.0", previous: "1.0.0", pending: null };
-      if (healthy) {
-        // Reconciled by committing, or never switched and activated afresh.
-        expect(result.kind).toBe(switchedBefore ? "up-to-date" : "updated");
-        expect(await disk()).toMatchObject(committed);
-      } else {
-        // Undone — by the reconcile, and again by the fresh attempt.
-        expect(result).toMatchObject({ code: "activation-failed" });
-        expect(await disk()).toMatchObject(undone);
-        expect(service.running).toBe("1.0.0");
-      }
-      expect(await readdir(layout(world.base).update)).not.toContain(
-        "pending.json",
-      );
+      expect(await performUpdate(environment("1.1.0"))).toMatchObject({
+        kind: "up-to-date",
+      });
+      expect(service?.restarts ?? 0).toBe(0);
+      await world.release("1.2.0");
+      expect(await performUpdate(environment("1.1.0"))).toMatchObject({
+        kind: "updated",
+        from: "1.1.0",
+        to: "1.2.0",
+      });
+      expect(await disk()).toEqual({
+        active: "1.2.0",
+        highWater: "1.2.0",
+        versions: ["1.2.0"],
+      });
     });
+  }
 
 const disk = async () => ({
   active: await readSelector(world.base),
-  previous: await readPrevious(world.base),
-  pending: await readPending(world.base),
   highWater: await readHighWater(world.base),
+  versions: (await readdir(layout(world.base).versions)).sort(),
 });
-
-const unsupervisedSteps: Record<string, object> = {
-  previous: { active: "1.0.0", highWater: null },
-  // The switch is the commit; only the mark may be missing, and a missing
-  // mark means the floor is the active version.
-  switch: { active: "1.1.0", highWater: null },
-  "high-water": { active: "1.1.0", highWater: "1.1.0" },
-};
-
-for (const [step, left] of Object.entries(unsupervisedSteps))
-  test(`unsupervised, killed after "${step}": no marker exists and the next update converges`, async () => {
-    expect(await killedAfter(step as ActivationStep, false)).toMatchObject({
-      previous: "1.0.0",
-      pending: null,
-      ...left,
-    });
-    await world.release("1.2.0");
-    expect(
-      await performUpdate(
-        world.environment((await readSelector(world.base)) as string),
-      ),
-    ).toMatchObject({ kind: "updated", to: "1.2.0" });
-    expect(await disk()).toMatchObject({
-      active: "1.2.0",
-      pending: null,
-      highWater: "1.2.0",
-    });
-  });

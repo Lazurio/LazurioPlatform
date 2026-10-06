@@ -31,11 +31,24 @@ Discovery does not install application authorization adapters: a discovery-only 
 still refuses app control. Live provider/operation binding remains a separate missing
 integration, not an implied permission from this local view.
 
+**Since 2026-09-28 (slice P4 of the Launchpad parity)** the Launchpad home is the
+catalog of the Folder ([launchpad development](launchpad-development.md#launchpad-home-the-catalog)),
+read from every directory in `<Folder>/organizations/` by `lazurio organization list`,
+`lazurio module list` and `POST /api/catalog`; the panel's discovery and selection form
+is gone from the page. `POST /api/apps/discover`, the application operations
+`/api/apps/*` and `app-request` described here are unchanged; the module lifecycle
+`lazurio module start|prepare|stop|status|logs` (slice P5, F34,
+[launchpad development](launchpad-development.md#module-lifecycle)) runs the catalog's
+modules over the same lifecycle core beside them, and their retirement is still open;
+`scripts/smoke-application-ui.ts` drives them over the API. Which Organization states may run applications is the
+one admission rule of the [organization contract](organization-contract.md).
+
 The existing Launchpad server can compose one application lifecycle with trusted
-authorization/toolchain adapters. Its authenticated application API serves both the
-browser controls and the compiled development CLI's `app-request` stdin transport.
-The latter accepts an explicit existing private session URL, operation and declared
-selection, not a second locator, process owner or persisted credential. The standard
+authorization/toolchain adapters. Its authenticated application API serves the
+compiled development CLI's `app-request` stdin transport; until 2026-09-28 it also
+served the page's controls, which slice P4 removed. `app-request` accepts an
+explicit existing private session URL, operation and declared selection, not a
+second locator, process owner or persisted credential. The standard
 `launchpad --folder` command still configures only profiles; production Organization
 bindings and the complete preparation/install journey remain incomplete.
 
@@ -43,11 +56,18 @@ Authenticated preparation requests use a 660-second transport wait rather than t
 ordinary CLI request's 30 seconds, allowing the Bun preparation effect's maximum
 600-second budget and cleanup. Launchpad extends that request's idle timeout only
 after authentication and body parsing. A real 31-second shared-owner test covers
-the CLI/server path. These deadlines do not cancel an operation, prove rollback,
+the CLI/server path. Since F34 the module routes `POST /api/modules/…/start` and
+`…/prepare` answer within 630 seconds counted from naming the module (resolution, queue,
+locks, preflight and the answer's status read included): a start or preparation still
+running then answers `202` with
+`start-pending` or `prepare-pending` and goes on. These deadlines do not cancel an operation, prove rollback,
 or solve queue admission, reconnect/status tracking and uncooperative adapter
 timeouts; those remain integration work, not reasons to automatically retry a write.
 
-The browser exposes explicit preparation/start/status/link/stop in Czech and English. A link is restricted
+Until 2026-09-28 the page's form exposed explicit preparation/start/status/link/stop
+in Czech and English; since slice P4 the page shows no application control and these
+operations are reachable only through the application API; since slice P5 the
+catalog's module page starts, stops and opens a module's app through `/api/modules/…`. A link is restricted
 to the selected execution Machine's observed loopback web listener, never production
 metadata. Remote-profile context does not expose that address as a local browser link;
 a qualified remote access route remains required. Process start, health observation,
@@ -56,8 +76,9 @@ opening a page and functional acceptance are distinct results.
 Run `bun run scripts/smoke-application-ui.ts cs` and the same command with `en` using
 an explicitly supplied external Playwright installation and its Chromium (for example,
 via the test environment's `NODE_PATH`). This optional local harness compiles the CLI,
-creates synthetic Folder/module data and an isolated browser, opens the synthetic app,
-then stops its owner and removes only its temporary fixture. It is not a release gate
+creates synthetic Folder/module data, drives the Launchpad's application API (since
+2026-09-28; before that the page's form), opens the synthetic app in an isolated
+browser, then stops its owner and removes only its temporary fixture. It is not a release gate
 or evidence of either real candidate's installation/DB readiness. The main `bun run
 check` includes transport, lifecycle and presentation unit/integration tests; it does
 not implicitly download a browser or run this separate browser harness.
@@ -107,8 +128,51 @@ This is a development contract, not a released API. `owner_package` is a safe
 module-relative package path, not an ancestor search. `prepare_script` is optional;
 `check_script` is required. Both name package scripts, not shell commands. Unknown
 fields, versions, traversal and executable input objects are refused. An absent
-declaration is explicitly `null` in the reader result; existing modules are not
-silently assigned default script names or made preparation-capable.
+declaration is explicitly `null` in the reader result, and no script name is ever
+assigned by default.
+
+**Default preparation (decision F25, 2026-09-29, issue #97).** An absent declaration
+no longer means "not preparation-capable". Every application package the replaced
+Launchpad started declares none, so an application without `lazurio.preparation` has
+the default preparation: **the application's own `package.json` is the owner**, and
+preparing is **the frozen install (`bun --no-env-file install --frozen-lockfile`, with
+`--backend copyfile` when it has local `file:` dependencies) from the one Bun lockfile
+beside that package**, under the same install authority, custody and guarded process
+as a declared preparation. There is **no prepare script and no check script**. No owner
+is searched among the ancestors: a lockfile of the module or Organization above the
+package is never the application's. A package that names no `packageManager` installs
+and runs with the operator's Bun (`~/.local/bin/bun`), whichever version it is; one
+that pins `bun@x.y.z` still requires exactly that Bun, and any other `packageManager`
+is refused. Because the default has no check, **its start-time step is the frozen
+install itself**, which changes nothing when `node_modules` already matches the
+lockfile and repairs it when it does not; an explicit declaration's start runs the same
+install, then its check, and only when the check fails its `prepare_script` and the check
+again (decision F34, below). A local `file:` dependency of the default preparation
+may lie anywhere in the same Organization directory (for a Personalspace module, its
+owner directory), also outside the module's own repository: real modules share a
+contracts package of the Organization's root repository
+(`file:../../../../launchpad/contracts/v1` from `workspace/<module>/app/v3/`), which the
+replaced Launchpad installs. The reference is normalized as text and reached from the
+Organization directory through real directories owned by the operator (F23); the
+install authority inventories that dependency, never the whole Organization. One that
+leaves the Organization is `preparation-dependency-outside-owner`, one that is not
+there `preparation-dependency-missing`, and one through a symlink or another account's
+directory keeps the checkout rule's reason. A declared preparation's local dependencies
+stay inside its owner. The default refuses an application whose directory contains, or
+lies inside, another application package of the same module
+(`preparation-applications-overlap`): its install would write beneath a possibly
+running app; sibling packages (`app/v1`, `app/v2`) are fine. The catalog runs the same
+rules read-only, including the lockfile's and the checkout configuration's file rule
+(F25 point 4). A module refused only by its preparation is still read, logged and
+stopped; only a start depends on the preparation (F25 point 4a). The explicit
+declaration remains for everything the default does not do: a workspace owner, a
+prepare script, a check, or nested application packages.
+`inspectPreparationBinding` returns the preparation in effect as `preparation`
+(`kind: "declared" | "default"`), and `inspectPreparationShape` is its read-only part
+that the catalog runs for each module's default app. A preparation that cannot run for
+a known reason throws `PreparationRefused` with one of the closed
+`preparationReasons` and the absolute package or lockfile it concerns, which every
+surface names relative to the module (`src/modules/preparation-refusal.ts`).
 
 The read-only application reader includes this declaration in its existing digest.
 Parsing does not prove that the owner exists, owns the selected workspace package,
@@ -118,7 +182,7 @@ owner coordination. No dependency installation, script execution or new permissi
 follows from a successfully parsed declaration. Consumer wiring and native lifecycle
 qualification remain incomplete; fixtures exercise parsing and unchanged source bytes.
 
-`inspectPreparationBinding` now resolves that explicit owner using the existing owned
+`inspectPreparationBinding` now resolves that explicit owner (or the default one) using the existing owned
 package/lock reader, checks self-ownership or declared array-form Bun workspace membership
 (including exclusions), and requires the named scripts in the owner package. It repeats
 the application digest and owner inspection before returning read-only observations.
@@ -145,13 +209,16 @@ own qualification before the workspace execution refusal can be removed.
 The authority also captures the bytes of owner-level `patchedDependencies` files
 (the [Bun patch mechanism](https://bun.sh/docs/pm/cli/patch)). Paths must remain
 relative to the explicit dependency owner, outside Git and derived dependency
-trees. Every parent directory and regular patch file passes the existing custody
-checks; linked, missing or shared-write inputs cannot verify as unchanged. This
+trees. Every parent directory and every patch file passes the checkout rule of
+decision F23 (a real directory, or a regular file of at most 1 MiB, owned by the
+operator; permission bits and link count are not reasons); a missing, symlinked or
+changed input cannot verify as unchanged. This
 does not apply patches, validate patch syntax, qualify workspace-level patch
 semantics or complete the remaining local dependency input snapshot.
 
 Direct owner-relative `file:` dependency content is now inventoried, including
-added and removed files, with directory identities and regular-file custody checks.
+added and removed files, with directory identities and the checkout rule of decision
+F23 for every file (a hard-linked `package.json` of a local package is read).
 Git metadata and derived `node_modules` trees are excluded; the inventory has
 explicit depth, entry and byte limits and refuses unsafe inputs rather than
 returning a truncated snapshot. When these inputs exist, the frozen Bun install
@@ -183,7 +250,8 @@ This intermediate boundary is not completion of either candidate's full module j
 The development `launchpad` command can now opt into local application execution with
 both `--organization-directory` and `--bun-executable`. Without the explicit executable,
 discovery remains read-only. It does not download a toolchain or select one from PATH.
-The executable must match the module's exact Bun version. Only HOME, PATH and optional
+The executable must match the module's exact Bun version when the package pins one
+(`packageManager`); a package that pins none uses it as it is (F25). Only HOME, PATH and optional
 TMPDIR enter the selected process environment; module scripts still run as the local
 account and can access its files, so this is not a sandbox or provider permission check.
 
@@ -235,15 +303,67 @@ The client cannot supply these addresses. A compiled CLI regression consumes the
 variables in its real server and checks the resulting health/content; it failed
 before this propagation was added. Preparation does not start the declared listeners.
 
-For start-time prerequisites, `preflightDeclaredBunCheck` selects the explicit check
-operation of that same process owner. It skips frozen installation and prepare_script,
-requires check_script, and rejects clean-install mode. Module check code is expected
-not to provision or repair; that is a module contract, not an OS sandbox guarantee.
-The lifecycle's optional `preflightStartCheck` retains this operation through run/close
-and shutdown before preparing an application launch. Failed prerequisites return
-`prerequisites-not-ready`; unconfirmed cleanup stays owned and prevents another start.
-Status inspection does not invoke this operation. Synthetic tests distinguish a missing
-dependency from permission to install it and cover shutdown during the start check.
+**The whole environment of a started application** (decision F26,
+`src/modules/application-environment.ts`) is the one the replaced Launchpad gave a
+declared runtime, on top of the closed base `HOME`, `PATH` and optional `TMPDIR`:
+
+| Name | Value | Present |
+| --- | --- | --- |
+| `LAZURIO_RUNTIME_LISTENER_<ID>_HOST`, `_PORT` | the listener's module lease | every listener |
+| `LAZURIO_RUNTIME_HOST`, `LAZURIO_RUNTIME_PORT` | the entrypoint's lease | always |
+| `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN`, `LAZURIO_RUNTIME_EXTERNAL_ORIGIN` | the entrypoint's browser origin, `https://<host>` without a slash: exactly `runtime.url` without its slash | hosted Machine with a recorded entry, the module's default app, the entrypoint only |
+| `LAZURIO_RUNTIME_LISTENERS_JSON` | `[{id, role, allocation: "static", host, port, protocol, health, claim: {mode: "exclusive"}, external_origin?}]` | always; `external_origin` as above |
+| `LAZURIO_RUNTIME_SCHEMA_VERSION`, `LAZURIO_RUNTIME_APP_ID`, `LAZURIO_RUNTIME_ENTRYPOINT_ID` | `lazurio.runtime.v1`, the runtime `id`, the entrypoint's `id` | always |
+| `COMPANYASCODE_APP_ID`, `COMPANYASCODE_RUNTIME_KEY`, `COMPANYASCODE_RUNTIME_SOURCE` | the runtime `id`, the runtime `id`, `main` | always |
+| `COMPANYASCODE_ORGANIZATION_ROOT` | the Organization root | an Organization's module, not a Personalspace module |
+| `NODE_PATH` | `<application directory>/node_modules` | always |
+| `NODE_ENV`, `ASTRO_DEV_BACKGROUND`, `ASTRO_PREVIEW_BACKGROUND` | `development`, `1`, `1` | always |
+
+Nothing else is passed, so an ambient `HOST`, `PORT`, `NODE_PATH` or `LAZURIO_RUNTIME_*`
+of the Launchpad, the CLI or the user manager never reaches the application (the
+user manager's own names are unset, below). A workstation run, a loopback-only
+listener and an app the gateway does not serve at the module hostname (not the
+module's default, or no recorded entry) get no external origin; a Folder whose state
+cannot be read refuses the start (`folder-state-unreadable`) instead of being taken
+for a workstation. Both runners start the same environment. `tests/application-environment.test.ts`
+starts a fixture application that allows only its external origin's hostname through
+the module operations on a hosted and a workstation fixture Folder and compares the
+whole environment exactly.
+
+For the start-time step, `preflightDeclaredBunStart` selects the `start` operation of
+that same process owner (decision F34, issues #114 and #116). It requires check_script
+and rejects clean-install mode. It runs, in one run under the same 600-second deadline,
+the frozen install from the lockfile beside the owner's package on every start (exactly
+as the default preparation does; when `node_modules` already matches the lockfile Bun
+leaves registry and Git dependencies as they are, but copies local `file:` dependencies
+again and runs the app package's own lifecycle scripts such as `postinstall`, so such a
+hook runs on every start), then the check. A check that passes ends the step: the application starts
+and prepare_script does not run. A check that exits non-zero is followed by the declared
+prepare_script and the check again, as the Lazurio Module Standard (root
+`manual/module-standard.md` ch. 3 and 10) requires; the application starts only when that
+check passes. The install comes first because the check verifies the module's own
+preparation, while whether the installed tree matches the lockfile is the Platform's
+question: a check that passed on a tree installed for an earlier lockfile started an
+application that crashed on a dependency an update had added. The step that failed is
+named: `preparation-install-failed` with the lockfile (no check runs),
+`preparation-script-failed` with the owner's `package.json`, and
+`prerequisites-not-ready` when the check still fails after the preparation (or after the
+install when there is no prepare_script). An application whose directory contains, or
+lies inside, another application of its module only checks at start (an install could
+change that application's files beneath it), and a check that fails answers
+`preparation-applications-overlap`. The default preparation (F25) has no check script:
+for it the start-time step is its frozen install, and a failed install answers
+`preparation-install-failed` with the lockfile. Module check code is expected
+not to provision or repair; that is a module contract, not an OS sandbox guarantee. The
+start-time preparation runs under the start's coordination like the default's install
+(F25 point 2): an interrupted one leaves no retained record, and the next start installs
+and checks again. The lifecycle's optional `preflightStartCheck` retains this operation
+through run/close and shutdown before preparing an application launch; unconfirmed
+cleanup stays owned and prevents another start. Status inspection does not invoke this
+operation. Synthetic tests cover the order of the steps, each step's failure, a passing
+check that runs no prepare_script, a stale tree repaired by the start, and shutdown during
+the start check (`tests/frozen-install-process.test.ts`,
+`tests/module-declared-preparation.test.ts`).
 
 The browser harness installs a real synthetic local dependency and runs its explicit
 module-owned synthetic data preparation before starting its app. An
@@ -400,7 +520,7 @@ contacting a running legacy Server or controlling a customer's module.
 
 ## Application lifetime — implemented for Linux, session-scoped on macOS
 
-Accepted by the Principal on 2026-09-19 ([decision F8](decisions.md#f8--the-os-service-manager-owns-long-running-applications)).
+Accepted by Matěj on 2026-09-19 ([decision F8](decisions.md#f8--the-os-service-manager-owns-long-running-applications)).
 Implemented for Linux as systemd user services on 2026-09-19; macOS keeps
 session-scoped applications. What is **not** done is listed at the end of this section.
 
@@ -457,18 +577,22 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
 - **Bounded definition from the validated launch only.** The working directory must be
   inside the owned canonical Organization directory and pass the existing
   owned-directory inspection; the command is an argv array with an absolute executable;
-  nothing is interpolated into a shell, and only `/usr/bin/systemctl` and
-  `/usr/bin/systemd-run` are ever executed, with a sanitized environment
+  nothing is interpolated into a shell, and only `/usr/bin/systemctl`,
+  `/usr/bin/systemd-run`, the read-only `/usr/bin/busctl` and `/usr/bin/journalctl`
+  are ever executed, with a sanitized environment
   (`PATH`, `LC_ALL`, `XDG_RUNTIME_DIR`), bounded time and bounded output, behind one
   injected process adapter (`service-manager-process.ts`). Text with control characters
   is refused.
 - **Properties:** `Type=exec` (a start that cannot execute fails synchronously),
   `KillMode=control-group`, `Restart=no` (a crashed application is reported, never
   resurrected silently), `UMask=0077` (the guard's creation mask), `TimeoutStopSec=5s`,
-  standard streams `null` (the session owner discards them too), and nothing that
-  widens privileges or changes resource limits.
-- **Environment is an allowlist.** Exactly the launch environment the guard passes today
-  (`HOME`, `PATH`, optional `TMPDIR`, `LAZURIO_RUNTIME_LISTENER_*`). A real user manager
+  standard input `null` and standard output and error to the journal (since slice P5
+  of the Launchpad parity, B6: the OS owns retention and rotation, `lazurio module logs`
+  reads the unit's tail with `journalctl --user --unit=<unit> --output=cat`; until then
+  both were `null`), and nothing that widens privileges or changes resource limits.
+- **Environment is an allowlist.** Exactly the launch environment the guard passes (the
+  closed base `HOME`, `PATH`, optional `TMPDIR` and the runtime environment of decision
+  F26 above). A real user manager
   hands its **own** environment to every service — on the qualification VM that included
   `DBUS_SESSION_BUS_ADDRESS` and `SSH_AUTH_SOCK`, an ambient credential socket — so the
   runner reads the manager's variable names (`show-environment`) and unsets every one
@@ -503,7 +627,10 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
   - *Fixed policy*, compared value by value with what the manager reports:
     `Transient=yes`, the transient `FragmentPath`, empty `DropInPaths`
     (`systemctl set-property` writes one), `Type=exec`, `KillMode=control-group`,
-    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput/Output/Error=null`,
+    `Restart=no`, `UMask=0077`, `TimeoutStopUSec=5s`, `StandardInput=null`,
+    `StandardOutput/Error=journal` (a unit an older release started with `null` output
+    is therefore foreign, `service-unrecognized`, until it is stopped once with
+    `systemctl --user stop <unit>`),
     a working directory inside the Organization directory.
   - *Variable part* — executable, exact argument vector, the no-expansion flag,
     environment, `UnsetEnvironment` and the working directory. `systemctl show` cannot
@@ -528,6 +655,13 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
 - The start-time declaration digest travels in the unit description, so a restarted
   Launchpad still refuses `open` with `declaration-changed` when the files on disk are
   no longer what the running invocation was started from.
+- The declaration digest covers the module's declaration files only, not the
+  environment. The environment is covered by the unit's own `definition sha256`, which
+  only proves that the unit is the one this runner created; it is not compared with
+  what a new start would produce. A unit started by an earlier release (or before the
+  Machine's entry changed) is therefore still this application's unit, reported
+  running, and Stop works on it; it keeps the environment it was started with until it
+  is stopped and started again (decision F26).
 
 ### Semantics
 
@@ -589,11 +723,13 @@ What changed in the locked sections (`local-application-adapters.ts`,
 
 - **Stop**: coordination lock only. It does not resolve the preparation binding and
   is never blocked by a crashed Launchpad or an interrupted preparation.
-- **Start**: coordination lock only. Start contains no install or repair — only the
-  declared check and the runner operation — so nothing had to be split out of it. It
-  refuses with `preparation-recovery-required` when a retained record that this owner
+- **Start**: coordination lock only. Its start-time step (the default preparation's
+  install, F25, or the same install and a declared check followed by `prepare_script`
+  only when it fails, F34) leaves no retained record when interrupted: the next start's
+  step installs and decides again.
+  It refuses with `preparation-recovery-required` when a retained record that this owner
   does not hold exists on its dependency tree: an application is never started on a
-  tree whose preparation died.
+  tree whose explicit preparation died.
 - **Prepare / clean-prepare**: the coordination lock around the whole operation, so
   "no active unit" stays true for its duration and `application-running` is decided
   under it; inside it, the retained lock around the transaction. The record is now
@@ -654,17 +790,19 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
   with the account's last login session. That is a Machine setting Lazurio does not
   change; a hosted workspace preset must decide it.
 - **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
-- **Start and preparation without a Launchpad.** `app-request` status and stop work
-  from the CLI alone for service-owned applications (below); start, open and
-  preparation still need a configured Launchpad, because they need its toolchain and
-  launch composition.
+- **Preparation without a Launchpad.** Since slice P5 `lazurio module start|stop|status|logs`
+  work from the CLI alone for service-owned applications, with the operator's Bun from
+  `~/.local/bin/bun`; `app-request` status and stop still work as below. Since F34
+  `lazurio module prepare` is a CLI verb too (the explicit preparation, refused while
+  another application of the Organization is managed). `clean-prepare` and a one-step
+  `open` are not yet CLI verbs.
 - **Survival across a product activation** is not yet exercised (there is no activation
   of a running Launchpad yet); a graceful and a killed Launchpad are.
 - **Operator recovery of an interrupted preparation** stays explicit and unqualified:
   the retained record of a preparation whose owner died is never reclaimed
   automatically. It blocks preparing and starting that tree only; status and Stop are
   never blocked by it.
-- Application output is still discarded (no journal capture decision), source selection
+- Source selection
   beyond the authorized module directory (named worktrees) is not part of the unit.
   Two live owners are serialized by the coordination lock; that is unit-tested, not
   yet natively qualified under load.
@@ -771,7 +909,7 @@ qualification and installed CLI/Launchpad acceptance remain incomplete.
 `src/providers/github-repository.ts` performs a fixed read-only GraphQL query through
 an explicitly selected GitHub CLI executable and the caller's existing credential
 context. Viewer node ID and exact repository facts come from the same response.
-The expected viewer ID must come from the selected Principal context, not a profile
+The expected viewer ID must come from the selected Operator context, not a profile
 or repository name. Wrong viewer/repository, partial GraphQL errors, malformed
 fields, warnings, timeout and oversized output never produce positive evidence.
 Successful observations carry request start/completion times; they are not cached.
@@ -870,10 +1008,13 @@ they are not app start/status/stop or installed-product evidence.
 is allowed; legacy `companyascode.app` requires explicit adoption, not an implicit
 fallback. Undeclared applications return the selector's blocked result.
 
-This POSIX development adapter requires a canonical, caller-owned, non-shared-write
-module directory and checks every intermediate app directory. Files must be owned,
-regular, single-link and non-shared-write; reads use no-follow/nonblocking opens,
-identity checks, a 1 MiB declaration limit and strict UTF-8 JSON. It never scans
+This POSIX development adapter requires a canonical module directory and checks every
+intermediate app directory. Directories and files follow the checkout rule of
+decision F23: owned by the operator, a real directory or a regular file of at most
+1 MiB (16 MiB for a lockfile), with permission bits and link count not a reason; a
+refusal carries its rule (`declaration-not-regular`, `declaration-owner`,
+`declaration-too-large`, `directory-not-regular`, `directory-owner`). Reads use
+no-follow/nonblocking opens, identity checks and strict UTF-8 JSON. It never scans
 Organizations, executes scripts, fetches URLs or writes files. Tests use invented
 temporary modules, including links, malformed/oversized data and legacy conflicts.
 
@@ -1033,9 +1174,10 @@ responding. Both run with empty environments; Ubuntu had neither Bun nor Node in
 - Platform CLI: `26e8a44c20c88785fb83bef67a25e512486e5a5ad7346cef1440a5a20b1f7f88`.
 - Standalone runner: `bcf0214fcf8901fb543c78c1d24149a2791e6181d3e9170943e4965fa27e92d8`.
 
-The first Linux attempt correctly refused a group-writable fixture directory inherited
-from the guest umask. The runner and source test now request mode 0700 explicitly;
-product custody checks were not relaxed. The corrected runner passed, then the VM
+The first Linux attempt refused a group-writable fixture directory inherited from the
+guest umask. The runner and source test now request mode 0700 explicitly; product
+custody checks were not relaxed then. Decision F23 (2026-09-29) later accepted the
+write bits of the operator's own checkout. The corrected runner passed, then the VM
 was stopped. This reused test VM is not a clean installer test. Linux evidence here
 does not cover pipe EOF, guard death, escaped descendants, Windows, Organization
 authorization or the still-missing user-facing app lifecycle commands and UI.
@@ -1064,8 +1206,9 @@ CLI/Launchpad acceptance. No Organization or Personalspace was mounted or used.
 ### Local Git checkout observation
 
 `src/providers/git-checkout.ts` is a read-only POSIX development adapter using an
-explicit caller-qualified Git executable. It requires a canonical caller-owned,
-non-shared-writable checkout root and Git/common directories, observes their
+explicit caller-qualified Git executable. It requires a canonical checkout root and
+Git/common directories owned by the operator (decision F23: their write bits are not a
+reason), observes their
 identities again, and reads one locally configured origin without includes. Nested
 paths are not accepted as checkout roots. Only exact GitHub HTTPS or SSH coordinates
 are returned; credentials, alternate transports and ambiguous origins are refused.
@@ -1101,7 +1244,9 @@ reader already used by application declarations. No recursive directory discover
 Organization data modification or implicit creation occurs.
 
 Mac-host fixtures exercise all three states, malformed UTF-8, size bounds, symlinks,
-hard links, directories and shared-writable files/root, with original contents retained.
+directories and a symlinked root (refused), hard links, group- or world-writable
+documents and a world-writable root (read, decision F23), with original contents
+retained.
 These are acquisition tests, not semantic Organization acceptance. Reads assume a
 stable cooperative directory and are not one atomic multi-document transaction.
 Windows is refused; native Linux qualification remains outstanding.

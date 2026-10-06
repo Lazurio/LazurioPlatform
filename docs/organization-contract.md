@@ -17,7 +17,15 @@ legacy source under Platform's license or create another schema authority.
 extensions and compatibility projection fields are upstream wire fields. They are
 not invented Platform fields. Verified Organization/repository IDs remain a complete
 pair; owner and binding state must match and the compatibility branch remains `main`.
-The root repository name is explicit, not derived as `<Owner>/<Owner>_GEN3`.
+The root repository is never trusted by name: a name is only a candidate, accepted
+after the repository declares itself the root, that is, after its own
+`lazurio.organization.json` binds the Organization's login and names exactly that
+repository as `root_repository` (Matěj, 2026-10-05; root decision 0188). The target
+source of the root is the Dashboard's Organization record, fed by the Organization's
+Lazurio for GitHub app installation; until it exists, content installation finds the
+candidate by name (`<Owner>/<Owner>_GEN3`) and otherwise by a scan of the
+Organization's readable repositories ([content synchronization](content-sync.md#where-the-root-repository-is)).
+The verification stays with every source, the Dashboard included.
 Shape validation is neither live provider verification nor permission to operate.
 
 Templates remain valid authored declarations for inspection/conversion preview, but
@@ -44,47 +52,85 @@ interim implementation of the same compatibility-state table, not a second schem
   missing inventory is `conflict`. This recognizes drift only where parity is
   proven and is stricter than upstream, never looser.
 - Execution admission (`resolveOrganizationApplication`, hence Launchpad/CLI
-  `prepare`, `clean-prepare` and `start`) accepts only parity-valid `transition`;
-  it is the single executable state. A canonical-only `current` root is observable
-  and inspection-only until a separately proven finalization: decision 0145 lets
-  the projection disappear only after the finalization gate has covered every
-  mutation-capable reader, and a valid digest proves the projection's content, not
-  that the gate ran. `current` becomes executable only once the pinned Core
-  envelope carries an explicit, verified finalization admission signal. `legacy`,
-  `projection_drift`, `conflict`, `missing`, a template and an unresolvable root
-  refuse before descendant inspection, the owner lock, preparation, script start
-  or any write. Every present document is normalized with the upstream issue codes
-  (slot path grammar and scope, `module_port_pool` range, legacy identity and
-  schema) before any state is assigned.
+  `prepare`, `clean-prepare` and `start`, and `executable` in the Folder catalog)
+  asks one rule, `isExecutableOrganizationState` in
+  `src/organizations/root-resolution.ts`, with two variants in one constant:
+  **transition-only** (variant A, F12 as accepted: only parity-valid `transition`
+  executes, a canonical-only `current` root is observable and inspection-only) and
+  **transition-and-current** (variant B: `current` executes as well). The default is
+  **variant B, decided by Matěj on 2026-09-28** (question H1 of the
+  Launchpad parity shaping, decision F22 point 1): the checkout exists because
+  GitHub allowed the clone, and the projection gate was migration machinery.
+  Variant A stays one line away for the record and tests cover both variants. Under either variant `legacy`, `projection_drift`,
+  `conflict`, `missing`, a template and an unresolvable root refuse before
+  descendant inspection, the owner lock, preparation, script start or any write.
+  Every present document is normalized with the upstream issue codes (slot path
+  grammar and scope, `module_port_pool` range, legacy identity and schema) before
+  any state is assigned.
 - Discovery stays inspection-only: `applications-observed` carries the resolution
-  state and an explicit `admission: executable | inspection-only`; a
-  `projection_drift` root is still listed from the canonical file but is not
-  executable. Conflict returns `organization-conflict` with issue codes only.
+  state and an explicit `admission: executable | inspection-only`; a root the
+  admission rule does not execute (`projection_drift`, and `current` under variant
+  A) is still listed from the canonical file but is not executable. Conflict
+  returns `organization-conflict` with issue codes only.
+- The Organization root and its documents are the operator's own checkout (decision
+  F23): the root is accepted when it is a real directory owned by the operator, each
+  document when it is a regular file of at most 1 MiB owned by the operator;
+  permission bits and link count are not reasons (a clone under umask `002` has
+  `0775` directories and `0664` files). A refused document keeps the `conflict` state
+  and its `*_document_unreadable` issue, and the catalog names the Organization's
+  reason by the rule (`declaration-not-regular`, `declaration-owner`,
+  `declaration-too-large`) with the document's file; a refused root is
+  `directory-not-regular` or `directory-owner` with `.`.
+- The Folder catalog (`lazurio organization list`, `lazurio module list`, the
+  Launchpad home) applies this reader to every directory in
+  `<Folder>/organizations/`; a candidate that cannot be read, a template and two
+  candidates declaring one slug are isolated with a typed reason and never hide
+  the others. See [launchpad development](launchpad-development.md#launchpad-home-the-catalog).
 
 ## Exit from transition-only admission
 
-Accepted direction (2026-09-19, [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)),
-not implemented. **Canonical-only Organizations are the target normal case.** Upstream
-decision 0145 deprecates the legacy projection and makes `current` the end state of
-every Organization. Admitting only parity-valid `transition` roots, as described above,
-is an **interim gate** tied to upstream finalization readiness. It is not a product
-requirement that an Organization keep a deprecated file: requiring the projection
-forever would institutionalize migration machinery and make every new Organization
+**Decided 2026-09-28 by Matěj (question H1 of the Launchpad parity shaping,
+decision F22 point 1): the transition-only gate is retired and this section is a
+historical record.** Admission runs variant B (see the execution admission bullet
+above): a parity-valid `transition` root and a canonical-only `current` root both
+execute; `legacy`, `projection_drift`, `conflict`, `missing`, a template and an
+unresolvable root refuse. No upstream identity continuity proof is awaited: no owner
+of such a proof was named, and a canonical-only Organization would otherwise lose its
+applications when the Platform Launchpad replaces the resident one. Nothing falls back
+to the deprecated projection, no second schema and no local finalization marker exist.
+Variant A stays one line away in `src/organizations/root-resolution.ts` for the
+record, covered by tests.
+
+*Historical, as [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)
+was accepted on 2026-09-19 and superseded on 2026-09-28; nothing below is a pending
+condition.* Canonical-only Organizations were stated as the target normal case:
+upstream decision 0145 deprecates the legacy projection and makes `current` the end
+state of every Organization. Admitting only parity-valid `transition` roots was then an
+**interim gate** tied to upstream finalization readiness, not a product requirement
+that an Organization keep a deprecated file, since requiring the projection forever
+would have institutionalized migration machinery and made every new Organization
 start in a migration state.
 
-Exit criterion, stated generically: `current` roots become executable once upstream
-accepts a **trusted, live-verifiable identity continuity proof**, that is, evidence the
-consumer can check at the operation boundary that this canonical-only root is the same
+The exit criterion F12 stated was that `current` roots would become executable once
+upstream accepted a trusted, live-verifiable identity continuity proof: evidence the
+consumer could check at the operation boundary that a canonical-only root is the same
 Organization that passed the finalization gate, without consulting the removed
-projection and without trusting a locally stored claim alone. When the pinned Core
-contract carries that signal, Platform admits `current` as the normal executable state,
-keeps `transition` executable while it still exists, and deletes nothing itself.
-
-Until then nothing changes: no fallback to the projection, no second schema, no
-locally invented finalization marker, and no admission from a digest that only proves
-the projection's content.
+projection and without trusting a locally stored claim alone. Meanwhile F12 excluded a
+fallback to the projection, a second schema, a locally invented finalization marker
+and admission from a digest that only proves the projection's content. The 2026-09-28
+decision replaced that criterion rather than meeting it; the exclusions still hold.
 
 ## Relation to the upstream contract
+
+The compatibility projection follows Core's materializable-repository boundary:
+slots without repository coordinates stay in the authored inventory but are absent
+from legacy `modules`; Productionspace entries carry no `teams`, `workspace` or
+`workspaces` alias. This behavior is checked against
+[Core's projector at f402e355](https://github.com/HumanAndMachines/Lazurio/blob/f402e35522ef947efe55c953f754e5d9d1fca98c/lazurio/core/organization-activation-lib.mjs)
+with synthetic wire expectations in `tests/organization-root-resolution.test.ts`.
+The regression proves a valid projection is executable and a stale declared hash
+still refuses. It does not rewrite declarations or claim complete resolver
+convergence.
 
 The upstream contract already makes `lazurio.organization.json` canonical during a
 parity-valid transition, with the legacy file a generated projection, not a second

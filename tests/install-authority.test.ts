@@ -17,6 +17,7 @@ import {
   verifyInstallAuthority,
 } from "../src/modules/install-authority";
 import { inspectPatchInputs } from "../src/modules/patch-inputs";
+import { checkoutRefusal } from "../src/providers/checkout-custody";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
@@ -319,12 +320,14 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       expect(await verifyInstallAuthority(before)).toBe(false);
       await writeFile(patch, "original patch bytes");
       expect(await verifyInstallAuthority(before)).toBe(true);
+      // Permission bits and the link count of the operator's checkout are
+      // not install inputs (decision F23): the same bytes stay the same input.
       await chmod(patch, 0o666);
-      expect(await verifyInstallAuthority(before)).toBe(false);
+      expect(await verifyInstallAuthority(before)).toBe(true);
       await chmod(patch, 0o600);
       const alias = join(root, "alias.patch");
       await link(patch, alias);
-      expect(await verifyInstallAuthority(before)).toBe(false);
+      expect(await verifyInstallAuthority(before)).toBe(true);
       await rm(alias);
       await rename(patch, alias);
       expect(await verifyInstallAuthority(before)).toBe(false);
@@ -335,6 +338,35 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       await rename(join(root, "patches"), join(root, "retained-patches"));
       await symlink(join(root, "retained-patches"), join(root, "patches"));
       expect(await verifyInstallAuthority(before)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "the Bun lockfile has the lockfile bound: 1 MiB + 1 byte is an install input, 16 MiB + 1 byte is refused as declaration-too-large (decision F23)",
+  async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), "lock-bound-")));
+    try {
+      await writeFile(
+        join(root, "package.json"),
+        JSON.stringify({ packageManager: "bun@1.4.2" }),
+      );
+      const lock = join(root, "bun.lock");
+      await writeFile(lock, Buffer.alloc(1024 * 1024 + 1, 32));
+      expect((await inspectInstallAuthority(root, root)).lockfile).toBe(
+        "bun.lock",
+      );
+      await writeFile(lock, Buffer.alloc(16 * 1024 * 1024 + 1, 32));
+      const error = await inspectInstallAuthority(root, root).then(
+        () => null,
+        (thrown: unknown) => thrown,
+      );
+      expect(checkoutRefusal(error, root)).toEqual({
+        reason: "declaration-too-large",
+        file: "bun.lock",
+      });
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -531,6 +563,129 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
       await expect(inspectInstallAuthority(checkout, owner)).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "the owner's package names its Bun or none, and its one lockfile is beside it; every refusal is typed with the package it concerns (decision F25)",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "install-owner-")),
+    );
+    const file = join(root, "package.json");
+    const refused = (reason: string, path = file) =>
+      expect(inspectInstallAuthority(root, root)).rejects.toMatchObject({
+        reason,
+        path,
+      });
+    try {
+      // No packageManager: the operator's Bun, whichever version it is.
+      await writeFile(file, JSON.stringify({ name: "owner" }));
+      await refused("preparation-lockfile-missing");
+      await writeFile(join(root, "bun.lock"), "");
+      await refused("preparation-lockfile-missing");
+      await writeFile(join(root, "bun.lock"), "opaque fixture lock");
+      expect((await inspectInstallAuthority(root, root)).packageManager).toBe(
+        null,
+      );
+      await writeFile(join(root, "bun.lockb"), "opaque binary lock");
+      await refused("preparation-lockfile-ambiguous");
+      await rm(join(root, "bun.lockb"));
+      for (const packageManager of ["npm@10.0.0", "bun@latest", "bun", 7]) {
+        await writeFile(
+          file,
+          JSON.stringify({ name: "owner", packageManager }),
+        );
+        await refused("preparation-package-manager-unsupported");
+      }
+      await writeFile(
+        file,
+        JSON.stringify({ name: "owner", packageManager: "bun@1.4.2" }),
+      );
+      expect((await inspectInstallAuthority(root, root)).packageManager).toBe(
+        "bun@1.4.2",
+      );
+      await writeFile(
+        file,
+        JSON.stringify({
+          name: "owner",
+          dependencies: { shared: "file:../shared" },
+        }),
+      );
+      await refused("preparation-dependency-outside-owner");
+      await writeFile(file, "[]");
+      await refused("preparation-owner-invalid");
+      expect(await readFile(join(root, "bun.lock"), "utf8")).toBe(
+        "opaque fixture lock",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "with a dependency boundary, a local dependency outside the owner but inside the boundary is an install input; the boundary itself, beyond it and a missing one are refused (decision F25)",
+  async () => {
+    const boundary = await realpath(
+      await mkdtemp(join(tmpdir(), "install-boundary-")),
+    );
+    const owner = join(boundary, "workspace/module/app/v3");
+    const checkout = join(boundary, "workspace/module");
+    const contracts = join(boundary, "launchpad/contracts/v1");
+    const file = join(owner, "package.json");
+    const write = (reference: string) =>
+      writeFile(
+        file,
+        JSON.stringify({
+          name: "owner",
+          dependencies: { contracts: reference },
+        }),
+      );
+    try {
+      await mkdir(owner, { recursive: true });
+      await mkdir(contracts, { recursive: true });
+      await writeFile(
+        join(contracts, "package.json"),
+        JSON.stringify({ name: "contracts", version: "1.0.0" }),
+      );
+      await writeFile(join(owner, "bun.lock"), "opaque fixture lock");
+      await write("file:../../../../launchpad/contracts/v1");
+      // Without the boundary the owner is the limit, as before.
+      await expect(
+        inspectInstallAuthority(checkout, owner),
+      ).rejects.toMatchObject({
+        reason: "preparation-dependency-outside-owner",
+        path: file,
+      });
+      const before = await inspectInstallAuthority(
+        checkout,
+        owner,
+        undefined,
+        boundary,
+      );
+      expect(await verifyInstallAuthority(before)).toBe(true);
+      await writeFile(
+        join(contracts, "package.json"),
+        JSON.stringify({ name: "contracts", version: "2.0.0" }),
+      );
+      expect(await verifyInstallAuthority(before)).toBe(false);
+      for (const [reference, reason] of [
+        ["file:../../../..", "preparation-dependency-outside-owner"],
+        ["file:../../../../..", "preparation-dependency-outside-owner"],
+        [
+          "file:../../../../launchpad/contracts/v9",
+          "preparation-dependency-missing",
+        ],
+      ] as const) {
+        await write(reference);
+        await expect(
+          inspectInstallAuthority(checkout, owner, undefined, boundary),
+        ).rejects.toMatchObject({ reason, path: file });
+      }
+    } finally {
+      await rm(boundary, { recursive: true, force: true });
     }
   },
 );

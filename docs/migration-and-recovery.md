@@ -20,7 +20,7 @@ preferences, upgrades tools or runs data migrations; content synchronization its
 never stashes, switches branches or resets.
 
 A working profile belongs to the individual Machine installation. Changing it here
-does not update any other Machine used by the same Principal. Profile transport or
+does not update any other Machine used by the same person. Profile transport or
 copy is outside this first capability; no automatic sync is part of upgrade.
 
 ## Shared local migration use case
@@ -90,7 +90,7 @@ still reference them.
 
 ## Common mutation discipline
 
-1. Identify Principal, Machine Owner and parent provider/operator boundary. Check
+1. Identify Operator, Machine Owner and parent provider or hosting operator boundary. Check
    exact filesystem/remote identity, platform capability and necessary live rights.
 2. Acquire one owner-controlled operation lock and capture expected current revision.
    A stale lock is not deleted on age alone; verify owner process and recovery state.
@@ -217,7 +217,7 @@ process termination and preservation of unexpected lock contents. This is cooper
 local exclusion, not a security boundary against same-user attackers or ancestor
 replacement, and not evidence for Windows/network filesystems or durable transactions.
 
-## Product upgrade and profile rollback
+## Product upgrade and profile changes
 
 ### Development fresh Folder initialization
 
@@ -431,21 +431,22 @@ files remain unchanged. Actual persistence, journal recovery and installed CLI/U
 integration are not supplied by this read-only adapter.
 
 The release declares supported preferences and generated-manifest versions. Backward
-read compatibility is checked before stage; write compatibility and rollback support
-are checked before activation. Keep the original preference snapshot and exact prior
-product/profile artifacts. A forward migration that makes old software unable to
-read new state is an explicit no-automatic-rollback boundary. Restore the coherent
-old product and preference generation only if subsequent work can be preserved;
-otherwise stop for forward repair rather than start an old binary on incompatible data.
+read compatibility is checked before stage; write compatibility is checked before
+activation. Keep the original preference snapshot and the exact prior profile
+artifacts. There is no program rollback ([product update](update.md), change of
+2026-09-28): a forward migration that makes old software unable to read new state
+is repaired forward, never by starting an old binary on incompatible data.
 
-Preferences schema 2 has one optional key added after its first release: `tools`, the
-enabled catalog tools ([F18](decisions.md#f18--enabled-tools-of-the-environment)). The
-declared versions are unchanged, because the release reads every document written
-before it, and a Folder that enables nothing keeps byte-identical preferences. The
-key is such a forward boundary only while it is present: binaries older than that
-release refuse a Folder with a non-empty `tools` list (unknown field, fail closed,
-nothing rewritten). Before a program rollback below that release, disable the enabled
-tools with the newer binary; otherwise repair forward by returning to it.
+Preferences schema 2 has two optional keys added after its first release: `tools`, the
+enabled catalog tools, and `toolNotes`, the operator's notes for agents on required or
+enabled tools ([F18 and its addendum](decisions.md#f18--enabled-tools-of-the-environment)).
+The declared versions are unchanged, because the release reads every document written
+before it, and a Folder that enables nothing and notes nothing keeps byte-identical
+preferences. Each key is such a forward boundary only while it is present: binaries
+older than that release refuse a Folder with a non-empty `tools` list or a `toolNotes`
+object (unknown field, fail closed, nothing rewritten). An installation that a
+release before 2026-09-28 rolled back below that release is repaired forward by
+returning to it.
 
 A profile update renders deterministic output without host secrets. It changes only
 paths named in its ownership manifest, each matched to the expected old digest.
@@ -499,7 +500,7 @@ proof on a faithful fixture; never rewrite arbitrary `.git` pointer text blindly
 
 ## Confirmed one-way, in-place conversion
 
-The Principal selected in-place conversion, not a supported return to the old
+Matěj selected in-place conversion, not a supported return to the old
 source-working installation. Keep the Lazurio Folder, Organization repositories,
 Personalspace and their worktrees at their existing paths. The separate compatibility
 alias procedure above is not part of this conversion when paths are already correct.
@@ -520,8 +521,9 @@ Unknown files and edited instructions are preserved rather than blindly overwrit
 An unresolved dependency or unattributed work blocks the affected destructive step.
 
 Recovery means protecting data and resuming or repairing forward. Returning the whole
-Folder to a legacy Git checkout is not an acceptance requirement. This does not relax
-product-version rollback or the separate legacy shared-workshop convergence contract.
+Folder to a legacy Git checkout is not an acceptance requirement. There is no
+product-version rollback either ([product update](update.md), change of 2026-09-28);
+the separate legacy shared-workshop convergence contract is unaffected.
 
 ### Organization declaration adoption is a separate prerequisite
 
@@ -571,13 +573,13 @@ or ambiguous credentials and unattributed work.
 For each legacy shared workshop the owner chooses the target kind explicitly: a
 delivered team workspace (one OS account, brokered identity, no personal credentials,
 no Personalspace, changes through pull requests) or private workspaces, one per
-Principal. Inventory sessions, working copies, dirty branches, stashes, jobs,
+person. Inventory sessions, working copies, dirty branches, stashes, jobs,
 credentials and Organization-owned data with the authorized owner; do not inspect
 foreign Personalspace. Attribute work to its owner or Team instead of copying the
 shared directory to every seat.
 
 Provision targets using the existing infrastructure owner. On a private target,
-re-establish the Principal's identity through its provider flow; on a team target,
+re-establish the Operator's identity through its provider flow; on a team target,
 establish only the brokered identity. Never clone another person's credentials, and
 remove personal credentials and sessions found on a shared Machine through their
 owner rather than carrying them over. Preserve attributable drafts through authorized

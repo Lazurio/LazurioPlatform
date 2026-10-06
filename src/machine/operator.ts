@@ -1,7 +1,14 @@
 import { execFile } from "node:child_process";
 import { lstat, realpath } from "node:fs/promises";
+import { join } from "node:path";
 import { promisify } from "node:util";
-import { MachineContextError } from "./context";
+import {
+  bindMachineOperator,
+  MachineContextError,
+  type MachineContextSource,
+  productionMachineContextSource,
+  readMachineContext,
+} from "./context";
 
 export function parseOperatorRecord(output: string, uid: number) {
   const lines = output.trimEnd().split("\n");
@@ -61,4 +68,123 @@ export async function readLinuxOperator() {
   } catch {
     throw new MachineContextError("machine-operator-unavailable");
   }
+}
+
+/** What the hosted context of this process is, in three kinds that are never
+ * collapsed into one another (issue #83):
+ * - `absent`: positively no hosted Folder of this account — not Linux, no
+ *   handover at all, or a valid handover whose declared operator is another
+ *   account (or root);
+ * - `hosted`: this process is the declared operator of a readable, valid
+ *   handover; `folder` is its declared Folder (not yet read);
+ * - `unreadable`: a handover is there but cannot be trusted or read (unsafe
+ *   custody, a permission error, malformed JSON, a schema mismatch), or the
+ *   account's own system record cannot be resolved to tell whether it is the
+ *   operator. Never a workstation. */
+export type HostedOperatorContext =
+  | Readonly<{
+      kind: "absent";
+      reason:
+        | "machine-platform-unsupported"
+        | "machine-context-missing"
+        | "machine-operator-mismatch";
+    }>
+  | Readonly<{ kind: "hosted"; folder: string }>
+  | Readonly<{
+      kind: "unreadable";
+      reason:
+        | "machine-context-invalid"
+        | "machine-context-custody"
+        | "machine-operator-unavailable";
+    }>;
+
+type OperatorRecord = Awaited<ReturnType<typeof readLinuxOperator>>;
+
+/** Where the discovery reads: the handover's source and the account's
+ * system record. Production reads `/etc/lazurio` as root custody and the
+ * effective UID through getent; a test names a private root and a record. */
+export type HostedOperatorSources = Readonly<{
+  handover: MachineContextSource;
+  operator: () => Promise<OperatorRecord>;
+}>;
+const productionSources: HostedOperatorSources = Object.freeze({
+  handover: productionMachineContextSource,
+  operator: readLinuxOperator,
+});
+
+// The Folder of a hosted Machine, when this process is its declared operator:
+// what `lazurio update` and `update status` report a needed refresh against
+// (decision F17 addendum 2026-09-28) and whose preset decides the Team rule of
+// gh. Read-only.
+export async function discoverHostedOperator(
+  sources: HostedOperatorSources = productionSources,
+): Promise<HostedOperatorContext> {
+  const unreadable = (
+    reason: Extract<HostedOperatorContext, { kind: "unreadable" }>["reason"],
+  ) => Object.freeze({ kind: "unreadable" as const, reason });
+  const absent = (
+    reason: Extract<HostedOperatorContext, { kind: "absent" }>["reason"],
+  ) => Object.freeze({ kind: "absent" as const, reason });
+  const code = (error: unknown) =>
+    error instanceof MachineContextError ? error.code : undefined;
+  let context: Awaited<ReturnType<typeof readMachineContext>>["context"];
+  try {
+    ({ context } = await readMachineContext(sources.handover));
+  } catch (error) {
+    const reason = code(error);
+    if (
+      reason === "machine-platform-unsupported" ||
+      reason === "machine-context-missing"
+    )
+      return absent(reason);
+    return unreadable(
+      reason === "machine-context-invalid"
+        ? "machine-context-invalid"
+        : "machine-context-custody",
+    );
+  }
+  // A handover whose operator fields disagree with each other is invalid, not
+  // another account's: `bindMachineOperator` reports both as a mismatch.
+  const declared = context.operator;
+  if (
+    declared.home !== `/home/${declared.os_user}` ||
+    declared.lazurio_root !== `${declared.home}/Lazurio`
+  )
+    return unreadable("machine-context-invalid");
+  let operator: OperatorRecord;
+  try {
+    operator = await sources.operator();
+  } catch (error) {
+    // Root, or a real UID that differs from the effective one, is not the
+    // declared operator; any other failure leaves it unknown.
+    return code(error) === "machine-operator-mismatch"
+      ? absent("machine-operator-mismatch")
+      : unreadable("machine-operator-unavailable");
+  }
+  try {
+    return Object.freeze({
+      kind: "hosted" as const,
+      folder: join(
+        sources.handover.root,
+        bindMachineOperator(context, operator),
+      ),
+    });
+  } catch (error) {
+    return code(error) === "machine-operator-mismatch"
+      ? absent("machine-operator-mismatch")
+      : unreadable("machine-operator-unavailable");
+  }
+}
+
+/** The hosted operator Folder as the commands' `hostedFolder` seam takes it:
+ * the Folder when this process is the declared operator, undefined when
+ * there is positively none, and a rejection with the typed
+ * `MachineContextError` when a hosted context is there but unreadable, so no
+ * caller can take it for a workstation without handling it. */
+export async function hostedOperatorFolder(
+  sources: HostedOperatorSources = productionSources,
+): Promise<string | undefined> {
+  const found = await discoverHostedOperator(sources);
+  if (found.kind === "unreadable") throw new MachineContextError(found.reason);
+  return found.kind === "hosted" ? found.folder : undefined;
 }

@@ -17,15 +17,114 @@ export const updateErrorCodes = [
   "storage-unavailable",
   "disk-full",
   "not-installed",
+  /** The candidate failed its self-check or its Launchpad probe; it was
+   * removed and nothing was switched. */
   "self-check-failed",
+  /** The service manager refused to enable or start the Launchpad unit. */
   "activation-failed",
-  "rollback-unavailable",
+  /** After the switch, the restarted Launchpad did not report the new version
+   * within the deadline. Nothing is undone: the new version stays active and
+   * its Launchpad is in Recovery mode or not running; repair goes forward. */
+  "activation-unhealthy",
   /** Update state that no crash can produce. Never cleared, rewritten or
    * guessed: mutating commands refuse, naming the path, until a person acts. */
   "state-invalid",
   "internal",
 ] as const;
 export type UpdateErrorCode = (typeof updateErrorCodes)[number];
+
+/** The finite values of the id-valued context keys of an update error. They
+ * are a contract like the codes: an outside observer and `lazurio recover`
+ * (docs/recovery.md "Two tiers") admit exactly these and drop anything else.
+ * The helpers that build a context take these types; a literal written
+ * straight into a context is held to these lists by tests/recover-prompt.test.ts.
+ */
+export const updateErrorReasons = [
+  // self-check (self-check.ts)
+  "not-executable",
+  "timeout",
+  "exit",
+  "output",
+  "identity-mismatch",
+  "fixture",
+  "base",
+  "folder",
+  // transport and download (transport.ts, download.ts)
+  "connection",
+  "http",
+  "redirect",
+  "not-found",
+  "size",
+  "digest",
+  // the release documents (manifest.ts, update.ts, install.ts)
+  "target",
+  "json",
+  "schema",
+  "version",
+  "source-commit",
+  "minimum-updater-version",
+  "notes-url",
+  "targets",
+  "tag-mismatch",
+  "commit-mismatch",
+  "below-floor",
+  "file",
+  // attestation (attestation.ts)
+  "envelope",
+  "payload-type",
+  "statement",
+  "subject",
+  "verification",
+  // install, activation, rollback (install.ts, activation.ts, update.ts)
+  "foreign-unit",
+  "none",
+  "missing",
+  "self-check",
+  // the Launchpad's update pill (src/launchpad/update-pill.ts)
+  "interrupted",
+  // the candidate's Launchpad probe (self-check.ts, docs/update.md "Activation")
+  "launchpad-refused",
+  "launchpad",
+] as const;
+export type UpdateErrorReason = (typeof updateErrorReasons)[number];
+
+export const updateErrorStages = [
+  "activate",
+  "base",
+  "child",
+  "commit",
+  "copy",
+  "disk-check",
+  "download",
+  "executable",
+  "folder",
+  "high-water",
+  "install",
+  "lock",
+  "service",
+  "stage",
+  "start",
+  "switch-back",
+  "systemd-run",
+  "timeout",
+  "trust-cache",
+  "unit",
+  "unit-argument",
+  // an activation an older updater switched and never finished (update.ts)
+  "legacy-marker",
+  // the remove-rollback migration (migrations/remove-rollback)
+  "migration",
+] as const;
+export type UpdateErrorStage = (typeof updateErrorStages)[number];
+
+export const updateErrorResources = [
+  "latest",
+  "manifest",
+  "bundle",
+  "artifact",
+  "version",
+] as const;
+export type UpdateErrorResource = (typeof updateErrorResources)[number];
 
 /** The four exit statuses. Every failure, and `busy`, is 1: automation reads
  * the code from `--json`, never from the status.
@@ -64,7 +163,10 @@ export class UpdateFailure extends Error {
 }
 
 /** A filesystem error as a typed failure; the errno name is safe to show. */
-export function storageFailure(error: unknown, stage: string): UpdateFailure {
+export function storageFailure(
+  error: unknown,
+  stage: UpdateErrorStage,
+): UpdateFailure {
   if (error instanceof UpdateFailure) return error;
   const errno = (error as NodeJS.ErrnoException | undefined)?.code;
   if (errno === "ENOSPC" || errno === "EDQUOT")

@@ -479,9 +479,14 @@ try {
   await rmdir(join(owner, ".operation-lock"));
   await rm(join(owner, "slow"));
   await rm(join(owner, "preparing"));
-  // The interrupted tree is still not started: its declared check fails.
+  // The interrupted tree's declared check fails, so the start prepares it
+  // again before it starts (decision F34), under the start's coordination:
+  // no retained record.
   const unprepared = await fifth.operation("start");
-  assert.equal(unprepared.kind, "prerequisites-not-ready");
+  assert.equal(unprepared.kind, "started");
+  assert.equal(await retainedRecord(), false);
+  await fifth.healthy();
+  assert.equal((await fifth.operation("stop")).kind, "group-stopped");
   assert.equal((await fifth.operation("prepare")).kind, "prepared");
   // A completed preparation releases its record; nothing is retained.
   assert.equal(await retainedRecord(), false);

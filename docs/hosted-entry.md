@@ -1,12 +1,15 @@
 # Hosted entry: admission versus identity
 
-Status: **accepted direction of the Principal (2026-09-19); the adapter for the hosted
+Status: **accepted direction of Matěj (2026-09-19); the adapter for the hosted
 VM path is implemented (`src/launchpad/hosted-trust.ts`, the entry recorded on the
 Machine binding from the handover), verified by unit tests against a fake auth endpoint
 and by a [native run behind a stand-in gateway](evidence/hosted-entry-linux-arm64-2026-09-26.md);
-the handover field (Machines), the schema re-pin and the canary switch of decision F16
-are pending.** Without a recorded entry the Launchpad serves a loopback origin with a
-fragment-token session exactly as before. See
+the handover field exists in Machines 0.12.93 (not yet written by any released
+Machines role; Machines #248, a Draft, writes it)
+and the vendored schema is re-pinned to it
+([machine handover](machine-handover.md#the-hosted-entry-decision-f16)); the canary
+switch of decision F16 is pending.** Without a recorded entry the Launchpad serves a
+loopback origin with a fragment-token session exactly as before. See
 [decision F11](decisions.md#f11--hosted-admission-is-not-identity) and
 [F16](decisions.md#f16--one-network-per-organization-every-machine-is-reached-the-same-way-and-the-conglomerate-graph-is-the-truth-agents-move-along).
 
@@ -30,7 +33,7 @@ uses; Platform preserves it rather than inventing a header contract.
 
 Admission failure, an unreachable auth endpoint, a redirect to an unexpected origin or
 a malformed answer all deny. Admission answers "this session may enter this
-workspace"; it names no Principal for provider operations and grants no repository
+workspace"; it names no Operator for provider operations and grants no repository
 right.
 
 ## Lazurio Account
@@ -102,16 +105,43 @@ Launchpad uses; nothing new on the wire.
 | Personal laptop / personal VM | None for the laptop; the personal VM keeps its own gateway and its entry | Loopback only on the laptop: no Machine binding, `local` preset, an entry is refused |
 
 The values are part of the **Machine Assignment** (F16): written by Machines as the
-handover on a VM (`entry.launchpad`, finished URLs from the same rendering as the
-gateway), served by the Dashboard after the Account sign-in on a laptop, recorded on the
-Machine binding in the Folder, shown and never edited in the Launchpad. There is one
-writer and no transition path: no environment of the resident unit is read and no CLI
-records an entry; the Machines apply that writes the field also switches the unit.  Selecting the adapter by request sniffing (`Host`, forwarded headers) is
-rejected: headers are not evidence.
+handover on a VM (`entry`, finished URLs from the same rendering as the gateway),
+served by the Dashboard after the Account sign-in on a laptop, recorded on the
+Machine binding in the Folder, shown and never edited in the Launchpad.
+
+**Where every origin comes from.** Only from the recorded entry, one member to one
+([projection](machine-handover.md#the-hosted-entry-decision-f16)):
+
+| Value | Handover member | Binding |
+|---|---|---|
+| Launchpad origin, auth endpoint, cookie name, loopback port | `entry.launchpad.*` | `entry.externalOrigin`, `authCheckUrl`, `authCookieName`, `listenPort` |
+| T3 Code origin | `entry.t3code.external_origin` | `entry.t3codeOrigin` |
+| Lazurio MausBot origin and loopback port (optional) | `entry.mausbot.*` | `entry.mausbotOrigin`, `mausbotListenPort` |
+| Environment browser view origin and loopback port (optional, F38) | `entry.browser.*` | `entry.browserOrigin`, `browserListenPort` |
+| A module's origin | `entry.modules.origin_template` | `entry.moduleOriginTemplate`, filled by `moduleOrigin(template, moduleId)` |
+
+The Platform composes nothing but this one substitution: `moduleOrigin` fills the one
+`{module}` slot (the whole first label) with `moduleLabel(moduleId)`, and the rule of
+that label is the gateway's, textually the same as Machines' `moduleLabel` (a valid
+lazurio.module.v1 id only, dash runs collapsed and stripped, at most 63 characters,
+reserved names refused), so a link names the hostname the gateway actually serves. No origin is derived from another (not T3 Code's or a
+module's from the Launchpad's), from a request or from a hostname convention.
+
+There is one writer and no transition path: no environment of the resident unit is
+read and no CLI records an entry. Writing the entry is not switching the unit: the
+Machines role writes `entry` to every Machine whose pinned Platform reads it
+(Machines' "Entry" gate, Machines #248), also where the resident Launchpad still holds
+the port, and the switch of the unit is a separate declaration of the Machines apply
+([M2](launchpad-parity.md#c2-the-apply-in-order)). The Platform records the entry
+whenever the handover carries it (declaration, not identity;
+[machine handover](machine-handover.md#the-hosted-entry-decision-f16)). Selecting the
+adapter by request sniffing (`Host`, forwarded headers) is rejected: headers are not
+evidence.
 
 ### Admission, as in production today
 
-A state-changing request is trusted only when `Sec-Fetch-Site` is `same-origin`,
+A state-changing request (every method but `GET` and `HEAD`, and every request under
+`/api/internal/`, which may start an app) is trusted only when `Sec-Fetch-Site` is `same-origin`,
 `Origin` equals the configured external origin, exactly the named cookie is present, and a
 request carrying only that cookie to the configured auth endpoint answers 2xx within 3 s.
 A short positive cache (2 minutes, keyed by the cookie's digest) bounds auth-endpoint load
@@ -120,6 +150,87 @@ navigations and a 401 for fetches and sockets. No forwarded identity header, no 
 cookie, no `Host` is evidence. Admission says "this browser may enter this Machine"; who
 the person is comes from the Lazurio Account; what they may touch in a repository comes
 from GitHub (F11).
+
+**A chunked session is the same cookie.** oauth2-proxy splits a session larger than one
+cookie into `<name>_0`, `<name>_1`, … (personal VMs carry such sessions) and reassembles
+it as its `loadCookie` does (`pkg/sessions/cookie/session_store.go`): the cookie of the
+exact name wins when present, otherwise the chunks in index order, concatenated. The
+admission reads it the same way: the whole cookie, when present, exactly as above (any
+chunks beside it are ignored and not forwarded); otherwise the session is present when
+`_0` is, and its chunks must be exactly `_0…_n`, each once and non-empty — a gap or a
+repeated index is refused (`cookie-invalid`) rather than cut short. The auth request then
+carries those chunks unchanged, in index order and never re-joined, because the gateway's
+oauth2-proxy reassembles them itself; the positive cache is keyed by the reassembled
+value. The Machines gateway forwards the whole cookie and `_0…_3` (`ingress.ts:35-38,
+73-92`). No other name, no fragment token, no relaxed `Host` or same-origin rule.
+
+### The internal route: the gateway's `ensure`
+
+`GET /api/internal/hosted/modules/<id>/ensure` is the one route the gateway itself
+calls, never a browser: when a browser opens a module's hostname, the gateway asks the
+Launchpad on its loopback port to make the module's default app run and proxies the
+browser only on 204 (Machines `workloads/workspace-vm/ingress.ts:113-159`; contract,
+statuses and tests in [launchpad-development.md](launchpad-development.md#gateway-ensure)).
+Its admission is this one with nothing relaxed:
+
+- **Host.** The entry's Launchpad hostname, as on every route. The gateway keeps the
+  browser's `Host` on the Launchpad route and sends the Launchpad's own `Host` on this
+  subrequest (launchpad-parity F22 point 3, C.2 step 7). A loopback `Host`, which the
+  resident required and today's gateway still sends (`ingress.ts:130`), is refused
+  (`host-mismatch`); there is no loopback exception for `/api/internal/*`, so there is
+  one admission rule, not two.
+- **Same-origin, although it is a `GET`.** The gateway sets `Origin` to the Launchpad's
+  external origin and `Sec-Fetch-Site: same-origin`; the Launchpad requires both, as it
+  does for every state-changing request, because this `GET` may start an app (the
+  resident's rule, `R:launchpad/src/request-trust-lib.mjs:72-83`).
+- **The session cookie**, forwarded alone by the gateway and revalidated here as for
+  any request. No fragment token, no forwarded identity header.
+- **Not reachable from a browser.** The gateway answers 404 for `/api/internal/*` on
+  every public hostname before admission (`ingress.ts:54-57`); a process on the
+  Machine that reaches the loopback port still needs a valid session cookie.
+
+The browser's `Sec-Fetch-Mode` travels with the subrequest and decides only whether a
+stopped app may start (a navigation) or is only reported (a background fetch, a
+WebSocket reconnect); it is a lifecycle hint after admission, never an access decision.
+A Launchpad without a recorded entry has no such route (404).
+
+### The T3 Code link: Chat
+
+The Launchpad's Chat entry (slice P7, [contract](launchpad-development.md#chat-entry))
+opens T3 Code at the recorded `t3codeOrigin`, never at a name derived from the
+Launchpad's own hostname. `GET /api/entry` hands the page the entry's public parts
+(Launchpad origin, T3 Code origin, module origin rule) read-only, behind this admission;
+the auth endpoint, cookie name and port are not among them. On a click the server asks
+T3's own CLI (the launcher `t3` on its PATH) for a one-time pairing token and answers
+`<t3codeOrigin>/pair#token=…`, the resident's shape; the token rides only in the
+fragment of that navigation. The pairing route is a state-changing request under the
+same-origin rule above; a Launchpad without an entry has neither the link nor the
+route. T3 Code's own admission behind the gateway is unchanged (not in scope below).
+Lazurio MausBot is entered the same way when the entry records it
+([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin` is in the
+public parts, the loopback port is not, and the code rides only in the fragment of
+`<mausbotOrigin>/pair`.
+The Environment browser's view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway))
+follows the same pattern: `browserOrigin` is in the public parts, the loopback port is
+not; `GET /.lazurio/browser.json` and the hand-over `GET /.lazurio/browser` answer the
+view's address with the dashboard's access token only in the fragment, behind this
+admission and on the forks' origins too (the gateway forwards `/.lazurio/*` to the
+Launchpad). Asked for a session that has no window yet, they open that session's window
+first, so a T3 thread's panel shows the thread's own window (F38, addendum 2026-10-06).
+
+### Files links (decision F35)
+
+`<Launchpad origin>/files/<path>`, the link `lazurio files link` prints, is an ordinary
+Launchpad route behind this admission
+([F35](decisions.md#f35--files-the-operators-documents-through-the-launchpad)). A `GET`
+that carries the gateway's session cookie downloads the file; without the session it is
+refused like any other request, and the gateway sends a browser to its sign-in first, so
+a link opened from a chat signs in and then downloads. The link carries no token: there
+is no public, anonymous or time-limited link, and it opens only for someone who may sign
+in to the Environment. An upload (`POST /api/files/upload`) is a state-changing request
+under the same-origin rule above. The routes read and write only the Documents folder of
+the account the Launchpad runs as; a Launchpad without an entry serves the same page
+locally, and its downloads ride the session token instead.
 
 ### The adapter
 
@@ -142,7 +253,7 @@ from GitHub (F11).
 | Auth endpoint unreachable or slow | Deny after the timeout; no cached negative; page says the gateway is unavailable |
 | Redirect from the auth endpoint to another origin | Deny; malformed answer |
 | Forged `X-Forwarded-User`, `X-Auth-Request-*`, `Authorization` | Ignored; admission decides |
-| Cookie header over 16 KiB or the named cookie repeated | Deny |
+| Cookie header over 16 KiB, the named cookie repeated, or its chunks with a gap or a repeated index | Deny |
 | Unknown hostname at the listener | Refused, no default application |
 | Session expires during a WebSocket | Socket closed with a clean re-login navigation, no token in a URL |
 | Laptop offline or off the tailnet | The gateway answers an error; the Dashboard shows the Machine as unreachable |
@@ -152,10 +263,11 @@ from GitHub (F11).
 
 Unit tests for every row above against a fake auth endpoint. Native run on a clean
 Machine with a Caddy + oauth2-proxy pair configured like the Machines gateway. Then the
-canary: Spectoda `matej`, the resident unit's `ExecStart` switched to the Platform
-executable through the selector, `launchpad.matej.spectoda.lazurio.io` opened through
-the real gateway, one update through the pill, `update status` → `supervised: true`
-on the installer-written unit. The laptop path is qualified afterwards on one work
+canary: one work VM of the pilot Organization switched by the Machines switch apply
+([M2](launchpad-parity.md#c2-the-apply-in-order), which replaces the resident unit
+with the installer-written one), `launchpad.<vm>.<org>.lazurio.io` opened through the
+real gateway, one update through the pill, `update status` → `supervised: true` on the
+installer-written unit. The laptop path is qualified afterwards on one work
 laptop with a Conglomerate Host route (F16 order).
 
 ### Not in scope

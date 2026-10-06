@@ -22,7 +22,13 @@ import {
 import { type OutputPath, outputFile, outputPaths } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
-import { type PresetName, presetReference, workspacePreset } from "./presets";
+import {
+  type PresetName,
+  presetReference,
+  presetVersion,
+  selectablePresets,
+  workspacePreset,
+} from "./presets";
 import { desiredOutputs, outputDigests } from "./preview";
 import { readFolderState, readOwnedStateFile } from "./read-state";
 import { instructionSource, instructionTemplateRevision } from "./render";
@@ -64,21 +70,32 @@ export async function initializeFolder(
 // Adopts the operator-owned Folder delivered by Machines: organizations/ and
 // personalspace/ may already hold work and are never entered; the two legacy
 // launchpad files are tolerated by name; anything else fails closed by name.
-// An already adopted Folder is reported as such and left unchanged.
+// An already adopted Folder is reported as such and left unchanged. Rerunning
+// the command that adopted it is no new preset choice: a preset the handover
+// allows but no longer offers (issue #107) reaches the adoption check, and
+// only a Folder that is not adopted yet is refused.
 export async function initializeHandoverFolder(
   folder: string,
   source: HandoverSource,
   checkpoint: (step: InitializationStep) => Promise<void> = async () => {},
 ) {
+  const newChoice = selectablePresets(source.machine).includes(source.preset);
   return initialize(
     folder,
     {
-      preset: presetReference(source.preset, source.machine),
+      preset: newChoice
+        ? presetReference(source.preset, source.machine)
+        : {
+            name: source.preset,
+            version: presetVersion,
+            selection: "explicit",
+          },
       machine: source.machine,
       profile: source.profile,
     },
     checkpoint,
     true,
+    newChoice,
   );
 }
 
@@ -101,6 +118,7 @@ async function initialize(
   }>,
   checkpoint: (step: InitializationStep) => Promise<void>,
   handover: boolean,
+  newChoice = true,
 ) {
   if (!isAbsolute(folder) || resolve(folder) !== folder)
     throw new Error("Canonical new Folder path required");
@@ -129,6 +147,8 @@ async function initialize(
     const adopted = await adoptedHandoverFolder(folder, preferences.machine);
     if (adopted) return adopted;
   }
+  if (!newChoice)
+    throw new Error("Workspace preset is not allowed by the Machine handover");
   const layout = handover ? await inspectHandoverLayout(folder) : null;
   if (layout) await requireAdoptableLayout(folder, personalspace);
   else await mkdir(folder, { mode: 0o700 }); // Exclusive fresh-path initialization.

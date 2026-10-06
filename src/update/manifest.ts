@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { UpdateFailure } from "./errors";
+import { type UpdateErrorReason, UpdateFailure } from "./errors";
 import { isProductVersion, tagOf } from "./identity";
 
 /** `manifest.json` of one release (docs/update.md "Release and trust"). The
@@ -31,7 +31,7 @@ export type ReleaseManifest = Readonly<{
 
 export const artifactFile = (target: string) => `lazurio-${target}`;
 
-const invalid = (reason: string) =>
+const invalid = (reason: UpdateErrorReason) =>
   new UpdateFailure("release-invalid", { resource: "manifest", reason });
 
 function parseTarget(name: string, value: unknown): ManifestTarget {

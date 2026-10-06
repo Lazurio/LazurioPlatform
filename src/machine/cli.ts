@@ -12,32 +12,45 @@ import {
   type PresetName,
   parsePresetName,
   presetProfile,
+  selectablePresets,
 } from "../folder/presets";
 import { refreshFolder } from "../folder/update-profile";
 import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
+  type MachineContext,
   MachineContextError,
   readMachineContext,
 } from "./context";
+import {
+  type LaunchpadSeams,
+  recordedEntry,
+  restartLaunchpadForEntry,
+} from "./launchpad-entry";
 import { readLinuxOperator } from "./operator";
 
 export const machineHelp = `machine inspect
-Read the root-issued /etc/lazurio/lazurio.machine.json on Linux only.
-Output contains private Machine/Organization context; do not publish it.
+Read the root-issued /etc/lazurio/lazurio.machine.json on Linux only and print
+it as written, including its optional entry (how the gateway reaches the
+Launchpad, T3 Code and modules of this Remote Environment).
+Output contains private Environment/Organization context; do not publish it.
 The declaration grants no permissions, provider identity or access.
 machine folder-init [--preset <name>] [--locale <cs|en>]
   [--detail <concise|technical>] [--coordination <direct|coordinator>]
 Initialize the declared operator's standard Lazurio Folder from the handover.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
 workspace-vm with owner.assignment operator -> hosted-organization-personal, team
--> hosted-organization-team; without owner.assignment and without owner.team ->
-hosted-organization-personal). A workspace-vm handover with owner.team and no
-owner.assignment does not say whether the Machine is assigned to one operator or
-shared, so it derives nothing: --preset hosted-organization-personal or --preset
-hosted-organization-team is required and recorded as an explicit choice. --preset may also pick another preset the handover allows. Omitted
-communication choices take the preset's defaults; all are changeable later in
-the Launchpad.
+-> hosted-organization-team, automation (the Automated Environment of an
+Organization persona, decision 0169) -> hosted-organization-steward; without
+owner.assignment and without owner.team -> hosted-organization-personal). When
+the handover states owner.assignment, --preset may name only the preset it
+derives. A workspace-vm handover with owner.team and no owner.assignment does
+not say whether the Remote Environment is assigned to one operator or shared, so
+it derives nothing: --preset with one of hosted-organization-personal,
+hosted-organization-team or hosted-organization-steward is required and
+recorded as an explicit choice; without owner.assignment --preset may pick any
+of these on a workspace-vm. Omitted communication choices take the preset's
+defaults; all are changeable later in the Launchpad.
 Adopts the existing Folder: organizations/ and personalspace/ may hold work
 and are never entered; launchpad.gen3.json and launchpad.gen3.local.json are
 tolerated; any other top-level entry is refused by name. Re-running on an
@@ -47,24 +60,32 @@ Run as the declared operator, never root. No path or custody override.
 No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
 missing/damaged journals require operator diagnosis, never blanket cleanup.
-machine folder-refresh
+machine folder-refresh [--preset <name>]
 Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
 current handover, keeping the recorded preset and profile. Run it as the
-declared operator after every handover rewrite and product update; it takes no
-options. A Folder rendered by an older template revision is re-rendered in full
-when every generated file still matches its recorded digest.
-The Machine identity (kind, name, Owner, tailnet node, host) must be the one
+declared operator after every handover rewrite and product update. --preset
+names the preset the handover now derives, to take it after
+preset-derivation-changed; no other preset is taken here. A Folder rendered by
+an older template revision is re-rendered in full when every generated file
+still matches its recorded digest.
+The Environment identity (kind, name, Owner, tailnet node, host) must be the one
 the Folder was adopted for; assignment, relationships and the document digest
 follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the current handover
-renders the same bytes (nothing is written, the revision stays). Blocked with
+renders the same bytes (nothing is written, the revision stays). A refresh
+that records a different entry restarts the supervised Launchpad of this
+Folder, which reads its entry only when it starts, and waits for it to answer;
+modules, T3 Code and Codex keep running. The answer then adds "launchpad":
+restarted, restart-failed or not-supervised (no installer unit of this base
+starts this Folder; the Launchpad takes the entry at its next start). Blocked with
 exit 2, nothing written: folder-not-initialized (run folder-init first),
 folder-binding-changed, folder-state-unrecognized, folder-foreign-entry (a
 top-level entry the Folder does not own or tolerate), drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
-(the assignment now derives another preset: choose it with profile-update
---preset), template-upgrade-required (a newer product rendered the Folder;
-nothing is downgraded), or a Machine context code. Exit 1 is an
+(the assignment now derives another preset: take it with folder-refresh
+--preset <the derived preset>), preset-not-allowed (--preset is not the
+preset the handover derives), template-upgrade-required (a newer product rendered the Folder;
+nothing is downgraded), or a machine-context-* code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
 profile-resume --folder <Folder> --target-revision <n>.`;
 
@@ -94,7 +115,7 @@ function parseMachineTokens(args: string[]) {
       options: machineOptions,
     });
   } catch {
-    throw new MachineUsageError("Unknown or malformed Machine option");
+    throw new MachineUsageError("Unknown or malformed lazurio machine option");
   }
 }
 
@@ -105,17 +126,21 @@ function parseMachineArguments(args: string[]) {
     command !== "folder-init" &&
     command !== "folder-refresh"
   )
-    throw new MachineUsageError("Unknown Machine command");
+    throw new MachineUsageError("Unknown lazurio machine command");
   const parsed = parseMachineTokens(options);
   const { values, tokens } = parsed;
   if (
-    (command !== "folder-init" && tokens.length !== 0) ||
+    (command === "inspect" && tokens.length !== 0) ||
+    (command === "folder-refresh" &&
+      tokens.some(
+        (token) => token.kind === "option" && token.name !== "preset",
+      )) ||
     tokens.some((token) => token.kind !== "option") ||
     new Set(tokens.map((token) => (token.kind === "option" ? token.name : "")))
       .size !== tokens.length
   )
     throw new MachineUsageError(
-      "Explicit nonduplicate Machine options required",
+      "Explicit nonduplicate lazurio machine options required",
     );
   const value = (name: keyof typeof choices) => {
     const chosen = values[name];
@@ -123,7 +148,7 @@ function parseMachineArguments(args: string[]) {
       chosen !== undefined &&
       !(choices[name] as readonly string[]).includes(chosen)
     )
-      throw new MachineUsageError(`Invalid Machine choice: ${name}`);
+      throw new MachineUsageError(`Invalid lazurio machine choice: ${name}`);
     return chosen;
   };
   let preset: ReturnType<typeof parsePresetName> | undefined;
@@ -142,7 +167,13 @@ function parseMachineArguments(args: string[]) {
   };
 }
 
-export async function runMachineCommand(args: string[]) {
+// `launchpad` is where folder-refresh finds the supervised Launchpad to
+// restart after it recorded a different entry (launchpad-entry.ts); the CLI
+// passes the installed one, and without it nothing is restarted.
+export async function runMachineCommand(
+  args: string[],
+  launchpad?: LaunchpadSeams,
+) {
   const {
     command,
     preset: requestedPreset,
@@ -150,23 +181,23 @@ export async function runMachineCommand(args: string[]) {
   } = parseMachineArguments(args);
   try {
     const observed = await readMachineContext();
-    if (command === "inspect")
-      return {
-        code: 0,
-        result: {
-          kind: "machine-context-observed",
-          ...observed,
-          authority: "none",
-        },
-      };
+    // Projected before anything is printed or recorded: inspect refuses what
+    // folder-init and folder-refresh would refuse.
     const machine = machineBinding(observed.context, observed.digest);
+    if (command === "inspect")
+      return { code: 0, result: machineInspection(observed) };
     const folder = bindMachineOperator(
       observed.context,
       await readLinuxOperator(),
     );
     const { code, result } =
       command === "folder-refresh"
-        ? await refreshMachineFolder(folder, machine)
+        ? await refreshMachineFolderAndLaunchpad(
+            folder,
+            machine,
+            requestedPreset,
+            launchpad,
+          )
         : await initializeMachineFolder(folder, machine, {
             preset: requestedPreset,
             ...values,
@@ -184,11 +215,23 @@ export async function runMachineCommand(args: string[]) {
         result: {
           kind: "blocked",
           reason: error.code,
-          next: "Ask the Machines operator to verify the handover; do not edit the identity file or reset product trust.",
+          next: "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
         },
       };
     throw error;
   }
+}
+
+// What `machine inspect` prints: the validated handover exactly as written,
+// its optional `entry` included, and its digest. Context, never authority.
+export function machineInspection(
+  observed: Readonly<{ context: MachineContext; digest: string }>,
+) {
+  return {
+    kind: "machine-context-observed" as const,
+    ...observed,
+    authority: "none" as const,
+  };
 }
 
 export type FolderInitChoices = Readonly<{
@@ -199,16 +242,18 @@ export type FolderInitChoices = Readonly<{
 }>;
 
 // folder-init after the handover and the operator are bound. The preset is
-// --preset when given (within what the handover allows), else the derived one.
-// A handover that derives none (see machineAssignment) never gets a guess: an
-// already adopted Folder keeps the preset it has, anything else needs --preset.
+// --preset when given (within what the handover offers as a new choice: only
+// the derived one when it states owner.assignment, issue #107), else the
+// derived one. A handover that derives none (see machineAssignment) never gets
+// a guess: an already adopted Folder keeps the preset it has, anything else
+// needs --preset.
 export async function initializeMachineFolder(
   folder: string,
   machine: MachineBinding,
   choices: FolderInitChoices,
 ) {
   const derived = derivePreset(machine);
-  const allowed = allowedPresets(machine);
+  const allowed = selectablePresets(machine);
   const preset = choices.preset ?? derived;
   if (preset === null) {
     const adopted = await adoptedHandoverFolder(folder, machine);
@@ -219,11 +264,17 @@ export async function initializeMachineFolder(
         kind: "blocked",
         reason: "preset-ambiguous",
         allowed,
-        next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Machine is assigned to one operator or shared; the Machines resident role passes it from the owner infrastructure.",
+        next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Remote Environment is assigned to one operator or shared; the Lazurio Machines resident role passes it from the owner infrastructure.",
       },
     };
   }
-  if (!allowed.includes(preset))
+  if (!allowed.includes(preset)) {
+    // Rerunning the command that adopted this Folder is no new choice: a
+    // preset the handover still allows reports the adopted Folder (#107).
+    if (allowedPresets(machine).includes(preset)) {
+      const adopted = await adoptedHandoverFolder(folder, machine);
+      if (adopted) return { code: 0, result: adopted };
+    }
     return {
       code: 2,
       result: {
@@ -237,6 +288,7 @@ export async function initializeMachineFolder(
             : "Choose a preset the handover allows, or omit --preset for the derived one.",
       },
     };
+  }
   const profile = presetProfile(preset, executionOs(process.platform), {
     ...(choices.locale === undefined ? {} : { locale: choices.locale }),
     ...(choices.detail === undefined ? {} : { detail: choices.detail }),
@@ -255,9 +307,11 @@ export async function initializeMachineFolder(
 // folder-refresh after the handover and the operator are bound. The adoption
 // check refuses another Machine's or unrecognized state by name before the
 // update transaction; the planner checks the identity again under its lock.
+// `preset` is the preset the handover now derives, taken with it (#107).
 export async function refreshMachineFolder(
   folder: string,
   machine: MachineBinding,
+  preset: PresetName | undefined = undefined,
 ) {
   const adopted = await adoptedHandoverFolder(folder, machine);
   if (adopted === null)
@@ -269,8 +323,33 @@ export async function refreshMachineFolder(
         next: "Run lazurio machine folder-init first; nothing was created.",
       },
     };
-  const result = await refreshFolder(folder, machine);
+  const result = await refreshFolder(folder, machine, undefined, preset);
   return { code: result.kind === "blocked" ? 2 : 0, result };
+}
+
+// The refresh, then the running Launchpad: it read its entry when it started,
+// so a refresh that records a different entry restarts the supervised
+// Launchpad of this Folder and says so in `launchpad`. An unchanged entry
+// (unchanged, blocked, or a refresh of rendered text only) restarts nothing
+// and adds nothing to the answer.
+export async function refreshMachineFolderAndLaunchpad(
+  folder: string,
+  machine: MachineBinding,
+  preset: PresetName | undefined,
+  launchpad: LaunchpadSeams | undefined,
+) {
+  const before = launchpad === undefined ? null : await recordedEntry(folder);
+  const refreshed = await refreshMachineFolder(folder, machine, preset);
+  if (launchpad === undefined || refreshed.result.kind !== "refreshed")
+    return refreshed;
+  if ((await recordedEntry(folder)) === before) return refreshed;
+  return {
+    code: refreshed.code,
+    result: {
+      ...refreshed.result,
+      launchpad: await restartLaunchpadForEntry(folder, launchpad),
+    },
+  };
 }
 
 // The refusal names the entry; the operator decides what to do with it.
@@ -279,13 +358,13 @@ export function describeFolderAdoption(error: FolderAdoptionError) {
     "foreign-entry":
       "Move this entry out of the Folder; only organizations/, personalspace/, the two legacy launchpad files and what Lazurio generated may be present.",
     "layout-missing":
-      "Ask the Machines operator to deliver the standard Folder layout; nothing is created in its place.",
+      "Ask the operator who hosts this Remote Environment to deliver the standard Folder layout; nothing is created in its place.",
     "personalspace-conflict":
       "An Organization preset never has a Personalspace; move it away yourself, nothing is deleted.",
     "state-unrecognized":
       "Complete a recognized initialization with folder-resume or diagnose the state; nothing is reset.",
     "binding-changed":
-      "The Folder was adopted from a different handover; verify the Machine identity with the Machines operator.",
+      "The Folder was adopted from a different handover; verify the identity of this Remote Environment with the operator who hosts it.",
     "directory-shared":
       "chmod g-w,o-w this path under the Lazurio Folder (Ubuntu's default umask 0002 makes new directories group-writable); nothing was changed.",
   } as const;

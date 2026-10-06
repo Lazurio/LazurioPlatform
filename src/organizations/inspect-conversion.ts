@@ -1,4 +1,4 @@
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { organizationDocumentHash } from "./document-hash";
 import {
   OrganizationProjectionConflict,
@@ -12,7 +12,7 @@ export async function inspectOrganizationConversion(directory: string) {
   const blocked = (reason: string) =>
     Object.freeze({ kind: "blocked" as const, reason });
   try {
-    const before = await inspectOwnedDirectory(directory);
+    const before = await inspectCheckoutDirectory(directory);
     const documents = await readOrganizationDocuments(directory);
     if (documents.kind !== "documents-observed")
       return blocked("documents-unavailable");
@@ -38,7 +38,7 @@ export async function inspectOrganizationConversion(directory: string) {
       return blocked("declaration-reconciliation-required");
     }
     const current = await readOrganizationDocuments(directory);
-    const after = await inspectOwnedDirectory(directory);
+    const after = await inspectCheckoutDirectory(directory);
     if (
       before.dev !== after.dev ||
       before.ino !== after.ino ||

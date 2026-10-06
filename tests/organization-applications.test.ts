@@ -31,6 +31,7 @@ import {
   readOrganizationApplications,
   resolveOrganizationApplication,
 } from "../src/organizations/read-applications";
+import { isExecutableOrganizationState } from "../src/organizations/root-resolution";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 import {
   mkdirOwnedFixture as mkdir,
@@ -245,10 +246,15 @@ posixTest(
           await child.exited;
           return result;
         };
-        expect(await request("start")).toEqual({
-          kind: "prerequisites-not-ready",
-        });
+        // A start whose declared check fails prepares the app first and
+        // starts it once the check passes (decision F34).
+        expect(await request("start")).toMatchObject({ kind: "started" });
+        expect(await readFile(join(appDirectory, "prepared"), "utf8")).toBe(
+          "fixture-ready",
+        );
+        // An explicit preparation stops only its own session app first.
         expect(await request("prepare")).toEqual({ kind: "prepared" });
+        expect(await request("status")).toEqual({ kind: "not-managed" });
         expect(await request("start")).toMatchObject({ kind: "started" });
         expect(await request("status")).toMatchObject({
           kind: "status",
@@ -305,7 +311,7 @@ posixTest(
       }
     });
   },
-  30_000,
+  60_000,
 );
 
 posixTest(
@@ -504,6 +510,33 @@ const selection = {
   module: "web",
   package: "app/package.json",
 };
+// A canonical-only `current` root under each admission variant: B (the
+// default, proposed F22 point 1) resolves the selection, A refuses it before
+// any descendant is inspected. Both branches are the same rule; the pure rule
+// is tested per variant in organization-root-resolution.test.ts.
+async function expectCurrentAdmission(root: string) {
+  const executable = await readOrganizationApplications(root, {
+    admission: "executable",
+  });
+  if (isExecutableOrganizationState("current")) {
+    expect(executable).toMatchObject({
+      kind: "applications-observed",
+      resolution: { state: "current", issues: [] },
+      admission: "executable",
+    });
+    expect(await resolveOrganizationApplication(root, selection)).toEqual({
+      moduleDirectory: join(root, "workspace/web"),
+    });
+  } else {
+    expect(executable).toEqual({
+      kind: "organization-not-executable",
+      resolution: { state: "current", issues: [] },
+    });
+    await expect(
+      resolveOrganizationApplication(root, selection),
+    ).rejects.toThrow("Selected Organization unavailable");
+  }
+}
 // Inventory edits change the deterministic projection, so the canonical digest
 // is regenerated with them; editing only the inventory would be a stale digest.
 async function writeInventory(root: string, inventory: Inventory) {
@@ -518,9 +551,9 @@ async function writeInventory(root: string, inventory: Inventory) {
   );
   await writeProjection(root, document, inventory);
 }
-// Interim admission executes only the parity-valid `transition` state (root
-// contract, decision 0145), so a runnable fixture root carries the exact
-// generated projection next to the canonical manifest.
+// A `transition` root executes under either admission variant, so a runnable
+// fixture root carries the exact generated projection next to the canonical
+// manifest.
 async function writeProjection(
   root: string,
   document: typeof canonical,
@@ -600,7 +633,7 @@ async function fixture(
 }
 
 posixTest(
-  "transition root is observed without executing or scanning DBs; canonical-only current is inspection-only; a hostile legacy projection is a fail-closed conflict, never ignored",
+  "transition root is observed without executing or scanning DBs; canonical-only current follows the admission rule; a hostile legacy projection is a fail-closed conflict, never ignored",
   async () => {
     await fixture(async (root) => {
       const before = await readFile(
@@ -619,7 +652,21 @@ posixTest(
             path: "workspace/web",
             kind: "module-observed",
             defaultApp: "app/package.json",
-            apps: [{ package: "app/package.json", kind: "runtime-declared" }],
+            apps: [
+              {
+                package: "app/package.json",
+                kind: "runtime-declared",
+                // What the app declares of itself for a page (decision F36).
+                display: { id: "web", title: "Web", tags: [] },
+              },
+            ],
+          },
+        ],
+        // A productionspace repository is declared, never a module.
+        repositories: [
+          {
+            id: "source",
+            path: "productionspace/source",
           },
         ],
       } as const;
@@ -627,25 +674,18 @@ posixTest(
       expect(await resolveOrganizationApplication(root, selection)).toEqual({
         moduleDirectory: join(root, "workspace/web"),
       });
-      // Canonical-only `current` stays readable but is not executable until the
-      // finalization gate of decision 0145 has run; a valid digest proves the
-      // projection content, not that the projection may already be gone.
+      // Canonical-only `current` is always readable; whether it executes is
+      // the one admission rule (variant B by default, pending H1).
       await rm(join(root, "company.gen3.json"));
       const current = {
         ...observed,
         resolution: { state: "current", issues: [] },
-        admission: "inspection-only",
+        admission: isExecutableOrganizationState("current")
+          ? "executable"
+          : "inspection-only",
       } as const;
       expect(await readOrganizationApplications(root)).toEqual(current);
-      expect(
-        await readOrganizationApplications(root, { admission: "executable" }),
-      ).toEqual({
-        kind: "organization-not-executable",
-        resolution: { state: "current", issues: [] },
-      });
-      await expect(
-        resolveOrganizationApplication(root, selection),
-      ).rejects.toThrow("Selected Organization unavailable");
+      await expectCurrentAdmission(root);
       // An unreadable legacy projection is a conflict under the root contract
       // (any present document invalid), not an irrelevant file: it ends before
       // descendants are inspected and before executable selection.
@@ -658,6 +698,11 @@ posixTest(
         resolution: {
           state: "conflict",
           issues: ["legacy_document_unreadable"],
+        },
+        // The checkout rule's reason and the document's file (decision F23).
+        refused: {
+          reason: "declaration-not-regular",
+          file: "company.gen3.json",
         },
       } as const;
       expect(await readOrganizationApplications(root)).toEqual(conflict);
@@ -705,18 +750,9 @@ posixTest(
           moduleDirectory: join(root, "workspace/web"),
         });
       };
-      // Canonical-only `current` is not executable in this interim (decision
-      // 0145 finalization gate), even though it is a valid canonical root.
+      // Canonical-only `current` executes exactly as the admission rule says.
       await rm(join(root, "company.gen3.json"));
-      expect(
-        await readOrganizationApplications(root, { admission: "executable" }),
-      ).toEqual({
-        kind: "organization-not-executable",
-        resolution: { state: "current", issues: [] },
-      });
-      await expect(
-        resolveOrganizationApplication(root, selection),
-      ).rejects.toThrow("Selected Organization unavailable");
+      await expectCurrentAdmission(root);
       // Exact generated projection: parity proven, formatting is not drift.
       await writeFile(
         join(root, "company.gen3.json"),
@@ -803,12 +839,12 @@ posixTest(
               kind: "applications-observed",
               admission: "inspection-only",
               resolution: item.resolution,
+              // A dangling symlink in place of workspace/ is refused as it
+              // is, without resolving it (decision F23).
               entries: [
-                {
-                  kind: workspaceInspectable
-                    ? "module-observed"
-                    : "module-unavailable",
-                },
+                workspaceInspectable
+                  ? { kind: "module-observed" }
+                  : { kind: "directory-not-regular", file: "workspace" },
               ],
             });
         }
@@ -1106,7 +1142,7 @@ posixTest(
       await rm(join(root, "workspace"), { recursive: true });
       await symlink("/nonexistent-workspace-fixture", join(root, "workspace"));
       expect(await readOrganizationApplications(root)).toMatchObject({
-        entries: [{ kind: "module-unavailable" }],
+        entries: [{ kind: "directory-not-regular", file: "workspace" }],
       });
     });
   },

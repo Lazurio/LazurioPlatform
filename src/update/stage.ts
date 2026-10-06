@@ -15,8 +15,9 @@ import { type ProcessRunner, requireSelfCheck } from "./self-check";
 /** Stage (docs/update.md "Activation", steps 1 and 2): verified bytes become
  * `versions/<version>/lazurio` by one rename of a complete directory, and the
  * executable itself — run by its immutable path, never through the selector —
- * must then report the verified identity and read the install base and the
- * Folder. A refusal removes what this call placed; nothing was switched.
+ * must then report the verified identity, read the install base and the
+ * Folder, and start its Launchpad read-only on a private socket. A refusal
+ * removes what this call placed; nothing was switched.
  */
 export async function sha256File(path: string): Promise<string> {
   const file = await open(path, "r");
@@ -46,7 +47,7 @@ export async function stagedMatches(
 }
 
 /** Move the verified scratch file into place. The caller established that no
- * matching version is staged and that `version` is neither active nor previous.
+ * matching version is staged and that `version` is not the active one.
  */
 export async function placeVersion(input: {
   base: string;
@@ -81,9 +82,9 @@ export async function selfCheckStaged(input: {
   removeOnFailure: boolean;
   timeoutMs?: number | undefined;
   run?: ProcessRunner | undefined;
-}): Promise<void> {
+}): Promise<string | null> {
   try {
-    await requireSelfCheck({
+    return await requireSelfCheck({
       executable: versionExecutable(input.base, input.expected.version),
       expected: input.expected,
       base: input.base,

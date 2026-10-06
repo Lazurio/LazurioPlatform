@@ -15,21 +15,21 @@ and write-through mechanism remain open; this document does not define a central
 
 | Concern | Existing authority to extend | Boundary |
 | --- | --- | --- |
-| Task intent and context | Customer Principal's explicit request | Selected Organization/repo, goal and visible context; no ambient cross-customer discovery |
+| Task intent and context | Customer Operator's explicit request | Selected Organization/repo, goal and visible context; no ambient cross-customer discovery |
 | Access and publication | Actual provider identity and existing mandate model | Live repo operation rights; credits and product role are not grants |
 | Work | Customer-owned repository and review branch | Advice or reviewable draft/PR; no platform-only code copy as canonical truth |
-| Execution | Dedicated per-Principal Machine envelope and lifecycle | Organization/provider may own infrastructure; state, credentials and recovery are isolated from peers |
+| Execution | Dedicated per-person Machine envelope and lifecycle | Organization/provider may own infrastructure; state, credentials and recovery are isolated from peers |
 | Budget | Existing platform billing owner | Bounded metered work, no permission to mutate repos |
 | Recommendations | Profile/module catalog plus disclosed evidence | Reasons, alternatives, compatibility and commercial interest visible |
 
-The implementation must identify the actual Principal, Machine Owner, provider/operator
-boundary, credential delegate and exact repository rights before running. An ephemeral
+The implementation must identify the actual Operator, Machine Owner, provider or hosting
+operator boundary, credential delegate and exact repository rights before running. An ephemeral
 process/container is not automatically an isolated Machine. Choose a provider envelope
 that proves file/process/network/credential/recovery separation and bounded lifetime;
 reuse existing provisioning, credential custody and lifecycle rather than inventing
-an all-powerful "architect" Principal. Customer Personalspace is not mounted. Work on
+an all-powerful "architect" Operator. Customer Personalspace is not mounted. Work on
 multiple Organizations requires separate scoped contexts and credential boundaries.
-Shared Organization applications do not imply a shared multi-Principal execution host.
+Shared Organization applications do not imply a shared multi-person execution host.
 
 The baseline is advice over deliberately supplied context with no writes. Execution
 adds a bounded customer-owned repo worktree and preparation/validation of a draft.

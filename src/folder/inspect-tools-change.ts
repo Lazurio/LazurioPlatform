@@ -2,12 +2,12 @@ import { join } from "node:path";
 import { toolSelection } from "../tools/catalog";
 import { planToolsChange } from "./change-profile";
 import { inspectOutput } from "./inventory";
-import { withFolderOperationLock } from "./lock";
+import { withFolderOperationLock, withFolderReadLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState } from "./read-state";
 import { sharedEnvironment } from "./render";
-import { enabledTools } from "./state";
+import { enabledTools, toolNotes } from "./state";
 
 // The read-only twin of `updateTools`, as `inspectProfileChange` is of
 // `updateProfile`: the same planner over the same state under the same lock.
@@ -16,6 +16,7 @@ export async function inspectToolsChange(
   folder: string,
   expectedRevision: number,
   tools: unknown,
+  notes: unknown = undefined,
 ) {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
@@ -29,6 +30,7 @@ export async function inspectToolsChange(
       expectedRevision,
       tools,
       (path) => inspectOutput(folder, path),
+      notes,
     );
     await assertHeld();
     return result;
@@ -51,18 +53,20 @@ export function sharedSignInsWarning(
     : {};
 }
 
-// The recorded selection of one Folder: its revision and the catalog with
-// every tool's tier and whether it is on. Read-only, under the common lock.
+// The recorded selection of one Folder: its revision, the catalog with every
+// tool's tier and whether it is on, and the operator's notes. Read-only,
+// under the common lock.
 export async function readFolderTools(folder: string) {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
-  return withFolderOperationLock(stateDirectory, async () => {
+  return withFolderReadLock(stateDirectory, async () => {
     const { preferences } = await readFolderState(stateDirectory);
     return {
       revision: preferences.revision,
       // Sign-ins are shared by every operator of this Environment.
       sharedEnvironment: sharedEnvironment(preferences.preset.name),
       enabled: enabledTools(preferences),
+      notes: toolNotes(preferences),
       tools: toolSelection(enabledTools(preferences)),
     };
   });

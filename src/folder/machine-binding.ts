@@ -1,9 +1,14 @@
+import {
+  isEntryPort,
+  isHttpsOrigin,
+  isModuleOriginTemplate,
+} from "../launchpad/hosted-entry";
 import { type HostedEntry, parseHostedEntry } from "../launchpad/hosted-trust";
 import { ownDataValue, stateFields } from "./state-fields";
 
 // The handover part of a hosted Folder: a projection of the root-issued
 // handover recorded at initialization. It is shown, never edited by the
-// Principal; the profile change flow carries it forward unchanged. Its
+// Operator; the profile change flow carries it forward unchanged. Its
 // identity (machineIdentity) is immutable; the rest follows the current
 // handover through `machine folder-refresh`. A workstation Folder has none.
 // Nothing here is a grant: owner, assignment, host and peers describe context
@@ -12,9 +17,17 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // The assignment of an Organization work VM, copied by Machines from the owner
 // Deployment Repo (schema v0.12.61) and never inferred. It is the one fact the
-// two Organization presets differ on.
+// Organization presets differ on. `automation` is the Automated Environment
+// of decision 0169: the work VM of an Organization persona, with the one
+// responsible operator (an Owner or Admin of the Organization) named exactly
+// like `operator`; the handover carries it since Machines #277. Any other
+// kind fails closed.
 export type MachineAssignment =
-  | Readonly<{ kind: "operator"; githubLogin: string; githubId: number }>
+  | Readonly<{
+      kind: "operator" | "automation";
+      githubLogin: string;
+      githubId: number;
+    }>
   | Readonly<{ kind: "team" }>;
 
 export type MachineOwner =
@@ -47,6 +60,26 @@ export type MachineRelationships = Readonly<{
   peers: readonly MachinePeer[];
 }>;
 
+// The hosted entry of this Machine (decision F16), projected from the
+// handover's `entry` (Machines 0.12.93) one member to one: the Launchpad's four
+// values that hosted admission reads (`entry.launchpad`), T3 Code's origin
+// (`entry.t3code.external_origin`) and the module origin rule
+// (`entry.modules.origin_template`). Finished values from the same rendering as
+// the gateway; declaration, not identity. Lazurio MausBot's origin and loopback
+// port (`entry.mausbot`, DEV-6632) are recorded only when the handover carries
+// them, both or neither, so an entry recorded from an older handover is
+// unchanged byte for byte. The Environment browser's view (`entry.browser`,
+// root decision 0191, F38) follows the same rule.
+export type MachineEntry = HostedEntry &
+  Readonly<{
+    t3codeOrigin: string;
+    moduleOriginTemplate: string;
+    mausbotOrigin?: string;
+    mausbotListenPort?: number;
+    browserOrigin?: string;
+    browserListenPort?: number;
+  }>;
+
 export type MachineBinding = Readonly<{
   contextDigest: string;
   kind: "personal-vm" | "workspace-vm";
@@ -60,7 +93,7 @@ export type MachineBinding = Readonly<{
   relationships?: MachineRelationships;
   /** The hosted entry of this Machine (decision F16): finished URLs written by
    * Machines from the same rendering as the gateway; declaration, not identity. */
-  entry?: HostedEntry;
+  entry?: MachineEntry;
 }>;
 
 // Exactly the shapes the vendored lazurio.machine.v1 schema imposes on the
@@ -128,13 +161,13 @@ function assignment(input: unknown): MachineAssignment {
   }
   const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
   if (
-    value.kind !== "operator" ||
+    (value.kind !== "operator" && value.kind !== "automation") ||
     !isGithubLogin(value.githubLogin) ||
     !isGithubId(value.githubId)
   )
     throw new Error("Invalid Machine assignment");
   return Object.freeze({
-    kind: "operator",
+    kind: value.kind,
     githubLogin: value.githubLogin,
     githubId: value.githubId,
   });
@@ -234,6 +267,53 @@ function relationships(input: unknown): MachineRelationships {
   });
 }
 
+// All six members or none, each by the rule of the wire schema, as written;
+// Lazurio MausBot's two members and the Environment browser's two members are
+// optional, each pair only together.
+export function parseMachineEntry(input: unknown): MachineEntry {
+  const withMausbot = ownDataValue(input, "mausbotOrigin") !== undefined;
+  const withBrowser = ownDataValue(input, "browserOrigin") !== undefined;
+  const {
+    t3codeOrigin,
+    moduleOriginTemplate,
+    mausbotOrigin,
+    mausbotListenPort,
+    browserOrigin,
+    browserListenPort,
+    ...launchpad
+  }: Record<string, unknown> = stateFields(input, [
+    "externalOrigin",
+    "authCheckUrl",
+    "authCookieName",
+    "listenPort",
+    "t3codeOrigin",
+    "moduleOriginTemplate",
+    ...(withMausbot ? ["mausbotOrigin", "mausbotListenPort"] : []),
+    ...(withBrowser ? ["browserOrigin", "browserListenPort"] : []),
+  ]);
+  const hosted = parseHostedEntry(launchpad);
+  if (!isHttpsOrigin(t3codeOrigin))
+    throw new Error("Invalid hosted entry T3 Code origin");
+  if (!isModuleOriginTemplate(moduleOriginTemplate))
+    throw new Error("Invalid hosted entry module origin template");
+  let entry: MachineEntry = { ...hosted, t3codeOrigin, moduleOriginTemplate };
+  if (withMausbot) {
+    if (!isHttpsOrigin(mausbotOrigin))
+      throw new Error("Invalid hosted entry Lazurio MausBot origin");
+    if (!isEntryPort(mausbotListenPort))
+      throw new Error("Invalid hosted entry Lazurio MausBot port");
+    entry = { ...entry, mausbotOrigin, mausbotListenPort };
+  }
+  if (withBrowser) {
+    if (!isHttpsOrigin(browserOrigin))
+      throw new Error("Invalid hosted entry Environment browser origin");
+    if (!isEntryPort(browserListenPort))
+      throw new Error("Invalid hosted entry Environment browser port");
+    entry = { ...entry, browserOrigin, browserListenPort };
+  }
+  return Object.freeze(entry);
+}
+
 export function parseMachineBinding(input: unknown): MachineBinding | null {
   if (input === null) return null;
   const withRelationships = ownDataValue(input, "relationships") !== undefined;
@@ -259,7 +339,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   )
     throw new Error("Invalid Machine binding");
   const bound = owner(value.owner);
-  // The two upstream branches never mix: a personal VM belongs to a Principal on
+  // The two upstream branches never mix: a personal VM belongs to a person on
   // a provider estate; a workspace VM to an Organization on a virtualization host.
   const personalVm = value.kind === "personal-vm";
   if (
@@ -278,7 +358,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
       tailnet === null ? null : Object.freeze({ headscaleHostname: tailnet }),
     host: Object.freeze({ kind: host.kind, id: host.id }),
   };
-  const entry = withEntry ? parseHostedEntry(value.entry) : undefined;
+  const entry = withEntry ? parseMachineEntry(value.entry) : undefined;
   if (!withRelationships)
     return Object.freeze(entry ? { ...binding, entry } : binding);
   const related = relationships(value.relationships);
@@ -293,7 +373,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
 }
 
 // The part of a binding that names the Machine: kind, name, Owner (Organization
-// and Team, or Principal), tailnet node and host. Machines rewrites the handover
+// and Team, or a person), tailnet node and host. Machines rewrites the handover
 // on every apply (`installed`, and since v0.12.61 the declared assignment and the
 // derived relationships), so the document digest is not identity; a re-apply of
 // the same Machine must not turn an adopted Folder into a blocked one. Everything

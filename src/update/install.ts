@@ -1,23 +1,52 @@
-import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
+import { copyFile, lstat, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { activate, reconcilePending, withUpdateLock } from "./activation";
+import {
+  type BrowserEntry,
+  convergeEnvironmentBrowser,
+  type EnvironmentBrowser,
+  environmentBrowserFailed,
+} from "../browser/units";
+import { activate, withUpdateLock } from "./activation";
+import type { AttestationVerifier } from "./attestation";
+import {
+  type CodexAppServer,
+  codexAppServerFailed,
+  convergeEntryUnits,
+} from "./codex-app-server";
 import { writeDurableFile } from "./durable-file";
 import { storageFailure, UpdateFailure } from "./errors";
 import type { ProductIdentity } from "./identity";
 import {
   layout,
+  readHighWater,
   readSelector,
-  readUpdateState,
   swapSelector,
   versionFloor,
 } from "./layout";
+import {
+  bundleFile,
+  manifestFile,
+  maxBundleBytes,
+  maxManifestBytes,
+} from "./manifest";
+import { removeRollbackLeftovers } from "./migrations/remove-rollback";
+import {
+  ensurePathEntry,
+  entryDirectory,
+  entryLinked,
+  type PathEntry,
+} from "./path-entry";
 import { type ProcessRunner, runProcess } from "./self-check";
 import {
   detectServiceControl,
+  launchpadExecStart,
   launchpadUnit,
-  rollbackUnit,
+  serviceUnits,
   systemctl,
+  systemdQuote,
+  unitBelongsToBase,
   unitMarker,
+  unitPath,
   userUnitDirectory,
 } from "./service-control";
 import {
@@ -26,47 +55,52 @@ import {
   sha256File,
   stagedMatches,
 } from "./stage";
-import type { ErrorResult } from "./update";
+import { type ErrorResult, verifyReleaseDocuments } from "./update";
 import { compareVersions } from "./version";
 
 /** `lazurio install [--service systemd-user]`: the running executable stages
- * ITSELF as the first version (docs/update.md "First installation"). It
- * verifies nothing about itself — a check performed by downloaded bytes is not
- * authentication; first installation is trusted through HTTPS by whoever ran
- * `install.sh`, or by the custody that staged the binary. Convergent: repeated
+ * ITSELF as the first version (docs/update.md "First installation"). There are
+ * two ways in, and they are kept apart:
+ * - **Downloaded** (`install.sh`, `--verify-release <directory>`): before
+ *   anything is written, the executable holds itself against the release it
+ *   says it is — the manifest and the Sigstore bundle downloaded beside it —
+ *   through the same verification `lazurio update` runs on a release. Any
+ *   refusal leaves nothing behind. What that proves, and what it cannot, is
+ *   docs/update.md "First installation".
+ * - **Staged** (the Machines role, `--base` from a digest-pinned file): no
+ *   release files and no network; the custody that pinned and staged the
+ *   bytes is the authority, and the executable verifies nothing about itself.
+ * Convergent: repeated
  * with the active version, it completes what is missing and changes nothing.
  * Run from a NEWER executable over an existing installation it is the offline
  * update (docs/update.md "Offline update"): the same staging, self-check,
  * activation and floor as `lazurio update`, with the bytes coming from the
  * staged file instead of the network. It never goes below the floor.
+ * Either way it ends by creating the standard entry `~/.local/bin/lazurio`
+ * when it is missing or Lazurio's own (`path-entry.ts`). On a supervised base
+ * of a hosted Machine — with or without `--service` — it also converges the
+ * unit that starts the operator's Codex app-server daemon at boot
+ * (`codex-app-server.ts`, decision F29), which never fails the installation.
  */
 
-/** One argument of an `ExecStart=` line. systemd splits on whitespace, expands
- * `%` specifiers and `$` variables and understands C-style escapes inside
- * double quotes; a path must survive all of that unchanged.
- */
-export function systemdQuote(argument: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: that is the point
-  if (argument === "" || /[\u0000-\u001f\u007f]/.test(argument))
-    throw new UpdateFailure("storage-unavailable", { stage: "unit-argument" });
-  if (/^[A-Za-z0-9_@/.:=+-]+$/.test(argument)) return argument;
-  return `"${argument
-    .replaceAll("\\", "\\\\")
-    .replaceAll('"', '\\"')
-    .replaceAll("%", "%%")
-    .replaceAll("$", "$$$$")}"`;
-}
-
-export { unitMarker };
-
-const execStart = (command: readonly string[]) =>
-  `ExecStart=${command.map(systemdQuote).join(" ")}`;
+/** The PATH of the Launchpad and of everything it starts (`unitPath`). */
+export { launchpadExecStart, systemdQuote, unitMarker, unitPath };
 
 /** `ExecStart` is the SELECTOR, so a restart runs whatever version is active.
- * A version that cannot stay up hits the start limit, the unit fails, and
- * `OnFailure=` starts the rollback unit (docs/update.md "Interrupted
- * activation"). `[X-Lazurio]` is ignored by systemd: it is where the updater
- * reads the Folder from, so the Folder lives in this unit and nowhere else.
+ * The Launchpad must always run (docs/update.md "Recovery mode"), so the unit
+ * restarts it after EVERY exit, clean or not (`Restart=always`,
+ * systemd.service(5), "Restart="), five seconds apart, and never ends in the
+ * `failed` state. That needs the start rate limit switched off: systemd.unit(5)
+ * says of `StartLimitIntervalSec=`/`StartLimitBurst=` that they "apply to all
+ * kinds of starts (including manual), not just those triggered by the
+ * Restart= logic", that a unit which reaches the limit is "not attempted to be
+ * restarted anymore", and that the interval may be set "to 0 to disable any
+ * kind of rate limiting". Any finite limit could be reached by manual or
+ * updater restarts in a row; 0, pinned in `[Unit]`, also overrides a
+ * manager-wide `DefaultStartLimitIntervalSec=`. There is no `OnFailure=`:
+ * nothing ever runs an earlier version. `[X-Lazurio]` is ignored by systemd:
+ * it is where the updater reads the Folder from, so the Folder lives in this
+ * unit and nowhere else.
  */
 export function renderLaunchpadUnit(base: string, folder: string): string {
   // Read back verbatim, so it must be one line; quoting is ExecStart's.
@@ -75,21 +109,13 @@ export function renderLaunchpadUnit(base: string, folder: string): string {
     unitMarker,
     "[Unit]",
     "Description=Lazurio Launchpad",
-    "StartLimitIntervalSec=60",
-    "StartLimitBurst=5",
-    `OnFailure=${rollbackUnit}`,
+    "StartLimitIntervalSec=0",
     "",
     "[Service]",
-    execStart([
-      layout(base).selector,
-      "launchpad",
-      "--base",
-      base,
-      "--folder",
-      folder,
-    ]),
-    "Restart=on-failure",
-    "RestartSec=2",
+    `Environment=PATH=${unitPath}`,
+    launchpadExecStart(base, folder),
+    "Restart=always",
+    "RestartSec=5",
     "",
     "[Install]",
     "WantedBy=default.target",
@@ -100,36 +126,32 @@ export function renderLaunchpadUnit(base: string, folder: string): string {
   ].join("\n");
 }
 
-/** Static: runs the PREVIOUS version, which is the one known to work. */
-export function renderRollbackUnit(base: string): string {
-  return [
-    unitMarker,
-    "[Unit]",
-    "Description=Lazurio rollback of an interrupted activation",
-    "",
-    "[Service]",
-    "Type=oneshot",
-    execStart([
-      join(layout(base).previous, "lazurio"),
-      "update",
-      "rollback",
-      "--auto",
-      "--base",
-      base,
-    ]),
-    "",
-  ].join("\n");
-}
+/** The downloaded way in: the release files beside the executable and the
+ * compiled-in verifier. Absent, the staged way in. */
+export type ReleaseCheck = Readonly<{
+  /** Holds `manifest.json` and `lazurio.sigstore.json` of the release. */
+  directory: string;
+  verify: AttestationVerifier;
+}>;
 
 export type InstallInput = Readonly<{
   base: string;
   /** `process.execPath`: the file that is running. */
   executable: string;
   identity: ProductIdentity;
+  release?: ReleaseCheck | undefined;
   platform: string;
   env: Readonly<Record<string, string | undefined>>;
   /** Present: install the systemd user service for this Folder. */
   service?: Readonly<{ folder: string }> | undefined;
+  /** Whether this process is the declared operator of a Machine handover
+   * (`discoverHostedOperator` answers `hosted`); asked only when the base is
+   * supervised. Absent: not hosted. On a hosted supervised base the Codex
+   * app-server unit is converged (decision F29). */
+  hosted?: (() => Promise<boolean>) | undefined;
+  /** The handover's `entry.browser`, asked only on a supervised hosted base
+   * (decision F38); absent: none, so nothing is converged. */
+  browserEntry?: (() => Promise<BrowserEntry | undefined>) | undefined;
   run?: ProcessRunner | undefined;
   healthDeadlineMs?: number | undefined;
 }>;
@@ -139,9 +161,19 @@ export type InstallResult =
       kind: "installed";
       /** The active version: this executable's, unless one was active. */
       active: string;
-      /** Directory to put on PATH. Shell profiles are never edited. */
+      /** Directory to put on PATH: `~/.local/bin` when the entry links the
+       * selector, otherwise the install base's `bin`. Shell profiles are never
+       * edited. */
       path: string;
       serviceInstalled: boolean;
+      /** `~/.local/bin/lazurio`; null without a home or on another OS. */
+      entry: PathEntry | null;
+      /** Only on a supervised base (its Launchpad unit is this base's): what
+       * became of the Codex app-server unit. */
+      codexAppServer?: CodexAppServer;
+      /** Only on a supervised base: what became of the Environment
+       * browser's units (decision F38). */
+      environmentBrowser?: EnvironmentBrowser;
     }>
   /** The offline update: a newer executable over an existing installation. */
   | Readonly<{
@@ -152,22 +184,41 @@ export type InstallResult =
       restartRequired: boolean;
       path: string;
       serviceInstalled: boolean;
+      entry: PathEntry | null;
+      codexAppServer?: CodexAppServer;
+      environmentBrowser?: EnvironmentBrowser;
     }>
   | ErrorResult;
 
 const canonical = (path: string) => isAbsolute(path) && resolve(path) === path;
 
-async function writeUnit(directory: string, name: string, text: string) {
-  const file = join(directory, name);
-  const existing = await readFile(file, "utf8").catch(() => undefined);
-  if (existing === text) return;
-  // A unit of this name that we did not write is someone else's decision.
-  if (existing !== undefined && !existing.startsWith(unitMarker))
+/** The Launchpad unit already in `directory`, refused unless it is this
+ * base's own (`unitBelongsToBase`): an unmarked unit is someone else's
+ * decision, a marked unit of another base is that installation's. Its text,
+ * or undefined when there is none. */
+async function ownUnitOrNone(
+  directory: string,
+  base: string,
+): Promise<string | undefined> {
+  const existing = await readFile(join(directory, launchpadUnit), "utf8").catch(
+    () => undefined,
+  );
+  if (existing !== undefined && !unitBelongsToBase(existing, base))
     throw new UpdateFailure("storage-unavailable", {
       stage: "unit",
       reason: "foreign-unit",
     });
-  await writeDurableFile(directory, name, Buffer.from(text));
+  return existing;
+}
+
+async function writeLaunchpadUnit(
+  directory: string,
+  base: string,
+  text: string,
+) {
+  // Asked again at the write: the unit may have changed since the refusal.
+  if ((await ownUnitOrNone(directory, base)) === text) return;
+  await writeDurableFile(directory, launchpadUnit, Buffer.from(text));
 }
 
 export async function performInstall(
@@ -184,6 +235,70 @@ export async function performInstall(
   }
 }
 
+/** One release file, read only if it is a regular file within its limit. */
+async function releaseFile(
+  directory: string,
+  name: string,
+  limit: number,
+): Promise<Uint8Array> {
+  const resource = name === manifestFile ? "manifest" : "bundle";
+  let bytes: Uint8Array;
+  try {
+    const path = join(directory, name);
+    const info = await lstat(path);
+    if (!info.isFile() || info.size > limit) throw new Error(resource);
+    bytes = await readFile(path);
+  } catch {
+    throw new UpdateFailure("release-invalid", { resource, reason: "file" });
+  }
+  if (bytes.byteLength > limit)
+    throw new UpdateFailure("release-invalid", { resource, reason: "size" });
+  return bytes;
+}
+
+/** The downloaded way in: this executable is the artifact of its own target
+ * in a release of its own version and commit, and the release workflow at
+ * that tag attested the manifest and those bytes. Returns the digest the
+ * staged copy is held against, so the file that was verified is the file
+ * that is installed. Reads and verifies; writes nothing.
+ */
+async function verifyOwnRelease(
+  input: InstallInput,
+  release: ReleaseCheck,
+): Promise<string> {
+  const { identity } = input;
+  let sha256: string;
+  let size: number;
+  try {
+    sha256 = await sha256File(input.executable);
+    size = (await stat(input.executable)).size;
+  } catch (error) {
+    throw storageFailure(error, "executable");
+  }
+  const { manifest, artifact } = await verifyReleaseDocuments({
+    manifestBytes: await releaseFile(
+      release.directory,
+      manifestFile,
+      maxManifestBytes,
+    ),
+    bundle: () => releaseFile(release.directory, bundleFile, maxBundleBytes),
+    version: identity.version,
+    target: identity.target,
+    verify: release.verify,
+  });
+  if (manifest.sourceCommit !== identity.commit)
+    throw new UpdateFailure("release-invalid", {
+      resource: "manifest",
+      reason: "commit-mismatch",
+    });
+  if (artifact.size !== size || artifact.sha256 !== sha256)
+    throw new UpdateFailure("release-invalid", {
+      resource: "artifact",
+      reason: artifact.size !== size ? "size" : "digest",
+    });
+  return sha256;
+}
+
 async function install(input: InstallInput): Promise<InstallResult> {
   const { base, identity, service } = input;
   if (!canonical(base))
@@ -194,24 +309,28 @@ async function install(input: InstallInput): Promise<InstallResult> {
     throw new UpdateFailure("target-unsupported", { service: "systemd-user" });
   if (service && !canonical(service.folder))
     throw new UpdateFailure("storage-unavailable", { stage: "folder" });
-  const units = service
-    ? ([
-        [launchpadUnit, renderLaunchpadUnit(base, service.folder)],
-        [rollbackUnit, renderRollbackUnit(base)],
-      ] as const)
-    : [];
+  const unit = service ? renderLaunchpadUnit(base, service.folder) : undefined;
+  // A Launchpad unit that is not this base's is refused before the selector
+  // or anything else changes.
+  if (service && unitDirectory !== undefined)
+    await ownUnitOrNone(unitDirectory, base);
+  // The downloaded way in proves its release before the first write.
+  const verified = input.release
+    ? await verifyOwnRelease(input, input.release)
+    : undefined;
 
   // Stage this executable under `versions/<its version>` unless those exact
   // bytes are already there. Scratch belongs to the lock holder.
   const stage = async () => {
     const paths = layout(base);
-    const sha256 = await sha256File(input.executable);
+    const sha256 = verified ?? (await sha256File(input.executable));
     if (await stagedMatches(base, identity.version, sha256)) return false;
     await rm(paths.scratch, { recursive: true, force: true });
     await mkdir(paths.scratch, { mode: 0o700 });
     const copy = join(paths.scratch, "artifact");
     await copyFile(input.executable, copy);
-    // Hold the copy against the digest: the file could have changed.
+    // Hold the copy against the digest (the verified one on the downloaded
+    // way in): the file could have changed.
     if ((await sha256File(copy)) !== sha256)
       throw new UpdateFailure("storage-unavailable", { stage: "copy" });
     await placeVersion({
@@ -226,17 +345,32 @@ async function install(input: InstallInput): Promise<InstallResult> {
   const outcome = await withUpdateLock(base, 0, async () => {
     const paths = layout(base);
     try {
+      // The supervisor is the installer-written unit of THIS base if there is
+      // one; a foreign unit, or one of another base, is not ours.
+      const control = await detectServiceControl({
+        base,
+        platform: input.platform,
+        env: input.env,
+        run: input.run,
+      });
+      // Like every mutating update command, first converge what an
+      // installation from before the first release without rollback left
+      // (the migration validates the whole update state before it touches
+      // anything; a marker without a selector stays untouched as
+      // `state-invalid`).
+      await removeRollbackLeftovers({
+        base,
+        service: control,
+        units: serviceUnits(input),
+      });
       const selected = await readSelector(base);
       if (selected === null) {
         // First installation — or a tree whose selector is missing or
-        // damaged while its durable state survived. The whole update state is
-        // read and validated first, as every reconciler does: a marker without
-        // a selector is a state no crash produces and stays untouched
-        // (`state-invalid`). The surviving high-water mark is the floor: a
-        // lower executable never becomes active through this branch. A
-        // missing mark means the floor is this version, and only a committed
-        // activation ever writes one.
-        const { highWater: floor } = await readUpdateState(base);
+        // damaged while its durable state survived. The surviving high-water
+        // mark is the floor: a lower executable never becomes active through
+        // this branch. A missing mark means the floor is this version, and
+        // only an activation ever writes one.
+        const floor = await readHighWater(base);
         if (floor !== null && compareVersions(identity.version, floor) < 0)
           throw new UpdateFailure("release-invalid", {
             resource: "version",
@@ -262,19 +396,8 @@ async function install(input: InstallInput): Promise<InstallResult> {
         await swapSelector(base, identity.version);
         return { active: identity.version, updated: null };
       }
-      // An installation exists. Like every mutating update command it begins
-      // by reconciling a leftover marker — before deciding anything, including
-      // whether there is anything to do. The supervisor is the installer-
-      // written unit if there is one; a foreign unit is nobody's.
-      const control = await detectServiceControl({
-        base,
-        platform: input.platform,
-        env: input.env,
-        run: input.run,
-      });
-      await reconcilePending({ base, service: control });
-      const from = await readSelector(base);
-      if (from === null) throw new UpdateFailure("not-installed");
+      // An installation exists.
+      const from = selected;
       // The same version again changes nothing.
       if (from === identity.version) return { active: from, updated: null };
       // Another version: the offline update, by the contract's own steps.
@@ -321,13 +444,12 @@ async function install(input: InstallInput): Promise<InstallResult> {
   });
   const active = outcome.active;
 
-  if (service && unitDirectory !== undefined) {
+  if (unit !== undefined && unitDirectory !== undefined) {
     const command = { run: input.run ?? runProcess, env: input.env };
     try {
       // The user's own directories are created, never re-moded.
       await mkdir(unitDirectory, { recursive: true });
-      for (const [name, text] of units)
-        await writeUnit(unitDirectory, name, text);
+      await writeLaunchpadUnit(unitDirectory, base, unit);
     } catch (error) {
       throw storageFailure(error, "unit");
     }
@@ -337,17 +459,61 @@ async function install(input: InstallInput): Promise<InstallResult> {
     )
       throw new UpdateFailure("activation-failed", { stage: "service" });
   }
+  // Only after the Launchpad's unit is in place, with or without `--service`,
+  // and whatever it answers, the installation stands. The hosted context is
+  // asked once for both convergences.
+  let hostedAnswer: Promise<boolean> | undefined;
+  const hosted = () => {
+    hostedAnswer ??= (input.hosted ?? (async () => false))();
+    return hostedAnswer;
+  };
+  const codexAppServer: CodexAppServer | undefined = await convergeEntryUnits({
+    base,
+    platform: input.platform,
+    env: input.env,
+    run: input.run ?? runProcess,
+    hosted,
+  }).catch(() => codexAppServerFailed("unit"));
+  // The Environment browser's units the same way (decision F38): only for
+  // the hosted operator of a handover that routes the browser's view.
+  const environmentBrowser: EnvironmentBrowser | undefined =
+    await convergeEnvironmentBrowser({
+      base,
+      platform: input.platform,
+      env: input.env,
+      run: input.run ?? runProcess,
+      hosted,
+      entry: input.browserEntry ?? (async () => undefined),
+    }).catch(() => environmentBrowserFailed("unit"));
+  // Last, and never a reason to fail: the product is installed whatever
+  // happens to its PATH entry, and the result says what it found.
+  const entry = await ensurePathEntry({
+    base,
+    home: input.env.HOME,
+    pathVariable: input.env.PATH,
+    platform: input.platform,
+  });
+  const path =
+    entryLinked(entry) && input.env.HOME
+      ? entryDirectory(input.env.HOME)
+      : layout(base).bin;
   if (outcome.updated)
     return Object.freeze({
       kind: "updated" as const,
       ...outcome.updated,
-      path: layout(base).bin,
+      path,
       serviceInstalled: service !== undefined,
+      entry,
+      ...(codexAppServer === undefined ? {} : { codexAppServer }),
+      ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
     });
   return Object.freeze({
     kind: "installed" as const,
     active,
-    path: layout(base).bin,
+    path,
     serviceInstalled: service !== undefined,
+    entry,
+    ...(codexAppServer === undefined ? {} : { codexAppServer }),
+    ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
   });
 }

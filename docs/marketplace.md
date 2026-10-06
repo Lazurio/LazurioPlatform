@@ -2,7 +2,10 @@
 
 Status: requested product vision and future roadmap, outside the current bootstrap.
 There is no marketplace service, account system, billing, discovery backend or
-executable extension capability in this foundation.
+executable extension capability in this foundation. The Marketplace entry at the bottom
+of the Apps column in the [target shell](launchpad-development.md#target-shell) (second
+iteration, 2026-10-04) is a placeholder page that says "již brzy" (coming soon); it
+lists nothing and implements none of this document.
 
 One shared marketplace for profiles and Organization modules is an accepted future
 product requirement. Discovery/presentation, authorship, versions and descriptions
@@ -15,7 +18,7 @@ second ACL. Paid module snapshots are an accepted future consumer below; exact c
 and module licenses remain separate decisions.
 
 The active profile remains per Machine. A future marketplace distributes versioned
-profile definitions which a Principal deliberately selects for a particular local
+profile definitions which an Operator deliberately selects for a particular local
 installation. Installing a definition is not importing another person's Lazurio Folder,
 credentials, Organization data, Personalspace or authority. It must not update the
 same person's other Machines implicitly.
@@ -58,7 +61,7 @@ Custom source survives regeneration and upgrade. Shared/custom composition has
 explicit precedence and displays conflicts before activation. Export/submission
 includes reviewed portable source and intended-use explanation, never private data,
 credentials, the author's consent or effective mandates. Local effective authority
-requires this Principal's scope, consent provenance, revocation and actual rights.
+requires this Operator's scope, consent provenance, revocation and actual rights.
 
 Untrusted publisher content cannot redefine scope, bypass required approval or read
 private data. Trust/authenticity, publisher verification and revocation, content
@@ -68,7 +71,7 @@ Resolve them against real producer and consumer examples before building a store
 ## Future acceptance
 
 One synthetic producer publishes a declarative definition; two Machine fixtures of
-the same Principal activate different pinned profiles without sync. Unknown schema,
+the same person activate different pinned profiles without sync. Unknown schema,
 unavailable capability, wrong compatibility and tampered definition fail before
 activation. A new version produces an explicit diff and does not expand authority.
 The test includes attempted secret/Lazurio Folder/data import and attempted install script.

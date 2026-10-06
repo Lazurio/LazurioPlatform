@@ -28,6 +28,7 @@
     "@sigstore/tuf": "5.0.0",
     "@sigstore/verify": "4.1.2",
     "ajv": "8.20.0",
-    "minimatch": "10.2.6"
+    "minimatch": "10.2.6",
+    "uqr": "0.1.3"
   }
 }

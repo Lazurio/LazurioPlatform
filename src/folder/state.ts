@@ -1,4 +1,8 @@
-import { parseEnabledTools } from "../tools/catalog";
+import {
+  parseEnabledTools,
+  parseToolNotes,
+  type ToolNotes,
+} from "../tools/catalog";
 import { type MachineBinding, parseMachineBinding } from "./machine-binding";
 import { type OutputPath, outputPaths } from "./outputs";
 import {
@@ -28,6 +32,9 @@ export const folderStateSchemas = Object.freeze({
 // unique, `recommended` or `optional` tier only. The key is absent when nothing
 // is enabled, so a Folder that enables nothing keeps the bytes it always had;
 // an empty list is refused, because one selection has one representation.
+// `toolNotes` (decision F18, addendum 2026-09-27) is the optional object of the
+// operator's notes for agents, keyed by a required or enabled tool, keys
+// sorted; absent when there is no note, and an empty object is refused.
 export type FolderPreferences = Readonly<{
   schemaVersion: 2;
   revision: number;
@@ -36,6 +43,7 @@ export type FolderPreferences = Readonly<{
   profile: FolderProfile;
   customInstructions: string;
   tools?: readonly string[];
+  toolNotes?: ToolNotes;
 }>;
 
 export function enabledTools(
@@ -44,14 +52,30 @@ export function enabledTools(
   return preferences.tools ?? [];
 }
 
-// Preference fields with the given selection: the key present only when
-// something is enabled.
-export function withEnabledTools<T extends Readonly<{ tools?: unknown }>>(
+export function toolNotes(
+  preferences: Pick<FolderPreferences, "toolNotes">,
+): ToolNotes {
+  return preferences.toolNotes ?? Object.freeze({});
+}
+
+// Preference fields with the given selection and notes: each key present only
+// when it holds something.
+export function withToolSelection<
+  T extends Readonly<{ tools?: unknown; toolNotes?: unknown }>,
+>(
   fields: T,
   tools: readonly string[],
-): Omit<T, "tools"> & { tools?: readonly string[] } {
-  const { tools: _, ...rest } = fields;
-  return tools.length === 0 ? rest : { ...rest, tools };
+  notes: ToolNotes,
+): Omit<T, "tools" | "toolNotes"> & {
+  tools?: readonly string[];
+  toolNotes?: ToolNotes;
+} {
+  const { tools: _, toolNotes: __, ...rest } = fields;
+  return {
+    ...rest,
+    ...(tools.length === 0 ? {} : { tools }),
+    ...(Object.keys(notes).length === 0 ? {} : { toolNotes: notes }),
+  };
 }
 
 // Manifest schema 2 records one digest per generated output, AGENTS.md and
@@ -88,6 +112,7 @@ export function parseOutputDigests(input: unknown): OutputDigests {
 
 export function parseFolderPreferences(input: unknown): FolderPreferences {
   const withTools = ownDataValue(input, "tools") !== undefined;
+  const withNotes = ownDataValue(input, "toolNotes") !== undefined;
   const value = stateFields(input, [
     "schemaVersion",
     "revision",
@@ -96,16 +121,22 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     "profile",
     "customInstructions",
     ...(withTools ? ["tools"] : []),
+    ...(withNotes ? ["toolNotes"] : []),
   ]);
   if (value.schemaVersion !== 2 || typeof value.customInstructions !== "string")
     throw new Error("Unsupported Folder preferences");
   const tools = withTools ? parseEnabledTools(value.tools) : undefined;
   if (tools?.length === 0)
     throw new Error("Empty enabled tools must be absent");
+  const notes = withNotes
+    ? parseToolNotes(value.toolNotes, tools ?? [])
+    : undefined;
+  if (notes !== undefined && Object.keys(notes).length === 0)
+    throw new Error("Empty tool notes must be absent");
   const preset = parsePresetReference(value.preset);
   const machine = parseMachineBinding(value.machine);
   const profile = parseFolderProfile(value.profile);
-  validatePresetComposition(preset, machine, profile);
+  validatePresetComposition(preset.name, machine, profile);
   return Object.freeze({
     schemaVersion: 2,
     revision: revision(value.revision),
@@ -116,6 +147,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     // effective mandates; composition/conflict handling is a separate consumer.
     customInstructions: value.customInstructions,
     ...(tools === undefined ? {} : { tools }),
+    ...(notes === undefined ? {} : { toolNotes: notes }),
   });
 }
 

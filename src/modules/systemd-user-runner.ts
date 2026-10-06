@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import type {
   ApplicationRef,
   ApplicationRunner,
@@ -63,7 +63,11 @@ const shownProperties = [
   "StandardError",
 ] as const;
 // The fixed policy of every generated unit, exactly as the manager renders it.
-// One differing value makes the unit foreign.
+// One differing value makes the unit foreign. Output goes to the journal
+// (launchpad-parity B6): the OS owns retention and rotation, and `lazurio
+// module logs` reads it by the unit's name. A unit started by an older
+// release with discarded output (`null`) is therefore foreign
+// (`service-unrecognized`) until it is stopped once through the manager.
 const fixedPolicy: Readonly<
   Partial<Record<(typeof shownProperties)[number], string>>
 > = {
@@ -75,8 +79,8 @@ const fixedPolicy: Readonly<
   UMask: "0077",
   TimeoutStopUSec: "5s",
   StandardInput: "null",
-  StandardOutput: "null",
-  StandardError: "null",
+  StandardOutput: "journal",
+  StandardError: "journal",
 };
 // `systemctl show` renders the command line space-joined and the environment
 // shell-quoted: neither can be compared faithfully. These three are therefore
@@ -204,6 +208,57 @@ export function applicationUnitName(
   ]).slice(0, 16)}.service`;
 }
 
+/** The largest tail `lazurio module logs` reads at once. */
+export const journalLinesMax = 1000;
+
+// The last `lines` lines one application unit wrote to the user journal, as
+// the journal holds them (`-o cat`: the message only). Reading only; the name
+// is one this runner generates, never a caller's. Output of every invocation
+// under the name is kept by the journal until its own retention ends it.
+export async function readApplicationJournal(
+  run: ServiceManagerProcess,
+  unit: string,
+  lines: number,
+): Promise<
+  Readonly<
+    { kind: "journal"; lines: readonly string[] } | { kind: "unavailable" }
+  >
+> {
+  if (
+    !/^lazurio-app-[a-z0-9.-]+\.service$/.test(unit) ||
+    !Number.isInteger(lines) ||
+    lines < 1 ||
+    lines > journalLinesMax
+  )
+    throw new Error("Bounded journal read of an application unit required");
+  const unavailable = Object.freeze({ kind: "unavailable" as const });
+  let result: Awaited<ReturnType<ServiceManagerProcess>>;
+  try {
+    result = await run(
+      "journalctl",
+      [
+        "--user",
+        `--unit=${unit}`,
+        `--lines=${lines}`,
+        "--output=cat",
+        "--no-pager",
+        "--quiet",
+      ],
+      { timeoutMs: 10_000 },
+    );
+  } catch {
+    return unavailable;
+  }
+  if (result.code !== 0) return unavailable;
+  const text = result.stdout.endsWith("\n")
+    ? result.stdout.slice(0, -1)
+    : result.stdout;
+  return Object.freeze({
+    kind: "journal" as const,
+    lines: Object.freeze(text === "" ? [] : text.split("\n")),
+  });
+}
+
 type UnitObservation = Readonly<
   | { kind: "not-running" }
   | { kind: "unrecognized" }
@@ -243,7 +298,7 @@ export function createSystemdUserRunner(input: {
   const processControlGroup =
     input.processControlGroup ?? readProcessControlGroup;
   const controlGroupEmpty = input.controlGroupEmpty ?? isControlGroupEmpty;
-  const inspectDirectory = input.inspectDirectory ?? inspectOwnedDirectory;
+  const inspectDirectory = input.inspectDirectory ?? inspectCheckoutDirectory;
   const sleep =
     input.sleep ?? ((milliseconds: number) => Bun.sleep(milliseconds));
   if (
@@ -504,8 +559,8 @@ export function createSystemdUserRunner(input: {
       "--property=UMask=0077",
       `--property=TimeoutStopSec=${stopTimeoutSeconds}s`,
       "--property=StandardInput=null",
-      "--property=StandardOutput=null",
-      "--property=StandardError=null",
+      "--property=StandardOutput=journal",
+      "--property=StandardError=journal",
     ];
     if (literal) args.push("--expand-environment=no");
     for (const entry of environment) args.push(`--setenv=${entry}`);

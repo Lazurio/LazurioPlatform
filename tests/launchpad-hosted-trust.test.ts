@@ -32,6 +32,19 @@ test("a hosted entry is exactly four typed values; anything else is refused", ()
     { ...entry, listenPort: 0 },
     { ...entry, listenPort: 70000 },
     { ...entry, listenPort: "20000" },
+    // The rules of the handover schema: no port, query or uppercase in an
+    // origin or the auth endpoint, a path on the endpoint, the gateway's
+    // cookie alphabet and an unprivileged loopback port.
+    { ...entry, externalOrigin: "https://launchpad.example.lazurio.io:8443" },
+    { ...entry, externalOrigin: "https://Launchpad.example.lazurio.io" },
+    { ...entry, externalOrigin: "https://localhost" },
+    { ...entry, authCheckUrl: "https://example.lazurio.io" },
+    { ...entry, authCheckUrl: "https://example.lazurio.io/oauth2/auth?x=1" },
+    { ...entry, authCheckUrl: "https://example.lazurio.io:8443/oauth2/auth" },
+    { ...entry, authCookieName: "lazurio.workspace" },
+    { ...entry, authCookieName: "a".repeat(129) },
+    { ...entry, listenPort: 1023 },
+    { ...entry, listenPort: 20000.5 },
   ])
     expect(() => parseHostedEntry(bad)).toThrow();
 });
@@ -160,6 +173,35 @@ test("admission forwards exactly the named cookie to the configured auth endpoin
       }),
     ),
   ).toEqual({ ok: true });
+  // The internal namespace (the gateway's `ensure`) is state-changing even on
+  // GET: the same-origin rule applies; any other GET keeps the read rule.
+  const internal = (headers: Record<string, string>) =>
+    new Request(
+      "http://127.0.0.1:20000/api/internal/hosted/modules/web/ensure",
+      { headers: { host, ...headers } },
+    );
+  expect(await trust.admit(internal(good))).toEqual({
+    ok: false,
+    reason: "origin-mismatch",
+  });
+  expect(
+    await trust.admit(
+      internal({
+        ...good,
+        origin: entry.externalOrigin,
+        "sec-fetch-site": "same-site",
+      }),
+    ),
+  ).toEqual({ ok: false, reason: "origin-mismatch" });
+  expect(
+    await trust.admit(
+      internal({
+        ...good,
+        origin: entry.externalOrigin,
+        "sec-fetch-site": "same-origin",
+      }),
+    ),
+  ).toEqual({ ok: true });
   // A positive answer is cached for two minutes, keyed by the cookie value.
   expect(calls.length).toBe(2);
   clock += 119_000;
@@ -204,4 +246,132 @@ test("a redirecting, failing or slow auth endpoint denies and never caches a neg
     ok: false,
     reason: "auth-unavailable",
   });
+});
+
+// oauth2-proxy splits a session larger than one cookie into `<name>_0…_n`
+// and reassembles it itself (`loadCookie`, pkg/sessions/cookie/
+// session_store.go): the whole cookie wins when present, otherwise the
+// chunks in index order, concatenated. Personal VMs carry such sessions.
+const chunked = (...values: string[]) =>
+  values.map((value, index) => `__Secure-lazurio-workspace_${index}=${value}`);
+
+test("a chunked session is one cookie: the ordered chunks _0…_n, no gap, no repeat", () => {
+  const name = entry.authCookieName;
+  // Two and four chunks, in any header order, other cookies ignored.
+  expect(
+    selectCookie(`a=1; ${chunked("va", "lid").reverse().join("; ")}`, name),
+  ).toEqual({ value: "valid", chunks: ["va", "lid"] });
+  expect(selectCookie(chunked("v", "a", "l", "id").join("; "), name)).toEqual({
+    value: "valid",
+    chunks: ["v", "a", "l", "id"],
+  });
+  expect(selectCookie(chunked("valid").join("; "), name)).toEqual({
+    value: "valid",
+    chunks: ["valid"],
+  });
+  // Presence is the cookie or its `_0` chunk; a lone later chunk is not a
+  // session, as for oauth2-proxy.
+  expect(selectCookie(`${name}_1=lid; ${name}_2=x`, name)).toEqual({
+    reason: "cookie-missing",
+  });
+  // A gap, a repeated index or an empty chunk is refused, not cut short.
+  for (const header of [
+    `${name}_0=va; ${name}_2=lid`,
+    `${name}_0=va; ${name}_1=l; ${name}_3=id`,
+    `${name}_0=va; ${name}_0=vb; ${name}_1=lid`,
+    `${name}_0=va; ${name}_1=l; ${name}_1=lid`,
+    `${name}_0=va; ${name}_1=`,
+    `${name}_0=`,
+  ])
+    expect(selectCookie(header, name), header).toEqual({
+      reason: "cookie-invalid",
+    });
+  // Only the names oauth2-proxy reads are chunks: `_01` or `_csrf` are other
+  // cookies.
+  expect(
+    selectCookie(`${name}_0=valid; ${name}_01=x; ${name}_csrf=y`, name),
+  ).toEqual({ value: "valid", chunks: ["valid"] });
+  // The whole cookie wins over chunks beside it, exactly as before; its own
+  // rules still hold.
+  expect(
+    selectCookie(`${name}_0=va; ${name}=whole; ${name}_1=lid`, name),
+  ).toEqual({ value: "whole" });
+  expect(
+    selectCookie(`${name}=a; ${name}=b; ${name}_0=va; ${name}_1=lid`, name),
+  ).toEqual({ reason: "cookie-invalid" });
+  expect(selectCookie(`${name}=; ${name}_0=valid`, name)).toEqual({
+    reason: "cookie-invalid",
+  });
+  // The 16 KiB bound covers the chunks too.
+  expect(
+    selectCookie(
+      chunked(..."abcde".split("").map((c) => c.repeat(3500))).join("; "),
+      name,
+    ),
+  ).toEqual({ reason: "cookie-invalid" });
+});
+
+test("a chunked session is admitted with its chunks forwarded unchanged; the Host and same-origin rules are not relaxed", async () => {
+  // Realistic chunk sizes: oauth2-proxy cuts at about 4 KiB.
+  const four = ["w", "x", "y", "z"].map((c) => c.repeat(3500));
+  const accepted = new Set([
+    chunked("va", "lid").join("; "),
+    chunked(...four).join("; "),
+  ]);
+  const { calls, fetcher } = fakeAuth((cookie) =>
+    cookie !== null && accepted.has(cookie)
+      ? new Response("ok")
+      : new Response("no", { status: 401 }),
+  );
+  const trust = createHostedTrust(entry, { fetcher });
+  // Two chunks, sent out of order next to another cookie: the subrequest
+  // carries exactly the chunks in index order, never re-joined.
+  expect(
+    await trust.admit(
+      request("GET", {
+        cookie: `other=1; ${chunked("va", "lid").reverse().join("; ")}`,
+      }),
+    ),
+  ).toEqual({ ok: true });
+  expect(calls).toEqual([chunked("va", "lid").join("; ")]);
+  // Four chunks near the header bound.
+  expect(
+    await trust.admit(request("GET", { cookie: chunked(...four).join("; ") })),
+  ).toEqual({ ok: true });
+  expect(calls[1]).toBe(chunked(...four).join("; "));
+  // The auth endpoint still decides: other chunks are denied.
+  expect(
+    await trust.admit(
+      request("GET", { cookie: chunked("forg", "ed").join("; ") }),
+    ),
+  ).toEqual({ ok: false, reason: "auth-denied" });
+  // A gap or a repeat is refused without asking the endpoint.
+  const asked = calls.length;
+  for (const cookie of [
+    `__Secure-lazurio-workspace_0=va; __Secure-lazurio-workspace_2=lid`,
+    `${chunked("va", "lid").join("; ")}; __Secure-lazurio-workspace_1=lid`,
+  ])
+    expect(await trust.admit(request("GET", { cookie }))).toEqual({
+      ok: false,
+      reason: "cookie-invalid",
+    });
+  expect(calls.length).toBe(asked);
+  // Nothing else changes: the Host rule and the same-origin rule hold.
+  const session = { cookie: chunked("va", "lid").join("; ") };
+  expect(
+    await trust.admit(request("GET", { ...session, host: "other.lazurio.io" })),
+  ).toEqual({ ok: false, reason: "host-mismatch" });
+  expect(await trust.admit(request("POST", session))).toEqual({
+    ok: false,
+    reason: "origin-mismatch",
+  });
+  expect(
+    await trust.admit(
+      request("POST", {
+        ...session,
+        origin: entry.externalOrigin,
+        "sec-fetch-site": "same-origin",
+      }),
+    ),
+  ).toEqual({ ok: true });
 });

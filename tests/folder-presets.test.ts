@@ -9,13 +9,19 @@ import {
   presetNames,
   presetProfile,
   presetReference,
+  selectablePresets,
   validatePresetComposition,
   workspacePreset,
 } from "../src/folder/presets";
 import { parseFolderPreferences } from "../src/folder/state";
 import { machineBinding } from "../src/machine/binding";
 import { parseMachineContext } from "../src/machine/context";
-import { bindings, workRelationships } from "./fixtures/machine-bindings";
+import {
+  automationAssignment,
+  binding,
+  bindings,
+  workRelationships,
+} from "./fixtures/machine-bindings";
 import organizationDocument from "./fixtures/machine-context.json";
 import personalDocument from "./fixtures/machine-context-personal.json";
 
@@ -32,7 +38,25 @@ const machines = {
     owner: { ...bindings.organization.owner, assignment: { kind: "team" } },
   }),
   "workspace-vm without owner.team, with relationships": bindings.related,
+  "workspace-vm with owner.team of a persona with one responsible operator":
+    bindings.automated,
+  "workspace-vm without owner.team of a persona with one responsible operator":
+    parseMachineBinding({
+      ...bindings.organization,
+      owner: {
+        ...bindings.organization.owner,
+        assignment: automationAssignment,
+      },
+    }),
 } as const;
+// Every Organization preset is allowed on every workspace VM; the assignment
+// selects which one is derived (F10). The Automated Environment of decision
+// 0169 adds the third. A stored preset is valid within this allow-list.
+const organizationPresets = [
+  "hosted-organization-personal",
+  "hosted-organization-team",
+  "hosted-organization-steward",
+] as const;
 
 // Derivation is a function of machine.kind and the assignment. Since Machines
 // v0.12.61 `owner.assignment` is the only selector when present; without it
@@ -40,52 +64,81 @@ const machines = {
 // alone proves nothing about assignment (an Organization may model one
 // operator's VM as a Team named after them), so that handover derives no
 // preset and every choice on it is explicit. Relationships never take part.
+// A NEW choice (issue #107) is narrowed to the derived preset whenever the
+// handover states `owner.assignment`; without it the choice is the allow-list.
 test.each([
-  ["workstation", null, "local", ["local"]],
-  ["personal-vm", "operator", "hosted-personal", ["hosted-personal"]],
+  ["workstation", null, "local", ["local"], ["local"]],
+  [
+    "personal-vm",
+    "operator",
+    "hosted-personal",
+    ["hosted-personal"],
+    ["hosted-personal"],
+  ],
   [
     "workspace-vm with owner.team, no assignment",
     null,
     null,
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
+    organizationPresets,
   ],
   [
     "workspace-vm without owner.team, no assignment",
     "operator",
     "hosted-organization-personal",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
+    organizationPresets,
   ],
   [
     "workspace-vm with owner.team assigned to one operator",
     "operator",
     "hosted-organization-personal",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
+    ["hosted-organization-personal"],
   ],
   [
     "workspace-vm with owner.team assigned to the Team",
     "team",
     "hosted-organization-team",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
+    ["hosted-organization-team"],
   ],
   [
     "workspace-vm without owner.team assigned to the Team",
     "team",
     "hosted-organization-team",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
+    ["hosted-organization-team"],
   ],
   [
     "workspace-vm without owner.team, with relationships",
     "operator",
     "hosted-organization-personal",
-    ["hosted-organization-personal", "hosted-organization-team"],
+    organizationPresets,
+    organizationPresets,
+  ],
+  [
+    "workspace-vm with owner.team of a persona with one responsible operator",
+    "automation",
+    "hosted-organization-steward",
+    organizationPresets,
+    ["hosted-organization-steward"],
+  ],
+  [
+    "workspace-vm without owner.team of a persona with one responsible operator",
+    "automation",
+    "hosted-organization-steward",
+    organizationPresets,
+    ["hosted-organization-steward"],
   ],
 ] as const)(
-  "%s has assignment %p, derives %p and allows exactly %p",
-  (machine, assignment, derived, allowed) => {
+  "%s has assignment %p, derives %p, allows exactly %p and offers %p",
+  (machine, assignment, derived, allowed, selectable) => {
     const binding = machines[machine];
     if (binding !== null) expect(machineAssignment(binding)).toBe(assignment);
     expect(derivePreset(binding)).toBe(derived);
     expect(allowedPresets(binding)).toEqual([...allowed]);
+    expect(selectablePresets(binding)).toEqual([...selectable]);
     if (derived !== null)
       expect(presetReference(derived, binding)).toEqual({
         name: derived,
@@ -93,28 +146,64 @@ test.each([
         selection: "derived",
       });
     for (const name of presetNames) {
-      if ((allowed as readonly string[]).includes(name)) {
-        const reference = presetReference(name, binding);
-        expect(reference.selection).toBe(
+      const profile = presetProfile(name, "linux");
+      // A new choice is recorded only within the selectable set.
+      if ((selectable as readonly string[]).includes(name))
+        expect(presetReference(name, binding).selection).toBe(
           name === derived ? "derived" : "explicit",
         );
-        const profile = presetProfile(name, "linux");
-        expect(validatePresetComposition(reference, binding, profile)).toBe(
+      else expect(() => presetReference(name, binding)).toThrow("not allowed");
+      // A stored preset stays valid within the whole allow-list.
+      if ((allowed as readonly string[]).includes(name))
+        expect(validatePresetComposition(name, binding, profile)).toBe(
           workspacePreset(name),
         );
-      } else {
-        expect(() => presetReference(name, binding)).toThrow("not allowed");
-        expect(() =>
-          validatePresetComposition(
-            { name, version: 1, selection: "explicit" },
-            binding,
-            presetProfile(name, "linux"),
-          ),
-        ).toThrow("not allowed");
-      }
+      else
+        expect(() => validatePresetComposition(name, binding, profile)).toThrow(
+          "not allowed",
+        );
     }
   },
 );
+
+// Issue #107: existing Folders keep their recorded preset. The recorded one is
+// selectable again (keeping it is no new choice) as long as the machine kind
+// allows it; nothing else is added, and a personal VM never gains one.
+test("the recorded preset stays selectable next to the derived one", () => {
+  expect(
+    selectablePresets(bindings.assignedOperator, "hosted-organization-steward"),
+  ).toEqual(["hosted-organization-personal", "hosted-organization-steward"]);
+  expect(
+    selectablePresets(bindings.assignedTeam, "hosted-organization-personal"),
+  ).toEqual(["hosted-organization-personal", "hosted-organization-team"]);
+  expect(
+    selectablePresets(bindings.automated, "hosted-organization-steward"),
+  ).toEqual(["hosted-organization-steward"]);
+  expect(
+    selectablePresets(bindings.team, "hosted-organization-steward"),
+  ).toEqual([...organizationPresets]);
+  expect(
+    selectablePresets(bindings.personal, "hosted-organization-steward"),
+  ).toEqual(["hosted-personal"]);
+  expect(selectablePresets(null, "hosted-personal")).toEqual(["local"]);
+  // A stored explicit preset outside the selectable set parses unchanged.
+  for (const [name, machine] of [
+    ["hosted-organization-steward", bindings.assignedOperator],
+    ["hosted-organization-personal", bindings.assignedTeam],
+    ["hosted-organization-team", bindings.automated],
+  ] as const) {
+    const stored = parseFolderPreferences({
+      schemaVersion: 2,
+      revision: 3,
+      customInstructions: "",
+      preset: { name, version: 1, selection: "explicit" },
+      machine,
+      profile: presetProfile(name, "linux"),
+    });
+    expect(stored.preset.name).toBe(name);
+    expect(selectablePresets(machine)).not.toContain(name);
+  }
+});
 
 test("presets are complete compositions with defaults the Principal may override", () => {
   for (const name of presetNames) {
@@ -138,17 +227,116 @@ test("presets are complete compositions with defaults the Principal may override
   );
 });
 
+// The four presets that existed before decision 0169, field by field: adding
+// the Automated preset changes none of them (each only states that it runs no
+// bot team).
+test("the presets that existed before decision 0169 are unchanged", () => {
+  const defaults = { locale: "en", detail: "concise", coordination: "direct" };
+  const hosted = ["launchpad", "hosted-entry"];
+  const organization = {
+    version: 1,
+    machineKinds: ["workspace-vm"],
+    composition: { access: "remote", purpose: "human" },
+    defaults,
+    personalspace: "never",
+    surfaces: hosted,
+    supervision: "os-service-manager",
+    botTeam: null,
+  };
+  const before: unknown = Object.fromEntries(
+    presetNames
+      .filter((name) => name !== "hosted-organization-steward")
+      .map((name) => [name, workspacePreset(name)]),
+  );
+  expect(before).toEqual({
+    local: {
+      name: "local",
+      version: 1,
+      machineKinds: ["workstation"],
+      composition: { access: "local", purpose: "human" },
+      defaults,
+      personalspace: "present",
+      providerIdentity: "own-sign-in",
+      surfaces: ["launchpad"],
+      supervision: "session",
+      botTeam: null,
+    },
+    "hosted-personal": {
+      name: "hosted-personal",
+      version: 1,
+      machineKinds: ["personal-vm"],
+      composition: { access: "remote", purpose: "human" },
+      defaults,
+      personalspace: "present",
+      providerIdentity: "own-sign-in",
+      surfaces: hosted,
+      supervision: "os-service-manager",
+      botTeam: null,
+    },
+    "hosted-organization-personal": {
+      ...organization,
+      name: "hosted-organization-personal",
+      providerIdentity: "own-sign-in",
+    },
+    "hosted-organization-team": {
+      ...organization,
+      name: "hosted-organization-team",
+      providerIdentity: "brokered-organization",
+    },
+  });
+});
+
+// Decision 0169: the Automated Environment of an Organization persona. An
+// Organization work VM (Personalspace never, Organization repositories under
+// organizations/<org>/) whose GitHub identity is the persona's own machine
+// user account, signed in by the responsible operator; Lazurio MausBot runs
+// the persona's bot team as a service next to the Launchpad and T3 Code.
+test("the Steward preset composes the Automated Environment of decision 0169", () => {
+  const preset = workspacePreset("hosted-organization-steward");
+  expect(preset).toEqual({
+    name: "hosted-organization-steward",
+    version: 1,
+    machineKinds: ["workspace-vm"],
+    composition: { access: "remote", purpose: "human" },
+    defaults: { locale: "en", detail: "concise", coordination: "direct" },
+    personalspace: "never",
+    providerIdentity: "persona-account",
+    surfaces: ["launchpad", "hosted-entry", "mausbot"],
+    supervision: "os-service-manager",
+    botTeam: {
+      runtime: "mausbot",
+      workingFolder: "lazurio-folder",
+      team: "lazurio/teams/steward.openmaus.json",
+      githubIntake: {
+        bot: "team-leader",
+        scope: "organization",
+        owners: "machine-organization",
+        exclude: ["infra", "productionspace"],
+      },
+    },
+  });
+  expect(Object.isFrozen(preset.botTeam)).toBe(true);
+  expect(Object.isFrozen(preset.botTeam?.githubIntake.exclude)).toBe(true);
+  // Only the Steward preset runs a bot team or has a persona identity.
+  for (const name of presetNames)
+    if (name !== "hosted-organization-steward") {
+      expect(workspacePreset(name).botTeam).toBeNull();
+      expect(workspacePreset(name).providerIdentity).not.toBe(
+        "persona-account",
+      );
+    }
+});
+
 test("a profile whose fixed axes disagree with the preset never validates", () => {
-  const reference = presetReference("local", null);
   const profile = presetProfile("local", "linux");
   expect(() =>
-    validatePresetComposition(reference, null, {
+    validatePresetComposition("local", null, {
       ...profile,
       access: "remote",
     }),
   ).toThrow("composition");
   expect(() =>
-    validatePresetComposition(reference, null, {
+    validatePresetComposition("local", null, {
       ...profile,
       purpose: "buddy",
     }),
@@ -275,7 +463,45 @@ test("Machine bindings are typed projections; branches never mix, assignment and
     expect(() =>
       parseMachineBinding({ ...bindings.personal, ...change }),
     ).toThrow();
+  // The Automated assignment (decision 0169) is the responsible operator,
+  // exactly like `operator`; anything else fails closed.
+  expect(bindings.automated.owner).toEqual({
+    kind: "organization",
+    organization: "example",
+    team: "sample-team",
+    assignment: { kind: "automation", githubLogin: "example", githubId: 12345 },
+  });
+  expect(Object.isFrozen(bindings.automated.owner)).toBe(true);
   for (const owner of [
+    { ...bindings.team.owner, assignment: { kind: "automation" } },
+    {
+      ...bindings.team.owner,
+      assignment: { kind: "automation", githubLogin: "example" },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, githubLogin: "Example" },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, githubId: 0 },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: {
+        ...automationAssignment,
+        persona: { githubLogin: "example-bot", githubId: 2 },
+      },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, kind: "Automation" },
+    },
+    {
+      ...bindings.team.owner,
+      assignment: { ...automationAssignment, kind: "persona" },
+    },
+    { ...bindings.personal.owner, assignment: automationAssignment },
     { ...bindings.team.owner, assignment: null },
     { ...bindings.team.owner, assignment: { kind: "everyone" } },
     { ...bindings.team.owner, assignment: { kind: "team", team: "x" } },
@@ -383,4 +609,39 @@ test("a schema-valid handover projects into preferences that read back exactly",
     expect(() =>
       parseMachineContext(Buffer.from(JSON.stringify(document))),
     ).toThrow();
+});
+
+// The Automated assignment reaches Platform through the vendored handover
+// schema, which Machines owns (Machines #277): a handover declaring it reads,
+// projects and derives the Steward preset; no heuristic stands in for it
+// (F10), and on it the Steward preset is the only new choice (#107).
+test("the vendored handover schema carries the Automated assignment and derives the Steward preset", () => {
+  const document = {
+    ...organizationDocument,
+    owner: {
+      ...organizationDocument.owner,
+      assignment: { kind: "automation", github_login: "example", github_id: 1 },
+    },
+  };
+  const automated = binding(document);
+  expect(automated.owner).toEqual({
+    kind: "organization",
+    organization: "example",
+    team: "sample-team",
+    assignment: { kind: "automation", githubLogin: "example", githubId: 1 },
+  });
+  expect(derivePreset(automated)).toBe("hosted-organization-steward");
+  expect(presetReference("hosted-organization-steward", automated)).toEqual({
+    name: "hosted-organization-steward",
+    version: 1,
+    selection: "derived",
+  });
+  // Without an assignment the Steward preset stays an explicit choice.
+  const unassigned = binding(organizationDocument);
+  expect(derivePreset(unassigned)).toBeNull();
+  expect(presetReference("hosted-organization-steward", unassigned)).toEqual({
+    name: "hosted-organization-steward",
+    version: 1,
+    selection: "explicit",
+  });
 });

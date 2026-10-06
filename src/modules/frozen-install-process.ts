@@ -1,9 +1,12 @@
+import { join } from "node:path";
 import { inspectBunToolchain } from "./bun-toolchain";
 import { startGuardedProcess } from "./guarded-process";
 import {
   type inspectInstallAuthority,
+  observeInstallAuthority,
   verifyInstallAuthority,
 } from "./install-authority";
+import { PreparationRefused } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 
 type Outcome =
@@ -31,8 +34,11 @@ type ProcessInput = {
   signal?: AbortSignal;
 };
 
+// A declared script of the owner, as the arguments that run it; a script the
+// owner does not declare is `preparation-script-missing`, named by the
+// owner's package.json (decision F25).
 export function modulePreparationArgs(
-  authority: ProcessInput["authority"],
+  authority: Pick<ProcessInput["authority"], "owner" | "manifest">,
   script: string,
 ) {
   const scripts = authority.manifest.scripts;
@@ -46,7 +52,11 @@ export function modulePreparationArgs(
     typeof (scripts as Record<string, unknown>)[script] !== "string" ||
     !(scripts as Record<string, string>)[script]?.trim()
   )
-    throw new Error("Explicit declared module preparation script required");
+    throw new PreparationRefused(
+      "preparation-script-missing",
+      join(authority.owner, "package.json"),
+      "Explicit declared module preparation script required",
+    );
   return Object.freeze(["--no-env-file", "run", script]);
 }
 
@@ -124,7 +134,12 @@ async function runBunOwnerProcess(
           outcome = { kind: "timed-out" };
           break;
         }
-        if (!(await verifyInstallAuthority(authority))) {
+        // A file of the authority that changed while it was read is no
+        // answer yet: the process's own effects move the metadata of its
+        // inputs (an install replaces a hard link of a local dependency's
+        // file in node_modules, issue #140). The next poll reads it again,
+        // and the authority is verified once more after the group drains.
+        if ((await observeInstallAuthority(authority)) === "changed") {
           outcome = { kind: "authority-changed" };
           break;
         }

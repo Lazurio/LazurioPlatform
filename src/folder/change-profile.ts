@@ -1,4 +1,9 @@
-import { parseEnabledTools } from "../tools/catalog";
+import {
+  activeTools,
+  parseEnabledTools,
+  parseToolNotes,
+  type ToolNotes,
+} from "../tools/catalog";
 import {
   type MachineBinding,
   machineIdentity,
@@ -6,11 +11,11 @@ import {
 } from "./machine-binding";
 import type { OutputPath } from "./outputs";
 import {
-  allowedPresets,
   derivePreset,
   type PresetName,
   parsePresetName,
   presetReference,
+  selectablePresets,
   workspacePreset,
 } from "./presets";
 import { desiredOutputs, outputDigests, previewFolder } from "./preview";
@@ -25,7 +30,8 @@ import {
   enabledTools,
   parseFolderPreferences,
   parseInstructionManifest,
-  withEnabledTools,
+  toolNotes,
+  withToolSelection,
 } from "./state";
 import { ownDataValue, stateFields } from "./state-fields";
 
@@ -51,8 +57,8 @@ export function parseProfileRequest(input: unknown): ProfileRequest {
 
 // Shared profile-change planning. The caller reads trusted current state under
 // the common lock and must revalidate before writing. This is not an apply token.
-// A requested profile change keeps the recorded Machine binding and the
-// recorded enabled tools.
+// A requested profile change keeps the recorded Machine binding, the
+// recorded enabled tools and the operator's notes on them.
 export async function planProfileChange(
   currentPreferencesInput: unknown,
   currentManifestInput: unknown,
@@ -66,22 +72,33 @@ export async function planProfileChange(
     current,
     currentManifestInput,
     expectedRevision,
-    { ...requested, machine: current.machine, tools: enabledTools(current) },
+    {
+      ...requested,
+      machine: current.machine,
+      tools: enabledTools(current),
+      notes: toolNotes(current),
+    },
     inspect,
   );
 }
 
 // A requested change of the enabled catalog tools (decision F18): the full
-// next selection at the expected revision. The recorded preset, profile and
-// Machine binding are carried forward; the same selection is `unchanged`.
+// next selection at the expected revision, and optionally the full next set
+// of the operator's notes (F18 addendum 2026-09-27). Without notes the
+// recorded ones are carried forward for the tools that stay on, so disabling
+// a tool removes its note in the same change. The recorded preset, profile
+// and Machine binding are carried forward; the same selection and notes are
+// `unchanged`.
 export async function planToolsChange(
   currentPreferencesInput: unknown,
   currentManifestInput: unknown,
   expectedRevision: number,
   requestedInput: unknown,
   inspect: (path: OutputPath) => Promise<ObservedFile>,
+  requestedNotes?: unknown,
 ) {
   const current = parseFolderPreferences(currentPreferencesInput);
+  const tools = parseEnabledTools(requestedInput);
   return planFolderChange(
     current,
     currentManifestInput,
@@ -90,26 +107,42 @@ export async function planToolsChange(
       preset: current.preset.name,
       profile: current.profile,
       machine: current.machine,
-      tools: parseEnabledTools(requestedInput),
+      tools,
+      notes:
+        requestedNotes === undefined
+          ? keptNotes(toolNotes(current), tools)
+          : parseToolNotes(requestedNotes, tools),
     },
     inspect,
   );
 }
 
+// The recorded notes of the tools that are on in the next selection.
+function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
+  const on = activeTools(tools).map((entry) => entry.name);
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(notes).filter(([name]) => on.includes(name)),
+    ),
+  );
+}
+
 // The one planner behind every change of the generated Folder: a requested
 // profile change (the binding and the enabled tools carried forward), a
-// requested change of the enabled tools (everything else carried forward) and
-// a refresh from the current handover (the recorded preset, profile and tools
-// carried forward, the binding of the same Machine re-projected). The Machine identity never changes here; the
+// requested change of the enabled tools and notes (everything else carried
+// forward) and a refresh from the current handover (the recorded preset,
+// profile, tools and notes carried forward, the binding of the same Machine
+// re-projected). The Machine identity never changes here; the
 // handover-derived rest of the binding (assignment, relationships, document
-// digest) follows the handover. A binding that renders the same bytes is
-// `unchanged` and is not recorded, so a re-apply that only rewrote
-// `installed` never bumps the revision.
+// digest, entry) follows the handover. A binding that renders the same bytes
+// and declares the same entry is `unchanged` and is not recorded, so a
+// re-apply that only rewrote `installed` never bumps the revision.
 export type FolderChange = Readonly<{
   preset: PresetName | undefined;
   profile: FolderProfile;
   machine: MachineBinding | null;
   tools: readonly string[];
+  notes: ToolNotes;
 }>;
 
 export async function planFolderChange(
@@ -146,15 +179,18 @@ export async function planFolderChange(
     } as const;
   const machine = parseMachineBinding(change.machine);
   const tools = parseEnabledTools(change.tools);
+  const notes = parseToolNotes(change.notes, tools);
   if (
     JSON.stringify(machineIdentity(machine)) !==
     JSON.stringify(machineIdentity(current.machine))
   )
     return { kind: "blocked", reason: "binding-changed" } as const;
-  // The preset may only change within what the handover allows, and the fixed
+  // The preset may only change to one the handover offers as a new choice
+  // (issue #107: the derived one when it states `owner.assignment`); the
+  // recorded preset stays valid within the machine-kind allow-list. The fixed
   // axes of the profile must match the requested preset's composition.
   const presetName = change.preset ?? current.preset.name;
-  if (!allowedPresets(machine).includes(presetName))
+  if (!selectablePresets(machine, current.preset.name).includes(presetName))
     return { kind: "blocked", reason: "preset-not-allowed" } as const;
   const composition = workspacePreset(presetName).composition;
   if (
@@ -164,7 +200,7 @@ export async function planFolderChange(
     return { kind: "blocked", reason: "preset-composition" } as const;
   // An unchanged preset keeps its recorded reference: the choice was not made
   // again. A preset recorded as derived that the handover no longer derives
-  // (the assignment changed) is not carried forward silently; the Principal
+  // (the assignment changed) is not carried forward silently; the Operator
   // chooses it again through a profile change.
   if (
     presetName === current.preset.name &&
@@ -194,16 +230,24 @@ export async function planFolderChange(
       machine,
       profile: change.profile,
       tools,
+      toolNotes: notes,
     },
     manifest.outputs,
     inspect,
   );
   if (preview.plan.kind === "blocked") return preview.plan;
-  if (preview.plan.kind === "unchanged") return { kind: "unchanged" } as const;
+  // The entry is the one part of the binding the product acts on, not only
+  // renders: the Launchpad serves and admits from the recorded one. A changed
+  // entry is recorded even when the Folder renders the same bytes.
+  if (
+    preview.plan.kind === "unchanged" &&
+    JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry)
+  )
+    return { kind: "unchanged" } as const;
   if (current.revision === Number.MAX_SAFE_INTEGER)
     return { kind: "blocked", reason: "revision-exhausted" } as const;
   const preferences = parseFolderPreferences(
-    withEnabledTools(
+    withToolSelection(
       {
         ...current,
         revision: current.revision + 1,
@@ -212,6 +256,7 @@ export async function planFolderChange(
         profile: change.profile,
       },
       tools,
+      notes,
     ),
   );
   const nextManifest = parseInstructionManifest({
@@ -227,6 +272,6 @@ export async function planFolderChange(
     preferences,
     manifest: nextManifest,
     desired: preview.desired,
-    files: preview.plan.files,
+    files: preview.plan.kind === "write" ? preview.plan.files : [],
   };
 }

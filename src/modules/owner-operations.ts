@@ -1,4 +1,4 @@
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { acquireRetainedOperationLock } from "../folder/retained-lock";
 
 // One instance belongs to the shared lifecycle owner. Callers resolve the actual
@@ -6,7 +6,7 @@ import { acquireRetainedOperationLock } from "../folder/retained-lock";
 // Retain cooperative filesystem exclusion until the lifecycle confirms cleanup.
 // This is not authorization or protection against hostile same-user renames.
 export function createOwnerOperations(
-  inspect: typeof inspectOwnedDirectory = inspectOwnedDirectory,
+  inspect: typeof inspectCheckoutDirectory = inspectCheckoutDirectory,
 ) {
   const pending = new Map<string, Promise<void>>();
   const locks = new Map<
@@ -44,7 +44,7 @@ export function createOwnerOperations(
     releaseAdmission();
     if (closing) throw new Error("Owner operations closing");
     // Filesystem identity merges aliases of the same observed owner. Canonical
-    // owned paths are required by inspectOwnedDirectory before accepting work.
+    // owned paths are required by inspectCheckoutDirectory before accepting work.
     const key = `${before.dev}:${before.ino}`;
     const previous = pending.get(key) ?? Promise.resolve();
     const result = previous.then(async () => {

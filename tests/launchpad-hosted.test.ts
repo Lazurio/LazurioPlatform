@@ -5,12 +5,9 @@ import { join } from "node:path";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import {
-  type AuthFetcher,
-  parseHostedEntry,
-} from "../src/launchpad/hosted-trust";
+import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { startLaunchpad } from "../src/launchpad/server";
-import { bindings } from "./fixtures/machine-bindings";
+import { bindings, organizationWithEntry } from "./fixtures/machine-bindings";
 
 const freePort = () => {
   const probe = Bun.serve({
@@ -35,18 +32,11 @@ test.skipIf(process.platform === "win32")(
     await mkdir(join(folder, "personalspace"), { mode: 0o700 });
     const preset = "hosted-organization-personal";
     const profile = presetProfile(preset, executionOs(process.platform));
-    const entry = parseHostedEntry({
-      externalOrigin: "https://launchpad.workspace.example.lazurio.io",
-      authCheckUrl: "https://workspace.example.lazurio.io/oauth2/auth",
-      authCookieName: "__Secure-lazurio-workspace",
-      listenPort: freePort(),
-    });
     // The handover carries the entry; the Folder records it on the binding.
-    await initializeHandoverFolder(folder, {
-      preset,
-      machine: { ...bindings.organization, entry },
-      profile,
-    });
+    const machine = organizationWithEntry(freePort());
+    const entry = machine.entry;
+    if (entry === undefined) throw new Error("The fixture has an entry");
+    await initializeHandoverFolder(folder, { preset, machine, profile });
     const asked: string[] = [];
     const fetcher: AuthFetcher = async (url, init) => {
       expect(url).toBe(entry.authCheckUrl);
@@ -77,7 +67,38 @@ test.skipIf(process.platform === "win32")(
       const page = await fetch(`${base}/`, { headers: valid });
       expect(page.status).toBe(200);
       expect(page.headers.get("content-type")).toContain("text/html");
-      expect(await page.text()).toContain("<html");
+      const shell = await page.text();
+      expect(shell).toContain("<html");
+      // A settings route is the same page through the same admission.
+      expect(
+        await (
+          await fetch(`${base}/settings/tools`, { headers: valid })
+        ).text(),
+      ).toBe(shell);
+      expect(
+        (await fetch(`${base}/settings/tools`, { headers: { host } })).status,
+      ).toBe(401);
+      // So is a catalog route, and the catalog is read behind the same
+      // admission as every other route.
+      expect(
+        await (await fetch(`${base}/o/alpha/web`, { headers: valid })).text(),
+      ).toBe(shell);
+      expect(
+        (await fetch(`${base}/o/alpha/web`, { headers: { host } })).status,
+      ).toBe(401);
+      expect(
+        (
+          await fetch(`${base}/api/catalog`, {
+            method: "POST",
+            headers: {
+              host,
+              "content-type": "application/json",
+              origin: entry.externalOrigin,
+            },
+            body: "{}",
+          })
+        ).status,
+      ).toBe(401);
       // Wrong Host is not this Machine's entry; forged identity is not evidence.
       expect(
         (
@@ -117,6 +138,23 @@ test.skipIf(process.platform === "win32")(
       };
       expect(body.revision).toBe(1);
       expect(body.machine.name).toBe(bindings.organization.name);
+      // Admitted, the catalog of the hosted Folder: its organizations/ is
+      // empty here.
+      const catalog = await fetch(`${base}/api/catalog`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...valid,
+          origin: entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+        },
+        body: "{}",
+      });
+      expect(catalog.status).toBe(200);
+      expect(await catalog.json()).toEqual({
+        kind: "catalog",
+        organizations: [],
+      });
       // No bearer token exists in hosted mode: a stray one changes nothing.
       expect(
         (

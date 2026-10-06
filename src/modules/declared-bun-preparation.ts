@@ -1,12 +1,28 @@
+import { join, relative, sep } from "node:path";
 import { preflightBunPreparation } from "./bun-preparation";
 import { verifyInstallAuthority } from "./install-authority";
-import { inspectPreparationBinding } from "./preparation-binding";
+import {
+  applicationsOverlap,
+  inspectPreparationBinding,
+  requireQualifiedInstall,
+} from "./preparation-binding";
+import type { PreparationReason } from "./preparation-refusal";
 import { parseProcessLaunch } from "./process-launch";
 
 type Input = Omit<
   Parameters<typeof preflightBunPreparation>[0],
-  "checkout" | "owner" | "modulePreparationScript" | "moduleCheckScript"
-> & { moduleDirectory: string; applicationPackage: string };
+  | "checkout"
+  | "owner"
+  | "modulePreparationScript"
+  | "moduleCheckScript"
+  | "dependencyBoundary"
+> & {
+  moduleDirectory: string;
+  applicationPackage: string;
+  // The Organization (or Personalspace owner) directory holding the module:
+  // where the default preparation's local dependencies may lie (F25).
+  organizationDirectory?: string;
+};
 
 // Trusted composition inside the existing authorized lifecycle/owner queue.
 // This selects scripts from declarations, never an HTTP-provided command.
@@ -22,12 +38,13 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   const moduleDirectory = launch.cwd;
   const applicationPackage = input.applicationPackage;
   const verifyPrepared = input.verifyPrepared;
+  const organizationDirectory = input.organizationDirectory;
+  const requested = input.operation;
   const options = {
     executable: launch.executable,
     platformExecutable: input.platformExecutable,
     env: launch.env,
     timeoutMs: input.timeoutMs,
-    ...(input.operation === undefined ? {} : { operation: input.operation }),
     ...(input.cleanInstall === undefined
       ? {}
       : { cleanInstall: input.cleanInstall }),
@@ -36,15 +53,39 @@ export async function preflightDeclaredBunPreparation(input: Input) {
     moduleDirectory,
     applicationPackage,
     options.env,
+    organizationDirectory,
   );
-  const declaration = binding.plan.preparation;
-  if (!declaration)
-    throw new Error("Explicit preparation declaration required");
-  if (
-    binding.workspaceMember ||
-    Object.hasOwn(binding.authority.manifest, "workspaces")
-  )
-    throw new Error("Workspace installation input snapshot is not qualified");
+  const declaration = binding.preparation;
+  requireQualifiedInstall(declaration, applicationPackage, binding.authority);
+  // The default preparation (decision F25) has no check: its start-time
+  // step is its preparation, the frozen install, which leaves matching
+  // registry dependencies as they are (Bun still copies local `file:`
+  // dependencies and runs the package's own lifecycle scripts). A declared preparation's
+  // start-time step is the same install, then its check, and only when the
+  // check fails its prepare_script and the check again (decision F34), unless
+  // the app's directory overlaps another app of its module: its install could
+  // change that app's files beneath it, so its start only checks, and only an
+  // explicit preparation installs (F25 point 6).
+  const byDefault = declaration.kind === "default";
+  const startOnlyChecks =
+    !byDefault &&
+    requested === "start" &&
+    (await applicationsOverlap(moduleDirectory, applicationPackage));
+  const operation =
+    byDefault && requested !== undefined && requested !== "prepare"
+      ? "prepare"
+      : startOnlyChecks
+        ? "check"
+        : requested;
+  // Module-relative names of what a failed step concerns.
+  const named = (path: string) =>
+    relative(moduleDirectory, path).split(sep).join("/");
+  // A failed install: the lockfile it installs from.
+  const lockfile = named(
+    join(binding.authority.owner, binding.authority.lockfile),
+  );
+  // A failed preparation script: the owner's package.json that declares it.
+  const ownerPackage = named(join(binding.authority.owner, "package.json"));
   const environment = binding.authority.environment ?? undefined;
   const current = async () => {
     try {
@@ -52,6 +93,7 @@ export async function preflightDeclaredBunPreparation(input: Input) {
         moduleDirectory,
         applicationPackage,
         environment,
+        organizationDirectory,
       );
       return (
         observed.plan.declarationDigest === binding.plan.declarationDigest &&
@@ -63,12 +105,16 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   };
   const preparation = await preflightBunPreparation({
     ...options,
+    ...(operation === undefined ? {} : { operation }),
     checkout: moduleDirectory,
     owner: binding.authority.owner,
+    dependencyBoundary: binding.authority.dependencyBoundary,
     ...(declaration.prepare_script === undefined
       ? {}
       : { modulePreparationScript: declaration.prepare_script }),
-    moduleCheckScript: declaration.check_script,
+    ...(declaration.check_script === undefined
+      ? {}
+      : { moduleCheckScript: declaration.check_script }),
     verifyPrepared: async (authority, signal) =>
       !signal.aborted &&
       (await current()) &&
@@ -85,16 +131,48 @@ export async function preflightDeclaredBunPreparation(input: Input) {
       used = true;
       if (signal.aborted || !(await current()))
         return Object.freeze({ kind: "preparation-failed" as const });
-      return preparation.run(signal);
+      const { stage, ...result } = await preparation.run(signal);
+      const failed = (
+        reason: PreparationReason | undefined,
+        file: string | undefined,
+      ) =>
+        Object.freeze({
+          kind: "preparation-failed" as const,
+          ...(reason === undefined ? {} : { reason }),
+          ...(file === undefined ? {} : { file }),
+        });
+      if (
+        result.kind !== "preparation-failed" ||
+        result.reason !== undefined ||
+        signal.aborted
+      )
+        return Object.freeze(result);
+      // A failed default preparation is its install: it has nothing else.
+      if (byDefault) return failed("preparation-install-failed", lockfile);
+      // A declared preparation names the step that failed (decision F34). A
+      // check that still fails is no refusal of the Platform's: the start
+      // answers `prerequisites-not-ready`.
+      if (stage === "install")
+        return failed("preparation-install-failed", lockfile);
+      if (stage === "prepare-script")
+        return failed("preparation-script-failed", ownerPackage);
+      if (stage === "check" && startOnlyChecks)
+        return failed("preparation-applications-overlap", applicationPackage);
+      return failed(undefined, undefined);
     },
     close: preparation.close,
   });
 }
 
-// Start-time prerequisite check only: never installs or runs prepare_script.
-// The lifecycle must retain run/close ownership just as it does for preparation.
-export function preflightDeclaredBunCheck(
+// The start-time step (decision F34). For a declared preparation: the frozen
+// install (matching registry dependencies are left as they are; local
+// `file:` dependencies are copied and lifecycle scripts run every time),
+// its check, and only when the check fails the declared prepare_script and the
+// check again, all in one run under one deadline. For the default preparation
+// (decision F25), which has no check, it is the frozen install. The lifecycle
+// must retain run/close ownership just as it does for preparation.
+export function preflightDeclaredBunStart(
   input: Omit<Input, "operation" | "cleanInstall">,
 ) {
-  return preflightDeclaredBunPreparation({ ...input, operation: "check" });
+  return preflightDeclaredBunPreparation({ ...input, operation: "start" });
 }

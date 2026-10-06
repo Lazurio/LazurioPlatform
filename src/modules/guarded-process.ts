@@ -1,5 +1,5 @@
 import { isAbsolute } from "node:path";
-import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { observeOwnedListener } from "./listener-observation";
 import { compareListenerGroup } from "./listener-ownership";
 import { object } from "./manifest";
@@ -24,7 +24,7 @@ export async function startGuardedProcess(
   const request = `${JSON.stringify(config)}\n`;
   if (Buffer.byteLength(request) > 65_536)
     throw new Error("Launch request too large");
-  await inspectOwnedDirectory(config.cwd);
+  await inspectCheckoutDirectory(config.cwd);
   const guard = Bun.spawn([platformExecutable, processGuardCommand], {
     cwd: config.cwd,
     env: {},

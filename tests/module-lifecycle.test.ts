@@ -10,6 +10,7 @@ import { startLaunchpad } from "../src/launchpad/server";
 import { probeListenerHealth } from "../src/modules/health";
 import { createApplicationLifecycle } from "../src/modules/lifecycle";
 import { createOwnerOperations } from "../src/modules/owner-operations";
+import { PreparationRefused } from "../src/modules/preparation-refusal";
 import { createSessionRunner } from "../src/modules/session-runner";
 
 const supported = ["darwin", "linux"].includes(process.platform);
@@ -616,6 +617,91 @@ posixTest(
       expect((await call("status")).result).toEqual({ kind: "not-managed" });
     } finally {
       expect(await app.close()).toEqual({ kind: "closed" });
+    }
+  },
+);
+
+// Decision F34 at the core: the adapter's start-time step decides whether to
+// prepare; the core starts only on `prepared`, keeps a named failure with its
+// file, calls a failure without a reason `prerequisites-not-ready`, and
+// launches nothing otherwise. An explicit preparation names a known refusal
+// of its preflight instead of hiding it, as an answer that completes its
+// transaction.
+posixTest(
+  "the start-time step's outcome decides the start, and a refused preparation keeps its reason",
+  async () => {
+    const f = await fixture("start-step");
+    let step: {
+      kind: "prepared" | "preparation-failed";
+      reason?: string;
+      file?: string;
+    } = { kind: "preparation-failed" };
+    let launches = 0;
+    let preflight: () => never = () => {
+      throw new Error("missing preparation input");
+    };
+    const owner = createApplicationLifecycle({
+      runner: createSessionRunner(binary),
+      authorize: async () => ({ moduleDirectory: f.directory }),
+      prepareLaunch: async (plan, cwd) => {
+        launches++;
+        return f.prepareLaunch(plan, cwd);
+      },
+      preflightStartCheck: async () => ({
+        run: async () => step,
+        close: async () => ({ kind: "closed" }),
+      }),
+      preflightPreparation: async () => preflight(),
+    });
+    try {
+      for (const [result, answer] of [
+        [{ kind: "preparation-failed" }, { kind: "prerequisites-not-ready" }],
+        [
+          {
+            kind: "preparation-failed",
+            reason: "preparation-script-failed",
+            file: "app/package.json",
+          },
+          { kind: "preparation-script-failed", file: "app/package.json" },
+        ],
+        [
+          {
+            kind: "preparation-failed",
+            reason: "preparation-install-failed",
+            file: "app/bun.lock",
+          },
+          { kind: "preparation-install-failed", file: "app/bun.lock" },
+        ],
+      ] as const) {
+        step = result;
+        expect(await owner.start(selection)).toEqual(answer);
+        expect(await owner.status(selection)).toEqual({ kind: "not-managed" });
+      }
+      expect(launches).toBe(0);
+      step = { kind: "prepared" };
+      expect(await owner.start(selection)).toEqual({ kind: "started" });
+      expect(launches).toBe(1);
+      expect(await owner.stop(selection)).toEqual({ kind: "group-stopped" });
+      // Explicit preparation: an unknown preflight failure stays generic, a
+      // known refusal reaches the caller with its reason and path.
+      expect(await owner.prepare(selection)).toEqual({
+        kind: "preparation-preflight-failed",
+      });
+      preflight = () => {
+        throw new PreparationRefused(
+          "preparation-lockfile-missing",
+          join(f.directory, "app/package.json"),
+          "No lockfile",
+        );
+      };
+      expect(await owner.prepare(selection)).toEqual({
+        kind: "preparation-preflight-failed",
+        reason: "preparation-lockfile-missing",
+        file: "app/package.json",
+      });
+      expect(await owner.status(selection)).toEqual({ kind: "not-managed" });
+    } finally {
+      expect(await owner.close()).toEqual({ kind: "closed" });
     }
   },
 );

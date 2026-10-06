@@ -1,21 +1,18 @@
 import { join } from "node:path";
 import { readStateJson } from "../folder/read-state";
+import { instructionTemplateRevision } from "../folder/render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
 } from "../folder/state";
-import { UpdateFailure } from "./errors";
+import { isStartRefusal } from "../launchpad/start-check";
+import { type UpdateErrorReason, UpdateFailure } from "./errors";
 import {
   embeddedFixture,
   embeddedIdentity,
   type ProductIdentity,
 } from "./identity";
-import {
-  readHighWater,
-  readPending,
-  readPrevious,
-  readSelector,
-} from "./layout";
+import { readHighWater, readSelector } from "./layout";
 
 /** `lazurio self-check`: what an executable states about ITSELF when it is run
  * by its immutable path (docs/update.md "Activation", step 2). The updater
@@ -28,30 +25,39 @@ export type SelfCheckReport = Readonly<{
   identity: ProductIdentity;
   /** A qualification build; never true for a release. */
   fixture: boolean;
+  /** The template revision this executable renders into a Folder. Absent
+   * from executables older than the F17 addendum 2026-09-28. */
+  templateRevision: string;
   /** What this executable reads in the install base it was shown. */
   base: Readonly<{
     active: string | null;
-    previous: string | null;
     highWater: string | null;
   }> | null;
   /** Schema versions found in the Folder that was named, after parsing it. */
   folder: Readonly<{ preferences: number; manifest: number }> | null;
+  /** `--launchpad`: the Launchpad start sequence ran read-only against the
+   * named Folder and served on a private socket. Absent from executables
+   * older than the first release without rollback. */
+  launchpad?: Readonly<{ probe: "ok" }> | null;
 }>;
 
 /** Runs INSIDE the executable being checked. Throws when this version cannot
  * read the install base or the named Folder's state.
  */
 export async function selfCheckReport(
-  input: Readonly<{ base?: string | undefined; folder?: string | undefined }>,
+  input: Readonly<{
+    base?: string | undefined;
+    folder?: string | undefined;
+    /** Also run the Launchpad probe against `folder`. */
+    launchpad?: boolean | undefined;
+  }>,
   identity: ProductIdentity = embeddedIdentity(),
 ): Promise<SelfCheckReport> {
   let base: SelfCheckReport["base"] = null;
   if (input.base !== undefined) {
-    // Throws on a marker or a mark this version cannot read.
-    await readPending(input.base);
+    // Throws on a mark this version cannot read.
     base = Object.freeze({
       active: await readSelector(input.base),
-      previous: await readPrevious(input.base),
       highWater: await readHighWater(input.base),
     });
   }
@@ -73,12 +79,24 @@ export async function selfCheckReport(
       manifest: manifest.schemaVersion,
     });
   }
+  let launchpad: SelfCheckReport["launchpad"] = null;
+  if (input.launchpad) {
+    if (input.folder === undefined)
+      throw new Error("The Launchpad probe needs a Folder");
+    // Throws `LaunchpadStartRefused` for a condition the start would name.
+    // Loaded only here: the rest of the update core never needs the page.
+    const { probeLaunchpad } = await import("../launchpad/server");
+    await probeLaunchpad(input.folder, identity.version);
+    launchpad = Object.freeze({ probe: "ok" as const });
+  }
   return Object.freeze({
     schemaVersion: 1,
     identity,
     fixture: embeddedFixture() !== undefined,
+    templateRevision: instructionTemplateRevision,
     base,
     folder,
+    launchpad,
   });
 }
 
@@ -149,7 +167,10 @@ export const runProcess: ProcessRunner = async (
 export const defaultSelfCheckTimeoutMs = 30_000;
 
 /** Run `executable self-check --json` and require that it is the version the
- * verified manifest describes and that it could read what it was shown.
+ * verified manifest describes and that it could read what it was shown. With
+ * a Folder it also runs the candidate's Launchpad probe (`--launchpad`): the
+ * point of no return is after this, never after the switch.
+ * Returns the template revision it renders, or null when it does not say.
  */
 export async function requireSelfCheck(input: {
   executable: string;
@@ -159,12 +180,11 @@ export async function requireSelfCheck(input: {
   folder?: string | undefined;
   timeoutMs?: number | undefined;
   run?: ProcessRunner | undefined;
-}): Promise<void> {
-  const failed = (reason: string, exitCode?: number) =>
-    new UpdateFailure("self-check-failed", {
-      reason,
-      ...(exitCode === undefined ? {} : { exitCode }),
-    });
+}): Promise<string | null> {
+  const failed = (
+    reason: UpdateErrorReason,
+    extra: Readonly<Record<string, string | number>> = {},
+  ) => new UpdateFailure("self-check-failed", { reason, ...extra });
   let result: ProcessResult;
   try {
     result = await (input.run ?? runProcess)(
@@ -174,7 +194,9 @@ export async function requireSelfCheck(input: {
         "--json",
         "--base",
         input.base,
-        ...(input.folder === undefined ? [] : ["--folder", input.folder]),
+        ...(input.folder === undefined
+          ? []
+          : ["--folder", input.folder, "--launchpad"]),
       ],
       input.timeoutMs ?? defaultSelfCheckTimeoutMs,
     );
@@ -182,7 +204,17 @@ export async function requireSelfCheck(input: {
     throw failed("not-executable");
   }
   if (result === "timeout") throw failed("timeout");
-  if (result.exitCode !== 0) throw failed("exit", result.exitCode);
+  if (result.exitCode !== 0) {
+    // A refused probe names its condition, and nothing else.
+    let refused: unknown;
+    try {
+      refused = (JSON.parse(result.stdout) as { launchpadRefused?: unknown })
+        ?.launchpadRefused;
+    } catch {}
+    throw isStartRefusal(refused)
+      ? failed("launchpad-refused", { refusal: refused })
+      : failed("exit", { exitCode: result.exitCode });
+  }
   let report: Partial<SelfCheckReport>;
   try {
     report = JSON.parse(result.stdout) as Partial<SelfCheckReport>;
@@ -202,4 +234,9 @@ export async function requireSelfCheck(input: {
     throw failed("fixture");
   if (!report.base) throw failed("base");
   if (input.folder !== undefined && !report.folder) throw failed("folder");
+  if (input.folder !== undefined && report.launchpad?.probe !== "ok")
+    throw failed("launchpad");
+  return typeof report.templateRevision === "string"
+    ? report.templateRevision
+    : null;
 }

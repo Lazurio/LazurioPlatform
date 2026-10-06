@@ -6,9 +6,12 @@ import personal from "./machine-context-personal.json";
 
 // The v0.12.61 fields as Machines writes them: the assignment copied from the
 // owner overlay, and the peers derived from the Conglomerate Host grants.
+// `automation` (Machines #277, decision 0169) names the responsible operator
+// of an Automated Environment, with the operator's shape.
 export const assignments = Object.freeze({
   operator: { kind: "operator", github_login: "example", github_id: 12345 },
   team: { kind: "team" },
+  automation: { kind: "automation", github_login: "example", github_id: 12345 },
 } as const);
 // A work VM of operator `example`: their laptop and personal VM may reach it,
 // it reaches the Conglomerate Host gateway over HTTPS and nothing over SSH.
@@ -81,6 +84,41 @@ export const personalRelationships = Object.freeze({
   ],
 } as const);
 
+// Machines 0.12.93: the entry as its renderer writes it from the gateway's
+// route catalog, for the Machine hostname `host` (an Organization work VM:
+// `<vm>.<org>.lazurio.io`; a personal VM: `<login>.lazurio.io`).
+export function handoverEntry(host: string, listenPort = 20000) {
+  return {
+    launchpad: {
+      external_origin: `https://launchpad.${host}`,
+      auth_check_url: `https://${host}/oauth2/auth`,
+      auth_cookie_name: "__Secure-lazurio-workspace",
+      listen_port: listenPort,
+    },
+    t3code: { external_origin: `https://t3code.${host}` },
+    modules: { origin_template: `https://{module}.${host}` },
+  };
+}
+export const entries = Object.freeze({
+  organization: handoverEntry("workspace.example.lazurio.io"),
+  personal: handoverEntry("example.lazurio.io"),
+});
+// Root decision 0191 (F38): the entry of a Machine whose roster routes the
+// Environment browser's view, as Machines writes `entry.browser`.
+export function withBrowser(
+  entry: ReturnType<typeof handoverEntry>,
+  host: string,
+  listenPort = 4848,
+) {
+  return {
+    ...entry,
+    browser: {
+      external_origin: `https://browser.${host}`,
+      listen_port: listenPort,
+    },
+  };
+}
+
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
 export function binding(document: unknown) {
@@ -91,16 +129,50 @@ export function binding(document: unknown) {
   );
 }
 const { team: _, ...withoutTeam } = organization.owner;
+// An Organization work VM of one operator (no Team) with its entry on `port`,
+// for the Machine hostname `host`; with `browser`, the entry also routes the
+// Environment browser's view (root decision 0191).
+export function organizationWithEntry(
+  listenPort = 20000,
+  host = "workspace.example.lazurio.io",
+  browser = false,
+) {
+  const entry = handoverEntry(host, listenPort);
+  return binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: browser ? withBrowser(entry, host) : entry,
+  });
+}
+// A personal VM of `example` with its entry on `port`, and with `browser`
+// the Environment browser's view.
+export function personalWithEntry(listenPort = 20000, browser = false) {
+  const host = "example.lazurio.io";
+  const entry = handoverEntry(host, listenPort);
+  return binding({
+    ...personal,
+    entry: browser ? withBrowser(entry, host) : entry,
+  });
+}
+// The Automated Environment of decision 0169 as the binding records it: a work
+// VM of an Organization persona with one responsible operator, projected from
+// the handover's `owner.assignment` of kind `automation`.
+export const automationAssignment = Object.freeze({
+  kind: "automation",
+  githubLogin: "example",
+  githubId: 12345,
+} as const);
+const assignedOperator = binding({
+  ...organization,
+  owner: { ...organization.owner, assignment: assignments.operator },
+});
 export const bindings = Object.freeze({
   personal: binding(personal),
   // v0.12.59 shapes: a Team without assignment, and no Team at all.
   team: binding(organization),
   organization: binding({ ...organization, owner: withoutTeam }),
   // v0.12.61 shapes: the Team-bearing canary resolved by owner.assignment.
-  assignedOperator: binding({
-    ...organization,
-    owner: { ...organization.owner, assignment: assignments.operator },
-  }),
+  assignedOperator,
   assignedTeam: binding({
     ...organization,
     owner: { ...organization.owner, assignment: assignments.team },
@@ -113,5 +185,35 @@ export const bindings = Object.freeze({
   personalRelated: binding({
     ...personal,
     relationships: personalRelationships,
+  }),
+  // Machines 0.12.93 shapes: the entry on both lanes.
+  organizationEntry: organizationWithEntry(),
+  personalEntry: binding({ ...personal, entry: entries.personal }),
+  // Decision 0169: the Automated Environment, projected from its handover.
+  automated: binding({
+    ...organization,
+    owner: { ...organization.owner, assignment: assignments.automation },
+  }),
+  // A Team Environment and an Automated Environment with their entry.
+  teamEntry: binding({ ...organization, entry: entries.organization }),
+  // Root decision 0191: the entry with the Environment browser's view, on a
+  // work Environment of one operator, a Team Environment and a personal one.
+  organizationBrowser: binding({
+    ...organization,
+    owner: withoutTeam,
+    entry: withBrowser(entries.organization, "workspace.example.lazurio.io"),
+  }),
+  teamBrowser: binding({
+    ...organization,
+    entry: withBrowser(entries.organization, "workspace.example.lazurio.io"),
+  }),
+  personalBrowser: binding({
+    ...personal,
+    entry: withBrowser(entries.personal, "example.lazurio.io"),
+  }),
+  automatedEntry: binding({
+    ...organization,
+    owner: { ...organization.owner, assignment: assignments.automation },
+    entry: entries.organization,
   }),
 });

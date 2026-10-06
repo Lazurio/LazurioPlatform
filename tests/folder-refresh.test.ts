@@ -28,7 +28,12 @@ import {
   initializeMachineFolder,
   refreshMachineFolder,
 } from "../src/machine/cli";
-import { binding } from "./fixtures/machine-bindings";
+import {
+  assignments,
+  automationAssignment,
+  binding,
+  handoverEntry,
+} from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
@@ -74,8 +79,8 @@ const reapplied = binding(
 );
 
 const workVmLine = {
-  cs: "- `example-work` (pracovní VM, pracovní zóna, Organizace `example`): SSH odsud na `example-work.tailnet.example.invalid`; bez HTTPS.",
-  en: "- `example-work` (work VM, work zone, Organization `example`): SSH from here to `example-work.tailnet.example.invalid`; no HTTPS.",
+  cs: "- `example-work` (pracovní Remote Environment, pracovní zóna, Organizace `example`): SSH odsud na `example-work.tailnet.example.invalid`; bez HTTPS.",
+  en: "- `example-work` (work Remote Environment, work zone, Organization `example`): SSH from here to `example-work.tailnet.example.invalid`; no HTTPS.",
 } as const;
 const noChoices = {
   preset: undefined,
@@ -492,13 +497,153 @@ test.skipIf(process.platform === "win32")(
         noChoices,
       );
       const settled = await snapshot(folder);
-      expect(
-        await refreshMachineFolder(folder, assigned({ kind: "team" })),
-      ).toEqual({
+      const team = assigned({ kind: "team" });
+      expect(await refreshMachineFolder(folder, team)).toEqual({
         code: 2,
         result: { kind: "blocked", reason: "preset-derivation-changed" },
       });
       expect(await snapshot(folder)).toEqual(settled);
+      // The refresh takes only the preset the new assignment derives (#107);
+      // another one is refused and nothing is written.
+      for (const preset of [
+        "hosted-organization-personal",
+        "hosted-organization-steward",
+      ] as const)
+        expect(await refreshMachineFolder(folder, team, preset)).toEqual({
+          code: 2,
+          result: { kind: "blocked", reason: "preset-not-allowed" },
+        });
+      expect(await snapshot(folder)).toEqual(settled);
+      expect(
+        await refreshMachineFolder(folder, team, "hosted-organization-team"),
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 2 } });
+      expect((await preferences(folder)).preset).toEqual({
+        name: "hosted-organization-team",
+        version: 1,
+        selection: "derived",
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Decision 0169: a work VM of one operator that the Organization turns into the
+// Automated Environment of its persona. The recorded, derived preset is not
+// carried forward silently. The profile change runs against the recorded
+// binding, whose stated assignment offers only the Work preset (#107), so
+// the Steward preset is chosen where the new handover is read: the refresh
+// takes it with --preset and records the new binding and preset together.
+test.skipIf(process.platform === "win32")(
+  "a work VM re-assigned to automation takes the Steward preset through the refresh",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await rm(join(folder, "personalspace"), { recursive: true });
+      const operator = binding({
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.operator },
+      });
+      await initializeMachineFolder(folder, operator, noChoices);
+      const automated = binding({
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.automation },
+      });
+      const settled = await snapshot(folder);
+      expect(await refreshMachineFolder(folder, automated)).toEqual({
+        code: 2,
+        result: { kind: "blocked", reason: "preset-derivation-changed" },
+      });
+      expect(await snapshot(folder)).toEqual(settled);
+      const recorded = await preferences(folder);
+      expect(
+        await updateProfile(folder, recorded.revision, {
+          preset: "hosted-organization-steward",
+          profile: recorded.profile,
+        }),
+      ).toEqual({ kind: "blocked", reason: "preset-not-allowed" });
+      expect(await snapshot(folder)).toEqual(settled);
+      expect(
+        await refreshMachineFolder(
+          folder,
+          automated,
+          "hosted-organization-steward",
+        ),
+      ).toEqual({ code: 0, result: { kind: "refreshed", revision: 2 } });
+      const current = await preferences(folder);
+      expect(current.preset).toEqual({
+        name: "hosted-organization-steward",
+        version: 1,
+        selection: "derived",
+      });
+      expect(current.machine.owner.assignment).toEqual(automationAssignment);
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        "responsible Operator `example` (GitHub id 12345)",
+      );
+      // Settled: a plain refresh of the same handover changes nothing.
+      expect(await refreshMachineFolder(folder, automated)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Issue #107 changes only new choices: a Folder that recorded the Steward
+// preset explicitly on a work VM without assignment keeps it when the
+// handover later states an assignment that derives another preset.
+test.skipIf(process.platform === "win32")(
+  "an explicitly recorded preset stays valid when the handover starts to state an assignment",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await rm(join(folder, "personalspace"), { recursive: true });
+      await initializeMachineFolder(folder, binding(organization), {
+        ...noChoices,
+        preset: "hosted-organization-steward",
+      });
+      // The refresh takes no preset from a handover that derives none; the
+      // choice between Organization presets there stays a profile change.
+      expect(
+        await refreshMachineFolder(
+          folder,
+          binding(organization),
+          "hosted-organization-team",
+        ),
+      ).toEqual({
+        code: 2,
+        result: { kind: "blocked", reason: "preset-not-allowed" },
+      });
+      const operator = binding({
+        ...organization,
+        owner: { ...organization.owner, assignment: assignments.operator },
+      });
+      expect(await refreshMachineFolder(folder, operator)).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 2 },
+      });
+      const recorded = await preferences(folder);
+      expect(recorded.preset).toEqual({
+        name: "hosted-organization-steward",
+        version: 1,
+        selection: "explicit",
+      });
+      expect(
+        await updateProfile(folder, 2, {
+          profile: { ...recorded.profile, locale: "cs" },
+        }),
+      ).toEqual({ kind: "updated", revision: 3 });
+      expect((await preferences(folder)).preset.name).toBe(
+        "hosted-organization-steward",
+      );
+      expect(
+        await updateProfile(folder, 3, {
+          preset: "hosted-organization-team",
+          profile: { ...recorded.profile, locale: "cs" },
+        }),
+      ).toEqual({ kind: "blocked", reason: "preset-not-allowed" });
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -655,6 +800,92 @@ for (const revision of ["base-instructions-99", "custom-1"])
     },
   );
 
+// Issue #133: v0.1.8-rc.14 changed the module preparation paragraph of the
+// manual (#121) without a new template revision. A Folder rendered by rc.13
+// recorded `base-instructions-17` with rc.13's digests; rc.14 rendered other
+// bytes under the same revision, so every refresh answered `incomplete-state`
+// and the hosting apply failed. The Folder exactly as rc.13 rendered it: this
+// product's text with rc.13's revision and rc.13's line of that paragraph,
+// the only generated text that differs between the two prereleases.
+const rc13 = {
+  revision: "base-instructions-17",
+  line: {
+    cs: "- Toolchain je Bun Operátora v `~/.local/bin/bun`; když chybí, `start` skončí `toolchain-missing` (viz `lazurio tools status`). Aplikaci, jejíž `package.json` nedeklaruje `lazurio.preparation`, `start` nejdřív připraví: `bun install --frozen-lockfile` z `bun.lock` vedle něj (když `node_modules` už odpovídá, nic se nezmění); ten lockfile musí být v checkoutu (jinak `preparation-lockfile-missing`) a selhání instalace je `preparation-install-failed`. Aplikaci s deklarovanou `lazurio.preparation` `start` neinstaluje: `prerequisites-not-ready` znamená, že neprošla její deklarovaná kontrola; nainstaluj závislosti v modulu (`bun install --frozen-lockfile`) a spusť znovu. Každý další důvod `preparation-*` jmenuje soubor, který je potřeba opravit.",
+    en: "- The toolchain is the Operator's Bun at `~/.local/bin/bun`; when it is missing, `start` ends with `toolchain-missing` (see `lazurio tools status`). An app whose `package.json` declares no `lazurio.preparation` is prepared by `start` first: `bun install --frozen-lockfile` from the `bun.lock` beside it (nothing changes when `node_modules` already matches); that lockfile must be in the checkout (`preparation-lockfile-missing` otherwise), and a failed install is `preparation-install-failed`. An app that declares `lazurio.preparation` is not installed by `start`: `prerequisites-not-ready` means its declared check failed; install its dependencies in the module (`bun install --frozen-lockfile`) and start again. Every other `preparation-*` reason names the file to fix.",
+  },
+} as const;
+const toolchainLine =
+  /^- (Toolchain je Bun Operátora|The toolchain is the Operator's Bun) .*$/m;
+
+async function renderedByRc13(folder: string, locale: "cs" | "en") {
+  const path = join(folder, ".lazurio", "instructions.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  const outputs: Record<string, string> = {};
+  let replaced = 0;
+  for (const output of outputPaths) {
+    const current = await readFile(join(folder, output), "utf8");
+    const content = current
+      .replaceAll(instructionTemplateRevision, rc13.revision)
+      .replace(toolchainLine, () => {
+        replaced++;
+        return rc13.line[locale];
+      });
+    await writeFile(join(folder, output), content);
+    outputs[output] = createHash("sha256").update(content).digest("hex");
+  }
+  // The paragraph is in the building chapter of every work Environment.
+  expect(replaced).toBe(1);
+  await writeFile(
+    path,
+    JSON.stringify({ ...manifest, templateRevision: rc13.revision, outputs }),
+  );
+}
+
+for (const locale of ["cs", "en"] as const)
+  test.skipIf(process.platform === "win32")(
+    `a work Environment's Folder rendered by v0.1.8-rc.13 in ${locale} is re-rendered by the next refresh, not refused as incomplete-state`,
+    async () => {
+      const { parent, folder } = await setup();
+      try {
+        await rm(join(folder, "personalspace"), { recursive: true });
+        const work = binding({
+          ...organization,
+          owner: { ...organization.owner, assignment: assignments.operator },
+        });
+        await initializeMachineFolder(folder, work, { ...noChoices, locale });
+        const initial = await preferences(folder);
+        expect(initial.preset.name).toBe("hosted-organization-personal");
+        await renderedByRc13(folder, locale);
+        expect(await refreshMachineFolder(folder, work)).toEqual({
+          code: 0,
+          result: { kind: "refreshed", revision: 2 },
+        });
+        const current = renderOutputs({
+          preset: initial.preset.name,
+          machine: initial.machine,
+          profile: initial.profile,
+        });
+        for (const path of outputPaths)
+          expect(await readFile(join(folder, path), "utf8")).toBe(
+            current[path],
+          );
+        expect(
+          await readFile(join(folder, "manual", "working-here.md"), "utf8"),
+        ).not.toContain(rc13.line[locale]);
+        const manifest = JSON.parse(
+          await readFile(join(folder, ".lazurio", "instructions.json"), "utf8"),
+        );
+        expect(manifest.templateRevision).toBe(instructionTemplateRevision);
+        expect(await refreshMachineFolder(folder, work)).toEqual({
+          code: 0,
+          result: { kind: "unchanged" },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+
 for (const stop of ["prepared", "applied"] as const)
   test.skipIf(process.platform === "win32")(
     `an upgrade interrupted after ${stop} completes by profile-resume against the recorded digests`,
@@ -691,3 +922,89 @@ for (const stop of ["prepared", "applied"] as const)
       }
     },
   );
+
+// Decision F35 on a Folder an older product rendered. A work Environment with a
+// hosted entry, recorded at base-instructions-17 (rc.13 and rc.14) or -18
+// (#134), still carries the output rule without the Files link. Its next
+// refresh re-renders it, and from then on the agent hands files over with
+// `lazurio files link` and points to the Files page. The older line is the
+// exact text those revisions rendered for a Linux preset.
+const beforeFiles = {
+  cs: "- Výstup, který nepatří do repozitáře, ulož do `~/Documents/<úkol>/` a uveď celou cestu; do kořene Folderu nic neukládej.",
+  en: "- Save a work product that does not belong in a repository in `~/Documents/<task>/` and give the full path; never write anything at the top level of the Folder.",
+} as const;
+const filesLine =
+  /^- (Výstup, který nepatří do repozitáře|Save a work product that does not belong in a repository).*lazurio files link.*$/m;
+
+async function renderedBefore(
+  folder: string,
+  locale: "cs" | "en",
+  revision: string,
+) {
+  const path = join(folder, ".lazurio", "instructions.json");
+  const manifest = JSON.parse(await readFile(path, "utf8"));
+  const outputs: Record<string, string> = {};
+  let replaced = 0;
+  for (const output of outputPaths) {
+    const current = await readFile(join(folder, output), "utf8");
+    const content = current
+      .replaceAll(instructionTemplateRevision, revision)
+      .replace(filesLine, () => {
+        replaced++;
+        return beforeFiles[locale];
+      });
+    await writeFile(join(folder, output), content);
+    outputs[output] = createHash("sha256").update(content).digest("hex");
+  }
+  // The output rule is in AGENTS.md of every hosted work Environment.
+  expect(replaced).toBe(1);
+  await writeFile(
+    path,
+    JSON.stringify({ ...manifest, templateRevision: revision, outputs }),
+  );
+}
+
+for (const revision of ["base-instructions-17", "base-instructions-18"])
+  for (const locale of ["cs", "en"] as const)
+    test.skipIf(process.platform === "win32")(
+      `a work Environment with a hosted entry recorded at ${revision} in ${locale} is re-rendered with the Files handover`,
+      async () => {
+        const { parent, folder } = await setup();
+        try {
+          await rm(join(folder, "personalspace"), { recursive: true });
+          const work = binding({
+            ...organization,
+            owner: { ...organization.owner, assignment: assignments.operator },
+            entry: handoverEntry("workspace.example.lazurio.io"),
+          });
+          await initializeMachineFolder(folder, work, { ...noChoices, locale });
+          await renderedBefore(folder, locale, revision);
+          expect(
+            await readFile(join(folder, "AGENTS.md"), "utf8"),
+          ).not.toContain("lazurio files link");
+          expect(await refreshMachineFolder(folder, work)).toEqual({
+            code: 0,
+            result: { kind: "refreshed", revision: 2 },
+          });
+          const agents = await readFile(join(folder, "AGENTS.md"), "utf8");
+          expect(agents).toContain("`lazurio files link <");
+          expect(agents).toContain(
+            "https://launchpad.workspace.example.lazurio.io/files",
+          );
+          expect(agents).not.toContain(beforeFiles[locale]);
+          const manifest = JSON.parse(
+            await readFile(
+              join(folder, ".lazurio", "instructions.json"),
+              "utf8",
+            ),
+          );
+          expect(manifest.templateRevision).toBe(instructionTemplateRevision);
+          expect(await refreshMachineFolder(folder, work)).toEqual({
+            code: 0,
+            result: { kind: "unchanged" },
+          });
+        } finally {
+          await rm(parent, { recursive: true, force: true });
+        }
+      },
+    );

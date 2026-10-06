@@ -5,6 +5,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import {
+  applicationMessage,
+  discoveredApplicationChoices,
+  localApplicationLink,
+} from "../src/launchpad/application-view";
 import { messages } from "../src/launchpad/messages";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 
@@ -91,8 +96,8 @@ try {
     join(organizationDirectory, "modules.manifest.json"),
     JSON.stringify(inventory),
   );
-  // Only parity-valid `transition` is executable (decision 0145 finalization
-  // gate), so the runnable root carries the exact generated projection too.
+  // A `transition` root executes under either admission variant, so the
+  // runnable root carries the exact generated projection too.
   await writeFile(
     join(organizationDirectory, "company.gen3.json"),
     JSON.stringify(expectedLegacyProjection(declaration, inventory).projection),
@@ -246,55 +251,39 @@ try {
   }
   reader.releaseLock();
   launchpad.url = JSON.parse(startup.split("\n")[0] as string).url;
-  browser = await chromium.launch({
-    headless: true,
-    env: { PATH: "/usr/bin:/bin", HOME: root },
-  });
-  const page = await browser.newPage();
-  const errors: string[] = [];
-  page.on("pageerror", (error: Error) => errors.push(error.message));
-  await page.goto(launchpad.url);
-  await page.waitForFunction(
-    (expected: string) => document.documentElement.lang === expected,
-    locale,
+  // The Launchpad home is the catalog now; the application operations stay
+  // the authenticated API the page used (and `app-request` below) until the
+  // module lifecycle of the next slice retires them. The browser opens the
+  // synthetic application only.
+  const session = new URL(launchpad.url);
+  const api = async (path: string, body: unknown) => {
+    const response = await fetch(new URL(path, session), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: session.origin,
+        Authorization: `Bearer ${session.hash.slice(1)}`,
+      },
+      body: JSON.stringify(body),
+    });
+    return (await response.json()) as Record<string, unknown>;
+  };
+  const choices = discoveredApplicationChoices(
+    await api("/api/apps/discover", {}),
   );
-  await page
-    .getByRole("button", { name: copy.appDiscover, exact: true })
-    .click();
-  await page.waitForFunction(
-    () =>
-      !(document.querySelector("#app-discovered") as HTMLSelectElement)
-        .disabled,
-  );
-  await page.locator("#app-discovered").selectOption("0");
-  for (const [name, value] of Object.entries(selection))
-    assert.equal(
-      await page.locator(`#application input[name="${name}"]`).inputValue(),
-      value,
-    );
-  await page
-    .getByRole("button", { name: copy.appPrepare, exact: true })
-    .click();
-  await page.waitForFunction(() =>
-    document.querySelector("#app-result")?.textContent?.includes('"prepared"'),
-  );
+  assert.deepEqual(choices, [selection]);
+  const operate = (operation: string) =>
+    api(`/api/apps/${operation}`, choices[0]);
+  assert.equal((await operate("prepare")).kind, "prepared");
   const lockBeforeClean = await Bun.file(
     join(ownerDirectory, "bun.lock"),
   ).text();
   const packageBeforeClean = await Bun.file(
     join(ownerDirectory, "package.json"),
   ).text();
-  await page.getByRole("button", { name: copy.appStart, exact: true }).click();
-  await page.waitForFunction(() =>
-    document.querySelector("#app-result")?.textContent?.includes('"started"'),
-  );
+  assert.equal((await operate("start")).kind, "started");
   await writeFile(join(ownerDirectory, "node_modules/stale-ui"), "derived");
-  await page
-    .getByRole("button", { name: copy.appCleanPrepare, exact: true })
-    .click();
-  await page.waitForFunction(() =>
-    document.querySelector("#app-result")?.textContent?.includes('"prepared"'),
-  );
+  assert.equal((await operate("clean-prepare")).kind, "prepared");
   assert.equal(
     await Bun.file(join(ownerDirectory, "node_modules/stale-ui")).exists(),
     false,
@@ -308,44 +297,35 @@ try {
     await Bun.file(join(ownerDirectory, "package.json")).text(),
     packageBeforeClean,
   );
-  await page.getByRole("button", { name: copy.appStart, exact: true }).click();
-  await page.waitForFunction(() =>
-    document.querySelector("#app-result")?.textContent?.includes('"started"'),
-  );
+  assert.equal((await operate("start")).kind, "started");
   let healthy = false;
   for (let attempt = 0; attempt < 20 && !healthy; attempt++) {
-    await page
-      .getByRole("button", { name: copy.appStatus, exact: true })
-      .click();
-    await page.waitForFunction(
-      () =>
-        !(document.querySelector("#app-choices") as HTMLFieldSetElement)
-          .disabled,
-    );
-    healthy =
-      JSON.parse(await page.locator("#app-result").innerText())
-        .observedHealthy === true;
+    healthy = (await operate("status")).observedHealthy === true;
     if (!healthy) await Bun.sleep(50);
   }
   assert.equal(healthy, true);
-  await page.getByRole("button", { name: copy.appOpen, exact: true }).click();
-  await page.locator("#app-link").waitFor({ state: "visible" });
-  const opened = page.waitForEvent("popup");
-  await page.locator("#app-link").click();
-  const application = await opened;
-  await application.waitForLoadState();
+  const opened = await operate("open");
+  assert.equal(
+    applicationMessage(opened, true),
+    "appLinkReady",
+    copy.appFailure,
+  );
+  const link = localApplicationLink(opened.url);
+  assert.ok(link);
+  browser = await chromium.launch({
+    headless: true,
+    env: { PATH: "/usr/bin:/bin", HOME: root },
+  });
+  const application = await browser.newPage();
+  const errors: string[] = [];
+  application.on("pageerror", (error: Error) => errors.push(error.message));
+  await application.goto(link);
   assert.equal(
     await application.locator("body").innerText(),
     "synthetic module",
   );
   await application.close();
-  await page.getByRole("button", { name: copy.appStop, exact: true }).click();
-  await page.waitForFunction(() =>
-    document
-      .querySelector("#app-result")
-      ?.textContent?.includes('"group-stopped"'),
-  );
-  assert.equal(await page.locator("#app-link").isVisible(), false);
+  assert.equal((await operate("stop")).kind, "group-stopped");
   const sessionUrl = launchpad.url;
   const cli = async (operation: string) => {
     const child = Bun.spawn([binary, "app-request"], {
@@ -398,18 +378,10 @@ try {
   assert.equal(await cliPage.locator("body").innerText(), "synthetic module");
   await cliPage.close();
   assert.equal((await cli("stop")).kind, "group-stopped");
-  await page.getByRole("button", { name: copy.appStatus, exact: true }).click();
-  await page.waitForFunction(() =>
-    document
-      .querySelector("#app-result")
-      ?.textContent?.includes('"not-managed"'),
-  );
-  await page.locator('#application input[name="module"]').fill("other");
-  assert.equal(await page.locator("#app-status").innerText(), "");
-  assert.equal(await page.locator("#app-result").innerText(), "");
+  assert.equal((await operate("status")).kind, "not-managed");
   assert.deepEqual(errors, []);
   console.log(
-    `PASS: canonical discovery/selection in Chromium and compiled CLI frozen install/clean reinstall/module preparation/start/status/link/open synthetic page/stop through one Launchpad owner (${locale}); not real candidate or VM qualification`,
+    `PASS: canonical discovery/selection over the Launchpad API and compiled CLI frozen install/clean reinstall/module preparation/start/status/link/open synthetic page in Chromium/stop through one Launchpad owner (${locale}); not real candidate or VM qualification`,
   );
 } finally {
   if (browser) await browser.close();

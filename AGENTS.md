@@ -16,8 +16,9 @@ contract for product update, before any distribution work, and `docs/release-cyc
 for the build, qualification and promotion lifecycle and the two distinct test paths, `docs/profile-evidence.md` for optional measurement
 and `docs/hosted-assistance.md` before any hosted advice/execution work. Read
 `docs/content-sync.md`, `docs/workspace-presets.md` and `docs/hosted-entry.md` before
-work on repository synchronization, presets or hosted entry; content sync and hosted
-entry record accepted direction, not implemented behavior, and workspace presets
+work on repository synchronization, presets or hosted entry; content sync records
+accepted direction with its installation half implemented (`src/content/`), hosted
+entry records accepted direction, not implemented behavior, and workspace presets
 record the implemented local preset model next to the accepted typed-request
 direction. This foundation is a proposal and bounded
 proof, not authorization to migrate an installation, transfer a repository, publish
@@ -31,10 +32,10 @@ the source as a substitute for the installed product.
 
 Work on a review branch in an owner-scoped worktree, preserve all unrelated work,
 commit only scoped changes, open a PR and report exact validation. Primary `main`
-is a reference checkout. Publication requires the Principal's explicit instruction
+is a reference checkout. Publication requires the Operator's explicit instruction
 and live provider rights. A generated profile never grants permission.
 
-Never read or copy another Principal's Personalspace. Organization data, credentials,
+Never read or copy another person's Personalspace. Organization data, credentials,
 deployment inventory and planning ledgers do not belong in this product repository.
 Do not import legacy source wholesale: preserve license and provenance for every
 deliberately reused component, and port only behavior justified by a consumer.
@@ -54,7 +55,7 @@ First transition acceptance requires official installation and real CLI/Launchpa
 macOS, Windows and Linux plus actual Codex and Claude Code instruction/skill use.
 Do not equate compilation, prompt text or the preview proof with that acceptance.
 Three parallel worktree tests isolate artifacts, process PATH, fixtures, ports and
-state. They never activate the Principal's daily installation. Whole-Machine candidate
+state. They never activate the Operator's daily installation. Whole-Machine candidate
 activation is a separate explicit action after integration and recovery qualification;
 this design is not permission to perform it now.
 

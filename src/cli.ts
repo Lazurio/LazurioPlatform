@@ -1,11 +1,20 @@
 import { parseArgs } from "node:util";
+import { browserHelp, runBrowserCommand } from "./browser/cli";
+import {
+  ContentUsageError,
+  contentHelp,
+  isContentCommand,
+  runContentCommand,
+} from "./content/cli";
+import { doctorHelp, runDoctorCommand } from "./doctor/cli";
+import { filesHelp, runFilesCommand } from "./files/cli";
 import { FolderAdoptionError } from "./folder/handover-layout";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectOutput } from "./folder/inventory";
 import {
-  canonicalOwnedDirectory,
+  canonicalCheckoutDirectory,
   inspectOwnedDirectory,
 } from "./folder/owned-directory";
 import { executionOs } from "./folder/platform";
@@ -18,6 +27,12 @@ import {
   readApplicationRequest,
   requestApplication,
 } from "./launchpad/application-client";
+import { chatHelp, runChatCommand } from "./launchpad/chat-cli";
+import {
+  recoveryCheck,
+  startOrRecover,
+  startRecoveryMode,
+} from "./launchpad/recovery-mode";
 import { startLaunchpad } from "./launchpad/server";
 import { createUpdatePill } from "./launchpad/update-pill";
 import {
@@ -26,6 +41,7 @@ import {
   machineHelp,
   runMachineCommand,
 } from "./machine/cli";
+import { hostedOperatorFolder } from "./machine/operator";
 import { createApplicationCoordination } from "./modules/application-coordination";
 import {
   type ApplicationRunner,
@@ -36,6 +52,11 @@ import {
   localApplicationAdapters,
   serviceApplicationAdapters,
 } from "./modules/local-application-adapters";
+import {
+  ModuleUsageError,
+  moduleHelp,
+  runModuleCommand,
+} from "./modules/module-cli";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import {
   createServiceManagerProcess,
@@ -46,8 +67,14 @@ import {
   applicationCoordinationLockFile,
   createSystemdUserRunner,
 } from "./modules/systemd-user-runner";
+import {
+  CatalogUsageError,
+  catalogHelp,
+  runCatalogCommand,
+} from "./organizations/cli";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import {
   type CommandOutput,
@@ -62,6 +89,7 @@ import {
   versionCommand,
 } from "./update/cli";
 import { selectActivator } from "./update/launchpad-activation";
+import { detectServiceControl } from "./update/service-control";
 
 // Update commands return their own typed output and stable exit status.
 function emit(output: CommandOutput): number {
@@ -70,13 +98,13 @@ function emit(output: CommandOutput): number {
   return output.code;
 }
 
-// The installed Launchpad of this base answers the updater's health question,
-// commits an activation whose updater is gone, and serves the update pill on
-// the same update core and service the CLI uses.
-async function installedLaunchpad(explicitBase: string) {
+// The installed Launchpad of this base answers the updater's health question
+// and serves the update pill on the same update core and service the CLI uses.
+async function installedLaunchpad(explicitBase: string, folder: string) {
   const context = processContext();
   const base = installBase(context, explicitBase);
-  const environment = await updateEnvironment(context, base);
+  // The pill reports a needed refresh of the Folder this Launchpad serves.
+  const environment = await updateEnvironment(context, base, folder);
   return {
     base,
     version: context.identity.version,
@@ -107,7 +135,7 @@ async function operateServiceApplication(input: unknown) {
   )
     throw new Error("Direct application request supports status and stop");
   // ONE canonical spelling before any unit name or lock file is derived from it.
-  const organizationDirectory = await canonicalOwnedDirectory(
+  const organizationDirectory = await canonicalCheckoutDirectory(
     value.organizationDirectory,
   );
   const runtimeDirectory = process.env.XDG_RUNTIME_DIR;
@@ -158,6 +186,11 @@ export async function runCli(args: string[]): Promise<number> {
   if (args[0] === "install")
     return emit(await runInstallCommand(args.slice(1)));
   if (args[0] === "update") return emit(await runUpdateCommand(args.slice(1)));
+  // Like the update commands: its output is the answer, with no notice.
+  if (args[0] === "recover")
+    return emit(await runRecoverCommand(args.slice(1)));
+  // Its answer already says whether an update is available.
+  if (args[0] === "doctor") return emit(await runDoctorCommand(args.slice(1)));
   const code = await runOtherCommand(args);
   // Every other command ends with the one-line notice (docs/update.md
   // "Surfaces"): from `last-check.json` only, on stderr, never the network.
@@ -169,9 +202,35 @@ export async function runCli(args: string[]): Promise<number> {
 }
 
 async function runOtherCommand(args: string[]): Promise<number> {
+  // The link alone on stdout; the notice follows on stderr.
+  if (args[0] === "chat")
+    return emit(await runChatCommand(args.slice(1), processContext()));
+  // The Environment browser (decision F38): a thread's window and the link to
+  // its view.
+  if (args[0] === "browser")
+    return emit(await runBrowserCommand(args.slice(1), processContext()));
+  // The link or path alone on stdout; the note follows on stderr.
+  if (args[0] === "files")
+    return emit(
+      await runFilesCommand(args.slice(1), {
+        ...processContext(),
+        cwd: process.cwd(),
+      }),
+    );
   if (args[0] === "machine") {
     try {
-      const { code, result } = await runMachineCommand(args.slice(1));
+      // folder-refresh restarts this base's supervised Launchpad when it
+      // recorded a different entry (src/machine/launchpad-entry.ts).
+      const context = processContext();
+      const { code, result } = await runMachineCommand(args.slice(1), {
+        service: () =>
+          detectServiceControl({
+            base: installBase(context, undefined),
+            platform: context.platform,
+            env: context.env,
+          }),
+        version: context.identity.version,
+      });
       console.log(JSON.stringify(result));
       return code;
     } catch (error) {
@@ -183,13 +242,63 @@ async function runOtherCommand(args: string[]): Promise<number> {
     }
   }
   if (args[0] === "tools") {
+    // Ctrl-C cancels a running `tools login` (its process group is killed);
+    // other tools commands end as before.
+    const interrupt = new AbortController();
+    const onInterrupt = () => interrupt.abort();
+    if (args[1] === "login") process.once("SIGINT", onInterrupt);
     try {
-      const { code, text } = await runToolsCommand(args.slice(1));
-      console.log(text);
+      const { code, text } = await runToolsCommand(args.slice(1), {
+        env: process.env,
+        platform: process.platform,
+        signal: interrupt.signal,
+        // gh on a Team Environment: the hosted operator Folder's preset.
+        hostedFolder: hostedOperatorFolder,
+      });
+      if (text) console.log(text);
       return code;
     } catch (error) {
       if (!(error instanceof ToolsUsageError)) throw error;
       console.error(`${error.message}\n${toolsHelp}`);
+      return 2;
+    } finally {
+      process.removeListener("SIGINT", onInterrupt);
+    }
+  }
+  if (
+    args[0] === "module" &&
+    ["start", "stop", "status", "logs"].includes(args[1] ?? "")
+  ) {
+    try {
+      const { code, text } = await runModuleCommand(args, processContext());
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof ModuleUsageError)) throw error;
+      console.error(`${error.message}\n${moduleHelp}`);
+      return 2;
+    }
+  }
+  if (isContentCommand(args)) {
+    // One line per step as it happens, then the result.
+    try {
+      return await runContentCommand(args, processContext(), (line) =>
+        console.log(line),
+      );
+    } catch (error) {
+      if (!(error instanceof ContentUsageError)) throw error;
+      console.error(`${error.message}\n${contentHelp}`);
+      return 2;
+    }
+  }
+  if (args[0] === "organization" || args[0] === "module") {
+    try {
+      const { code, text } = await runCatalogCommand(args, processContext());
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof CatalogUsageError)) throw error;
+      console.error(`${error.message}\n${catalogHelp}`);
       return 2;
     }
   }
@@ -258,7 +367,7 @@ folder-preview --folder <absolute Folder directory>
   --locale <cs|en> --detail <concise|technical>
   --coordination <direct|coordinator>
 
-All five choices are required. OS is detected on the execution Machine.
+All five choices are required. OS is detected in the Environment that runs the command.
 Alternatively supply --profile <JSON> instead of the five profile choices.
 Optional --previous-digest <sha256> is inventory input, not proof of ownership.
 The directory must already exist and be caller-owned, non-shared and stable.
@@ -267,23 +376,25 @@ profile-preview uses the same profile choices and --folder, plus required
 --expected-revision <positive integer>. It reads existing .lazurio state and
 creates/removes only its operation lock. It does not apply the proposed change.
 Both profile commands accept optional --preset <name> to change the workspace preset
-within what the recorded Machine handover allows; omitted keeps the current preset.
+within what the recorded Environment handover allows; omitted keeps the current preset.
 profile-update takes the same inputs as profile-preview and APPLIES the change:
 it replaces owned instructions/preferences/manifest and archives the transaction.
-On an installed Machine the Folder is the operator's ~/Lazurio; the change is applied
+In an installed Environment the Folder is the operator's ~/Lazurio; the change is applied
 only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
-In a hosted Folder (adopted from a Machine handover) a top-level entry other than
+In a Remote Environment's Folder (adopted from its handover) a top-level entry other than
 organizations/, personalspace/, the two legacy launchpad files and the owned AGENTS.md,
 manual/ and .lazurio/ is refused by name (exit 2, folder-foreign-entry) before
 preparation, before every replacement and in profile-resume; the journal stays for a
 later resume. A workstation Folder keeps your own top-level files untouched.
-On a hosted Machine, machine folder-refresh re-renders the same owned files from the
+In a Remote Environment, machine folder-refresh re-renders the same owned files from the
 current handover through this same transaction, keeping the recorded profile.
 tools enable|disable <tool> --folder <Folder> --expected-revision <n> records which
 catalog tools agents are told to use and re-renders the same owned files through this
 same transaction, keeping the recorded preset and profile; a profile change or a
-refresh keeps the recorded tools. It grants no access and installs nothing.
+refresh keeps the recorded tools. tools note <tool> records the operator's note for
+agents on a required or enabled tool the same way. It grants no access and installs
+nothing.
 --previous-digest is not accepted by either profile command.
 profile-resume --folder <Folder> --target-revision <integer >= 2>
 resumes and finalizes an existing prepared update, or verifies its completed archive.
@@ -325,7 +436,7 @@ Without a Launchpad: {organizationDirectory, operation, selection} with operatio
 status or stop addresses an application owned by the systemd user manager directly,
 through the same core, runner and coordination lock. Where applications are
 session-scoped it answers launchpad-required; it never starts or prepares anything.
-open returns the execution Machine's local URL; it does not launch a browser or tunnel.
+open returns the local URL in the Environment that runs it; it does not launch a browser or tunnel.
 Native Windows filesystem inspection is not yet qualified.`);
     console.log(`legacy-paths-inspect --home <absolute owned home directory>
 Read-only macOS inventory of Lazurio, Conglomerate and Conglomerate_GEN3 paths.
@@ -343,7 +454,15 @@ Refuses an occupied canonical target, conflicting declarations or observed drift
 No files, locks, provider requests or applications are created. Output may contain
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
+    console.log(catalogHelp);
+    console.log(contentHelp);
+    console.log(moduleHelp);
     console.log(updateHelp);
+    console.log(recoverHelp);
+    console.log(doctorHelp);
+    console.log(chatHelp);
+    console.log(browserHelp);
+    console.log(filesHelp);
     console.log(machineHelp);
     return 0;
   }
@@ -415,7 +534,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     const organizationDirectory =
       values["organization-directory"] === undefined
         ? undefined
-        : await canonicalOwnedDirectory(values["organization-directory"]);
+        : await canonicalCheckoutDirectory(values["organization-directory"]);
     if (values["bun-executable"] !== undefined) {
       if (!organizationDirectory || !process.env.HOME)
         throw new Error("Local Organization and account home required");
@@ -445,6 +564,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
           : createSessionRunner(process.execPath);
       applicationAdapters = localApplicationAdapters({
         organizationDirectory,
+        organizationRoot: organizationDirectory,
         bunExecutable: values["bun-executable"],
         platformExecutable: process.execPath,
         environment,
@@ -462,24 +582,57 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       });
       applicationRunner = kind;
     }
-    const { close, url, hosted } = await startLaunchpad(
-      values.folder,
-      applicationAdapters,
-      organizationDirectory === undefined
-        ? undefined
-        : { organizationDirectory },
-      // `--base` is what the installed service unit passes: this instance is
-      // the Launchpad of that installation.
+    const folder = values.folder;
+    // `--base` is what the installed service unit passes: this instance is
+    // the Launchpad of that installation.
+    const installed =
       values.base === undefined
         ? undefined
-        : await installedLaunchpad(values.base),
+        : await installedLaunchpad(values.base, folder);
+    // The Recovery page and the Recovery view of Settings: `lazurio recover
+    // --json` for this Launchpad's Folder and base (docs/recovery.md).
+    const recovery = recoverySource(processContext(), {
+      base: installed?.base,
+      folder,
+    });
+    // A start refused on a condition this executable can name does not exit:
+    // it serves Recovery mode on the same port (docs/update.md "Recovery
+    // mode"), so a supervised unit never loops and the operator sees why.
+    const started = await startOrRecover(
+      () =>
+        startLaunchpad(
+          folder,
+          applicationAdapters,
+          organizationDirectory === undefined
+            ? undefined
+            : { organizationDirectory },
+          installed,
+          undefined,
+          undefined,
+          undefined,
+          recovery,
+        ),
+      (refusal) =>
+        startRecoveryMode({ refusal, base: installed?.base, recovery }),
     );
+    const { close, url, hosted } = started.value;
     console.log(
-      JSON.stringify({
-        url,
-        scope: hosted ? "hosted-entry" : "local-development-profile-panel",
-        ...(applicationRunner === undefined ? {} : { applicationRunner }),
-      }),
+      JSON.stringify(
+        started.mode === "recovery"
+          ? {
+              url,
+              scope: "recovery-mode",
+              check: recoveryCheck,
+              reason: started.value.reason,
+            }
+          : {
+              url,
+              scope: hosted
+                ? "hosted-entry"
+                : "local-development-profile-panel",
+              ...(applicationRunner === undefined ? {} : { applicationRunner }),
+            },
+      ),
     );
     for (const signal of ["SIGINT", "SIGTERM"] as const)
       process.once(signal, async () => {
@@ -582,7 +735,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
       : { os: executionOs(process.platform), ...axes },
   );
   if (profile.os !== executionOs(process.platform))
-    throw new Error("Profile OS does not match execution Machine");
+    throw new Error("Profile OS does not match this Environment's OS");
   if (initializing) {
     console.log(JSON.stringify(await initializeFolder(folder, profile)));
     return 0;

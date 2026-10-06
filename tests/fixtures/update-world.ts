@@ -1,4 +1,13 @@
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readlink,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -29,20 +38,41 @@ export const target = nativeTarget(process.platform, process.arch);
 export const commitOf = (version: string) =>
   Buffer.from(version).toString("hex").padEnd(40, "0").slice(0, 40);
 
-/** `healthy: false` is a version whose self-check fails. */
+/** `healthy: false` is a version whose self-check fails; `launchpadRefused`
+ * one whose Launchpad probe (`self-check --launchpad`) refuses to start. */
 export function executable(
   version: string,
-  options: Readonly<{ healthy?: boolean; commit?: string }> = {},
+  options: Readonly<{
+    healthy?: boolean;
+    commit?: string;
+    /** The template revision it says it renders; absent like an old one. */
+    templateRevision?: string;
+    launchpadRefused?: string;
+  }> = {},
 ): Uint8Array {
   const report = JSON.stringify({
     schemaVersion: 1,
     identity: { version, commit: options.commit ?? commitOf(version), target },
     fixture: false,
-    base: { active: null, previous: null, highWater: null },
+    ...(options.templateRevision === undefined
+      ? {}
+      : { templateRevision: options.templateRevision }),
+    base: { active: null, highWater: null },
     folder: { preferences: 1, manifest: 1 },
   });
+  // As the product does: the probe answers only when it was asked for
+  // (`--launchpad`); a caller that judges the answer must ask the question
+  // (LazurioPlatform issue #74).
+  const withProbe = JSON.stringify({
+    ...JSON.parse(report),
+    launchpad: { probe: "ok" },
+  });
+  const probe =
+    options.launchpadRefused === undefined
+      ? `case " $* " in *" --launchpad "*) echo '${withProbe}'; exit 0;; esac\n`
+      : `case " $* " in *" --launchpad "*) echo '${JSON.stringify({ launchpadRefused: options.launchpadRefused })}'; exit 1;; esac\n`;
   return new TextEncoder().encode(
-    `#!/bin/sh\n${options.healthy === false ? "exit 1\n" : ""}echo '${report}'\n`,
+    `#!/bin/sh\n${options.healthy === false ? "exit 1\n" : ""}${probe}echo '${report}'\n`,
   );
 }
 
@@ -53,7 +83,12 @@ export type World = Readonly<{
   origin: FixtureOrigin;
   release(
     version: string,
-    options?: Partial<FixtureRelease> & { latest?: boolean; healthy?: boolean },
+    options?: Partial<FixtureRelease> & {
+      latest?: boolean;
+      healthy?: boolean;
+      templateRevision?: string;
+      launchpadRefused?: string;
+    },
   ): Promise<void>;
   environment(
     running: string,
@@ -115,10 +150,15 @@ export async function createWorld(
           version,
           commit: commitOf(version),
           artifacts: {
-            [target]: executable(
-              version,
-              release.healthy === false ? { healthy: false } : {},
-            ),
+            [target]: executable(version, {
+              ...(release.healthy === false ? { healthy: false } : {}),
+              ...(release.templateRevision === undefined
+                ? {}
+                : { templateRevision: release.templateRevision }),
+              ...(release.launchpadRefused === undefined
+                ? {}
+                : { launchpadRefused: release.launchpadRefused }),
+            }),
           },
           ...release,
         },
@@ -167,4 +207,25 @@ export function fakeService(
     },
   };
   return service;
+}
+
+/** What an installation of v0.1.x left for rollback, written by hand: the
+ * `previous` link and the activation marker (migration "remove rollback"). */
+export async function writeLegacyRollbackState(
+  base: string,
+  state: Readonly<{ previous?: string; pending?: string }>,
+) {
+  if (state.previous !== undefined)
+    await symlink(`versions/${state.previous}`, join(base, "previous"));
+  if (state.pending !== undefined)
+    await writeFile(join(base, "update", "pending.json"), state.pending);
+}
+
+export async function readLegacyRollbackState(base: string) {
+  return {
+    previous: await readlink(join(base, "previous")).catch(() => null),
+    pending: await readFile(join(base, "update", "pending.json"), "utf8").catch(
+      () => null,
+    ),
+  };
 }
