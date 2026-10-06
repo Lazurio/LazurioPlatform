@@ -4033,7 +4033,9 @@ and their new-tab arrows, and the Organization picker in the home's head.
 
 1. **Rail** (`<lazurio-rail app="…">`): the Lazurio logo (the personal Dashboard), the
    jump to any Environment (⌘⇧E), your personal space marked with your initials, a
-   divider, one GitHub avatar per Organization (the active one ringed in ink), "+" to
+   divider, one GitHub avatar per Organization (the active one ringed in ink; since
+   2026-10-06 marked with the design system's quiet surface and a hairline instead,
+   #209), "+" to
    add an Organization in the Dashboard, and at the foot only the account, with your
    GitHub photo where known. Labels show at once. A click on a space leads to the last
    Environment this browser was in there, else its first, in the same app (Chat, Apps or
@@ -4326,8 +4328,10 @@ nothing is renamed or removed, and an Environment's page is drawn as before.
 5. **Where the page is.** On a page with `current: null` the `space` attribute (rail and
    column head) names the Organization whose Dashboard this is. Without it, with
    `personal`, or with a slug the document does not list, the page is the personal
-   Dashboard. The rail rings that Organization; on the personal Dashboard it rings no
-   space, and the logo gets `aria-current="page"` and the design system's quiet surface.
+   Dashboard. The rail marks that Organization as the space you are in (since
+   2026-10-06 the design system's quiet surface with a hairline, before that a ring;
+   #209); on the personal Dashboard it marks no space, and the logo gets
+   `aria-current="page"` and the same look.
    The rail keeps no last Environment (`lazurio.shell.last`) and reports none from such
    a page. A click on a space leads to the account's last Environment there, in the app
    the account recorded (`lastBySpace`; `accountLastBySpace` keeps `{environment, app}`),
@@ -4386,7 +4390,7 @@ before; and interface v1 with the new names. Nine of the new guards (the host's 
 beside `current: null`, https in the account) were each broken once on purpose, and each
 time a test failed. In Chrome 1440×900, on a harness page with `/.lazurio/shell.js`
 built from this revision and the host's documents provided: the personal Dashboard (logo
-marked, no space ringed, no column head, ⌘⇧E with nothing current), an Organization's
+marked, no space marked, no column head, ⌘⇧E with nothing current), an Organization's
 Dashboard (its head, the list under the picker with "tady jsi", widened to all
 Organizations), Organization Settings (the gear marked), in Czech and the head in
 English; no request to `/.lazurio/account/*` or `/.lazurio/shell.json` and nothing in

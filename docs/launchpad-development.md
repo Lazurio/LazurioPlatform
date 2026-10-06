@@ -89,8 +89,9 @@ photo. There are no Environment icons, no Organization folders and no "+N"/"mén
 kind icon looks the same in every Organization and a wrong click is easy, while an
 Organization's avatar is recognised at a glance. The avatar is the GitHub
 Organization's, cached by the Dashboard on each GitHub sync and changed only on GitHub.
-The active space has an ink ring around its avatar: no pill on the edge and no fill in
-the Organization's colour. The tooltip shows the space's name, the number of its
+The active space has the design system's selected look (B3, design-system-lazurio#57):
+the quiet surface around its avatar with a hairline; no ring, no pill on the edge and no
+fill in the Organization's colour. The tooltip shows the space's name, the number of its
 Environments and the last one used. Clicking an Organization returns to the Environment
 last used in it, in the same app (Chat stays Chat); without a remembered one it opens the
 Organization's first Environment, and with no Environment at all the Organization's
@@ -506,9 +507,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     debug line.
   - **Where the page is** comes from `space`: an Organization the document lists is
     that Organization's Dashboard; without it, `personal` or an unlisted slug is the
-    personal Dashboard (`pageOf` in `view.ts`). The rail rings that Organization, or on
-    the personal Dashboard no space, and marks the logo (`aria-current="page"`, the
-    quiet surface). It keeps no last Environment and reports none; a space opens the
+    personal Dashboard (`pageOf` in `view.ts`). The rail marks that Organization as the
+    space you are in (the quiet surface with a hairline), or on the personal Dashboard
+    no space and the logo (`aria-current="page"`, the same look). It keeps no last Environment and reports none; a space opens the
     account's last visit there in its app, else its first Environment's Apps, else its
     Dashboard (`railSpaces` with no app of its own).
   - **The column head** (`columnHead` in `view.ts`) on an Organization's Dashboard:
