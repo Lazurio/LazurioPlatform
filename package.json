@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "bun@1.4.2",
   "scripts": {
-    "check": "bun run lint && bun run typecheck && bun test --parallel --timeout=20000 && bun run check:public && bun run build:proof && bun run smoke:proof",
+    "check": "bun run lint && bun run typecheck && bun test --parallel=8 --timeout=20000 && bun run check:public && bun run build:proof && bun run smoke:proof",
     "test": "bun test --parallel --timeout=20000",
     "build:proof": "bun build proof/main.ts --compile --no-compile-autoload-dotenv --no-compile-autoload-bunfig --outfile dist/platform-proof",
     "smoke:proof": "bun run scripts/smoke-proof.ts",
