@@ -200,6 +200,7 @@ export class BrowserHub {
   private readonly fileChoosers = new Map<string, FileChooser>();
   /** Page targets discovery reported on the current connection. */
   private seen = new Set<string>();
+  private discovered = false;
   private readonly graceMs: number;
   private readonly unviewedGraceMs: number;
   private readonly reconnectMs: number;
@@ -212,6 +213,12 @@ export class BrowserHub {
 
   get connected(): boolean {
     return this.cdp !== null;
+  }
+
+  /** Connected and discovery has reported every existing page: a target
+   * the hub does not know now does not exist. */
+  get ready(): boolean {
+    return this.cdp !== null && this.discovered;
   }
 
   start(): void {
@@ -513,6 +520,7 @@ export class BrowserHub {
       this.retry();
     });
     this.seen = new Set();
+    this.discovered = false;
     try {
       // Chrome reports every existing target before it answers.
       await cdp.send("Target.setDiscoverTargets", { discover: true });
@@ -527,6 +535,7 @@ export class BrowserHub {
       if (!this.seen.has(id)) this.gone(id);
     for (const id of [...this.ownTabs])
       if (!this.seen.has(id)) this.ownTabs.delete(id);
+    this.discovered = true;
   }
 
   private retry(): void {

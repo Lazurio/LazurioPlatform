@@ -227,8 +227,8 @@ export function startViewService(options: ViewServiceOptions): ViewService {
             : json({ error: "not-accepted" }, 409);
         }
         case "live": {
-          if (!hub.hasTab(decision.targetId))
-            return json({ error: "no-such-tab" }, 404);
+          // Upgraded even for a tab that is gone: the page can read a
+          // message, not the status of a refused handshake (`open`).
           const upgraded = server.upgrade(request, {
             data: { targetId: decision.targetId, viewer: null },
           });
@@ -255,9 +255,16 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           resize: true,
         };
         ws.data.viewer = viewer;
-        if (!hub.attach(ws.data.targetId, viewer)) {
+        if (hub.attach(ws.data.targetId, viewer)) return;
+        // No such tab. Only a hub that knows every page may say it is gone;
+        // while it reconnects to the browser the page tries again.
+        ws.data.viewer = null;
+        if (hub.ready) {
           viewer.send({ t: "closed" });
           ws.close(1000, "closed");
+        } else {
+          viewer.send({ t: "browser", state: "reconnecting" });
+          ws.close(1013, "reconnecting");
         }
       },
       message(ws: ServerWebSocket<SocketData>, data) {

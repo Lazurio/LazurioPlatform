@@ -202,7 +202,7 @@ afterEach(async () => {
 
 async function serve(
   browser: FakeBrowser,
-  options: { bound?: string[]; graceMs?: number } = {},
+  options: { bound?: string[]; graceMs?: number; reconnectMs?: number } = {},
 ) {
   root = await realpath(await mkdtemp(join(tmpdir(), "people-view-")));
   const logs: string[] = [];
@@ -218,7 +218,7 @@ async function serve(
       log: (line) => logs.push(line),
       graceMs: options.graceMs ?? 60_000,
       unviewedGraceMs: options.graceMs ?? 60_000,
-      reconnectMs: 20,
+      reconnectMs: options.reconnectMs ?? 20,
     },
   });
   await until(() => service?.hub.connected === true);
@@ -820,8 +820,22 @@ test("a tab that goes away tells its viewers", async () => {
   browser.emit("Target.targetDestroyed", { targetId: id(1) });
   await view.closed;
   expect(view.of("closed")).toEqual([{ t: "closed" }]);
-  // A socket for a tab that does not exist is refused before it opens.
-  await expect(person(base, id(77))).rejects.toThrow();
+  // A tab that no longer exists, opened again (a reload after a browser
+  // restart): told so, not left reconnecting.
+  const stale = await person(base, id(77));
+  await stale.closed;
+  expect(stale.of("closed")).toEqual([{ t: "closed" }]);
+});
+
+test("while the browser is away, a new socket is told to try again, never that its tab is gone", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser, { reconnectMs: 60_000 });
+  browser.drop();
+  await until(() => service?.hub.connected === false);
+  const view = await person(base, id(1));
+  await view.closed;
+  expect(view.of("browser")).toEqual([{ t: "browser", state: "reconnecting" }]);
+  expect(view.of("closed")).toEqual([]);
 });
 
 test("a lost browser connection is reported and the view resumes on its tab", async () => {
