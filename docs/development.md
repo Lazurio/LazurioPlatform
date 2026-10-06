@@ -280,3 +280,4 @@ This is not an installer test or a clean-image qualification. The resume case ve
 an already completed transaction, not a killed CLI process. Initialization recovery,
 stale-lock handling, power-loss durability, Windows/x64 and signed release acceptance
 remain unqualified; no existing working Lazurio Folder was migrated or modified.
+
