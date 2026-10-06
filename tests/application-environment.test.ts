@@ -276,13 +276,21 @@ async function runUnit(request: ReturnType<typeof unitRequest>, port: number) {
     stdout: "ignore",
     stderr: "ignore",
   });
-  for (let attempt = 0; attempt < 100; attempt++) {
+  // Polled until it answers: a loaded machine (parallel test files) may
+  // take seconds to start the application.
+  let listening = false;
+  for (let attempt = 0; attempt < 600 && !listening; attempt++) {
     try {
       await fetch(`http://127.0.0.1:${port}/`);
-      break;
+      listening = true;
     } catch {
       await Bun.sleep(50);
     }
+  }
+  if (!listening) {
+    child.kill();
+    await child.exited;
+    throw new Error(`The unit's application never listened on ${port}`);
   }
   return async () => {
     child.kill();

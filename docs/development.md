@@ -27,6 +27,8 @@ bun run check
 
 `check` stops on the first failure and runs lint/format verification → strict typecheck → behavioral tests → public-input guard → standalone build → isolated CLI/HTTP smoke. It does not publish, install a product or activate a profile. `bun run format` applies formatting, import organization and safe mechanical fixes to the configured scope; review the diff. `bun run lint`, `bun run typecheck`, `bun test` and `bun run check:public` are available for focused iteration. Tests and build checks remain authoritative together: Bun compilation does not replace TypeScript checking.
 
+`bun run test` and `check` run the test files in parallel, one worker per CPU core, each file in a fresh global (`bun test --parallel`). A test file therefore owns its temporary directories, ports and processes and never relies on another file having run; a readiness wait polls until its process answers instead of assuming an idle machine. Because the files share the machine, a test without its own budget gets 20 seconds instead of Bun's default 5 (`--timeout`); a test that proves a deadline asserts the deadline itself.
+
 ## Comments and contracts
 
 Comment why a choice exists, the invariant it protects, a non-obvious failure mode or a boundary the type system cannot enforce. Do not narrate each statement or repeat names in prose. Keep comments adjacent to the owning logic. A public operation should explain its inputs, side effects, rejection behavior and authority requirements where those are not obvious. Link a lasting architectural tradeoff to its decision instead of copying a second decision into comments. Temporary TODOs identify the owning issue or plan step; they are not permission to bypass safety.
