@@ -4151,7 +4151,10 @@ does, everything behaves as points 6 and 7 say.
   or null) once per full page load of Apps, Chat and Automate: `keepalive`, its answer
   not read, silent on failure, never blocking drawing. It is its own module, apart from
   the rail's merge of the account's Environments, and each element calls it with one
-  line.
+  line. *(Since 2026-10-06 it is sent only after the page's account read on the same
+  origin answered with an account, and one asked earlier waits for that answer: where
+  the read finds none, no relay (`404`) or a refusal, the write could only fail and
+  the browser showed a `405` for it.)*
 - **"Přístup k modulu"** (S15, #151). A module tile's menu offers it to the
   Organization's Owners (point 8's answer) and Stewards. A Steward's answer is GitHub's
   `permissions.maintain` on the module's declared repository (the slot's `git.url`,

@@ -662,6 +662,64 @@ test("without the marker the elements read, remember and report on their own ori
   expect(lines[0]).toContain('data-lazurio-account="host"');
 });
 
+// The last Environment is reported through the account relay, so only once
+// this origin's account read answered with an account (Matěj saw a red `405`
+// in DevTools on an Environment without the relay, 2026-10-06).
+const personalDocument = () =>
+  parsed({
+    ...environmentDocument(),
+    current: "ada",
+    environments: [
+      {
+        id: "ada",
+        label: null,
+        kind: "personal",
+        organizations: [],
+        assignee: null,
+        apps: {
+          apps: "https://launchpad.ada.lazurio.io/",
+          chat: null,
+          automate: null,
+        },
+      },
+    ],
+    organizations: [],
+  });
+const settled = (state: ReturnType<typeof observed>["state"]) =>
+  new Promise<void>((done) => setTimeout(done, 20)).then(() => state);
+
+test("a report asked before the account answered waits for the answer and is sent once", async () => {
+  const { state, requests, sent } = observed("origin");
+  state.provideShell(personalDocument());
+  state.report("apps", "personal");
+  state.requestAccount();
+  state.report("chat", "personal");
+  expect(sent).toEqual([]);
+  await settled(state);
+  expect(requests).toEqual([accountDocumentPath]);
+  expect(sent.map((body) => JSON.parse(body))).toEqual([
+    { environment: "ada", app: "apps", organization: null },
+  ]);
+  state.report("apps", "personal");
+  expect(sent).toHaveLength(1);
+});
+
+test("without the account relay (404) or with a refusal (401) nothing is written: no PUT /.lazurio/account/last", async () => {
+  for (const status of [404, 401]) {
+    const { state, requests, sent } = observed(
+      "origin",
+      () => new Response(null, { status }),
+    );
+    state.provideShell(personalDocument());
+    state.report("apps", "personal");
+    state.requestAccount();
+    await settled(state);
+    state.report("chat", "personal");
+    expect([status, requests]).toEqual([status, [accountDocumentPath]]);
+    expect([status, sent]).toEqual([status, []]);
+  }
+});
+
 // Environment pages are unchanged.
 
 test("on an Environment's page the column head is the picker, the gear, the switch and the setup line as before", () => {

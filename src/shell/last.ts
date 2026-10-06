@@ -9,12 +9,15 @@ import { organizationOf, personalSpace, type ShellApp } from "./view";
 // the Environment's gateway relays to the Dashboard with the person's own
 // token; the shell sends no token and reads no answer. Fire and forget: it
 // never blocks drawing, it outlives a navigation (`keepalive`), and any
-// failure is silent (no gateway relay yet, a workstation, an expired
-// session). Kept apart from the rail's merge of the account's Environments,
-// which reads the account; this only writes the one fact. A page that is no
-// Environment's (F36's addendum of 2026-10-05, the Dashboard) reports
-// nothing, and a host that provides the account itself is never reported
-// to (the elements skip the report, `state.ts`).
+// failure is silent. It is sent only after the page's account read on the
+// same origin answered with an account (`state.ts`): where the read found
+// none (no gateway relay yet, a workstation, an expired session) the write
+// could only fail, and the browser would show a `405`. Kept apart from the
+// rail's merge of the account's Environments, which reads the account; this
+// only writes the one fact. A page that is no Environment's (F36's addendum
+// of 2026-10-05, the Dashboard) reports nothing, and a host that provides
+// the account itself is never reported to (the elements skip the report,
+// `state.ts`).
 
 export const lastPath = "/.lazurio/account/last";
 

@@ -37,10 +37,14 @@ const answer = (body: unknown) =>
 const quiet = () => {};
 
 /** A state of the elements with every effect observed: the account read
- * through a fetcher spy (which answers `accountDocument()`), the browser's
+ * through a fetcher spy (which answers `respond()`, by default
+ * `accountDocument()`), the browser's
  * memory, the report's transport and the debug lines; `asked` counts how
  * often the document's marker was read. */
-export const observedState = (source: "host" | "origin") => {
+export const observedState = (
+  source: "host" | "origin",
+  respond: () => Response = () => answer(accountDocument()),
+) => {
   const requests: string[] = [];
   const sent: string[] = [];
   const lines: string[] = [];
@@ -55,7 +59,7 @@ export const observedState = (source: "host" | "origin") => {
       readAccountJson(
         async (path) => {
           requests.push(path);
-          return answer(accountDocument());
+          return respond();
         },
         1_000,
         quiet,
