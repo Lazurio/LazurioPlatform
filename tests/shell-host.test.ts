@@ -704,6 +704,19 @@ test("a report asked before the account answered waits for the answer and is sen
   expect(sent).toHaveLength(1);
 });
 
+test("the first report asked with an app wins even when the elements report again as they redraw on the answer", async () => {
+  const { state, sent } = observed("origin");
+  state.provideShell(personalDocument());
+  // An element reports on every redraw, as the rail and the column head do.
+  state.listen(() => state.report("chat", "personal"));
+  state.report("apps", "personal");
+  state.requestAccount();
+  await settled(state);
+  expect(sent.map((body) => JSON.parse(body))).toEqual([
+    { environment: "ada", app: "apps", organization: null },
+  ]);
+});
+
 test("without the account relay (404) or with a refusal (401) nothing is written: no PUT /.lazurio/account/last", async () => {
   for (const status of [404, 401]) {
     const { state, requests, sent } = observed(

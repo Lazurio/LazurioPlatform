@@ -191,14 +191,18 @@ export function createShellState(options: ShellStateOptions) {
       requested = true;
       if (sourceNow() === "host") return;
       void readShellAccount(options.read, log).then((read) => {
-        freshRead = read === null ? "none" : "account";
         if (read !== null) {
           fresh = read;
           account = read;
+          // The elements report as they redraw; while the read still counts
+          // as pending their reports join the queue, so the first one asked
+          // with an app is the one sent, once.
           redraw();
+          freshRead = "account";
           flushReport();
           return;
         }
+        freshRead = "none";
         pendingReport = null;
         // Without a fresh answer, the remembered one stays only while this
         // origin still keeps it (a refusal removed it).
