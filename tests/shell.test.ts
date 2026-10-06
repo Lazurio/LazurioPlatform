@@ -104,8 +104,8 @@ test("a workstation's document: this computer, every Organization of the Folder 
         dashboard: "https://dashboard.lazurio.ai/orgs/beta",
       },
     ],
-    dashboard: "https://dashboard.lazurio.ai/",
-    account: "https://dashboard.lazurio.ai/settings",
+    dashboard: "https://dashboard.lazurio.ai/home",
+    account: "https://dashboard.lazurio.ai/settings/account",
     addOrganization: "https://dashboard.lazurio.ai/add-organization",
   });
   const current = shell.environments[0];
@@ -208,7 +208,7 @@ test("a hosted work Environment is named by its kind and its person, never by it
   expect(
     spaces.map((space) => [space.space, space.href, space.active]),
   ).toEqual([
-    ["personal", "https://dashboard.lazurio.ai/", false],
+    ["personal", "https://dashboard.lazurio.ai/home", false],
     // A click stays in the app the rail sits in (Chat).
     ["example", "https://t3code.workspace.example.lazurio.io/", true],
   ]);
@@ -690,7 +690,9 @@ test("an Organization's Dashboard page uses the slug as the Dashboard derives it
     "https://dashboard.lazurio.ai/orgs/example-co",
   );
   // Nothing left: the Dashboard's home, never a page of another one.
-  expect(organizationDashboardUrl("___")).toBe("https://dashboard.lazurio.ai/");
+  expect(organizationDashboardUrl("___")).toBe(
+    "https://dashboard.lazurio.ai/home",
+  );
 });
 
 test("initials: first letters of two words, else two letters", () => {

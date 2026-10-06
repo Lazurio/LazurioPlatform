@@ -3910,7 +3910,11 @@ each of its origins.
    the design system has not decided the token (prvky "Rail Environmentů"), so a folder
    uses the design system's accent. The apps are the recorded entry's origins; on a
    workstation Apps is `/` and there is no Chat or Automate. The Dashboard is
-   `https://dashboard.lazurio.ai/`, the account settings its `/settings`.
+   `https://dashboard.lazurio.ai/home`, its home, which never redirects, and the
+   account settings its `/settings/account` (changed on 2026-10-06, DEV-6645:
+   they were the root `/`, which root decision 0185 made the landing that may
+   send the person on to an Environment, and `/settings`, which the Dashboard's
+   v2 redirects to its Organizations).
 4. **Serving.** `/.lazurio/shell.js` is `src/shell/index.ts` built by the same Bun when
    the product is bundled (a Bun macro, `src/shell/bundle.ts`), so the compiled
    executable carries it as it carries the page's assets. `/.lazurio/fonts/<file>`
