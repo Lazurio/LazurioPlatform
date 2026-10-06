@@ -601,7 +601,7 @@ posixTest(
 // counted from naming the module, so a start that waits in the Organization's
 // queue behind another operation (or for a lock, or installs) still gets an
 // answer before the transport gives up; the operation goes on. Shortened
-// budgets: a preparation whose check takes 4 s holds the queue, answers are
+// budgets: a preparation whose check takes 2 s holds the queue, answers are
 // due after 0.5 s. (The in-memory user manager runs one app at a time, so the
 // queue is held by a preparation, which starts nothing.)
 posixTest(
@@ -610,7 +610,7 @@ posixTest(
     await world(async ({ folder, app, host, manager }) => {
       await writeFile(
         join(app("ready"), "check.ts"),
-        "await Bun.sleep(4000); process.exit(0);",
+        "await Bun.sleep(2000); process.exit(0);",
       );
       const operations = createModuleOperations({
         folder,
@@ -632,7 +632,7 @@ posixTest(
         );
         const [first, second] = await Promise.all([holding, queued]);
         // Both answered while the preparation's check still held the queue.
-        expect(performance.now() - began).toBeLessThan(3_000);
+        expect(performance.now() - began).toBeLessThan(2_000);
         expect(first).toMatchObject({
           kind: "module",
           operation: "prepare",

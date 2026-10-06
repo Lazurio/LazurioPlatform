@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
-import { requestApplication } from "../src/launchpad/application-client";
+import {
+  applicationRequestDeadlines,
+  requestApplication,
+} from "../src/launchpad/application-client";
 import { applicationMessage } from "../src/launchpad/application-view";
 import { startLaunchpad } from "../src/launchpad/server";
 import { probeListenerHealth } from "../src/modules/health";
@@ -153,8 +156,11 @@ posixTest(
   },
 );
 
+// The normal deadline is shortened for the test (production: 30 s, and the
+// preparation deadline stays as it is): a preparation, a start-time check and
+// a status read each take longer than it, and only the status read is cut.
 posixTest(
-  "CLI preparation and start checks wait beyond normal HTTP deadlines for the shared owner",
+  "CLI preparation and start checks wait beyond the normal HTTP deadline for the shared owner",
   async () => {
     const f = await fixture("slow-preparation");
     const folder = join(root, "slow-preparation-folder");
@@ -166,22 +172,27 @@ posixTest(
       detail: "concise",
       coordination: "direct",
     });
+    const deadlines = { ...applicationRequestDeadlines, normalMs: 300 };
+    const slow = () => Bun.sleep(1_000);
     let runs = 0;
     const app = await startLaunchpad(folder, {
       runner: createSessionRunner(binary),
-      authorize: async () => ({ moduleDirectory: f.directory }),
+      authorize: async (_selection, operation) => {
+        if (operation === "status") await slow();
+        return { moduleDirectory: f.directory };
+      },
       prepareLaunch: f.prepareLaunch,
       preflightPreparation: async () => ({
         run: async () => {
           runs++;
-          await Bun.sleep(31_000);
+          await slow();
           return { kind: "prepared" as const };
         },
         close: async () => ({ kind: "closed" as const }),
       }),
       preflightStartCheck: async () => ({
         run: async () => {
-          await Bun.sleep(31_000);
+          await slow();
           return { kind: "preparation-failed" as const };
         },
         close: async () => ({ kind: "closed" as const }),
@@ -189,31 +200,35 @@ posixTest(
     });
     try {
       expect(
-        await requestApplication({
-          sessionUrl: app.url,
-          operation: "prepare",
-          selection,
-        }),
+        await requestApplication(
+          { sessionUrl: app.url, operation: "prepare", selection },
+          deadlines,
+        ),
       ).toEqual({
         httpOk: true,
         result: { kind: "prepared" },
       });
       expect(runs).toBe(1);
       expect(
-        await requestApplication({
-          sessionUrl: app.url,
-          operation: "start",
-          selection,
-        }),
+        await requestApplication(
+          { sessionUrl: app.url, operation: "start", selection },
+          deadlines,
+        ),
       ).toEqual({
         httpOk: true,
         result: { kind: "prerequisites-not-ready" },
       });
+      // The same deadlines cut an operation that has the normal one.
+      await expect(
+        requestApplication(
+          { sessionUrl: app.url, operation: "status", selection },
+          deadlines,
+        ),
+      ).rejects.toThrow();
     } finally {
       expect(await app.close()).toEqual({ kind: "closed" });
     }
   },
-  75_000,
 );
 
 posixTest(
