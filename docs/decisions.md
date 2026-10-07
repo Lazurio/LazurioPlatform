@@ -2741,7 +2741,8 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    (`bun.lock` or `bun.lockb`) beside that package, under the existing install
    authority, checkout rule (F23) and guarded process; there is no prepare script and
    **no check script**. No owner is searched among the ancestors, and no script name is
-   invented.
+   invented. *Amended 2026-10-07 (addendum below, #253):* a package that declares nothing
+   to install has no lockfile and no install.
 1a. **Local dependencies in the same Organization checkout** (extension of 2026-09-29,
    after a read-only check of this change on a real hosted Organization work Machine:
    of 21 modules 16 were executable, 1 had no app, and 4 were refused as
@@ -2819,6 +2820,8 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    closed set, with the module-relative package or lockfile as `file`, never an
    absolute path or the error message: `preparation-lockfile-missing` (no lockfile, or
    an empty one), `preparation-lockfile-ambiguous` (both `bun.lock` and `bun.lockb`),
+   `preparation-lockfile-unused` (a lockfile beside a package that declares nothing to
+   install, named by the lockfile; addendum of 2026-10-07),
    `preparation-package-manager-unsupported`, `preparation-dependency-outside-owner` (a
    `file:` dependency outside the Organization directory, or for a declared preparation
    outside its owner), `preparation-dependency-missing` (a `file:` dependency that is not
@@ -2847,7 +2850,7 @@ nested in one another.
 
 **Not covered.** The default does not qualify workspaces, local dependencies outside
 the Organization's checkout (point 1a), an application without dependencies (Bun deletes an empty lockfile, so it
-has none and is `preparation-lockfile-missing`), or private Git dependencies beyond
+has none and is `preparation-lockfile-missing`; *covered by the addendum of 2026-10-07 below*), or private Git dependencies beyond
 what the operator's own Git and GitHub access on the Machine allow the install. The
 install runs the package's own lifecycle scripts as `bun install` does. No new
 configuration, Folder state or second mechanism: the default is the absent case of the
@@ -2866,6 +2869,92 @@ undeclared module is a follow-up.
 | Local dependencies anywhere the operator can read | Crosses the Organization's access boundary (one Organization, one access boundary); rejected |
 | The application's own package, a frozen install from its lockfile, no check (selected) | Starts what the replaced Launchpad started; honest refusals with a reason for what it cannot |
 | Local dependencies anywhere in the same Organization (or Personalspace owner) directory, through real directories of the operator's checkout, only the dependency inventoried (selected, point 1a) | Starts the real modules unchanged; the Organization stays the boundary and F23 the only rule |
+
+**Addendum 2026-10-07 (issue #253, plan DEV-6645): a package that declares nothing to
+install needs no lockfile.** A read-only catalog check before a Launchpad switch found
+served modules of one Organization refused with `preparation-lockfile-missing`, every
+one without dependencies: the case "Not covered" above names. Bun keeps no lockfile for
+such a package (Bun 1.4.2: `bun install` answers "No packages! Deleted empty lockfile"),
+and its frozen install refuses any lockfile beside one, a hand-written one with an empty
+`packages` map included ("lockfile had changes, but lockfile is frozen"). Point 1 left a
+dependency-free application, a common shape of a small Bun server, no way to start but
+an artificial dependency, which was the interim fix in those modules. The issue asked
+that such a package be prepared without a lockfile and without the install, and that
+every other package keep the rule; the details below are proposed with the change that
+implements it.
+
+1. **What declares nothing to install.** A package whose `dependencies`,
+   `devDependencies`, `optionalDependencies`, `peerDependencies`, `overrides`,
+   `resolutions`, `catalog`, `catalogs` and `patchedDependencies` are each absent or
+   `{}`, whose `bundleDependencies`, `bundledDependencies` and `trustedDependencies` are
+   each absent or `[]`, that has no `workspaces` member at all, and whose `scripts`
+   (absent, or an object) name none of the scripts `bun install` runs for the package
+   itself: `preinstall`, `install`, `postinstall`, `preprepare`, `prepare`,
+   `postprepare`. Anything else, a member of another shape included
+   (`"dependencies": []`), declares something to install and keeps point 1. Why these:
+   Bun installs the packages of all four dependency kinds by default; workspace members
+   have packages of their own (a workspace stays `preparation-workspace-unqualified`);
+   Bun runs those scripts on every install, also with no package at all, so skipping the
+   install would skip them; it reads every patch file `patchedDependencies` names even
+   without a dependency (a missing one fails the install); and the remaining members
+   configure dependencies, which Bun 1.4.2 ignores without one but another Bun need
+   not, so they keep the rule (fail closed). `packageManager`, `.npmrc` and
+   `bunfig.toml` select the toolchain and configure an install; they decide nothing
+   about whether there is one.
+2. **No lockfile, no install, nothing written.** Such a package is prepared without a
+   lockfile and without the frozen install: no process runs but the toolchain's version
+   probe (`bun --version`, as before every start and launch), `node_modules` is neither
+   created nor written, and the start goes on to the dev script. The default
+   preparation then has no step at all; a declared preparation (F34) runs its check, and
+   its `prepare_script` and the check again when the check fails, as before, only
+   without the install. An explicit clean preparation still removes `node_modules`, then
+   installs nothing. The frozen install itself refuses an owner without a lockfile.
+3. **A lockfile beside such a package is refused by its own name.** It is left over from
+   removed dependencies or written by hand: an ordinary `bun install` deletes it, and the
+   frozen install of the start refuses it, so until now the catalog called such a module
+   executable and every start of it answered `preparation-install-failed`. It is now
+   refused before anything runs, in the catalog and at the start alike, as the new typed
+   reason `preparation-lockfile-unused` with the lockfile itself as `file`
+   (module-relative, for example `app/bun.lock`; with both `bun.lock` and `bun.lockb`,
+   the first). It is never read, followed or changed. The author removes it, or declares
+   the dependencies it locks. It is not ignored: a module whose package and lockfile
+   contradict each other (did the package lose its dependencies, or did the lockfile
+   outlive them?) is not started on a guess, which is what the frozen install exists to
+   refuse.
+4. **The checkout rule and the observation stay whole (F23).** Before anything is
+   decided, the owner's `package.json` is read under the same file rule (a regular file
+   of the operator, at most 1 MiB, never through a symlink) and parsed with unique
+   members, so a duplicate member never makes a package look dependency-free; the
+   checkout's `.npmrc` and `bunfig.toml` down to the owner, and at the start the
+   account's configuration, keep their rule with the same reasons and files. The install
+   authority's snapshot holds no lockfile and no lockfile digest; the verdict is the
+   package's bytes, which its digest binds, beside the configuration's digests. A package
+   that later declares a dependency is therefore a changed observation (a run whose
+   package changed is not prepared), and inspected again it is under the lockfile rule:
+   `preparation-lockfile-missing` until its lockfile is committed. The catalog's
+   `inspectPreparationShape` and the start's install authority read the owner through the
+   one `readInstallOwner`, so they give one verdict.
+5. **Unchanged.** A package that declares something to install keeps point 1 and F34 as
+   they are; the overlap rule of point 6 still applies to the default preparation; a
+   workspace stays refused. The generated manual says so from template revision
+   `base-instructions-32`.
+
+**Known consequence (issue #254).** Bun's own install of such a package leaves an empty
+`node_modules`. Without any `node_modules` in the application's directory or above it,
+Bun's runtime auto-install (its default `--install=auto`) is active, so a package the
+application imports without declaring it is resolved through the registry when it runs
+instead of failing. The Platform does not create `node_modules` to change that: the
+preparation of such a package writes nothing in the module. Issue #254 holds the
+options.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep point 1; a dependency-free module declares an artificial dependency (the interim fix) | Every such module carries a dependency it does not use; rejected by the issue |
+| The frozen install without a lockfile for such a package (Bun installs nothing, runs the package's install scripts and leaves an empty `node_modules`) | A process and a write on every start for nothing, and the catalog would still need a verdict of its own; not chosen |
+| Only the four dependency members and `workspaces` decide | A package with install scripts or patches would skip what Bun's install does for it; rejected (fail closed) |
+| Ignore a lockfile beside such a package | Starts a checkout that contradicts itself and that Bun's frozen install refuses; rejected |
+| Keep point 1 for a lockfile beside such a package (its frozen install then always fails) | The catalog calls executable what every start refuses; rejected |
+| Nothing to install as point 1 of this addendum defines it: no lockfile, no install, a lockfile beside it refused by its own name (selected) | Dependency-free applications start without a change in the module; every other package keeps the rule; the catalog and the start agree |
 
 ## F26 — A started application gets the runtime environment of the replaced Launchpad
 
@@ -3604,7 +3693,9 @@ and crashed at once on a dependency an update had added (`Cannot find module`).
 1. **The start-time step.** For a declared preparation the start runs the frozen install
    from the lockfile beside the owner's package **first, on every start**, exactly as the
    default preparation does (F25 point 2), under the existing install authority, checkout
-   rule and guarded process; then its check. A check that passes is the end of the step:
+   rule and guarded process; then its check. (*Amended 2026-10-07, F25 addendum:* an
+   owner whose package declares nothing to install has no lockfile and no install; its
+   start begins with the check.) A check that passes is the end of the step:
    the application starts and `prepare_script` does not run. A check that fails is followed
    by the declared `prepare_script` and the check again; the application starts only when
    that check passes. The gateway's `ensure` and the Launchpad's Start run the same core.

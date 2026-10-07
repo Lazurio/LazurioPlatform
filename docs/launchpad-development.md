@@ -831,7 +831,9 @@ of the module `directory-not-regular`, `directory-owner`; an Organization whose 
 or document is refused gets the same reason with its `file`; or, since decision F25, a
 preparation of the default app that cannot run for a reason known without running
 anything, with the package it concerns as `file`: `preparation-lockfile-missing`,
-`preparation-lockfile-ambiguous`, `preparation-package-manager-unsupported`,
+`preparation-lockfile-ambiguous`, `preparation-lockfile-unused` (with the lockfile as
+`file`, beside a package that declares nothing to install, F25 addendum of
+2026-10-07), `preparation-package-manager-unsupported`,
 `preparation-dependency-outside-owner`, `preparation-dependency-missing`,
 `preparation-owner-invalid`, `preparation-applications-overlap`,
 `preparation-script-missing`, `preparation-workspace-unqualified`). Executable means the
@@ -1050,11 +1052,12 @@ read.
 its own declaration through the existing lifecycle (`src/modules/lifecycle.ts`), the
 runners and `localApplicationAdapters`: for an app without a `lazurio.preparation` its
 default preparation, the frozen install from the lockfile beside its package (decision
-F25); for an app that declares one the same frozen install on every start (when
-`node_modules` matches the lockfile Bun leaves registry dependencies as they are, but
-copies local `file:` dependencies again and runs the app package's own lifecycle scripts
-such as `postinstall`), then its check, and only when the check fails the
-declared `prepare_script` and the check again (decision F34, Lazurio Module Standard
+F25; nothing at all for a package that declares nothing to install, which needs no
+lockfile, F25 addendum of 2026-10-07); for an app that declares one the same frozen
+install on every start (when `node_modules` matches the lockfile Bun leaves registry
+dependencies as they are, but copies local `file:` dependencies again and runs the app
+package's own lifecycle scripts such as `postinstall`), then its check, and only when
+the check fails the declared `prepare_script` and the check again (decision F34, Lazurio Module Standard
 ch. 3 and 10); then the dev script, never a hostname convention. A check that passes
 after the install runs no `prepare_script`. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
 preparation (the transaction with the retained owner lock), whatever the check says now,
