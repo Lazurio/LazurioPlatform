@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, spyOn, test } from "bun:test";
+import { createHash } from "node:crypto";
 import * as fsPromises from "node:fs/promises";
 import {
   lstat,
@@ -1364,6 +1365,303 @@ posixTest(
         expect(await app.close()).toEqual({ kind: "closed" });
       }
     });
+  },
+  120_000,
+);
+
+// Issue #254: Bun's runtime auto-install is off for every module process. A
+// Bun process that finds no node_modules would otherwise fetch a package its
+// module imports without declaring it, unpinned, while it runs. The registry
+// is a stand-in on loopback with one package, so nothing reaches the
+// network; each app names it in its own bunfig.toml and even forces
+// auto-install there.
+async function registryStandIn(directory: string) {
+  await mkdir(join(directory, "package"), { recursive: true });
+  await writeFile(
+    join(directory, "package/package.json"),
+    JSON.stringify({
+      name: "fixture-undeclared",
+      version: "1.0.0",
+      main: "index.js",
+    }),
+  );
+  await writeFile(
+    join(directory, "package/index.js"),
+    'module.exports = "fetched from the registry";\n',
+  );
+  const tarball = join(directory, "fixture-undeclared-1.0.0.tgz");
+  const packed = await runChild(
+    ["/usr/bin/tar", "-czf", tarball, "-C", directory, "package"],
+    { env: { PATH: "/usr/bin:/bin", COPYFILE_DISABLE: "1" } },
+  );
+  expect(packed.exitCode, packed.stderr).toBe(0);
+  const bytes = await readFile(tarball);
+  const requests: string[] = [];
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      const { origin, pathname } = new URL(request.url);
+      requests.push(pathname);
+      if (pathname === "/fixture-undeclared")
+        return Response.json({
+          name: "fixture-undeclared",
+          "dist-tags": { latest: "1.0.0" },
+          versions: {
+            "1.0.0": {
+              name: "fixture-undeclared",
+              version: "1.0.0",
+              main: "index.js",
+              dist: {
+                tarball: `${origin}/fixture-undeclared/-/fixture-undeclared-1.0.0.tgz`,
+                integrity: `sha512-${createHash("sha512").update(bytes).digest("base64")}`,
+                shasum: createHash("sha1").update(bytes).digest("hex"),
+              },
+            },
+          },
+        });
+      if (pathname === "/fixture-undeclared/-/fixture-undeclared-1.0.0.tgz")
+        return new Response(bytes);
+      return new Response("not found", { status: 404 });
+    },
+  });
+  return {
+    bunfig: `[install]\nregistry = "http://127.0.0.1:${server.port}/"\nauto = "force"\n`,
+    requests,
+    stop: () => server.stop(true),
+  };
+}
+
+// An app of `id` that declares nothing to install and imports the stand-in's
+// package without declaring it, with the stand-in in its own bunfig.toml.
+async function importsUndeclared(
+  world: World,
+  id: string,
+  registry: Awaited<ReturnType<typeof registryStandIn>>,
+) {
+  const app = world.app(id);
+  const nothingInstalled = await declaresNothing(world, id);
+  await writeFile(
+    join(app, "server.ts"),
+    'import value from "fixture-undeclared"; Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch: () => new Response(String(value)) });',
+  );
+  await writeFile(join(app, "bunfig.toml"), registry.bunfig);
+  return nothingInstalled;
+}
+
+// The unit the user manager was last asked for: its environment, working
+// directory and command.
+function unitDefinition(manager: World["manager"]) {
+  const args = manager.commands("systemd-run").at(-1)?.args ?? [];
+  const environment: Record<string, string> = {};
+  for (const entry of args)
+    if (entry.startsWith("--setenv=")) {
+      const pair = entry.slice("--setenv=".length);
+      environment[pair.slice(0, pair.indexOf("="))] = pair.slice(
+        pair.indexOf("=") + 1,
+      );
+    }
+  const cwd = args.find((entry) => entry.startsWith("--working-directory="));
+  return {
+    environment,
+    cwd: cwd?.slice("--working-directory=".length) as string,
+    command: args.slice(args.indexOf("--") + 1),
+  };
+}
+
+posixTest(
+  "no module process fetches what its package does not declare: the unit, ensure and the check run with Bun's runtime auto-install off, so an app that imports an undeclared package does not run and a check that imports it fails, with nothing fetched and no node_modules (issue #254)",
+  async () => {
+    const more = ["fetching", "checking"].map((id) => ({ id }));
+    await world("no-runtime-install", more, async (world) => {
+      const registry = await registryStandIn(
+        join(dirname(world.home), "registry"),
+      );
+      try {
+        const app = world.app("fetching");
+        const nothingInstalled = await importsUndeclared(
+          world,
+          "fetching",
+          registry,
+        );
+        // The control: without the option, Bun fetches the package from
+        // the stand-in and runs, so no request below means none was made.
+        const control = join(dirname(world.home), "control");
+        await mkdir(control);
+        await writeFile(
+          join(app, "probe.ts"),
+          'import value from "fixture-undeclared"; console.log(value);',
+        );
+        const probed = await runChild(
+          [process.execPath, "--no-env-file", "probe.ts"],
+          { cwd: app, env: { HOME: control, PATH: "/usr/bin:/bin" } },
+        );
+        expect(probed.stdout.trim(), probed.stderr).toBe(
+          "fetched from the registry",
+        );
+        expect(registry.requests.length).toBeGreaterThan(0);
+        await rm(join(app, "probe.ts"));
+        registry.requests.length = 0;
+        await nothingInstalled();
+
+        // The start asks the user manager for a unit with the option; run as
+        // the manager runs it, the app ends on the import without a request.
+        expect(await world.run("start", "fetching")).toMatchObject({
+          kind: "module",
+          outcome: "started",
+        });
+        const unit = unitDefinition(world.manager);
+        expect(unit.environment.BUN_OPTIONS).toBe("--no-install");
+        // Bounded: an app that fetched it would serve and never end.
+        const ran = await runChild(unit.command, {
+          cwd: unit.cwd,
+          env: unit.environment,
+          timeout: 20_000,
+        });
+        expect(ran.exitCode).not.toBe(0);
+        expect(ran.stderr).toContain(
+          "Cannot find package 'fixture-undeclared'",
+        );
+        expect(registry.requests).toEqual([]);
+        await nothingInstalled();
+        expect(await world.run("stop", "fetching")).toMatchObject({
+          outcome: "group-stopped",
+        });
+        // The gateway's ensure starts the same unit.
+        expect(await world.ensure("fetching")).toMatchObject({
+          kind: "module",
+          operation: "ensure",
+        });
+        expect(unitDefinition(world.manager).environment.BUN_OPTIONS).toBe(
+          "--no-install",
+        );
+        expect(await world.run("stop", "fetching")).toMatchObject({
+          outcome: "group-stopped",
+        });
+
+        // A declared check that imports it fails: the start answers that the
+        // check did not pass, and nothing was fetched.
+        const checking = world.app("checking");
+        await dependencyFreeModule(join(checking, ".."));
+        const pkg = JSON.parse(
+          await readFile(join(checking, "package.json"), "utf8"),
+        );
+        pkg.scripts = {
+          ...pkg.scripts,
+          check: `"${process.execPath}" --no-env-file check.ts`,
+        };
+        pkg.lazurio.preparation = {
+          schema_version: "lazurio.preparation.v1",
+          owner_package: "app/package.json",
+          check_script: "check",
+        };
+        await writeFile(join(checking, "package.json"), JSON.stringify(pkg));
+        await writeFile(join(checking, "bunfig.toml"), registry.bunfig);
+        await writeFile(
+          join(checking, "check.ts"),
+          'import { appendFileSync } from "node:fs"; appendFileSync("checks", "c"); await import("fixture-undeclared"); appendFileSync("checks", "i");',
+        );
+        expect(await world.run("start", "checking")).toMatchObject({
+          kind: "blocked",
+          operation: "start",
+          reason: "prerequisites-not-ready",
+        });
+        expect(await readFile(join(checking, "checks"), "utf8")).toBe("c");
+        expect(registry.requests).toEqual([]);
+        await expect(lstat(join(checking, "node_modules"))).rejects.toThrow();
+      } finally {
+        registry.stop();
+      }
+    });
+  },
+  120_000,
+);
+
+posixTest(
+  "the Launchpad's session start runs with Bun's runtime auto-install off: an app that imports an undeclared package ends without serving, nothing is fetched and node_modules is not written (issue #254)",
+  async () => {
+    await world(
+      "no-runtime-install-session",
+      [{ id: "fetching" }],
+      async (world) => {
+        const registry = await registryStandIn(
+          join(dirname(world.home), "registry"),
+        );
+        try {
+          const nothingInstalled = await importsUndeclared(
+            world,
+            "fetching",
+            registry,
+          );
+          const host: ModuleHost = {
+            platform: "darwin",
+            home: world.home,
+            path: "/usr/bin:/bin",
+            runtimeDirectory: undefined,
+            platformExecutable: binary,
+            bunExecutable: process.execPath,
+            runnerKind: async () => "session",
+            createRunner: () => createSessionRunner(binary),
+            readJournal: async () => {
+              throw new Error("A session app has no journal");
+            },
+          };
+          const launchpad = await startLaunchpad(
+            world.folder,
+            undefined,
+            undefined,
+            undefined,
+            {},
+            undefined,
+            {},
+            undefined,
+            host,
+          );
+          try {
+            const url = new URL(launchpad.url);
+            const headers = {
+              Origin: url.origin,
+              Authorization: `Bearer ${url.hash.slice(1)}`,
+            };
+            const route = (verb: string) =>
+              `${url.origin}/api/modules/delta/fetching/${verb}`;
+            const started = await fetch(route("start"), {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: "{}",
+            });
+            expect(started.status).toBe(200);
+            expect(await started.json()).toMatchObject({
+              outcome: "started",
+              runner: "session",
+            });
+            let status: Record<string, unknown> = {};
+            for (
+              let attempt = 0;
+              attempt < 100 && status.state !== "ended";
+              attempt++
+            ) {
+              status = await (
+                await fetch(route("status"), {
+                  headers: { Authorization: headers.Authorization },
+                })
+              ).json();
+              if (status.state !== "ended") await Bun.sleep(100);
+            }
+            expect(status).toMatchObject({ state: "ended", healthy: false });
+            await expect(
+              fetch(`http://127.0.0.1:${world.ports.fetching}/`),
+            ).rejects.toThrow();
+            expect(registry.requests).toEqual([]);
+            await nothingInstalled();
+          } finally {
+            expect(await launchpad.close()).toEqual({ kind: "closed" });
+          }
+        } finally {
+          registry.stop();
+        }
+      },
+    );
   },
   120_000,
 );

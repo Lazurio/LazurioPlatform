@@ -2938,14 +2938,25 @@ implements it.
    they are; the overlap rule of point 6 still applies to the default preparation; a
    workspace stays refused. The generated manual says so from template revision
    `base-instructions-32`.
-
-**Known consequence (issue #254).** Bun's own install of such a package leaves an empty
-`node_modules`. Without any `node_modules` in the application's directory or above it,
-Bun's runtime auto-install (its default `--install=auto`) is active, so a package the
-application imports without declaring it is resolved through the registry when it runs
-instead of failing. The Platform does not create `node_modules` to change that: the
-preparation of such a package writes nothing in the module. Issue #254 holds the
-options.
+6. **No module process installs while it runs (issue #254).** Bun's own install of such a
+   package leaves an empty `node_modules`; without any `node_modules` in its directory or
+   above, a Bun process has Bun's runtime auto-install on by default (`--install=auto`),
+   so a package the module imports without declaring it would be fetched from the
+   registry while it runs, unpinned, where before this addendum the module was refused.
+   Every process the Platform starts for a module (the install, the check and
+   preparation scripts and the application, in both runners and for `ensure`) therefore
+   runs with `BUN_OPTIONS` carrying `--no-install`, after any options its environment
+   already passes, which stay. Observed on Bun 1.4.2: Bun hands `BUN_OPTIONS` to every
+   bun a script starts; `--no-install` outranks the module's own `bunfig.toml`
+   (`install.auto`) and an `--install` or `-i` on its own command line, wherever it
+   stands; `bun x` then refuses a package that is not installed; nothing changes where
+   `node_modules` exists, and `bun install` installs and fetches as before. An undeclared
+   import therefore fails as it does after an install. Only module code that
+   deliberately replaces `BUN_OPTIONS` could turn auto-install back on: module scripts
+   are trusted code, not sandboxed (F23). The closed base of F26 gains this one
+   variable; an application already running keeps its environment until it is started
+   again (F26 point 5), and no application without `node_modules` could be started
+   before this addendum.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -2955,6 +2966,10 @@ options.
 | Ignore a lockfile beside such a package | Starts a checkout that contradicts itself and that Bun's frozen install refuses; rejected |
 | Keep point 1 for a lockfile beside such a package (its frozen install then always fails) | The catalog calls executable what every start refuses; rejected |
 | Nothing to install as point 1 of this addendum defines it: no lockfile, no install, a lockfile beside it refused by its own name (selected) | Dependency-free applications start without a change in the module; every other package keeps the rule; the catalog and the start agree |
+| Leave Bun's runtime auto-install as it is for a module without `node_modules` | An undeclared import is fetched unpinned while the module runs, where the module was refused before; rejected in the review of #255 |
+| Create an empty `node_modules` for such a package | A write in the module on every start, against point 2; not chosen |
+| `install.auto = "disable"` in each module's own `bunfig.toml` | Every module has to opt in, and one that does not fetches; rejected |
+| `BUN_OPTIONS` with `--no-install` for every module process (selected, point 6) | One place for both runners, the preparation and the launch; changes nothing where `node_modules` exists |
 
 ## F26 — A started application gets the runtime environment of the replaced Launchpad
 
@@ -2993,6 +3008,10 @@ lease (`R:lazurio/core/module-contract-lib.mjs:183-209`), `launchpad/README.md` 
    | `COMPANYASCODE_ORGANIZATION_ROOT` | the canonical Organization root | an Organization's module; not a Personalspace module | `organizationRuntimeEnv` |
    | `NODE_PATH` | `<application directory>/node_modules` | always | `runtimeProcessEnv` |
    | `NODE_ENV`, `ASTRO_DEV_BACKGROUND`, `ASTRO_PREVIEW_BACKGROUND` | `development`, `1`, `1` | always | start overrides |
+
+   *Amended 2026-10-07 (F25 addendum, point 6):* the closed base of every module
+   process also carries `BUN_OPTIONS` with `--no-install`, Bun's runtime auto-install
+   off.
 
 2. **One source for the origin.** The origin is the one `runtime.url` links to, from one
    function (`applicationOrigin` in `src/modules/module-operations.ts`): on a Folder with
@@ -3041,7 +3060,8 @@ lease (`R:lazurio/core/module-contract-lib.mjs:183-209`), `launchpad/README.md` 
    (macOS) ends with its Launchpad, so an update always starts it anew.
 
 **Not covered.** The preparation's processes (install, prepare and check scripts) keep
-the closed base environment, as before. Other differences of the start that the
+the closed base environment, as before (with `BUN_OPTIONS` since the F25 addendum of
+2026-10-07). Other differences of the start that the
 replaced Launchpad had and this one does not (`bun run` without `--no-env-file`, so Bun
 loaded the package's `.env` files; its own log file per app; a port takeover) are
 separate questions, not changed here. The qualification journeys start no module; the

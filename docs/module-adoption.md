@@ -148,7 +148,11 @@ issue #253: no dependency of any kind and no setting for one, no `workspaces`, n
 script `bun install` runs for the package itself) has no lockfile and no install, under
 either preparation: Bun keeps no lockfile for it, so none is required, nothing runs and
 `node_modules` is not written; a lockfile left beside it is refused as
-`preparation-lockfile-unused`, named by the lockfile. Because the default has no check,
+`preparation-lockfile-unused`, named by the lockfile. Every process the Platform starts
+for a module, its install, check and preparation scripts and the application, runs with
+Bun's runtime auto-install off (`BUN_OPTIONS` with `--no-install`, F25 addendum point
+6), so an import the package does not declare fails instead of being fetched while the
+module runs. Because the default has no check,
 **its start-time step is the frozen install itself**, which changes nothing when
 `node_modules` already matches the lockfile and repairs it when it does not; an explicit declaration's start runs the same
 install, then its check, and only when the check fails its `prepare_script` and the check

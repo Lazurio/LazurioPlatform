@@ -2,7 +2,10 @@ import { dirname, join } from "node:path";
 import { retainedOperationLockPresent } from "../folder/retained-lock";
 import { resolveOrganizationApplication } from "../organizations/read-applications";
 import type { createApplicationCoordination } from "./application-coordination";
-import { applicationEnvironment } from "./application-environment";
+import {
+  applicationEnvironment,
+  moduleProcessEnvironment,
+} from "./application-environment";
 import type { ApplicationRunner } from "./application-runner";
 import { inspectBunToolchain, requireBunToolchain } from "./bun-toolchain";
 import {
@@ -45,11 +48,14 @@ export function localApplicationAdapters(input: {
   organizationRoot?: string;
   externalOrigin?: (module: string) => Promise<string | null>;
 }): Adapters {
+  // The one environment of every process started for a module here: the
+  // preparation's install and scripts, the toolchain probe and the
+  // application, in both runners; Bun's runtime auto-install is off in it.
   const selected = parseProcessLaunch({
     executable: input.bunExecutable,
     cwd: input.organizationDirectory,
     args: [],
-    env: input.environment,
+    env: moduleProcessEnvironment(input.environment),
   });
   const platformExecutable = input.platformExecutable;
   const owners = createOwnerOperations();

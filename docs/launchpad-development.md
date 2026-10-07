@@ -1058,7 +1058,9 @@ install on every start (when `node_modules` matches the lockfile Bun leaves regi
 dependencies as they are, but copies local `file:` dependencies again and runs the app
 package's own lifecycle scripts such as `postinstall`), then its check, and only when
 the check fails the declared `prepare_script` and the check again (decision F34, Lazurio Module Standard
-ch. 3 and 10); then the dev script, never a hostname convention. A check that passes
+ch. 3 and 10); then the dev script, never a hostname convention. Every one of these
+processes runs with Bun's runtime auto-install off (`BUN_OPTIONS` with `--no-install`,
+F25 addendum of 2026-10-07, point 6). A check that passes
 after the install runs no `prepare_script`. **Prepare** (`lazurio module prepare`) runs the lifecycle's explicit
 preparation (the transaction with the retained owner lock), whatever the check says now,
 and starts nothing: for a declared preparation the install, `prepare_script` and check,
