@@ -94,6 +94,7 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-script-missing": "preparationReasonScriptMissing",
   "preparation-lockfile-missing": "preparationReasonLockfileMissing",
   "preparation-lockfile-ambiguous": "preparationReasonLockfileAmbiguous",
+  "preparation-lockfile-unused": "preparationReasonLockfileUnused",
   "preparation-package-manager-unsupported": "preparationReasonPackageManager",
   "preparation-workspace-unqualified": "preparationReasonWorkspace",
   "preparation-applications-overlap": "preparationReasonApplicationsOverlap",

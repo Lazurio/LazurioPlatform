@@ -80,10 +80,12 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   // Module-relative names of what a failed step concerns.
   const named = (path: string) =>
     relative(moduleDirectory, path).split(sep).join("/");
-  // A failed install: the lockfile it installs from.
-  const lockfile = named(
-    join(binding.authority.owner, binding.authority.lockfile),
-  );
+  // A failed install: the lockfile it installs from. A package that
+  // declares nothing to install has neither (issue #253).
+  const lockfile =
+    binding.authority.lockfile === null
+      ? undefined
+      : named(join(binding.authority.owner, binding.authority.lockfile));
   // A failed preparation script: the owner's package.json that declares it.
   const ownerPackage = named(join(binding.authority.owner, "package.json"));
   const environment = binding.authority.environment ?? undefined;
@@ -148,7 +150,12 @@ export async function preflightDeclaredBunPreparation(input: Input) {
       )
         return Object.freeze(result);
       // A failed default preparation is its install: it has nothing else.
-      if (byDefault) return failed("preparation-install-failed", lockfile);
+      // Without an install it has no step at all, and a failure (its inputs
+      // changed while it ran) names none.
+      if (byDefault)
+        return lockfile === undefined
+          ? failed(undefined, undefined)
+          : failed("preparation-install-failed", lockfile);
       // A declared preparation names the step that failed (decision F34). A
       // check that still fails is no refusal of the Platform's: the start
       // answers `prerequisites-not-ready`.

@@ -509,6 +509,8 @@ const en = {
     "{file} has no Bun lockfile (bun.lock) beside it, so its dependencies cannot be installed exactly. Commit the lockfile with the app.",
   preparationReasonLockfileAmbiguous:
     "{file} has both bun.lock and bun.lockb beside it; keep only the one Bun installs from.",
+  preparationReasonLockfileUnused:
+    "{file} lies beside a package that declares nothing to install: such a package needs no lockfile and Bun keeps none for it, so this one is left over. Remove it from the module, or declare the dependencies it locks.",
   preparationReasonPackageManager:
     "The packageManager of {file} is not an exact Bun version (bun@x.y.z); Lazurio installs and runs modules with Bun.",
   preparationReasonWorkspace:
@@ -1356,6 +1358,8 @@ const cs: Record<MessageKey, string> = {
     "Vedle {file} není Bun lockfile (bun.lock), takže jeho závislosti nejde nainstalovat přesně. Commitněte lockfile spolu s aplikací.",
   preparationReasonLockfileAmbiguous:
     "Vedle {file} je bun.lock i bun.lockb; nechte jen ten, ze kterého Bun instaluje.",
+  preparationReasonLockfileUnused:
+    "{file} leží vedle balíčku, který nedeklaruje nic k instalaci: takový balíček lockfile nepotřebuje a Bun pro něj žádný nedrží, takže tenhle tu zůstal navíc. Odstraňte ho z modulu, nebo deklarujte závislosti, které zamyká.",
   preparationReasonPackageManager:
     "packageManager v {file} není přesná verze Bunu (bun@x.y.z); Lazurio moduly instaluje a spouští Bunem.",
   preparationReasonWorkspace:

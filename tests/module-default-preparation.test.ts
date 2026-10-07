@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, spyOn, test } from "bun:test";
+import * as fsPromises from "node:fs/promises";
 import {
   lstat,
   mkdtemp,
@@ -24,6 +25,7 @@ import { writeOrganization } from "./fixtures/catalog-folder";
 import { createFakeServiceManager } from "./fixtures/fake-service-manager";
 import {
   compilePlatform,
+  dependencyFreeModule,
   linuxHost,
   runnable,
   undeclaredModule,
@@ -32,6 +34,7 @@ import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
+import { runChild } from "./fixtures/run-child";
 
 // The default preparation of issue #97 (decision F25) through its consumers:
 // `lazurio module list`, `lazurio module start|status|stop`, the gateway's
@@ -71,7 +74,8 @@ function cliContext(home: string): CliContext {
 // The modules of Organization delta (a `transition` root):
 // - ledger: undeclared, its node_modules older than its checkout;
 // - notes: the explicit declaration, with a start check that passes;
-// - drafts: undeclared, without a lockfile beside its package.
+// - drafts: undeclared, declaring a dependency without a lockfile beside
+//   its package.
 const modules = ["ledger", "notes", "drafts"] as const;
 
 type World = Readonly<{
@@ -84,7 +88,7 @@ type World = Readonly<{
   host: (module: string) => ModuleHost;
   list: () => Promise<Record<string, Record<string, unknown>>>;
   run: (
-    verb: "start" | "status" | "stop" | "logs",
+    verb: "start" | "prepare" | "status" | "stop" | "logs",
     module: string,
     app?: string,
   ) => Promise<Record<string, unknown>>;
@@ -93,7 +97,7 @@ type World = Readonly<{
 
 async function world(
   name: string,
-  more: { id: string; lockfile?: boolean }[],
+  more: { id: string; unlocked?: boolean }[],
   body: (world: World) => Promise<void>,
 ) {
   const parent = await realpath(await mkdtemp(join(root, `${name}-`)));
@@ -113,7 +117,7 @@ async function world(
       modules: [
         { id: "ledger" },
         { id: "notes" },
-        { id: "drafts", lockfile: false },
+        { id: "drafts", unlocked: true },
         ...more,
       ],
     });
@@ -509,7 +513,6 @@ async function contractsApplication(
     await readFile(join(module, "app/package.json"), "utf8"),
   );
   await rm(join(module, "app/package.json"));
-  await rm(join(module, "app/bun.lock"));
   const app = join(module, "app/v3");
   await mkdir(app);
   pkg.private = true;
@@ -804,7 +807,6 @@ posixTest(
       await applicationPackage(world, "nested", "package.json");
       await applicationPackage(world, "nested", "app/v2/package.json");
       await rm(join(world.app("nested"), "package.json"));
-      await rm(join(world.app("nested"), "bun.lock"));
       await declareApps(
         world,
         "nested",
@@ -823,7 +825,6 @@ posixTest(
         "fixture-shared": "file:./packages/shared",
       });
       await rm(join(world.app("siblings"), "package.json"));
-      await rm(join(world.app("siblings"), "bun.lock"));
       await declareApps(
         world,
         "siblings",
@@ -935,6 +936,433 @@ posixTest(
         });
       }
       expect(world.manager.commands("systemd-run")).toHaveLength(0);
+    });
+  },
+  120_000,
+);
+
+// Issue #253: an application package that declares nothing to install, the
+// shape of a small Bun server. Bun writes no lockfile for it, so it is
+// prepared without one and without an install. Bun's install, frozen or not,
+// leaves node_modules even when it installs nothing, so a node_modules that
+// does not appear shows that no install ran.
+async function declaresNothing(world: World, id: string) {
+  const app = world.app(id);
+  await dependencyFreeModule(join(app, ".."));
+  const pkg = await readFile(join(app, "package.json"), "utf8");
+  return async () => {
+    await expect(lstat(join(app, "node_modules"))).rejects.toThrow();
+    await expect(lstat(join(app, "bun.lock"))).rejects.toThrow();
+    expect(await readFile(join(app, "package.json"), "utf8")).toBe(pkg);
+  };
+}
+
+posixTest(
+  "a package that declares nothing to install is executable without a lockfile, and its start, ensure and prepare install nothing; once it declares a dependency it needs its lockfile first (issue #253)",
+  async () => {
+    const more = ["plain", "checked"].map((id) => ({ id }));
+    await world("nothing-to-install", more, async (world) => {
+      const where = { organization: "delta", module: "plain" };
+      const nothingInstalled = await declaresNothing(world, "plain");
+      // checked: the same package with the explicit declaration, a check
+      // that passes once its prepare_script ran (decision F34).
+      const checked = world.app("checked");
+      const declaration = JSON.parse(
+        await readFile(join(checked, "package.json"), "utf8"),
+      );
+      declaration.scripts = {
+        ...declaration.scripts,
+        check: `"${process.execPath}" --no-env-file check.ts`,
+        "prepare:app": `"${process.execPath}" --no-env-file prepare.ts`,
+      };
+      declaration.lazurio.preparation = {
+        schema_version: "lazurio.preparation.v1",
+        owner_package: "app/package.json",
+        check_script: "check",
+        prepare_script: "prepare:app",
+      };
+      await writeFile(
+        join(checked, "package.json"),
+        JSON.stringify(declaration),
+      );
+      await writeFile(
+        join(checked, "check.ts"),
+        'import { appendFileSync, existsSync } from "node:fs"; appendFileSync("steps", "c"); process.exit(existsSync("prepared") ? 0 : 1);',
+      );
+      await writeFile(
+        join(checked, "prepare.ts"),
+        'import { appendFileSync } from "node:fs"; appendFileSync("steps", "p"); await Bun.write("prepared", "yes");',
+      );
+      const steps = () => readFile(join(checked, "steps"), "utf8");
+      await expect(lstat(join(checked, "bun.lock"))).rejects.toThrow();
+
+      const rows = await world.list();
+      for (const id of ["plain", "checked"]) {
+        expect(rows[id]).toMatchObject({ executable: true });
+        expect(rows[id]).not.toHaveProperty("reason");
+      }
+      expect(await world.run("start", "plain")).toMatchObject({
+        kind: "module",
+        operation: "start",
+        ...where,
+        app: "app/package.json",
+        outcome: "started",
+        healthy: true,
+      });
+      await nothingInstalled();
+      expect(await world.run("status", "plain")).toMatchObject({
+        state: "running",
+        healthy: true,
+      });
+      expect(await world.run("stop", "plain")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      // The gateway's ensure takes the same path.
+      expect(await world.ensure("plain")).toMatchObject({
+        kind: "module",
+        operation: "ensure",
+        ...where,
+        healthy: true,
+      });
+      expect(await world.run("stop", "plain")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      // An explicit preparation has nothing to install either.
+      expect(await world.run("prepare", "plain")).toMatchObject({
+        kind: "module",
+        operation: "prepare",
+        outcome: "prepared",
+      });
+      await nothingInstalled();
+
+      // The declared check runs without the install, prepare_script only
+      // while it fails.
+      expect(await world.run("start", "checked")).toMatchObject({
+        outcome: "started",
+        healthy: true,
+      });
+      expect(await steps()).toBe("cpc");
+      expect(await world.run("stop", "checked")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      expect(await world.run("start", "checked")).toMatchObject({
+        outcome: "started",
+        healthy: true,
+      });
+      expect(await steps()).toBe("cpcc");
+      expect(await world.run("stop", "checked")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      await expect(lstat(join(checked, "node_modules"))).rejects.toThrow();
+      const units = world.manager.commands("systemd-run").length;
+      expect(units).toBe(4);
+
+      // A dependency declared later: refused by the lockfile rule in the
+      // list and at the start alike, until its lockfile is committed; then
+      // the start installs it.
+      const app = world.app("plain");
+      await mkdir(join(app, "dependency"));
+      await writeFile(
+        join(app, "dependency/package.json"),
+        JSON.stringify({ name: "fixture-dependency", version: "1.0.0" }),
+      );
+      const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
+      pkg.dependencies = { "fixture-dependency": "file:./dependency" };
+      await writeFile(join(app, "package.json"), JSON.stringify(pkg));
+      const refused = {
+        reason: "preparation-lockfile-missing",
+        ...where,
+        file: "app/package.json",
+      };
+      expect((await world.list()).plain).toMatchObject({
+        executable: false,
+        reason: refused.reason,
+        file: refused.file,
+        preparationRefused: true,
+      });
+      expect(await world.run("start", "plain")).toEqual({
+        kind: "blocked",
+        operation: "start",
+        ...refused,
+      });
+      expect(await world.ensure("plain")).toEqual({
+        kind: "blocked",
+        operation: "ensure",
+        ...refused,
+      });
+      await expect(lstat(join(app, "node_modules"))).rejects.toThrow();
+      const locked = await runChild(
+        [process.execPath, "--no-env-file", "install", "--lockfile-only"],
+        { cwd: app, env: { HOME: world.home, PATH: "/usr/bin:/bin" } },
+      );
+      expect(locked.exitCode, locked.stderr).toBe(0);
+      expect((await world.list()).plain).toMatchObject({ executable: true });
+      expect(await world.run("start", "plain")).toMatchObject({
+        outcome: "started",
+        healthy: true,
+      });
+      expect(
+        JSON.parse(
+          await readFile(
+            join(app, "node_modules/fixture-dependency/package.json"),
+            "utf8",
+          ),
+        ).version,
+      ).toBe("1.0.0");
+      expect(await world.run("stop", "plain")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      expect(world.manager.commands("systemd-run")).toHaveLength(units + 1);
+    });
+  },
+  120_000,
+);
+
+posixTest(
+  "what declares something to install keeps the lockfile rule, a lockfile left beside a package with nothing to install is refused by its own name, and the checkout rule still applies; the list and the start agree (issue #253)",
+  async () => {
+    const more = [
+      "devonly",
+      "optionalonly",
+      "peeronly",
+      "workspaced",
+      "scripted",
+      "leftover",
+      "npmrc",
+      "linked",
+      "large",
+      "foreign",
+    ].map((id) => ({ id }));
+    await world("something-to-install", more, async (world) => {
+      const untouched: Record<string, () => Promise<void>> = {};
+      for (const { id } of more)
+        untouched[id] = await declaresNothing(world, id);
+      const change = async (
+        id: string,
+        update: (pkg: Record<string, unknown>) => void,
+      ) => {
+        const path = join(world.app(id), "package.json");
+        const pkg = JSON.parse(await readFile(path, "utf8"));
+        update(pkg);
+        await writeFile(path, JSON.stringify(pkg));
+      };
+      // Each kind of dependency alone, an empty workspaces list and a
+      // script `bun install` runs: something to install, so a lockfile.
+      await change("devonly", (pkg) => {
+        pkg.devDependencies = { "fixture-dependency": "1.0.0" };
+      });
+      await change("optionalonly", (pkg) => {
+        pkg.optionalDependencies = { "fixture-dependency": "1.0.0" };
+      });
+      await change("peeronly", (pkg) => {
+        pkg.peerDependencies = { "fixture-dependency": "1.0.0" };
+      });
+      await change("workspaced", (pkg) => {
+        pkg.workspaces = [];
+      });
+      await change("scripted", (pkg) => {
+        pkg.scripts = {
+          ...(pkg.scripts as Record<string, string>),
+          postinstall: "exit 0",
+        };
+      });
+      // A lockfile left over from a removed dependency, as Bun wrote it.
+      const leftover = world.app("leftover");
+      await mkdir(join(leftover, "dependency"));
+      await writeFile(
+        join(leftover, "dependency/package.json"),
+        JSON.stringify({ name: "fixture-dependency", version: "1.0.0" }),
+      );
+      const before = await readFile(join(leftover, "package.json"), "utf8");
+      await change("leftover", (pkg) => {
+        pkg.dependencies = { "fixture-dependency": "file:./dependency" };
+      });
+      const locked = await runChild(
+        [process.execPath, "--no-env-file", "install", "--lockfile-only"],
+        { cwd: leftover, env: { HOME: world.home, PATH: "/usr/bin:/bin" } },
+      );
+      expect(locked.exitCode, locked.stderr).toBe(0);
+      await writeFile(join(leftover, "package.json"), before);
+      const lock = await readFile(join(leftover, "bun.lock"), "utf8");
+      // The checkout's package manager configuration through a symlink,
+      // the package through a symlink, larger than a declaration may be,
+      // and another account's (a faked stat; only root can chown).
+      await writeFile(join(world.home, "elsewhere.npmrc"), "");
+      await symlink(
+        join(world.home, "elsewhere.npmrc"),
+        join(world.app("npmrc"), ".npmrc"),
+      );
+      const linked = join(world.app("linked"), "package.json");
+      await writeFile(
+        join(world.home, "linked.json"),
+        await readFile(linked, "utf8"),
+      );
+      await rm(linked);
+      await symlink(join(world.home, "linked.json"), linked);
+      await change("large", (pkg) => {
+        pkg.description = " ".repeat(1024 * 1024);
+      });
+      const foreign = join(world.app("foreign"), "package.json");
+      const original = fsPromises.lstat;
+      const spy = spyOn(fsPromises, "lstat").mockImplementation((async (
+        path: Parameters<typeof original>[0],
+        options?: Parameters<typeof original>[1],
+      ) => {
+        const stat = await original(path, options as undefined);
+        if (path === foreign)
+          Object.defineProperty(stat, "uid", { value: stat.uid + 1 });
+        return stat;
+      }) as typeof original);
+      try {
+        const rows = await world.list();
+        const refusals: Record<string, [string, string]> = {
+          devonly: ["preparation-lockfile-missing", "app/package.json"],
+          optionalonly: ["preparation-lockfile-missing", "app/package.json"],
+          peeronly: ["preparation-lockfile-missing", "app/package.json"],
+          workspaced: ["preparation-lockfile-missing", "app/package.json"],
+          scripted: ["preparation-lockfile-missing", "app/package.json"],
+          leftover: ["preparation-lockfile-unused", "app/bun.lock"],
+          npmrc: ["declaration-not-regular", "app/.npmrc"],
+          linked: ["declaration-not-regular", "app/package.json"],
+          large: ["declaration-too-large", "app/package.json"],
+          foreign: ["declaration-owner", "app/package.json"],
+        };
+        for (const [id, [reason, file]] of Object.entries(refusals)) {
+          expect(rows[id], id).toMatchObject({
+            executable: false,
+            reason,
+            file,
+          });
+          expect(await world.run("start", id)).toEqual({
+            kind: "blocked",
+            operation: "start",
+            reason,
+            organization: "delta",
+            module: id,
+            file,
+          });
+          expect(await world.ensure(id)).toEqual({
+            kind: "blocked",
+            operation: "ensure",
+            reason,
+            organization: "delta",
+            module: id,
+            file,
+          });
+          await expect(
+            lstat(join(world.app(id), "node_modules")),
+          ).rejects.toThrow();
+        }
+      } finally {
+        spy.mockRestore();
+      }
+      expect(world.manager.commands("systemd-run")).toHaveLength(0);
+      // The terminal names the reason, the lockfile and what to do.
+      const [line, explanation] = (
+        await runModuleCommand(
+          ["module", "start", "delta/leftover", "--folder", world.folder],
+          cliContext(world.home),
+          world.host("leftover"),
+        )
+      ).text.split("\n");
+      expect(line).toBe(
+        "delta/leftover: preparation-lockfile-unused (app/bun.lock)",
+      );
+      expect(explanation).toContain("nothing to install");
+      // The left-over lockfile is never changed; once it is gone the
+      // package starts without one.
+      expect(await readFile(join(leftover, "bun.lock"), "utf8")).toBe(lock);
+      await rm(join(leftover, "bun.lock"));
+      expect((await world.list()).leftover).toMatchObject({
+        executable: true,
+      });
+      expect(await world.run("start", "leftover")).toMatchObject({
+        outcome: "started",
+        healthy: true,
+      });
+      await untouched.leftover?.();
+      expect(await world.run("stop", "leftover")).toMatchObject({
+        outcome: "group-stopped",
+      });
+      expect(world.manager.commands("systemd-run")).toHaveLength(1);
+    });
+  },
+  120_000,
+);
+
+posixTest(
+  "a package that declares nothing to install runs from the Launchpad's session start without node_modules and serves (issue #253)",
+  async () => {
+    await world("nothing-session", [{ id: "plain" }], async (world) => {
+      const nothingInstalled = await declaresNothing(world, "plain");
+      const host: ModuleHost = {
+        platform: "darwin",
+        home: world.home,
+        path: "/usr/bin:/bin",
+        runtimeDirectory: undefined,
+        platformExecutable: binary,
+        bunExecutable: process.execPath,
+        runnerKind: async () => "session",
+        createRunner: () => createSessionRunner(binary),
+        readJournal: async () => {
+          throw new Error("A session app has no journal");
+        },
+      };
+      const app = await startLaunchpad(
+        world.folder,
+        undefined,
+        undefined,
+        undefined,
+        {},
+        undefined,
+        {},
+        undefined,
+        host,
+      );
+      try {
+        const url = new URL(app.url);
+        const headers = {
+          Origin: url.origin,
+          Authorization: `Bearer ${url.hash.slice(1)}`,
+        };
+        const route = (verb: string) =>
+          `${url.origin}/api/modules/delta/plain/${verb}`;
+        const started = await fetch(route("start"), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(started.status).toBe(200);
+        expect(await started.json()).toMatchObject({
+          outcome: "started",
+          runner: "session",
+        });
+        let status: Record<string, unknown> = {};
+        for (let attempt = 0; attempt < 100 && !status.healthy; attempt++) {
+          status = await (
+            await fetch(route("status"), {
+              headers: { Authorization: headers.Authorization },
+            })
+          ).json();
+          if (!status.healthy) await Bun.sleep(100);
+        }
+        expect(status).toMatchObject({ state: "running", healthy: true });
+        expect(
+          await (await fetch(`http://127.0.0.1:${world.ports.plain}/`)).text(),
+        ).toBe("nothing to install");
+        await nothingInstalled();
+        const stopped = await fetch(route("stop"), {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: "{}",
+        });
+        expect(await stopped.json()).toMatchObject({
+          outcome: "group-stopped",
+          state: "stopped",
+        });
+      } finally {
+        expect(await app.close()).toEqual({ kind: "closed" });
+      }
     });
   },
   120_000,

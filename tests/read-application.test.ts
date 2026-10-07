@@ -25,6 +25,9 @@ async function fixture(
   const root = await realpath(await mkdtemp(join(tmpdir(), "module-reader-")));
   const pkg = {
     name: "fixture-app",
+    // Something to install (never installed here), so the preparation
+    // installs from a lockfile beside the package (issue #253).
+    dependencies: { "fixture-dependency": "1.0.0" },
     scripts: { dev: "never executed" },
     lazurio: {
       runtime: {

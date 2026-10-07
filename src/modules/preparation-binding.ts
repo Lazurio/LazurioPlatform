@@ -21,7 +21,9 @@ type Plan = Extract<
 /** The preparation in effect for an application (decision F25): its explicit
  * `lazurio.preparation`, or, when it declares none, the default: the
  * application's own package is the owner, preparing is the frozen install
- * from the lockfile beside it, and there is no prepare or check script. */
+ * from the lockfile beside it, and there is no prepare or check script. Under
+ * either, an owner whose package declares nothing to install has no lockfile
+ * and no install (issue #253). */
 export type Preparation = Readonly<{
   kind: "declared" | "default";
   owner_package: string;
@@ -162,11 +164,13 @@ export function requireQualifiedInstall(
 
 /** Whether an application's preparation can run as far as is known without
  * running anything and without the install inputs' contents: its preparation
- * in effect, the owner's package, its Bun, its one lockfile, its own local
+ * in effect, the owner's package, its Bun, its one lockfile (or none when the
+ * package declares nothing to install, issue #253), its own local
  * dependencies being there inside their boundary, the declared scripts and a qualified
  * install. What the catalog reports; the start inspects all of it again, and
- * the install inputs too. Throws the typed refusal (decision F25), or a
- * refusal of the checkout rule (decision F23). */
+ * the install inputs too, through the same `readInstallOwner`, so both give
+ * one verdict. Throws the typed refusal (decision F25), or a refusal of the
+ * checkout rule (decision F23). */
 export async function inspectPreparationShape(
   moduleDirectory: string,
   applicationPackage: string,
