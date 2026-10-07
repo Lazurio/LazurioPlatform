@@ -36,12 +36,15 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   beside its package.json, which leaves registry dependencies as they are
   when node_modules already matches it (local file: dependencies are copied
   again and the package's own lifecycle scripts such as postinstall run on
-  every install; preparation-install-failed when it fails). An app that declares
-  one gets the same install first, then its declared check: when the check
-  passes the app starts; when it fails, start runs its prepare_script and
-  the check again and starts the app only when the check then passes
-  (preparation-script-failed, or prerequisites-not-ready when the check
-  still fails). A preparation that
+  every install; preparation-install-failed when it fails). A package that
+  declares nothing to install (no dependencies or settings for them, no
+  workspaces, no install scripts) needs no lockfile and nothing is installed
+  for it; a lockfile beside it is left over (preparation-lockfile-unused).
+  An app that declares lazurio.preparation gets the same install first, then
+  its declared check: when the check passes the app starts; when it fails,
+  start runs its prepare_script and the check again and starts the app only
+  when the check then passes (preparation-script-failed, or
+  prerequisites-not-ready when the check still fails). A preparation that
   cannot run answers its reason (preparation-lockfile-missing,
   preparation-toolchain-mismatch, …) with the file it concerns; status, stop
   and logs still operate a module refused only by its preparation.
@@ -49,7 +52,8 @@ module prepare <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Prepares the app without starting it, whatever its declared check says
   now: bun install --frozen-lockfile from the bun.lock beside its
   package.json, then its declared prepare_script and check (only the install
-  for an app without lazurio.preparation). Use it to rerun a module's
+  for an app without lazurio.preparation, and no install for a package that
+  declares nothing to install). Use it to rerun a module's
   preparation whose check passes, for example after its data changed. It never
   installs beneath a running app: stop the app first (application-running);
   while another app of the same Organization runs it is refused
@@ -123,6 +127,8 @@ const explanations: Readonly<Record<string, string>> = {
     "No Bun lockfile (bun.lock) beside this package: its dependencies cannot be installed exactly. Commit the lockfile with the app.",
   "preparation-lockfile-ambiguous":
     "Both bun.lock and bun.lockb beside this package; keep only the one Bun installs from.",
+  "preparation-lockfile-unused":
+    "This lockfile lies beside a package that declares nothing to install: such a package needs no lockfile and Bun keeps none for it, so this one is left over. Remove it from the module, or declare the dependencies it locks.",
   "preparation-package-manager-unsupported":
     "This package's packageManager is not an exact Bun version (bun@x.y.z); modules are installed and run with Bun.",
   "preparation-applications-overlap":

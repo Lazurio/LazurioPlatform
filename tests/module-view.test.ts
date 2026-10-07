@@ -234,6 +234,7 @@ test("the sentence after Start or Stop names what happened or why not", () => {
   // A refusal of the preparation (decision F25) names its file too.
   for (const [reason, file] of [
     ["preparation-lockfile-missing", "app/package.json"],
+    ["preparation-lockfile-unused", "app/bun.lock"],
     ["preparation-install-failed", "app/bun.lock"],
     ["preparation-script-failed", "app/package.json"],
     ["preparation-toolchain-mismatch", "app/package.json"],

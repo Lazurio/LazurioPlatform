@@ -60,7 +60,11 @@ export function modulePreparationArgs(
   return Object.freeze(["--no-env-file", "run", script]);
 }
 
-export function runFrozenInstallProcess(input: ProcessInput) {
+export async function runFrozenInstallProcess(input: ProcessInput) {
+  // Only from the owner's lockfile: a package that declares nothing to
+  // install has none, and no install either (issue #253).
+  if (input.authority.lockfile === null)
+    throw new Error("Frozen install requires the owner's lockfile");
   return runBunOwnerProcess(input, [
     "--no-env-file",
     "install",

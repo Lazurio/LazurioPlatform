@@ -171,7 +171,10 @@ export async function preflightBunPreparation(input: {
           // Every operation but `check` begins with the frozen install,
           // which leaves matching registry dependencies as they are (decision
           // F34: the install is the Platform's; not free of effects, point 1).
-          if (operation !== "check") {
+          // A package that declares nothing to install has no lockfile and
+          // no install: no process runs and node_modules is not written
+          // (issue #253).
+          if (operation !== "check" && authority.lockfile !== null) {
             install = await runFrozenInstallProcess({
               authority,
               executable: launch.executable,

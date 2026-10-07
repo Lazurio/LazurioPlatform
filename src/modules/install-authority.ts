@@ -24,6 +24,76 @@ import { parseProcessLaunch } from "./process-launch";
 import { inspectWorkspaceInputs } from "./workspace-inputs";
 
 const lockNames = ["bun.lock", "bun.lockb"] as const;
+
+// The members of a package that give its install something to do (issue
+// #253): the packages it declares (dependencies of every kind; Bun installs
+// devDependencies, optionalDependencies and peerDependencies by default) and
+// what applies to them: overrides and resolutions, catalogs, patches,
+// bundling, trusted lifecycle scripts. Without a declared package Bun 1.4.2
+// installs nothing for most of them, but it reads the patch files of
+// `patchedDependencies` (a missing one fails the install), and what another
+// Bun does with the rest is not known: anything but an empty object (or, for
+// the lists, an empty list) keeps the lockfile rule (fail closed).
+// `workspaces` has members, so it counts whatever its value, as for the
+// workspace refusal.
+const installObjects = [
+  "dependencies",
+  "devDependencies",
+  "optionalDependencies",
+  "peerDependencies",
+  "overrides",
+  "resolutions",
+  "catalog",
+  "catalogs",
+  "patchedDependencies",
+] as const;
+const installLists = [
+  "bundleDependencies",
+  "bundledDependencies",
+  "trustedDependencies",
+] as const;
+// The scripts of the package itself that `bun install` runs, also when it
+// has no package to install: skipping that install would skip them.
+const installScripts = [
+  "preinstall",
+  "install",
+  "postinstall",
+  "preprepare",
+  "prepare",
+  "postprepare",
+] as const;
+
+/** Whether a package declares nothing for Bun to install (issue #253): each
+ * install member above absent or empty, no `workspaces`, and no script that
+ * `bun install` runs. For such a package Bun writes no lockfile (it deletes
+ * an empty one) and its install changes nothing, so it is prepared without
+ * one and without an install. Anything else, including a member of another
+ * shape, keeps the lockfile rule. */
+function declaresNothingToInstall(manifest: Readonly<Record<string, unknown>>) {
+  const object = (value: unknown): value is object =>
+    value !== null && typeof value === "object" && !Array.isArray(value);
+  const absentOr = (name: string, empty: (value: unknown) => boolean) =>
+    !Object.hasOwn(manifest, name) || empty(manifest[name]);
+  return (
+    installObjects.every((name) =>
+      absentOr(
+        name,
+        (value) => object(value) && !Reflect.ownKeys(value).length,
+      ),
+    ) &&
+    installLists.every((name) =>
+      absentOr(name, (value) => Array.isArray(value) && !value.length),
+    ) &&
+    !Object.hasOwn(manifest, "workspaces") &&
+    absentOr(
+      "scripts",
+      (value) =>
+        object(value) &&
+        !installScripts.some((name) => Object.hasOwn(value, name)),
+    )
+  );
+}
+
 async function present(path: string) {
   try {
     await lstat(path);
@@ -101,11 +171,65 @@ export async function inspectOwnerDirectories(checkout: string, owner: string) {
   return { checkoutStat, ownerStat, offset };
 }
 
-/** The owner's package and which lockfile beside it installs: what the
- * install authority snapshots and a read-only check of the preparation (the
- * catalog) can know without the rest of the snapshot (decision F25). The
- * caller has inspected the owner's directories. Each refusal names the
- * owner's package.json. */
+// The one lockfile beside an owner whose package declares something to
+// install, from which it installs (decision F25).
+async function soleLockfile(
+  owner: string,
+  locks: readonly string[],
+  refused: (reason: PreparationReason, message: string) => Error,
+) {
+  if (locks.length > 1)
+    throw refused(
+      "preparation-lockfile-ambiguous",
+      "One explicit Bun lockfile required",
+    );
+  const lockfile = locks[0];
+  if (lockfile === undefined)
+    throw refused(
+      "preparation-lockfile-missing",
+      "One explicit Bun lockfile required",
+    );
+  // The lockfile is a file of the operator's checkout (decision F23): the
+  // same rule, reason and file as the start's read of it, without reading.
+  const lockPath = join(owner, lockfile);
+  const lockStat = await lstat(lockPath);
+  const uid = process.getuid?.();
+  if (uid === undefined) throw new Error("Declaration owner unavailable");
+  const lockRefused = checkoutFileRefusal(lockStat, uid, lockfileBytesMax);
+  if (lockRefused !== null) throw new CheckoutRefused(lockRefused, lockPath);
+  if (lockStat.size === 0)
+    throw refused(
+      "preparation-lockfile-missing",
+      "One explicit Bun lockfile required",
+    );
+  return lockfile;
+}
+
+// An owner whose package declares nothing to install has no lockfile and no
+// install (issue #253), so no lockfile is read. One that is there all the
+// same is left over (from removed dependencies, or written by hand), and
+// Bun's frozen install refuses every lockfile beside such a package: it is
+// refused by its own name before anything runs, never ignored, because
+// whether the package lost its dependencies or the lockfile outlived them is
+// not guessed.
+function unusedLockfile(owner: string, locks: readonly string[]) {
+  const unused = locks[0];
+  if (unused !== undefined)
+    throw new PreparationRefused(
+      "preparation-lockfile-unused",
+      join(owner, unused),
+      "Lockfile beside a package with nothing to install",
+    );
+  return null;
+}
+
+/** The owner's package and which lockfile beside it installs, null for a
+ * package that declares nothing to install (issue #253): what the install
+ * authority snapshots and a read-only check of the preparation (the catalog)
+ * can know without the rest of the snapshot (decision F25), so both give
+ * one verdict. The caller has inspected the owner's directories. Each
+ * refusal names the owner's package.json, except a lockfile left beside a
+ * package with nothing to install, which is named itself. */
 export async function readInstallOwner(
   owner: string,
   dependencyBoundary: string = owner,
@@ -151,30 +275,9 @@ export async function readInstallOwner(
   const locks: string[] = [];
   for (const name of lockNames)
     if (await present(join(owner, name))) locks.push(name);
-  if (locks.length > 1)
-    throw refused(
-      "preparation-lockfile-ambiguous",
-      "One explicit Bun lockfile required",
-    );
-  const lockfile = locks[0];
-  if (lockfile === undefined)
-    throw refused(
-      "preparation-lockfile-missing",
-      "One explicit Bun lockfile required",
-    );
-  // The lockfile is a file of the operator's checkout (decision F23): the
-  // same rule, reason and file as the start's read of it, without reading.
-  const lockPath = join(owner, lockfile);
-  const lockStat = await lstat(lockPath);
-  const uid = process.getuid?.();
-  if (uid === undefined) throw new Error("Declaration owner unavailable");
-  const lockRefused = checkoutFileRefusal(lockStat, uid, lockfileBytesMax);
-  if (lockRefused !== null) throw new CheckoutRefused(lockRefused, lockPath);
-  if (lockStat.size === 0)
-    throw refused(
-      "preparation-lockfile-missing",
-      "One explicit Bun lockfile required",
-    );
+  const lockfile = declaresNothingToInstall(manifest)
+    ? unusedLockfile(owner, locks)
+    : await soleLockfile(owner, locks, refused);
   await inspectDirectLocalDependencies(owner, manifest, dependencyBoundary);
   return Object.freeze({
     owner,
@@ -248,8 +351,15 @@ export async function inspectInstallAuthority(
   }
   const { packageBytes, manifest, packageManager, lockfile } =
     await readInstallOwner(owner, dependencyBoundary);
-  const lockBytes = await readCheckoutFileBytes(join(owner, lockfile));
-  if (!lockBytes.length)
+  // A package that declares nothing to install has neither a lockfile nor
+  // its digest (issue #253). That verdict is the package's bytes: the
+  // package digest binds it, so a package that later declares a dependency
+  // is changed, and inspected again it is under the lockfile rule.
+  const lockBytes =
+    lockfile === null
+      ? null
+      : await readCheckoutFileBytes(join(owner, lockfile));
+  if (lockBytes !== null && !lockBytes.length)
     throw new PreparationRefused(
       "preparation-lockfile-missing",
       join(owner, "package.json"),
@@ -264,7 +374,7 @@ export async function inspectInstallAuthority(
     ownerIdentity: `${ownerStat.dev}:${ownerStat.ino}`,
     packageDigest: digest(packageBytes),
     lockfile,
-    lockDigest: digest(lockBytes),
+    lockDigest: lockBytes === null ? null : digest(lockBytes),
     packageManager,
     manifest,
     workspaceInputs: await inspectWorkspaceInputs(owner, manifest.workspaces),

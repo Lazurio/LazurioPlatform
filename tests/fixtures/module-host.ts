@@ -177,6 +177,31 @@ export async function undeclaredModule(
   return port;
 }
 
+/** A module whose application package declares nothing to install, the
+ * shape of a small Bun server (issue #253): `lazurio.runtime` with a dev
+ * script serving `nothing to install`, no dependencies, no lockfile, and
+ * neither `lazurio.preparation` nor `packageManager`. Returns the declared
+ * port. */
+export async function dependencyFreeModule(moduleDirectory: string) {
+  const manifest = JSON.parse(
+    await readFile(join(moduleDirectory, "lazurio.module.json"), "utf8"),
+  );
+  const port = manifest.port_leases[0].port as number;
+  const app = join(moduleDirectory, "app");
+  const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
+  pkg.private = true;
+  pkg.scripts = { dev: `"${process.execPath}" --no-env-file server.ts` };
+  delete pkg.dependencies;
+  delete pkg.packageManager;
+  delete pkg.lazurio.preparation;
+  await writeFile(join(app, "package.json"), JSON.stringify(pkg));
+  await writeFile(
+    join(app, "server.ts"),
+    'Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch: () => new Response("nothing to install") });',
+  );
+  return port;
+}
+
 /** A Linux host over the in-memory user manager: a started unit's main
  * process (pid 4242) listens on the declared port (or each of the declared
  * ports) and answers its health. */

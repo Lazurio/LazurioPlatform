@@ -8,6 +8,7 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
+import { moduleProcessEnvironment } from "../src/modules/application-environment";
 import type { ApplicationRunner } from "../src/modules/application-runner";
 import { runModuleCommand } from "../src/modules/module-cli";
 import {
@@ -326,6 +327,8 @@ function expectedEnvironment(input: {
   return {
     HOME: input.home,
     PATH: input.path,
+    // Bun's runtime auto-install off for every module process (issue #254).
+    BUN_OPTIONS: "--no-install",
     NODE_ENV: "development",
     ASTRO_DEV_BACKGROUND: "1",
     ASTRO_PREVIEW_BACKGROUND: "1",
@@ -742,3 +745,32 @@ posixTest(
   },
   60_000,
 );
+
+test("every module process runs with Bun's runtime auto-install off, after whatever options its environment already passes (issue #254)", () => {
+  const base = {
+    HOME: "/home/operator",
+    PATH: "/usr/bin:/bin",
+    TMPDIR: "/tmp",
+  };
+  expect(moduleProcessEnvironment(base)).toEqual({
+    ...base,
+    BUN_OPTIONS: "--no-install",
+  });
+  // Options passed before stay, in their order; `--no-install` wins over an
+  // option that would turn auto-install on, wherever it stands.
+  for (const [passed, combined] of [
+    ["", "--no-install"],
+    ["--smol", "--smol --no-install"],
+    ["  --smol  --install=force  ", "--smol  --install=force --no-install"],
+    ["--no-install --smol", "--no-install --smol"],
+  ] as const)
+    expect(moduleProcessEnvironment({ ...base, BUN_OPTIONS: passed })).toEqual({
+      ...base,
+      BUN_OPTIONS: combined,
+    });
+  expect(base).toEqual({
+    HOME: "/home/operator",
+    PATH: "/usr/bin:/bin",
+    TMPDIR: "/tmp",
+  });
+});

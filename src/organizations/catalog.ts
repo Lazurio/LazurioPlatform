@@ -269,9 +269,10 @@ function slotTeams(slot: unknown): {
 
 // Whether the default app's preparation can run as far as is known without
 // running anything (decision F25): the preparation in effect, its owner's
-// package, Bun and lockfile, its own local dependencies and declared
-// scripts. The install inputs' contents are the start's to refuse (decision
-// F23 point 6). A refusal is marked `preparationRefused`: the module's
+// package, Bun and lockfile (none for a package that declares nothing to
+// install, issue #253), its own local dependencies and declared scripts.
+// The install inputs' contents are the start's to refuse (decision F23
+// point 6). A refusal is marked `preparationRefused`: the module's
 // declarations admit it, so its running app is still read and stopped.
 // Never throws.
 async function preparationReason(

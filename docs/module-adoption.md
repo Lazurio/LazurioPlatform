@@ -143,9 +143,18 @@ is searched among the ancestors: a lockfile of the module or Organization above 
 package is never the application's. A package that names no `packageManager` installs
 and runs with the operator's Bun (`~/.local/bin/bun`), whichever version it is; one
 that pins `bun@x.y.z` still requires exactly that Bun, and any other `packageManager`
-is refused. Because the default has no check, **its start-time step is the frozen
-install itself**, which changes nothing when `node_modules` already matches the
-lockfile and repairs it when it does not; an explicit declaration's start runs the same
+is refused. **A package that declares nothing to install** (F25 addendum of 2026-10-07,
+issue #253: no dependency of any kind and no setting for one, no `workspaces`, no
+script `bun install` runs for the package itself) has no lockfile and no install, under
+either preparation: Bun keeps no lockfile for it, so none is required, nothing runs and
+`node_modules` is not written; a lockfile left beside it is refused as
+`preparation-lockfile-unused`, named by the lockfile. Every process the Platform starts
+for a module, its install, check and preparation scripts and the application, runs with
+Bun's runtime auto-install off (`BUN_OPTIONS` with `--no-install`, F25 addendum point
+6), so an import the package does not declare fails instead of being fetched while the
+module runs. Because the default has no check,
+**its start-time step is the frozen install itself**, which changes nothing when
+`node_modules` already matches the lockfile and repairs it when it does not; an explicit declaration's start runs the same
 install, then its check, and only when the check fails its `prepare_script` and the check
 again (decision F34, below). A local `file:` dependency of the default preparation
 may lie anywhere in the same Organization directory (for a Personalspace module, its
@@ -333,8 +342,9 @@ whole environment exactly.
 For the start-time step, `preflightDeclaredBunStart` selects the `start` operation of
 that same process owner (decision F34, issues #114 and #116). It requires check_script
 and rejects clean-install mode. It runs, in one run under the same 600-second deadline,
-the frozen install from the lockfile beside the owner's package on every start (exactly
-as the default preparation does; when `node_modules` already matches the lockfile Bun
+the frozen install from the lockfile beside the owner's package on every start (none
+for a package that declares nothing to install; exactly as the default preparation
+does; when `node_modules` already matches the lockfile Bun
 leaves registry and Git dependencies as they are, but copies local `file:` dependencies
 again and runs the app package's own lifecycle scripts such as `postinstall`, so such a
 hook runs on every start), then the check. A check that passes ends the step: the application starts

@@ -92,6 +92,7 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
     "preparation-script-missing",
     "preparation-lockfile-missing",
     "preparation-lockfile-ambiguous",
+    "preparation-lockfile-unused",
     "preparation-package-manager-unsupported",
     "preparation-workspace-unqualified",
     "preparation-dependency-outside-owner",
@@ -130,6 +131,7 @@ test("every reason reads as a sentence in both languages; an unknown code is nam
       "declaration-owner",
       "declaration-too-large",
       "preparation-lockfile-missing",
+      "preparation-lockfile-unused",
       "preparation-dependency-outside-owner",
     ]) {
       const status = catalogStatus(

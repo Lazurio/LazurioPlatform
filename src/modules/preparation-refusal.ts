@@ -13,10 +13,15 @@ export const preparationReasons = [
   /** The declared check or prepare script is not a script of the owner. */
   "preparation-script-missing",
   /** No Bun lockfile (`bun.lock`, `bun.lockb`) beside the owner's
-   * package.json, or an empty one. */
+   * package.json, or an empty one, while the package declares something to
+   * install. A package that declares nothing to install needs none. */
   "preparation-lockfile-missing",
   /** Both `bun.lock` and `bun.lockb`: which one installs is not guessed. */
   "preparation-lockfile-ambiguous",
+  /** A Bun lockfile beside a package that declares nothing to install, which
+   * has no lockfile and no install; named by the lockfile itself, left over
+   * from removed dependencies or written by hand (issue #253). */
+  "preparation-lockfile-unused",
   /** `packageManager` names something other than an exact Bun version. */
   "preparation-package-manager-unsupported",
   /** For the default preparation: the application's directory contains, or
