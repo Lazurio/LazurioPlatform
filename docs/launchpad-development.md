@@ -605,10 +605,11 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   Environment's `gh`, kept a minute and replaced by Nástroje's readings and every
   sign-in or sign-out through the Launchpad); `content` only where the content routes
   answer, `item` the first content not here or the one that stopped. The document never
-  waits for it (F36's addendum of 2026-10-08): it is the last reading, read again in
-  the background after 30 seconds and dropped by a sign-in or sign-out, a Tools reading
-  that changes GitHub's state, a content installation and a profile change; until the
-  first reading ends the document has none. `parseShell`
+  waits for it (F36's addendum of 2026-10-08): it is the last reading, first read when
+  someone opens the page, read again in the background after 30 seconds, and dropped
+  and read again at once on a sign-in or sign-out, a Tools reading that changes
+  GitHub's state, a content installation and a profile change; until the first reading
+  ends the document has none. `parseShell`
   takes it absent, null or in its exact shape and refuses the document otherwise, as
   for every known member. `<lazurio-column-head>` shows it as one line under the switch
   in Chat and Automate only (`columnSetupLine` in `view.ts`): "Bez GitHubu agenti

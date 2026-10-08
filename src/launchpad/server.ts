@@ -474,7 +474,13 @@ export async function startLaunchpad(
         status: status(page),
         headers: { ...headers, "Content-Type": type },
       });
-      const boot = request.method === "HEAD" ? null : await pageBoot();
+      if (request.method === "HEAD") return answer;
+      const boot = await pageBoot();
+      // Someone opened the Launchpad: what the Environment lacks is read now
+      // (not as the Launchpad starts, when the Folder's operations need its
+      // lock), so that Chat and Automate, whose column head reads the shell
+      // document once per load, find it when they open.
+      void setup.peek();
       return boot === null ? answer : withBoot(answer, boot);
     }
     const kept: Record<string, string> = {};

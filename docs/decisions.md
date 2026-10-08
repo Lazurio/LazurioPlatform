@@ -4895,11 +4895,14 @@ layout: its language, its section, the rail and the column head.
 4. **The shell document never waits for GitHub.** Its `setup` comes from the last
    reading (`createSetupCache` in `setup-state.ts`), read again in the background once
    it is older than 30 seconds. Until the first reading ends the document carries no
-   `setup`, which v1 allows. It is dropped where it changes: a gh sign-in or sign-out
-   through the Launchpad, a Tools reading that changes GitHub's state, a content
-   installation as it starts and as it ends, a profile change. The forks' first load
-   after the Launchpad starts may therefore miss the line in the column head until the
-   next load.
+   `setup`, which v1 allows. The first reading starts when someone opens the page (not
+   as the Launchpad starts, when the Folder's operations need its lock), so Chat and
+   Automate, whose column head reads the document once per load, find it when they
+   open. It is dropped where it changes and read again at once: a gh sign-in or
+   sign-out through the Launchpad, a Tools reading that changes GitHub's state, a
+   content installation as it starts and as it ends, a profile change. Only a fork
+   loaded before anyone opened the page since the Launchpad started, or within the
+   seconds of such a reading, misses the line until its next load.
 5. **Caching behind the gateway.** The page's hashed bundle files, the fonts and the
    stones keep the inner listener's `immutable` caching through the hosted Launchpad;
    `/.lazurio/shell.js` carries an ETag and answers 304 to an unchanged copy, locally

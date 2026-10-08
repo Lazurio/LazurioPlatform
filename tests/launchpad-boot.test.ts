@@ -205,12 +205,13 @@ test("the shell's setup is read in the background and never awaited", async () =
   asked[1]?.({ github: "connected", content: "ready" });
   await cache.settled();
   expect(cache.peek()).toEqual({ github: "connected", content: "ready" });
-  // Forgotten while a reading runs: nothing said, and that reading is not
-  // kept; the next one is.
+  // Forgotten while a reading runs: nothing said, a new reading asked at
+  // once, and the one that ran is not kept; the new one is.
   clock = 3000;
   expect(cache.peek()).toEqual({ github: "connected", content: "ready" });
   expect(asked.length).toBe(3);
   cache.forget();
+  expect(asked.length).toBe(4);
   expect(cache.peek()).toBeUndefined();
   expect(asked.length).toBe(4);
   asked[2]?.({ github: "connected", content: "ready" });
@@ -517,6 +518,47 @@ posixTest(
         const next = await timed("/.lazurio/shell.json");
         expect(next.ms).toBeLessThan(1000);
         setup = parseShell(JSON.parse(next.body))?.setup;
+      }
+      expect(setup?.github).toBe("missing");
+    } finally {
+      await app.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "hosted: opening the page reads what the Environment lacks, so Chat finds it when it opens",
+  async () => {
+    // A fork reads the shell document once per load: the reading must not
+    // wait for its first read to ask. Not as the Launchpad starts, whose
+    // Folder operations need the lock then; when someone opens the page.
+    let asked = 0;
+    const run: ToolRunner = async (command) => {
+      if (command.includes("auth")) asked += 1;
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: "You are not logged into any GitHub hosts.",
+      };
+    };
+    const app = await hosted({ run });
+    try {
+      await Bun.sleep(200);
+      expect(asked).toBe(0);
+      const page = await fetch(`${app.base}/`, { headers: app.valid });
+      expect(page.status).toBe(200);
+      await page.text();
+      for (let attempt = 0; attempt < 100 && asked === 0; attempt++)
+        await Bun.sleep(20);
+      expect(asked).toBeGreaterThan(0);
+      let setup: ShellSetup | undefined;
+      for (let attempt = 0; attempt < 100 && setup === undefined; attempt++) {
+        const answer = await fetch(`${app.base}/.lazurio/shell.json`, {
+          headers: app.valid,
+        });
+        setup = parseShell(await answer.json())?.setup;
+        if (setup === undefined) await Bun.sleep(50);
       }
       expect(setup?.github).toBe("missing");
     } finally {

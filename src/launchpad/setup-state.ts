@@ -173,9 +173,9 @@ export type GithubProbe = ReturnType<typeof createGithubProbe>;
  * once with what is known, and reads again in the background when nothing is
  * known yet or the last reading is older than the TTL (stale while
  * revalidating): until the first reading ends the document carries no
- * `setup`, which v1 allows. `forget` drops it where it changed: a sign-in or
- * sign-out of gh, an installation of the content, a profile change; a reading
- * that was running then is not kept. */
+ * `setup`, which v1 allows. `forget` drops it where it changed (a sign-in or
+ * sign-out of gh, an installation of the content, a profile change) and
+ * reads it again at once; a reading that was running then is not kept. */
 export function createSetupCache(
   read: () => Promise<ShellSetup | undefined>,
   options: Readonly<{ ttlMs?: number; now?: () => number }> = {},
@@ -211,10 +211,12 @@ export function createSetupCache(
       if (known === null || now() - known.at >= ttl) void refresh();
       return known?.setup;
     },
-    /** It changed: say nothing until it is read again. */
+    /** It changed: say nothing until it is read again, which starts at
+     * once, so the next load after the change finds it. */
     forget() {
       generation += 1;
       known = null;
+      void refresh();
     },
     /** Resolves when the reading running now has ended. */
     settled: (): Promise<void> => reading?.done ?? Promise.resolve(),
