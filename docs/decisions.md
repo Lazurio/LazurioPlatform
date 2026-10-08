@@ -4823,6 +4823,29 @@ forks themselves, which take this with a release and a pin, the page at narrow w
 widths, and browsers other than Chrome. These are no rendered-page CI gates (root
 decision 0178).
 
+**Addendum 2026-10-08 (Matěj): the browser tab carries the Organization's icon.** With
+Apps, Chat and Automate of several Environments open, every tab showed the same icon,
+or none: the Launchpad page had no icon at all. Matěj asked for the Organization's icon
+on all three, or at least Lazurio's.
+
+- **One mechanism in the shell, the same in all three apps.** The shell's state hands
+  every person's document to `applyTabIcon` (`src/shell/tab-icon.ts`), beside the
+  offline guide's registration.
+- **Which icon:**
+  - the current Environment's Organization, by its avatar from the document;
+  - Lazurio's symbol (an inline `data:` SVG, no request) for a personal Environment, a
+    workstation, or an Organization without an avatar;
+  - nothing for a page that belongs to no Environment (the Dashboard keeps its own).
+- **How it is set.** The shell keeps one link of its own (`#lazurio-tab-icon`), removes
+  the app's other icon links so the browser shows it, and rewrites it only when the
+  icon changes.
+- **Before the document arrives,** the Launchpad page links Lazurio's symbol itself,
+  bundled from the vendored brand file.
+- **The forks** take this with the Launchpad's `/.lazurio/shell.js`, without a release
+  of their own.
+
+Tests: `tests/shell-tab-icon.test.ts`.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
