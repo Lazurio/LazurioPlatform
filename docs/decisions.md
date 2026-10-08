@@ -5456,3 +5456,85 @@ Reconciled before publication, 2026-10-06 (evening):
 4. **Team Environment entry.** An Admin manages who may enter a Team
    Environment. Until Auth grants replace it, membership of the Environment's
    GitHub Team decides entry as the marked migration implementation.
+
+## F41 — The offline guide: a service worker on the shell's origins shows how to reach the Environment, and is always updatable
+
+**Decided by Matěj 2026-10-07 and 2026-10-08 (plan DEV-6651, research in
+#262, wireframe approved 2026-10-08); implemented in this revision.** An
+Environment's addresses (`<app>.<vm>.<org>.lazurio.io`,
+`<app>.<slug>.lazurio.io`) resolve only inside the tailnet that serves them
+(root decision 0146). With Tailscale off, with another tailnet active (a
+person in several Conglomerates has one active at a time) or from a device
+that is not in the tailnet, the browser showed only its own
+`ERR_NAME_NOT_RESOLVED`, before anything of Lazurio could run. A public
+answer for those names would need a certificate for them outside the
+Environment and would receive the Environment's session cookie, so it was
+rejected (#262). A service worker needs neither.
+
+1. **The page.** `GET /.lazurio/offline` is the guide: "turn on Tailscale and
+   choose the tailnet", the Environment's name and Organization, the tailnet
+   as the Tailscale client lists it (the control server's host from the
+   Machine handover's `network.headscale_server_url`), a drawn sketch of the
+   client for macOS, Windows, iPhone and Android with three numbered steps,
+   "try again", and the documentation's guide
+   (`documentation.lazurio.ai/<locale>/guide/tailscale/`) for everything
+   else. It stands alone (styles, logo and sketch inside; nothing loaded),
+   continues to the address by itself once the address answers again, and
+   says nothing about how it got there. The Environment's name is the one the
+   rail takes from the Environment's own document; a name the Dashboard
+   account gives is not known to the Launchpad.
+2. **The worker.** `GET /.lazurio/offline-sw.js` keeps the page and answers a
+   navigation only when the network fails; every other request never reaches
+   it, and a navigation that reaches the network (including the gateway's
+   sign-in redirect) is returned unchanged. A module's app and the
+   Environment's browser are origins of their own and keep the browser's
+   error until they carry the worker too (module-kit).
+3. **Only where it belongs.** Both answer only on an Environment that is a
+   node of a tailnet (a readable handover with a control server), behind the
+   same admission as every read; a workstation, a Launchpad without a
+   handover and the Dashboard have neither. The shell registers the worker
+   only with a person's document whose current Environment is no workstation
+   (`guidesHere`), once per page load, through the shell's state, so the
+   Launchpad page and the forks' pages register alike.
+4. **Never frozen (Matěj 2026-10-08).**
+   - One address forever: the browser checks for updates only at the URL it
+     installed from. If the guide is ever retired, the same URL serves a
+     worker that removes its caches and itself (`retired: true`), and the
+     shell stops registering.
+   - Always revalidated: `Cache-Control: no-cache` on both answers,
+     registration with `updateViaCache: "none"`, one classic script with no
+     `importScripts`, and `registration.update()` on every shell load.
+   - The bytes carry everything: the prelude
+     (`const LAZURIO_OFFLINE = {version, page, retired}`) holds the Platform
+     version and the SHA-256 of the page this origin serves, so a change of
+     the code, the page or its data changes the worker, and the browser
+     installs it on the next load.
+   - Activates at once: `skipWaiting` and `clients.claim` are safe because
+     the worker carries no application assets that must match a version;
+     activation deletes every older `lazurio-offline-*` cache. A successful
+     navigation also refreshes the kept page at most once an hour.
+   - Removes itself: when a navigation fails and the last contact with the
+     Environment is older than 30 days (or unreadable), the worker unregisters
+     and the browser shows its own error. An Environment that was renamed or
+     removed can never serve an update again, so it must not keep a guide
+     forever.
+   - `Service-Worker-Allowed: /` is on every answer of the worker: an update
+     fetched without it fails, and the old worker would stay.
+   - The worker answers `{type: "lazurio-offline-version"}` with its version,
+     page digest and state, for diagnostics.
+
+| Failure | Behaviour |
+|---|---|
+| First visit in a browser, a private window | Nothing is installed yet; the browser's own error. The Dashboard's "Jak se připojit" covers it (DEV-6651). |
+| Safari's 7-day limit without interaction | Safari removes the worker; the browser's error until the next visit. |
+| Session expired | The update check is redirected and fails; the old worker stays until the next check after sign-in. A navigation that reaches the network is returned unchanged, sign-in included. |
+| The Environment is stopped, no internet, the browser's own secure DNS | The same guide; the documentation lists these cases. |
+| Handover unreadable | No page and no worker are answered (404); a registered worker keeps its last page until the next successful check. |
+
+Verified by unit tests (`tests/shell-offline-policy.test.ts`,
+`tests/shell-offline-guide.test.ts`, `tests/launchpad-offline-guide.test.ts`)
+and in Chromium with `scripts/smoke-offline-guide.ts` (Playwright supplied
+externally): the guide on a name that does not resolve with the deep link
+kept, v1 → v2 on the next load with the old cache gone, the guide showing
+the new page, self-removal after 30 days, a retiring worker unregistering,
+and a registration refused without `Service-Worker-Allowed`.

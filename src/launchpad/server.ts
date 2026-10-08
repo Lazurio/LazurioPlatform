@@ -27,6 +27,7 @@ import { readFolderState } from "../folder/read-state";
 import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
+import { readMachineContext } from "../machine/context";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import {
   createModuleOperations,
@@ -59,6 +60,7 @@ import {
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
+import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
 import { createContentRoutes } from "./content-routes";
@@ -71,6 +73,14 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
+import {
+  offlineGuideHeaders,
+  offlineGuidePage,
+  offlineGuidePath,
+  offlineWorker,
+  offlineWorkerHeaders,
+  offlineWorkerPath,
+} from "./offline-guide";
 import { createOwnerCheck } from "./organization-owner";
 import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
 import {
@@ -108,10 +118,27 @@ export type HostedOptions = Readonly<{
    * they answer that it is still running (default
    * `moduleAnswerWithinMsDefault`, decision F34); also on a workstation. */
   moduleAnswerWithinMs?: number;
+  /** Where the offline guide reads this Environment's tailnet (decision
+   * F41): by default the control server the root-custodied Machine handover
+   * names, or none (a workstation, no handover). Trusted composition, never
+   * HTTP input; tests supply the address. */
+  offlineTailnet?: () => Promise<string | null>;
 }>;
 
 /** The Lazurio shell's data document (decision F36). */
 export const shellDocumentPath = "/.lazurio/shell.json";
+
+/** The tailnet control server the Machine handover names (decision F41);
+ * none where there is no readable handover, as on a workstation. */
+async function machineTailnet(): Promise<string | null> {
+  try {
+    return (
+      (await readMachineContext()).context.network?.headscale_server_url ?? null
+    );
+  } catch {
+    return null;
+  }
+}
 
 // Whether this Environment's GitHub identity is an Owner of an Organization
 // (decision F36 addendum of 2026-10-04): `<org>` names it as the catalog's
@@ -138,6 +165,8 @@ export const browserViewPath = "/.lazurio/browser";
  * like every read; every other path there is the page's static asset. */
 const isLazurioDocument = (path: string) =>
   path === shellDocumentPath ||
+  path === offlineGuidePath ||
+  path === offlineWorkerPath ||
   path === browserViewDocumentPath ||
   path === browserViewPath ||
   promptRoute.test(path);
@@ -462,6 +491,45 @@ export async function startLaunchpad(
               ...(setup === undefined ? {} : { setup }),
             }),
           );
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (
+        url.pathname === offlineGuidePath ||
+        url.pathname === offlineWorkerPath
+      ) {
+        // The offline guide (decision F41): the page an address of this
+        // Environment shows when the network fails, and the worker that keeps
+        // it. Only where the Environment is a node of a tailnet; behind the
+        // same admission as every read, recomputed on every read.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          const tailnet = await (
+            hostedOptions.offlineTailnet ?? machineTailnet
+          )();
+          if (tailnet === null) return response({ error: "not-found" }, 404);
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          const page = offlineGuidePage(
+            shellDocument({
+              preset: current.preferences.preset.name,
+              machine: current.preferences.machine,
+              locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
+              catalog: await readFolderCatalog(folder),
+              computer: hostname(),
+            }),
+            tailnet,
+          );
+          if (page === null) return response({ error: "not-found" }, 404);
+          return url.pathname === offlineGuidePath
+            ? new Response(page, { headers: offlineGuideHeaders })
+            : new Response(offlineWorker(page, embeddedIdentity().version), {
+                headers: offlineWorkerHeaders,
+              });
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

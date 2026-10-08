@@ -703,6 +703,22 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   another id, Organization, query or a non-Owner, the hand-off answer from the
   Environment's `t3`; locally only with the token, and no hand-off without a Chat origin.
 
+### The offline guide (decision F41)
+
+On an Environment that is a node of a tailnet, the Launchpad answers
+`/.lazurio/offline` (the guide page, built by `src/shell/offline-page.ts`) and
+`/.lazurio/offline-sw.js` (the worker, `src/shell/offline-worker.ts` behind a
+per-answer prelude from `src/launchpad/offline-guide.ts`) after the same
+admission as every read. The shell's state registers the worker once per page
+load (`src/shell/offline-guide.ts`). The worker must stay updatable: keep its
+address, `Cache-Control: no-cache`, `Service-Worker-Allowed: /` and the
+prelude's digest of the page; never add `importScripts`. Check it in Chromium
+with Playwright supplied externally:
+
+```sh
+NODE_PATH=<directory with playwright> bun scripts/smoke-offline-guide.ts
+```
+
 ## Settings: structure, routes and the T3 Code pattern
 
 The Launchpad is one page with two views (decision F15 addendum 2026-09-28): the
