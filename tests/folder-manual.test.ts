@@ -1075,3 +1075,70 @@ test("missing rights are escalated on every preset; only the Team hands every pu
       ).toBe(journey.preset === "hosted-organization-team");
     }
 });
+
+// A chat whose client runs Codex in a sandbox without network fails every
+// network call, so a connected application looks broken (issue #264). On
+// every preset, Codex can be sandboxed on a workstation too, AGENTS.md has the
+// agent check `CODEX_SANDBOX_NETWORK_DISABLED` right after the full-access
+// rule and ask the person to switch the chat to full access, and the
+// troubleshooting manual says why (decision F14 addendum 2026-10-08).
+test("a chat without network asks for full access instead of reporting the application as broken, on every preset", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const cs = locale === "cs";
+      const lines = outputs["AGENTS.md"].split("\n");
+      const fullAccess = lines.indexOf(
+        cs
+          ? "- Pracuješ s plným přístupem, bez sandboxu a bez schvalování jednotlivých příkazů; hranicí je tenhle Environment (decision 0172). Je to schopnost, ne souhlas: Publikace a zápisy do napojených aplikací dál čekají na pokyn Operátora."
+          : "- You work with full access, without a sandbox and without per-command approvals; this Environment is the boundary (decision 0172). It is a capability, not consent: Publication and writes to connected applications still wait for the Operator's instruction.",
+      );
+      const rule = cs
+        ? "- Než použiješ cokoli, co potřebuje internet (napojené aplikace jako Composio, přihlášení MCP, `gh`, stahování, `git fetch` nebo `git push`), ověř proměnnou `CODEX_SANDBOX_NETWORK_DISABLED`. Když je `1`, běží chat v sandboxu bez sítě: nic nezkoušej, aplikaci nehlas jako odpojenou, nedostupnou ani s vypršeným časem a řekni člověku srozumitelně v jeho jazyce, co má udělat; česky: „Abych se dostal k <čemu>, potřebuji plný přístup. Dole u pole pro zprávu přepněte prosím oprávnění na Plný přístup a napište mi znovu.“ Chyba sítě nebo vypršený čas v chatu s plným přístupem zůstává běžnou chybou (`manual/troubleshooting.md`)."
+        : "- Before you use anything that needs the internet (connected applications such as Composio, an MCP sign-in, `gh`, downloads, `git fetch` or `git push`), check `CODEX_SANDBOX_NETWORK_DISABLED`. When it is `1`, the chat runs in a sandbox without network: do not try, do not report the application as disconnected, unavailable or timed out, and tell the person plainly, in their language, what to do; in English: “To reach <what>, I need full access. Please switch the permission below the message box to Full access and send me your message again.” A network error or timeout in a chat with full access stays an ordinary error (`manual/troubleshooting.md`).";
+      expect([journey.preset, locale, fullAccess > 0]).toEqual([
+        journey.preset,
+        locale,
+        true,
+      ]);
+      expect([journey.preset, locale, lines[fullAccess + 1]]).toEqual([
+        journey.preset,
+        locale,
+        rule,
+      ]);
+      expect(lines.filter((line) => line === rule)).toHaveLength(1);
+      const troubleshooting = outputs["manual/troubleshooting.md"];
+      for (const sentence of cs
+        ? [
+            "## Chat bez sítě",
+            "Agenti na Environmentu pracují s plným přístupem (decision 0172); sandbox bez sítě je volba klienta pro jednotlivý chat.",
+            "Codex v něm každému příkazu nastaví `CODEX_SANDBOX_NETWORK_DISABLED=1`",
+            "o přepnutí chatu na Plný přístup požádej člověka podle `AGENTS.md`. Bez té proměnné je chyba sítě běžná chyba.",
+          ]
+        : [
+            "## A chat without network",
+            "Agents in an Environment work with full access (decision 0172); a sandbox without network is the client's choice for a single chat.",
+            "In it Codex sets `CODEX_SANDBOX_NETWORK_DISABLED=1` for every command",
+            "ask the person to switch the chat to Full access as `AGENTS.md` says. Without that variable a network error is an ordinary error.",
+          ])
+        expect([
+          journey.preset,
+          locale,
+          troubleshooting.includes(sentence),
+        ]).toEqual([journey.preset, locale, true]);
+      // The section sits right before the reporting of problems.
+      expect(
+        troubleshooting.indexOf(
+          cs ? "## Chat bez sítě" : "## A chat without network",
+        ),
+      ).toBeLessThan(
+        troubleshooting.indexOf(
+          cs ? "## Hlášení problémů" : "## Reporting problems",
+        ),
+      );
+    }
+});
