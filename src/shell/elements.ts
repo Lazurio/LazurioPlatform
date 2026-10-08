@@ -12,6 +12,7 @@ import { fillShell, type ShellCopy, shellMessages } from "./messages";
 import { registerGuide } from "./offline-guide";
 import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
+import { applyTabIcon } from "./tab-icon";
 import { vendorText } from "./vendor-text" with { type: "macro" };
 import {
   type ColumnSetupLine,
@@ -79,6 +80,7 @@ const state = createShellState({
   read: pageAccountJson,
   report: reportLast,
   guide: registerGuide,
+  tabIcon: applyTabIcon,
 });
 let requested = false;
 

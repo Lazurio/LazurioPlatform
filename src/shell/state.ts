@@ -65,6 +65,9 @@ export type ShellStateOptions = Readonly<{
   /** The offline guide's registration (decision F41, `registerGuide`),
    * asked with every person's document; it acts once per page. */
   guide?: (shell: Shell) => void;
+  /** The browser tab's icon (F36's addendum of 2026-10-08, `applyTabIcon`),
+   * asked with every person's document. */
+  tabIcon?: (shell: Shell) => void;
   log?: (message: string) => void;
 }>;
 
@@ -171,6 +174,7 @@ export function createShellState(options: ShellStateOptions) {
         signedOut = null;
         local = shell;
         options.guide?.(shell);
+        options.tabIcon?.(shell);
       }
       redraw();
     },
