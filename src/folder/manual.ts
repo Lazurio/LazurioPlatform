@@ -1394,6 +1394,14 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "`AGENTS.md` and every file in `manual/` are generated, and `.lazurio/instructions.json` records their digests and the template revision. A hand-edited or removed file is never overwritten: the change path refuses with `drift` and the file's path. A newer product release re-renders every generated file on the next `folder-refresh` or profile change, provided every file still matches its recorded digest; a single edited file blocks the whole upgrade and nothing is written. The product has no restore command yet; keep your own notes outside the generated files (an Operator `notes/` area is planned) and treat a corrected manual as a product change through a pull request.",
     ),
     blank,
+    // Why a chat without network is not a broken application (decision F14
+    // addendum 2026-10-08, issue #264); the rule itself is in AGENTS.md.
+    t("## Chat bez sítě", "## A chat without network"),
+    t(
+      "Agenti na Environmentu pracují s plným přístupem (decision 0172); sandbox bez sítě je volba klienta pro jednotlivý chat. Codex v něm každému příkazu nastaví `CODEX_SANDBOX_NETWORK_DISABLED=1` a každé volání sítě skončí chybou nebo vypršeným časem, i když aplikace i přihlášení jsou v pořádku: proto aplikaci nehlas jako odpojenou a o přepnutí chatu na Plný přístup požádej člověka podle `AGENTS.md`. Bez té proměnné je chyba sítě běžná chyba.",
+      "Agents in an Environment work with full access (decision 0172); a sandbox without network is the client's choice for a single chat. In it Codex sets `CODEX_SANDBOX_NETWORK_DISABLED=1` for every command, and every network call ends in an error or a timeout even when the application and its sign-in are fine: so never report the application as disconnected, and ask the person to switch the chat to Full access as `AGENTS.md` says. Without that variable a network error is an ordinary error.",
+    ),
+    blank,
     t("## Hlášení problémů", "## Reporting problems"),
     t(
       "Otevřený technický problém patří do GitHub Issue v přesném owning repozitáři: do veřejného repozitáře produktu `Lazurio/LazurioPlatform` pro samotné Lazurio, do repozitáře Organizace pro obsah Organizace. Zapisuješ ho bez ptaní, po kontrole duplicit a odstranění secrets, Personalspace a obsahu Organizace mimo její access hranici; bez bezpečného repozitáře vrať Operátorovi sanitizovaný text. Celý postup popisuje `manual/working-here.md` (decision 0163).",

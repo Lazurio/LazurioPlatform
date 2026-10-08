@@ -1198,6 +1198,40 @@ held.
 | A fixed list of implementers in the Folder | Names drift and would be a roster; CODEOWNERS and the Owners are read live; rejected |
 | `gh api … .permissions` on the Team preset too | An installation token answers false even with write, so a Team with write would never open pull requests; a dry-run push instead |
 
+**Addendum 2026-10-08 (issue #264, proposal 1): a chat without network asks for full
+access.** People drive Codex through ChatGPT Desktop, which sets permissions per chat. In
+its default permissions a turn runs in a `workspace-write` sandbox with
+`network_access: false`, so every shell command that needs the internet fails. Observed
+on a hosted Environment: the Composio CLI ended with `Request timed out`, the agent told
+the person the application was not responding and it could not verify the connection,
+and the person had no way to read that as a permission mode. The same question in a
+full-access chat answered correctly. Root decision 0172 already says that agents in an
+Environment work with full access; the sandbox without network is the client's choice
+for one chat. Codex marks it: every sandboxed command without network gets
+`CODEX_SANDBOX_NETWORK_DISABLED=1` in its environment, and the variable is absent under
+full access (verified with Codex CLI 0.160.1).
+
+What changes:
+- **`AGENTS.md`**, on every preset (Codex can be sandboxed on a workstation too), gains
+  a line right after the full-access line: before anything that needs the internet
+  (connected applications such as Composio, an MCP sign-in, `gh`, downloads,
+  `git fetch` or `git push`) the agent checks `CODEX_SANDBOX_NETWORK_DISABLED`. At `1`
+  it does not try, does not report the application as disconnected, unavailable or
+  timed out, and tells the person plainly in their language to switch the permission
+  below the message box to Full access and send the message again, with the exact
+  sentence in the Folder's locale. A network error or timeout in a chat with full
+  access stays an ordinary error.
+- **`manual/troubleshooting.md`** gains "A chat without network" right before
+  "Reporting problems": why (decision 0172, the sandbox is the client's choice per
+  chat) and that without the variable a network error is an ordinary error.
+
+Unchanged: no doctor check, no configuration of Codex's sandbox or approvals and no
+change of the product's behavior; proposals 2 and 3 of #264 (reporting the permission
+mode, a managed default for new chats) stay open there. Full access stays a capability,
+not consent. Template revision `base-instructions-33`. A unit test checks, on every
+preset in both locales, the exact line right after the full-access line, once, and the
+troubleshooting section before "Reporting problems".
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
