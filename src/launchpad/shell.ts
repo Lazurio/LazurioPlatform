@@ -60,6 +60,13 @@ export function createShell(
   function show() {
     const frame = routeFrame(route);
     const section = route.view === "settings" ? route.section : null;
+    // The page's stylesheet shows only this frame and section (F36's
+    // addendum of 2026-10-08), as the inline script of `index.html` set
+    // them for the first paint.
+    const root = document.documentElement;
+    root.dataset.frame = frame;
+    if (section === null) delete root.dataset.section;
+    else root.dataset.section = section;
     // An element names every frame it belongs to: the catalog's sidebar
     // also stands beside the Files page.
     for (const view of views)
