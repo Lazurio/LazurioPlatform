@@ -4846,6 +4846,91 @@ on all three, or at least Lazurio's.
 
 Tests: `tests/shell-tab-icon.test.ts`.
 
+**Addendum 2026-10-08, asked for by the Organization Admin: the first paint is the final
+page.** Opening the Launchpad of a hosted Environment passed through two wrong states
+before the final one. First the static page with every frame at once, in English: the
+Settings navigation in the middle of the column, a "Settings / Launchpad" header with
+four actions, "Reading Organizations…", no rail. Then the right content in the
+Environment's language, still without the rail and the column head, for as long as the
+shell document waited for GitHub (seconds). Now the first thing painted is the final
+layout: its language, its section, the rail and the column head.
+
+1. **The frame before anything runs.** A small inline script at the top of
+   `index.html`, with no request, writes the frame of the path and its Settings section
+   on `<html data-frame data-section>`, as `pageFrame` in `routes.ts` reads them;
+   `tests/launchpad-first-paint.test.ts` keeps the two equal. The stylesheet shows only
+   that frame, and `shell.ts` keeps both attributes as the page moves. The page shows
+   nothing until its script says it is drawn (`data-ready`: the language known, the
+   shell document drawn or known to be missing, and what the frame shows first read,
+   the catalog on Apps, the profile on Settings), at the latest a second after the
+   script ran. Should the script never say so, the stylesheet shows the page after two
+   seconds, and at once without scripts. The places of the rail and the column head are
+   reserved before their script defines them, and the brand fonts are declared in the
+   page itself, so the elements add none and the text is laid out in them before it
+   shows.
+2. **The boot document, hosted.** A hosted Launchpad serves the page only after the
+   gateway's admission, so the request that brings it is already admitted. It puts
+   `<script type="application/json" id="lazurio-boot">` at the end of `<head>` with
+   `{schema: "lazurio.launchpad-boot.v1", locale, shell, catalog, entry}`: the Folder's
+   language, the `lazurio.shell.v1` document of `/.lazurio/shell.json` without `setup`,
+   the catalog of `POST /api/catalog` and the public parts of `GET /api/entry`
+   (`boot.ts`, `boot-document.ts`). It writes `<html lang>` and every `data-message`
+   text in that language from the page's own messages (Bun's `HTMLRewriter`). It is read
+   from the Folder alone, under one short read of its state (at most 250 ms for the
+   lock, 500 ms in all): nothing from GitHub or the network, no tool output, never the
+   Machine binding, the auth endpoint, the cookie name or the person's account. `<` and
+   the line and paragraph separators are escaped. On any failure or delay the page is
+   served as before, without it. Recovery mode and a workstation's page, which is
+   served without the token its reads need, carry none. The page hands the shell
+   document to the elements before it defines them, so the rail and the column head
+   draw in the first paint, draws the catalog from it, and reads none of the four
+   again.
+3. **The page's own requests.** The second read of the shell document after the profile
+   is gone; it follows a change of the Folder only. The entry and whether Chat takes a
+   prompt by link are asked side by side. The tools with their sign-in probes and the
+   content, which both may ask GitHub, are read at once on a Settings route and
+   elsewhere once the page is idle. Apps is drawn again only when what it shows
+   changed: the language, the shell document, the entry, the first run's line, an
+   Owner's answer that differs, the person's account.
+4. **The shell document never waits for GitHub.** Its `setup` comes from the last
+   reading (`createSetupCache` in `setup-state.ts`), read again in the background once
+   it is older than 30 seconds. Until the first reading ends the document carries no
+   `setup`, which v1 allows. It is dropped where it changes: a gh sign-in or sign-out
+   through the Launchpad, a Tools reading that changes GitHub's state, a content
+   installation as it starts and as it ends, a profile change. The forks' first load
+   after the Launchpad starts may therefore miss the line in the column head until the
+   next load.
+5. **Caching behind the gateway.** The page's hashed bundle files, the fonts and the
+   stones keep the inner listener's `immutable` caching through the hosted Launchpad;
+   `/.lazurio/shell.js` carries an ETag and answers 304 to an unchanged copy, locally
+   too. The page itself, every data document and anything missing stay `no-store`. The
+   offline guide's headers (F41) do not change.
+
+Not changed: `lazurio.shell.v1` (`setup` was optional), interface v1 of the elements,
+the admission of every route, the token of a workstation's page (never in the page),
+Recovery mode. Not done: a smaller bundle (it is served unminified, about 880 KB, now
+cached); the person's account and an Owner's answer still arrive after the first paint,
+with their own requests.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Show the page at once and hide only its English words until the language is known | Every cold load would still show the page without the rail and the column head until the script arrives: one of the wrong states; rejected |
+| Render the whole page on the server | A second renderer of every panel; rejected |
+| Remember the language and the shell document in the browser | A workstation's origin changes with every start, and a stale copy is a wrong state of its own; rejected |
+| A boot document on a workstation's page too | That page is served without the token, which stays in the address's fragment (F15 addendum): the Folder's data in it would be readable without the credential; rejected |
+| A boot document with everything (the profile, the tools, the account) | The tools and the account need GitHub or the gateway's relay, the profile is Settings' own; kept lean |
+| The frame by an inline script and the stylesheet, the page hidden until drawn, a boot document behind the gateway, `setup` never awaited, the assets cached (selected) | One paint of the final page on a warm load, a blank page and then the final one on a cold load |
+
+Measured in the preview (`scripts/preview-launchpad.ts`, Czech, its `gh` answering
+after a second as GitHub would; Chrome 1440×900, hosted with 60 ms of latency and
+25 Mbit/s), every animation frame sampled from the document's start. Apps, hosted:
+before, the static English page from 0.16 s, the Czech page without the rail and the
+column head from 0.53 s, the final page at 2.65 s on a first load and 2.50 s on a
+later one, 1.16 MB each time; now nothing until the final page at 0.50 s and 0.11 s,
+the later load 101 KB (the page's HTML and data). Settings → Nástroje, hosted: 2.60 s
+before, 0.62 s now. A workstation's Apps: 2.37 s before, 0.28 s now. These are no
+rendered-page CI gates (root decision 0178).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
