@@ -6,17 +6,18 @@ import {
 } from "../src/shell/contract";
 import {
   createGuideRegistration,
-  guidesHere,
-  type RegisterWorker,
+  type ServiceWorkers,
 } from "../src/shell/offline-guide";
 import { escapeHtml, renderOfflineGuide } from "../src/shell/offline-page";
 import { OFFLINE_WORKER_PATH } from "../src/shell/offline-policy";
 import { createShellState } from "../src/shell/state";
 
-// Decision F41: the shell registers the offline guide's worker on an
-// Environment's own page, once per page load, and checks it for an update at
-// the same time, so a changed worker reaches the browser on the next load.
-// The Dashboard and a workstation never register one.
+// Decision F41: the shell registers the offline guide's worker where the
+// Environment's document says it keeps the guide, once per page load, and
+// checks it for an update at the same time, so a changed worker reaches the
+// browser on the next load. Where it keeps no guide (any more), the shell
+// registers nothing and only checks the guide's worker registered before: its
+// address then serves the retiring worker. The Dashboard never acts.
 
 const appsOf = (id: string, kind: string) => {
   if (kind === "workstation") return { apps: "/", chat: null, automate: null };
@@ -27,95 +28,164 @@ const appsOf = (id: string, kind: string) => {
   };
 };
 
-const shellOf = (current: string | null, kind = "work"): Shell => {
+const documentOf = (current: string | null, kind = "work") => ({
+  schema: "lazurio.shell.v1",
+  locale: "cs",
+  current,
+  operator: { initials: "MS", login: "example-person", avatar: null },
+  environments:
+    current === null
+      ? []
+      : [
+          {
+            id: current,
+            label: null,
+            kind,
+            organizations:
+              kind === "personal" || kind === "workstation" ? [] : ["example"],
+            assignee: null,
+            apps: appsOf(current, kind),
+          },
+        ],
+  organizations: [
+    {
+      slug: "example",
+      name: "Example",
+      avatar: null,
+      dashboard: "https://dashboard.lazurio.ai/orgs/example",
+    },
+  ],
+  dashboard: "https://dashboard.lazurio.ai/home",
+  account: "https://dashboard.lazurio.ai/settings/account",
+  addOrganization: "https://dashboard.lazurio.ai/add-organization",
+});
+
+const shellOf = (
+  current: string | null,
+  options: { kind?: string; guide?: boolean } = {},
+): Shell => {
   const shell = parseShell({
-    schema: "lazurio.shell.v1",
-    locale: "cs",
-    current,
-    operator: { initials: "MS", login: "example-person", avatar: null },
-    environments:
-      current === null
-        ? []
-        : [
-            {
-              id: current,
-              label: null,
-              kind,
-              organizations:
-                kind === "personal" || kind === "workstation"
-                  ? []
-                  : ["example"],
-              assignee: null,
-              apps: appsOf(current, kind),
-            },
-          ],
-    organizations: [
-      {
-        slug: "example",
-        name: "Example",
-        avatar: null,
-        dashboard: "https://dashboard.lazurio.ai/orgs/example",
-      },
-    ],
-    dashboard: "https://dashboard.lazurio.ai/home",
-    account: "https://dashboard.lazurio.ai/settings/account",
-    addOrganization: "https://dashboard.lazurio.ai/add-organization",
+    ...documentOf(current, options.kind),
+    ...(options.guide ? { offlineGuide: true } : {}),
   });
   if (shell === null) throw new Error("invalid fixture");
   return shell;
 };
 
-const spyRegister = () => {
+/** The browser's service workers, with one registration found or none. */
+const spyWorkers = (found?: string) => {
   const calls: unknown[][] = [];
+  const looked: string[] = [];
   let updates = 0;
-  const register: RegisterWorker = async (url, options) => {
-    calls.push([url, options]);
-    return {
-      update: async () => {
-        updates += 1;
-      },
-    };
+  const registration = (script: string) => ({
+    active: { scriptURL: script },
+    update: async () => {
+      updates += 1;
+    },
+  });
+  const workers: ServiceWorkers = {
+    register: async (url, options) => {
+      calls.push([url, options]);
+      return registration(`https://launchpad.vm-01.example.lazurio.io${url}`);
+    },
+    getRegistration: async (scope) => {
+      looked.push(scope);
+      return found === undefined ? undefined : registration(found);
+    },
   };
-  return { register, calls, updates: () => updates };
+  return { workers, calls, looked, updates: () => updates };
 };
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-test("only an Environment's own page guides: never the Dashboard, never a workstation", () => {
-  expect(guidesHere(shellOf("vm-01.example"))).toBe(true);
-  expect(guidesHere(shellOf("example-person", "personal"))).toBe(true);
-  expect(guidesHere(shellOf(null))).toBe(false);
-  expect(guidesHere(shellOf("local", "workstation"))).toBe(false);
+test("`offlineGuide` in lazurio.shell.v1: optional and additive, kept when true, refused in another shape or without a current Environment", () => {
+  const document = documentOf("vm-01.example");
+  expect(parseShell(document)?.offlineGuide).toBeUndefined();
+  expect(parseShell({ ...document, offlineGuide: true })?.offlineGuide).toBe(
+    true,
+  );
+  expect(parseShell({ ...document, offlineGuide: false })).not.toBeNull();
+  expect(
+    parseShell({ ...document, offlineGuide: false })?.offlineGuide,
+  ).toBeUndefined();
+  for (const wrong of ["true", 1, null, {}])
+    expect(parseShell({ ...document, offlineGuide: wrong })).toBeNull();
+  expect(parseShell({ ...documentOf(null), offlineGuide: true })).toBeNull();
+  expect(parseShell({ ...documentOf(null), offlineGuide: false })).toBeNull();
 });
 
-test("the worker is registered at its one address for the whole origin, without the HTTP cache, and checked for an update", async () => {
-  const spy = spyRegister();
-  const register = createGuideRegistration(spy.register);
-  register(shellOf("vm-01.example"));
+test("where the Environment keeps the guide: the worker is registered at its one address for the whole origin, without the HTTP cache, and checked for an update", async () => {
+  const spy = spyWorkers();
+  createGuideRegistration(spy.workers)(
+    shellOf("vm-01.example", { guide: true }),
+  );
   await settle();
   expect(spy.calls).toEqual([
     [OFFLINE_WORKER_PATH, { scope: "/", updateViaCache: "none" }],
   ]);
+  expect(spy.looked).toEqual([]);
   expect(spy.updates()).toBe(1);
 });
 
-test("one registration per page load, whatever documents follow", async () => {
-  const spy = spyRegister();
-  const register = createGuideRegistration(spy.register);
-  register(shellOf(null));
-  register(shellOf("local", "workstation"));
-  register(shellOf("vm-01.example"));
+test("where it keeps no guide: nothing is registered, and only the guide's worker registered before is checked, which its address now retires", async () => {
+  const before = spyWorkers(
+    `https://launchpad.vm-01.example.lazurio.io${OFFLINE_WORKER_PATH}`,
+  );
+  createGuideRegistration(before.workers)(shellOf("vm-01.example"));
+  await settle();
+  expect(before.calls).toEqual([]);
+  expect(before.looked).toEqual(["/"]);
+  expect(before.updates()).toBe(1);
+
+  // None registered: nothing to check, and no load registers one just to
+  // remove it.
+  const none = spyWorkers();
+  createGuideRegistration(none.workers)(shellOf("vm-01.example"));
+  await settle();
+  expect([none.calls, none.updates()]).toEqual([[], 0]);
+
+  // Another worker of the origin is never touched.
+  const other = spyWorkers("https://launchpad.vm-01.example.lazurio.io/sw.js");
+  createGuideRegistration(other.workers)(shellOf("vm-01.example"));
+  await settle();
+  expect([other.calls, other.updates()]).toEqual([[], 0]);
+});
+
+test("a page that belongs to no Environment never acts, and a page acts once, whatever documents follow", async () => {
+  const dashboard = spyWorkers(
+    `https://dashboard.lazurio.ai${OFFLINE_WORKER_PATH}`,
+  );
+  createGuideRegistration(dashboard.workers)(shellOf(null));
+  await settle();
+  expect([dashboard.calls, dashboard.looked, dashboard.updates()]).toEqual([
+    [],
+    [],
+    0,
+  ]);
+
+  const spy = spyWorkers();
+  const register = createGuideRegistration(spy.workers);
+  register(shellOf("vm-01.example", { guide: true }));
+  register(shellOf("vm-01.example", { guide: true }));
   register(shellOf("vm-01.example"));
   await settle();
   expect(spy.calls.length).toBe(1);
+  expect(spy.looked).toEqual([]);
 });
 
 test("a browser without service workers, or a failing registration, leaves the page as it is", async () => {
-  createGuideRegistration(null)(shellOf("vm-01.example"));
-  const failing = createGuideRegistration(async () => {
-    throw new Error("refused");
+  createGuideRegistration(null)(shellOf("vm-01.example", { guide: true }));
+  const failing = createGuideRegistration({
+    register: async () => {
+      throw new Error("refused");
+    },
+    getRegistration: async () => {
+      throw new Error("refused");
+    },
   });
-  expect(() => failing(shellOf("vm-01.example"))).not.toThrow();
+  expect(() =>
+    failing(shellOf("vm-01.example", { guide: true })),
+  ).not.toThrow();
   await settle();
 });
 
@@ -137,7 +207,7 @@ test("the shell's state asks the registration with a person's document, never wi
   if (signedOut === null) throw new Error("invalid fixture");
   state.provideShell(signedOut);
   expect(asked).toEqual([]);
-  state.provideShell(shellOf("vm-01.example"));
+  state.provideShell(shellOf("vm-01.example", { guide: true }));
   expect(asked).toEqual(["vm-01.example"]);
 });
 

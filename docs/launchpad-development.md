@@ -595,6 +595,13 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   reloaded when only its fragment differs, so the fork reads it as it starts) and
   "Zkusit znovu". The buttons lead to the Launchpad's Settings with a start request.
   No attribute, event or property of the interface changes.
+- **Whether the Environment keeps the offline guide** (decision F41, additive in v1):
+  the document's optional `offlineGuide: true`, present only where the current
+  Environment is a node of a tailnet and no workstation. `parseShell` takes it absent,
+  false or true beside a current Environment (keeping it only when true) and refuses
+  any other shape, or any value on a page that belongs to no Environment. The shell's
+  state registers the guide's worker only with it ("The offline guide" below); a host
+  never sets it.
 - **Colours** (F36's addendum of 2026-10-04, evening; root decision 0187). The elements
   have no palette of their own: they take the colours of the app they sit in. A host
   sets the colour roles below as custom properties on its document (`:root`), from its
@@ -709,11 +716,15 @@ On an Environment that is a node of a tailnet, the Launchpad answers
 `/.lazurio/offline` (the guide page, built by `src/shell/offline-page.ts`) and
 `/.lazurio/offline-sw.js` (the worker, `src/shell/offline-worker.ts` behind a
 per-answer prelude from `src/launchpad/offline-guide.ts`) after the same
-admission as every read. The shell's state registers the worker once per page
-load (`src/shell/offline-guide.ts`). The worker must stay updatable: keep its
-address, `Cache-Control: no-cache`, `Service-Worker-Allowed: /` and the
-prelude's digest of the page; never add `importScripts`. Check it in Chromium
-with Playwright supplied externally:
+admission as every read, and its shell document carries `offlineGuide: true`.
+Elsewhere there is no page and the document says nothing, but the worker's
+address still answers, with the retiring worker. The shell's state acts once
+per page load (`src/shell/offline-guide.ts`): it registers the worker only with
+`offlineGuide`, and otherwise only checks the guide's worker registered
+before, which then retires. The worker must stay updatable: keep its address,
+an answer there on every Launchpad (never a 404), `Cache-Control: no-cache`,
+`Service-Worker-Allowed: /` and the prelude's digest of the page; never add
+`importScripts`. Check it in Chromium with Playwright supplied externally:
 
 ```sh
 NODE_PATH=<directory with playwright> bun scripts/smoke-offline-guide.ts

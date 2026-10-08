@@ -7,6 +7,7 @@ import {
   OFFLINE_REFRESH_MS,
   offlineWorkerPrelude,
   parseContact,
+  refreshOutcome,
   shouldRefresh,
   staleCaches,
 } from "../src/shell/offline-policy";
@@ -61,6 +62,18 @@ test("the kept guide page is refreshed at most once an hour", () => {
   expect(
     shouldRefresh({ at: now, refreshedAt: now - OFFLINE_REFRESH_MS }, now),
   ).toBe(true);
+});
+
+test("a refresh answered 404 retires the worker: the origin keeps no guide any more", () => {
+  // A Launchpad without a tailnet, or rolled back to a release before the
+  // guide, answers the page 404; the worker removes itself instead of
+  // renewing its contact on every navigation.
+  expect(refreshOutcome(404)).toBe("retire");
+  expect(refreshOutcome(200)).toBe("replace");
+  // No answer (no network, the sign-in's redirect) or a server error keeps
+  // the page and the worker.
+  for (const status of [null, 401, 500, 502, 503])
+    expect(refreshOutcome(status)).toBe("keep");
 });
 
 test("activation drops every cache of older versions and nothing else of the origin", () => {

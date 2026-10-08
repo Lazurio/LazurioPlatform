@@ -13,7 +13,10 @@
 //   next update check, and old caches go at activation (`staleCaches`);
 // - it removes itself when the Environment has not answered for 30 days
 //   (`failedNavigation`), so an Environment that was renamed or removed, whose
-//   origin can never serve an update again, does not keep a guide forever.
+//   origin can never serve an update again, does not keep a guide forever;
+// - it removes itself when the origin answers that it keeps no guide
+//   (`refreshOutcome`), even where nothing checks it for an update, such as a
+//   Launchpad rolled back to a release from before the guide.
 
 /** The worker's one address on every shell origin. Never renamed. */
 export const OFFLINE_WORKER_PATH = "/.lazurio/offline-sw.js";
@@ -81,6 +84,19 @@ export function shouldRefresh(
   now: number,
 ): boolean {
   return !contact || now - contact.refreshedAt >= OFFLINE_REFRESH_MS;
+}
+
+/**
+ * The answer of a refresh of the kept page: its HTTP status, or null when no
+ * answer came (no network, or a redirect to the sign-in). 404 says the origin
+ * keeps no guide (any more): the worker retires at once rather than renew its
+ * contact. A page replaces the kept one; anything else keeps it.
+ */
+export function refreshOutcome(
+  status: number | null,
+): "replace" | "keep" | "retire" {
+  if (status === 404) return "retire";
+  return status !== null && status >= 200 && status < 300 ? "replace" : "keep";
 }
 
 /** The contact as written to the cache; anything else reads as no contact. */

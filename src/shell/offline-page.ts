@@ -65,18 +65,18 @@ const copy: Record<"cs" | "en", Copy> = {
         "Najeď na svůj účet a v seznamu vyber {tailnet}.",
       ],
       windows: [
-        "Klikni na ikonu Tailscale vpravo dole na hlavním panelu. Když ji nevidíš, schovává se pod šipkou ^.",
+        "Klikni pravým tlačítkem na ikonu Tailscale vpravo dole na hlavním panelu. Když ji nevidíš, schovává se pod šipkou ^.",
         "Najeď na svůj účet a v seznamu vyber {tailnet}.",
         "Když Tailscale není připojený, zvol Connect.",
       ],
       ios: [
         "Otevři aplikaci Tailscale.",
-        "Klepni na účet a v seznamu vyber {tailnet}.",
+        "Klepni na ikonu účtu vpravo nahoře, pak na svůj účet a v seznamu vyber {tailnet}.",
         "Zapni přepínač Tailscale.",
       ],
       android: [
         "Otevři aplikaci Tailscale.",
-        "Klepni na účet a v seznamu vyber {tailnet}.",
+        "Klepni na ikonu účtu vpravo nahoře, pak na svůj účet a v seznamu vyber {tailnet}.",
         "Zapni přepínač Tailscale.",
       ],
     },
@@ -104,18 +104,18 @@ const copy: Record<"cs" | "en", Copy> = {
         "Point at your account and choose {tailnet} in the list.",
       ],
       windows: [
-        "Click the Tailscale icon at the bottom right of the taskbar. If you do not see it, it hides under the ^ arrow.",
+        "Right-click the Tailscale icon at the bottom right of the taskbar. If you do not see it, it hides under the ^ arrow.",
         "Point at your account and choose {tailnet} in the list.",
         "If Tailscale is not connected, choose Connect.",
       ],
       ios: [
         "Open the Tailscale app.",
-        "Tap your account and choose {tailnet} in the list.",
+        "Tap the account icon at the top right, then your account, and choose {tailnet} in the list.",
         "Turn on the Tailscale switch.",
       ],
       android: [
         "Open the Tailscale app.",
-        "Tap your account and choose {tailnet} in the list.",
+        "Tap the account icon at the top right, then your account, and choose {tailnet} in the list.",
         "Turn on the Tailscale switch.",
       ],
     },

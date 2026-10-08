@@ -10,7 +10,12 @@ import {
   offlineDocsUrl,
   offlineWorkerSource,
 } from "../src/launchpad/offline-guide";
-import { type HostedOptions, startLaunchpad } from "../src/launchpad/server";
+import {
+  type HostedOptions,
+  shellDocumentPath,
+  startLaunchpad,
+} from "../src/launchpad/server";
+import { parseShell } from "../src/shell/contract";
 import {
   OFFLINE_PAGE_PATH,
   OFFLINE_WORKER_PATH,
@@ -21,7 +26,10 @@ import { organizationWithEntry } from "./fixtures/machine-bindings";
 // answers the offline guide's page and worker under `/.lazurio/`, only after
 // the gateway's admission, always revalidated, the worker with the header
 // that lets it answer the whole origin, and its bytes carrying the version
-// and the digest of the page it keeps. Without a tailnet there is neither.
+// and the digest of the page it keeps; its shell document says it keeps the
+// guide. Without a tailnet there is no page, the document says nothing, and
+// the worker's address serves the retiring worker, so a worker installed
+// before removes itself at the next update check.
 
 const posixTest = test.skipIf(process.platform === "win32");
 
@@ -120,6 +128,12 @@ posixTest(
         headers: valid,
       });
       expect(await again.text()).toBe(script);
+
+      // The document tells the elements to register it.
+      const shell = await fetch(`${base}${shellDocumentPath}`, {
+        headers: valid,
+      });
+      expect(parseShell(await shell.json())?.offlineGuide).toBe(true);
     } finally {
       await app.close();
       await rm(parent, { recursive: true, force: true });
@@ -129,16 +143,40 @@ posixTest(
 );
 
 posixTest(
-  "hosted: without a tailnet the Environment has neither the page nor the worker",
+  "hosted: without a tailnet no page, a document that registers nothing, and the retiring worker at the same address",
   async () => {
-    const { app, parent, base, valid } = await hostedLaunchpad(
+    const { app, parent, base, host, valid } = await hostedLaunchpad(
       async () => null,
     );
     try {
-      for (const path of [OFFLINE_PAGE_PATH, OFFLINE_WORKER_PATH])
-        expect((await fetch(`${base}${path}`, { headers: valid })).status).toBe(
-          404,
-        );
+      expect(
+        (await fetch(`${base}${OFFLINE_PAGE_PATH}`, { headers: valid })).status,
+      ).toBe(404);
+      const shell = await fetch(`${base}${shellDocumentPath}`, {
+        headers: valid,
+      });
+      const document = parseShell(await shell.json());
+      expect(document).not.toBeNull();
+      expect(document?.offlineGuide).toBeUndefined();
+
+      // A browser that installed the worker while the Environment had a
+      // tailnet checks it for an update at the next load; the answer, under
+      // the same admission and headers, is a worker that removes itself.
+      expect(
+        (await fetch(`${base}${OFFLINE_WORKER_PATH}`, { headers: { host } }))
+          .status,
+      ).toBe(401);
+      const worker = await fetch(`${base}${OFFLINE_WORKER_PATH}`, {
+        headers: valid,
+      });
+      expect(worker.status).toBe(200);
+      expect(worker.headers.get("content-type")).toContain("text/javascript");
+      expect(worker.headers.get("cache-control")).toBe("no-cache");
+      expect(worker.headers.get("service-worker-allowed")).toBe("/");
+      const script = await worker.text();
+      expect(script.startsWith("const LAZURIO_OFFLINE = ")).toBe(true);
+      expect(script).toContain('"retired":true');
+      expect(script.endsWith(offlineWorkerSource)).toBe(true);
     } finally {
       await app.close();
       await rm(parent, { recursive: true, force: true });

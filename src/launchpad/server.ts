@@ -74,6 +74,7 @@ import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
 import {
+  keepsOfflineGuide,
   offlineGuideHeaders,
   offlineGuidePage,
   offlineGuidePath,
@@ -470,7 +471,7 @@ export async function startLaunchpad(
           // its person; the first answer of `gh` is awaited a few seconds
           // at most (setup-state.ts).
           server.timeout(request, 30);
-          const [catalog, setup] = await Promise.all([
+          const [catalog, setup, tailnet] = await Promise.all([
             readFolderCatalog(folder),
             signsInAsPerson(preset)
               ? Promise.all([github.state(), readContent(contentState)])
@@ -480,16 +481,22 @@ export async function startLaunchpad(
                   // What the Environment lacks never costs the rail.
                   .catch(() => undefined)
               : undefined,
+            (hostedOptions.offlineTailnet ?? machineTailnet)(),
           ]);
+          const document = shellDocument({
+            preset,
+            machine: current.preferences.machine,
+            locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
+            catalog,
+            computer: hostname(),
+            ...(setup === undefined ? {} : { setup }),
+          });
+          // Whether the elements register the offline guide's worker
+          // (decision F41): only where the worker's address serves it.
           return response(
-            shellDocument({
-              preset,
-              machine: current.preferences.machine,
-              locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
-              catalog,
-              computer: hostname(),
-              ...(setup === undefined ? {} : { setup }),
-            }),
+            keepsOfflineGuide(document, tailnet)
+              ? { ...document, offlineGuide: true }
+              : document,
           );
         } catch {
           return response({ error: "operation-failed" }, 500);
@@ -501,8 +508,10 @@ export async function startLaunchpad(
       ) {
         // The offline guide (decision F41): the page an address of this
         // Environment shows when the network fails, and the worker that keeps
-        // it. Only where the Environment is a node of a tailnet; behind the
-        // same admission as every read, recomputed on every read.
+        // it. The page only where the Environment is a node of a tailnet; the
+        // worker's address everywhere, elsewhere with the retiring worker, so
+        // a worker installed before never outlives the guide. Behind the same
+        // admission as every read, recomputed on every read.
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
@@ -510,26 +519,33 @@ export async function startLaunchpad(
           const tailnet = await (
             hostedOptions.offlineTailnet ?? machineTailnet
           )();
-          if (tailnet === null) return response({ error: "not-found" }, 404);
-          const current = await withFolderReadLock(state, () =>
-            readFolderState(state),
-          );
-          const page = offlineGuidePage(
-            shellDocument({
-              preset: current.preferences.preset.name,
-              machine: current.preferences.machine,
-              locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
-              catalog: await readFolderCatalog(folder),
-              computer: hostname(),
-            }),
-            tailnet,
-          );
-          if (page === null) return response({ error: "not-found" }, 404);
-          return url.pathname === offlineGuidePath
-            ? new Response(page, { headers: offlineGuideHeaders })
-            : new Response(offlineWorker(page, embeddedIdentity().version), {
+          let page: string | null = null;
+          if (tailnet !== null) {
+            const current = await withFolderReadLock(state, () =>
+              readFolderState(state),
+            );
+            page = offlineGuidePage(
+              shellDocument({
+                preset: current.preferences.preset.name,
+                machine: current.preferences.machine,
+                locale:
+                  current.preferences.profile.locale === "cs" ? "cs" : "en",
+                catalog: await readFolderCatalog(folder),
+                computer: hostname(),
+              }),
+              tailnet,
+            );
+          }
+          if (url.pathname === offlineWorkerPath)
+            return new Response(
+              offlineWorker(page, embeddedIdentity().version),
+              {
                 headers: offlineWorkerHeaders,
-              });
+              },
+            );
+          return page === null
+            ? response({ error: "not-found" }, 404)
+            : new Response(page, { headers: offlineGuideHeaders });
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

@@ -5489,18 +5489,32 @@ rejected (#262). A service worker needs neither.
    sign-in redirect) is returned unchanged. A module's app and the
    Environment's browser are origins of their own and keep the browser's
    error until they carry the worker too (module-kit).
-3. **Only where it belongs.** Both answer only on an Environment that is a
-   node of a tailnet (a readable handover with a control server), behind the
-   same admission as every read; a workstation, a Launchpad without a
-   handover and the Dashboard have neither. The shell registers the worker
-   only with a person's document whose current Environment is no workstation
-   (`guidesHere`), once per page load, through the shell's state, so the
-   Launchpad page and the forks' pages register alike.
+3. **Only where it belongs.** Only an Environment that is a node of a
+   tailnet (a readable handover with a control server) keeps the guide: its
+   Launchpad answers the page, and its shell document says so
+   (`offlineGuide: true`, additive in `lazurio.shell.v1`). A workstation, a
+   Launchpad without a readable handover or without a control server in it,
+   and the Dashboard keep none: no page, and the document says nothing. The
+   worker's address answers on every Launchpad, behind the same admission as
+   every read: the guide's worker where the Environment keeps the guide, the
+   retiring worker everywhere else. The shell acts once per page load,
+   through the shell's state, so the Launchpad page and the forks' pages act
+   alike: with `offlineGuide` it registers the worker and checks it for an
+   update; without it, it registers nothing and only checks the guide's
+   worker registered before (by its script's address; another worker of the
+   origin is never touched), so a worker installed while the Environment had
+   a tailnet gets the retiring worker at the next load and removes itself,
+   and no later load registers one just to remove it. A page that belongs to
+   no Environment never acts.
 4. **Never frozen (Matěj 2026-10-08).**
    - One address forever: the browser checks for updates only at the URL it
-     installed from. If the guide is ever retired, the same URL serves a
-     worker that removes its caches and itself (`retired: true`), and the
-     shell stops registering.
+     installed from. Where the Environment keeps no guide, whether its
+     tailnet was dropped, its handover cannot be read or the guide is retired
+     for good, the same URL serves a worker that removes its caches and
+     itself (`retired: true`), and the document's silence stops the shell
+     from registering (point 3). A 404 there would fail the update check and
+     keep the old worker forever, since every successful navigation renews
+     its contact (Pablo's review of 2026-10-08).
    - Always revalidated: `Cache-Control: no-cache` on both answers,
      registration with `updateViaCache: "none"`, one classic script with no
      `importScripts`, and `registration.update()` on every shell load.
@@ -5518,6 +5532,12 @@ rejected (#262). A service worker needs neither.
      and the browser shows its own error. An Environment that was renamed or
      removed can never serve an update again, so it must not keep a guide
      forever.
+   - Removes itself where the origin keeps no guide: a refresh of the kept
+     page answered 404 retires the worker at once instead of renewing its
+     contact (`refreshOutcome`; no answer, the sign-in's redirect or a server
+     error keep it). So even a Launchpad rolled back to a release before the
+     guide, which answers neither address and whose pages register nothing,
+     cannot keep a frozen worker.
    - `Service-Worker-Allowed: /` is on every answer of the worker: an update
      fetched without it fails, and the old worker would stay.
    - The worker answers `{type: "lazurio-offline-version"}` with its version,
@@ -5529,12 +5549,19 @@ rejected (#262). A service worker needs neither.
 | Safari's 7-day limit without interaction | Safari removes the worker; the browser's error until the next visit. |
 | Session expired | The update check is redirected and fails; the old worker stays until the next check after sign-in. A navigation that reaches the network is returned unchanged, sign-in included. |
 | The Environment is stopped, no internet, the browser's own secure DNS | The same guide; the documentation lists these cases. |
-| Handover unreadable | No page and no worker are answered (404); a registered worker keeps its last page until the next successful check. |
+| Handover unreadable, or without a tailnet | No page (404) and a document without `offlineGuide`; the worker's address serves the retiring worker, so the next load of a shell page removes an installed worker and its caches. When the tailnet returns, the next load registers it again. |
+| A Launchpad rolled back to a release before the guide | Neither address answers and its pages register nothing; the worker's next refresh of the page (at most an hour after the last, with a successful navigation) is answered 404, and it removes itself and its caches. |
 
 Verified by unit tests (`tests/shell-offline-policy.test.ts`,
 `tests/shell-offline-guide.test.ts`, `tests/launchpad-offline-guide.test.ts`)
 and in Chromium with `scripts/smoke-offline-guide.ts` (Playwright supplied
 externally): the guide on a name that does not resolve with the deep link
 kept, v1 → v2 on the next load with the old cache gone, the guide showing
-the new page, self-removal after 30 days, a retiring worker unregistering,
-and a registration refused without `Service-Worker-Allowed`.
+the new page, self-removal after 30 days, a dropped tailnet removing an
+installed worker and its caches at the next load with no load registering it
+again (the same run against a 404 at the worker's address keeps the worker
+and fails), the worker registered again once the tailnet returns, a Launchpad
+rolled back before the guide removing the worker at its next refresh (fails
+without `refreshOutcome`'s retirement), and a registration refused without
+`Service-Worker-Allowed`. The smoke builds the shell's registration from
+`src/shell/offline-guide.ts` into its page.

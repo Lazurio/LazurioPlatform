@@ -8,6 +8,7 @@ import {
   type OfflineContact,
   type OfflineWorkerConfig,
   parseContact,
+  refreshOutcome,
   shouldRefresh,
   staleCaches,
 } from "./offline-policy";
@@ -63,14 +64,14 @@ function writeContact(cache: Cache, contact: OfflineContact): Promise<void> {
   );
 }
 
-/** The guide page as this origin serves it now; never a redirect to the sign-in. */
-async function fetchPage(): Promise<Response | null> {
-  const response = await fetch(OFFLINE_PAGE_PATH, {
+/** The guide page as this origin answers it now; never a redirect to the
+ * sign-in, which rejects. */
+function fetchPage(): Promise<Response> {
+  return fetch(OFFLINE_PAGE_PATH, {
     cache: "no-store",
     credentials: "same-origin",
     redirect: "error",
   });
-  return response.ok ? response : null;
 }
 
 /** Removes every cache of the worker and the worker itself. */
@@ -81,7 +82,8 @@ async function retire(): Promise<void> {
   await worker.registration.unregister();
 }
 
-/** A navigation reached the network: remember it, and refresh the page now and then. */
+/** A navigation reached the network: remember it, and refresh the page now
+ * and then. An origin that keeps no guide any more retires the worker. */
 async function remember(): Promise<void> {
   const cache = await caches.open(current);
   const contact = await readContact(cache);
@@ -89,7 +91,9 @@ async function remember(): Promise<void> {
   let refreshedAt = contact?.refreshedAt ?? 0;
   if (shouldRefresh(contact, now)) {
     const page = await fetchPage().catch(() => null);
-    if (page) {
+    const outcome = refreshOutcome(page?.status ?? null);
+    if (outcome === "retire") return retire();
+    if (outcome === "replace" && page) {
       await cache.put(OFFLINE_PAGE_PATH, page);
       refreshedAt = now;
     }
@@ -118,7 +122,7 @@ worker.addEventListener("install", (event) => {
     (async () => {
       if (!config.retired) {
         const page = await fetchPage();
-        if (!page) throw new Error("The guide page is not available");
+        if (!page.ok) throw new Error("The guide page is not available");
         const cache = await caches.open(current);
         await cache.put(OFFLINE_PAGE_PATH, page);
         await writeContact(cache, { at: Date.now(), refreshedAt: Date.now() });
