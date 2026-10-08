@@ -23,3 +23,29 @@ export function shellScript(): string {
     throw new Error(`The shell script did not build: ${result.stderr}`);
   return result.stdout.toString();
 }
+
+// `/.lazurio/offline-sw.js` (DEV-6651) without its prelude: the offline
+// guide's service worker as one classic script (IIFE, no imports at run
+// time), built the same way when this module is bundled. The Launchpad puts
+// `offlineWorkerPrelude` in front of it, so the version and the guide page's
+// digest are part of the worker's bytes.
+export function offlineWorkerScript(): string {
+  const result = Bun.spawnSync(
+    [
+      process.execPath,
+      "build",
+      `${import.meta.dir}/offline-worker.ts`,
+      "--target=browser",
+      "--format=iife",
+      "--minify",
+    ],
+    {
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { PATH: process.env.PATH ?? "" },
+    },
+  );
+  if (!result.success)
+    throw new Error(`The offline worker did not build: ${result.stderr}`);
+  return result.stdout.toString();
+}

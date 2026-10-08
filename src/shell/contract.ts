@@ -136,6 +136,13 @@ export type Shell = Readonly<{
    * when there is nothing to say or nothing known, and always absent on a
    * page that belongs to no Environment. */
   setup?: ShellSetup;
+  /** True where the current Environment keeps the offline guide on its
+   * origins (decision F41, additive in v1): a node of a tailnet, never a
+   * workstation. The elements register the guide's worker only with it;
+   * without it they only check a worker registered before, which the
+   * worker's address then retires. Absent otherwise, and always absent on a
+   * page that belongs to no Environment. */
+  offlineGuide?: true;
   operator: ShellOperator;
   environments: readonly ShellEnvironment[];
   organizations: readonly ShellOrganization[];
@@ -460,7 +467,9 @@ export function parseShellSetup(
  * Dashboard's addresses are https URLs or paths on the page's own origin.
  * The optional `setup` (root decision 0188) is absent, null or in its exact
  * shape beside a current Environment, which it describes, and absent (not
- * even null) on a page that belongs to no Environment. */
+ * even null) on a page that belongs to no Environment. So is the optional
+ * `offlineGuide` (decision F41): absent, false or true beside a current
+ * Environment, kept only when true. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (!isPageUrl(input.dashboard) || !isPageUrl(input.account)) return null;
@@ -479,11 +488,18 @@ export function parseShell(input: unknown): Shell | null {
   // Environment carries none at all: absent, not even null.
   if (setup === false || (current === null && input.setup !== undefined))
     return null;
+  const offlineGuide = input.offlineGuide;
+  if (
+    !(offlineGuide === undefined || typeof offlineGuide === "boolean") ||
+    (current === null && offlineGuide !== undefined)
+  )
+    return null;
   return Object.freeze({
     schema: shellSchema,
     locale: shared.locale,
     current: current as string | null,
     ...(setup === undefined ? {} : { setup }),
+    ...(offlineGuide === true ? { offlineGuide } : {}),
     operator: shared.operator,
     environments: shared.environments,
     organizations: shared.organizations,

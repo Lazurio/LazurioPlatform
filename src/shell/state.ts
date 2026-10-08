@@ -62,6 +62,9 @@ export type ShellStateOptions = Readonly<{
   report: (shell: Shell, app: ShellApp | null, space: string | null) => void;
   /** This origin's memory of the account; the browser's when absent. */
   store?: Store | null;
+  /** The offline guide's registration (decision F41, `registerGuide`),
+   * asked with every person's document; it acts once per page. */
+  guide?: (shell: Shell) => void;
   log?: (message: string) => void;
 }>;
 
@@ -167,6 +170,7 @@ export function createShellState(options: ShellStateOptions) {
       } else {
         signedOut = null;
         local = shell;
+        options.guide?.(shell);
       }
       redraw();
     },

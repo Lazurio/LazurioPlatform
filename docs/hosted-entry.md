@@ -261,7 +261,7 @@ locally, and its downloads ride the session token instead.
 | Cookie header over 16 KiB, the named cookie repeated, or its chunks with a gap or a repeated index | Deny |
 | Unknown hostname at the listener | Refused, no default application |
 | Session expires during a WebSocket | Socket closed with a clean re-login navigation, no token in a URL |
-| Laptop offline or off the tailnet | The gateway answers an error; the Dashboard shows the Machine as unreachable |
+| Laptop offline or off the tailnet | The browser cannot resolve the address; after a first visit the offline guide's worker (decision F41) shows how to turn on Tailscale and choose the tailnet; the Dashboard shows the Machine as unreachable |
 | Entry recorded without a Machine binding (`local`, a personal laptop), or a hosted Machine started with an entry that is not the recorded one | Refuse to start, naming the value; the recorded entry is the only source |
 
 ### Evidence required before the switch

@@ -9,6 +9,7 @@ import { installShellFonts } from "./fonts";
 import { icon } from "./icons";
 import { appOf, keptVisit, reportLast } from "./last";
 import { fillShell, type ShellCopy, shellMessages } from "./messages";
+import { registerGuide } from "./offline-guide";
 import { accountSourceOf, createShellState } from "./state";
 import { columnHeadCss, railCss, railWidth } from "./styles";
 import { vendorText } from "./vendor-text" with { type: "macro" };
@@ -77,6 +78,7 @@ const state = createShellState({
     accountSourceOf(document.documentElement.dataset.lazurioAccount),
   read: pageAccountJson,
   report: reportLast,
+  guide: registerGuide,
 });
 let requested = false;
 
