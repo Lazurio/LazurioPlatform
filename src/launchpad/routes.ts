@@ -119,6 +119,21 @@ export function pageRoute(pathname: string): PageRoute {
   };
 }
 
+/** The frame of a location path and, in Settings, its section: what the
+ * page shows before any of its modules runs (F36's addendum of 2026-10-08).
+ * The inline script at the top of `index.html` computes the same from
+ * `location.pathname` and writes it to `<html data-frame data-section>`;
+ * `tests/launchpad-first-paint.test.ts` keeps the two equal. */
+export function pageFrame(
+  pathname: string,
+): Readonly<{ frame: PageFrame; section: SettingsSection | null }> {
+  const route = pageRoute(pathname);
+  return {
+    frame: routeFrame(route),
+    section: route.view === "settings" ? route.section : null,
+  };
+}
+
 /** The canonical path of a route: what the address bar shows for it. */
 export function routePath(route: PageRoute): string {
   if (route.view === "home") return "/";

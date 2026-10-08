@@ -62,6 +62,8 @@ import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
+import type { LaunchpadBoot } from "./boot";
+import { launchpadBoot, withBoot } from "./boot-document";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
@@ -74,16 +76,22 @@ import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
 import {
-  keepsOfflineGuide,
   offlineGuideHeaders,
   offlineGuidePage,
   offlineGuidePath,
   offlineWorker,
   offlineWorkerHeaders,
   offlineWorkerPath,
+  withOfflineGuide,
 } from "./offline-guide";
 import { createOwnerCheck } from "./organization-owner";
-import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
+import {
+  admitLocal,
+  notModified,
+  pageRoutes,
+  privatePage,
+  serveShell,
+} from "./page";
 import {
   isOrganizationPrompt,
   isPromptId,
@@ -95,6 +103,7 @@ import {
 import {
   type ContentReader,
   createGithubProbe,
+  createSetupCache,
   readContent,
   shellSetup,
 } from "./setup-state";
@@ -128,6 +137,12 @@ export type HostedOptions = Readonly<{
 
 /** The Lazurio shell's data document (decision F36). */
 export const shellDocumentPath = "/.lazurio/shell.json";
+
+/** How long the page's boot document may wait for the Folder's lock, and
+ * for everything it reads (F36's addendum of 2026-10-08): the page is never
+ * held longer for it. */
+const bootLockWaitMs = 250;
+const bootWithinMs = 500;
 
 /** The tailnet control server the Machine handover names (decision F41);
  * none where there is no readable handover, as on a workstation. */
@@ -387,6 +402,104 @@ export async function startLaunchpad(
       }),
   });
   const contentState: ContentReader = contentReader ?? content;
+  // The shell document's `setup` from the last reading, never awaited (F36's
+  // addendum of 2026-10-08): the forks' column head says what is missing
+  // once it is known, and no page waits for GitHub to learn it.
+  const setup = createSetupCache(async () => {
+    const current = await withFolderReadLock(state, () =>
+      readFolderState(state),
+    );
+    const preset = current.preferences.preset.name;
+    if (!signsInAsPerson(preset)) return undefined;
+    const [signIn, read] = await Promise.all([
+      github.state(),
+      readContent(contentState),
+    ]);
+    return shellSetup({ preset, github: signIn, ...read });
+  });
+  // The boot document of the page (F36's addendum of 2026-10-08, boot.ts):
+  // what this Launchpad knows from the Folder alone, under one short read of
+  // its state. None when that fails or takes longer than a moment: the page
+  // then reads it all itself, as before.
+  async function pageBoot(): Promise<LaunchpadBoot | null> {
+    let late: ReturnType<typeof setTimeout> | undefined;
+    const read = (async () => {
+      const current = await withFolderReadLock(
+        state,
+        () => readFolderState(state),
+        bootLockWaitMs,
+      );
+      const [catalog, tailnet] = await Promise.all([
+        readFolderCatalog(folder),
+        (hostedOptions.offlineTailnet ?? machineTailnet)(),
+      ]);
+      return launchpadBoot({
+        preset: current.preferences.preset.name,
+        machine: current.preferences.machine,
+        locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
+        catalog,
+        entry,
+        computer: hostname(),
+        tailnet,
+      });
+    })().catch(() => null);
+    try {
+      return await Promise.race([
+        read,
+        new Promise<null>((resolve) => {
+          late = setTimeout(() => resolve(null), bootWithinMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(late);
+    }
+  }
+  // Behind the gateway, the page or one of its static assets from the inner
+  // listener, after admission (F36's addendum of 2026-10-08). The page is
+  // never stored and carries its boot document; an asset keeps the inner
+  // listener's caching (the bundle's hashed files, the fonts and the stones
+  // immutable, the shell's script revalidated by its ETag); an answer
+  // without its own, a missing asset among them, is not stored.
+  async function fromShell(
+    request: Request,
+    path: string,
+    status: (page: Response) => number,
+  ): Promise<Response> {
+    if (shell === null) throw new Error("No inner listener");
+    const page = await shell.get(path, request.headers.get("accept"));
+    const type = page.headers.get("content-type") ?? "application/octet-stream";
+    const body = request.method === "HEAD" ? null : page.body;
+    if (page.ok && type.startsWith("text/html")) {
+      const answer = new Response(body, {
+        status: status(page),
+        headers: { ...headers, "Content-Type": type },
+      });
+      if (request.method === "HEAD") return answer;
+      const boot = await pageBoot();
+      // Someone opened the Launchpad: what the Environment lacks is read now
+      // (not as the Launchpad starts, when the Folder's operations need its
+      // lock), so that Chat and Automate, whose column head reads the shell
+      // document once per load, find it when they open.
+      void setup.peek();
+      return boot === null ? answer : withBoot(answer, boot);
+    }
+    const kept: Record<string, string> = {};
+    const cacheControl = page.headers.get("cache-control");
+    const etag = page.headers.get("etag");
+    if (page.ok && cacheControl !== null) kept["Cache-Control"] = cacheControl;
+    if (page.ok && etag !== null) kept.ETag = etag;
+    if (kept.ETag !== undefined && notModified(request, kept.ETag)) {
+      await page.body?.cancel().catch(() => undefined);
+      return new Response(null, {
+        status: 304,
+        headers: { ...headers, ...kept },
+      });
+    }
+    return new Response(body, {
+      status: status(page),
+      headers: { ...headers, ...kept, "Content-Type": type },
+    });
+  }
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: entry === null ? 0 : entry.listenPort,
@@ -421,44 +534,30 @@ export async function startLaunchpad(
             return response({ error: "operation-failed" }, 500);
           }
           if (answer instanceof Response) return answer;
-          const page = await shell.get(
-            url.pathname,
-            request.headers.get("accept"),
+          return fromShell(request, url.pathname, (page) =>
+            page.ok ? answer.status : page.status,
           );
-          return new Response(request.method === "HEAD" ? null : page.body, {
-            status: page.ok ? answer.status : page.status,
-            headers: {
-              ...headers,
-              "Content-Type":
-                page.headers.get("content-type") ?? "application/octet-stream",
-            },
-          });
         }
         if (
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
           !isLazurioDocument(url.pathname)
-        ) {
-          const page = await shell.get(
+        )
+          return fromShell(
+            request,
             `${url.pathname}${url.search}`,
-            request.headers.get("accept"),
+            (page) => page.status,
           );
-          return new Response(page.body, {
-            status: page.status,
-            headers: {
-              ...headers,
-              "Content-Type":
-                page.headers.get("content-type") ?? "application/octet-stream",
-            },
-          });
-        }
       } else if (!admitLocal(request, origin, token))
         return response({ error: "denied" }, 403);
       if (url.pathname === shellDocumentPath) {
         // The Lazurio shell's data (decision F36): this Environment, its
         // Organizations and the addresses of its apps, behind the same
         // admission as every read (the token locally, the gateway's session
-        // hosted). Read-only, recomputed on every read.
+        // hosted). Read-only, recomputed on every read, but for what the
+        // Environment lacks: that comes from the last reading and is never
+        // awaited (F36's addendum of 2026-10-08), so the rail never waits
+        // for GitHub.
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
@@ -467,36 +566,28 @@ export async function startLaunchpad(
             readFolderState(state),
           );
           const preset = current.preferences.preset.name;
-          // GitHub and the content only where the Environment signs in as
-          // its person; the first answer of `gh` is awaited a few seconds
-          // at most (setup-state.ts).
-          server.timeout(request, 30);
-          const [catalog, setup, tailnet] = await Promise.all([
+          const [catalog, tailnet] = await Promise.all([
             readFolderCatalog(folder),
-            signsInAsPerson(preset)
-              ? Promise.all([github.state(), readContent(contentState)])
-                  .then(([state, read]) =>
-                    shellSetup({ preset, github: state, ...read }),
-                  )
-                  // What the Environment lacks never costs the rail.
-                  .catch(() => undefined)
-              : undefined,
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
           ]);
-          const document = shellDocument({
-            preset,
-            machine: current.preferences.machine,
-            locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
-            catalog,
-            computer: hostname(),
-            ...(setup === undefined ? {} : { setup }),
-          });
+          // GitHub and the content only where the Environment signs in as
+          // its person (setup-state.ts).
+          const known = signsInAsPerson(preset) ? setup.peek() : undefined;
           // Whether the elements register the offline guide's worker
           // (decision F41): only where the worker's address serves it.
           return response(
-            keepsOfflineGuide(document, tailnet)
-              ? { ...document, offlineGuide: true }
-              : document,
+            withOfflineGuide(
+              shellDocument({
+                preset,
+                machine: current.preferences.machine,
+                locale:
+                  current.preferences.profile.locale === "cs" ? "cs" : "en",
+                catalog,
+                computer: hostname(),
+                ...(known === undefined ? {} : { setup: known }),
+              }),
+              tailnet,
+            ),
           );
         } catch {
           return response({ error: "operation-failed" }, 500);
@@ -866,9 +957,20 @@ export async function startLaunchpad(
       if (content.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         try {
-          return await content.handle(request, url, (seconds) =>
+          const answer = await content.handle(request, url, (seconds) =>
             server.timeout(request, seconds),
           );
+          // An installation changes what the Environment lacks: the shell
+          // says nothing of it until it is read again, now and once the
+          // installation ends.
+          if (
+            url.pathname === "/api/content/install" &&
+            answer.status === 202
+          ) {
+            setup.forget();
+            void content.settled().then(() => setup.forget());
+          }
+          return answer;
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
@@ -990,7 +1092,8 @@ export async function startLaunchpad(
           });
           // The shell document's GitHub follows this reading.
           const gh = overview.tools.find((tool) => tool.name === "gh");
-          if (gh !== undefined) github.remember(gh.installed, gh.signIn);
+          if (gh !== undefined && github.remember(gh.installed, gh.signIn))
+            setup.forget();
           return response(overview);
         }
         if (
@@ -1076,7 +1179,10 @@ export async function startLaunchpad(
               ? githubRefusal(await folderPreset(folder), tool, action, logins)
               : undefined;
           // A sign-in or sign-out of gh changes what the shell says.
-          if (tool === "gh") github.forget();
+          if (tool === "gh") {
+            github.forget();
+            setup.forget();
+          }
           if (url.pathname === "/api/tools/logout") {
             // gh first removes this Machine's SSH key from the account.
             server.timeout(request, 180);
@@ -1191,6 +1297,8 @@ export async function startLaunchpad(
         // A profile change that makes this a Team Environment ends a running
         // gh sign-in or key linking at once: its holder reads the refusal.
         if (url.pathname === "/api/update" && result.kind === "updated") {
+          // The preset may have changed whether the shell says anything.
+          setup.forget();
           const preset = await folderPreset(folder).catch(() => undefined);
           if (preset === undefined || githubLoginRefused(preset, "gh", "login"))
             logins.refuse("gh");

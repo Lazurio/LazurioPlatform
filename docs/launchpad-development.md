@@ -24,7 +24,9 @@ The persisted profile locale selects Czech or English labels, option text, statu
 messages, document title and document language. Preview does not activate a language
 change; the UI changes language only after the new state is loaded. Stable enum
 values, JSON diagnostic keys, Folder paths and user content are not translated.
-Before state is available the loading/error shell defaults to English.
+Before state is available the page stays hidden, at most a second, and a hosted page
+is served in the Folder's language ([first paint](#the-shell-as-built-decision-f36));
+should the profile not be read, the page is in English.
 
 On 2026-09-13, real in-app browser interaction against a new temporary macOS fixture
 loaded revision 1, selected Czech instructions, previewed without writing, applied
@@ -401,6 +403,23 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   Settings, Tools, Recovery and Files keep their panels. The sections below that speak of the sidebar, its footer, the top
   bar, T3 Code's colours or Chat and MausBot as sidebar links describe the build before
   F36.
+- **First paint** ([F36's addendum of
+  2026-10-08](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)):
+  the first thing painted is the final page. The inline script at the top of
+  `index.html` names the frame on `<html data-frame data-section>` before anything else
+  is parsed (`pageFrame` in `routes.ts` reads the same; keep the two equal when a route
+  changes, `tests/launchpad-first-paint.test.ts` fails otherwise), and the stylesheet
+  shows only that frame. Nothing shows until `ui.ts` sets `data-ready` (the language,
+  the shell document, the catalog on Apps, the profile on Settings; at the latest after
+  a second, the stylesheet after two). Behind the gateway the page carries its boot
+  document (`boot.ts`, `boot-document.ts`): the language, the shell document without
+  `setup`, the catalog and the entry's public parts, and its words already in that
+  language; a workstation's page carries none and reads them. A new text of the page
+  takes a `data-message` key, so the server writes it in the right language too. The
+  page reads the tools' sign-ins and the content on Settings or once idle, never on the
+  way to the first paint. To watch it, sample the page in every animation frame from
+  the document's start (Playwright's `addInitScript`) against the preview with its
+  `gh` slowed down; screenshots alone miss frames.
 - **The person's account** ([F36's account
   note](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   root decision 0185 S8, S12, S15, S18). Built, and waiting only for the account to
@@ -585,7 +604,12 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   Environment signs in as its person and gh's state is known (`setup-state.ts`: this
   Environment's `gh`, kept a minute and replaced by Nástroje's readings and every
   sign-in or sign-out through the Launchpad); `content` only where the content routes
-  answer, `item` the first content not here or the one that stopped. `parseShell`
+  answer, `item` the first content not here or the one that stopped. The document never
+  waits for it (F36's addendum of 2026-10-08): it is the last reading, first read when
+  someone opens the page, read again in the background after 30 seconds, and dropped
+  and read again at once on a sign-in or sign-out, a Tools reading that changes
+  GitHub's state, a content installation and a profile change; until the first reading
+  ends the document has none. `parseShell`
   takes it absent, null or in its exact shape and refuses the document otherwise, as
   for every known member. `<lazurio-column-head>` shows it as one line under the switch
   in Chat and Automate only (`columnSetupLine` in `view.ts`): "Bez GitHubu agenti

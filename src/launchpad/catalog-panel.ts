@@ -146,6 +146,9 @@ export function createCatalogPanel(
     /** The Dashboard page of an Organization slug, as the shell document
      * names it, or null. */
     dashboard: (slug: string) => string | null;
+    /** The catalog the page already carries (its boot document, F36's
+     * addendum of 2026-10-08): drawn at once, without a first read. */
+    catalog?: Catalog | null;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -160,8 +163,9 @@ export function createCatalogPanel(
   const body = find<HTMLDivElement>("#catalog-body");
   const status = find<HTMLParagraphElement>("#catalog-status");
   const toastRegion = find<HTMLDivElement>("#toast");
-  let catalog: Catalog | null = null;
-  let state: "loading" | "loaded" | "failed" = "loading";
+  let catalog: Catalog | null = options.catalog ?? null;
+  let state: "loading" | "loaded" | "failed" =
+    catalog === null ? "loading" : "loaded";
   // A sentence about the last tile opened on a workstation (starting,
   // failed), shown in the status line until the next move.
   let notice: string | null = null;
@@ -732,7 +736,8 @@ export function createCatalogPanel(
         .catch(() => owners.settle(organization, login, ask, false))
         .finally(() => {
           wakeForOwners();
-          render();
+          // Drawn again only when the answer changes what is shown.
+          if (owners.peek(organization, login) !== owner) render();
         });
     return owner;
   }
@@ -1278,8 +1283,12 @@ export function createCatalogPanel(
   async function refresh() {
     owners.clear();
     maintainers.clear();
-    state = catalog === null ? "loading" : state;
-    render();
+    // Only the first read shows that it is reading; a later one keeps the
+    // page as it is until its answer.
+    if (catalog === null) {
+      state = "loading";
+      render();
+    }
     try {
       const { value, ok } = await options.post("/api/catalog", {});
       const parsed = ok ? parseCatalog(value) : null;
@@ -1302,6 +1311,8 @@ export function createCatalogPanel(
       render(route);
     },
     refresh,
+    /** Whether the catalog is being read for the first time. */
+    reading: () => state === "loading",
     /** The display name of an Organization slug, once known. */
     displayName(slug: string): string | undefined {
       const organization =

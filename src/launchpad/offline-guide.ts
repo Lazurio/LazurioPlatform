@@ -72,6 +72,18 @@ export function keepsOfflineGuide(
   return guidedEnvironment(shell, headscaleServerUrl) !== null;
 }
 
+/** The document as `/.lazurio/shell.json` and the page's boot document
+ * (F36's addendum of 2026-10-08) carry it: with `offlineGuide` where this
+ * Environment keeps the guide. */
+export function withOfflineGuide(
+  shell: Shell,
+  headscaleServerUrl: string | null,
+): Shell {
+  return keepsOfflineGuide(shell, headscaleServerUrl)
+    ? { ...shell, offlineGuide: true }
+    : shell;
+}
+
 /**
  * The guide page of this Environment, or null where it has none: a
  * workstation, or an Environment whose handover names no tailnet. The name is

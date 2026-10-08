@@ -5,6 +5,7 @@ import { environmentName } from "../shell/view";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
 import { pluralKey } from "./apps-view";
+import { bootElementId, parseBoot } from "./boot";
 import { createBrowserPanel } from "./browser-panel";
 import { browserPanelOrigin } from "./browser-panel-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
@@ -37,7 +38,7 @@ import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
-import { settingsPath } from "./routes";
+import { routeFrame, settingsPath } from "./routes";
 import { createShell } from "./shell";
 import { createToolsPanel } from "./tools-panel";
 import { createTour } from "./tour";
@@ -51,6 +52,15 @@ const fragment = readFragment(location.hash);
 const token = fragment.token;
 let pendingStart: StartRequest | null = fragment.start;
 history.replaceState(null, "", location.pathname);
+// Local: the fragment token is the credential. Hosted (no token): the
+// gateway's session cookie is, sent by the browser itself; a denial means the
+// session ended and the page re-enters through the gateway. Defined first:
+// the page's first drawing already reads with it.
+const credential = (): Record<string, string> =>
+  token ? { Authorization: `Bearer ${token}` } : {};
+function denied(response: Response) {
+  if (!token && response.status === 401) location.assign(location.href);
+}
 const form = document.querySelector<HTMLFormElement>("#profile");
 const choices = document.querySelector<HTMLFieldSetElement>("#choices");
 const apply = document.querySelector<HTMLButtonElement>("#apply");
@@ -90,19 +100,28 @@ const controls = {
   machineSupport,
   machineSupportList,
 };
-let locale: "cs" | "en" = "en";
+// The boot document (F36's addendum of 2026-10-08, boot.ts): behind the
+// gateway the page carries the Folder's language, the shell document, the
+// catalog and the entry, so that it draws its final state at once and reads
+// none of them again; a workstation's page carries none and reads them.
+const boot = parseBoot(document.getElementById(bootElementId)?.textContent);
+let locale: "cs" | "en" = boot?.locale ?? "en";
 let copy = messages(locale);
 // The recorded entry's public parts (`GET /api/entry`); null on a workstation
 // and until read. The pairing of Chat and Automate, the tiles' module
 // origins and the Recovery page's T3 Code link.
-let entry: PublicEntry | null = null;
+let entry: PublicEntry | null = boot?.entry ?? null;
 // Whether Chat on this Environment takes a prepared prompt by link
-// (`GET /api/chat/prompt-handoff`, Lazurio/t3code#35): read once with the
+// (`GET /api/chat/prompt-handoff`, Lazurio/t3code#35): read alongside the
 // entry, no until answered.
 let chatTakesPrompts = false;
 // The Lazurio shell (decision F36): the rail and the switch, drawn from
 // this Environment's `/.lazurio/shell.json`, which the page reads with its
-// own credential and hands over (the forks let the elements read it).
+// own credential and hands over (the forks let the elements read it). The
+// boot document's is handed over before the elements are defined, so they
+// draw with the page's first paint.
+let shellDocument: Shell | null = boot?.shell ?? null;
+if (shellDocument !== null) provideShell(shellDocument);
 defineShellElements();
 const columnHead = document.querySelector<HTMLElement>("#column-head");
 const rail = document.querySelector<HTMLElement>("#rail");
@@ -111,9 +130,32 @@ const rail = document.querySelector<HTMLElement>("#rail");
 const guide = document.querySelector<HTMLAnchorElement>("#catalog-guide");
 const marketplaceText =
   document.querySelector<HTMLParagraphElement>("#marketplace-text");
-let shellDocument: Shell | null = null;
 // Whether the shell document was asked for once (read or not).
 let shellRead = false;
+// The page shows once it is drawn (F36's addendum of 2026-10-08, the
+// stylesheet's `data-ready`): its language known, the shell document drawn
+// or known to be missing, and what its frame shows first read (Apps the
+// catalog, Settings the profile). At the latest a second after this script
+// ran; the stylesheet shows it anyway after two.
+let drawn = false;
+const drawnAtTheLatest = setTimeout(() => markDrawn(), 1000);
+function markDrawn() {
+  if (drawn) return;
+  drawn = true;
+  clearTimeout(drawnAtTheLatest);
+  document.documentElement.dataset.ready = "";
+}
+function showWhenDrawn() {
+  if (drawn) return;
+  if (recoveryMode === null) {
+    const route = shell.route();
+    if (boot === null && !loaded && !loadFailed) return;
+    if (shellDocument === null && !shellRead) return;
+    if (routeFrame(route) === "catalog" && catalog.reading()) return;
+    if (route.view === "settings" && !loaded && !loadFailed) return;
+  }
+  markDrawn();
+}
 let toolsOverview: ToolsOverview | null = null;
 async function readShell() {
   try {
@@ -124,7 +166,12 @@ async function readShell() {
     denied(response);
     const parsed = response.ok ? parseShell(await response.json()) : null;
     if (parsed === null) return;
+    // Drawn again only when it says something else.
+    const same =
+      shellDocument !== null &&
+      JSON.stringify(parsed) === JSON.stringify(shellDocument);
     shellDocument = parsed;
+    if (same) return;
     provideShell(parsed);
     catalog.render();
   } catch {
@@ -133,14 +180,18 @@ async function readShell() {
     shellRead = true;
     drawMachine();
     firstRun();
+    showWhenDrawn();
   }
 }
 // The Launchpad home: the catalog of this Folder's Organizations and modules
 // (launchpad-parity B1), drawn for the route the frame shows.
 const catalog = createCatalogPanel({
+  catalog: boot?.catalog ?? null,
   setupLine: () => {
     const facts = firstRunFacts();
-    return facts === null ? null : appsSetupLine(facts, copy);
+    const line = facts === null ? null : appsSetupLine(facts, copy);
+    lineDrawn = JSON.stringify(line);
+    return line;
   },
   setupAction: (action) => setupAction(action),
   post: (path, body) => post(path, body),
@@ -151,6 +202,7 @@ const catalog = createCatalogPanel({
   loaded: () => {
     shell.relabel();
     drawMachine();
+    showWhenDrawn();
   },
   entry: () => entry,
   avatar: (slug) =>
@@ -206,6 +258,12 @@ let profileState: Readonly<{
   revision: number;
   machine: string | null;
 }> | null = null;
+// Whether the profile was read (`POST /api/profile`), and whether that read
+// failed.
+let loaded = false;
+let loadFailed = false;
+// Whether what only Settings show was asked for (`readBackground`).
+let backgroundRead = false;
 let githubSeen: ReturnType<typeof githubFact> = "unknown";
 let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
 function firstRunFacts(): TourFacts | null {
@@ -288,20 +346,17 @@ const tour = createTour({
   off: () => recoveryMode !== null || browser.isOpen(),
 });
 /** Draws what the first run says now: the line (Apps is drawn again only
- * when it changed, or when `redraw` asks, so a running preparation does not
- * close an open tile menu every second), the tour, and a start request the
- * page took on arrival. */
-let lineDrawn = "";
-function firstRun(redraw = false) {
+ * when it changed from the one last drawn, so a running preparation does not
+ * close an open tile menu every second, and nothing is drawn twice), the
+ * tour, and a start request the page took on arrival. */
+let lineDrawn = JSON.stringify(null);
+function firstRun() {
   if (!framed) return;
   const facts = firstRunFacts();
   const line = JSON.stringify(
     facts === null ? null : appsSetupLine(facts, copy),
   );
-  if (redraw || line !== lineDrawn) {
-    lineDrawn = line;
-    catalog.render();
-  }
+  if (line !== lineDrawn) catalog.render();
   tour.update();
   takeStart();
 }
@@ -456,9 +511,14 @@ const shell = createShell({
       !recovery.loaded
     )
       void recovery.refresh();
-    // Back in Tento Environment the content is read again.
-    if (framed && route.view === "settings" && route.section === "machine")
-      void content.refresh({ restore: false });
+    if (framed && route.view === "settings") {
+      // Settings read what only they show the first time they are shown;
+      // back in Tento Environment the content is read again.
+      const read = backgroundRead;
+      readBackground();
+      if (read && route.section === "machine")
+        void content.refresh({ restore: false });
+    }
     firstRun();
   },
 });
@@ -538,14 +598,6 @@ function drawMachine() {
   controls.machineSupport.hidden = support.length === 0;
   controls.machineSupportList.replaceChildren(...factRows(support));
 }
-// Local: the fragment token is the credential. Hosted (no token): the
-// gateway's session cookie is, sent by the browser itself; a denial means the
-// session ended and the page re-enters through the gateway.
-const credential = (): Record<string, string> =>
-  token ? { Authorization: `Bearer ${token}` } : {};
-function denied(response: Response) {
-  if (!token && response.status === 401) location.assign(location.href);
-}
 // Every refused API route names Recovery mode (docs/update.md "Recovery
 // mode"): the page then becomes the Recovery page and stays it until reload.
 let recoveryMode: RecoveryMode | null = null;
@@ -564,8 +616,12 @@ function enterRecovery(mode: RecoveryMode) {
   relabel();
   shell.pin({ view: "settings", section: "recovery" });
   recovery.enter(mode);
+  showWhenDrawn();
 }
+// Whether the page's words were written in its language once.
+let labelled = false;
 function relabel() {
+  labelled = true;
   document.documentElement.lang = locale;
   for (const element of document.querySelectorAll<HTMLElement>(
     "[data-message]",
@@ -609,11 +665,16 @@ async function request(path: string, body: unknown) {
   if (!ok) throw new Error(copy.refused);
   return value;
 }
-let loaded = false;
 async function load() {
   current = await request("/api/profile", {});
+  // The first read follows the page's start, a later one a change of the
+  // Folder (a profile or tools change, "Reload profile").
+  const first = !loaded;
   loaded = true;
-  locale = current.profile.locale === "cs" ? "cs" : "en";
+  const read = current.profile.locale === "cs" ? "cs" : "en";
+  // The words are written again only in another language.
+  const relabelled = !labelled || read !== locale;
+  locale = read;
   copy = messages(locale);
   profileState = {
     preset: current.preset.name,
@@ -623,13 +684,17 @@ async function load() {
   // "Obsah Environmentu" only where the Environment signs in as its person.
   const person = signsInAsPerson(current.preset.name);
   content.show(person);
-  if (person) void content.refresh();
+  if (person && !first) void content.refresh();
   renderUpdate();
   // A Team Environment's folder is the whole Team's.
   files.shared(current.preset.name === "hosted-organization-team");
-  relabel();
-  catalog.render();
-  void readShell();
+  if (relabelled) {
+    relabel();
+    catalog.render();
+  }
+  // The shell document follows a change of the Folder (its language, its
+  // preset); the page's start reads it once, or carries it.
+  if (!first) void readShell();
   drawMachine();
   controls.presetSelect.replaceChildren(
     ...current.allowedPresets.map(
@@ -652,8 +717,32 @@ async function load() {
   }
   controls.status.textContent = `${copy.revision} ${current.revision} · ${current.profile.os}`;
   controls.choices.disabled = false;
+  if (first) {
+    // What only Settings show (and the first run's line in Apps) is read on
+    // a Settings route at once, elsewhere once the page is idle.
+    if (shell.route().view === "settings") readBackground();
+    else whenIdle(readBackground);
+  }
   // The tools section follows the same state: locale and revision.
+  else void tools.refresh();
+  firstRun();
+  showWhenDrawn();
+}
+/** Reads, once, what only Settings show and the first run's line needs: the
+ * tools with their sign-ins, which may ask the providers, and where the
+ * Environment signs in as its person its content, which asks GitHub. Never
+ * on the way to the page's first paint (F36's addendum of 2026-10-08). */
+function readBackground() {
+  if (backgroundRead || !loaded) return;
+  backgroundRead = true;
   void tools.refresh();
+  if (signsInAsPerson(current.preset.name)) void content.refresh();
+}
+/** Runs `task` once the page is idle, at the latest after two seconds. */
+function whenIdle(task: () => void) {
+  if (typeof requestIdleCallback === "function")
+    requestIdleCallback(() => task(), { timeout: 2000 });
+  else setTimeout(task, 300);
 }
 // The tools section (decision F18). A change recorded there moves the Folder
 // revision, so a profile preview made before it is no longer valid.
@@ -669,7 +758,7 @@ const tools = createToolsPanel({
       void content.refresh({ restore: false });
     githubSeen = github;
     content.render();
-    firstRun(true);
+    firstRun();
   },
   post,
   copy: () => copy,
@@ -861,17 +950,27 @@ document.addEventListener("lazurio-app", (event) => {
 window.addEventListener("pageshow", () => {
   following = false;
 });
+// The entry, and whether Chat takes a prepared prompt by link, read side by
+// side: the second is the server's own answer, no on a workstation.
 async function readEntry() {
+  const handoff = readPromptHandoff();
+  let read: PublicEntry | null;
   try {
     const { value, ok } = await get("/api/entry");
-    entry = ok ? parseEntryAnswer(value) : null;
+    read = ok ? parseEntryAnswer(value) : null;
   } catch {
-    entry = null;
+    read = null;
   }
-  recovery.render();
-  catalog.render();
-  browser.render();
-  if (entry === null) return;
+  // Drawn again only when it differs from what the page shows.
+  if (JSON.stringify(read) !== JSON.stringify(entry)) {
+    entry = read;
+    recovery.render();
+    catalog.render();
+    browser.render();
+  }
+  await handoff;
+}
+async function readPromptHandoff() {
   try {
     const { value, ok } = await get("/api/chat/prompt-handoff");
     chatTakesPrompts = ok && parsePromptHandoff(value);
@@ -879,14 +978,31 @@ async function readEntry() {
     chatTakesPrompts = false;
   }
 }
-void readEntry();
-void readShell();
+if (boot === null) {
+  void readEntry();
+  void readShell();
+  void catalog.refresh();
+} else {
+  // Carried by the page: its words are the server's, the rest is drawn here.
+  if (entry === null) void readEntry();
+  else void readPromptHandoff();
+  if (shellDocument === null) void readShell();
+  if (boot.catalog === null) void catalog.refresh();
+  files.shared(
+    shellDocument !== null &&
+      currentEnvironment(shellDocument)?.kind === "team",
+  );
+  relabel();
+  browser.render();
+}
 load().catch(() => {
+  loadFailed = true;
   controls.status.textContent = copy.loadFailed;
   // The tools section says for itself that it could not be read.
   void tools.refresh();
+  showWhenDrawn();
 });
-void catalog.refresh();
+showWhenDrawn();
 
 // The update pill (docs/update.md "Surfaces"): the server derives the state;
 // the browser only shows it and sends the one click back with the version it
