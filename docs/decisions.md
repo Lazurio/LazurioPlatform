@@ -5622,3 +5622,26 @@ rolled back before the guide removing the worker at its next refresh (fails
 without `refreshOutcome`'s retirement), and a registration refused without
 `Service-Worker-Allowed`. The smoke builds the shell's registration from
 `src/shell/offline-guide.ts` into its page.
+
+## F42 — Apps are connected in the Launchpad over the Environment's own CLI; MCP servers belong to the Environment (proposed)
+
+**Proposed 2026-10-08 for Matěj's decision (plan DEV-6626, milestone M4); not
+implemented.** The decision text, its boundary, API, failure modes,
+alternatives, slices and open questions are in
+[Connected apps and MCP servers](connected-apps.md). It implements mode 1 of
+root decision 0162's addendum of 2026-10-08:
+
+- **The page.** Apps → Připojené aplikace (`/connections`,
+  `/connections/<toolkit>`) connects, lists and disconnects apps through the
+  Environment's `composio` CLI, signed in with the operator's own account.
+  Lazurio never reads the CLI's key.
+- **The boundary.** Mode 2 (the Organization's Composio organization) plugs
+  in behind one `ConnectionsBackend` later.
+- **MCP servers** are one list of the Environment in the Folder's
+  preferences. Lazurio renders them into Codex, Claude Code and, through
+  them, Lazurio MausBot; header and variable values stay in local custody.
+- **Agents** send the Launchpad's deep link for a missing app, never a raw
+  Composio link, and add MCP servers only into the Environment's list.
+
+When accepted it amends F14, F18 and F19 as that document lists. Its red
+contract is `tests/connections-*.test.ts`.
