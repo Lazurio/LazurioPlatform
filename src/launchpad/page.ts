@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,23 @@ import { pagePaths } from "./routes";
 
 /** `/.lazurio/shell.js` (decision F36), built into this executable. */
 export const shellSource: string = shellScript();
+
+/** The script's ETag: the forks load it on every page load and revalidate
+ * it (`no-cache`), so an unchanged script answers 304 without its body (F36's
+ * addendum of 2026-10-08). */
+export const shellEtag = `"${createHash("sha256").update(shellSource).digest("hex").slice(0, 32)}"`;
+
+/** Whether a request's `If-None-Match` names `etag` (`*`, or the tag, weak
+ * or strong). */
+export function notModified(request: Request, etag: string): boolean {
+  const asked = request.headers.get("if-none-match");
+  if (asked === null) return false;
+  const tag = etag.replace(/^W\//, "");
+  return asked
+    .split(",")
+    .map((value) => value.trim())
+    .some((value) => value === "*" || value.replace(/^W\//, "") === tag);
+}
 
 const assetHeaders = {
   "Cache-Control": "no-cache",
@@ -23,13 +41,19 @@ const assetHeaders = {
 // the page is; hosted only after the gateway's admission, through the same
 // inner listener as the page.
 export const shellRoutes = {
-  "/.lazurio/shell.js": () =>
-    new Response(shellSource, {
-      headers: {
-        ...assetHeaders,
-        "Content-Type": "text/javascript; charset=utf-8",
-      },
-    }),
+  "/.lazurio/shell.js": (request: Request) =>
+    notModified(request, shellEtag)
+      ? new Response(null, {
+          status: 304,
+          headers: { ...assetHeaders, ETag: shellEtag },
+        })
+      : new Response(shellSource, {
+          headers: {
+            ...assetHeaders,
+            ETag: shellEtag,
+            "Content-Type": "text/javascript; charset=utf-8",
+          },
+        }),
   "/.lazurio/fonts/:file": (
     request: Request & { params: { file: string } },
   ) => {

@@ -140,14 +140,15 @@ export function createGithubProbe(
       return asking;
     },
     /** A reading of Settings → Nástroje: gh installed or not, and its
-     * sign-in when it was probed. */
-    remember(installed: boolean, signIn: ToolSignIn | undefined) {
-      if (installed && signIn === undefined) return;
+     * sign-in when it was probed. True when it says otherwise than the state
+     * known before. */
+    remember(installed: boolean, signIn: ToolSignIn | undefined): boolean {
+      if (installed && signIn === undefined) return false;
+      const state = installed ? stateOf(signIn as ToolSignIn) : "missing";
+      const changed = known?.state !== state;
       generation += 1;
-      known = {
-        state: installed ? stateOf(signIn as ToolSignIn) : "missing",
-        at: now(),
-      };
+      known = { state, at: now() };
+      return changed;
     },
     /** A sign-in or sign-out changed it: ask again next time. */
     forget() {
@@ -166,3 +167,56 @@ function stateOf(signIn: ToolSignIn): "connected" | "missing" | "unknown" {
 }
 
 export type GithubProbe = ReturnType<typeof createGithubProbe>;
+
+/** The shell document's `setup` as last read, so that `/.lazurio/shell.json`
+ * never waits for GitHub (F36's addendum of 2026-10-08). `peek` answers at
+ * once with what is known, and reads again in the background when nothing is
+ * known yet or the last reading is older than the TTL (stale while
+ * revalidating): until the first reading ends the document carries no
+ * `setup`, which v1 allows. `forget` drops it where it changed: a sign-in or
+ * sign-out of gh, an installation of the content, a profile change; a reading
+ * that was running then is not kept. */
+export function createSetupCache(
+  read: () => Promise<ShellSetup | undefined>,
+  options: Readonly<{ ttlMs?: number; now?: () => number }> = {},
+) {
+  const ttl = options.ttlMs ?? 30_000;
+  const now = options.now ?? Date.now;
+  let known: Readonly<{ setup: ShellSetup | undefined; at: number }> | null =
+    null;
+  let generation = 0;
+  let reading: Readonly<{ generation: number; done: Promise<void> }> | null =
+    null;
+
+  function refresh(): Promise<void> {
+    if (reading !== null && reading.generation === generation)
+      return reading.done;
+    const asked = generation;
+    const done = read()
+      .catch(() => undefined)
+      .then((setup) => {
+        if (asked === generation) known = { setup, at: now() };
+      })
+      .finally(() => {
+        if (reading?.done === done) reading = null;
+      });
+    reading = { generation: asked, done };
+    return done;
+  }
+
+  return {
+    /** What is known now, at once; a reading starts in the background when
+     * there is none or it is older than the TTL. */
+    peek(): ShellSetup | undefined {
+      if (known === null || now() - known.at >= ttl) void refresh();
+      return known?.setup;
+    },
+    /** It changed: say nothing until it is read again. */
+    forget() {
+      generation += 1;
+      known = null;
+    },
+    /** Resolves when the reading running now has ended. */
+    settled: (): Promise<void> => reading?.done ?? Promise.resolve(),
+  };
+}

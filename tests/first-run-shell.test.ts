@@ -492,6 +492,22 @@ const failedAnswer = {
   },
 };
 
+// The shell document's `setup` once the Launchpad has read it: the document
+// never waits for GitHub (F36's addendum of 2026-10-08), so the first
+// answers say nothing of it while the reading runs in the background.
+async function knownSetup(app: Awaited<ReturnType<typeof hosted>>) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const answer = await fetch(`${app.base}/.lazurio/shell.json`, {
+      headers: app.valid,
+    });
+    expect(answer.status).toBe(200);
+    const setup = parseShell(await answer.json())?.setup;
+    if (setup !== undefined) return setup;
+    await Bun.sleep(50);
+  }
+  return undefined;
+}
+
 posixTest(
   "hosted: the shell document says what is missing from the real content routes; with a stopped job, what stopped",
   async () => {
@@ -500,11 +516,7 @@ posixTest(
     // it is not here yet.
     const without = await hosted();
     try {
-      const answer = await fetch(`${without.base}/.lazurio/shell.json`, {
-        headers: without.valid,
-      });
-      expect(answer.status).toBe(200);
-      expect(parseShell(await answer.json())?.setup).toEqual({
+      expect(await knownSetup(without)).toEqual({
         github: "missing",
         content: "missing",
         item: { kind: "organization", name: "example", login: "example" },
@@ -514,10 +526,7 @@ posixTest(
     }
     const stopped = await hosted(stub(listAnswer, failedAnswer));
     try {
-      const answer = await fetch(`${stopped.base}/.lazurio/shell.json`, {
-        headers: stopped.valid,
-      });
-      expect(parseShell(await answer.json())?.setup).toEqual({
+      expect(await knownSetup(stopped)).toEqual({
         github: "missing",
         content: "failed",
         item: { kind: "organization", name: "Example", login: "example-org" },
