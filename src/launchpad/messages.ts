@@ -99,8 +99,8 @@ const en = {
   toolsRefresh: "Refresh status",
   toolsLoading: "Reading tools…",
   toolsLoadFailed:
-    "The tools could not be read. Try Refresh status; if it keeps failing, run lazurio tools list in the CLI.",
-  toolsChecked: "Folder revision {revision} · checked at {time}",
+    "The tools could not be read. Try Refresh status; if that does not help, ask an agent for help.",
+  toolsChecked: "Checked at {time}",
   toolsTierRequired: "Required",
   toolsTierRequiredNote: "Nothing works here without them.",
   toolsTierRecommended: "Recommended",
@@ -129,31 +129,40 @@ const en = {
   toolsUsage: "What agents are told",
   toolsSource: "Official source",
   toolsBusy: "Working…",
-  toolsEnabledDone:
-    "{name} is enabled; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
-  toolsDisabledDone:
-    "{name} is no longer enabled; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
+  // What a row says after a change (Matěj 2026-10-09): plain words for
+  // people who do not know the machinery underneath. The Folder, its
+  // revision, a path or a command is said only under the tool's Details
+  // (the `…Detail` texts, under "What happened").
+  toolsEnabledDone: "Agents now use {name}.",
+  toolsSwitchedOn: "Switched on.",
   toolsEnabledNotInstalled:
-    "{name} is not installed yet; agents will report that until it is set up.",
-  toolsNoteSaved:
-    "Your note on {name} is saved; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
-  toolsNoteCleared:
-    "Your note on {name} is removed; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
-  toolsUndone:
-    "The change of {name} is undone; the agent instructions of this Folder were rewritten. Folder revision {revision}.",
+    "Once {name} is installed, agents will start using it.",
+  toolsDisabledDone: "Agents no longer use {name}.",
+  toolsNoteSaved: "Your note on {name} is saved.",
+  toolsNoteCleared: "Your note on {name} is removed.",
+  toolsUndone: "The change of {name} is undone.",
   toolsUndo: "Undo",
   toolsUndoNamed: "Undo the change of {name}",
-  toolsUnchanged:
-    "Nothing changed: the Folder already records this. Reload to see its current state.",
+  toolsUnchanged: "Nothing changed; it was already set this way.",
   toolsBlockedStale:
-    "The Folder changed in the meantime. Reload and try again; nothing was written.",
+    "Nothing was saved; something changed here in the meantime. Reload and try again.",
   toolsBlockedDrift:
-    "The file {path} was edited by hand, so Lazurio does not overwrite it. Keep your edit elsewhere and restore the file, then reload. Nothing was written.",
+    "Nothing was saved: someone edited the agents' instructions here by hand. An agent can put them right.",
+  toolsBlockedDriftDetail:
+    "The file {path} was edited by hand, so Lazurio does not overwrite it. Keep your edit elsewhere, restore the file, then reload.",
   toolsBlockedIncomplete:
-    "An earlier change of this Folder did not finish. Complete it with lazurio profile-resume in the CLI, then reload. Nothing was written.",
-  toolsBlockedOther: "The change was refused ({reason}). Nothing was written.",
+    "Nothing was saved: an earlier change did not finish. An agent can complete it.",
+  toolsBlockedIncompleteDetail:
+    "An earlier change of this Folder did not finish. Complete it with lazurio profile-resume in the CLI, then reload.",
+  toolsBlockedOther:
+    "Nothing was saved: this change cannot be made here right now. An agent can find out why.",
+  toolsBlockedOtherDetail:
+    "Lazurio refused the change with the reason {reason}.",
   toolsFailed:
-    "The change could not be confirmed. Reload the state; CLI recovery may be required.",
+    "Whether the change was saved could not be confirmed. Reload to see.",
+  toolsFailedDetail:
+    "The answer to the change was missing or could not be read. If the state still looks wrong after a reload, recovery through the CLI may be needed (lazurio recover).",
+  toolsWhatHappened: "What happened",
   toolsReload: "Reload",
   toolsAgentAction: "Connect with an agent",
   toolsAgentActionNamed: "Connect {name} with an agent",
@@ -191,7 +200,8 @@ const en = {
   toolsSignedOutRemote:
     "{name}: signed out; the linked device was removed from your account.",
   toolsSignOutFailed:
-    "{name}: signing out did not finish ({reason}). Refresh the status to see where it stands.",
+    "{name}: signing out did not finish. Refresh the status to see where it stands.",
+  toolsSignOutFailedDetail: "Reason: {reason}.",
   toolsLoginTitleInstall: "Connect {name}",
   toolsLoginTitle: "Connect {name}",
   toolsLoginContinue: "Continue",
@@ -208,9 +218,11 @@ const en = {
   toolsAlreadyInstalled:
     "{name} already works in this Environment; nothing was changed.",
   toolsInstallFailed:
-    "The installation did not finish (step {stage}: {reason}). Nothing that already worked was changed.",
+    "The installation did not finish. Nothing that already worked was changed.",
+  toolsInstallFailedDetail: "Step {stage}: {reason}.",
   toolsInstallUnsupported:
-    "The installer built into Lazurio does not cover this Environment ({platform} {arch}).",
+    "The installer built into Lazurio does not cover this Environment.",
+  toolsInstallUnsupportedDetail: "System {platform}, architecture {arch}.",
   toolsInstallNotOnPath:
     "~/.local/bin is not on the PATH of this Launchpad, so agents may not find the tool until it is added to the shell profile.",
   toolsInstallBusy:
@@ -321,13 +333,14 @@ const en = {
   toolsLoginFailureEnvironment:
     "The kind of this Environment could not be read, so the sign-in stopped before changing anything further.",
   toolsSshRemoved:
-    "The SSH key of this Environment ({fingerprint}) was removed from your GitHub account; the key files stay in this Environment.",
+    "The SSH key of this Environment was removed from your GitHub account; the key files stay in this Environment.",
   toolsSshRemovalNotRegistered:
     "The SSH key of this Environment was not registered on your GitHub account.",
   toolsSshRemovalNoKey:
-    "This Environment has no SSH key in ~/.ssh; nothing was removed from GitHub.",
+    "This Environment has no SSH key; nothing was removed from GitHub.",
   toolsSshRemovalKept:
-    "The SSH key of this Environment ({fingerprint}) stays registered on your GitHub account because Lazurio did not register it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
+    "The SSH key of this Environment stays registered on your GitHub account because Lazurio did not register it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
+  toolsSshKeyFingerprint: "Key fingerprint: {fingerprint}.",
   toolsSshRemovalFailed:
     "The SSH key of this Environment may still be registered on your GitHub account: gh could not remove it. Remove it under GitHub Settings, SSH and GPG keys (github.com/settings/keys), if this Environment must lose access.",
   toolsComposioOrgLabel: "Organization in Composio",
@@ -352,7 +365,7 @@ const en = {
   toolsClose: "Close",
   toolsMcpTitle: "Connect another app through an MCP server",
   toolsMcpText:
-    "For an app the catalog does not cover, an agent sets up an MCP server on your request. MCP servers are not recorded in the Lazurio Folder.",
+    "For an app the catalog does not cover, an agent sets up an MCP server on your request.",
   toolsMcpAction: "Set up an MCP server with an agent",
   toolsMcpPromptHint:
     "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
@@ -1019,8 +1032,8 @@ const cs: Record<MessageKey, string> = {
   toolsRefresh: "Obnovit stav",
   toolsLoading: "Načítají se nástroje…",
   toolsLoadFailed:
-    "Nástroje se nepodařilo načíst. Zkuste Obnovit stav; když to nepomůže, spusťte v CLI lazurio tools list.",
-  toolsChecked: "Revize Folderu {revision} · zjištěno v {time}",
+    "Nástroje se nepodařilo načíst. Zkuste Obnovit stav; když to nepomůže, požádejte o pomoc agenta.",
+  toolsChecked: "Zjištěno v {time}",
   toolsTierRequired: "Povinné",
   toolsTierRequiredNote: "Bez nich tu nic nefunguje.",
   toolsTierRecommended: "Doporučené",
@@ -1049,32 +1062,35 @@ const cs: Record<MessageKey, string> = {
   toolsUsage: "Co se dozvědí agenti",
   toolsSource: "Oficiální zdroj",
   toolsBusy: "Pracuje se…",
-  toolsEnabledDone:
-    "{name} je zapnuto; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
-  toolsDisabledDone:
-    "{name} už není zapnuto; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
+  toolsEnabledDone: "{name} teď používají agenti.",
+  toolsSwitchedOn: "Zapnuto.",
   toolsEnabledNotInstalled:
-    "{name} zatím není nainstalováno; agenti to budou hlásit, dokud se nenastaví.",
-  toolsNoteSaved:
-    "Vaše poznámka k {name} je uložená; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
-  toolsNoteCleared:
-    "Vaše poznámka k {name} je odebraná; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
-  toolsUndone:
-    "Změna u {name} je vrácená; instrukce pro agenty v tomhle Folderu se přepsaly. Revize Folderu {revision}.",
+    "Až se {name} nainstaluje, agenti ho začnou používat.",
+  toolsDisabledDone: "{name} už agenti nepoužívají.",
+  toolsNoteSaved: "Vaše poznámka k {name} je uložená.",
+  toolsNoteCleared: "Vaše poznámka k {name} je odebraná.",
+  toolsUndone: "Změna u {name} je vrácená.",
   toolsUndo: "Vrátit zpět",
   toolsUndoNamed: "Vrátit zpět změnu u {name}",
-  toolsUnchanged:
-    "Nic se nezměnilo: Folder už přesně tohle eviduje. Načtěte jeho aktuální stav.",
+  toolsUnchanged: "Nic se nezměnilo, takhle už to nastavené bylo.",
   toolsBlockedStale:
-    "Folder se mezitím změnil. Načtěte stav a zkuste to znovu; nic se nezapsalo.",
+    "Nic se neuložilo, mezitím se tu něco změnilo. Načtěte znovu a zkuste to ještě jednou.",
   toolsBlockedDrift:
-    "Soubor {path} byl upraven ručně, proto ho Lazurio nepřepíše. Svou úpravu si uložte jinam, soubor vraťte do původní podoby a načtěte stav. Nic se nezapsalo.",
+    "Nic se neuložilo: pokyny pro agenty tu někdo upravil ručně. Srovnat je může agent.",
+  toolsBlockedDriftDetail:
+    "Soubor {path} byl upraven ručně, proto ho Lazurio nepřepíše. Úpravu si uložte jinam, soubor vraťte do původní podoby a načtěte znovu.",
   toolsBlockedIncomplete:
-    "Dřívější změna tohohle Folderu nedoběhla. Dokončete ji v CLI příkazem lazurio profile-resume a načtěte stav. Nic se nezapsalo.",
-  toolsBlockedOther: "Změna byla odmítnuta ({reason}). Nic se nezapsalo.",
-  toolsFailed:
-    "Změnu se nepodařilo potvrdit. Načtěte stav; může být nutná obnova přes CLI.",
-  toolsReload: "Načíst stav",
+    "Nic se neuložilo: předchozí změna se nedokončila. Dokončit ji může agent.",
+  toolsBlockedIncompleteDetail:
+    "Dřívější změna tohohle Folderu nedoběhla. Dokončete ji v CLI příkazem lazurio profile-resume a načtěte znovu.",
+  toolsBlockedOther:
+    "Nic se neuložilo: tuhle změnu tu teď nejde udělat. Důvod zjistí agent.",
+  toolsBlockedOtherDetail: "Lazurio změnu odmítlo s důvodem {reason}.",
+  toolsFailed: "Nepodařilo se ověřit, jestli se změna uložila. Načtěte znovu.",
+  toolsFailedDetail:
+    "Odpověď na změnu chyběla nebo se nedala přečíst. Když stav ani po načtení nesedí, může být nutná obnova přes CLI (lazurio recover).",
+  toolsWhatHappened: "Co se stalo",
+  toolsReload: "Načíst znovu",
   toolsAgentAction: "Připojit s pomocí agenta",
   toolsAgentActionNamed: "Připojit {name} s pomocí agenta",
   toolsInstallAction: "Přidat a připojit",
@@ -1111,7 +1127,8 @@ const cs: Record<MessageKey, string> = {
   toolsSignedOutRemote:
     "{name}: odhlášeno; propojené zařízení bylo z účtu odebráno.",
   toolsSignOutFailed:
-    "{name}: odhlášení nedoběhlo ({reason}). Obnovte stav a uvidíte, jak to je.",
+    "{name}: odhlášení nedoběhlo. Obnovte stav a uvidíte, jak to je.",
+  toolsSignOutFailedDetail: "Důvod: {reason}.",
   toolsLoginTitleInstall: "Připojit {name}",
   toolsLoginTitle: "Připojit {name}",
   toolsLoginContinue: "Pokračovat",
@@ -1128,9 +1145,11 @@ const cs: Record<MessageKey, string> = {
   toolsAlreadyInstalled:
     "{name} na tomhle Environmentu už funguje; nic se neměnilo.",
   toolsInstallFailed:
-    "Instalace nedoběhla (krok {stage}: {reason}). Nic, co už fungovalo, se nezměnilo.",
+    "Instalace nedoběhla. Nic, co už fungovalo, se nezměnilo.",
+  toolsInstallFailedDetail: "Krok {stage}: {reason}.",
   toolsInstallUnsupported:
-    "Instalátor zabudovaný v Lazuriu tenhle Environment nepokrývá ({platform} {arch}).",
+    "Instalátor zabudovaný v Lazuriu tenhle Environment nepokrývá.",
+  toolsInstallUnsupportedDetail: "Systém {platform}, architektura {arch}.",
   toolsInstallNotOnPath:
     "~/.local/bin není na PATH tohoto Launchpadu, takže ho agenti nemusí najít, dokud se nepřidá do profilu shellu.",
   toolsInstallBusy:
@@ -1240,13 +1259,14 @@ const cs: Record<MessageKey, string> = {
   toolsLoginFailureEnvironment:
     "Druh tohoto Environmentu se nepodařilo přečíst, proto se přihlášení zastavilo dřív, než by cokoli dalšího změnilo.",
   toolsSshRemoved:
-    "SSH klíč tohohle Environmentu ({fingerprint}) byl z vašeho účtu GitHubu odebrán; soubory klíče na tomhle Environmentu zůstávají.",
+    "SSH klíč tohohle Environmentu byl z vašeho účtu GitHubu odebrán; soubory klíče na tomhle Environmentu zůstávají.",
   toolsSshRemovalNotRegistered:
     "SSH klíč tohohle Environmentu u vašeho účtu GitHubu registrovaný nebyl.",
   toolsSshRemovalNoKey:
-    "Tenhle Environment nemá v ~/.ssh žádný SSH klíč; z GitHubu se nic neodebralo.",
+    "Tenhle Environment nemá žádný SSH klíč; z GitHubu se nic neodebralo.",
   toolsSshRemovalKept:
-    "SSH klíč tohohle Environmentu ({fingerprint}) zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tenhle Environment přístup ztratit.",
+    "SSH klíč tohohle Environmentu zůstává registrovaný u vašeho účtu GitHubu, protože ho neregistrovalo Lazurio. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tenhle Environment přístup ztratit.",
+  toolsSshKeyFingerprint: "Otisk klíče: {fingerprint}.",
   toolsSshRemovalFailed:
     "SSH klíč tohohle Environmentu může být u vašeho účtu GitHubu pořád registrovaný: gh ho nedokázal odebrat. Odeberte ho v Nastavení GitHubu, SSH and GPG keys (github.com/settings/keys), pokud má tenhle Environment přístup ztratit.",
   toolsComposioOrgLabel: "Organizace v Composiu",
@@ -1271,7 +1291,7 @@ const cs: Record<MessageKey, string> = {
   toolsClose: "Zavřít",
   toolsMcpTitle: "Napojit další aplikaci přes MCP server",
   toolsMcpText:
-    "Pro aplikaci, kterou katalog nepokrývá, nastaví agent na vaši žádost MCP server. MCP servery se do Lazurio Folderu nezapisují.",
+    "Pro aplikaci, kterou katalog nepokrývá, nastaví agent na vaši žádost MCP server.",
   toolsMcpAction: "Nastavit MCP server s agentem",
   toolsMcpPromptHint:
     "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",

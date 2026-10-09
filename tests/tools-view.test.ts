@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
   answerWithin,
+  checkedLine,
+  connectionLine,
   curatedActions,
   currentNotes,
   installOutcome,
@@ -14,6 +16,7 @@ import {
   nextNotes,
   nextSelection,
   noteDraftView,
+  noticeHolds,
   organizationChoices,
   parseLoginState,
   parseToolsOverview,
@@ -22,9 +25,12 @@ import {
   signInLine,
   sourceLink,
   sshOutcome,
+  type ToolNotice,
   takesNote,
+  teamInstallOutcome,
   toolChangeOutcome,
   toolGroups,
+  toolNoticeView,
   toolStatusView,
 } from "../src/launchpad/tools-view";
 import type { ToolOverview, ToolsOverview } from "../src/tools/overview";
@@ -251,7 +257,7 @@ test("a request carries the full next selection, sorted, without required tools"
   expect(nextSelection(catalog, "composio", false)).toEqual([]);
 });
 
-test("every answer of an update becomes one readable sentence, with the revision for Undo", () => {
+test("every answer of an update becomes one plain sentence; the revision travels for Undo, the technical part for Details", () => {
   const change = {
     name: "composio",
     action: "enable",
@@ -259,10 +265,9 @@ test("every answer of an update becomes one readable sentence, with the revision
   } as const;
   for (const locale of ["en", "cs"] as const) {
     const copy = messages(locale);
-    const fillIn = (template: string) =>
-      template.replace("{name}", "composio").replace("{revision}", "5");
-    // Enabling a tool that is not there yet says so; everything names the
-    // rewritten instructions and the new revision.
+    const named = (template: string) => template.replace("{name}", "composio");
+    // A tool that is not installed yet is only switched on: its row says
+    // that agents start using it once it is (Matěj 2026-10-09).
     expect(
       toolChangeOutcome(
         {
@@ -275,11 +280,18 @@ test("every answer of an update becomes one readable sentence, with the revision
       ),
     ).toEqual({
       kind: "updated",
-      message: `${fillIn(copy.toolsEnabledDone)} ${fillIn(copy.toolsEnabledNotInstalled)}`,
+      message: copy.toolsSwitchedOn,
       reload: false,
       revision: 5,
       shared: true,
     });
+    expect(
+      toolChangeOutcome(
+        { kind: "updated", revision: 5 },
+        { ...change, installed: true },
+        copy,
+      ).message,
+    ).toBe(named(copy.toolsEnabledDone));
     for (const [action, key] of [
       ["disable", "toolsDisabledDone"],
       ["note-save", "toolsNoteSaved"],
@@ -293,24 +305,15 @@ test("every answer of an update becomes one readable sentence, with the revision
       );
       expect(outcome).toEqual({
         kind: "updated",
-        message: fillIn(copy[key]),
+        message: named(copy[key]),
         reload: false,
         revision: 5,
         shared: false,
       });
-      expect(outcome.message).toContain("5");
+      // The revision is for Undo, never for the person.
+      expect(outcome.message).not.toContain("5");
       expect(outcome.message).not.toContain("{");
     }
-    expect(
-      toolChangeOutcome(
-        { kind: "updated", revision: 5 },
-        { ...change, installed: true },
-        copy,
-      ).message,
-    ).toBe(fillIn(copy.toolsEnabledDone));
-    expect(copy.toolsEnabledDone).toContain(
-      locale === "en" ? "agent instructions" : "instrukce pro agenty",
-    );
     expect(toolChangeOutcome({ kind: "unchanged" }, change, copy)).toEqual({
       kind: "unchanged",
       message: copy.toolsUnchanged,
@@ -327,30 +330,32 @@ test("every answer of an update becomes one readable sentence, with the revision
       message: copy.toolsBlockedStale,
       reload: true,
     });
-    const drift = toolChangeOutcome(
-      { kind: "blocked", reason: "drift", path: "AGENTS.md" },
-      change,
-      copy,
-    );
-    expect(drift.kind).toBe("blocked");
-    expect(drift.reload).toBe(true);
-    expect(drift.message).toContain("AGENTS.md");
-    expect(drift.message).not.toContain("{");
-    expect(
-      toolChangeOutcome(
+    // A drifted file, an unfinished change and a reason this page has no
+    // sentence for say plainly that nothing was saved; the path, the command
+    // and the code are named, never hidden: in the Details.
+    for (const [answer, message, technical] of [
+      [
+        { kind: "blocked", reason: "drift", path: "AGENTS.md" },
+        copy.toolsBlockedDrift,
+        "AGENTS.md",
+      ],
+      [
         { kind: "blocked", reason: "incomplete-state" },
-        change,
-        copy,
-      ).message,
-    ).toContain("profile-resume");
-    // A reason this page has no sentence for is named, never hidden.
-    expect(
-      toolChangeOutcome(
+        copy.toolsBlockedIncomplete,
+        "lazurio profile-resume",
+      ],
+      [
         { kind: "blocked", reason: "template-upgrade-required" },
-        change,
-        copy,
-      ).message,
-    ).toContain("template-upgrade-required");
+        copy.toolsBlockedOther,
+        "template-upgrade-required",
+      ],
+    ] as const) {
+      const outcome = toolChangeOutcome(answer, change, copy);
+      expect(outcome).toMatchObject({ kind: "blocked", message, reload: true });
+      expect(outcome.message).not.toContain(technical);
+      expect(outcome.detail).toContain(technical);
+      expect(outcome.detail).not.toContain("{");
+    }
     // A refusal without a result, a lost answer, an unknown form, a preview.
     for (const unknown of [
       null,
@@ -366,8 +371,181 @@ test("every answer of an update becomes one readable sentence, with the revision
       expect(toolChangeOutcome(unknown, change, copy)).toEqual({
         kind: "failed",
         message: copy.toolsFailed,
+        detail: copy.toolsFailedDetail,
         reload: true,
       });
+  }
+});
+
+test("a notice follows the live state of its tool: said once, only while it is true (Matěj 2026-10-09)", () => {
+  const enable: ToolNotice = {
+    name: "composio",
+    revision: 4,
+    act: {
+      kind: "change",
+      action: "enable",
+      answer: { kind: "updated", revision: 4 },
+    },
+    undo: { tools: [], notes: {} },
+  };
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    const hint = copy.toolsEnabledNotInstalled.replace("{name}", "composio");
+    const inUse = copy.toolsEnabledDone.replace("{name}", "composio");
+    // What the row says: the line under the name and the notice under it.
+    const row = (current: ToolOverview) => {
+      const notice = toolNoticeView(enable, current, copy);
+      return {
+        line: connectionLine(current, copy).text,
+        notice: notice.message,
+        all: `${connectionLine(current, copy).text}\n${notice.message}\n${notice.detail ?? ""}`,
+      };
+    };
+    // Switched on before it is installed: the row says once that agents
+    // start using it once it is; nothing says they use it now.
+    const before = row(tool({ enabled: true }));
+    expect(before.line).toBe(hint);
+    expect(before.notice).toBe(copy.toolsSwitchedOn);
+    expect(before.all.split(hint).length - 1).toBe(1);
+    expect(before.all).not.toContain(inUse);
+    // The same notice after the installation and the sign-in: nothing says
+    // it is not installed any more, and the notice says agents use it.
+    const after = row(
+      tool({
+        enabled: true,
+        installed: true,
+        signIn: { state: "signed-in", account: "a@example.com" },
+      }),
+    );
+    expect(after.line).toBe(
+      copy.toolsSignedInAs.replace("{account}", "a@example.com"),
+    );
+    expect(after.notice).toBe(inUse);
+    expect(after.all).not.toContain(hint);
+    expect(after.all).not.toContain(copy.toolsNotAdded);
+    // Switched off, or a required tool, which has no switch: only "not
+    // added yet".
+    expect(connectionLine(tool(), copy).text).toBe(copy.toolsNotAdded);
+    expect(
+      connectionLine(
+        tool({ name: "gh", command: "gh", tier: "required", enabled: true }),
+        copy,
+      ).text,
+    ).toBe(copy.toolsNotAdded);
+    // A sign-out says what happened, from the answer it got.
+    const signedOut = toolNoticeView(
+      {
+        name: "composio",
+        revision: 4,
+        act: {
+          kind: "logout",
+          answer: { kind: "logged-out", revocation: "local-only" },
+        },
+        undo: null,
+      },
+      tool({ installed: true }),
+      copy,
+    );
+    expect(signedOut).toEqual({
+      kind: "updated",
+      reload: false,
+      message: copy.toolsSignedOutLocal.replace("{name}", "composio"),
+    });
+  }
+  // A notice holds while the page reads the revision it belongs to, and
+  // ends at a reading of another one (the Folder changed elsewhere and its
+  // Undo would be refused) or once its tool is no longer listed.
+  expect(noticeHolds(enable, overview(catalog))).toBe(true);
+  expect(noticeHolds(enable, { ...overview(catalog), revision: 5 })).toBe(
+    false,
+  );
+  expect(noticeHolds(enable, overview([tool({ name: "wacli" })]))).toBe(false);
+});
+
+test("the main view of Nástroje says nothing technical; what support needs stays in Details (Matěj 2026-10-09)", () => {
+  // The Folder, a revision, a CLI command, a path, a fingerprint, a
+  // placeholder left unfilled.
+  const technical =
+    /Folder|[Rr]evi[sz]|\blazurio [a-z]|~\/|\.md\b|AGENTS|\bPATH\b|SHA256:|\{\w+\}/;
+  const print = "SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU";
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    const change = (answer: unknown, installed = false) =>
+      toolChangeOutcome(
+        answer,
+        { name: "composio", action: "enable", installed },
+        copy,
+      );
+    const outcomes = [
+      change({ kind: "updated", revision: 12 }),
+      change({ kind: "updated", revision: 12 }, true),
+      change({ kind: "unchanged" }),
+      change({ kind: "blocked", reason: "stale-revision" }),
+      change({ kind: "blocked", reason: "drift", path: "manual/x.md" }),
+      change({ kind: "blocked", reason: "incomplete-state" }),
+      change({ kind: "blocked", reason: "custom-composition-unavailable" }),
+      change(null),
+      ...["removed", "kept-not-lazurio", "not-removed", "no-key"].map((state) =>
+        logoutOutcome(
+          {
+            kind: "logged-out",
+            revocation: "local-only",
+            sshKey: { state, fingerprint: print },
+          },
+          "gh",
+          copy,
+        ),
+      ),
+      logoutOutcome({ kind: "logout-failed", reason: "tool-exit" }, "gh", copy),
+      teamInstallOutcome(
+        { kind: "installed", version: "2.101.0", onPath: false },
+        "gh",
+        copy,
+      ),
+      teamInstallOutcome(
+        { kind: "unsupported-platform", platform: "win32", arch: "x64" },
+        "gh",
+        copy,
+      ),
+      teamInstallOutcome(
+        { kind: "install-failed", stage: "checksum", reason: "mismatch" },
+        "gh",
+        copy,
+      ),
+    ];
+    const header = checkedLine(new Date(2026, 9, 9, 14, 5), locale, copy);
+    expect(
+      header.startsWith(locale === "cs" ? "Zjištěno v" : "Checked at"),
+    ).toBe(true);
+    // A switched-on tool that is not installed says when agents start
+    // using it, in plain words.
+    expect(connectionLine(tool({ enabled: true }), copy).text).toBe(
+      copy.toolsEnabledNotInstalled.replace("{name}", "composio"),
+    );
+    for (const said of [
+      header,
+      copy.toolsLoadFailed,
+      copy.toolsMcpText,
+      connectionLine(tool({ enabled: true }), copy).text,
+      ...outcomes.map((outcome) => outcome.message),
+    ]) {
+      expect(said).not.toMatch(technical);
+      expect(said).not.toContain("12");
+    }
+    // The technical part is kept, under the tool's Details.
+    const details = outcomes.map((outcome) => outcome.detail ?? "").join("\n");
+    for (const kept of [
+      "manual/x.md",
+      "lazurio profile-resume",
+      "custom-composition-unavailable",
+      "lazurio recover",
+      print,
+      "tool-exit",
+      "win32",
+      "mismatch",
+      "~/.local/bin",
+    ])
+      expect(details).toContain(kept);
   }
 });
 
@@ -710,27 +888,36 @@ test("the SSH outcome of a gh sign-in is read only in its exact form and becomes
       agent: false,
       retry: true,
     });
-    // Sign-out says what happened to the key on the account.
+    // Sign-out says what happened to the key on the account; its
+    // fingerprint is for the Details (Matěj 2026-10-09).
     const out = (sshKey: unknown) =>
       logoutOutcome(
         { kind: "logged-out", revocation: "local-only", sshKey },
         "gh",
         copy,
-      ).message;
+      );
     const local = copy.toolsSignedOutLocal.replace("{name}", "gh");
-    expect(out({ state: "removed", fingerprint })).toBe(
-      `${local} ${copy.toolsSshRemoved.replace("{fingerprint}", fingerprint)}`,
+    const printed = copy.toolsSshKeyFingerprint.replace(
+      "{fingerprint}",
+      fingerprint,
     );
-    expect(out({ state: "kept-not-lazurio", fingerprint })).toBe(
-      `${local} ${copy.toolsSshRemovalKept.replace("{fingerprint}", fingerprint)}`,
-    );
-    expect(out({ state: "not-removed", reason: "scope-missing" })).toBe(
-      `${local} ${copy.toolsSshRemovalFailed}`,
-    );
-    expect(out({ state: "no-key" })).toBe(
+    expect(out({ state: "removed", fingerprint })).toMatchObject({
+      message: `${local} ${copy.toolsSshRemoved}`,
+      detail: printed,
+    });
+    expect(out({ state: "kept-not-lazurio", fingerprint })).toMatchObject({
+      message: `${local} ${copy.toolsSshRemovalKept}`,
+      detail: printed,
+    });
+    expect(out({ state: "not-removed", reason: "scope-missing" })).toEqual({
+      kind: "updated",
+      reload: false,
+      message: `${local} ${copy.toolsSshRemovalFailed}`,
+    });
+    expect(out({ state: "no-key" }).message).toBe(
       `${local} ${copy.toolsSshRemovalNoKey}`,
     );
-    expect(out({ state: "<b>" })).toBe(
+    expect(out({ state: "<b>" }).message).toBe(
       `${local} ${copy.toolsSshRemovalFailed}`,
     );
   }
@@ -754,7 +941,11 @@ test("install, login end, organizations and logout answers become one sentence e
     ).toEqual({
       ok: true,
       agent: false,
-      message: `${copy.toolsInstalledNow.replace("{name}", "gh").replace("{version}", "2.101.0")} ${copy.toolsInstallNotOnPath}`,
+      message: copy.toolsInstalledNow
+        .replace("{name}", "gh")
+        .replace("{version}", "2.101.0"),
+      // Where agents look for tools is for the Details (Matěj 2026-10-09).
+      detail: copy.toolsInstallNotOnPath,
     });
     expect(installOutcome({ kind: "already-installed" }, "gh", copy).ok).toBe(
       true,
@@ -773,7 +964,8 @@ test("install, login end, organizations and logout answers become one sentence e
     ).toEqual({
       ok: false,
       agent: true,
-      message: copy.toolsInstallFailed
+      message: copy.toolsInstallFailed,
+      detail: copy.toolsInstallFailedDetail
         .replace("{stage}", "checksum")
         .replace("{reason}", "checksum-mismatch"),
     });
@@ -782,8 +974,15 @@ test("install, login end, organizations and logout answers become one sentence e
         { kind: "unsupported-platform", platform: "win32", arch: "x64" },
         "gh",
         copy,
-      ).agent,
-    ).toBe(true);
+      ),
+    ).toEqual({
+      ok: false,
+      agent: true,
+      message: copy.toolsInstallUnsupported,
+      detail: copy.toolsInstallUnsupportedDetail
+        .replace("{platform}", "win32")
+        .replace("{arch}", "x64"),
+    });
     expect(
       installOutcome({ kind: "blocked", reason: "busy" }, "gh", copy),
     ).toEqual({
@@ -868,9 +1067,8 @@ test("install, login end, organizations and logout answers become one sentence e
     ).toEqual({
       kind: "failed",
       reload: false,
-      message: copy.toolsSignOutFailed
-        .replace("{name}", "gh")
-        .replace("{reason}", "tool-exit"),
+      message: copy.toolsSignOutFailed.replace("{name}", "gh"),
+      detail: copy.toolsSignOutFailedDetail.replace("{reason}", "tool-exit"),
     });
   }
 });
