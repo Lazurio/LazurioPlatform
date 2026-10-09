@@ -227,7 +227,8 @@ reaches the Launchpad (`page`, null on a workstation), Composio's policy and
 readiness, each source's state (`ok`, `unavailable`, `absent` for an Environment
 without Executor, `unreadable`, `signed-out`, `not-allowed`), the tools for one app that are connected, every catalog app with
 its path, `connected`, its accounts (path, the selector that disconnects it, its
-name, state, spare) and its card link (`<origin>/integrations/app/<id>`), the
+name, state, spare) and its card link (`<origin>/integrations/app/<id>`, which
+lists and focuses that card even where nothing connects the app here), the
 accounts of Composio toolkits the catalog does not know, and the custom MCP
 servers (address without userinfo or query, which may carry a key; a command
 server's line is not shown). A source that cannot be read is said so and never

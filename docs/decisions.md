@@ -5897,8 +5897,10 @@ preferences), which was never merged. The reference is
 
 1. **One list, one path per app.** Apps → Integrace (`/integrations`, the tabs
    Vše, Připojené and Vlastní, an app's card at `/integrations/app/<id>`, under
-   `app/` so that no app id is ever a tab) lists every app of the catalog, the
-   apps connected here that the catalog does not know, and the custom MCP servers.
+   `app/` so that no app id is ever a tab; a card link lists its app even where
+   nothing connects it here, with what is missing) lists every app of the catalog,
+   the apps connected here that the catalog does not know, and the custom MCP
+   servers.
    Each app has exactly one path, chosen by the wireframe's rule (`choosePath`,
    [integrations](integrations.md#the-path-rule)): a connected tool for the app,
    then the way it is already connected (přímo before Composio), then directly
