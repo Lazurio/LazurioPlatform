@@ -133,6 +133,8 @@ export function createSettingsPoller(
   let converged = false;
   let lastReport: string | null = null;
   let lastReportAt: number | null = null;
+  // The error this process last said in its journal: each new one once.
+  let journaled: string | null = null;
 
   const blank = (): AppliedState => ({
     source: source.kind,
@@ -262,24 +264,29 @@ export function createSettingsPoller(
       };
     } else {
       answered = false;
-      const error =
-        answer.kind === "failed" ? answer.error : "dashboard_unreachable";
-      next = { ...(state ?? blank()), lastError: error };
-      if (state?.lastError !== error)
+      next = {
+        ...(state ?? blank()),
+        lastError:
+          answer.kind === "failed" ? answer.error : "dashboard_unreachable",
+      };
+    }
+    if (answered) answeredAt = at;
+    // Why the version stays, said once per reason in this process.
+    const kept = next.lastError;
+    if (kept !== journaled) {
+      if (kept !== null)
         journal({
           event: "kept",
           source: source.kind,
-          error,
-          detail: answer.kind === "failed" ? answer.detail : "answer-invalid",
+          error: kept,
+          ...(answer.kind === "failed"
+            ? { detail: answer.detail }
+            : answer.kind === "not-modified"
+              ? { detail: "answer-invalid" }
+              : {}),
         });
+      journaled = kept;
     }
-    if (answered) answeredAt = at;
-    if (answer.kind === "invalid" && state?.lastError !== "settings_invalid")
-      journal({
-        event: "kept",
-        source: source.kind,
-        error: "settings_invalid",
-      });
     // Written only when something but the time of the answer changed.
     if (significant(next) !== significant(state) || corrupt) {
       try {
