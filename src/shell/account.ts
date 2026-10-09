@@ -5,16 +5,18 @@ import { parseShellAccount, type ShellAccount } from "./contract";
 // origin, which the Environment's gateway relays to the Dashboard with the
 // person's own token (`lazurio.account.v1`). The shell sends no token and
 // follows no redirect: an expired session is a refusal, never a sign-in page
-// to follow. Read once per page load, alongside `/.lazurio/shell.json`, and
-// never polled. Whatever goes wrong (no relay yet, which is `404` on today's
-// gateways; a refusal, `401` or `403`; a slow answer; anything but a valid
-// document) the result is null and the rail is exactly this Environment's,
-// with no error shown and one debug line. The Launchpad's Apps reads the
-// same answer (`src/launchpad/account.ts`), so the page asks once.
+// to follow. Read in one bounded cycle per page load, alongside
+// `/.lazurio/shell.json`, never polled. Transient failures retry within that
+// shared cycle. On refusal, an invalid answer or exhaustion, the result is
+// null and the rail keeps its local/remembered fallback with one debug line.
+// Apps shares the same answer (`src/launchpad/account.ts`).
 
 export const accountDocumentPath = "/.lazurio/account/environments";
-/** How long the shell waits for the account before it keeps the local rail. */
+/** The unchanged deadline for account writes (favourites). */
 export const accountReadMs = 4_000;
+/** Account initialization and the gateway may take longer than an ordinary read. */
+export const accountDocumentReadMs = 12_000;
+const accountRetryDelaysMs = [250, 750] as const;
 
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 type Debug = (message: string) => void;
@@ -104,46 +106,53 @@ export function cachedAccountFor(
   return ownAccount(account, login) ? account : null;
 }
 
-/** Reads the account document's JSON once: the value, or null when it is
- * unavailable (any status but success, a network error, a timeout, not
- * JSON), with one debug line saying why. Never throws. A refusal or no
- * relay also removes this origin's remembered account (`accountCacheKey`);
- * keeping a fresh one is the shell's, which knows the operator
- * (`rememberAccount`). */
+/** One bounded account read cycle shared by the rail and Apps. Transient
+ * failures retry; refusals and malformed answers stop immediately. The local
+ * rail remains usable throughout. Only exhaustion logs the failure. */
 export async function readAccountJson(
   fetcher: Fetch = fetch,
-  timeoutMs = accountReadMs,
+  timeoutMs = accountDocumentReadMs,
   log: Debug = debug,
   store: Store | null = browserStore(),
+  retryDelaysMs: readonly number[] = accountRetryDelaysMs,
 ): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetcher(accountDocumentPath, {
-      credentials: "same-origin",
-      cache: "no-store",
-      redirect: "error",
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      // A refusal or no relay: the remembered rail is no longer this
-      // person's to show. Anything else may pass; keep it.
+  let reason = "unreachable";
+  for (let attempt = 0; ; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let retry = false;
+    try {
+      const response = await fetcher(accountDocumentPath, {
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "error",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (response.ok) return (await response.json()) as unknown;
       if ([401, 403, 404].includes(response.status)) forget(store);
-      log(
-        `Lazurio shell: no account (${response.status}); the rail shows this Environment only.`,
-      );
-      return null;
+      reason = String(response.status);
+      retry = response.status === 408 || response.status >= 500;
+      // No error body is used; release this response before a new attempt.
+      void response.body?.cancel().catch(() => {});
+    } catch (error) {
+      reason = controller.signal.aborted
+        ? "timeout"
+        : error instanceof SyntaxError
+          ? "not JSON"
+          : "unreachable";
+      retry = !(error instanceof SyntaxError);
+    } finally {
+      clearTimeout(timer);
     }
-    return (await response.json()) as unknown;
-  } catch (error) {
-    log(
-      `Lazurio shell: no account (${controller.signal.aborted ? "timeout" : error instanceof SyntaxError ? "not JSON" : "unreachable"}); the rail shows this Environment only.`,
-    );
-    return null;
-  } finally {
-    clearTimeout(timer);
+    const delay = retryDelaysMs[attempt];
+    if (!retry || delay === undefined) break;
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
+  log(
+    `Lazurio shell: no account (${reason}); the rail shows this Environment only.`,
+  );
+  return null;
 }
 
 /** Reads the account document: the parsed `lazurio.account.v1`, or null. */
@@ -164,7 +173,7 @@ export async function readShellAccount(
 let pageRead: Promise<unknown> | null = null;
 
 /** The account document's JSON of this page: read on the first call, the
- * same answer for every later one (one request per page load). */
+ * same answer for every later one (one shared bounded cycle per page load). */
 export function pageAccountJson(): Promise<unknown> {
   pageRead ??= readAccountJson();
   return pageRead;

@@ -980,18 +980,18 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-test("one request per page load: the rail and Apps share the page's answer", async () => {
+test("one recovery cycle per page load: simultaneous readers share retries and the answer", async () => {
   let requests = 0;
   globalThis.fetch = (async () => {
     requests += 1;
-    return answer(200, accountDocument());
+    return answer(requests === 1 ? 503 : 200, accountDocument());
   }) as unknown as typeof fetch;
   const first = pageAccountJson();
   const second = pageAccountJson();
   expect(second).toBe(first);
   expect(parseShellAccount(await first)).not.toBeNull();
   await pageAccountJson();
-  expect(requests).toBe(1);
+  expect(requests).toBe(2);
 });
 
 // The remembered account (Matěj 2026-10-05: the rail took seconds to appear):
