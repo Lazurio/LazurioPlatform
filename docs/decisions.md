@@ -5460,6 +5460,34 @@ arrives as Delete (vercel-labs/agent-browser#1380, fix #1382 open), and its sess
 activity and console columns are too much for people. A view in the shape of the
 right-panel browser of ChatGPT/Codex Desktop is the second phase (DEV-6646).
 
+**Addendum 2026-10-09: T3 Code's preview tools drive this browser; a new page opens in a
+new tab.** Since Lazurio/t3code#44 (stable in T3 Code 0.0.45-lazurio.5), T3 Code's preview
+tools on an Environment with the view drive the Environment browser. Each of their tabs is
+a window of it, and web T3's right panel shows the thread's own tab. Point 2 of the addendum
+of 2026-10-06 no longer holds for them. On 2026-10-09 an agent in web T3 showed the
+Organization Admin a new page by navigating the tab they were reading (`preview_navigate`
+without a tab), and their open email was gone from the panel. Asked for a second tab, it
+called `preview_open` with `reuseExistingTab: false`. The window opened and the tool answered
+`visible: true`, but the panel still showed only the first tab. Web T3's panel shows the
+thread's own tab, tabs a page opens and view links clicked in the chat; a tab that
+`preview_open` opens beside the thread's own window does not join it (Lazurio/t3code#48).
+
+Decided, within point 6:
+1. **The manual names T3 Code's preview tools as this browser's.** In this Environment's
+   T3 Code they drive the Environment browser; the desktop apps' built-in browsers stay on
+   the Operator's computer. In web T3 the right panel opens on the thread's tab by itself
+   (Lazurio/t3code#45).
+2. **A new page goes to a new tab.** The manual says so:
+   - in T3 Code, `preview_open` with `reuseExistingTab: false` and the `url`, then the tab's
+     link `https://browser.…/t/<tabId>`, which a click in the thread opens as another tab
+     of the panel;
+   - elsewhere, `lazurio browser window --session <session>-2 --url <address>`, then its link.
+
+   An agent moves an existing tab elsewhere only to continue the same work in it, or when
+   the Operator asks.
+
+Template revision `base-instructions-36`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan

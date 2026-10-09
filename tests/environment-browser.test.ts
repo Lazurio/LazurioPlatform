@@ -42,6 +42,7 @@ import {
 } from "../src/browser/window";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { parseMachineEntry } from "../src/folder/machine-binding";
+import { renderManual } from "../src/folder/manual";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
@@ -647,6 +648,26 @@ test("the entry records the browser's view both or neither, by the wire rules", 
     browserListenPort: 4848,
   });
   expect(organizationWithEntry().entry).not.toHaveProperty("browserOrigin");
+});
+
+// The Folder tells an agent how to show the Operator a new page without taking
+// over a tab they have open (root decision 0191 point 12), and that T3 Code's
+// preview tools drive this browser (Lazurio/t3code, plan DEV-6646).
+test("the Folder opens a new page in a new tab and names T3 Code's preview tools", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const manual = renderManual({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationBrowser,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    });
+    const text = manual["manual/this-machine.md"];
+    expect(text).toContain("`preview_open`");
+    expect(text).toContain("`reuseExistingTab: false`");
+    expect(text).toContain("`lazurio browser window --session <");
+    expect(text).not.toMatch(/web T3 has none|ve webovém T3 nejsou/);
+  }
 });
 
 // ---- The CLI -----------------------------------------------------------------
