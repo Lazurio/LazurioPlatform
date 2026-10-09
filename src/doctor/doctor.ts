@@ -3,12 +3,20 @@ import {
   environmentBrowserReasons,
   observeEnvironmentBrowser,
 } from "../browser/units";
+import { agentRegistrations } from "../executor/agents";
+import {
+  type ExecutorHost,
+  type ExecutorService,
+  executorStatus,
+} from "../executor/flow";
+import { processExecutorHost } from "../executor/host";
 import { machineIdentity } from "../folder/machine-binding";
 import { presetNames } from "../folder/presets";
 import {
   hostedEnvironment,
   isOlderTemplateRevision,
   isTemplateRevision,
+  toolEnvironmentOf,
 } from "../folder/render";
 import { enabledTools } from "../folder/state";
 import { machineBinding } from "../machine/binding";
@@ -34,7 +42,14 @@ import {
   observeFolder,
 } from "../recover/observe";
 import { collectRecovery, type RecoveryEnvironment } from "../recover/recover";
-import { activatableTools, type ToolTier, toolCatalog } from "../tools/catalog";
+import {
+  type ActivatableTool,
+  activatableTools,
+  executorToolName,
+  type ToolTier,
+  toolCatalog,
+  toolOffered,
+} from "../tools/catalog";
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { type ToolSignIn, toolsSignIn, toolsStatus } from "../tools/status";
 import {
@@ -57,7 +72,10 @@ import { readStatus, type UpdateStatus } from "../update/update";
  * stays the broken-product path with its evidence and issue. The one answer
  * recover does not compute, the operator's Codex app-server daemon of a
  * hosted Machine (`observeCodexAppServer`, decision F29), is never `fail`
- * and never reaches recover or Recovery mode. */
+ * and never reaches recover or Recovery mode; neither is Executor
+ * (`executorStatus`, decision F44), a required tool whose absence or
+ * stopped service degrades the direct Integrations and needs attention, but
+ * leaves the Environment working. */
 
 // ---- The shape --------------------------------------------------------------
 
@@ -76,6 +94,7 @@ export const doctorCheckIds = [
   "machine-binding",
   // tools
   "tool",
+  "executor",
   // Organizations and modules
   "catalog",
   "organization",
@@ -111,6 +130,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "folder-state": "folder",
     "machine-binding": "folder",
     tool: "tools",
+    executor: "tools",
     catalog: "organizations",
     organization: "organizations",
     module: "organizations",
@@ -153,6 +173,12 @@ const ownReasons = [
   // Organizations
   "catalog-unreadable",
   "template-not-runtime",
+  // Executor (decision F44): its state as `lazurio executor status` says it.
+  "executor-not-installed",
+  "executor-outdated",
+  "executor-conflict",
+  "executor-not-running",
+  "executor-incomplete",
 ] as const;
 const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
   "canonical-documents-required",
@@ -235,6 +261,17 @@ export const doctorContextRules: Readonly<
   cliVersion: isCodexVersion,
   // Which of the Environment browser's units a finding is about (F38).
   unit: oneOf(browserUnits),
+  // Executor's service and the agents' MCP server `executor` (F44).
+  executorService: oneOf([
+    "running",
+    "stopped",
+    "failed",
+    "missing",
+    "other",
+    "unknown",
+  ] satisfies ExecutorService[]),
+  codexMcp: oneOf(agentRegistrations),
+  claudeMcp: oneOf(agentRegistrations),
   signIn: oneOf(["signed-in", "signed-out", "unknown"]),
   ssh: oneOf(["linked", "not-linked", "unknown"]),
   organization: (value: unknown) =>
@@ -497,23 +534,22 @@ async function toolRows(
   tools: ToolsEnvironment,
   signIn: boolean,
 ): Promise<readonly ToolRow[]> {
-  const offered = (name: string, hosted: boolean) =>
-    activatableTools().find((entry) => entry.name === name)?.activation
-      .offered !== "hosted-linux" ||
-    (hosted && tools.platform === "linux");
   if (directory !== undefined && folder.check.outcome === "ok")
     try {
-      const overview = await toolsOverview(directory, tools, { signIn });
-      return overview.tools.map((tool) => ({
-        ...tool,
-        offered: offered(tool.name, overview.hosted),
-      }));
+      return (await toolsOverview(directory, tools, { signIn })).tools;
     } catch {}
   const enabled =
     folder.preferences === null ? [] : enabledTools(folder.preferences);
-  const hosted =
-    folder.preferences !== null &&
-    hostedEnvironment(folder.preferences.preset.name);
+  // Without a readable selection: offered as the recorded preset and profile
+  // say, and only what is offered everywhere without one.
+  const preferences = folder.preferences;
+  const offered = (entry: ActivatableTool) =>
+    preferences === null
+      ? entry.activation.offered === undefined
+      : toolOffered(
+          entry,
+          toolEnvironmentOf(preferences.preset.name, preferences.profile),
+        );
   const catalog = activatableTools();
   const status = await toolsStatus({ ...tools, catalog });
   const signIns = signIn
@@ -536,7 +572,7 @@ async function toolRows(
       version: live?.version,
       versionError: live?.versionError,
       signIn: signIns?.[index],
-      offered: offered(entry.name, hosted),
+      offered: offered(entry),
     };
   });
 }
@@ -608,7 +644,37 @@ export type DoctorEnvironment = RecoveryEnvironment &
     signIn?: boolean | undefined;
     /** Tests only: the loopback probes of the Environment browser (F38). */
     fetch?: ((url: string, init: RequestInit) => Promise<Response>) | undefined;
+    /** Tests only: where Executor is read (F44); this process's otherwise. */
+    executor?: ExecutorHost | undefined;
   }>;
+
+/** Executor as `lazurio executor status` reads it (decision F44): `ok`
+ * running, `warn` with its state otherwise, `skipped` where it is not
+ * offered. Never `fail`: without Executor an Environment loses its direct
+ * Integrations, not its work, and a release that adds Executor must not turn
+ * every Environment broken before its next install or update set it up. */
+async function executorCheck(host: ExecutorHost): Promise<DoctorCheck> {
+  const status = await executorStatus(host).catch(() => null);
+  if (status === null) return check("executor", "skipped", "internal");
+  if (status.state === "unsupported")
+    return check(
+      "executor",
+      "skipped",
+      status.reason === "handover-unreadable"
+        ? "handover-unreadable"
+        : "not-offered",
+    );
+  const context: ErrorContext = {
+    tool: executorToolName,
+    ...(status.installed === null ? {} : { toolVersion: status.installed }),
+    executorService: status.service,
+    codexMcp: status.agents.codex,
+    claudeMcp: status.agents.claude,
+  };
+  return status.state === "running"
+    ? check("executor", "ok", undefined, context)
+    : check("executor", "warn", `executor-${status.state}`, context);
+}
 
 export const doctorVerdict = (checks: readonly DoctorCheck[]): DoctorVerdict =>
   checks.some((entry) => entry.outcome === "fail")
@@ -675,6 +741,16 @@ export async function collectDoctor(
     tools: environment.tools,
   });
 
+  const executor = await executorCheck(
+    environment.executor ??
+      processExecutorHost({
+        hostedFolder: async () => environment.hostedFolder?.(),
+        env,
+        platform,
+        run: environment.tools.run,
+      }),
+  );
+
   const browser = await observeEnvironmentBrowser({
     platform,
     env,
@@ -717,7 +793,9 @@ export async function collectDoctor(
         : { preset: facts.preset, machineKind: facts.machineKind },
     ),
     ...bindingChecks(observed, handover, hostedUnreadable),
-    ...tools.map(toolCheck),
+    // Executor has its own check (decision F44), not a tool row.
+    ...tools.filter((tool) => tool.name !== executorToolName).map(toolCheck),
+    executor,
     ...catalogChecks(catalog),
     fromRecovery("launchpad-unit", recovered, "launchpad-unit"),
     fromRecovery(

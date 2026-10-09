@@ -7,12 +7,20 @@ import {
   type EnvironmentBrowser,
 } from "../browser/units";
 import {
+  convergeExecutor,
+  type ExecutorConvergence,
+  executorFinding,
+} from "../executor/converge";
+import { type ExecutorHost, executorSetup } from "../executor/flow";
+import { processExecutorHost } from "../executor/host";
+import {
   type FolderRefresh,
   folderRefreshText,
   shellWord,
 } from "../folder/refresh-needed";
 import { LaunchpadStartRefused } from "../launchpad/start-check";
 import { hostedOperatorFolder } from "../machine/operator";
+import { runTool } from "../tools/status";
 import {
   type AttestationVerifier,
   createAttestationVerifier,
@@ -85,7 +93,11 @@ install [--verify-release <directory>] [--service systemd-user --folder <absolut
   operator, with or without --service, it also ensures
   lazurio-codex-app-server.service, which runs the operator's own codex
   app-server daemon start at boot; that step never fails the command and
-  never stops or restarts a running daemon (codexAppServer in --json).
+  never stops or restarts a running daemon (codexAppServer in --json). There
+  it also sets Executor up as lazurio executor setup does (the pinned
+  version, its service on 127.0.0.1:4789, the MCP server executor in Codex
+  and Claude Code); that step never fails the command either (executor in
+  --json).
 install prompt [--locale cs|en] [--json]
   The prepared prompt for an agent who straightens a non-standard
   installation: the standard layout on this platform, what was found instead,
@@ -140,6 +152,9 @@ export type CliContext = Readonly<{
    * Resolves undefined where there positively is none and rejects where a
    * hosted context is there but unreadable (`hostedOperatorFolder`, #83). */
   hostedFolder?: (() => Promise<string | undefined>) | undefined;
+  /** Where install and update set Executor up on a supervised hosted base
+   * (decision F44); absent: they never do. This process's in production. */
+  executor?: (() => ExecutorHost) | undefined;
 }>;
 
 export const processContext = (): CliContext =>
@@ -149,6 +164,13 @@ export const processContext = (): CliContext =>
     env: process.env,
     executable: process.execPath,
     hostedFolder: hostedOperatorFolder,
+    executor: () =>
+      processExecutorHost({
+        hostedFolder: hostedOperatorFolder,
+        env: process.env,
+        platform: process.platform,
+        run: runTool,
+      }),
   });
 
 const usage = (message: string): CommandOutput =>
@@ -217,6 +239,22 @@ const hostedOperator = (context: CliContext) => async () =>
   context.hostedFolder !== undefined &&
   (await context.hostedFolder().catch(() => undefined)) !== undefined;
 
+/** Executor's convergence for this base (decision F44): only where the
+ * context names where Executor is set up. */
+const executorConvergence = (context: CliContext, base: string) => {
+  const host = context.executor;
+  if (host === undefined) return undefined;
+  return (hosted: () => Promise<boolean>) =>
+    convergeExecutor({
+      base,
+      platform: context.platform,
+      env: context.env,
+      run: context.run,
+      hosted,
+      setup: () => executorSetup(host()),
+    });
+};
+
 export async function updateEnvironment(
   context: CliContext,
   base: string,
@@ -259,6 +297,12 @@ export async function updateEnvironment(
         hosted: hostedOperator(context),
         entry: () => handoverBrowserEntry(),
       }),
+    executorUnits: (() => {
+      const converge = executorConvergence(context, base);
+      return converge === undefined
+        ? undefined
+        : () => converge(hostedOperator(context));
+    })(),
     run: context.run,
     ...context.environment,
   });
@@ -456,6 +500,14 @@ const browserFinding = (value: EnvironmentBrowser | undefined): string[] =>
     ? [value.next]
     : [];
 
+/** Executor in words after an installation (decision F44). */
+const executorLines = (value: ExecutorConvergence | undefined): string[] =>
+  value?.state === "running"
+    ? [
+        "Executor runs in this Environment (sh.executor.daemon.service on 127.0.0.1:4789) and Codex and Claude Code have it as the MCP server executor.",
+      ]
+    : executorFinding(value);
+
 /** What a person reads after `lazurio install`: the verification, the
  * outcome, the command's PATH entry with whatever the operator or an agent
  * should do, and on a first installation the first step. */
@@ -509,6 +561,7 @@ async function installText(
           "The Environment browser starts with this Environment (lazurio-display, lazurio-browser and lazurio-browser-view services).",
         ]
       : browserFinding(result.environmentBrowser)),
+    ...executorLines(result.executor),
     ...(standard
       ? []
       : [
@@ -636,6 +689,7 @@ export async function runInstallCommand(
         values.folder === undefined ? undefined : { folder: values.folder },
       hosted: hostedOperator(context),
       browserEntry: () => handoverBrowserEntry(),
+      executor: executorConvergence(context, base),
       release:
         directory === undefined
           ? undefined
@@ -772,6 +826,7 @@ export async function runUpdateCommand(
             ...refresh(result.folderRefresh),
             ...codexFinding(result.codexAppServer),
             ...browserFinding(result.environmentBrowser),
+            ...executorFinding(result.executor),
           ].join("\n")
         : result.kind === "up-to-date"
           ? [
@@ -779,6 +834,7 @@ export async function runUpdateCommand(
               ...refresh(result.folderRefresh),
               ...codexFinding(result.codexAppServer),
               ...browserFinding(result.environmentBrowser),
+              ...executorFinding(result.executor),
             ].join("\n")
           : "",
     );

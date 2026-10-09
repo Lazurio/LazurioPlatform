@@ -81,6 +81,7 @@ test("the catalog names the operator's tools with their official update path", (
     "codex",
     "claude",
     "gh",
+    "executor",
     "git",
     "node",
     "npm",
@@ -100,7 +101,8 @@ test("the catalog names the operator's tools with their official update path", (
     kind: "self",
     argv: ["upgrade"],
   });
-  for (const name of ["gh", "git", "node", "npm"])
+  // Executor's pin is Lazurio's, set up by `lazurio executor setup` (F44).
+  for (const name of ["gh", "executor", "git", "node", "npm"])
     expect(findTool(name)?.updater.kind).toBe("none");
   expect(Object.isFrozen(toolCatalog)).toBe(true);
   expect(findTool("t3")).toBeUndefined();
@@ -452,12 +454,26 @@ test.skipIf(!posix)(
         path: join(bin, "gh"),
         version: "2.86.0",
         standardPath: true,
+        offered: true,
+      },
+      // Executor is required where it is offered: a Remote Environment on
+      // Linux, not this computer (decision F44).
+      {
+        name: "executor",
+        command: "executor",
+        tier: "required",
+        setup: "launchpad",
+        enabled: true,
+        installed: false,
+        offered: false,
+        source: "https://github.com/UsefulSoftwareCo/executor",
       },
       {
         name: "composio",
         tier: "recommended",
         enabled: false,
         installed: false,
+        offered: true,
         source: "https://docs.composio.dev/docs/cli",
       },
       {
@@ -467,6 +483,7 @@ test.skipIf(!posix)(
         setup: "launchpad",
         enabled: false,
         installed: false,
+        offered: false,
         source: "https://github.com/bitwarden/clients",
       },
       {
@@ -499,8 +516,9 @@ test.skipIf(!posix)(
     expect(text.text.split("\n")).toEqual([
       "revision 1",
       `gh        required     launchpad  enabled   2.86.0 ${join(bin, "gh")}`,
+      "executor  required     launchpad  enabled   missing https://github.com/UsefulSoftwareCo/executor  (not offered here)",
       "composio  recommended  launchpad  disabled  missing https://docs.composio.dev/docs/cli",
-      "bitwarden recommended  launchpad  disabled  missing https://github.com/bitwarden/clients",
+      "bitwarden recommended  launchpad  disabled  missing https://github.com/bitwarden/clients  (not offered here)",
       `wacli     optional     launchpad  disabled  0.9.1 ${join(bin, "wacli")}`,
       "gogcli    optional     agent      disabled  missing https://github.com/openclaw/gogcli",
       "neon      optional     agent      disabled  missing https://neon.com/docs/reference/neon-cli",
@@ -549,6 +567,7 @@ test.skipIf(!posix)(
       (await list()).tools.map((tool) => [tool.name, tool.enabled]),
     ).toEqual([
       ["gh", true],
+      ["executor", true],
       ["composio", true],
       ["bitwarden", false],
       ["wacli", true],
@@ -592,6 +611,19 @@ test.skipIf(!posix)(
       code: 2,
       result: { kind: "blocked", reason: "tool-required", tool: "gh" },
     });
+    expect(await disable("executor", 3)).toEqual({
+      code: 2,
+      result: { kind: "blocked", reason: "tool-required", tool: "executor" },
+    });
+    // A tool this computer does not offer is not enabled (decision F44).
+    expect(await enable("bitwarden", 3)).toEqual({
+      code: 2,
+      result: {
+        kind: "blocked",
+        reason: "tool-not-offered",
+        tool: "bitwarden",
+      },
+    });
     for (const tool of ["t3", "codex"])
       expect(await enable(tool, 3)).toEqual({
         code: 2,
@@ -599,7 +631,15 @@ test.skipIf(!posix)(
           kind: "blocked",
           reason: "tool-unknown",
           tool,
-          known: ["gh", "composio", "bitwarden", "wacli", "gogcli", "neon"],
+          known: [
+            "gh",
+            "executor",
+            "composio",
+            "bitwarden",
+            "wacli",
+            "gogcli",
+            "neon",
+          ],
         },
       });
 
@@ -715,11 +755,16 @@ test("the prepared agent prompt: task, target state and the rule to enable the t
       if (prompt === undefined) throw new Error("Expected a prompt");
       expect(prompt).not.toContain("undefined");
       // The Environment vault is connected, not installed with a person's
-      // sign-in (decision F43): its own task and its own status command.
+      // sign-in (decision F43), and Lazurio sets Executor up itself (F44):
+      // their own task and their own status command.
       const task = entry.activation.task;
       if (task !== undefined) {
         expect(prompt.startsWith(task[locale])).toBe(true);
-        expect(prompt).toContain("`lazurio vault status --json`");
+        expect(prompt).toContain(
+          entry.name === "executor"
+            ? "`lazurio executor status --json`"
+            : "`lazurio vault status --json`",
+        );
       } else {
         expect(prompt).toContain(
           locale === "cs"
@@ -775,7 +820,15 @@ test("the prepared agent prompt: task, target state and the rule to enable the t
       kind: "blocked",
       reason: "tool-unknown",
       tool: name,
-      known: ["gh", "composio", "bitwarden", "wacli", "gogcli", "neon"],
+      known: [
+        "gh",
+        "executor",
+        "composio",
+        "bitwarden",
+        "wacli",
+        "gogcli",
+        "neon",
+      ],
     });
   }
   for (const args of [
@@ -808,6 +861,8 @@ test("each catalog probe reads signed in, as whom, signed out or unknown from it
     ]),
   ).toEqual([
     ["gh", ["auth", "status", "--hostname", "github.com"]],
+    // Executor has no sign-in: its state is `lazurio executor status` (F44).
+    ["executor", undefined],
     ["composio", ["whoami"]],
     // The Environment vault reads its state through its own core (F43).
     ["bitwarden", undefined],
@@ -1076,6 +1131,7 @@ exit 1
       { state: "unknown" },
       { state: "unknown" },
       { state: "unknown" },
+      { state: "unknown" },
     ]);
     expect(JSON.stringify(signed)).not.toContain("SECRET");
     const text = await runToolsCommand(
@@ -1152,6 +1208,7 @@ exit 1
     };
     expect(listed.tools.map((tool) => tool.note)).toEqual([
       "Only the Spectoda org.",
+      undefined,
       "Use it for ClickUp.\n# not a heading",
       undefined,
       undefined,
@@ -1161,10 +1218,11 @@ exit 1
     const lines = (
       await runToolsCommand(["list", "--folder", folder], context)
     ).text.split("\n");
-    expect(lines.slice(1, 6)).toEqual([
+    expect(lines.slice(1, 7)).toEqual([
       `gh        required     launchpad  enabled   2.86.0 ${join(bin, "gh")}`,
       "          operator's note:",
       "          > Only the Spectoda org.",
+      "executor  required     launchpad  enabled   missing https://github.com/UsefulSoftwareCo/executor  (not offered here)",
       "composio  recommended  launchpad  enabled   missing https://docs.composio.dev/docs/cli",
       "          operator's note:",
     ]);

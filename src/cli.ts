@@ -8,6 +8,7 @@ import {
   runContentCommand,
 } from "./content/cli";
 import { doctorHelp, runDoctorCommand } from "./doctor/cli";
+import { executorHelp, runExecutorCommand } from "./executor/cli";
 import { filesHelp, runFilesCommand } from "./files/cli";
 import { FolderAdoptionError } from "./folder/handover-layout";
 import { initializeFolder } from "./folder/initialize-folder";
@@ -224,6 +225,15 @@ async function runOtherCommand(args: string[]): Promise<number> {
   if (args[0] === "vault")
     return emit(
       await runVaultCommand(args.slice(1), {
+        ...processContext(),
+        progress: (line) => console.error(line),
+      }),
+    );
+  // Executor of a Remote Environment (decision F44): setup's steps go to
+  // stderr, the state to stdout.
+  if (args[0] === "executor")
+    return emit(
+      await runExecutorCommand(args.slice(1), {
         ...processContext(),
         progress: (line) => console.error(line),
       }),
@@ -483,6 +493,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(browserHelp);
     console.log(filesHelp);
     console.log(vaultHelp);
+    console.log(executorHelp);
     console.log(machineHelp);
     return 0;
   }

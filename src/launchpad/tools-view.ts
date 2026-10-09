@@ -1,3 +1,4 @@
+import { executorToolName, vaultToolName } from "../tools/catalog";
 import type { LoginChallenge, LoginState } from "../tools/login";
 import {
   normalizeToolNote,
@@ -104,6 +105,7 @@ function parseTool(input: unknown): ToolOverview | null {
     !tiers.includes(value.tier as Tier) ||
     (value.setup !== "launchpad" && value.setup !== "agent") ||
     typeof value.enabled !== "boolean" ||
+    typeof value.offered !== "boolean" ||
     typeof value.installed !== "boolean" ||
     !text(value.purpose) ||
     !text(value.usage) ||
@@ -127,6 +129,7 @@ function parseTool(input: unknown): ToolOverview | null {
     tier: value.tier as Tier,
     setup: value.setup,
     enabled: value.enabled,
+    offered: value.offered,
     installed: value.installed,
     purpose: value.purpose,
     usage: value.usage,
@@ -188,8 +191,14 @@ export type ToolGroup = Readonly<{
   tools: readonly ToolOverview[];
 }>;
 
+/** The tools with a row of their own, which says where they are not offered
+ * yet (the vault, decision F43; Executor, F44). */
+const ownRows: readonly string[] = [vaultToolName, executorToolName];
+
 /** Required, Recommended, Optional, each in catalog order; a tier without a
- * tool has no heading. */
+ * tool has no heading. A tool this Environment does not offer is listed only
+ * while it is switched on, so that it can be switched off (decision F44),
+ * or when its own row says why it is not here. */
 export function toolGroups(
   tools: readonly ToolOverview[],
   copy: Copy,
@@ -204,7 +213,11 @@ export function toolGroups(
       tier,
       title: copy[headings[tier][0]],
       note: copy[headings[tier][1]],
-      tools: tools.filter((tool) => tool.tier === tier),
+      tools: tools.filter(
+        (tool) =>
+          tool.tier === tier &&
+          (tool.offered || tool.enabled || ownRows.includes(tool.name)),
+      ),
     }))
     .filter((group) => group.tools.length > 0);
 }
@@ -217,6 +230,7 @@ const descriptionKeys: Readonly<Record<string, MessageKey>> = {
   gh: "toolsDescriptionGh",
   composio: "toolsDescriptionComposio",
   bitwarden: "toolsDescriptionBitwarden",
+  executor: "toolsDescriptionExecutor",
   wacli: "toolsDescriptionWacli",
   gogcli: "toolsDescriptionGogcli",
   neon: "toolsDescriptionNeon",

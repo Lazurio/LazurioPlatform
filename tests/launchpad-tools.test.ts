@@ -236,6 +236,7 @@ test.skipIf(process.platform === "win32")(
             tier: "required",
             setup: "launchpad",
             enabled: true,
+            offered: true,
             purpose:
               "GitHub CLI for work with repositories, pull requests, issues and reviews.",
             usage: expect.stringContaining("gh auth status"),
@@ -247,12 +248,27 @@ test.skipIf(process.platform === "win32")(
             standardPath: true,
             prompt: toolPrompt("gh", "en") as string,
           },
+          // Required where it is offered: not on this computer (F44).
+          {
+            name: "executor",
+            command: "executor",
+            tier: "required",
+            setup: "launchpad",
+            enabled: true,
+            offered: false,
+            purpose: expect.any(String),
+            usage: expect.any(String),
+            source: "https://github.com/UsefulSoftwareCo/executor",
+            installed: false,
+            prompt: toolPrompt("executor", "en") as string,
+          },
           {
             name: "composio",
             command: "composio",
             tier: "recommended",
             setup: "launchpad",
             enabled: false,
+            offered: true,
             purpose: expect.any(String),
             usage: expect.any(String),
             source: "https://docs.composio.dev/docs/cli",
@@ -269,6 +285,7 @@ test.skipIf(process.platform === "win32")(
             tier: "recommended",
             setup: "launchpad",
             enabled: false,
+            offered: false,
             purpose: expect.any(String),
             usage: expect.any(String),
             source: "https://github.com/bitwarden/clients",
@@ -281,6 +298,7 @@ test.skipIf(process.platform === "win32")(
             tier: "optional",
             setup: "launchpad",
             enabled: false,
+            offered: true,
             purpose: expect.any(String),
             usage: expect.any(String),
             source: "https://github.com/openclaw/wacli",
@@ -293,6 +311,7 @@ test.skipIf(process.platform === "win32")(
             tier: "optional",
             setup: "agent",
             enabled: false,
+            offered: true,
             purpose: expect.any(String),
             usage: expect.any(String),
             source: "https://github.com/openclaw/gogcli",
@@ -309,6 +328,7 @@ test.skipIf(process.platform === "win32")(
             tier: "optional",
             setup: "agent",
             enabled: false,
+            offered: true,
             purpose: expect.any(String),
             usage: expect.any(String),
             source: "https://neon.com/docs/reference/neon-cli",
@@ -358,6 +378,7 @@ test.skipIf(process.platform === "win32")(
           "locale",
           "mcpPrompt",
           "name",
+          "offered",
           "path",
           "prompt",
           "purpose",
@@ -410,6 +431,7 @@ test.skipIf(process.platform === "win32")(
       expect(first.mcpPrompt).not.toBe(mcpServerPrompt("en"));
       expect(first.tools.map((tool) => [tool.name, tool.enabled])).toEqual([
         ["gh", true],
+        ["executor", true],
         ["composio", false],
         ["bitwarden", false],
         ["wacli", false],
@@ -436,6 +458,7 @@ test.skipIf(process.platform === "win32")(
         second.tools.map((tool) => [tool.name, tool.enabled, tool.installed]),
       ).toEqual([
         ["gh", true, true],
+        ["executor", true, false],
         ["composio", true, false],
         ["bitwarden", false, false],
         ["wacli", false, false],
@@ -456,7 +479,8 @@ test.skipIf(process.platform === "win32")(
       expect(third.locale).toBe("en");
       expect(third.revision).toBe(3);
       expect(third.mcpPrompt).toBe(mcpServerPrompt("en"));
-      expect(third.tools.filter((tool) => tool.enabled)).toHaveLength(3);
+      // gh and Executor (required), composio and neon.
+      expect(third.tools.filter((tool) => tool.enabled)).toHaveLength(4);
     } finally {
       await opened.close();
     }
@@ -490,6 +514,7 @@ test.skipIf(process.platform === "win32")(
       expect(overview.hosted).toBe(true);
       // An empty PATH is a state, not an error.
       expect(overview.tools.map((tool) => tool.installed)).toEqual([
+        false,
         false,
         false,
         false,
@@ -641,6 +666,8 @@ test.skipIf(process.platform === "win32")(
             identity: "person",
           },
         ],
+        // Executor has no sign-in (decision F44): not probed here.
+        ["executor", { state: "unknown" }],
         [
           "composio",
           {
@@ -755,6 +782,7 @@ test.skipIf(process.platform === "win32")(
       const status = await opened.status();
       expect(status.tools.map((tool) => [tool.name, tool.note])).toEqual([
         ["gh", "Only the Spectoda organization."],
+        ["executor", undefined],
         ["composio", note],
         ["bitwarden", undefined],
         ["wacli", undefined],
@@ -776,7 +804,10 @@ test.skipIf(process.platform === "win32")(
         tools: ["composio", "wacli"],
       });
       expect(await enabled.json()).toEqual({ kind: "updated", revision: 3 });
-      expect((await opened.status()).tools[1]?.note).toBe(note);
+      expect(
+        (await opened.status()).tools.find((tool) => tool.name === "composio")
+          ?.note,
+      ).toBe(note);
       const disabled = await opened.call("/api/tools/update", {
         expectedRevision: 3,
         tools: ["wacli"],

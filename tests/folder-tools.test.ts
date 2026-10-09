@@ -26,7 +26,7 @@ import {
 import { renderManual } from "../src/folder/manual";
 import { outputPaths } from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
-import { presetProfile } from "../src/folder/presets";
+import { type PresetName, presetProfile } from "../src/folder/presets";
 import { outputDigests, previewFolder } from "../src/folder/preview";
 import {
   instructionSource,
@@ -52,6 +52,7 @@ import {
   parseEnabledTools,
   parseToolNotes,
   requiredTools,
+  toolOffered,
   toolSelection,
 } from "../src/tools/catalog";
 import {
@@ -103,13 +104,14 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
     ]),
   ).toEqual([
     ["gh", "gh", "required", "launchpad"],
+    ["executor", "executor", "required", "launchpad"],
     ["composio", "composio", "recommended", "launchpad"],
     ["bitwarden", "bw", "recommended", "launchpad"],
     ["wacli", "wacli", "optional", "launchpad"],
     ["gogcli", "gog", "optional", "agent"],
     ["neon", "neon", "optional", "agent"],
   ]);
-  expect(requiredTools().map((tool) => tool.name)).toEqual(["gh"]);
+  expect(requiredTools().map((tool) => tool.name)).toEqual(["gh", "executor"]);
   for (const name of ["codex", "claude", "git", "node", "npm", "bun"])
     expect(findTool(name)?.activation).toBeUndefined();
   expect(findTool("composio")).toMatchObject({
@@ -125,6 +127,8 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   // Every activatable tool names the command that reports its sign-in.
   for (const [name, probe] of [
     ["gh", "`gh auth status`"],
+    // Executor's state is `lazurio executor`'s (decision F44).
+    ["executor", "`lazurio executor status"],
     ["composio", "`composio whoami`"],
     // The vault's state is `lazurio vault`'s (decision F43).
     ["bitwarden", "`lazurio vault"],
@@ -154,6 +158,7 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   // (decision F14, addendum 2026-10-05).
   for (const [name, writesOutside] of [
     ["gh", false],
+    ["executor", true],
     ["composio", true],
     ["bitwarden", true],
     ["wacli", true],
@@ -201,13 +206,15 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
     "is not verified",
   ])
     expect(neon).toContain(fact);
-  expect(activeTools([]).map((tool) => tool.name)).toEqual(["gh"]);
+  expect(activeTools([]).map((tool) => tool.name)).toEqual(["gh", "executor"]);
   expect(activeTools(["wacli"]).map((tool) => tool.name)).toEqual([
     "gh",
+    "executor",
     "wacli",
   ]);
   expect(toolSelection(["composio", "neon"])).toEqual([
     { name: "gh", tier: "required", setup: "launchpad", enabled: true },
+    { name: "executor", tier: "required", setup: "launchpad", enabled: true },
     {
       name: "composio",
       tier: "recommended",
@@ -248,6 +255,8 @@ test("an enabled-tools list holds only sorted, unique, non-required catalog name
     ["wacli", "composio"],
     ["composio", "composio"],
     ["gh"],
+    // Executor is required: never stored (decision F44).
+    ["executor"],
     ["codex"],
     ["gog"],
     ["t3"],
@@ -401,6 +410,179 @@ test("the planner enables, disables and reports an unchanged selection", async (
     ).rejects.toThrow();
 });
 
+// Where Lazurio offers a tool (decision F44): Executor and the vault only in
+// a Remote Environment on Linux, gogcli only in a person's own Environment
+// (root decision 0162 addendum 2026-10-09 point 5), the rest everywhere.
+test("where Lazurio offers a tool", () => {
+  const offered = (name: string, preset: PresetName, linux: boolean) => {
+    const entry = activatableTools().find((tool) => tool.name === name);
+    if (!entry) throw new Error("Expected an activatable tool");
+    return toolOffered(entry, { preset, linux });
+  };
+  const presets: readonly PresetName[] = [
+    "local",
+    "hosted-personal",
+    "hosted-organization-personal",
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ];
+  for (const preset of presets) {
+    for (const name of ["executor", "bitwarden"]) {
+      expect(offered(name, preset, true)).toBe(preset !== "local");
+      expect(offered(name, preset, false)).toBe(false);
+    }
+    expect(offered("gogcli", preset, true)).toBe(
+      preset === "local" || preset === "hosted-personal",
+    );
+    for (const name of ["gh", "composio", "wacli", "neon"])
+      expect(offered(name, preset, preset !== "local")).toBe(true);
+  }
+});
+
+test("a tool the Environment does not offer is never newly enabled; one stored before stays readable, is not rendered and can be switched off", async () => {
+  // A computer does not offer the Environment vault (decisions F43, F44).
+  const fresh = await planned();
+  expect(
+    await planToolsChange(
+      fresh.preferences,
+      fresh.manifest,
+      7,
+      ["bitwarden"],
+      fresh.inspect,
+    ),
+  ).toEqual({ kind: "blocked", reason: "tool-not-offered" });
+  // A selection stored before, with a note: readable, not rendered.
+  const before = await planned({
+    ...stored,
+    tools: ["bitwarden", "composio"],
+    toolNotes: { bitwarden: "Only the shared collection." },
+  });
+  expect(enabledTools(before.preferences)).toEqual(["bitwarden", "composio"]);
+  const source = instructionSource(before.preferences);
+  for (const text of [
+    renderInstructions(source),
+    renderManual(source)["manual/this-machine.md"],
+  ]) {
+    expect(text).not.toContain("- `bitwarden` (");
+    expect(text).not.toContain("Only the shared collection.");
+    expect(text).toContain("- `composio` (");
+  }
+  expect(
+    await planToolsChange(
+      before.preferences,
+      before.manifest,
+      7,
+      ["bitwarden", "composio"],
+      before.inspect,
+    ),
+  ).toEqual({ kind: "unchanged" });
+  // Switching it off changes only the record: the files stay as they are.
+  const off = await planToolsChange(
+    before.preferences,
+    before.manifest,
+    7,
+    ["composio"],
+    before.inspect,
+  );
+  if (off.kind !== "profile-change")
+    throw new Error(`Expected a change: ${JSON.stringify(off)}`);
+  expect(enabledTools(off.preferences)).toEqual(["composio"]);
+  expect(toolNotes(off.preferences)).toEqual({});
+  expect(off.files).toEqual([]);
+});
+
+test("gogcli is offered only in a person's own Environment: a work Environment never enables it, and a selection stored before stays readable and can be switched off", async () => {
+  const work = {
+    schemaVersion: 2,
+    revision: 3,
+    preset: {
+      name: "hosted-organization-personal",
+      version: 1,
+      selection: "derived",
+    },
+    machine: bindings.organization,
+    profile: presetProfile("hosted-organization-personal", "linux"),
+    customInstructions: "",
+  };
+  const fresh = await planned(work);
+  expect(
+    await planToolsChange(
+      fresh.preferences,
+      fresh.manifest,
+      3,
+      ["gogcli"],
+      fresh.inspect,
+    ),
+  ).toEqual({ kind: "blocked", reason: "tool-not-offered" });
+  expect(
+    (
+      await planToolsChange(
+        fresh.preferences,
+        fresh.manifest,
+        3,
+        ["composio"],
+        fresh.inspect,
+      )
+    ).kind,
+  ).toBe("profile-change");
+  // A selection a work Environment stored before gogcli left it, with a note.
+  const before = await planned({
+    ...work,
+    tools: ["composio", "gogcli"],
+    toolNotes: { gogcli: "Only the team calendar." },
+  });
+  expect(enabledTools(before.preferences)).toEqual(["composio", "gogcli"]);
+  const source = instructionSource(before.preferences);
+  const rendered = [
+    renderInstructions(source),
+    renderManual(source)["manual/this-machine.md"],
+  ];
+  for (const text of rendered) {
+    expect(text).not.toContain("- `gogcli` (");
+    expect(text).not.toContain("Only the team calendar.");
+    expect(text).toContain("- `composio` (");
+  }
+  expect(
+    await planToolsChange(
+      before.preferences,
+      before.manifest,
+      3,
+      ["composio", "gogcli"],
+      before.inspect,
+    ),
+  ).toEqual({ kind: "unchanged" });
+  const off = await planToolsChange(
+    before.preferences,
+    before.manifest,
+    3,
+    ["composio"],
+    before.inspect,
+  );
+  if (off.kind !== "profile-change")
+    throw new Error(`Expected a change: ${JSON.stringify(off)}`);
+  expect(enabledTools(off.preferences)).toEqual(["composio"]);
+  // A personal Remote Environment offers it.
+  const personal = await planned({
+    schemaVersion: 2,
+    revision: 3,
+    preset: { name: "hosted-personal", version: 1, selection: "derived" },
+    machine: bindings.personal,
+    profile: presetProfile("hosted-personal", "linux"),
+    customInstructions: "",
+  });
+  expect(
+    (
+      await planToolsChange(
+        personal.preferences,
+        personal.manifest,
+        3,
+        ["gogcli"],
+        personal.inspect,
+      )
+    ).kind,
+  ).toBe("profile-change");
+});
+
 test("every existing refusal holds for a tools change", async () => {
   const { preferences, manifest, inspect } = await planned();
   const never = async (): Promise<never> => {
@@ -529,7 +711,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-37");
+  expect(instructionTemplateRevision).toBe("base-instructions-38");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -552,7 +734,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-37");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-38");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(
@@ -609,6 +791,17 @@ test("AGENTS.md and this-machine.md name the required and the enabled tools in b
           `- \`gh\` (${locale === "cs" ? "povinný" : "required"}): `,
         );
         expect(output.manual).toContain("`gh auth status`");
+        // Executor too, where it is offered: a Remote Environment, never a
+        // computer (decision F44).
+        const hosted = journey.preset !== "local";
+        expect(
+          output.instructions.includes(
+            `- \`executor\` (${locale === "cs" ? "povinný" : "required"}): `,
+          ),
+        ).toBe(hosted);
+        expect(output.manual.includes("`lazurio executor status`")).toBe(
+          hosted,
+        );
         for (const name of [
           "composio",
           "bitwarden",
@@ -618,7 +811,14 @@ test("AGENTS.md and this-machine.md name the required and the enabled tools in b
         ]) {
           const entry = findTool(name)?.activation;
           if (!entry) throw new Error("Expected an activatable tool");
-          const listed = tools.includes(name);
+          // An enabled tool the Environment does not offer is not rendered:
+          // the vault on a computer, gogcli on a work Environment.
+          const listed =
+            tools.includes(name) &&
+            toolOffered(
+              { activation: entry },
+              { preset: journey.preset, linux: journey.os === "linux" },
+            );
           expect(output.instructions.includes(`- \`${name}\` (`)).toBe(listed);
           expect(output.instructions.includes(entry.purpose[locale])).toBe(
             listed,
@@ -679,7 +879,11 @@ test.skipIf(process.platform === "win32")(
         sharedEnvironment: false,
         enabled: [],
         notes: {},
-        tools: toolSelection([]),
+        tools: toolSelection([]).map((selection) => ({
+          ...selection,
+          // A computer offers neither Executor nor the vault (decision F44).
+          offered: !["executor", "bitwarden"].includes(selection.name),
+        })),
       });
       // Nothing enabled and nothing asked: no write, no revision.
       expect(await updateTools(folder, 1, [])).toEqual({ kind: "unchanged" });

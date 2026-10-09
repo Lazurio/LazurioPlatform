@@ -161,7 +161,7 @@ test.skipIf(process.platform === "win32")(
       expect(
         await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
       ).toBe(preferences);
-      expect(await enabled()).toEqual(["gh"]);
+      expect(await enabled()).toEqual(["gh", "executor"]);
 
       const updated = await call("/api/tools/update", {
         expectedRevision: 1,
@@ -169,7 +169,7 @@ test.skipIf(process.platform === "win32")(
       });
       expect(updated.status).toBe(200);
       expect(await updated.json()).toEqual({ kind: "updated", revision: 2 });
-      expect(await enabled()).toEqual(["gh", "composio"]);
+      expect(await enabled()).toEqual(["gh", "executor", "composio"]);
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
         "- `composio` (enabled): ",
       );
@@ -182,7 +182,7 @@ test.skipIf(process.platform === "win32")(
           })
         ).json(),
       ).toEqual({ kind: "updated", revision: 3 });
-      expect(await enabled()).toEqual(["gh", "composio"]);
+      expect(await enabled()).toEqual(["gh", "executor", "composio"]);
       await writeFile(join(folder, "AGENTS.md"), "manual work");
       const drift = await call("/api/tools/update", {
         expectedRevision: 3,
@@ -254,6 +254,12 @@ test.skipIf(process.platform === "win32")(
         profile,
         tools: [
           { name: "gh", tier: "required", setup: "launchpad", enabled: true },
+          {
+            name: "executor",
+            tier: "required",
+            setup: "launchpad",
+            enabled: true,
+          },
           {
             name: "composio",
             tier: "recommended",

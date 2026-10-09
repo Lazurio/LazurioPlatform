@@ -14,9 +14,12 @@ import {
   parseInstructionSource,
   peerLine,
   personaIdentity,
+  renderedTools,
   sharedEnvironment,
   sharedSignInWarning,
   type Text,
+  type ToolEnvironment,
+  toolEnvironmentOf,
   toolLines,
 } from "./render";
 
@@ -1744,11 +1747,14 @@ function fromPersonalVm(
 // generic instruction for MCP servers.
 function enabledToolsSection(
   tools: readonly string[],
+  environment: ToolEnvironment,
   notes: ToolNotes,
   locale: Locale,
   shared: boolean,
 ): readonly Text[] {
-  const noted = Object.keys(notes).length > 0;
+  const noted = renderedTools(tools, environment).some((entry) =>
+    Object.hasOwn(notes, entry.name),
+  );
   return [
     t("## Zapnuté nástroje", "## Enabled tools"),
     t(
@@ -1758,7 +1764,7 @@ function enabledToolsSection(
     blank,
     ...(shared ? [sharedSignInWarning, blank] : []),
     ...(noted ? [notesMeaning, blank] : []),
-    ...toolLines(tools, locale, "usage", notes).map(same),
+    ...toolLines(tools, environment, locale, "usage", notes).map(same),
     blank,
     t("### MCP servery", "### MCP servers"),
     mcpInstruction,
@@ -2074,6 +2080,7 @@ function thisMachine(source: InstructionSource): string {
       blank,
       ...enabledToolsSection(
         source.tools,
+        toolEnvironmentOf(preset, source.profile),
         source.toolNotes,
         locale,
         sharedEnvironment(preset),

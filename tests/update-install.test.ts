@@ -14,6 +14,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { convergeExecutor } from "../src/executor/converge";
+import type { ExecutorStatus } from "../src/executor/flow";
 import { runInstallCommand } from "../src/update/cli";
 import {
   codexAppServerUnit,
@@ -814,6 +816,104 @@ test("the Codex app-server unit is converged on a supervised base of a hosted Ma
   });
   expect(Object.keys(other)).not.toContain("codexAppServer");
   expect(commands).toEqual([]);
+});
+
+// Executor (decision F44): set up for the hosted operator of a supervised
+// base, with or without --service, like the entry units; whatever happens to
+// it, the installation stands and the result says what to do.
+test("install sets Executor up on a supervised hosted base only, and never fails because of it", async () => {
+  const { input } = await scene();
+  const folder = join(root, "Lazurio");
+  await mkdir(folder);
+  const facts = {
+    kind: "executor-status",
+    version: "1.6.10",
+    installed: "1.6.10",
+    address: "127.0.0.1:4789",
+    entry: "lazurio",
+    service: "running",
+    settings: "current",
+    answering: true,
+    linger: "yes",
+    agents: { codex: "registered", claude: "absent" },
+  } as const;
+  let setups = 0;
+  const seam =
+    (setup: () => Promise<ExecutorStatus>) =>
+    (hosted: () => Promise<boolean>) =>
+      convergeExecutor({
+        base: input.base,
+        platform: input.platform,
+        env: input.env,
+        run: input.run,
+        hosted,
+        setup: async () => {
+          setups++;
+          return setup();
+        },
+      });
+  const running = seam(async () => ({ ...facts, state: "running" }));
+  // Unsupervised: nothing ran and the result has no such key.
+  const unsupervised = await performInstall({
+    ...input,
+    hosted: hostedOperator,
+    executor: running,
+  });
+  expect(unsupervised.kind).toBe("installed");
+  expect(Object.keys(unsupervised)).not.toContain("executor");
+  expect(setups).toBe(0);
+  // A workstation's supervised base: skipped.
+  expect(
+    await performInstall({
+      ...input,
+      service: { folder },
+      executor: running,
+    }),
+  ).toMatchObject({
+    kind: "installed",
+    executor: { state: "skipped-not-hosted" },
+  });
+  expect(setups).toBe(0);
+  // The hosted operator: set up.
+  expect(
+    await performInstall({
+      ...input,
+      hosted: hostedOperator,
+      executor: running,
+    }),
+  ).toMatchObject({ kind: "installed", executor: { state: "running" } });
+  expect(setups).toBe(1);
+  // A setup that stopped, and one that threw.
+  expect(
+    await performInstall({
+      ...input,
+      hosted: hostedOperator,
+      executor: seam(async () => ({
+        ...facts,
+        state: "not-running",
+        service: "failed",
+        answering: false,
+        failure: { stage: "service", reason: "install-timeout" },
+      })),
+    }),
+  ).toMatchObject({
+    kind: "installed",
+    executor: {
+      state: "not-running",
+      stage: "service",
+      reason: "install-timeout",
+      next: expect.stringContaining("lazurio executor setup"),
+    },
+  });
+  expect(
+    await performInstall({
+      ...input,
+      hosted: hostedOperator,
+      executor: seam(async () => {
+        throw new Error("unexpected");
+      }),
+    }),
+  ).toMatchObject({ kind: "installed", executor: { state: "failed" } });
 });
 
 test.skipIf(process.platform === "win32")(

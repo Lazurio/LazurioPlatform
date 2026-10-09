@@ -3,9 +3,10 @@
 > **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
-installation and login of three catalog tools (decision F19, below) and the
-Environment vault (decision F43, below), this document does not claim an
-implemented tool installer, authenticated harness or usable Environment.
+installation and login of three catalog tools (decision F19, below), the
+Environment vault (decision F43, below) and Executor (decision F44, below), this
+document does not claim an implemented tool installer, authenticated harness or
+usable Environment.
 Machines delivers the online Machine and a first installation of the Platform; local
 Platform operations and the operator prepare what is needed inside it, including
 the Platform's own updates (F17 addendum 2026-09-28).
@@ -36,15 +37,16 @@ reports and, on instruction, runs them; it pins nothing.
 
 The Platform's surface for the operator's tools, implemented in `src/tools/`:
 
-- `tools status [--json]` lists codex, claude, gh, git, node, npm, bun, composio,
-  bw, wacli, gog and neon as found on
+- `tools status [--json]` lists codex, claude, gh, executor, git, node, npm, bun,
+  composio, bw, wacli, gog and neon as found on
   the process PATH (first executable of the name, decision 0140 rule), with the real
   path behind a link and the version the tool reports; missing tools carry their
   official source. Read-only; the version commands never use the network; it does not
   say "outdated", because the operator's version is a fact, not drift. bw writes its
   data file on every start, even for `--version`, so its version command runs with a
   private temporary `BITWARDENCLI_APPDATA_DIR` (the catalog's `isolatedData`, decision
-  F43) and touches no profile.
+  F43) and touches no profile; Executor's runs with a private `EXECUTOR_DATA_DIR`
+  (decision F44), and its wrapper keeps analytics and the update check off.
 - `tools update <tool> [--json]` runs exactly that tool's official update path as the
   current user and reports the version before and after: the tool's own updater
   (`claude update`, `bun upgrade`) or the vendor's installer script (`codex`, the
@@ -67,14 +69,21 @@ named in the generated instructions with a **tier** and a **setup mode**:
 | Tool | Command | Tier | Setup |
 | --- | --- | --- | --- |
 | `gh` | `gh` | required: always on, never stored, cannot be disabled | launchpad |
+| `executor` | `executor` | required; offered in a Remote Environment on Linux (F44) | launchpad (Lazurio's own setup, below) |
 | `composio` | `composio` | recommended | launchpad |
 | `bitwarden` | `bw` | recommended; offered in a Remote Environment on Linux (F43) | launchpad (its own flow, below) |
 | `wacli` | `wacli` | optional | launchpad |
-| `gogcli` | `gog` | optional | agent |
+| `gogcli` | `gog` | optional; offered on a computer and in a personal Remote Environment, not in a work one (F44) | agent |
 | `neon` | `neon` | optional | agent |
 
 Enabling is context for agents. It grants no access, installs nothing, signs in
-nowhere and pins no version; a tool may be enabled before it is installed. The enabled
+nowhere and pins no version; a tool may be enabled before it is installed.
+**Where a tool is offered** (F44, `toolOffered`): a tool the Environment does not
+offer (the table's column) is not rendered for agents, cannot be newly enabled
+(`blocked` / `tool-not-offered`), is listed with `offered: false` and the line "not
+offered here", and is not missing for doctor. A selection stored before stays
+readable and can switch it off; that change is recorded although no generated file
+changes. The enabled
 names are stored in `.lazurio/preferences.json` under the optional key `tools`, absent
 when nothing is enabled ([F18](decisions.md#f18--enabled-tools-of-the-environment)),
 and rendered into `AGENTS.md` ("Tools") and `manual/this-machine.md` ("Enabled tools").
@@ -516,6 +525,86 @@ The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
 config`, `bw sync` before reading, values straight into commands, new secrets into the
 Environment's collection, nothing in the account's own vault, a missing one asked of
 the Operator, and an externally visible write a Publication.
+
+### Executor (decision F44)
+
+Root decision 0162, addendum 2026-10-09: Executor 1 is a required part of every
+Environment, the MCP gateway of its direct Integrations and custom MCP servers.
+Lazurio installs it, runs it as the Environment user's service on localhost only and
+connects Codex and Claude Code to it. The catalog tool is `executor`; it has Lazurio's
+own setup instead of F19's install and sign-in, which refuse it as `setup-executor`.
+Remote Environments on Linux only; on this computer it is the second wave
+(`unsupported`, `workstation`) until a pilot on macOS verifies the launchd service
+`executor install` writes there. The facts and every reason are in
+[F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio).
+
+- **The pin** (`src/executor/pin.ts`): Executor 1.6.10, `dist.integrity` (sha512) of
+  the npm package `executor` (the Node launcher) and of the glibc builds
+  `executor@1.6.10-linux-x64` and `-linux-arm64` (the program). No install scripts,
+  no dependencies besides these.
+- **Installation** (`src/executor/install.ts`): both tarballs verified while they
+  stream, before npm sees them (a mismatch runs nothing); npm offline, with
+  `--ignore-scripts`, an empty user and global config and a private cache, installs
+  the launcher and then `executor-<target>@file:<tarball>` into a staging prefix; the
+  program must answer `executor v1.6.10`; Lazurio's marker
+  `.lazurio-install.json` is written and the prefix moves into place as
+  `~/.local/share/executor-cli/1.6.10/` (a directory that was there moves aside and
+  goes once the service runs the pin). Missing npm or node: `preflight`,
+  `npm-missing` or `node-missing`, before any download.
+- **Entry**: `~/.local/bin/executor` is Lazurio's marked wrapper; it sets
+  `EXECUTOR_DISABLE_ANALYTICS=1` and `EXECUTOR_DISABLE_UPDATE_CHECK=1` for every run
+  and runs `~/.local/share/executor-cli/<version>/lib/node_modules/executor-<target>/bin/executor`.
+  A link into `~/.local/share/executor-cli/` (the runbook's manual link, or one left
+  dangling by a removed older pin) is replaced; any other entry is a conflict and is
+  never touched, also a dangling link that leads anywhere else. A wrapper of a newer
+  pin is never replaced.
+- **Service** (`src/executor/service.ts`): Executor's own unit
+  `sh.executor.daemon.service`, written by `executor install` (`127.0.0.1:4789`,
+  data in `~/.executor`), and Lazurio's drop-in
+  `~/.config/systemd/user/sh.executor.daemon.service.d/lazurio.conf` with both
+  switches, written before `executor install` runs. A unit of another program is
+  stopped and repointed by `executor install`; a changed drop-in is reread once and
+  restarts the service; a stopped one is started; a running one that answers
+  `/api/health` is never stopped or restarted. Lingering is reported, never changed.
+  `executor service uninstall` is never run (it disables lingering for the account).
+- **Agents** (`src/executor/agents.ts`): the MCP server `executor`
+  (`~/.local/bin/executor mcp`, both switches) is added with `codex mcp add` and
+  `claude mcp add --scope user` where the harness is installed; read back with
+  `codex mcp get executor --json` and from `~/.claude.json`'s top-level
+  `mcpServers`. Registration states: `registered`, `disabled` (Codex's entry switched
+  off by the operator, left so), `missing`, `conflict` (an entry of that name that is
+  not Lazurio's, never changed), `absent` (not installed), `unknown`. Running chats
+  keep their tools; new chats see `executor`.
+- **States** (`src/executor/flow.ts`, `kind: "executor-status"` with `version`,
+  `installed`, `address`, `entry`, `service`, `settings`, `answering`, `linger`,
+  `agents`): `running`, `not-installed`, `outdated`, `not-running`, `incomplete`,
+  `conflict`, or `unsupported` with `reason` (`workstation`, `handover-unreadable`,
+  `not-operator`); a setup that stopped adds `failure` (`stage`: `preflight`,
+  `download`, `integrity`, `npm`, `verify`, `place`, `service`, `agents` or `busy`;
+  `reason`). A setup holds the kernel lock `~/.local/share/executor-cli/.lazurio.lock`.
+- **CLI** (`lazurio executor`): `status [--json]` reads (exit 0); `setup [--json]`
+  sets up what is missing (exit 0 running, 2 waiting for a person, 1 not finished;
+  its steps go to stderr).
+- **Launchpad**: `POST /api/tools/executor/status` with `{}`, and
+  `POST /api/tools/executor/setup` with `{}` (starts or joins the one setup) or
+  `{job}`: `202 {kind: "executor-setting-up", job, phase}` while it runs (`install`,
+  `service`, `agents`), then the state; an unknown job is `404 job-unknown`. The row in
+  Settings → Tools says the state in plain words with one action and keeps the
+  version, address, service and agents under Details; no link to the console. The
+  unit's journal gets `{"scope":"tools-executor","operation":"setup","outcome":…}`
+  with a stage and reason when it stopped, nothing else.
+- **Install and update**: on a supervised base of the hosted operator, `lazurio
+  install` and `lazurio update` set Executor up and report `executor` in `--json`;
+  never a reason to fail ([product update](update.md)).
+- **Doctor**: the check `executor`, `ok` running, `warn` `executor-<state>` otherwise,
+  `skipped` where it is not offered; never `fail`.
+
+The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
+`manual/this-machine.md`, template revision `base-instructions-38`): use the
+Integrations connected directly through the MCP server `executor` (tools `skills` and
+`execute`) or `executor call tools <integration> <owner> <connection> <tool> '<json>'`,
+check `lazurio executor status`, leave a repair to the Operator's instruction, and an
+externally visible write through an Integration is a Publication.
 
 ### The standard path (decision 0161, point 6)
 
