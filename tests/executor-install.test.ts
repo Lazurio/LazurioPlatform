@@ -276,6 +276,58 @@ test("an entry that is not Lazurio's is never replaced and nothing is downloaded
   }
 }, 20_000);
 
+test("a dangling link is replaced only when it leads into Executor's version root; one that leads anywhere else is someone else's and stays", async () => {
+  const world = await executorWorld();
+  try {
+    await mkdir(world.host.bin, { recursive: true });
+    const entry = entryOf(world);
+    // Gone, but not Lazurio's to judge: a removed foreign installation, the
+    // link of npm's own global install with the ~/.local prefix, a path that
+    // only looks like the root, and one that leaves it through "..".
+    for (const target of [
+      join(world.parent, "opt", "executor", "bin", "executor"),
+      "../lib/node_modules/executor/bin/executor",
+      `${world.host.root}-old/1.6.9/bin/executor`,
+      join(world.host.root, "..", "elsewhere", "bin", "executor"),
+    ]) {
+      await symlink(target, entry);
+      expect(await inspectEntry(world.host.bin, world.host.root)).toEqual({
+        kind: "foreign",
+      });
+      expect(await installPinnedExecutor(inputOf(world))).toEqual({
+        kind: "entry-conflict",
+      });
+      expect(await readlink(entry)).toBe(target);
+      await rm(entry);
+    }
+    expect(world.registry.requests).toEqual([]);
+    // A removed older pin of the version root (absolute or relative, as the
+    // runbook links it): replaced by the wrapper.
+    for (const target of [
+      pinnedBinary(world.host.root, "linux-x64", {
+        ...world.pin,
+        version: "1.6.9",
+      }),
+      "../share/executor-cli/1.6.9/bin/executor",
+    ]) {
+      await symlink(target, entry);
+      expect(await inspectEntry(world.host.bin, world.host.root)).toEqual({
+        kind: "replaceable",
+      });
+      expect(await installPinnedExecutor(inputOf(world))).toMatchObject({
+        entry: "written",
+      });
+      expect((await lstat(entry)).isSymbolicLink()).toBe(false);
+      expect(await readFile(entry, "utf8")).toBe(
+        executorWrapper(fakeVersion, binaryOf(world)),
+      );
+      await rm(entry);
+    }
+  } finally {
+    await world.close();
+  }
+}, 30_000);
+
 test("the runbook's manual installation is adopted: its link becomes the wrapper and its unverified directory moves aside", async () => {
   const world = await executorWorld();
   try {

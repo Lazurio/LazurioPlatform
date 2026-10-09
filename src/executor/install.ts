@@ -12,7 +12,6 @@ import {
   readlink,
   rename,
   rm,
-  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -95,8 +94,8 @@ export type PinnedInstall =
 /** What `~/.local/bin/executor` is. */
 export type ExecutorEntry =
   | Readonly<{ kind: "absent" }>
-  /** A dangling link, or a link into the version root (the runbook's manual
-   * layout): Lazurio replaces it with its wrapper. */
+  /** A link into the version root, dangling or not (the runbook's manual
+   * layout, a removed older pin): Lazurio replaces it with its wrapper. */
   | Readonly<{ kind: "replaceable" }>
   /** Lazurio's wrapper; `version` and `binary` are null when its text is not
    * of this release's form. */
@@ -225,11 +224,10 @@ export async function inspectEntry(
     } catch {
       return { kind: "foreign" };
     }
-    const dangling = await stat(entry).then(
-      () => false,
-      () => true,
-    );
-    return dangling || target.startsWith(`${root}/`)
+    // Only where the link leads decides, dangling or not: into the version
+    // root it is Lazurio's layout (the runbook's link, a removed older pin);
+    // anywhere else it is someone else's, also once its target is gone.
+    return target.startsWith(`${root}/`)
       ? { kind: "replaceable" }
       : { kind: "foreign" };
   }

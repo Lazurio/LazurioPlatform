@@ -6171,10 +6171,13 @@ access token); everything for people is in the Launchpad.
    `EXECUTOR_DISABLE_UPDATE_CHECK=1` for every run, whatever the caller's
    environment says, and runs the pinned program itself: no run of this
    Environment's `executor`, `executor mcp` and version probes included, calls
-   home, and nothing needs Node once it is installed. The runbook's manual link
-   into `~/.local/share/executor-cli/` (and a dangling link) is replaced by the
-   wrapper; any other entry is a reported conflict and never touched, and then
-   nothing is downloaded. A wrapper of a newer pin is never replaced (a newer
+   home, and nothing needs Node once it is installed. A link into
+   `~/.local/share/executor-cli/`, the runbook's manual link or one left
+   dangling by a removed older pin, is replaced by the wrapper. Any other entry
+   is a reported conflict and never touched, a dangling link that leads
+   anywhere else included (a removed foreign installation is still someone
+   else's to clean up, as for `~/.local/bin/lazurio` in F17), and then nothing
+   is downloaded. A wrapper of a newer pin is never replaced (a newer
    Executor may have migrated its data). `tools status`, `tools list` and
    doctor run its version command with a private temporary
    `EXECUTOR_DATA_DIR` (the catalog's `isolatedData`), so a probe writes

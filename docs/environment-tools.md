@@ -554,9 +554,10 @@ Remote Environments on Linux only; on this computer it is the second wave
 - **Entry**: `~/.local/bin/executor` is Lazurio's marked wrapper; it sets
   `EXECUTOR_DISABLE_ANALYTICS=1` and `EXECUTOR_DISABLE_UPDATE_CHECK=1` for every run
   and runs `~/.local/share/executor-cli/<version>/lib/node_modules/executor-<target>/bin/executor`.
-  The runbook's manual link into `~/.local/share/executor-cli/` is replaced; any
-  other entry is a conflict and is never touched. A wrapper of a newer pin is never
-  replaced.
+  A link into `~/.local/share/executor-cli/` (the runbook's manual link, or one left
+  dangling by a removed older pin) is replaced; any other entry is a conflict and is
+  never touched, also a dangling link that leads anywhere else. A wrapper of a newer
+  pin is never replaced.
 - **Service** (`src/executor/service.ts`): Executor's own unit
   `sh.executor.daemon.service`, written by `executor install` (`127.0.0.1:4789`,
   data in `~/.executor`), and Lazurio's drop-in
