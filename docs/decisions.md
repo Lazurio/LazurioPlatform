@@ -1492,6 +1492,11 @@ so agents on VMs keep the layout for further tools, and `tools status` reports
 
 **Not decided here:** the readback shape and the T3 launcher (Machines).
 
+**Amended by [F44](#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)
+(2026-10-09):** Lazurio adds exactly one MCP server, `executor`, to the
+operator's Codex and Claude Code with their own CLIs, and changes or removes
+nothing else of their configuration.
+
 **Addendum 2026-09-28 (Matěj): the Operator owns the Lazurio version; the pin
 is a minimum.** Recorded from Matěj's decisions of 2026-09-28. (1) There is
 **one updater**, `lazurio update`. The operator of an Environment updates Lazurio
@@ -3331,6 +3336,11 @@ reboot on its own.
 **Not decided here.** T3 Code's unit stays Machines'. A refused update
 (`activation-unhealthy` included) converges nothing; the next successful install or
 update does.
+
+**Amended by [F44](#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)
+(2026-10-09):** the same install and update also set Executor up, and the one
+change to Codex's configuration the Platform makes is the MCP server
+`executor`; it still never restarts a running session.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -6110,3 +6120,192 @@ with no secret on any argument list or in the journal. Both Linux archives were
 downloaded the same day, matched their pinned digests and gave the installer's
 own zip reader one ELF entry `bw` each; the Linux binary itself first runs in
 the pilot on a personal Remote Environment, which follows the release.
+
+## F44 — Executor in every Remote Environment: installed, run and connected to the agents by Lazurio
+
+**Decided by Matěj 2026-10-09 (root decision 0162, addendum 2026-10-09, points 2
+and 5; plan DEV-6626, task 684); implemented in this revision for Remote
+Environments on Linux.** Executor 1 (executor.sh, MIT) is a required part of
+every Environment: the MCP gateway of its direct Integrations and custom MCP
+servers, run as the Environment user's service on localhost only, its data in
+`~/.executor`. Lazurio installs it, keeps it running and connects the agents to
+it, without a manual step. People never use Executor's console (it shows the
+access token); everything for people is in the Launchpad.
+
+1. **The pin.** Executor 1.6.10, pinned per Platform release in
+   `src/executor/pin.ts`, not the latest release: a new Executor can change its
+   database, its service and its CLI. The npm package `executor` holds only a
+   Node launcher (`bin/executor`); its optional dependencies
+   `executor-<platform>` are aliases of the same package at
+   `1.6.10-<platform>` and hold the program, a compiled Bun binary with
+   `workerd`, two native addons and its assets. Read from the registry on
+   2026-10-09 (`npm view executor@1.6.10 --json` and each platform version):
+   neither package has install scripts or dependencies of its own, and the
+   platform packages declare `os` and `cpu` but no `libc`, so a plain
+   `npm install` on Linux installs the glibc and the musl build both (the
+   pilot's 470 MB). The pin holds `dist.integrity` (sha512) of the launcher
+   package and of the glibc builds for `linux-x64` and `linux-arm64`; both
+   tarballs were downloaded and their digests recomputed the same day. A new
+   pin is a reviewed change of that file with the qualification repeated.
+2. **The installation.** Each tarball is downloaded from the registry to a
+   private file, hashed while it streams, and verified against the pin before
+   npm sees it; a mismatch removes it and runs nothing. npm then installs them
+   offline, without scripts and without the operator's npm configuration (an
+   empty user and global config, a private cache), into a staging prefix in
+   two steps: the launcher package, then the one platform package as
+   `executor-<target>@file:<tarball>`, which Node resolves beside the launcher.
+   Proven with npm 11.19.0 and Node 24.21.0 in a Linux container: given both
+   tarballs at once, npm installs the second over the first (both are named
+   `executor`), and the launcher alone, offline, silently skips its optional
+   dependency. The staged program must answer `executor v1.6.10`; then
+   Lazurio's marker is written and the prefix moves into place as
+   `~/.local/share/executor-cli/1.6.10/` (the root runbook's layout, about
+   300 MB). Missing npm or node is a `preflight` result before any download.
+   **Remaining risk:** none of a transitive dependency in 1.6.10; npm and node
+   are the operator's (Machines installs both into `~/.local/bin`), and they
+   extract the verified bytes. A future pin re-checks that the packages still
+   have no dependencies; npm runs offline, so an unpinned one would fail the
+   install rather than be fetched.
+3. **The entry.** `~/.local/bin/executor` is a small wrapper Lazurio writes,
+   marked as its own, that sets `EXECUTOR_DISABLE_ANALYTICS=1` and
+   `EXECUTOR_DISABLE_UPDATE_CHECK=1` for every run, whatever the caller's
+   environment says, and runs the pinned program itself: no run of this
+   Environment's `executor`, `executor mcp` and version probes included, calls
+   home, and nothing needs Node once it is installed. The runbook's manual link
+   into `~/.local/share/executor-cli/` (and a dangling link) is replaced by the
+   wrapper; any other entry is a reported conflict and never touched, and then
+   nothing is downloaded. A wrapper of a newer pin is never replaced (a newer
+   Executor may have migrated its data). `tools status`, `tools list` and
+   doctor run its version command with a private temporary
+   `EXECUTOR_DATA_DIR` (the catalog's `isolatedData`), so a probe writes
+   nothing of the Environment's.
+4. **The service.** Executor's own unit, written by `executor install` (its
+   supported path; read from v1.6.10's Linux backend): `~/.config/systemd/user/
+   sh.executor.daemon.service`, `ExecStart=<program> daemon run --foreground
+   --port 4789 --hostname 127.0.0.1`, `EXECUTOR_DATA_DIR=~/.executor`, the
+   installing process's `PATH`, then `daemon-reload`, `enable --now` and a best
+   effort `loginctl enable-linger <user>`; it waits up to 45 s for the daemon
+   to answer as its own version. Lazurio never writes that unit; it owns one
+   drop-in, `sh.executor.daemon.service.d/lazurio.conf`, with both switches
+   (`executor install` passes only the analytics one into the unit). The
+   drop-in is written first, so a first start already has it, and
+   `executor install` runs with both switches and the standard tool path
+   (`~/.local/bin:/usr/local/bin:/usr/bin:/bin`). A unit that runs another
+   program (a version switch, the pilot's install) is stopped first, because
+   `executor install` neither restarts a running daemon nor finishes while
+   another version answers. Otherwise a changed drop-in is reread once and
+   restarts a running service, a stopped or failed one is started, a disabled
+   one enabled, and an active one that does not answer `GET
+   http://127.0.0.1:4789/api/health` (asked past any HTTP proxy, without a
+   credential) is restarted once. A service that runs the pinned program and
+   answers is never stopped or restarted. Lingering is reported
+   (`loginctl show-user`), never changed by Lazurio; the Machine enables it
+   for its operator. Lazurio never runs `executor service uninstall`, which
+   disables lingering for the whole account. Older versions are removed only
+   once the entry and the service run the new one.
+5. **The agents (an amendment of F17 and F29).** Lazurio adds exactly one MCP
+   server, named `executor`, to the operator's Codex (`codex mcp add executor
+   --env EXECUTOR_DISABLE_ANALYTICS=1 --env EXECUTOR_DISABLE_UPDATE_CHECK=1 --
+   ~/.local/bin/executor mcp`) and Claude Code (`claude mcp add --scope user`,
+   the same command and switches), with each harness's own CLI and only where
+   the harness is installed. `executor mcp` reads its credential from
+   `~/.executor` itself; nothing is copied. Lazurio never changes or removes
+   another entry, never rewrites an entry named `executor` that is not its own
+   (a conflict, reported) and keeps Codex's entry switched off when the
+   operator switched it off. It never restarts a running session: running
+   chats keep their tools, new chats see `executor`. Codex's entry is read
+   with `codex mcp get executor --json`; Claude Code's from the top-level
+   `mcpServers` of `~/.claude.json` (or `$CLAUDE_CONFIG_DIR/.claude.json`),
+   because `claude mcp get` starts the server for a health check and has no
+   JSON answer. Lazurio's entry is the wrapper with `mcp` over stdio and at
+   most the two switches, so the runbook's registration by hand counts as its
+   own. The Machines rollout writes neither file of the operator, so an apply
+   never erases the entry. This is the only change to the harnesses'
+   configuration F17 ("the operator's configuration … never touched") and F29
+   ("never … reconfigures Codex") allow.
+6. **One core, three surfaces.** `lazurio executor status|setup [--json]`, the
+   Launchpad's `POST /api/tools/executor/status` and `/setup` (a job answered
+   within a second, then `202 {kind: "executor-setting-up", job, phase}` and
+   polling with `{job}`), and the convergence below run `src/executor/flow.ts`.
+   A setup holds a kernel lock in the version root and runs install, service
+   and agents, each only what is missing. The plain states: `running`,
+   `not-installed`, `outdated`, `not-running`, `incomplete` (it answers, but
+   Lazurio's unit, drop-in or an agent's entry is missing) and `conflict`, or
+   `unsupported` with its reason; a setup that stopped adds `failure` with
+   `stage` and `reason`. Settings → Tools shows Executor in the required group
+   with its own row: the plain state, one action (Install, Update, Repair, or an
+   agent's prompt for a conflict) and the version, the loopback address, the
+   service and the agents only under Details; there is no link to or proxy of
+   the console. The curated install and sign-in of F19 refuse it as
+   `setup-executor`; `lazurio tools prompt executor` is the agent's fallback.
+   The Launchpad's journal gets `{"scope":"tools-executor","operation":"setup",
+   "outcome","stage","reason"}`, never a path, output or value.
+7. **Convergence.** Whenever `lazurio install` or `lazurio update` finds this
+   base supervised and the process is the hosted operator (the F29 rule),
+   Executor is set up; the result carries `executor` (`running`,
+   `skipped-not-hosted`, or the state with `next`), and nothing about it fails
+   the installation or the update. A Machines apply (`install --base`) sets it
+   up on its first run with this release; the first online update **to** this
+   release runs the previous updater and sets nothing up, and then the next
+   install or update, Settings → Tools → Repair or `lazurio executor setup`
+   does.
+8. **Required only where it is offered.** The catalog's offer is one rule
+   (`toolOffered`): Executor and the vault are offered in a Remote Environment
+   on Linux. A tool the Environment does not offer is not rendered into the
+   Folder, cannot be newly enabled (`tool-not-offered`) and is not missing for
+   doctor; a stored selection naming it stays readable, and switching it off
+   is recorded even though no generated file changes. So `executor` is in the
+   instructions of every Remote Environment and in none on a computer, and an
+   enabled vault is no longer rendered on a computer, where it never worked.
+   On a computer Executor is the second wave: `executor install` writes a
+   launchd agent on macOS that no pilot has verified yet; it follows once a
+   pilot on macOS has, with its own pin of the darwin builds.
+9. **gogcli only in a person's own Environment.** Google of a company comes
+   through the Organization's company app (0162 point 5): gogcli is offered on
+   a computer and in a personal Remote Environment (`offered: personal`), not
+   in a work one; a work Environment's stored selection stays readable and can
+   switch it off.
+10. **Doctor.** Executor has its own check `executor` in the tools group, not a
+    tool row: `ok` when it runs with every installed agent connected, `warn`
+    with `executor-<state>` otherwise (context: the installed version, the
+    service, `codexMcp`, `claudeMcp`), `skipped` where it is not offered. Never
+    `fail`: without Executor an Environment loses its direct Integrations, not
+    its work, and a release that makes Executor required must not turn every
+    Environment broken before its next install or update set it up.
+11. **The Folder.** The catalog entry `executor` (required, setup `launchpad`,
+    offered `hosted-linux`) tells agents to use directly connected Integrations
+    through the MCP server `executor` (its tools `skills` and `execute`) or
+    `executor call tools …`, to check `lazurio executor status`, and to leave a
+    repair to the Operator's instruction; an externally visible write through an
+    Integration is a Publication. Template revision `base-instructions-38`.
+12. **Honest limits.** Executor 1 keeps its tokens in `~/.executor` unencrypted
+    (0600, root decision 0162 point 8). The port 4789 is fixed; on a host with
+    several users another user's daemon could answer the health probe (a
+    Remote Environment has one operator). About 300 MB of disk and 250 MB of
+    memory. A musl system is not supported: its program would fail the version
+    check and nothing would be placed.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `npm install -g executor@1.6.10` from the registry | The platform packages are resolved and fetched by npm without Lazurio's pin, the musl build comes along; rejected for verified tarballs |
+| Unpacking the tarballs without npm | A tar extractor of Lazurio's own; npm is on every Remote Environment and extracts the verified bytes; rejected |
+| `~/.local/bin/executor` as a link to npm's launcher | Node for every `executor mcp` and probe, and a run without the switches calls home; rejected for the wrapper |
+| A unit file of Lazurio's own | Executor's upgrade path (`executor install`, its drift report) expects its own unit; rejected for one drop-in |
+| Shipping Executor as `recommended` first | A Folder that enabled it would become unreadable once it turns required (a required name is never stored); rejected: required from this release, offered only where Lazurio installs it |
+| A link to or proxy of the console in the Launchpad | The console shows the access token; rejected |
+| `fail` in doctor | Every Environment broken until its next update; rejected for `warn` |
+
+Verified by unit tests against a fake registry, npm, program, `systemctl`,
+Codex and Claude Code (`tests/fixtures/fake-executor.ts`): the pinned install
+with integrity mismatches, missing npm or node, a lying version, foreign and
+adopted entries, a newer pin and old versions (`tests/executor-install.test.ts`),
+the service (`tests/executor-service.test.ts`), the agents
+(`tests/executor-agents.test.ts`), the flow with a token canary and the busy lock
+(`tests/executor-flow.test.ts`), the CLI (`tests/executor-cli.test.ts`), the
+Launchpad routes and row (`tests/launchpad-executor.test.ts`,
+`tests/executor-view.test.ts`), the convergence (`tests/update-install.test.ts`,
+`tests/update-cli.test.ts`), doctor (`tests/doctor.test.ts`) and the offer rule
+(`tests/folder-tools.test.ts`). The npm behaviour of point 2 and the program's
+`--version` were observed with the real tarballs in a Linux container on
+2026-10-09; the whole setup first runs on a real Remote Environment after the
+release.

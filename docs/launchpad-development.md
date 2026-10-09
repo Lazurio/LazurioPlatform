@@ -1287,7 +1287,8 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
-| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not set up in this Environment (bitwarden outside a Remote Environment on Linux, decision F43); `signIn`/`ssh` ids with `--sign-in` |
+| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decision F43; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in` |
+| tools | `executor` | `executorStatus` ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)): the entry and its marker, `systemctl --user show` of `sh.executor.daemon.service` and its drop-in, `GET 127.0.0.1:4789/api/health`, `codex mcp get executor --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` running with the installed agents connected (context `toolVersion`, `executorService`, `codexMcp`, `claudeMcp`); `warn executor-not-installed`, `executor-outdated`, `executor-conflict`, `executor-not-running`, `executor-incomplete` (the next step is `lazurio executor setup`, or Settings → Tools → executor); `skipped not-offered` (a computer, not the operator), `skipped handover-unreadable` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
 | organizations | `module` | catalog entry | `warn` with the module or Organization reason |
@@ -1762,6 +1763,25 @@ goes on in the Launchpad. "Odpojit" asks first ("Agenti tu přestanou trezor pou
 Přístup úplně ukončíš odebráním účtu v trezoru."). The state is accepted only in its
 exact form (`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is
 `src/launchpad/vault-panel.ts`.
+
+**Executor** (decision F44). The `executor` row reads its own state
+(`/api/tools/executor/status`, beside every read of the tools) and says it in plain
+words: "Běží", "Není nainstalovaný", "Čeká na aktualizaci", "Neběží", "Běží,
+nastavení není dokončené", "Koliduje s jinou instalací", and "Brzy · druhá vlna" on
+this computer ("Running", "Not installed", "Waiting for an update", "Not running",
+"Running, setup not finished", "Conflicts with another installation", "Soon · second
+wave"). Its one action is "Nainstalovat", "Aktualizovat" or "Opravit", which runs
+`/api/tools/executor/setup` and asks again with its job while the line says the step
+("Instaluje se…", "Spouští se…", "Připojují se agenti…"), or for a conflict "Vyřešit s
+pomocí agenta", which opens a prepared prompt (show the Operator what conflicts and
+remove it only with their consent). In the required group it has "Vždy zapnuto" where
+it is offered and no switch. Details hold the version, the address
+"127.0.0.1:4789 (jen tento Environment)", the service and the agents ("Codex:
+připojený · Claude Code: není nainstalovaný"), and after a setup that stopped its stage
+and reason; there is no link to Executor's console, which shows the access token. A
+tool this Environment does not offer is listed only while it is switched on (so it can
+be switched off, "Not offered in this Environment; agents do not use it.") or when its
+own row says why (the vault and Executor on a computer).
 
 Pure view logic lives in `src/launchpad/tools-view.ts` and is tested without a
 DOM (`tests/tools-view.test.ts`); `src/launchpad/tools-panel.ts` holds the DOM and
