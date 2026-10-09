@@ -229,6 +229,11 @@ test("the guide page names the Environment, its Organization and the tailnet, es
   expect(page).not.toContain("<Sales>");
   // It stands alone: nothing is loaded from the network.
   expect(page).not.toMatch(/<(link|img)\b|\ssrc="|url\((?!#)/);
+  // No status line once connected (Admin, 2026-10-09): the page reloads at
+  // once into the Environment.
+  expect(page).not.toContain("Připojeno");
+  expect(page).not.toContain('class="status"');
+  expect(page).toContain(".then(function(){location.reload()}");
   expect(escapeHtml(`"'<>&`)).toBe("&quot;&#39;&lt;&gt;&amp;");
 });
 

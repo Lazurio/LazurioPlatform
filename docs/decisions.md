@@ -5793,6 +5793,10 @@ its next update check (decision F41's update contract). Tests:
 `tests/launchpad-offline-guide.test.ts` (the served page leads to the Launchpad's
 Dashboard).
 
+The same day the Admin dropped the status line "Připojeno, pokračuju…" ("Connected,
+continuing…"): once the address answers, the page reloads into the Environment at
+once, with nothing shown in between. `tests/shell-offline-guide.test.ts` keeps it out.
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;
