@@ -79,8 +79,8 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
 /** What Apps reads of the account: the answer this page read once (the
  * shell library's `pageAccountJson`, which the rail merges too, so the page
- * shares one bounded recovery cycle), or null when it is unavailable (no gateway relay yet, a
- * refusal, a sign-in redirect, a slow answer, anything else than
+ * shares one bounded recovery cycle), or null when it is unavailable (no
+ * gateway relay yet, a refusal, a sign-in redirect, a slow answer, anything else than
  * `lazurio.account.v1`). Never throws. */
 export async function readAccount(
   read: () => Promise<unknown> = pageAccountJson,

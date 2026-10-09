@@ -172,3 +172,21 @@ test("other client errors and malformed success are terminal", async () => {
     expect(calls).toBe(1);
   }
 });
+
+// Use production retry delays here: changing them to an unbounded or longer
+// retry sequence must not silently widen the page's request budget.
+test("the production policy stops after three transient failures", async () => {
+  let calls = 0;
+  expect(
+    await readAccountJson(
+      async () => {
+        calls++;
+        return answer(503);
+      },
+      100,
+      quiet,
+      null,
+    ),
+  ).toBeNull();
+  expect(calls).toBe(3);
+});

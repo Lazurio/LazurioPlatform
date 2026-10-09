@@ -108,7 +108,7 @@ export function cachedAccountFor(
 
 /** One bounded account read cycle shared by the rail and Apps. Transient
  * failures retry; refusals and malformed answers stop immediately. The local
- * rail remains usable throughout. Only exhaustion logs the failure. */
+ * rail remains usable throughout. A terminal result logs the failure once. */
 export async function readAccountJson(
   fetcher: Fetch = fetch,
   timeoutMs = accountDocumentReadMs,
