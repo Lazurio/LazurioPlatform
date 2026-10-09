@@ -708,6 +708,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
       }),
       tools: enabledTools(hosted.preferences),
       notes: {},
+      organizationSettings: {},
     },
     hosted.inspect,
   );
@@ -893,6 +894,8 @@ test.skipIf(process.platform === "win32")(
           // A computer offers neither Executor nor the vault (decision F44).
           offered: !["executor", "bitwarden"].includes(selection.name),
         })),
+        // No Organization governs a workstation's tools.
+        governed: {},
       });
       // Nothing enabled and nothing asked: no write, no revision.
       expect(await updateTools(folder, 1, [])).toEqual({ kind: "unchanged" });

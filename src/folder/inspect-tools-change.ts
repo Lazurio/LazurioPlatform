@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { toolGovernance } from "../organization-settings/governance";
 import { activatableTools, toolOffered, toolSelection } from "../tools/catalog";
 import { planToolsChange } from "./change-profile";
 import { inspectOutput } from "./inventory";
@@ -7,7 +8,7 @@ import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState } from "./read-state";
 import { sharedEnvironment, toolEnvironmentOf } from "./render";
-import { enabledTools, toolNotes } from "./state";
+import { enabledTools, folderOrganizationSettings, toolNotes } from "./state";
 
 // The read-only twin of `updateTools`, as `inspectProfileChange` is of
 // `updateProfile`: the same planner over the same state under the same lock.
@@ -54,13 +55,20 @@ export function sharedSignInsWarning(
 }
 
 // The recorded selection of one Folder: its revision, the catalog with every
-// tool's tier and whether it is on, and the operator's notes. Read-only,
-// under the common lock.
+// tool's tier and whether it is on, the operator's notes, and what the
+// Organization's recorded settings say about a tool (decision F45; `enabled`
+// stays the person's own choice). Read-only, under the common lock.
 export async function readFolderTools(folder: string) {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
   return withFolderReadLock(stateDirectory, async () => {
     const { preferences } = await readFolderState(stateDirectory);
+    const settings = folderOrganizationSettings(preferences);
+    const governed: Record<string, Readonly<{ allowed: boolean }>> = {};
+    for (const entry of activatableTools()) {
+      const governance = toolGovernance(entry.name, settings);
+      if (governance !== null) governed[entry.name] = governance;
+    }
     return {
       revision: preferences.revision,
       // Sign-ins are shared by every operator of this Environment.
@@ -79,6 +87,7 @@ export async function readFolderTools(folder: string) {
             ),
         ),
       })),
+      governed: Object.freeze(governed),
     };
   });
 }

@@ -3,6 +3,7 @@ import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
 import {
   planFolderChange,
+  planOrganizationSettingsChange,
   planProfileChange,
   planToolsChange,
 } from "./change-profile";
@@ -20,7 +21,7 @@ import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { derivePreset, type PresetName } from "./presets";
 import { readFolderState, readOwnedStateFile } from "./read-state";
-import { enabledTools, toolNotes } from "./state";
+import { enabledTools, folderOrganizationSettings, toolNotes } from "./state";
 import {
   type FileIdentity,
   transactionSchemaVersion,
@@ -62,10 +63,12 @@ type Inspect = (path: OutputPath) => ReturnType<typeof inspectOutput>;
 // change at the expected revision, a requested selection of enabled catalog
 // tools at the expected revision with, optionally, the operator's notes on
 // them (decision F18 and its addendum; absent notes keep the recorded ones of
-// the tools that stay on), or a refresh from the current handover that keeps
+// the tools that stay on), a refresh from the current handover that keeps
 // the recorded profile, tools and notes and the recorded preset unless the
-// operator names the one the new handover offers (issue #107). All run the
-// one planner and the one transaction below; only the input differs.
+// operator names the one the new handover offers (issue #107), or the
+// Organization settings the Launchpad applies (root decision 0194, F45),
+// which keep everything else. All run the one planner and the one
+// transaction below; only the input differs.
 export type FolderChangeRequest =
   | Readonly<{
       kind: "profile";
@@ -82,7 +85,8 @@ export type FolderChangeRequest =
       kind: "handover";
       machine: MachineBinding;
       preset?: PresetName;
-    }>;
+    }>
+  | Readonly<{ kind: "organization-settings"; settings: unknown }>;
 
 function planRequestedChange(
   state: FolderState,
@@ -106,6 +110,13 @@ function planRequestedChange(
       inspect,
       request.notes,
     );
+  if (request.kind === "organization-settings")
+    return planOrganizationSettingsChange(
+      state.preferences,
+      state.manifest,
+      request.settings,
+      inspect,
+    );
   // No caller-held revision: the refresh re-renders the recorded choices under
   // the lock from the current handover. Its one choice is the preset a changed
   // assignment now derives (`preset-derivation-changed`): the profile change
@@ -127,6 +138,7 @@ function planRequestedChange(
       machine: request.machine,
       tools: enabledTools(state.preferences),
       notes: toolNotes(state.preferences),
+      organizationSettings: folderOrganizationSettings(state.preferences),
     },
     inspect,
   );
