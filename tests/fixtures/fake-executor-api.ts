@@ -15,6 +15,9 @@ export type FakeIntegration = {
   args?: string[];
   auth: "none" | "oauth2" | "header";
   tools: number;
+  /** The server does not answer as it should: Executor's tool sync and its
+   * liveness check fail, and its connections read as misconfigured. */
+  broken?: boolean;
 };
 
 export type FakeConnection = {
@@ -54,6 +57,32 @@ const json = (body: unknown, status = 200) =>
   });
 
 const tagged = (tag: string, status: number) => json({ _tag: tag }, status);
+
+/** A connection as Executor answers it, in the list and alone. */
+const shapeOf = (item: FakeConnection) => ({
+  owner: item.owner,
+  name: item.name,
+  integration: item.integration,
+  template: item.template,
+  provider: "file",
+  address: `tools.${item.integration}.${item.owner}.${item.name}`,
+  identityLabel: item.identityLabel,
+  description: null,
+  expiresAt: null,
+  oauthClient: null,
+  oauthClientOwner: null,
+  oauthScope: null,
+  missingOAuthScopes: [],
+  lastHealth:
+    item.health === null
+      ? null
+      : {
+          status: item.health,
+          checkedAt: 1,
+          // Upstream data the Launchpad must never pass on.
+          responseSample: [{ path: "x", value: "upstream-sample" }],
+        },
+});
 
 export async function startFakeExecutor(
   token: string,
@@ -136,32 +165,7 @@ export async function startFakeExecutor(
         });
       }
       if (request.method === "GET" && path === "/connections")
-        return json(
-          connections.map((item) => ({
-            owner: item.owner,
-            name: item.name,
-            integration: item.integration,
-            template: item.template,
-            provider: "file",
-            address: `tools.${item.integration}.${item.owner}.${item.name}`,
-            identityLabel: item.identityLabel,
-            description: null,
-            expiresAt: null,
-            oauthClient: null,
-            oauthClientOwner: null,
-            oauthScope: null,
-            missingOAuthScopes: [],
-            lastHealth:
-              item.health === null
-                ? null
-                : {
-                    status: item.health,
-                    checkedAt: 1,
-                    // Upstream data the Launchpad must never pass on.
-                    responseSample: [{ path: "x", value: "upstream-sample" }],
-                  },
-          })),
-        );
+        return json(connections.map(shapeOf));
       if (request.method === "POST" && path === "/connections") {
         if (!integrations.some((item) => item.slug === input.integration))
           return tagged("IntegrationNotFoundError", 404);
@@ -173,13 +177,17 @@ export async function startFakeExecutor(
           )
         )
           return tagged("ConnectionAlreadyExistsError", 409);
+        const broken = integrations.some(
+          (item) => item.slug === input.integration && item.broken === true,
+        );
         const connection: FakeConnection = {
           owner: input.owner === "user" ? "user" : "org",
           name: String(input.name),
           integration: String(input.integration),
           template: String(input.template),
           identityLabel: null,
-          health: null,
+          // Executor syncs the tools at once; a broken server fails it.
+          health: broken ? "misconfigured" : null,
           ...(typeof input.value === "string" ? { secret: input.value } : {}),
         };
         connections.push(connection);
@@ -188,6 +196,39 @@ export async function startFakeExecutor(
       const connection = /^\/connections\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(
         path,
       );
+      if (request.method === "GET" && connection !== null) {
+        const found = connections.find(
+          (item) =>
+            item.owner === connection[1] &&
+            item.integration === connection[2] &&
+            item.name === connection[3],
+        );
+        return found === undefined
+          ? tagged("ConnectionNotFoundError", 404)
+          : json(shapeOf(found));
+      }
+      // Re-syncing a connection's tools, and its liveness check: both dial
+      // the server, so a broken one fails and its verdict stays failing.
+      const action =
+        /^\/connections\/([^/]+)\/([^/]+)\/([^/]+)\/(refresh|health)$/.exec(
+          path,
+        );
+      if (request.method === "POST" && action !== null) {
+        const found = connections.find(
+          (item) =>
+            item.owner === action[1] &&
+            item.integration === action[2] &&
+            item.name === action[3],
+        );
+        if (found === undefined) return tagged("ConnectionNotFoundError", 404);
+        const broken = integrations.some(
+          (item) => item.slug === found.integration && item.broken === true,
+        );
+        if (action[4] === "refresh")
+          return broken ? tagged("InternalError", 500) : json([]);
+        found.health = broken ? "misconfigured" : "healthy";
+        return json({ status: found.health, checkedAt: Date.now() });
+      }
       if (request.method === "DELETE" && connection !== null) {
         const index = connections.findIndex(
           (item) =>

@@ -117,6 +117,9 @@ facts below were read from the source of tag `v1.6.10` on 2026-10-09
 | `GET /api/integrations/<slug>` | one of them; `authMethods: [{id, label, kind: oauth\|apikey\|header\|none, template, oauth?: {discoveryUrl?, scopes?, …}}]` |
 | `GET /api/connections` | `[{owner: org\|user, name, integration, template, identityLabel, lastHealth: null\|{status, identity?, …}, …}]`; no id: a connection is `(owner, integration, name)`; `status` is `healthy`, `expired`, `misconfigured`, `degraded` or `unknown` |
 | `POST /api/connections` | `{owner, name, integration, template}` with exactly one of `value`, `values` or `from`; template `none` with `values: {}`, a header key as `value` |
+| `GET /api/connections/<owner>/<integration>/<name>` | one connection, the shape of the list's; read back after creating or signing in again |
+| `POST /api/connections/<owner>/<integration>/<name>/refresh` | re-syncs its tools (the array of them); fails when the server does not answer as it should |
+| `POST /api/connections/<owner>/<integration>/<name>/health` | Executor's liveness check (for MCP: dial the server, list its tools) → `{status, checkedAt, …}`, kept as the connection's `lastHealth` |
 | `DELETE /api/connections/<owner>/<integration>/<name>` | `{removed: true}` |
 | `POST /api/mcp/probe` | `{endpoint, headers?}` → `{connected, requiresAuthentication, requiresOAuth, supportsDynamicRegistration, toolCount, …}`; up to about 60 s |
 | `POST /api/mcp/servers` | remote `{transport: "remote", name, endpoint, slug?, remoteTransport: "auto", auth: {kind: none\|oauth2\|header, headerName?}}`; command `{transport: "stdio", name, command, args, env?}` → `{slug}`; 409 when the slug exists; a command server gets its `org/default` connection at once, a remote one does not |
@@ -149,6 +152,13 @@ removes that server in Vlastní first. The catalog keeps one app per integration
 slug and per endpoint, so the mapping is never ambiguous. The company apps'
 OpenAPI integrations (task 685) will need an identity of their own; until then no
 API integration counts as an app's.
+
+**Signing an account without sign-in in again** is a real retry: Executor
+re-syncs its tools (`…/refresh`) and checks it (`…/health`), and the Launchpad
+reads it back. It answers `connected` only when Executor then reads the account
+as working, and otherwise `still-failing`, never a success it did not see. The
+same applies when "Připojit" without a name meets the app's existing default
+account. A new account is read back after it is created, too.
 
 ### Approvals
 
@@ -229,7 +239,7 @@ keeps its last reading for a minute and reads again on "Zkontrolovat připojení
 | Route | Body | Answer |
 | --- | --- | --- |
 | `GET /api/integrations[?refresh=1]` | | the reading |
-| `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `integration-conflict` (Executor holds the app's slug for another server), `connect-failed` |
+| `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `integration-conflict` (Executor holds the app's slug for another server), `still-failing` (Executor cannot use the account, read back after the attempt), `connect-failed` |
 | `POST /api/integrations/poll` | `{session}` | `pending`, `{kind: "connected", app}` or `{kind: "ended", reason: failed\|expired\|cancelled}`; 404 for an unknown session |
 | `POST /api/integrations/cancel` | `{session}` | `{kind: "cancelled"}`; an OAuth flow is cancelled in Executor too |
 | `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed` |

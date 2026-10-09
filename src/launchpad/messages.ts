@@ -1042,6 +1042,8 @@ const en = {
   integrationsConnectFailed: "The connection could not be started.",
   integrationsIntegrationConflict:
     "Executor holds another server under this app's name. You find it in Custom: remove it there and connect the app again.",
+  integrationsStillFailing:
+    "It still does not work: Executor cannot use this account. Try again later, or disconnect it.",
   integrationsConnectEnded: "The connection was not finished.",
   integrationsNameTaken: "This name is used by another account of the app.",
   integrationsAccountUnnamed: "account",
@@ -2136,6 +2138,8 @@ const cs: Record<MessageKey, string> = {
   integrationsConnectFailed: "Připojení se nepodařilo spustit.",
   integrationsIntegrationConflict:
     "V Executoru je pod jménem téhle aplikace jiný server. Najdeš ho ve Vlastní: odeber ho tam a aplikaci připoj znovu.",
+  integrationsStillFailing:
+    "Pořád to nefunguje: Executor tenhle účet použít neumí. Zkus to později, nebo účet odpoj.",
   integrationsConnectEnded: "Připojení se nedokončilo.",
   integrationsNameTaken: "Tenhle název už má jiný účet aplikace.",
   integrationsAccountUnnamed: "účet",

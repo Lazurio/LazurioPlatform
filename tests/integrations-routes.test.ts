@@ -386,6 +386,88 @@ test("a server under an app's slug with another endpoint is never taken for the 
   ).toEqual([["deepwiki-com", "https://mcp.deepwiki.com/mcp"]]);
 });
 
+// Signing in again an account without sign-in is a real retry (review of
+// 2026-10-09): Executor re-syncs its tools and checks it, and only a working
+// account answers connected. A broken server stays failing and says so, also
+// when the person connects the app anew without a name.
+test("retrying a failing account without sign-in checks it for real and never reports a false success", async () => {
+  const deepwiki = {
+    slug: "deepwiki-com",
+    name: "DeepWiki",
+    kind: "mcp" as const,
+    transport: "remote" as const,
+    endpoint: "https://mcp.deepwiki.com/mcp",
+    auth: "none" as const,
+    tools: 2,
+    broken: true,
+  };
+  const { world, app } = await setup({
+    composio: false,
+    executorSeed: {
+      integrations: [deepwiki],
+      connections: [
+        {
+          owner: "org",
+          name: "default",
+          integration: "deepwiki-com",
+          template: "none",
+          identityLabel: null,
+          health: "misconfigured",
+        },
+      ],
+    },
+  });
+  world.executor.probes.set("https://mcp.deepwiki.com/mcp", {
+    requiresOAuth: false,
+  });
+  const failing = (await overview(app)).value.apps.find(
+    (item) => item.id === "deepwiki",
+  );
+  expect(failing?.accounts).toMatchObject([
+    { selector: "org/deepwiki-com/default", state: "failed" },
+  ]);
+  for (const body of [
+    { app: "deepwiki", account: "org/deepwiki-com/default" },
+    { app: "deepwiki" },
+  ]) {
+    const answer = await app.post("/api/integrations/connect", body);
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toEqual({
+      kind: "blocked",
+      reason: "still-failing",
+    });
+  }
+  expect(
+    world.executor.calls
+      .filter((call) => call.method === "POST")
+      .map((call) => call.path)
+      .filter((path) => path.startsWith("/api/connections/")),
+  ).toEqual([
+    "/api/connections/org/deepwiki-com/default/refresh",
+    "/api/connections/org/deepwiki-com/default/health",
+    "/api/connections/org/deepwiki-com/default/refresh",
+    "/api/connections/org/deepwiki-com/default/health",
+  ]);
+  expect(
+    (await overview(app)).value.apps.find((item) => item.id === "deepwiki")
+      ?.accounts,
+  ).toMatchObject([{ state: "failed" }]);
+  // The server works again: the same retry repairs the account.
+  deepwiki.broken = false;
+  const integration = world.executor.integrations.find(
+    (item) => item.slug === "deepwiki-com",
+  );
+  if (integration !== undefined) integration.broken = false;
+  const repaired = await app.post("/api/integrations/connect", {
+    app: "deepwiki",
+    account: "org/deepwiki-com/default",
+  });
+  expect(await repaired.json()).toEqual({ kind: "connected", app: "deepwiki" });
+  expect(
+    (await overview(app)).value.apps.find((item) => item.id === "deepwiki"),
+  ).toMatchObject({ connected: true, accounts: [{ state: "connected" }] });
+});
+
 test("a one-click OAuth app on this computer: the authorization URL to open, then connected", async () => {
   const { world, app } = await setup({ composio: false });
   world.executor.probes.set("https://mcp.linear.app/mcp", {

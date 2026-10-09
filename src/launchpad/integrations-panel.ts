@@ -327,6 +327,7 @@ export function createIntegrationsPanel(
       note = copy.integrationsExecutorUnavailable;
     else if (reason === "integration-conflict")
       note = copy.integrationsIntegrationConflict;
+    else if (reason === "still-failing") note = copy.integrationsStillFailing;
     else note = copy.integrationsConnectFailed;
     render();
   }

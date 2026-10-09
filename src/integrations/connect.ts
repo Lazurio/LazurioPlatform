@@ -14,8 +14,8 @@ import {
   executorCall,
   executorPort,
 } from "./executor-client";
-import { readExecutor } from "./executor-source";
-import { catalogAppOf, shownEndpoint } from "./model";
+import { healthState, readExecutor } from "./executor-source";
+import { type AccountState, catalogAppOf, shownEndpoint } from "./model";
 
 // Connecting and disconnecting an Integrace from the Launchpad (decision
 // F42): the server drives the Environment's Executor or the person's
@@ -25,7 +25,11 @@ import { catalogAppOf, shownEndpoint } from "./model";
 // - an official MCP server is added once (`POST /api/mcp/servers`, the
 //   catalog's integration slug), probed first (`POST /api/mcp/probe`);
 // - without sign-in its connection is created at once (`POST
-//   /api/connections`, template `none`);
+//   /api/connections`, template `none`) and read back (`GET
+//   /api/connections/<owner>/<integration>/<name>`); signing such an account
+//   in again re-syncs its tools (`POST …/refresh`) and checks its health
+//   (`POST …/health`), and answers connected only when Executor then reads
+//   it as working;
 // - with OAuth, Executor's client for the authorization server is created
 //   from its client ID metadata document (`POST /api/oauth/clients`) or
 //   registered dynamically (`POST /api/oauth/clients/register-dynamic`),
@@ -92,6 +96,8 @@ export type ConnectRefusal =
   /** Executor holds the app's slug for another server: never reused under
    * the app's card; the person removes it in Vlastní first. */
   | "integration-conflict"
+  /** A retried account that Executor still cannot use. */
+  | "still-failing"
   | "connect-failed";
 
 export type ConnectProgress =
@@ -492,6 +498,9 @@ export function createConnectSessions(host: () => ConnectHost) {
       againName = connection;
     }
     if (!oauth) {
+      // Without sign-in "again" is a retry of that account itself.
+      if (againName !== undefined)
+        return retryDirect(executor, app, slug, againName);
       const created = await executorCall(executor, "POST", "/connections", {
         owner: "org",
         name: connectionName(name),
@@ -500,12 +509,22 @@ export function createConnectSessions(host: () => ConnectHost) {
         values: {},
       });
       if (created.kind === "answer" && created.status === 409)
+        // The default account is there already: retried, never taken for
+        // working as it is; a named one is another account's name.
         return name === null
-          ? { kind: "connected", app: app.id }
+          ? retryDirect(executor, app, slug, connectionName(null))
           : { kind: "blocked", reason: "name-taken" };
       answerOf(created, 200);
-      journal({ event: "connect", app: app.id, outcome: "connected" });
-      return { kind: "connected", app: app.id };
+      const state = await connectionState(executor, slug, connectionName(name));
+      const working = state === "connected";
+      journal({
+        event: "connect",
+        app: app.id,
+        outcome: working ? "connected" : "failed",
+      });
+      return working
+        ? { kind: "connected", app: app.id }
+        : { kind: "blocked", reason: "still-failing" };
     }
     const endpoint = app.direct?.endpoint as string;
     const { url, state } = await startOAuth(
@@ -518,6 +537,66 @@ export function createConnectSessions(host: () => ConnectHost) {
     const session = open(app.id, { oauth: { state } });
     awaitOAuth(executor, session, state);
     return authorize(session, url);
+  }
+
+  /** One account of an integration as Executor reads it now; null where it
+   * is gone or cannot be read. */
+  async function connectionState(
+    executor: ExecutorEndpoint,
+    slug: string,
+    name: string,
+  ): Promise<AccountState | null> {
+    const answer = await executorCall(
+      executor,
+      "GET",
+      `/connections/org/${encodeURIComponent(slug)}/${encodeURIComponent(name)}`,
+    );
+    if (answer.kind !== "answer" || answer.status !== 200) return null;
+    try {
+      return healthState(record(answer.body).lastHealth);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Signs an account without sign-in in again, for real: Executor re-syncs
+   * its tools and checks its health, and only an account it then reads as
+   * working answers connected; anything else is said, never a success. */
+  async function retryDirect(
+    executor: ExecutorEndpoint,
+    app: CatalogApp,
+    slug: string,
+    name: string,
+  ): Promise<ConnectStart> {
+    const at = `/connections/org/${encodeURIComponent(slug)}/${encodeURIComponent(name)}`;
+    // Both dial the server: bounded so that the probe before them and both
+    // stay within the connect route's time.
+    const refreshed = await executorCall(
+      executor,
+      "POST",
+      `${at}/refresh`,
+      undefined,
+      45_000,
+    );
+    if (refreshed.kind === "unavailable")
+      return { kind: "blocked", reason: "executor-unavailable" };
+    if (refreshed.kind === "answer" && refreshed.status === 404)
+      return { kind: "blocked", reason: "account-unknown" };
+    // A fresh verdict for the card; the read below decides.
+    await executorCall(executor, "POST", `${at}/health`, undefined, 45_000);
+    const state = await connectionState(executor, slug, name);
+    const working =
+      refreshed.kind === "answer" &&
+      refreshed.status === 200 &&
+      state === "connected";
+    journal({
+      event: "connect",
+      app: app.id,
+      outcome: working ? "connected" : "failed",
+    });
+    return working
+      ? { kind: "connected", app: app.id }
+      : { kind: "blocked", reason: "still-failing" };
   }
 
   async function connectComposio(

@@ -5922,7 +5922,9 @@ preferences), which was never merged. The reference is
    and on to Executor only. An integration is an app's only as the remote MCP
    server at the catalog's endpoint, never by its slug: one that holds an app's
    slug and points elsewhere is a custom server, and connecting the app refuses
-   (`integration-conflict`) instead of reusing it.
+   (`integration-conflict`) instead of reusing it. Signing an account without
+   sign-in in again re-syncs and checks it, and answers connected only when
+   Executor then reads it as working (`still-failing` otherwise).
 3. **Composio through its CLI, as before.** `composio link --no-wait` makes the
    link; its URL is answered only to the request that started it and opened in a
    window of the person's browser; the Launchpad asks for a second account's name
