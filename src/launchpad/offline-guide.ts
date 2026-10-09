@@ -110,6 +110,9 @@ export function offlineGuidePage(
     organization,
     tailnet: new URL(headscaleServerUrl).hostname,
     docs: offlineDocsUrl(shell.locale),
+    // The rail's logo and the way back: the Dashboard, as the shell's rail
+    // leads there (Admin, 2026-10-09).
+    dashboard: shell.dashboard,
   });
 }
 

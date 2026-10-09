@@ -9,7 +9,11 @@ const symbol = vendorText("symbol-color.svg");
 // are inside, nothing is loaded from the network. Its text names the
 // Environment, its Organization and the tailnet exactly as the Tailscale client
 // lists it, and it continues to the address by itself once the address answers.
-// Everything beyond the three steps lives in the documentation.
+// Everything beyond the three steps lives in the documentation. A way back
+// does not need the tailnet (Admin, 2026-10-09: an Organization clicked by
+// mistake must not strand you here): the rail's Lazurio logo and a button
+// lead to the Dashboard, on the public internet, where you choose another
+// Environment.
 
 export type OfflineGuideInput = {
   locale: "cs" | "en";
@@ -21,6 +25,10 @@ export type OfflineGuideInput = {
   tailnet: string;
   /** The documentation's guide to connecting through Tailscale. */
   docs: string;
+  /** The Dashboard, where the person chooses another Environment: the
+   * rail's logo and the way back lead there. An https address; null draws
+   * the logo without a link and no way back. */
+  dashboard: string | null;
 };
 
 type Platform = "macos" | "windows" | "ios" | "android";
@@ -38,6 +46,8 @@ type Copy = {
   docs: string;
   account: string;
   otherTailnet: string;
+  back: string;
+  dashboard: string;
   steps: Record<Platform, readonly [string, string, string]>;
 };
 
@@ -58,6 +68,8 @@ const copy: Record<"cs" | "en", Copy> = {
     docs: "Podrobný návod v dokumentaci",
     account: "Tvůj účet",
     otherTailnet: "jiný tailnet",
+    back: "Zpět do Dashboardu",
+    dashboard: "Dashboard",
     steps: {
       macos: [
         "Klikni na ikonu Tailscale v horní liště.",
@@ -97,6 +109,8 @@ const copy: Record<"cs" | "en", Copy> = {
     docs: "The detailed guide in the documentation",
     account: "Your account",
     otherTailnet: "another tailnet",
+    back: "Back to the Dashboard",
+    dashboard: "Dashboard",
     steps: {
       macos: [
         "Click the Tailscale icon in the menu bar.",
@@ -177,12 +191,17 @@ function steps(platform: Platform, c: Copy, tailnet: string): string {
 }
 
 const style = `
-:root{color-scheme:light;--ink:#090909;--muted:#707070;--faint:#999;--line:#dddcdb;--line-faint:#ecebea;--paper:#fbfaf9;--blue:#0d12db;--blue-50:#ebf1fe;--blue-100:#d2ddfd;--blue-300:#7083f7;--green:#28c06f}
+:root{color-scheme:light;--ink:#090909;--muted:#707070;--faint:#999;--line:#dddcdb;--line-faint:#ecebea;--paper:#fbfaf9;--gray-50:#f5f4f3;--gray-100:#ecebea;--blue:#0d12db;--blue-50:#ebf1fe;--blue-100:#d2ddfd;--blue-300:#7083f7;--green:#28c06f}
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-main{max-width:680px;margin:48px auto;padding:0 20px}
-header{text-align:center;margin-bottom:24px}
-header svg{width:36px;height:36px}
+body{margin:0;background:var(--gray-50);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.rail{position:fixed;inset:0 auto 0 0;display:flex;width:64px;flex-direction:column;align-items:center;padding:12px 0;background:var(--paper)}
+.home{display:grid;width:40px;height:40px;place-items:center;border-radius:10px}
+a.home:hover{background:var(--gray-100)}
+.disc{display:grid;width:32px;height:32px;place-items:center;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+.disc svg{width:20px;height:20px}
+main{max-width:680px;margin:48px auto;padding:0 20px 0 84px}
+.back{display:inline-flex;align-self:flex-start;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink);font-size:13px;font-weight:600;text-decoration:none}
+.back:hover{background:var(--paper)}
 .card{display:flex;flex-direction:column;gap:16px;padding:32px;border:1px solid var(--line-faint);border-radius:10px;background:#fff}
 h1{margin:0;font-size:26px}
 .lead{margin:0;color:var(--muted)}
@@ -238,7 +257,7 @@ code{padding:1px 5px;border-radius:3px;background:var(--blue-50);color:#0b0e91;f
 .retried{margin:-6px 0 0;color:var(--muted);font-size:12px}
 .help{margin:0;padding-top:12px;border-top:1px solid var(--line-faint);color:var(--muted);font-size:13px}
 .help a{color:var(--blue);font-weight:600}
-@media (max-width:640px){.sk{overflow-x:auto}}
+@media (max-width:640px){.sk{overflow-x:auto}.rail{position:static;width:auto;flex-direction:row;padding:8px 12px}main{margin-top:16px;padding:0 20px}}
 `;
 
 /**
@@ -264,6 +283,18 @@ const script = `
 
 export function renderOfflineGuide(input: OfflineGuideInput): string {
   const c = copy[input.locale];
+  const dashboard =
+    input.dashboard !== null && /^https:\/\//.test(input.dashboard)
+      ? escapeHtml(input.dashboard)
+      : null;
+  const home =
+    dashboard === null
+      ? `<span class="home"><span class="disc">${symbol}</span></span>`
+      : `<a class="home" href="${dashboard}" title="${c.dashboard}" aria-label="${c.dashboard}"><span class="disc">${symbol}</span></a>`;
+  const back =
+    dashboard === null
+      ? ""
+      : `<a class="back" href="${dashboard}"><span aria-hidden="true">←</span>${c.back}</a>\n`;
   const environment = escapeHtml(input.environment);
   const organization =
     input.organization === null ? null : escapeHtml(input.organization);
@@ -278,9 +309,9 @@ export function renderOfflineGuide(input: OfflineGuideInput): string {
   ).join("");
   return `<!doctype html>
 <html lang="${input.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${c.title}</title><style>${style}</style></head>
-<body><main><header>${symbol}</header>
+<body><nav class="rail" aria-label="Lazurio">${home}</nav><main>
 <section class="card"><div class="status" role="status">${c.connected}</div>
-<h1>${c.title}</h1>
+${back}<h1>${c.title}</h1>
 <p class="lead">${c.lead(environment, organization)} ${c.choose} <code>${tailnet}</code>. ${c.continues}</p>
 <div class="tabs" role="tablist">${tabs}</div>
 ${guides}
