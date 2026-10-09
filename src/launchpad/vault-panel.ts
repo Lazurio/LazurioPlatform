@@ -43,6 +43,8 @@ export function createVaultPanel(
     changed: () => void;
     /** The dialog reached "Připojeno": the agents' switch turns on. */
     connected: () => void;
+    /** "Odpojit" went through: the row's notice of an earlier act ends. */
+    disconnected: () => void;
     /** "Dokončit s agentem": the tool's prepared prompt. */
     agent: () => void;
     /** The dialog closed: the focus returns to the row. */
@@ -584,6 +586,7 @@ export function createVaultPanel(
       return;
     }
     status = parsed;
+    options.disconnected();
     options.changed();
     dialog.close();
   }

@@ -1655,7 +1655,11 @@ A `blocked` answer becomes one plain sentence in the card that nothing was saved
 button; an answer that cannot be read is reported as unconfirmed, never as refused.
 The technical part (a drifted file's path, the reason's code, the CLI command, and a
 removed SSH key's fingerprint after "Sign out") is under the tool's Details as "What
-happened" / "Co se stalo". A
+happened" / "Co se stalo". The card is said again from the tool as the page shows it
+at every render (`toolNoticeView`), so it never contradicts the row, and it ends,
+with its Undo, at the next act on that tool (a change, an installation, a sign-in or
+a sign-out), at Refresh status or Reload, and at a reading of another Folder revision
+(`noticeHolds`), where the Undo would be refused. A
 required tool has no toggle and shows "Always on"; it can carry a note.
 
 **Set up with an agent** opens a modal `<dialog>` with the prepared prompt in a

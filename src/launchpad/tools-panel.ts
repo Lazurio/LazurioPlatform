@@ -23,6 +23,7 @@ import {
   nextNotes,
   nextSelection,
   noteDraftView,
+  noticeHolds,
   organizationChoices,
   parseLoginState,
   parseToolsOverview,
@@ -31,12 +32,13 @@ import {
   sourceLink,
   sshOutcome,
   type ToolChange,
-  type ToolChangeOutcome,
+  type ToolNotice,
   takesNote,
   teamInstallOutcome,
   toolChangeOutcome,
   toolDescription,
   toolGroups,
+  toolNoticeView,
   toolStatusView,
 } from "./tools-view";
 import { fill } from "./update-view";
@@ -52,8 +54,10 @@ type Post = (
 // fact; the browser shows it as text and sends back the full next selection
 // (and, for a note, the full next set of notes) with the revision it showed.
 // One click applies a change; the confirmation on the card says it in plain
-// words and offers Undo, which restores the state before it; the technical
-// part of a notice is in the tool's Details (Matěj 2026-10-09).
+// words and offers Undo, which restores the state before it. It is said
+// from the tool as the page shows it at every render and ends with the next
+// act on that tool, so it never contradicts the row (Matěj 2026-10-09); the
+// technical part of a notice is in the tool's Details.
 export function createToolsPanel(
   options: Readonly<{
     post: Post;
@@ -96,14 +100,19 @@ export function createToolsPanel(
     post: options.post,
     copy: options.copy,
     changed: () => render(),
-    connected: () =>
+    connected: () => {
+      // Connecting is the next act on the row: the notice before it ends.
+      endNotice(vaultToolName);
       void refresh().then(() => {
         const tool = overview?.tools.find(
           (entry) => entry.name === vaultToolName,
         );
         if (tool !== undefined && tool.tier !== "required" && !tool.enabled)
           void toggle(tool, true);
-      }),
+      });
+    },
+    // Disconnecting is the vault's sign-out: the notice before it ends too.
+    disconnected: () => endNotice(vaultToolName),
     agent: () => {
       const tool = overview?.tools.find(
         (entry) => entry.name === vaultToolName,
@@ -142,12 +151,13 @@ export function createToolsPanel(
   // "What agents are told" open: both survive a re-render.
   const drafts = new Map<string, string>();
   const opened = new Set<string>();
-  let notice: {
-    name: string;
-    outcome: ToolChangeOutcome;
-    /** The state before the change, restored at the new revision. */
-    undo: (Selection & { expectedRevision: number }) | null;
-  } | null = null;
+  // The last act on one tool's row (Matěj 2026-10-09). It ends with the next
+  // act on that tool, with Refresh status or Reload, and with a reading of
+  // another Folder revision (`noticeHolds`), where its Undo would be refused.
+  let notice: ToolNotice | null = null;
+  function endNotice(name: string) {
+    if (notice?.name === name) notice = null;
+  }
   let focus: { name: string; control: string } | null = null;
   let opener: HTMLElement | null = null;
 
@@ -364,8 +374,14 @@ export function createToolsPanel(
       try {
         ({ value } = await options.post("/api/tools/install", { tool: name }));
       } catch {}
-      if (flow !== current) return;
       const outcome = installOutcome(value, name, copy);
+      // The tool is there now, whatever the sign-in does next: its row
+      // follows at once, and the notice of the act before this one ends.
+      if (outcome.ok) {
+        endNotice(name);
+        void refresh();
+      }
+      if (flow !== current) return;
       if (!outcome.ok)
         return loginFailed(outcome.message, outcome.agent, outcome.detail);
       current.install = true;
@@ -655,6 +671,9 @@ export function createToolsPanel(
     if (current === null) return;
     const copy = options.copy();
     stopPolling();
+    // A sign-in is the next act on the row: the notice before it ends, and
+    // the reading that follows draws the row as it is now.
+    endNotice(current.tool.name);
     // gh: signed in is complete only with the SSH key linked (decision F19,
     // addendum 2026-09-28); otherwise the linking step did not finish.
     const ssh = sshOutcome(state, copy);
@@ -833,9 +852,13 @@ export function createToolsPanel(
       }));
     } catch {}
     busy = false;
-    const outcome = teamInstallOutcome(value, tool.name, copy);
-    notice = { name: tool.name, outcome, undo: null };
-    say(outcome.message);
+    notice = {
+      name: tool.name,
+      revision: overview?.revision ?? 0,
+      act: { kind: "team-install", answer: value },
+      undo: null,
+    };
+    say(teamInstallOutcome(value, tool.name, copy).message);
     focus = { name: tool.name, control: "curated" };
     await refresh({ signIn: true });
   }
@@ -854,9 +877,13 @@ export function createToolsPanel(
       }));
     } catch {}
     busy = false;
-    const outcome = logoutOutcome(value, tool.name, copy);
-    notice = { name: tool.name, outcome, undo: null };
-    say(outcome.message);
+    notice = {
+      name: tool.name,
+      revision: overview?.revision ?? 0,
+      act: { kind: "logout", answer: value },
+      undo: null,
+    };
+    say(logoutOutcome(value, tool.name, copy).message);
     focus = { name: tool.name, control: "curated" };
     await refresh({ signIn: true });
   }
@@ -946,6 +973,12 @@ export function createToolsPanel(
     // reads "Works as lazurio-for-github[bot]".
     const team = overview?.sharedEnvironment === true;
     const line = connectionLine(tool, copy, team);
+    // The last act on this row, said from the tool as it is now (Matěj
+    // 2026-10-09): it never contradicts the line above.
+    const recorded =
+      notice !== null && notice.name === tool.name ? notice : null;
+    const said =
+      recorded === null ? null : toolNoticeView(recorded, tool, copy);
     // The Environment vault (decision F43) says its own state and offers its
     // own steps: an account of the Environment, not a person's sign-in.
     const vaultRow = tool.name === vaultToolName ? vault.row(copy) : null;
@@ -1114,13 +1147,11 @@ export function createToolsPanel(
     const body = element("div", "details-body");
     // The technical part of the notice on the row (a path, a reason, a
     // command, a key's fingerprint): only here, while the notice lasts.
-    const detail =
-      notice?.name === tool.name ? notice.outcome.detail : undefined;
-    if (detail !== undefined) {
+    if (said?.detail !== undefined) {
       const happened = element("section", "");
       happened.append(
         element("h4", "", copy.toolsWhatHappened),
-        element("p", "tools-muted", detail),
+        element("p", "tools-muted", said.detail),
       );
       body.append(happened);
     }
@@ -1182,14 +1213,14 @@ export function createToolsPanel(
     }
     details.append(summary, body);
 
-    if (notice?.name === tool.name) {
+    if (recorded !== null && said !== null) {
       const message = element("div", "tool-message");
-      message.dataset.kind = notice.outcome.kind;
-      message.append(element("p", "", notice.outcome.message));
-      if (notice.outcome.shared === true)
+      message.dataset.kind = said.kind;
+      message.append(element("p", "", said.message));
+      if (said.shared === true)
         message.append(element("p", "", copy.toolsShared));
       const choices = element("p", "tool-actions");
-      const undo = notice.undo;
+      const { undo, revision } = recorded;
       if (undo !== null)
         choices.append(
           button(
@@ -1197,15 +1228,11 @@ export function createToolsPanel(
             tool.name,
             "undo",
             () =>
-              void change(
-                { name: tool.name, action: "undo", installed: tool.installed },
-                undo,
-                undo.expectedRevision,
-              ),
+              void change({ name: tool.name, action: "undo" }, undo, revision),
             fill(copy.toolsUndoNamed, { name: tool.name }),
           ),
         );
-      if (notice.outcome.reload)
+      if (said.reload)
         choices.append(
           button(copy.toolsReload, tool.name, "reload", () => {
             notice = null;
@@ -1311,6 +1338,10 @@ export function createToolsPanel(
         }),
       };
       failed = false;
+      // A notice belongs to the Folder revision it was made at: a reading of
+      // another one means the Folder changed since, elsewhere, and its Undo
+      // would be refused.
+      if (notice !== null && !noticeHolds(notice, overview)) notice = null;
       checked.textContent = checkedLine(
         new Date(),
         parsed.locale,
@@ -1354,7 +1385,7 @@ export function createToolsPanel(
   // One click, one recorded change at the revision the page shows. Without
   // `notes` the server keeps the recorded notes of the tools that stay on.
   async function change(
-    what: ToolChange,
+    what: Readonly<{ name: string; action: ToolChange["action"] }>,
     request: Readonly<{
       tools: readonly string[];
       notes?: Readonly<Record<string, string>>;
@@ -1364,30 +1395,33 @@ export function createToolsPanel(
     if (busy || overview === null) return;
     const copy = options.copy();
     const before = shown(overview.tools);
+    const installed =
+      overview.tools.find((tool) => tool.name === what.name)?.installed ===
+      true;
     busy = true;
     notice = null;
     render();
     say(copy.toolsBusy);
-    let outcome: ToolChangeOutcome;
+    // A lost answer does not say the change was not written: it is read as
+    // unconfirmed.
+    let answer: unknown = null;
     try {
-      const { value } = await options.post("/api/tools/update", {
+      ({ value: answer } = await options.post("/api/tools/update", {
         expectedRevision,
         tools: request.tools,
         ...(request.notes === undefined ? {} : { notes: request.notes }),
-      });
-      outcome = toolChangeOutcome(value, what, copy);
-    } catch {
-      // A lost answer does not say the change was not written.
-      outcome = toolChangeOutcome(null, what, copy);
-    }
+      }));
+    } catch {}
     busy = false;
+    const outcome = toolChangeOutcome(answer, { ...what, installed }, copy);
+    const produced = outcome.kind === "updated" ? outcome.revision : undefined;
     notice = {
       name: what.name,
-      outcome,
-      undo:
-        outcome.kind === "updated" && outcome.revision !== undefined
-          ? { ...before, expectedRevision: outcome.revision }
-          : null,
+      // A recorded change belongs to the revision it produced, where its
+      // Undo applies; anything else to the one the page showed.
+      revision: produced ?? expectedRevision,
+      act: { kind: "change", action: what.action, answer },
+      undo: produced === undefined ? null : before,
     };
     if (outcome.kind === "updated") drafts.delete(what.name);
     focus = {
@@ -1407,11 +1441,7 @@ export function createToolsPanel(
   function toggle(tool: ToolOverview, enable: boolean) {
     if (overview === null) return;
     return change(
-      {
-        name: tool.name,
-        action: enable ? "enable" : "disable",
-        installed: tool.installed,
-      },
+      { name: tool.name, action: enable ? "enable" : "disable" },
       { tools: nextSelection(overview.tools, tool.name, enable) },
       overview.revision,
     );
@@ -1423,7 +1453,6 @@ export function createToolsPanel(
       {
         name: tool.name,
         action: note === undefined ? "note-clear" : "note-save",
-        installed: tool.installed,
       },
       {
         tools: shown(overview.tools).tools,

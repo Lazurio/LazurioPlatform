@@ -1831,11 +1831,14 @@ response says which with `hosted`.
 under Podrobnosti).* The card no longer names the Folder revision or the rewritten agent
 instructions, and the section's header says only when the tools were read; the
 revision stays in Settings → General. A confirmation is one plain sentence ("composio
-teď používají agenti."); a switched-on tool that is not installed says on
+teď používají agenti.") said from the tool as the page shows it at every render, never
+kept from the moment of the change: a switched-on tool that is not installed says on
 its own row that agents start using it once it is installed (the bitwarden row keeps
 its vault's state, F43), and its confirmation is only "Zapnuto.". A refused change
 says that nothing was saved; its path, reason or CLI command (and a removed SSH key's
-fingerprint) is under the tool's Details.
+fingerprint) is under the tool's Details. A notice and its Undo end with the next act
+on that tool, Refresh status, Reload, or a reading at another Folder revision, where
+the Undo would be refused.
 
 ## F19 — Curated installation and login of catalog tools
 

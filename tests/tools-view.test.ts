@@ -16,6 +16,7 @@ import {
   nextNotes,
   nextSelection,
   noteDraftView,
+  noticeHolds,
   organizationChoices,
   parseLoginState,
   parseToolsOverview,
@@ -24,10 +25,12 @@ import {
   signInLine,
   sourceLink,
   sshOutcome,
+  type ToolNotice,
   takesNote,
   teamInstallOutcome,
   toolChangeOutcome,
   toolGroups,
+  toolNoticeView,
   toolStatusView,
 } from "../src/launchpad/tools-view";
 import type { ToolOverview, ToolsOverview } from "../src/tools/overview";
@@ -372,6 +375,91 @@ test("every answer of an update becomes one plain sentence; the revision travels
         reload: true,
       });
   }
+});
+
+test("a notice follows the live state of its tool: said once, only while it is true (Matěj 2026-10-09)", () => {
+  const enable: ToolNotice = {
+    name: "composio",
+    revision: 4,
+    act: {
+      kind: "change",
+      action: "enable",
+      answer: { kind: "updated", revision: 4 },
+    },
+    undo: { tools: [], notes: {} },
+  };
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    const hint = copy.toolsEnabledNotInstalled.replace("{name}", "composio");
+    const inUse = copy.toolsEnabledDone.replace("{name}", "composio");
+    // What the row says: the line under the name and the notice under it.
+    const row = (current: ToolOverview) => {
+      const notice = toolNoticeView(enable, current, copy);
+      return {
+        line: connectionLine(current, copy).text,
+        notice: notice.message,
+        all: `${connectionLine(current, copy).text}\n${notice.message}\n${notice.detail ?? ""}`,
+      };
+    };
+    // Switched on before it is installed: the row says once that agents
+    // start using it once it is; nothing says they use it now.
+    const before = row(tool({ enabled: true }));
+    expect(before.line).toBe(hint);
+    expect(before.notice).toBe(copy.toolsSwitchedOn);
+    expect(before.all.split(hint).length - 1).toBe(1);
+    expect(before.all).not.toContain(inUse);
+    // The same notice after the installation and the sign-in: nothing says
+    // it is not installed any more, and the notice says agents use it.
+    const after = row(
+      tool({
+        enabled: true,
+        installed: true,
+        signIn: { state: "signed-in", account: "a@example.com" },
+      }),
+    );
+    expect(after.line).toBe(
+      copy.toolsSignedInAs.replace("{account}", "a@example.com"),
+    );
+    expect(after.notice).toBe(inUse);
+    expect(after.all).not.toContain(hint);
+    expect(after.all).not.toContain(copy.toolsNotAdded);
+    // Switched off, or a required tool, which has no switch: only "not
+    // added yet".
+    expect(connectionLine(tool(), copy).text).toBe(copy.toolsNotAdded);
+    expect(
+      connectionLine(
+        tool({ name: "gh", command: "gh", tier: "required", enabled: true }),
+        copy,
+      ).text,
+    ).toBe(copy.toolsNotAdded);
+    // A sign-out says what happened, from the answer it got.
+    const signedOut = toolNoticeView(
+      {
+        name: "composio",
+        revision: 4,
+        act: {
+          kind: "logout",
+          answer: { kind: "logged-out", revocation: "local-only" },
+        },
+        undo: null,
+      },
+      tool({ installed: true }),
+      copy,
+    );
+    expect(signedOut).toEqual({
+      kind: "updated",
+      reload: false,
+      message: copy.toolsSignedOutLocal.replace("{name}", "composio"),
+    });
+  }
+  // A notice holds while the page reads the revision it belongs to, and
+  // ends at a reading of another one (the Folder changed elsewhere and its
+  // Undo would be refused) or once its tool is no longer listed.
+  expect(noticeHolds(enable, overview(catalog))).toBe(true);
+  expect(noticeHolds(enable, { ...overview(catalog), revision: 5 })).toBe(
+    false,
+  );
+  expect(noticeHolds(enable, overview([tool({ name: "wacli" })]))).toBe(false);
 });
 
 test("the main view of Nástroje says nothing technical; what support needs stays in Details (Matěj 2026-10-09)", () => {

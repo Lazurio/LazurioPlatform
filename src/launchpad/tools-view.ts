@@ -662,6 +662,58 @@ export function toolChangeOutcome(
   };
 }
 
+/** The last act on one tool's row and what the server answered to it
+ * (Matěj 2026-10-09: a notice never contradicts the live state). It holds
+ * no sentence: the row says it again from the tool as the page shows it, at
+ * every render. */
+export type ToolNotice = Readonly<{
+  name: string;
+  /** The Folder revision it belongs to: the one a change produced, where
+   * its Undo applies, or the one the page showed when it was made. */
+  revision: number;
+  act: Readonly<
+    | { kind: "change"; action: ToolChange["action"]; answer: unknown }
+    | { kind: "team-install" | "logout"; answer: unknown }
+  >;
+  /** The selection and the notes before a recorded change: what Undo
+   * restores, at `revision`. */
+  undo: Readonly<{
+    tools: readonly string[];
+    notes: Readonly<Record<string, string>>;
+  }> | null;
+}>;
+
+/** What a notice says now, from its tool as the page shows it. */
+export function toolNoticeView(
+  notice: ToolNotice,
+  tool: Pick<ToolOverview, "installed">,
+  copy: Copy,
+): ToolChangeOutcome {
+  const act = notice.act;
+  if (act.kind === "change")
+    return toolChangeOutcome(
+      act.answer,
+      { name: notice.name, action: act.action, installed: tool.installed },
+      copy,
+    );
+  return act.kind === "team-install"
+    ? teamInstallOutcome(act.answer, notice.name, copy)
+    : logoutOutcome(act.answer, notice.name, copy);
+}
+
+/** Whether a notice still holds after the page read the tools: only at its
+ * own revision and while its tool is listed. Another revision means the
+ * Folder changed since, elsewhere, and its Undo would be refused. */
+export function noticeHolds(
+  notice: Pick<ToolNotice, "name" | "revision">,
+  overview: Pick<ToolsOverview, "revision" | "tools">,
+): boolean {
+  return (
+    notice.revision === overview.revision &&
+    overview.tools.some((tool) => tool.name === notice.name)
+  );
+}
+
 /** The line above the tools: when they were read. The Folder and its
  * revision are nothing a person needs here (Matěj 2026-10-09); Settings →
  * General shows the revision. */
