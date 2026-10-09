@@ -59,8 +59,9 @@ export type VaultHost = Readonly<{
   /** The Environment's vault, or why it has none here; read at the start
    * of every operation. */
   context: () => Promise<VaultContext | VaultUnsupported>;
-  /** The account's state directory for a vault host. */
-  directory: (host: string) => string;
+  /** The account's state directory: its vault host and the Environment's
+   * address, the account's whole identity. */
+  directory: (identity: Pick<VaultContext, "host" | "address">) => string;
   /** The product's install base, where the pinned CLI lives. */
   base: string;
   /** `~/.local/bin`, the standard entry of `bw`. */
@@ -398,7 +399,7 @@ async function prepare(host: VaultHost): Promise<Prepared> {
     kind: "ready",
     context,
     facts: factsOf(context),
-    paths: vaultPaths(host.directory(context.host)),
+    paths: vaultPaths(host.directory(context)),
   };
 }
 
@@ -408,16 +409,27 @@ const none = (
   registered: boolean,
 ): VaultStatus => ({ kind: "vault-status", state, ...facts, registered });
 
-/** The account file, or a failure when it is there and unreadable (never
- * replaced: it holds the only copy of the account's password). */
+/** The account file, or a failure when it is there and unreadable or not
+ * this Environment's account (never replaced: it holds the only copy of the
+ * account's password). An account serves only the Environment whose address
+ * and vault it carries; its directory is keyed by them, and this holds even
+ * when a file is not where it belongs. */
 async function accountOf(
   paths: VaultPaths,
-): Promise<Awaited<ReturnType<typeof readAccount>> | "unreadable"> {
+  context: VaultContext,
+): Promise<
+  Awaited<ReturnType<typeof readAccount>> | "unreadable" | "mismatch"
+> {
+  let account: Awaited<ReturnType<typeof readAccount>>;
   try {
-    return await readAccount(paths);
+    account = await readAccount(paths);
   } catch {
     return "unreadable";
   }
+  return account !== null &&
+    (account.email !== context.account || account.server !== context.vault)
+    ? "mismatch"
+    : account;
 }
 
 /** `status`: local, no network, no mutation. */
@@ -425,9 +437,11 @@ export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
   const prepared = await prepare(host);
   if (prepared.kind === "status") return prepared.status;
   const { context, facts, paths } = prepared;
-  const account = await accountOf(paths);
+  const account = await accountOf(paths, context);
   if (account === "unreadable")
     return failedStatus(facts, "account", "account-unreadable");
+  if (account === "mismatch")
+    return failedStatus(facts, "account", "account-mismatch");
   const ready = account !== null && isReady(account);
   if (!(await pinnedInstalled(host.base, host.pin)))
     return none(facts, "not-installed", ready);
@@ -509,9 +523,10 @@ export async function vaultRefresh(host: VaultHost): Promise<VaultStatus> {
   const prepared = await prepare(host);
   if (prepared.kind === "status") return prepared.status;
   const { context, facts, paths } = prepared;
-  const account = await accountOf(paths);
+  const account = await accountOf(paths, context);
   if (
     account === "unreadable" ||
+    account === "mismatch" ||
     account === null ||
     !isReady(account) ||
     !(await pinnedInstalled(host.base, host.pin))
@@ -615,16 +630,13 @@ async function ensureAccount(
   facts: VaultFacts,
   paths: VaultPaths,
 ): Promise<AccountOutcome> {
-  const existing = await accountOf(paths);
+  const existing = await accountOf(paths, context);
   if (existing === "unreadable")
     return {
       kind: "status",
       status: failedStatus(facts, "account", "account-unreadable"),
     };
-  if (
-    existing !== null &&
-    (existing.email !== context.account || existing.server !== context.vault)
-  )
+  if (existing === "mismatch")
     return {
       kind: "status",
       status: failedStatus(facts, "account", "account-mismatch"),
@@ -882,11 +894,16 @@ export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
   ): VaultEnvResult => ({ kind: "vault-env-refused", reason });
   const context = await host.context();
   if (context.kind === "unsupported") return refuse(context.reason);
-  const paths = vaultPaths(host.directory(context.host));
+  const paths = vaultPaths(host.directory(context));
   if (!(await pinnedInstalled(host.base, host.pin)))
     return refuse("not-installed");
-  const account = await accountOf(paths);
-  if (account === "unreadable" || account === null || !isReady(account))
+  const account = await accountOf(paths, context);
+  if (
+    account === "unreadable" ||
+    account === "mismatch" ||
+    account === null ||
+    !isReady(account)
+  )
     return refuse("not-connected");
   const record = await readRecord(paths);
   if (record.organizationId === null || record.collectionId === null)

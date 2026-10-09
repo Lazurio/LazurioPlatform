@@ -440,20 +440,25 @@ export async function startFakeVault(home: string) {
 }
 export type FakeVault = Awaited<ReturnType<typeof startFakeVault>>;
 
-/** The personal Remote Environment of `example` on a network whose control
+/** The personal Remote Environment at `<host>` on a network whose control
  * server is `headscale.example.lazurio.io`. */
-export const personalHandover = parseMachineContext(
-  Buffer.from(
-    JSON.stringify({
-      ...personal,
-      network: {
-        ...personal.network,
-        headscale_server_url: `https://headscale.${zone}`,
-      },
-      entry: handoverEntry("example.lazurio.io"),
-    }),
-  ),
-);
+export function personalHandoverAt(host: string) {
+  return parseMachineContext(
+    Buffer.from(
+      JSON.stringify({
+        ...personal,
+        network: {
+          ...personal.network,
+          headscale_server_url: `https://headscale.${zone}`,
+        },
+        entry: handoverEntry(host),
+      }),
+    ),
+  );
+}
+
+/** The personal Remote Environment of `example`. */
+export const personalHandover = personalHandoverAt("example.lazurio.io");
 
 /** A vault host on a private home with the fake vault and release. */
 export function fakeHost(
@@ -475,8 +480,16 @@ export function fakeHost(
           kind: "personal",
           label: null,
         })),
-    directory: (host) =>
-      join(input.home, ".local", "state", "lazurio", "vault", host),
+    directory: (identity) =>
+      join(
+        input.home,
+        ".local",
+        "state",
+        "lazurio",
+        "vault",
+        identity.host,
+        identity.address,
+      ),
     base: join(input.home, ".local", "share", "lazurio"),
     bin: join(input.home, ".local", "bin"),
     home: input.home,

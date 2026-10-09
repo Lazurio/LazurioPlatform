@@ -150,8 +150,8 @@ export function processVaultHost(
         sources: input.sources,
       });
     },
-    directory: (host: string) =>
-      vaultStateDirectory(host, home ?? "/nonexistent", input.env),
+    directory: (identity) =>
+      vaultStateDirectory(identity, home ?? "/nonexistent", input.env),
     base: base ?? "/nonexistent",
     bin: join(home ?? "/nonexistent", ".local", "bin"),
     home: home ?? "/nonexistent",

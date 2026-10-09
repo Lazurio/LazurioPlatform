@@ -175,22 +175,34 @@ test("the collection is the Environment's by its machine; a label that would nes
   expect(environmentNameOf("automated", "Steward")).toBe("Steward");
 });
 
-test("the account's state directory follows XDG_STATE_HOME when it is absolute", () => {
-  expect(
-    vaultStateDirectory("vaultwarden.example.lazurio.io", "/home/operator", {}),
-  ).toBe(
-    "/home/operator/.local/state/lazurio/vault/vaultwarden.example.lazurio.io",
+test("the account's state directory is its whole identity and follows XDG_STATE_HOME when it is absolute", () => {
+  const identity = {
+    host: "vaultwarden.example.lazurio.io",
+    address: "workspace.example.lazurio.io",
+  };
+  expect(vaultStateDirectory(identity, "/home/operator", {})).toBe(
+    "/home/operator/.local/state/lazurio/vault/vaultwarden.example.lazurio.io/workspace.example.lazurio.io",
   );
   expect(
-    vaultStateDirectory("vaultwarden.example.lazurio.io", "/home/operator", {
+    vaultStateDirectory(identity, "/home/operator", {
       XDG_STATE_HOME: "/var/state/operator",
     }),
-  ).toBe("/var/state/operator/lazurio/vault/vaultwarden.example.lazurio.io");
+  ).toBe(
+    "/var/state/operator/lazurio/vault/vaultwarden.example.lazurio.io/workspace.example.lazurio.io",
+  );
   expect(
-    vaultStateDirectory("vaultwarden.example.lazurio.io", "/home/operator", {
+    vaultStateDirectory(identity, "/home/operator", {
       XDG_STATE_HOME: "relative/state",
     }),
   ).toBe(
-    "/home/operator/.local/state/lazurio/vault/vaultwarden.example.lazurio.io",
+    "/home/operator/.local/state/lazurio/vault/vaultwarden.example.lazurio.io/workspace.example.lazurio.io",
   );
+  // Another address in the same vault is another directory.
+  expect(
+    vaultStateDirectory(
+      { ...identity, address: "workspace-2.example.lazurio.io" },
+      "/home/operator",
+      {},
+    ),
+  ).not.toBe(vaultStateDirectory(identity, "/home/operator", {}));
 });

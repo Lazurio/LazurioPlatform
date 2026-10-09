@@ -17,7 +17,7 @@ export type VaultContext = Readonly<{
   /** The vault of the Environment's network: `https://vaultwarden.<zone>`
    * where the handover's tailnet control server is `https://headscale.<zone>`. */
   vault: string;
-  /** Its host; it names the state directory of the account. */
+  /** Its host; with the address it names the account's state directory. */
   host: string;
   /** The Environment's own address: `<machine>.<org>.lazurio.io` for an
    * Organization's Environment, `<slug>.lazurio.io` for a personal one. */
@@ -174,11 +174,14 @@ export function vaultContextOf(
   });
 }
 
-/** Where one vault's account keeps its files: `${XDG_STATE_HOME:-~/.local/
- * state}/lazurio/vault/<vault host>` (a relative XDG_STATE_HOME is invalid
- * and ignored, as for the install base). */
+/** Where one Environment's account keeps its files: `${XDG_STATE_HOME:-~/
+ * .local/state}/lazurio/vault/<vault host>/<Environment address>`, keyed by
+ * the account's whole identity, so an Environment whose address changes
+ * never reads the files of the account it had before (a relative
+ * XDG_STATE_HOME is invalid and ignored, as for the install base). Both
+ * parts are DNS names checked label by label above. */
 export function vaultStateDirectory(
-  host: string,
+  identity: Pick<VaultContext, "host" | "address">,
   home: string,
   env: Readonly<Record<string, string | undefined>>,
 ): string {
@@ -187,5 +190,5 @@ export function vaultStateDirectory(
     xdg !== undefined && xdg !== "" && isAbsolute(xdg)
       ? xdg
       : join(home, ".local", "state");
-  return join(state, "lazurio", "vault", host);
+  return join(state, "lazurio", "vault", identity.host, identity.address);
 }

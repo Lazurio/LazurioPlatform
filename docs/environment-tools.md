@@ -435,12 +435,17 @@ wave (`unsupported`, `workstation`).
   `no-address`), the name from the Folder's preset and the catalog (a Team's or a
   persona's display name, else "Osobní", "Pracovní", "Týmový", "Automatizovaný"). Only
   the handover's declared operator has the account (`not-operator`).
-- **Custody** (`src/vault/store.ts`): `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/`
-  (0700) with `lock` and `bw/` (0700, `BITWARDENCLI_APPDATA_DIR`), which holds bw's
-  `data.json`, `lazurio-account.json` (0600: email, server, device identifier, master
-  password, API key, createdAt), `lazurio-session` (0600) and `lazurio-vault.json`
-  (0600, not secret: fingerprint phrase, connected organization and collection ids).
-  Nothing else anywhere; no secret on argv, in a log, the journal or an error.
+- **Custody** (`src/vault/store.ts`), written by the Platform itself, the one
+  exception of [public development](public-development.md):
+  `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<Environment address>/`
+  (0700, the account's whole identity) with `lock` and `bw/` (0700,
+  `BITWARDENCLI_APPDATA_DIR`), which holds bw's `data.json`, `lazurio-account.json`
+  (0600: email, server, device identifier, master password, API key, createdAt),
+  `lazurio-session` (0600) and `lazurio-vault.json` (0600, not secret: fingerprint
+  phrase, connected organization and collection ids). An Environment whose address
+  changes starts with no account; an account file whose address or vault is not the
+  Environment's is refused by every operation (`account-mismatch`). Nothing else
+  anywhere; no secret on argv, in a log, the journal or an error.
 - **The pinned CLI** (`src/vault/pin.ts`, `src/vault/install.ts`): bw-oss 2026.7.0
   from `https://github.com/bitwarden/clients/releases/download/cli-v2026.7.0/`,
   the zip of the platform verified against its SHA-256 in the source, its one entry

@@ -74,6 +74,7 @@ async function world() {
         "lazurio",
         "vault",
         "vaultwarden.example.lazurio.io",
+        "example.lazurio.io",
       ),
     ),
     async close() {

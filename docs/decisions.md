@@ -5727,19 +5727,27 @@ session; the Admin confirms the member by its fingerprint; then the catalog tool
 externally visible write stays the Operator's Publication, and values never go
 to chat, Git, a log or a pull request.
 
-1. **The vault is the store; Bitwarden is the provider.** This resolves
-   [public development](public-development.md)'s "Platform stores neither a new
-   secret database nor copies of session credentials" and `AGENTS.md`'s "Do not
-   invent a secret store": the passwords live in the Organization's vault, as
-   gh's token lives with gh and Composio's sign-in with Composio. The Platform
-   handles only the Environment account's own credentials, generated on the
-   Environment and known to no person: the master password (32 random bytes),
-   the account's personal API key and its one session. They stay only in the
-   Bitwarden CLI's data directory that Lazurio gives it, the tool's own store,
-   owner-only:
+1. **The vault is the store; Bitwarden is the provider; the account's own
+   credentials are the one exception.** The passwords live in the
+   Organization's vault, not in Lazurio, as gh's token lives with gh and
+   Composio's sign-in with Composio: no new secret database
+   ([public development](public-development.md), `AGENTS.md`'s "Do not invent
+   a secret store"). The Environment account's own credentials are another
+   matter: the Platform creates the account, so it generates them on the
+   Environment, known to no person (the master password, 32 random bytes),
+   receives the account's personal API key and keeps its one session, and it
+   writes them itself, as root decision 0193 point 6 decided ("the account's
+   secrets lie only on its Environment"). This is the one place where the
+   Platform writes credentials, and public development records it as its
+   exception. They are written owner-only, beside bw's own store in the data
+   directory Lazurio gives the Bitwarden CLI, under a directory of the
+   account's whole identity, the vault and the Environment's address: an
+   Environment whose address changes never reads the account it had before,
+   and every operation refuses an account file whose address or vault is not
+   the Environment's (`account-mismatch`) rather than hand out its session:
 
    ```text
-   ${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/   0700
+   ${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<Environment address>/   0700
      lock                      0600, empty: the kernel lock of a mutation
      bw/                       0700, BITWARDENCLI_APPDATA_DIR
        data.json               bw's own store (it keeps the API key there itself)
@@ -5910,7 +5918,8 @@ round trips, the exact request bodies and Vaultwarden's refusals
 (`tests/vault-register.test.ts`), the context (`tests/vault-context.test.ts`),
 the flow from not invited through confirming, connected, revoked, disconnected
 and back, the shared session and its replacement, interrupted and refused
-registrations and the pinned installer (`tests/vault-flow.test.ts`), the CLI and
+registrations, an address that changes in the same network and an account file
+out of place, and the pinned installer (`tests/vault-flow.test.ts`), the CLI and
 its shell exports (`tests/vault-cli.test.ts`), the Launchpad routes
 (`tests/launchpad-vault.test.ts`) and the page's states (`tests/vault-view.test.ts`).
 The registration, the API key and the real CLI were proven end to end against

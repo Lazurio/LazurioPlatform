@@ -10,6 +10,11 @@ Publish names, formats and safe examples of configuration, not their secret valu
 Use obvious placeholders such as `<provided-by-owner>`; avoid realistic example
 tokens. Credential access remains with existing OS/provider/harness custody.
 Platform stores neither a new secret database nor copies of session credentials.
+The one exception is the Environment vault's own account (decision F43): the
+Platform creates that account, so it writes the account's generated master
+password, its API key and its one Bitwarden CLI session itself, owner-only,
+beside the CLI's store on that Environment and nowhere else. Every other
+secret stays in the vault.
 
 Never include personal files, another Organization's data, customer examples,
 private environment values, keys, cookies, tokens or raw operational logs in source,

@@ -31,6 +31,7 @@ import {
   fingerprint,
   organizationId,
   personalHandover,
+  personalHandoverAt,
   startFakeVault,
   vaultOrigin,
   zipOf,
@@ -63,6 +64,7 @@ async function world() {
       "lazurio",
       "vault",
       "vaultwarden.example.lazurio.io",
+      "example.lazurio.io",
     ),
   );
   return {
@@ -366,6 +368,101 @@ test.skipIf(!posix)(
           (entry) => entry.path === "/identity/accounts/register/finish",
         ),
       ).toHaveLength(1);
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "an Environment whose address changes in the same network never gets the account it had, and an account file out of place is never used",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      await w.vault.confirm(collection);
+      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
+      const before = {
+        account: await readFile(w.paths.account, "utf8"),
+        session: await readSession(w.paths),
+      };
+      // The same Remote Environment now answers at another address in the
+      // same network: the vault is the same, the account is not.
+      const moved = "vaultwarden@moved.lazurio.io";
+      const host: VaultHost = {
+        ...w.host,
+        context: async () =>
+          vaultContextOf({
+            handover: personalHandoverAt("moved.lazurio.io"),
+            kind: "personal",
+            label: null,
+          }),
+      };
+      const unlocks = () =>
+        w.journal.filter((entry) => entry.operation === "unlock").length;
+      const unlocked = unlocks();
+      expect(await vaultStatus(host)).toEqual({
+        kind: "vault-status",
+        state: "none",
+        vault: vaultOrigin,
+        account: moved,
+        collection: "Environmenty/Osobní · moved",
+        name: "Osobní",
+        team: false,
+        registered: false,
+      });
+      expect(await vaultRefresh(host)).toMatchObject({
+        state: "none",
+        account: moved,
+      });
+      expect(await vaultEnv(host)).toEqual({
+        kind: "vault-env-refused",
+        reason: "not-connected",
+      });
+      expect(unlocks()).toBe(unlocked);
+      // Connecting registers the new address, which waits for its own
+      // invitation.
+      expect(await vaultConnect(host)).toMatchObject({
+        state: "awaiting-invite",
+        account: moved,
+      });
+      // The earlier account's files are untouched, and it still serves the
+      // address it belongs to.
+      expect(await readFile(w.paths.account, "utf8")).toBe(before.account);
+      expect(await readSession(w.paths)).toBe(before.session);
+      const own = await vaultEnv(w.host);
+      expect(own.kind === "vault-env" ? own.env.BW_SESSION : null).toBe(
+        before.session,
+      );
+
+      // The earlier account's files copied under the new address are not
+      // the new address's account: everything refuses, nothing runs, and
+      // the file is never replaced.
+      const misplaced = vaultPaths(
+        w.host.directory({
+          host: "vaultwarden.example.lazurio.io",
+          address: "moved.lazurio.io",
+        }),
+      );
+      await writeFile(misplaced.account, before.account, { mode: 0o600 });
+      await writeFile(misplaced.session, before.session ?? "", {
+        mode: 0o600,
+      });
+      const mismatch = {
+        state: "failed",
+        stage: "account",
+        reason: "account-mismatch",
+      };
+      expect(await vaultStatus(host)).toMatchObject(mismatch);
+      expect(await vaultRefresh(host)).toMatchObject(mismatch);
+      expect(await vaultConnect(host)).toMatchObject(mismatch);
+      expect(await vaultEnv(host)).toEqual({
+        kind: "vault-env-refused",
+        reason: "not-connected",
+      });
+      expect(unlocks()).toBe(unlocked);
+      expect(await readFile(misplaced.account, "utf8")).toBe(before.account);
     } finally {
       await w.close();
     }

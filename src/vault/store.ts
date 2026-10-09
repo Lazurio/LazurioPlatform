@@ -15,10 +15,12 @@ import { parseUniqueJson } from "../providers/unique-json";
 import { syncDirectory, writeDurableFile } from "../update/durable-file";
 
 // The custody of one Environment vault account (decision F43): the files the
-// account needs on this Environment and nothing else, in the Bitwarden CLI's
-// own data directory that Lazurio gives it, owner-only:
+// account needs on this Environment and nothing else, written by Lazurio
+// beside bw's own store in the data directory it gives bw, owner-only, in a
+// directory of the account's whole identity (the vault and the Environment's
+// address):
 //
-//   <state>/lazurio/vault/<vault host>/        0700
+//   <state>/lazurio/vault/<vault host>/<Environment address>/   0700
 //     lock                                     0600, empty: the kernel lock
 //                                              of connect, refresh, unlock
 //                                              and disconnect
