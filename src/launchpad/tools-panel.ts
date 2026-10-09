@@ -5,6 +5,7 @@ import type { MessageKey } from "./messages";
 import {
   answerWithin,
   autoEnable,
+  checkedLine,
   connectionLine,
   curatedActions,
   currentNotes,
@@ -50,8 +51,9 @@ type Post = (
 // The tools section of the page (decision F18). The server derives every
 // fact; the browser shows it as text and sends back the full next selection
 // (and, for a note, the full next set of notes) with the revision it showed.
-// One click applies a change; the confirmation on the card names the new
-// Folder revision and offers Undo, which restores the state before it.
+// One click applies a change; the confirmation on the card says it in plain
+// words and offers Undo, which restores the state before it; the technical
+// part of a notice is in the tool's Details (Matěj 2026-10-09).
 export function createToolsPanel(
   options: Readonly<{
     post: Post;
@@ -364,9 +366,13 @@ export function createToolsPanel(
       } catch {}
       if (flow !== current) return;
       const outcome = installOutcome(value, name, copy);
-      if (!outcome.ok) return loginFailed(outcome.message, outcome.agent);
+      if (!outcome.ok)
+        return loginFailed(outcome.message, outcome.agent, outcome.detail);
       current.install = true;
-      loginBody.replaceChildren(element("p", "", outcome.message));
+      loginBody.replaceChildren(
+        element("p", "", outcome.message),
+        ...(outcome.detail === undefined ? [] : [folded(outcome.detail)]),
+      );
     }
     await startLogin();
   }
@@ -622,6 +628,17 @@ export function createToolsPanel(
     return row;
   }
 
+  // What is for support, folded under "Details" in the dialog: the key a
+  // sign-in uses, the technical part of an installation.
+  function folded(detail: string): HTMLElement {
+    const more = element("details", "tools-login-more");
+    more.append(
+      element("summary", "", options.copy().contentDetails),
+      element("p", "tools-muted", detail),
+    );
+    return more;
+  }
+
   // A sign-in completed in this Launchpad session turns "Používají agenti"
   // on (Matěj 2026-10-04), after the reading that follows it, so the change
   // is made at the current revision; never for a tool signed in before.
@@ -650,12 +667,7 @@ export function createToolsPanel(
     if (ssh !== null) {
       phase("signed-in", ssh.message);
       // Which key it uses is for support: folded.
-      const more = element("details", "tools-login-more");
-      more.append(
-        element("summary", "", copy.contentDetails),
-        element("p", "tools-muted", ssh.detail),
-      );
-      loginBody.replaceChildren(more, doneRow());
+      loginBody.replaceChildren(folded(ssh.detail), doneRow());
       afterSignIn(current.tool.name, state);
       return;
     }
@@ -731,7 +743,7 @@ export function createToolsPanel(
     box.replaceChildren(label, select, hint, status);
   }
 
-  function loginFailed(message: string, agent: boolean) {
+  function loginFailed(message: string, agent: boolean, detail?: string) {
     const current = flow;
     if (current === null) return;
     const copy = options.copy();
@@ -770,6 +782,7 @@ export function createToolsPanel(
     });
     row.append(again);
     loginBody.replaceChildren(
+      ...(detail === undefined ? [] : [folded(detail)]),
       ...(agent ? [element("p", "tools-muted", copy.toolsAgentFallback)] : []),
       row,
     );
@@ -1099,6 +1112,18 @@ export function createToolsPanel(
       fill(copy.toolsDetailsNamed, { name: tool.name }),
     );
     const body = element("div", "details-body");
+    // The technical part of the notice on the row (a path, a reason, a
+    // command, a key's fingerprint): only here, while the notice lasts.
+    const detail =
+      notice?.name === tool.name ? notice.outcome.detail : undefined;
+    if (detail !== undefined) {
+      const happened = element("section", "");
+      happened.append(
+        element("h4", "", copy.toolsWhatHappened),
+        element("p", "tools-muted", detail),
+      );
+      body.append(happened);
+    }
     if (vaultRow?.details) body.append(vaultRow.details);
     // The installation: version, anything to look at, where it is, and for
     // gh whether the SSH key of this Environment is linked.
@@ -1286,13 +1311,11 @@ export function createToolsPanel(
         }),
       };
       failed = false;
-      checked.textContent = fill(options.copy().toolsChecked, {
-        revision: String(parsed.revision),
-        time: new Date().toLocaleTimeString(parsed.locale, {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      });
+      checked.textContent = checkedLine(
+        new Date(),
+        parsed.locale,
+        options.copy(),
+      );
     } catch {
       if (turn !== sequence) return;
       overview = null;

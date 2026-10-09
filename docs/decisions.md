@@ -1827,6 +1827,16 @@ stays for other clients. The note about a tool outside `~/.local/bin` is shown o
 a hosted preset; on a local workstation any tool on PATH is fine, and the status
 response says which with `hosted`.
 
+*Amended 2026-10-09 (Matěj: plain language for normal users; technical details only
+under Podrobnosti).* The card no longer names the Folder revision or the rewritten agent
+instructions, and the section's header says only when the tools were read; the
+revision stays in Settings → General. A confirmation is one plain sentence ("composio
+teď používají agenti."); a switched-on tool that is not installed says on
+its own row that agents start using it once it is installed (the bitwarden row keeps
+its vault's state, F43), and its confirmation is only "Zapnuto.". A refused change
+says that nothing was saved; its path, reason or CLI command (and a removed SSH key's
+fingerprint) is under the tool's Details.
+
 ## F19 — Curated installation and login of catalog tools
 
 **Matěj's decision 2026-09-27 and 2026-09-28 (the F18 line), implemented in this

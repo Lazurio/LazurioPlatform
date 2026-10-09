@@ -1593,7 +1593,9 @@ status" (with them again), and shows:
   the agents' generated files and stays as it is) and one line of its state
   (`connectionLine`): "Připojeno jako <account>" / "Connected as <account>" (with the
   organization for composio), "Nepřipojeno", "Připojení nezjištěno", "Připojení se
-  nezjišťovalo", or "Ještě není přidané" when it is not installed. The installed
+  nezjišťovalo", or "Ještě není přidané" when it is not installed ("Až se <tool>
+  nainstaluje, agenti ho začnou používat." when its switch is on, Matěj 2026-10-09:
+  said only while it is true, from the live state). The installed
   version, a failed version check, a PATH outside the standard and whether gh's SSH key
   is linked are in its Details; only a key that is not linked stays on the line, in
   the warning colour. On the right the one action ("Připojit" / "Connect"; "Přidat a
@@ -1638,16 +1640,22 @@ named "Used by agents: <tool>" with `aria-checked`, so its name holds the visibl
 label and the tool). The button sends the full next
 selection (and, for a note, the full next set of notes) with the shown revision to
 `/api/tools/update`; the page no longer uses `/api/tools/preview`, which stays for
-other clients. After a recorded change the card confirms politely what happened, that
-the agent instructions of this Folder were rewritten and the new Folder revision, with
-an "Undo" that sends the state before the change at that new revision and takes the
-focus once the page has read the new state; enabling a tool
-that is not installed says so, and on the Team preset the shared sign-ins warning
-follows an enable. The whole page then reloads its state, so the revision advances
+other clients. After a recorded change the card confirms what happened in one plain
+sentence ("composio teď používají agenti." / "Agents now use composio."; only "Zapnuto."
+/ "Switched on." for a tool that is not installed, whose row says the rest), with an
+"Undo" that sends the state before the change at the new revision and takes the
+focus once the page has read the new state; on the Team preset the shared sign-ins
+warning follows an enable. Neither the card nor the section's header names the
+Folder, its revision, a path or a command (Matěj 2026-10-09: plain language for normal
+users; technical details only under Podrobnosti); the header says only when the
+tools were read. The whole page then reloads its state, so the revision advances
 for the profile form as well and a profile preview made before the change is dropped.
-A `blocked` answer becomes one sentence in the card (`stale-revision`, `drift` with its
-path, `incomplete-state`; any other reason is named by its code) with a "Reload"
-button; an answer that cannot be read is reported as unconfirmed, never as refused. A
+A `blocked` answer becomes one plain sentence in the card that nothing was saved
+(`stale-revision`, `drift`, `incomplete-state` or any other reason) with a "Reload"
+button; an answer that cannot be read is reported as unconfirmed, never as refused.
+The technical part (a drifted file's path, the reason's code, the CLI command, and a
+removed SSH key's fingerprint after "Sign out") is under the tool's Details as "What
+happened" / "Co se stalo". A
 required tool has no toggle and shows "Always on"; it can carry a note.
 
 **Set up with an agent** opens a modal `<dialog>` with the prepared prompt in a

@@ -236,16 +236,27 @@ export function toolDescription(
 
 /** The state under a tool's name (Matěj 2026-10-04): connected as whom, not
  * connected, or not added yet; the version and the rest are in its
- * details. The SSH key of gh is part of it only when it needs the person
- * (not linked) and on a Team Environment, which works through Lazurio for
- * GitHub. */
+ * details. A tool switched on for agents that is not installed yet says
+ * instead that agents start using it once it is (Matěj 2026-10-09): the
+ * row's live state, so it is said only while it is true, never kept from
+ * the moment the switch was flipped. The SSH key of gh is part of it only
+ * when it needs the person (not linked) and on a Team Environment, which
+ * works through Lazurio for GitHub. */
 export function connectionLine(
   tool: ToolOverview,
   copy: Copy,
   brokered = false,
 ): Readonly<{ text: string; state: string; ssh: string | null }> {
   if (!tool.installed)
-    return { text: copy.toolsNotAdded, state: "missing", ssh: null };
+    return {
+      // A required tool has no switch: it is only not added yet.
+      text:
+        tool.enabled && tool.tier !== "required"
+          ? fill(copy.toolsEnabledNotInstalled, { name: tool.name })
+          : copy.toolsNotAdded,
+      state: "missing",
+      ssh: null,
+    };
   const ssh = tool.signIn?.ssh;
   // The line without the key's state; the key follows as its own part.
   let text = signInLine(tool, copy, brokered);
@@ -560,13 +571,18 @@ export function noteDraftView(
 export type ToolChange = Readonly<{
   name: string;
   action: "enable" | "disable" | "note-save" | "note-clear" | "undo";
-  /** Whether the tool is installed: enabling a missing tool says so. */
+  /** Whether the tool is installed now: only then does an enable say that
+   * agents use it; until then its row says when they will. */
   installed: boolean;
 }>;
 
 export type ToolChangeOutcome = Readonly<{
   kind: "updated" | "unchanged" | "blocked" | "failed";
+  /** One plain sentence on the tool's row: never the Folder, its revision,
+   * a path or a command (Matěj 2026-10-09). */
   message: string;
+  /** The technical part, for the tool's Details only. */
+  detail?: string;
   /** The state shown is no longer the Folder's: offer a reload. */
   reload: boolean;
   /** The Folder revision the change produced, for an Undo at it. */
@@ -575,7 +591,8 @@ export type ToolChangeOutcome = Readonly<{
   shared?: boolean;
 }>;
 
-/** One readable sentence for whatever an update answered. */
+/** One plain sentence for whatever an update answered, and the technical
+ * part apart from it. */
 export function toolChangeOutcome(
   result: unknown,
   change: ToolChange,
@@ -591,22 +608,19 @@ export function toolChangeOutcome(
     Number.isSafeInteger(value.revision) &&
     value.revision >= 1
   ) {
+    // A tool that is not installed yet is only switched on: its row says
+    // that agents start using it once it is, and the confirmation does not
+    // say otherwise.
     const done: Record<ToolChange["action"], MessageKey> = {
-      enable: "toolsEnabledDone",
+      enable: change.installed ? "toolsEnabledDone" : "toolsSwitchedOn",
       disable: "toolsDisabledDone",
       "note-save": "toolsNoteSaved",
       "note-clear": "toolsNoteCleared",
       undo: "toolsUndone",
     };
-    const values = { name: change.name, revision: String(value.revision) };
     return {
       kind: "updated",
-      message: [
-        fill(copy[done[change.action]], values),
-        ...(change.action === "enable" && !change.installed
-          ? [fill(copy.toolsEnabledNotInstalled, values)]
-          : []),
-      ].join(" "),
+      message: fill(copy[done[change.action]], { name: change.name }),
       reload: false,
       revision: value.revision,
       shared: value.warning === "shared-environment-sign-ins",
@@ -615,17 +629,46 @@ export function toolChangeOutcome(
   if (value.kind === "unchanged")
     return { kind: "unchanged", message: copy.toolsUnchanged, reload: true };
   if (value.kind === "blocked" && typeof value.reason === "string") {
-    const message =
-      value.reason === "stale-revision"
-        ? copy.toolsBlockedStale
-        : value.reason === "drift" && typeof value.path === "string"
-          ? fill(copy.toolsBlockedDrift, { path: value.path })
-          : value.reason === "incomplete-state"
-            ? copy.toolsBlockedIncomplete
-            : fill(copy.toolsBlockedOther, { reason: value.reason });
-    return { kind: "blocked", message, reload: true };
+    if (value.reason === "stale-revision")
+      return { kind: "blocked", message: copy.toolsBlockedStale, reload: true };
+    if (value.reason === "drift" && typeof value.path === "string")
+      return {
+        kind: "blocked",
+        message: copy.toolsBlockedDrift,
+        detail: fill(copy.toolsBlockedDriftDetail, { path: value.path }),
+        reload: true,
+      };
+    if (value.reason === "incomplete-state")
+      return {
+        kind: "blocked",
+        message: copy.toolsBlockedIncomplete,
+        detail: copy.toolsBlockedIncompleteDetail,
+        reload: true,
+      };
+    // A reason this page has no sentence for is named, never hidden: in
+    // the Details.
+    return {
+      kind: "blocked",
+      message: copy.toolsBlockedOther,
+      detail: fill(copy.toolsBlockedOtherDetail, { reason: value.reason }),
+      reload: true,
+    };
   }
-  return { kind: "failed", message: copy.toolsFailed, reload: true };
+  return {
+    kind: "failed",
+    message: copy.toolsFailed,
+    detail: copy.toolsFailedDetail,
+    reload: true,
+  };
+}
+
+/** The line above the tools: when they were read. The Folder and its
+ * revision are nothing a person needs here (Matěj 2026-10-09); Settings →
+ * General shows the revision. */
+export function checkedLine(at: Date, locale: "cs" | "en", copy: Copy): string {
+  return fill(copy.toolsChecked, {
+    time: at.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }),
+  });
 }
 
 /** Only an https address of the catalog becomes a link. */
@@ -981,8 +1024,6 @@ export function sshOutcome(
   };
 }
 
-/** What an install answered: whether the sign-in may follow, and one
- * sentence. */
 /** The notice of "Install" on a Team Environment's gh row: what the
  * installation did, and that the Environment works in GitHub through Lazurio
  * for GitHub instead of a sign-in. */
@@ -992,20 +1033,25 @@ export function teamInstallOutcome(
   copy: Copy,
 ): ToolChangeOutcome {
   const outcome = installOutcome(input, name, copy);
+  const detail = outcome.detail === undefined ? {} : { detail: outcome.detail };
   return outcome.ok
     ? {
         kind: "updated",
         reload: false,
         message: `${outcome.message} ${copy.toolsTeamGithub}`,
+        ...detail,
       }
-    : { kind: "failed", reload: false, message: outcome.message };
+    : { kind: "failed", reload: false, message: outcome.message, ...detail };
 }
 
+/** What an install answered: whether the sign-in may follow, one plain
+ * sentence, and the technical part (where agents look for tools, the
+ * platform, the step and its reason) for the Details (Matěj 2026-10-09). */
 export function installOutcome(
   input: unknown,
   name: string,
   copy: Copy,
-): Readonly<{ ok: boolean; message: string; agent: boolean }> {
+): Readonly<{ ok: boolean; message: string; agent: boolean; detail?: string }> {
   const value =
     input && typeof input === "object" && !Array.isArray(input)
       ? (input as Record<string, unknown>)
@@ -1014,13 +1060,11 @@ export function installOutcome(
     return {
       ok: true,
       agent: false,
-      message: [
-        fill(copy.toolsInstalledNow, {
-          name,
-          version: typeof value.version === "string" ? value.version : "",
-        }).replace("  ", " "),
-        ...(value.onPath === false ? [copy.toolsInstallNotOnPath] : []),
-      ].join(" "),
+      message: fill(copy.toolsInstalledNow, {
+        name,
+        version: typeof value.version === "string" ? value.version : "",
+      }).replace("  ", " "),
+      ...(value.onPath === false ? { detail: copy.toolsInstallNotOnPath } : {}),
     };
   if (value.kind === "already-installed")
     return {
@@ -1032,7 +1076,8 @@ export function installOutcome(
     return {
       ok: false,
       agent: true,
-      message: fill(copy.toolsInstallUnsupported, {
+      message: copy.toolsInstallUnsupported,
+      detail: fill(copy.toolsInstallUnsupportedDetail, {
         platform: text(value.platform) ? value.platform : "?",
         arch: text(value.arch) ? value.arch : "?",
       }),
@@ -1041,7 +1086,8 @@ export function installOutcome(
     return {
       ok: false,
       agent: true,
-      message: fill(copy.toolsInstallFailed, {
+      message: copy.toolsInstallFailed,
+      detail: fill(copy.toolsInstallFailedDetail, {
         stage: text(value.stage) ? value.stage : "?",
         reason: text(value.reason) ? value.reason : "?",
       }),
@@ -1191,7 +1237,8 @@ export function organizationChoices(
   return choices;
 }
 
-/** One sentence for what a logout did. */
+/** One sentence for what a logout did; the key's fingerprint and the reason
+ * of a failure are for the Details (Matěj 2026-10-09). */
 export function logoutOutcome(
   input: unknown,
   name: string,
@@ -1206,9 +1253,10 @@ export function logoutOutcome(
       value.sshKey !== null && typeof value.sshKey === "object"
         ? (value.sshKey as Record<string, unknown>)
         : undefined;
-    const print = fingerprint(removal?.fingerprint)
-      ? removal?.fingerprint
-      : "?";
+    const print =
+      removal !== undefined && fingerprint(removal.fingerprint)
+        ? removal.fingerprint
+        : null;
     const ssh: Record<string, MessageKey> = {
       removed: "toolsSshRemoved",
       "not-registered": "toolsSshRemovalNotRegistered",
@@ -1232,10 +1280,13 @@ export function logoutOutcome(
             : copy.toolsSignedOutLocal,
           { name },
         ),
-        ...(key === undefined
-          ? []
-          : [fill(copy[key], { fingerprint: String(print) })]),
+        ...(key === undefined ? [] : [copy[key]]),
       ].join(" "),
+      ...(print === null
+        ? {}
+        : {
+            detail: fill(copy.toolsSshKeyFingerprint, { fingerprint: print }),
+          }),
     };
   }
   // A Team Environment signs out only a person's account left there.
@@ -1248,9 +1299,11 @@ export function logoutOutcome(
   return {
     kind: "failed",
     reload: false,
-    message: fill(copy.toolsSignOutFailed, {
-      name,
-      reason: text(value.reason) ? value.reason : "?",
-    }),
+    message: fill(copy.toolsSignOutFailed, { name }),
+    ...(text(value.reason)
+      ? {
+          detail: fill(copy.toolsSignOutFailedDetail, { reason: value.reason }),
+        }
+      : {}),
   };
 }
