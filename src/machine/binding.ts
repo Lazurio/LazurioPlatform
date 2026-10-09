@@ -85,6 +85,9 @@ function entry(input: HandoverEntry): MachineEntry {
             browserOrigin: input.browser.external_origin,
             browserListenPort: input.browser.listen_port,
           }),
+      ...(input.environment_relay === undefined
+        ? {}
+        : { environmentRelaySocket: input.environment_relay.socket }),
     });
   } catch {
     throw new MachineContextError("machine-context-invalid");

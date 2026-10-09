@@ -268,6 +268,15 @@
             "external_origin": { "description": "Origin of the Environment browser view on the gateway.", "$ref": "#/$defs/https_origin" },
             "listen_port": { "description": "Loopback port the Environment browser view listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
           }
+        },
+        "environment_relay": {
+          "description": "The Environment relay of this Machine (DEV-6653, contract C3; root decision 0194 point 3), present only on an Organization work VM that declares its own identity at the Lazurio issuer: a unix socket only the operator account can reach, on which the Launchpad server asks the Dashboard as this Environment with exactly GET /organization/settings and POST /organization/settings/report. The Environment's key and tokens stay with the gateway.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["socket"],
+          "properties": {
+            "socket": { "description": "Absolute path of the relay's unix socket.", "type": "string", "maxLength": 100, "pattern": "^/run/[a-z0-9-]+/[a-z0-9-]+\\.sock$" }
+          }
         }
       }
     },
