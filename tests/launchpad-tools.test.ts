@@ -264,6 +264,18 @@ test.skipIf(process.platform === "win32")(
             prompt: toolPrompt("composio", "en") as string,
           },
           {
+            name: "bitwarden",
+            command: "bw",
+            tier: "recommended",
+            setup: "launchpad",
+            enabled: false,
+            purpose: expect.any(String),
+            usage: expect.any(String),
+            source: "https://github.com/bitwarden/clients",
+            installed: false,
+            prompt: toolPrompt("bitwarden", "en") as string,
+          },
+          {
             name: "wacli",
             command: "wacli",
             tier: "optional",
@@ -399,6 +411,7 @@ test.skipIf(process.platform === "win32")(
       expect(first.tools.map((tool) => [tool.name, tool.enabled])).toEqual([
         ["gh", true],
         ["composio", false],
+        ["bitwarden", false],
         ["wacli", false],
         ["gogcli", false],
         ["neon", false],
@@ -424,6 +437,7 @@ test.skipIf(process.platform === "win32")(
       ).toEqual([
         ["gh", true, true],
         ["composio", true, false],
+        ["bitwarden", false, false],
         ["wacli", false, false],
         ["gogcli", false, false],
         ["neon", true, false],
@@ -476,6 +490,7 @@ test.skipIf(process.platform === "win32")(
       expect(overview.hosted).toBe(true);
       // An empty PATH is a state, not an error.
       expect(overview.tools.map((tool) => tool.installed)).toEqual([
+        false,
         false,
         false,
         false,
@@ -634,6 +649,8 @@ test.skipIf(process.platform === "win32")(
             organization: "Spectoda",
           },
         ],
+        // The vault's state is its own (decision F43): not probed here.
+        ["bitwarden", { state: "unknown" }],
         ["wacli", { state: "signed-out" }],
         // Not installed: nothing ran.
         ["gogcli", { state: "unknown" }],
@@ -739,6 +756,7 @@ test.skipIf(process.platform === "win32")(
       expect(status.tools.map((tool) => [tool.name, tool.note])).toEqual([
         ["gh", "Only the Spectoda organization."],
         ["composio", note],
+        ["bitwarden", undefined],
         ["wacli", undefined],
         ["gogcli", undefined],
         ["neon", undefined],

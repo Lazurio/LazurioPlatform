@@ -91,6 +91,7 @@ import {
 } from "./update/cli";
 import { selectActivator } from "./update/launchpad-activation";
 import { detectServiceControl } from "./update/service-control";
+import { runVaultCommand, vaultHelp } from "./vault/cli";
 
 // Update commands return their own typed output and stable exit status.
 function emit(output: CommandOutput): number {
@@ -217,6 +218,16 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // its view.
   if (args[0] === "browser")
     return emit(await runBrowserCommand(args.slice(1), processContext()));
+  // The Environment vault (decision F43): `vault env` prints the shell
+  // exports alone on stdout, for `eval "$(lazurio vault env)"`; connect's
+  // steps and every refusal go to stderr.
+  if (args[0] === "vault")
+    return emit(
+      await runVaultCommand(args.slice(1), {
+        ...processContext(),
+        progress: (line) => console.error(line),
+      }),
+    );
   // The link or path alone on stdout; the note follows on stderr.
   if (args[0] === "files")
     return emit(
@@ -471,6 +482,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(chatHelp);
     console.log(browserHelp);
     console.log(filesHelp);
+    console.log(vaultHelp);
     console.log(machineHelp);
     return 0;
   }

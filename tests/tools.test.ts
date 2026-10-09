@@ -86,6 +86,7 @@ test("the catalog names the operator's tools with their official update path", (
     "npm",
     "bun",
     "composio",
+    "bitwarden",
     "wacli",
     "gogcli",
     "neon",
@@ -377,9 +378,11 @@ test.skipIf(!posix)(
       installed: false,
     });
     const text = await runToolsCommand(["status"], context);
-    expect(text.text).toContain(`gh       2.86.0           ${join(bin, "gh")}`);
     expect(text.text).toContain(
-      "codex    missing          https://developers.openai.com/codex/cli",
+      `gh        2.86.0           ${join(bin, "gh")}`,
+    );
+    expect(text.text).toContain(
+      "codex     missing          https://developers.openai.com/codex/cli",
     );
     const none = await runToolsCommand(["update", "gh"], context);
     expect(none.code).toBe(1);
@@ -458,6 +461,15 @@ test.skipIf(!posix)(
         source: "https://docs.composio.dev/docs/cli",
       },
       {
+        name: "bitwarden",
+        command: "bw",
+        tier: "recommended",
+        setup: "launchpad",
+        enabled: false,
+        installed: false,
+        source: "https://github.com/bitwarden/clients",
+      },
+      {
         name: "wacli",
         tier: "optional",
         setup: "launchpad",
@@ -488,6 +500,7 @@ test.skipIf(!posix)(
       "revision 1",
       `gh        required     launchpad  enabled   2.86.0 ${join(bin, "gh")}`,
       "composio  recommended  launchpad  disabled  missing https://docs.composio.dev/docs/cli",
+      "bitwarden recommended  launchpad  disabled  missing https://github.com/bitwarden/clients",
       `wacli     optional     launchpad  disabled  0.9.1 ${join(bin, "wacli")}`,
       "gogcli    optional     agent      disabled  missing https://github.com/openclaw/gogcli",
       "neon      optional     agent      disabled  missing https://neon.com/docs/reference/neon-cli",
@@ -537,6 +550,7 @@ test.skipIf(!posix)(
     ).toEqual([
       ["gh", true],
       ["composio", true],
+      ["bitwarden", false],
       ["wacli", true],
       ["gogcli", false],
       ["neon", false],
@@ -585,7 +599,7 @@ test.skipIf(!posix)(
           kind: "blocked",
           reason: "tool-unknown",
           tool,
-          known: ["gh", "composio", "wacli", "gogcli", "neon"],
+          known: ["gh", "composio", "bitwarden", "wacli", "gogcli", "neon"],
         },
       });
 
@@ -700,14 +714,22 @@ test("the prepared agent prompt: task, target state and the rule to enable the t
       const prompt = toolPrompt(entry.name, locale);
       if (prompt === undefined) throw new Error("Expected a prompt");
       expect(prompt).not.toContain("undefined");
-      expect(prompt).toContain(
-        locale === "cs"
-          ? `Úkol: nainstaluj na tomhle Environmentu nástroj \`${entry.name}\` (příkaz \`${entry.command}\`)`
-          : `Task: install the tool \`${entry.name}\` (command \`${entry.command}\`) in this Environment`,
-      );
-      expect(prompt).toContain(entry.activation.purpose[locale]);
+      // The Environment vault is connected, not installed with a person's
+      // sign-in (decision F43): its own task and its own status command.
+      const task = entry.activation.task;
+      if (task !== undefined) {
+        expect(prompt.startsWith(task[locale])).toBe(true);
+        expect(prompt).toContain("`lazurio vault status --json`");
+      } else {
+        expect(prompt).toContain(
+          locale === "cs"
+            ? `Úkol: nainstaluj na tomhle Environmentu nástroj \`${entry.name}\` (příkaz \`${entry.command}\`)`
+            : `Task: install the tool \`${entry.name}\` (command \`${entry.command}\`) in this Environment`,
+        );
+        expect(prompt).toContain(entry.activation.purpose[locale]);
+        expect(prompt).toContain("`lazurio tools status --json`");
+      }
       expect(prompt).toContain(entry.activation.installation[locale]);
-      expect(prompt).toContain("`lazurio tools status --json`");
       expect(
         prompt.includes(
           `\`lazurio tools enable ${entry.name} --folder <Folder> --expected-revision <n>\``,
@@ -753,7 +775,7 @@ test("the prepared agent prompt: task, target state and the rule to enable the t
       kind: "blocked",
       reason: "tool-unknown",
       tool: name,
-      known: ["gh", "composio", "wacli", "gogcli", "neon"],
+      known: ["gh", "composio", "bitwarden", "wacli", "gogcli", "neon"],
     });
   }
   for (const args of [
@@ -787,6 +809,8 @@ test("each catalog probe reads signed in, as whom, signed out or unknown from it
   ).toEqual([
     ["gh", ["auth", "status", "--hostname", "github.com"]],
     ["composio", ["whoami"]],
+    // The Environment vault reads its state through its own core (F43).
+    ["bitwarden", undefined],
     ["wacli", ["auth", "status", "--json", "--read-only"]],
     ["gogcli", ["auth", "list", "--check", "--json", "--no-input"]],
     ["neon", ["me", "-o", "json"]],
@@ -1051,6 +1075,7 @@ exit 1
       { state: "unknown" },
       { state: "unknown" },
       { state: "unknown" },
+      { state: "unknown" },
     ]);
     expect(JSON.stringify(signed)).not.toContain("SECRET");
     const text = await runToolsCommand(
@@ -1128,6 +1153,7 @@ exit 1
     expect(listed.tools.map((tool) => tool.note)).toEqual([
       "Only the Spectoda org.",
       "Use it for ClickUp.\n# not a heading",
+      undefined,
       undefined,
       undefined,
       undefined,

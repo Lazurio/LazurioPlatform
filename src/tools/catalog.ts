@@ -1,3 +1,4 @@
+import { bitwardenPin } from "../vault/pin";
 import { toolNoteProblem } from "./note";
 
 // The operator's tools that `lazurio tools` reports and, on instruction, updates
@@ -76,6 +77,15 @@ export type ToolActivation = Readonly<{
    * where it replaces `installation` and the prompt guides no sign-in. */
   team?: ToolText;
   signInProbe?: SignInProbe;
+  /** The prompt's task and its first step, for a tool whose setup is not
+   * an installation and a person's sign-in (the Environment vault, decision
+   * F43): it replaces the two generic paragraphs. */
+  task?: ToolText;
+  /** Where Lazurio sets the tool up: `hosted-linux` only in a Remote
+   * Environment on Linux (the Environment vault, decision F43; this computer
+   * is its second wave). Absent: everywhere. Elsewhere doctor does not
+   * count it as missing. */
+  offered?: "hosted-linux";
 }>;
 
 export type ToolEntry = Readonly<{
@@ -85,6 +95,11 @@ export type ToolEntry = Readonly<{
   source: string;
   updater: ToolUpdater;
   activation?: ToolActivation;
+  /** The variable that names the tool's data directory, when the tool
+   * writes its store on every start, even for `--version` (bw): the version
+   * command then runs with a private temporary directory there, so no probe
+   * ever touches a profile (decision F43). */
+  isolatedData?: string;
 }>;
 export type ActivatableTool = ToolEntry &
   Readonly<{ activation: ToolActivation }>;
@@ -241,6 +256,44 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
       ),
     },
   }),
+  // The Environment vault (decision F43, root decision 0193): the Bitwarden
+  // CLI signed in to the Environment's own account in its network's
+  // Vaultwarden, pinned per Platform release and set up by Settings → Tools
+  // → bitwarden or `lazurio vault connect`. bw writes its store on every
+  // start, so even its version command gets a data directory of its own.
+  tool({
+    name: "bitwarden",
+    command: "bw",
+    versionArgs: ["--version"],
+    source: "https://github.com/bitwarden/clients",
+    updater: { kind: "none" },
+    isolatedData: "BITWARDENCLI_APPDATA_DIR",
+    activation: {
+      tier: "recommended",
+      setup: "launchpad",
+      offered: "hosted-linux",
+      task: {
+        cs: "Úkol: připoj trezor tohoto Environmentu, nástroj `bitwarden` (příkaz `bw`): účet Environmentu v trezoru jeho sítě, přihlášený a odemčený pro agenty. Nejdřív zjisti skutečný stav příkazem `lazurio vault status --json`; co už funguje, neměň. Pozvat adresu účtu a potvrdit nového člena může jen Admin nebo Owner organizace v trezoru: tyhle dva kroky dělá Operátor (nebo jeho Admin) sám v trezoru, ty mu řekneš přesně co.",
+        en: "Task: connect this Environment's vault, the tool `bitwarden` (command `bw`): the Environment's account in its network's vault, signed in and unlocked for agents. First read the actual state with `lazurio vault status --json`; change nothing that already works. Only an Admin or Owner of the vault's organization can invite the account's address and confirm the new member: the Operator (or their Admin) does these two steps in the vault, and you tell them exactly what.",
+      },
+      installation: installation(
+        `Cílový stav: Bitwarden CLI ve verzi, kterou připíná Lazurio (${bitwardenPin.version}, sestavení OSS z oficiálních vydání https://github.com/bitwarden/clients), spouští \`~/.local/bin/bw\` a účet tohoto Environmentu \`vaultwarden@<adresa Environmentu>\` je v trezoru jeho sítě založený, přihlášený a odemčený. Udělá to příkaz \`lazurio vault connect --json\`: nainstaluje připnuté \`bw\`, založí účet s heslem, které vznikne tady a nezná ho žádný člověk, přihlásí ho API klíčem a vrátí stav. Hlásí-li \`awaiting-invite\`, řekni Operátorovi, že Admin nebo Owner organizace v trezoru musí pozvat adresu účtu s právem úprav do kolekce \`Environmenty/<jméno> · <stroj>\` (přesné hodnoty jsou ve výstupu příkazu), a pak příkaz spusť znovu. Hlásí-li \`confirming\`, Admin v trezoru potvrdí nového člena podle otisku z výstupu. Jinou verzi \`bw\` neinstaluj, \`~/.local/bin/bw\`, který není Lazuria, nepřepisuj a heslo účtu, API klíč ani relaci nikam nekopíruj. Důkaz: \`lazurio vault refresh --json\` hlásí \`connected\`.`,
+        `Target state: the Bitwarden CLI at the version Lazurio pins (${bitwardenPin.version}, the OSS build of the official releases https://github.com/bitwarden/clients) runs as \`~/.local/bin/bw\`, and this Environment's account \`vaultwarden@<Environment address>\` exists in its network's vault, signed in and unlocked. The command \`lazurio vault connect --json\` does it: it installs the pinned \`bw\`, creates the account with a password generated here that no person knows, signs it in with its API key and returns the state. When it reports \`awaiting-invite\`, tell the Operator that an Admin or Owner of the vault's organization must invite the account's address with edit rights into the collection \`Environmenty/<name> · <machine>\` (the exact values are in the command's output), then run the command again. When it reports \`confirming\`, an Admin confirms the new member in the vault by the fingerprint in the output. Install no other version of \`bw\`, never overwrite a \`~/.local/bin/bw\` that is not Lazurio's, and copy the account's password, API key or session nowhere. Proof: \`lazurio vault refresh --json\` reports \`connected\`.`,
+      ),
+      purpose: {
+        cs: "Bitwarden CLI (`bw`) přihlášené k vlastnímu účtu tohoto Environmentu v jeho trezoru Vaultwarden. Co v něm najdeš, smíš použít bez ptaní.",
+        en: "Bitwarden CLI (`bw`) signed in to this Environment's own account in its Vaultwarden vault. What you find there you may use without asking.",
+      },
+      usage: writingUsage(
+        'Na začátku práce spusť `eval "$(lazurio vault env)"`; dá ti odemčené `bw` k trezoru tohoto Environmentu. Když `bw` hlásí zamčený trezor, spusť `eval "$(lazurio vault env)"` znovu; když `lazurio vault env` hlásí, že trezor není připojený, pošli Operátora do Launchpadu (Nastavení → Nástroje → bitwarden). Nikdy nespouštěj `bw login`, `unlock`, `lock`, `logout` ani `bw config`: odemčení drží Launchpad pro všechny agenty a každé další odemčení ho ostatním zruší. Před čtením spusť `bw sync`, hledej `bw list items --search <služba>` a hodnotu z `bw get password|username|totp <id>` předávej rovnou do příkazu, nikdy do chatu, Gitu, logu ani PR. Nové heslo nebo token ulož do kolekce Environmentu: v šabloně `bw get template item` vyplň `organizationId` a `collectionIds` z `$LAZURIO_VAULT_ORGANIZATION_ID` a `$LAZURIO_VAULT_COLLECTION_ID`, pak `bw encode` a `bw create item`, a pojmenuj ho podle služby a účelu; do vlastního trezoru účtu nic neukládej. Chybí-li něco, požádej Operátora, ať to do kolekce nasdílí.',
+        'At the start of work run `eval "$(lazurio vault env)"`; it gives you an unlocked `bw` for this Environment\'s vault. When `bw` reports a locked vault, run `eval "$(lazurio vault env)"` again; when `lazurio vault env` reports that the vault is not connected, send the Operator to the Launchpad (Settings → Tools → bitwarden). Never run `bw login`, `unlock`, `lock`, `logout` or `bw config`: the Launchpad keeps the unlocked session for all agents and every further unlock ends it for the others. Run `bw sync` before reading, search with `bw list items --search <service>` and pass a value of `bw get password|username|totp <id>` straight into a command, never into chat, Git, a log or a PR. Store a new password or token in the Environment\'s collection: fill `organizationId` and `collectionIds` of the `bw get template item` template from `$LAZURIO_VAULT_ORGANIZATION_ID` and `$LAZURIO_VAULT_COLLECTION_ID`, then `bw encode` and `bw create item`, and name it after the service and its purpose; store nothing in the account\'s own vault. When something is missing, ask the Operator to share it into the collection.',
+        {
+          cs: "Navenek viditelný zápis do služby, ke které přístup z trezoru patří,",
+          en: "An externally visible write to the service a credential of the vault belongs to",
+        },
+      ),
+    },
+  }),
   tool({
     name: "wacli",
     command: "wacli",
@@ -342,6 +395,11 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     },
   }),
 ]);
+
+/** The Environment vault's catalog tool (decision F43): set up by `lazurio
+ * vault connect` and Settings → Tools → bitwarden, not by the curated
+ * install and sign-in of F19. */
+export const vaultToolName = "bitwarden";
 
 export function findTool(name: string): ToolEntry | undefined {
   return toolCatalog.find((entry) => entry.name === name);
@@ -492,6 +550,13 @@ export function toolPrompt(
     cs: "Když cílového stavu nedosáhneš, přestaň, nahlas přesně, co chybí, a nic neobcházej.",
     en: "If you cannot reach the target state, stop, report exactly what is missing and work around nothing.",
   };
+  if (team === undefined && activation.task !== undefined)
+    return [
+      activation.task[locale],
+      activation.installation[locale],
+      enable[locale],
+      stop[locale],
+    ].join("\n\n");
   if (team !== undefined)
     return [
       {

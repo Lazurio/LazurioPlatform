@@ -1,5 +1,13 @@
 import { spawn } from "node:child_process";
-import { access, constants, realpath, stat } from "node:fs/promises";
+import {
+  access,
+  constants,
+  mkdtemp,
+  realpath,
+  rm,
+  stat,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { type SignInProbe, type ToolEntry, toolCatalog } from "./catalog";
 import { ghStatus } from "./gh-status";
@@ -14,6 +22,9 @@ export type ToolRunner = (
   command: readonly string[],
   timeoutMs: number,
   env: Readonly<Record<string, string>>,
+  /** `maxBytes`: the bound of each stream (default 256 KiB); a command
+   * whose answer is a whole list (the vault's items) takes a larger one. */
+  options?: Readonly<{ maxBytes?: number }>,
 ) => Promise<ToolProcessResult>;
 
 const maxStreamBytes = 256 * 1024;
@@ -21,13 +32,14 @@ const maxStreamBytes = 256 * 1024;
 async function readBounded(
   stream: NodeJS.ReadableStream,
   onOverflow: () => void,
+  maxBytes: number,
 ): Promise<string> {
   const chunks: Buffer[] = [];
   let length = 0;
   for await (const chunk of stream) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     length += buffer.byteLength;
-    if (length > maxStreamBytes) {
+    if (length > maxBytes) {
       onOverflow();
       break;
     }
@@ -41,7 +53,8 @@ async function readBounded(
 // usually on stderr) and bounded. The child is the leader of its own process
 // group (detached), so the timeout kills the whole group — an installer's
 // helpers included — and nothing keeps writing after "timeout" was reported.
-export const runTool: ToolRunner = async (command, timeoutMs, env) => {
+export const runTool: ToolRunner = async (command, timeoutMs, env, options) => {
+  const maxBytes = options?.maxBytes ?? maxStreamBytes;
   const [executable, ...args] = command;
   if (!executable) throw new Error("A command is required");
   const child = spawn(executable, args, {
@@ -73,8 +86,8 @@ export const runTool: ToolRunner = async (command, timeoutMs, env) => {
   const finished = (async () => {
     await spawned;
     const [stdout, stderr] = await Promise.all([
-      readBounded(child.stdout as NodeJS.ReadableStream, killAll),
-      readBounded(child.stderr as NodeJS.ReadableStream, killAll),
+      readBounded(child.stdout as NodeJS.ReadableStream, killAll, maxBytes),
+      readBounded(child.stderr as NodeJS.ReadableStream, killAll, maxBytes),
     ]);
     return Object.freeze({ exitCode: await exited, stdout, stderr });
   })();
@@ -197,7 +210,14 @@ export async function toolsStatus(
     const env: Record<string, string> = {};
     if (input.path) env.PATH = input.path;
     if (input.home) env.HOME = input.home;
+    // A tool that writes its store on every start (bw) gets a private
+    // temporary data directory, so the probe touches no profile.
+    let isolated: string | undefined;
     try {
+      if (entry.isolatedData !== undefined) {
+        isolated = await mkdtemp(join(tmpdir(), "lazurio-probe-"));
+        env[entry.isolatedData] = isolated;
+      }
       const result = await input.run(
         [path, ...entry.versionArgs],
         versionTimeoutMs,
@@ -246,6 +266,9 @@ export async function toolsStatus(
         standardPath,
         versionError: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      if (isolated !== undefined)
+        await rm(isolated, { recursive: true, force: true });
     }
   }
   return { kind: "tools-status", tools };

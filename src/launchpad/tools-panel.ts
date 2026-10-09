@@ -1,3 +1,4 @@
+import { vaultToolName } from "../tools/catalog";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
 import type { MessageKey } from "./messages";
@@ -38,6 +39,7 @@ import {
   toolStatusView,
 } from "./tools-view";
 import { fill } from "./update-view";
+import { createVaultPanel } from "./vault-panel";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 type Post = (
@@ -85,6 +87,42 @@ export function createToolsPanel(
   const loginStatus = find<HTMLParagraphElement>("#tools-login-status");
   const loginBody = find<HTMLDivElement>("#tools-login-body");
   const loginClose = find<HTMLButtonElement>("#tools-login-close");
+  // The Environment vault's row and dialog (decision F43): its own state,
+  // read beside the tools; a connect that reaches "Připojeno" turns the
+  // agents' switch on, as a completed sign-in does.
+  const vault = createVaultPanel({
+    post: options.post,
+    copy: options.copy,
+    changed: () => render(),
+    connected: () =>
+      void refresh().then(() => {
+        const tool = overview?.tools.find(
+          (entry) => entry.name === vaultToolName,
+        );
+        if (tool !== undefined && tool.tier !== "required" && !tool.enabled)
+          void toggle(tool, true);
+      }),
+    agent: () => {
+      const tool = overview?.tools.find(
+        (entry) => entry.name === vaultToolName,
+      );
+      if (tool === undefined) return;
+      const copy = options.copy();
+      openPrompt(
+        fill(copy.toolsPromptTitle, { name: tool.name }),
+        copy.toolsPromptHint,
+        tool.prompt,
+        groups.querySelector<HTMLElement>(
+          `[data-tool="${tool.name}"][data-control="agent"]`,
+        ) ?? mcpButton,
+      );
+    },
+    // Not while another dialog took over (the agent's prompt).
+    focus: () => {
+      if (!busy && !dialog.open && !loginDialog.open)
+        focusRow({ name: vaultToolName, control: "vault" });
+    },
+  });
 
   type Selection = Readonly<{
     tools: readonly string[];
@@ -895,9 +933,16 @@ export function createToolsPanel(
     // reads "Works as lazurio-for-github[bot]".
     const team = overview?.sharedEnvironment === true;
     const line = connectionLine(tool, copy, team);
+    // The Environment vault (decision F43) says its own state and offers its
+    // own steps: an account of the Environment, not a person's sign-in.
+    const vaultRow = tool.name === vaultToolName ? vault.row(copy) : null;
     const status = element("p", "row-status");
-    const signIn = element("span", "tool-signin", line.text);
-    signIn.dataset.state = line.state;
+    const signIn = element(
+      "span",
+      "tool-signin",
+      vaultRow?.line.text ?? line.text,
+    );
+    signIn.dataset.state = vaultRow?.line.state ?? line.state;
     status.append(signIn);
     // gh's SSH key, as its own part of the line, only when it needs the
     // person (not linked, in the warning colour) or on a Team Environment.
@@ -941,8 +986,12 @@ export function createToolsPanel(
     // personal sign-in or SSH key, only "Install" when gh is missing, and
     // "Sign out" only while a person's account is signed in there; a
     // sentence says why.
-    const curated = curatedActions(tool, copy, team);
+    const curated =
+      vaultRow === null
+        ? curatedActions(tool, copy, team)
+        : { primary: null, logout: false, linkSsh: false };
     const primary = curated.primary;
+    if (vaultRow !== null) controls.append(...vaultRow.controls);
     if (primary !== null)
       controls.append(
         button(
@@ -1050,6 +1099,7 @@ export function createToolsPanel(
       fill(copy.toolsDetailsNamed, { name: tool.name }),
     );
     const body = element("div", "details-body");
+    if (vaultRow?.details) body.append(vaultRow.details);
     // The installation: version, anything to look at, where it is, and for
     // gh whether the SSH key of this Environment is linked.
     const installation = element("section", "");
@@ -1211,6 +1261,8 @@ export function createToolsPanel(
     busy = true;
     if (overview === null) failed = false;
     render();
+    // The vault beside the tools: asked itself when the sign-ins are.
+    void vault.read(probe);
     try {
       const { value, ok } = await options.post(
         "/api/tools/status",

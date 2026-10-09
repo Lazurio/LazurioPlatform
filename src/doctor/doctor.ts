@@ -148,6 +148,7 @@ const ownReasons = [
   "recommended-missing",
   "enabled-missing",
   "not-enabled",
+  "not-offered",
   "version-unreadable",
   // Organizations
   "catalog-unreadable",
@@ -456,6 +457,10 @@ type ToolRow = Readonly<{
   version?: string | undefined;
   versionError?: string | undefined;
   signIn?: ToolSignIn | undefined;
+  /** Whether Lazurio sets the tool up in this Environment (the catalog's
+   * `offered`): the Environment vault only in a Remote Environment on
+   * Linux (decision F43). */
+  offered: boolean;
 }>;
 
 function toolCheck(tool: ToolRow): DoctorCheck {
@@ -467,6 +472,8 @@ function toolCheck(tool: ToolRow): DoctorCheck {
     ...(tool.signIn?.ssh === undefined ? {} : { ssh: tool.signIn.ssh.state }),
   };
   if (!tool.installed) {
+    // A tool this Environment is not offered is not missing.
+    if (!tool.offered) return check("tool", "skipped", "not-offered", context);
     if (tool.tier === "required")
       return check("tool", "fail", "required-missing", context);
     if (tool.tier === "recommended")
@@ -490,13 +497,23 @@ async function toolRows(
   tools: ToolsEnvironment,
   signIn: boolean,
 ): Promise<readonly ToolRow[]> {
+  const offered = (name: string, hosted: boolean) =>
+    activatableTools().find((entry) => entry.name === name)?.activation
+      .offered !== "hosted-linux" ||
+    (hosted && tools.platform === "linux");
   if (directory !== undefined && folder.check.outcome === "ok")
     try {
       const overview = await toolsOverview(directory, tools, { signIn });
-      return overview.tools;
+      return overview.tools.map((tool) => ({
+        ...tool,
+        offered: offered(tool.name, overview.hosted),
+      }));
     } catch {}
   const enabled =
     folder.preferences === null ? [] : enabledTools(folder.preferences);
+  const hosted =
+    folder.preferences !== null &&
+    hostedEnvironment(folder.preferences.preset.name);
   const catalog = activatableTools();
   const status = await toolsStatus({ ...tools, catalog });
   const signIns = signIn
@@ -519,6 +536,7 @@ async function toolRows(
       version: live?.version,
       versionError: live?.versionError,
       signIn: signIns?.[index],
+      offered: offered(entry.name, hosted),
     };
   });
 }

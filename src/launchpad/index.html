@@ -380,6 +380,32 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 #tools-login .tools-qr { display: block; width: 280px; height: 280px; background: #fff; image-rendering: pixelated; margin: 0.6rem 0; border-radius: 0.5rem; }
 #tools-login .tools-phone { border-top: 1px solid var(--border); margin-top: 0.8rem; padding-top: 0.75rem; }
 #tools-login .tools-phone input, #tools-login .tools-orgs select { display: block; margin-top: 0.3rem; width: min(18rem, 100%); }
+/* The Environment vault (decision F43, the wireframe of prototypes-lazurio#24):
+   the four steps of its dialog, the collection and the account address on
+   one quiet card, each value on one line with a quiet copy button, and the
+   fingerprint phrase. */
+.vault-steps { display: grid; gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
+.vault-step { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr); gap: 0.75rem; padding: 0.5rem 0; }
+.vault-mark { display: grid; width: 1.5rem; height: 1.5rem; place-items: center; border: 1px solid var(--lz-line); border-radius: 50%; color: var(--muted-fg); font-size: 12px; font-weight: var(--lz-weight-akce); }
+.vault-mark .icon { width: 13px; height: 13px; }
+.vault-step[data-mark="current"] .vault-mark { border-color: var(--fg); color: var(--fg); }
+.vault-step[data-mark="done"] .vault-mark { border-color: transparent; background: var(--success-bg); color: var(--success-fg); }
+.vault-step-body { display: grid; gap: 0.6rem; min-width: 0; }
+.vault-step-title { min-height: 1.5rem; display: flex; align-items: center; font-size: 15px; font-weight: var(--lz-weight-akce); }
+.vault-step[data-mark="next"] .vault-step-title { color: var(--muted-fg); }
+.vault-card { display: grid; gap: 0.6rem; padding: 0.75rem; border: 1px solid var(--lz-line-faint); border-radius: var(--radius-control); background: var(--muted); }
+.vault-value { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.vault-value-text { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.vault-value-label { color: var(--muted-fg); font-size: 12px; }
+.vault-value-code { overflow: hidden; color: var(--fg); font: 13px/1.4 var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
+button.vault-copy { flex: none; width: 30px; padding: 0; }
+.vault-phrase { display: block; padding: 0.6rem 0.75rem; border: 1px solid var(--lz-line-faint); border-radius: var(--radius-control); background: var(--muted); font: 600 15px/1.4 var(--font-mono); overflow-wrap: anywhere; user-select: all; }
+.vault-failure { color: var(--destructive); font-size: 13.5px; font-weight: var(--lz-weight-akce); }
+.vault-waiting { color: var(--muted-fg); font-size: 13px; }
+.vault-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.25rem 0.75rem; margin: 0; font-size: 13px; }
+.vault-list dt { color: var(--muted-fg); }
+.vault-list dd { margin: 0; overflow-wrap: anywhere; }
+.vault-facts a.button .icon, #tools-vault a.button .icon { width: 14px; height: 14px; }
 
 /* Files (decision F35): the Documents folder as a list of rows, the path as
    links, the upload queue and the drop overlay. Below 36 rem of the list's
@@ -553,6 +579,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M10 12C10 14.2091 8.20914 16 6 16C3.79086 16 2 14.2091 2 12C2 9.79086 3.79086 8 6 8C8.20914 8 10 9.79086 10 12ZM10 12H22V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 12V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-warning" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20.0429 21H3.95705C2.41902 21 1.45658 19.3364 2.22324 18.0031L10.2662 4.01533C11.0352 2.67792 12.9648 2.67791 13.7338 4.01532L21.7768 18.0031C22.5434 19.3364 21.581 21 20.0429 21Z" stroke="currentColor" stroke-linecap="round"/><path d="M12 9V13" stroke="currentColor" stroke-linecap="round"/><path d="M12 17.01L12.01 16.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M5 13L9 17L19 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8 8.6V4.6C8 4.26863 8.26863 4 8.6 4H19.4C19.7314 4 20 4.26863 20 4.6V15.4C20 15.7314 19.7314 16 19.4 16H15.4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19.4V8.6C4 8.26863 4.26863 8 4.6 8H15.4C15.7314 8 16 8.26863 16 8.6V19.4C16 19.7314 15.7314 20 15.4 20H4.6C4.26863 20 4 19.7314 4 19.4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6.75827 17.2426L12.0009 12M17.2435 6.75736L12.0009 12M12.0009 12L6.75827 6.75736M12.0009 12L17.2435 17.2426" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-browser" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M2 19V5C2 3.89543 2.89543 3 4 3H20C21.1046 3 22 3.89543 22 5V19C22 20.1046 21.1046 21 20 21H4C2.89543 21 2 20.1046 2 19Z" stroke="currentColor"/><path d="M2 7L22 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 5.01L5.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5.01L8.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5.01L11.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-star-filled" viewBox="0 0 24 24" fill="currentColor" stroke-width="1.6"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -752,6 +779,11 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <p id="tools-login-status" role="status" aria-live="polite"></p>
 <div id="tools-login-body"></div>
 <div class="dialog-foot"><button type="button" id="tools-login-close" data-message="toolsClose">Close</button></div>
+</dialog>
+<dialog id="tools-vault" aria-labelledby="tools-vault-title">
+<h2 id="tools-vault-title" tabindex="-1"></h2>
+<div id="tools-vault-body"></div>
+<div class="dialog-foot"><button type="button" id="tools-vault-close" data-message="toolsClose">Close</button></div>
 </dialog>
 <script type="module" src="./ui.ts"></script>
 </body>

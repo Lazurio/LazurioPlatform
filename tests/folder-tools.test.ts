@@ -104,6 +104,7 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   ).toEqual([
     ["gh", "gh", "required", "launchpad"],
     ["composio", "composio", "recommended", "launchpad"],
+    ["bitwarden", "bw", "recommended", "launchpad"],
     ["wacli", "wacli", "optional", "launchpad"],
     ["gogcli", "gog", "optional", "agent"],
     ["neon", "neon", "optional", "agent"],
@@ -125,6 +126,8 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   for (const [name, probe] of [
     ["gh", "`gh auth status`"],
     ["composio", "`composio whoami`"],
+    // The vault's state is `lazurio vault`'s (decision F43).
+    ["bitwarden", "`lazurio vault"],
     ["wacli", "`wacli auth status --json`"],
     ["gogcli", "`gog auth list --check --json --no-input`"],
     ["neon", "`neon me -o json`"],
@@ -152,6 +155,7 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   for (const [name, writesOutside] of [
     ["gh", false],
     ["composio", true],
+    ["bitwarden", true],
     ["wacli", true],
     ["gogcli", true],
     ["neon", false],
@@ -209,6 +213,12 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
       tier: "recommended",
       setup: "launchpad",
       enabled: true,
+    },
+    {
+      name: "bitwarden",
+      tier: "recommended",
+      setup: "launchpad",
+      enabled: false,
     },
     { name: "wacli", tier: "optional", setup: "launchpad", enabled: false },
     { name: "gogcli", tier: "optional", setup: "agent", enabled: false },
@@ -519,7 +529,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-33");
+  expect(instructionTemplateRevision).toBe("base-instructions-34");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -542,7 +552,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-33");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-34");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(
@@ -565,7 +575,7 @@ test("AGENTS.md and this-machine.md name the required and the enabled tools in b
     for (const tools of [
       [],
       ["composio"],
-      ["composio", "gogcli", "neon", "wacli"],
+      ["bitwarden", "composio", "gogcli", "neon", "wacli"],
     ]) {
       const render = (locale: "cs" | "en") => {
         const source = {
@@ -599,7 +609,13 @@ test("AGENTS.md and this-machine.md name the required and the enabled tools in b
           `- \`gh\` (${locale === "cs" ? "povinný" : "required"}): `,
         );
         expect(output.manual).toContain("`gh auth status`");
-        for (const name of ["composio", "wacli", "gogcli", "neon"]) {
+        for (const name of [
+          "composio",
+          "bitwarden",
+          "wacli",
+          "gogcli",
+          "neon",
+        ]) {
           const entry = findTool(name)?.activation;
           if (!entry) throw new Error("Expected an activatable tool");
           const listed = tools.includes(name);

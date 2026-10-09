@@ -1287,7 +1287,7 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
-| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `signIn`/`ssh` ids with `--sign-in` |
+| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not set up in this Environment (bitwarden outside a Remote Environment on Linux, decision F43); `signIn`/`ssh` ids with `--sign-in` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
 | organizations | `module` | catalog entry | `warn` with the module or Organization reason |
@@ -1587,7 +1587,7 @@ status" (with them again), and shows:
   shared by all operators; it is repeated in the confirmation of an enable;
 - three groups, **Required**, **Recommended** and **Optional**, in catalog order, each
   a settings group of rows. A row carries on the left the tool's real name (gh,
-  composio, wacli, gogcli, neon: what an agent says and what is searched for), one
+  composio, bitwarden, wacli, gogcli, neon: what an agent says and what is searched for), one
   plain sentence on what it is for (root decision 0188; `toolDescription` in
   `tools-view.ts`, a page-only text: the catalog's `activation.purpose` is rendered into
   the agents' generated files and stays as it is) and one line of its state
@@ -1719,6 +1719,37 @@ with the probes. "Sign out" runs `/api/tools/logout` and confirms on the card wh
 the tool forgot the sign-in on this Machine only (gh, composio) or unlinked the device
 (wacli). An SSH outcome is taken only in its exact form (known reasons, a `SHA256:`
 fingerprint, no key content).
+
+**The Environment vault** (decision F43, the wireframe of prototypes-lazurio#24). The
+`bitwarden` row (`bw`) reads its own state (`/api/tools/bitwarden/status`, and
+`/refresh` when the sign-ins are probed: on load and on "Refresh status") and says it
+in the wireframe's words: "Nepřipojeno", "Čeká na potvrzení v trezoru", "Připojeno ·
+2 kolekce · 14 položek" (Czech plurals; "Connected · 1 collection · 2 items"),
+"Přístup odebrán v trezoru", "Trezor neodpovídá", and "Brzy · druhá vlna" on this
+computer. Its one next step is "Připojit", "Pokračovat", "Připojit znovu" or "Zkusit
+znovu" (which syncs), with "Odpojit" once an account is signed in, beside the agents'
+switch; its details add the account, the vault (with "Otevřít Vaultwarden" in a new
+tab), the organization, the collection, the fingerprint and "Synchronizovat". The
+dialog "Připojit Bitwarden" walks four numbered steps, the current one open: (1) "Pozvi
+účet v trezoru": one quiet card with "Kolekce" and "Adresa účtu", each label above its
+one-line value with a quiet copy button, "Otevřít Vaultwarden" and "Pozváno", the line
+that only an Admin or Owner of the vault's organization invites and confirms, and on a
+Team Environment "Kolekci uvidí celý Team."; a refused registration comes back here
+with "Adresa ještě není v trezoru pozvaná." (2) "Environment se připojí": the connect's
+phases "Instaluji Bitwarden", "Zakládám účet", "Přihlašuji" with a spinner, asked again
+every second with the connect's job, and "Heslo účtu zná jen tento Environment."; a
+failure names its stage and reason with "Dokončit s agentem" and "Zkusit znovu". (3)
+"Potvrď účet v trezoru": the fingerprint phrase in a selectable box, "Otevřít
+Vaultwarden" and "Čekám na potvrzení…" while `/refresh` is asked every five seconds;
+a confirmed organization without the collection says so. (4) "Připojeno": "Vidí N
+kolekcí · M položek." and "Hotovo"; the agents' switch turns on after the reading that
+follows, as after a curated sign-in. An account that exists starts at step 2, a
+revoked one at step 1 with "Pozvi tuhle adresu znovu do kolekce s právem úprav.", a
+waiting one at step 3. Closing the dialog stops only the page's polling; the connect
+goes on in the Launchpad. "Odpojit" asks first ("Agenti tu přestanou trezor používat.
+Přístup úplně ukončíš odebráním účtu v trezoru."). The state is accepted only in its
+exact form (`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is
+`src/launchpad/vault-panel.ts`.
 
 Pure view logic lives in `src/launchpad/tools-view.ts` and is tested without a
 DOM (`tests/tools-view.test.ts`); `src/launchpad/tools-panel.ts` holds the DOM and
