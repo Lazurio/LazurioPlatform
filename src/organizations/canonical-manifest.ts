@@ -67,6 +67,8 @@ function binding(input: unknown, repository: boolean) {
 
 // Existing canonical wire schema plus root-binding cross-field invariants.
 // This does not resolve legacy documents, validate the projection hash or grant access.
+// The optional `settings` section is kept as authored; read it only through
+// `organizationSettings` (./organization-settings), never directly.
 export function parseCanonicalOrganization(input: unknown) {
   // Reject executable/lossy values before cloning Organization-owned extension data.
   const value = object(
@@ -87,6 +89,10 @@ export function parseCanonicalOrganization(input: unknown) {
       "layers",
       "task_sources",
       "doctor",
+      // Organization settings (upstream decision 0194) are judged only by
+      // `organizationSettings` in ./organization-settings: a malformed optional
+      // section is reported there and never makes the whole manifest unusable.
+      "settings",
     ],
   );
   if (
