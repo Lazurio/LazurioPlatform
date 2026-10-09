@@ -6449,3 +6449,112 @@ Claude Code 2.1.295 each got exactly one entry, read back as registered, and
 `claude mcp list` reported `executor` connected. The x64 program, the switch
 from the pilot's manual installation and a Remote Environment's own image
 first run on a real Remote Environment after the release.
+
+## F45 — Organization settings reach the Environment: asked through its relay, recorded in the Folder, reported back
+
+**Decided by Matěj 2026-10-09 (root decision 0194; root decision 0162, addendum of
+2026-10-09, point 4; plan DEV-6653 task 693 and its contracts C1 to C3);
+implemented in this revision.** The Dashboard's side is its
+`docs/organization-settings.md`; the Environment's identity and its relay are
+Machines' (`docs/environment-identity.md`, Machines #449). It replaces the interim
+of F42 point 4, under which the Environment always decided Composio.
+
+1. **Where an Environment asks.** An Organization's Environment (work, Team or
+   Automated) whose handover names the Environment's relay
+   (`entry.environment_relay.socket`, [machine handover](machine-handover.md#the-hosted-entry-decision-f16))
+   asks the Dashboard through it: HTTP/1.1 over a unix socket only the operator
+   account can reach, `GET /organization/settings` with the version applied last
+   as `If-None-Match`, and `POST /organization/settings/report`. The relay
+   attaches the Environment's own token; the Launchpad and agents never hold it.
+   An Organization's Environment without the relay reads the settings of the
+   Organization its handover names from that Organization's root in the Folder, at
+   the commit of its `main`, with the operator's git (root decision 0194 point 3:
+   the same document from Git; as fresh as the checkout; no reports). A personal
+   Environment and the person's own computer ask nothing: an Organization's
+   settings never govern them (0194 point 5), and the person's own computer
+   decides alone, as F42's rule already has it.
+2. **When.** One second after the Launchpad listens, every two minutes while it
+   runs, when its page opens, and on "Obnovit stav" in Settings → Nástroje and the
+   refresh of Integrace, which wait up to five seconds for the answer before they
+   show what applies. A question within 15 s of the previous one is not asked
+   again, so a storm of page loads asks once. 502, 503, 504 and a relay that is
+   absent or silent are tried twice more, after 2 s and 5 s; one attempt waits at
+   most 20 s, past the relay's own deadlines.
+3. **What is taken.** Only C2's exact answer. Anything other than 200 or 304 keeps
+   the version applied last: 409 `settings_invalid` names the broken version
+   (`settings_invalid`); 401, 403 and the relay's 503
+   `environment_identity_unavailable` are the Environment's identity missing
+   (`identity_unavailable`); everything else is `dashboard_unreachable`. A setting
+   this release does not know is kept apart by its key, never by its value, and
+   reported `unsupported`; a known one that breaks the contract makes the answer
+   unusable.
+4. **Applying is recording in the Folder.** The Folder renders what the settings
+   allow and is a pure function of its recorded state, so it records the
+   Organization settings it applies: `organizationSettings` in
+   `.lazurio/preferences.json`, next to the Machine binding it records from the
+   handover, exactly the governed keys in one representation, only where an
+   Organization governs, absent otherwise, so every existing Folder keeps its
+   bytes. The person's selection of tools stays as it is; what agents are told to
+   use is that selection without the tools the Organization does not allow, and
+   AGENTS.md and `manual/this-machine.md` say why one is missing. Applying runs the
+   one planner and transaction (recovery `profile-resume`) at the current
+   revision: idempotent (the same section is `unchanged`) and reversible (allowing
+   a tool again brings the person's choice back; not governing it again renders the
+   Folder byte for byte as before). Profile, tools and handover changes carry the
+   section forward. While the Organization does not allow a tool, a change of the
+   person's choice of it is refused on every surface (`organization-governed`).
+5. **The first setting: Composio.** With `integrations.composio.allowed: false`,
+   `composioPolicyOf` answers `{allowed: false, source: "organization"}`: the
+   Integrace page offers no Composio path and does not ask Composio for accounts;
+   agents are not told to use it; Settings → Nástroje shows its switch locked off
+   ("Nastavuje Organizace") with "Composio tu nepovoluje Organizace." and, where the
+   person had it on, that the choice is kept; it offers neither adding nor signing
+   in (a sign-out stays), and its Details say who changes it, where the settings
+   come from, the version applied, when it last asked and why nothing new came;
+   `lazurio tools enable|disable composio` is refused with the reason, and `tools
+   list` says it. With `true` the switch stays the person's, with "Organizace ho
+   povoluje."; without the key, everything is as before.
+6. **The record of the version.** The version applied last, its settings, when,
+   each item's outcome, the last error and when the source last answered: one
+   owner-only record per Folder in the install base
+   (`organization-settings/<Folder digest>.json`, [state on disk](update.md#state-on-disk)),
+   written durably, read only in its exact form. Not in `.lazurio/`, which admits
+   no entry it does not know (releases before this one must keep reading it). It
+   is bookkeeping, never authority: what applies is what the Folder records, so a
+   record that cannot be read changes nothing that applies; it is said
+   (`state_unreadable`), the next question goes without a version and its answer
+   writes a new record. A Launchpad without an install base (a development run)
+   keeps it in memory.
+7. **Reports.** To the Dashboard only, C2's exact report of at most 4 KiB
+   (unsupported items give way first), after anything it says changes (a new
+   version, an item's outcome, the error) and at least every ten minutes, so a
+   restart reports at its first answer. Each known setting the Organization
+   governs now, or governed before, is `applied` or `failed` with the Folder's
+   reason (`folder-drift`, `folder-busy`, …: what the Environment cannot apply it
+   reports, and an agent can fix it); an unknown key is `unsupported`. A report the
+   Dashboard refuses as invalid is sent once more with only the keys it delivered.
+8. **The handover.** The vendored `lazurio-machine.v1` schema gains
+   `entry.environment_relay` (Machines #449, byte for byte); the binding records
+   `environmentRelaySocket`, which is never rendered into the Folder or part of
+   the public entry. Machines writes it only to a Machine whose pinned Platform is
+   at least `PLATFORM_ENTRY_ENVIRONMENT_RELAY_MINIMUM`, the first release with this
+   decision. A refresh that records a relay the handover gained restarts the
+   supervised Launchpad, which reads its entry when it starts.
+
+Rejected: the record in `.lazurio/` (older releases refuse a Folder with an
+unknown entry); rendering from the record instead of the Folder's state (the
+manifest's digests would no longer follow from the Folder, and a lost record would
+silently allow again what the Organization does not); a record that cannot be read
+taken as "nothing governed" (the same silent re-allowing); erasing the person's
+choice while the Organization does not allow a tool (allowing it again could not
+restore it); falling back from the relay to the repository (two sources would move
+the version back and forth); the Organization governing the person's own computer
+(it may hold several Organizations; the person decides there, 0194 point 5).
+
+Compatibility: a Folder that records the section is unreadable by a release before
+this one, whose preferences admit no unknown key, as F18's `tools` was; updates move
+forward only (F17). Generated text changes only for a Folder that records settings.
+
+Not in this revision: the Dashboard's editor of the settings, the company apps of
+Google Workspace and Microsoft 365 (DEV-6626 task 685), the relay on Team and
+Automated Environments (Machines #382) and immediate delivery.

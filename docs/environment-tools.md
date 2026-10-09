@@ -100,6 +100,20 @@ note is plain text of 1 to 600 characters after trimming, at most 6 lines, witho
 control characters. It is the operator's intent for agents on this Environment and
 grants no access. Disabling a tool removes its note.
 
+**What the Organization decides** ([F45](decisions.md#f45--organization-settings-reach-the-environment-asked-through-its-relay-recorded-in-the-folder-reported-back),
+root decision 0194). On an Organization's Environment (work, Team, Automated) the
+Organization's settings take precedence over the Environment's: where they say
+`integrations.composio.allowed: false`, `composio` is not used by agents, whatever the
+person chose. The Folder records the settings it applies (`organizationSettings` in
+`.lazurio/preferences.json`) and renders the person's selection without the tools the
+Organization does not allow, with a line that says why; the selection itself is kept,
+so the Organization allowing the tool again brings it back. While it does not, the
+person's choice of that tool does not change from any surface (`organization-governed`),
+Settings → Tools shows its switch locked off with a sentence that the Organization
+decides it, and offers neither adding nor signing in. A personal Environment and the
+person's own computer decide alone. How the settings arrive (the Dashboard through the
+Environment's relay, or the Organization's root in the Folder) is F45.
+
 **Setup modes.** `launchpad`: installation and login have a curated flow in the CLI
 and the Launchpad ([F19](decisions.md#f19--curated-installation-and-login-of-catalog-tools),
 below). `agent`: the Launchpad only shows status, and "Set up with an agent" hands the
@@ -117,17 +131,20 @@ JSON with `--json`, and the exit status is 0 completed or unchanged, 2 blocked o
 usage, 1 operation failure.
 
 - `tools list --folder <absolute Folder> [--sign-in] [--json]` lists the activatable
-  catalog tools only, in catalog order, each with `tier`, `setup`, `enabled`, its
-  `note` when there is one and the live facts of `tools status` for that tool
-  (`installed`, `path`, `realPath`, `version`, `standardPath`, `source`), plus the
-  Folder `revision` a following mutation must name. Read-only. With `--sign-in` each
-  entry also carries `signIn` (below).
+  catalog tools only, in catalog order, each with `tier`, `setup`, `enabled` (whether
+  agents use it), `organization` `{allowed}` when the Organization's settings speak
+  about it (F45), its `note` when there is one and the live facts of `tools status`
+  for that tool (`installed`, `path`, `realPath`, `version`, `standardPath`,
+  `source`), plus the Folder `revision` a following mutation must name. Read-only.
+  With `--sign-in` each entry also carries `signIn` (below).
 - `tools enable <tool> --folder <Folder> --expected-revision <n> [--json]` and
   `tools disable <tool> …` record the selection and re-render the Folder through the
   profile transaction (`updated` with the new revision, or `unchanged`). A name the
   catalog does not offer for activation is `blocked` / `tool-unknown` (exit 2);
   disabling a required tool is `blocked` / `tool-required` (exit 2); enabling a
-  required tool is `unchanged` (exit 0). The planner's refusals arrive unchanged
+  required tool is `unchanged` (exit 0); enabling or disabling a tool the
+  Organization does not allow here is `blocked` / `organization-governed` with the
+  reason in words (exit 2, F45). The planner's refusals arrive unchanged
   (`stale-revision`, `drift` with the path, `custom-composition-unavailable`, …). An
   interrupted change is completed with `profile-resume`.
 - `tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear)
@@ -155,7 +172,15 @@ order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage` in t
 Folder's locale, `source`, the live facts of `tools status` (`installed`, `path`,
 `realPath`, `version`, `versionError`, `standardPath`), `note` when the operator left
 one, `signIn` when the request asked for it, and `prompt`, the prepared agent prompt
-of `lazurio tools prompt <tool>`. `mcpPrompt` is the prepared prompt for the third
+of `lazurio tools prompt <tool>`. `enabled` is whether agents use the tool here; a
+tool the Organization's settings speak about carries `organization: { allowed,
+chosen }`, `chosen` being the person's own choice, kept for when the Organization
+allows it (F45). On an Organization's Environment the answer also carries
+`organizationSettings`: where the settings come from (`dashboard` or `repository`), the
+version applied, when, when the source last answered, the last error and the keys that
+did not apply. With `signIn: true` (the first reading and "Refresh status") the
+Launchpad first asks the Organization's settings and waits for them up to five
+seconds. `mcpPrompt` is the prepared prompt for the third
 route, an MCP server set up by an agent. Without `signIn: true` the probe runs each
 found tool's version command and nothing else, and uses no network. The raw output of
 a tool is not returned, and the request accepts no Folder, PATH or tool name. The

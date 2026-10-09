@@ -107,7 +107,12 @@ merged; the authored schema pinned at the top of this page carries the section).
 - An absent value is not governed by the Organization and the Environment
   decides; a present value governs every work Environment of the Organization;
   personal Environments ignore it. Applying a setting and reporting each item is
-  a later consumer; this reader only makes the section safe to add.
+  decision [F45](decisions.md#f45--organization-settings-reach-the-environment-asked-through-its-relay-recorded-in-the-folder-reported-back):
+  the Launchpad asks the Dashboard through the Environment's relay, or reads this
+  section from the Organization's root in the Folder where there is no relay, and
+  records what it applies in the Folder. `deliveredSettings` reads the Dashboard's
+  answer by the same contract, keeping a key this release does not know apart, by
+  its key only, to be reported `unsupported`.
 - Readers first: older releases reject a manifest with the section as an unknown
   field. An Organization adds it only after the release with this reader runs on
   all of its Environments.

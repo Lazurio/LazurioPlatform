@@ -469,6 +469,8 @@ Everything lives under the per-user install base
 | `update/launchpad.sock` | the supervised Launchpad's health socket |
 | `update/last-check.json` | cache of the last check for the pill and the CLI notice; disposable |
 | `sigstore/` | Sigstore's trust-root cache; disposable |
+| `content/content-<Folder digest>.lock` | the per-Folder lock of content installation ([content sync](content-sync.md#one-operation-at-a-time-and-its-leftovers)) |
+| `organization-settings/<Folder digest>.json` | the Folder's record of its Organization's settings: the version applied last, when, each item's outcome and the last error ([F45](decisions.md#f45--organization-settings-reach-the-environment-asked-through-its-relay-recorded-in-the-folder-reported-back)); owner-only bookkeeping, since what applies is what the Folder records |
 
 Releases up to `v0.1.x` also wrote `previous` and `update/pending.json`; the
 migration removes them (*Migration from releases with rollback*). A running

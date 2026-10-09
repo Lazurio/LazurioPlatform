@@ -1,10 +1,11 @@
 # Integrace: the apps connected to an Environment
 
-Status: implemented in this revision (decision F42, root decision 0162 with its
-addendum of 2026-10-09, plan DEV-6626 tasks 675, 683 and the Folder part of 681).
-The Organization's settings that will govern Composio (root decision 0194, plan
-DEV-6653) and the company apps of Google Workspace and Microsoft 365 (task 685)
-are not part of it; the seams they plug into are named below.
+Status: implemented (decision F42, root decision 0162 with its addendum of
+2026-10-09, plan DEV-6626 tasks 675, 683 and the Folder part of 681). Whether
+Composio is allowed on an Organization's Environment follows the Organization's
+settings since decision F45 (root decision 0194, plan DEV-6653 task 693). The
+company apps of Google Workspace and Microsoft 365 (task 685) are not part of it;
+the seam they plug into is named below.
 
 An **Integrace** is an app or service connected to an Environment. Each has
 exactly one **path**: by its own **tool** from Settings → Tools (`gh` for GitHub,
@@ -21,7 +22,7 @@ the sign-in is the person's consent, so they send the link to its card.
 | Part | Where |
 | --- | --- |
 | The path rule (`choosePath`, ported from the approved wireframe) | `src/integrations/path.ts` |
-| Whether Composio is allowed (the seam of root decision 0194) | `src/integrations/policy.ts` |
+| Whether Composio is allowed (root decision 0194, F45) | `src/integrations/policy.ts` (the shape), `src/organization-settings/governance.ts` (`composioPolicyOf`) |
 | The catalog and its shape | `src/integrations/catalog.json`, `catalog-schema.ts`, `catalog.ts` |
 | The catalog's curated input and its build | `scripts/integrations-apps.ts`, `scripts/integrations-catalog.ts` |
 | Executor's client and reading | `src/integrations/executor-client.ts`, `executor-source.ts` |
@@ -53,8 +54,8 @@ the sign-in is the person's consent, so they send the link to its card.
    goes the next way instead of a dead end. An Executor that is part of the
    Environment but down or answering unexpectedly keeps the direct path; the
    page says why it cannot connect now.
-4. Through Composio where it is allowed (`composioPolicy()`), after signing the
-   person's Composio account in where it is not signed in yet.
+4. Through Composio where it is allowed (`composioPolicyOf`, below), after
+   signing the person's Composio account in where it is not signed in yet.
 5. Without either: an Organization's company app first (its Admin sets it up in
    the Dashboard, anyone else asks the Admin), then Composio not allowed (whoever
    decides allows it, anyone else asks), then the app's own tool, else nothing.
@@ -64,10 +65,18 @@ Settings → Tools), it is installed and its sign-in probe says signed in; `gogc
 counts only on a personal Environment and the person's own computer. Composio
 counts when it is allowed, switched on for agents, installed and signed in.
 
-`composioPolicy()` answers `{allowed: true, source: "environment"}` until the
-Organization's settings reach the Environment (DEV-6653); the page, the rule and
-the reading read only this seam. The Organization's company apps arrive with task
-685; the rule takes them as `Rules.companyApps`, empty today.
+Whether Composio is allowed is one rule over the Organization settings the Folder
+records (`composioPolicyOf(preset, settings)`, decision F45): on an Organization's
+Environment whose Organization says `integrations.composio.allowed: false` it is
+`{allowed: false, source: "organization"}`, so no app goes through Composio, its
+accounts are not asked for, and an app only Composio connects says the company has
+it off (its Admin: "Povolit Composio", which opens the Organization in the
+Dashboard; anyone else: "Požádat Admina"). Where the Organization says `true` it is
+`{allowed: true, source: "organization"}`; where it says nothing, and on a personal
+Environment or the person's own computer, `{allowed: true, source: "environment"}`,
+as since F18. The page, the rule and the reading read only this; a test may give
+its own policy (`IntegrationsHost.policy`). The Organization's company apps arrive
+with task 685; the rule takes them as `Rules.companyApps`, empty today.
 
 ## Executor API (Executor 1.6.10)
 
