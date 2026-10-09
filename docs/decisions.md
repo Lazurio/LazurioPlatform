@@ -5923,8 +5923,10 @@ preferences), which was never merged. The reference is
    logged or kept. A custom server's key goes from the page to the Launchpad once
    and on to Executor only. An integration is an app's only as the remote MCP
    server at the catalog's endpoint, never by its slug: one that holds an app's
-   slug and points elsewhere is a custom server, and connecting the app refuses
-   (`integration-conflict`) instead of reusing it. Signing an account without
+   slug and points elsewhere is a custom server, and while it holds the slug,
+   connecting the app refuses (`integration-conflict`) instead of reusing it,
+   even where the app's server is also there under another slug (agents find
+   integrations by slug). Signing an account without
    sign-in in again re-syncs and checks it, and answers connected only when
    Executor then reads it as working (`still-failing` otherwise).
 3. **Composio through its CLI, as before.** `composio link --no-wait` makes the

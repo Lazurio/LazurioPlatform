@@ -147,8 +147,10 @@ endpoint as `displayUrl`), whatever its slug. A slug is never enough: an
 integration that holds an app's slug and points elsewhere, or runs a command, is
 another server. It is listed among the custom servers with its real address,
 never under the app's card. Connecting the app then neither reuses it nor
-replaces it: the connect refuses with `integration-conflict`, and the person
-removes that server in Vlastní first. The catalog keeps one app per integration
+replaces it: the connect refuses with `integration-conflict` before anything is
+probed, added or connected, and the person removes that server in Vlastní first.
+It refuses even where the app's own server is there too under another slug:
+agents find Executor's integrations by slug, so the squatter goes first. The catalog keeps one app per integration
 slug and per endpoint, so the mapping is never ambiguous. The company apps'
 OpenAPI integrations (task 685) will need an identity of their own; until then no
 API integration counts as an app's.

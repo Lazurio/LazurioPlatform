@@ -217,9 +217,11 @@ export function createConnectSessions(host: () => ConnectHost) {
   }
 
   /** The integration of a catalog app in Executor, added once: the remote
-   * MCP server at the catalog's endpoint, whatever its slug. One that only
-   * holds the app's slug is another server and is never reused (decision
-   * F42): the connect refuses instead. */
+   * MCP server at the catalog's endpoint, whatever its slug. Another server
+   * that holds the app's slug is never reused, and while it holds it the
+   * connect refuses, even where the app's server is also there under
+   * another slug: agents find Executor's integrations by slug, so the
+   * squatter is removed first (decision F42). */
   async function ensureIntegration(
     executor: ExecutorEndpoint,
     app: CatalogApp,
@@ -232,7 +234,7 @@ export function createConnectSessions(host: () => ConnectHost) {
       200,
     );
     const items = (Array.isArray(listed) ? listed : []).map(record);
-    const present = items.find((item) => {
+    const apps = (item: Record<string, unknown>): boolean => {
       if (item.kind !== "mcp" || typeof item.slug !== "string") return false;
       // Executor shows a remote server's endpoint; a command server none.
       const target =
@@ -245,12 +247,12 @@ export function createConnectSessions(host: () => ConnectHost) {
           target,
         })?.id === app.id
       );
-    });
-    if (
-      present === undefined &&
-      items.some((item) => item.slug === direct.integration)
-    )
+    };
+    // Checked before anything else and on its own: nothing is probed,
+    // added or connected while the app's slug is another server's.
+    if (items.some((item) => item.slug === direct.integration && !apps(item)))
       throw new ConnectBlocked("integration-conflict");
+    const present = items.find(apps);
     const probe = record(
       answerOf(
         await executorCall(
