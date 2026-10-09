@@ -207,8 +207,9 @@ export function curatedTool(name: string): ActivatableTool | undefined {
     : undefined;
 }
 
-// Only https, before the request and after every redirect.
-async function download(
+// Only https, before the request and after every redirect. Bounded in size
+// and time; the vault's pinned CLI (src/vault/install.ts) uses it too.
+export async function download(
   fetcher: InstallFetch,
   url: string,
   maxBytes: number,
