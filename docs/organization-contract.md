@@ -87,6 +87,33 @@ interim implementation of the same compatibility-state table, not a second schem
   candidates declaring one slug are isolated with a typed reason and never hide
   the others. See [launchpad development](launchpad-development.md#launchpad-home-the-catalog).
 
+## Organization settings
+
+Upstream decision 0194 adds the optional, closed `settings` section of
+`lazurio.organization.json`; its first setting is
+`settings.integrations.composio.allowed`. Platform consumes it exactly as Lazurio
+Core defines it ([contract, schema `$defs.organizationSettings` and Core tests](https://github.com/HumanAndMachines/Lazurio/pull/512),
+at commit `b037a9f0691afea39efc722aede3a44125bf1d38`, schema SHA256
+`4f14f1a1fec950b39fd0fddb1b13f1c41874c99b836d1029f2ee9f91ff5c6292`). The pin at
+the top of this page names the previous schema until that change lands upstream.
+
+- `parseCanonicalOrganization` accepts the section and keeps it as authored but
+  never judges it. `organizationSettings` (`src/organizations/organization-settings.ts`)
+  is its only reader: `absent`, `valid` (exactly the declared keys, plus the
+  effective value of every known key) or `invalid` (nothing applies; every issue
+  carries Core's code and JSON Pointer).
+- A malformed section never turns the Organization into a `conflict`: the
+  projection and its hash, the root state, execution admission and the root
+  declaration used by content synchronization ignore it, as in Core. Every other
+  unknown top-level field still refuses the manifest.
+- An absent value is not governed by the Organization and the Environment
+  decides; a present value governs every work Environment of the Organization;
+  personal Environments ignore it. Applying a setting and reporting each item is
+  a later consumer; this reader only makes the section safe to add.
+- Readers first: older releases reject a manifest with the section as an unknown
+  field. An Organization adds it only after the release with this reader runs on
+  all of its Environments.
+
 ## Exit from transition-only admission
 
 **Decided 2026-09-28 by Matěj (question H1 of the Launchpad parity shaping,
