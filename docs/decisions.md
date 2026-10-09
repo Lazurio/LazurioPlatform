@@ -5200,18 +5200,33 @@ and Apps fall back silently, exactly as without the account document.
 
 ### Addendum 2026-10-09 — bounded recovery of the first account read (#273)
 
-A slow first account read must not leave the account navigation missing until a
-reload. The local document still renders immediately and the account provider
+A short-lived failure of the first account read has a bounded recovery path
+without a reload. This repairs the reproduced client failure mode in #273, not
+an established root cause of a particular first-sign-in incident. The local
+document still renders immediately and the account provider
 still owns composition and access. The rail and Apps share one pending read
 **cycle**, not one HTTP attempt: allow up to three attempts, twelve seconds each,
-with 250 ms and 750 ms delays. Twelve seconds allows first-account initialization
-and the existing gateway response deadline to answer; retries also cover a
-transient gateway timeout or an initialization response that is still unavailable.
+with 250 ms and 750 ms delays. Twelve seconds is the client's recovery budget,
+above the slow reads that motivated this work, not a copy of the gateway's total
+deadline. The gateway has a five-second dial timeout and a ten-second response
+header timeout; connection, TLS and body reading can still outlast one client
+attempt. Retries cover a client timeout, a transient gateway failure or an
+initialization response that is still unavailable.
+
+This relies on the existing account owner's contract: verified first use binds
+or creates the account idempotently, independently of a browser disconnect;
+unknown upstream standing is unavailable (503), not a proven denial (403).
+The owner's first-use tests cover concurrent creation of one account and an
+outage followed by recovery without duplicate creation. The client does not
+add account-creation authority or retry a denial to simulate initialization.
+Aborting a browser request need not stop owner-side composition: at most three
+such operations per page cycle can overlap upstream. The shared promise
+coalesces consumers of this page, not work across pages or backend instances.
 
 Retry only a timeout/network failure, HTTP 408 or HTTP 5xx. A 401, 403 or 404
 ends the cycle at once and removes the remembered account as before; other 4xx,
 invalid JSON and invalid account documents are terminal. Redirects are never
-followed. A failed redirect is indistinguishable from a network error to Fetch,
+followed. With `redirect: "error"`, Fetch reports a redirect as a network error,
 so it can consume the same bounded retries but never become a sign-in flow.
 After exhaustion the existing local/remembered fallback remains; there is no
 poller, session refresh, new grant store or claim that a persistent outage heals.
@@ -5228,6 +5243,13 @@ owner or public component interface. The earlier one-attempt/four-second read
 wording in F36 and F37 is superseded only for the account document. Loading the
 local shell document and access-denied pages are separate concerns; this change
 makes no unproven claim to repair them.
+
+Owner-side latency remains tracked in HumanAndMachine-ai/Dashboard#276.
+Truthful admission failure handling is separate (HumanAndMachine-ai/Auth#39).
+Explicit unavailable state and deliberate recovery after the bounded cycle
+require their own shared-consumer contract (#275), including the existing local
+favourites fallback. Local favourites are not uploaded or merged into the account
+on a later successful read. This change preserves that behavior.
 
 Acceptance: with an empty browser cache, show the local Environment immediately,
 then add the account's multiple Organizations and Environments after a delayed or
