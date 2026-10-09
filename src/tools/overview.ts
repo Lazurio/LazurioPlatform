@@ -7,7 +7,13 @@ import {
   sharedEnvironment,
   toolEnvironmentOf,
 } from "../folder/render";
-import { enabledTools, toolNotes } from "../folder/state";
+import {
+  enabledTools,
+  folderOrganizationSettings,
+  toolNotes,
+} from "../folder/state";
+import { toolGovernance } from "../organization-settings/governance";
+import type { OrganizationSettingsStatus } from "../organization-settings/status";
 import {
   activatableTools,
   mcpServerPrompt,
@@ -58,11 +64,17 @@ export type ToolOverview = Readonly<{
   command: string;
   tier: ToolTier;
   setup: ToolSetup;
+  /** Whether agents use it here: required, or chosen by the person and not
+   * refused by the Organization (decision F45). */
   enabled: boolean;
   /** Whether this Environment offers the tool (`toolOffered`, decision
    * F44): one it does not offer is not rendered for agents and cannot be
    * enabled. */
   offered: boolean;
+  /** What the Organization's settings say about the tool on this
+   * Environment, when they say anything (root decision 0194): whether it is
+   * allowed, and the person's own choice, kept for when it is. */
+  organization?: Readonly<{ allowed: boolean; chosen: boolean }>;
   purpose: string;
   usage: string;
   source: string;
@@ -92,6 +104,10 @@ export type ToolsOverview = Readonly<{
   hosted: boolean;
   tools: readonly ToolOverview[];
   mcpPrompt: string;
+  /** Where this Environment's Organization settings come from and how they
+   * were applied last (decision F45); only from a Launchpad that asks for
+   * them, never from the CLI. */
+  organizationSettings?: OrganizationSettingsStatus;
 }>;
 
 // The tools screen of one Folder (decision F18): what is recorded (revision,
@@ -123,6 +139,7 @@ export async function toolsOverview(
       ),
       enabled: enabledTools(preferences),
       notes: toolNotes(preferences),
+      settings: folderOrganizationSettings(preferences),
     };
   });
   const catalog = activatableTools();
@@ -160,15 +177,20 @@ export async function toolsOverview(
       const note = Object.hasOwn(recorded.notes, entry.name)
         ? recorded.notes[entry.name]
         : undefined;
+      const chosen =
+        entry.activation.tier === "required" ||
+        recorded.enabled.includes(entry.name);
+      const governance = toolGovernance(entry.name, recorded.settings);
       return {
         name: entry.name,
         command: entry.command,
         tier: entry.activation.tier,
         setup: entry.activation.setup,
-        enabled:
-          entry.activation.tier === "required" ||
-          recorded.enabled.includes(entry.name),
+        enabled: chosen && governance?.allowed !== false,
         offered: toolOffered(entry, recorded.offeredIn),
+        ...(governance === null
+          ? {}
+          : { organization: { allowed: governance.allowed, chosen } }),
         purpose: entry.activation.purpose[locale],
         usage: entry.activation.usage[locale],
         source: entry.source,

@@ -4,11 +4,12 @@
 // decision 0194), on a personal Environment the person. The Integrace page,
 // the path rule and the Folder read this seam only; nothing else decides it.
 //
-// The Organization's setting does not reach the Environment yet (plan
-// DEV-6653): until it does, the Environment decides, and Composio is allowed
-// as it has been since decision F18 (Organizations that use Composio keep it,
-// nobody signs in again). The delivery of decision 0194 plugs the
-// Organization's answer in here.
+// The Organization's setting reaches the Environment through the Launchpad
+// (decision F45, `src/organization-settings/`), which records it in the
+// Folder; `composioPolicyOf` (`../organization-settings/governance`) reads
+// the recorded one. Where the Organization says nothing, the Environment
+// decides, and Composio is allowed as it has been since decision F18
+// (Organizations that use Composio keep it, nobody signs in again).
 
 export type ComposioPolicy = Readonly<{
   allowed: boolean;
@@ -22,8 +23,5 @@ export const environmentComposioPolicy: ComposioPolicy = Object.freeze({
   source: "environment",
 });
 
-/** The seam a later delivery of the Organization's settings implements. */
+/** A policy given by a test instead of the Folder's recorded settings. */
 export type ComposioPolicySource = () => Promise<ComposioPolicy>;
-
-export const composioPolicy: ComposioPolicySource = async () =>
-  environmentComposioPolicy;

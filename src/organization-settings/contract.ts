@@ -50,6 +50,10 @@ const rfc3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 export const isDetailCode = (value: unknown): value is string =>
   typeof value === "string" && detailCode.test(value);
 
+/** A setting's dotted key, as a report item names it. */
+export const isSettingKey = (value: unknown): value is string =>
+  typeof value === "string" && value.length <= 128 && itemKey.test(value);
+
 /** What one answer of the Dashboard delivered to this Environment. */
 export type DeliveredSettings = Readonly<{
   /** The Organization the Dashboard selected by the Environment's token;
@@ -159,8 +163,7 @@ export type SettingsReport = Readonly<{
 
 function item(input: SettingsItem): SettingsItem {
   if (
-    !itemKey.test(input.key) ||
-    input.key.length > 128 ||
+    !isSettingKey(input.key) ||
     !(itemOutcomes as readonly string[]).includes(input.outcome) ||
     (input.detail !== null && !isDetailCode(input.detail))
   )

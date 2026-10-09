@@ -79,8 +79,11 @@ tools disable <tool> --folder <absolute Folder> --expected-revision <n> [--json]
   and manual/ through the profile transaction (recovery: profile-resume).
   Enabling is context for agents: it grants no access, installs nothing, signs
   in nowhere and pins no version. A required tool is always on: enabling it is
-  unchanged, disabling it is refused. Disabling a tool removes its note. No
-  implicit Folder discovery.
+  unchanged, disabling it is refused. Disabling a tool removes its note. On an
+  Organization's Environment whose Organization does not allow a tool
+  (composio, root decision 0194), the Organization decides it: both are
+  refused (organization-governed) and the person's earlier choice is kept for
+  when it is allowed again. No implicit Folder discovery.
 tools note <tool> --folder <absolute Folder> --expected-revision <n> (--text <text> | --clear) [--json]
   Records or removes the operator's note for agents on a required or enabled
   tool: the intent with which it was installed, quoted for agents in
@@ -469,14 +472,21 @@ async function runFolderToolsCommand(
       const note = Object.hasOwn(recorded.notes, selection.name)
         ? recorded.notes[selection.name]
         : undefined;
+      // What the Organization's settings say about the tool here (decision
+      // F45): a tool it does not allow is not used by agents, whatever the
+      // person chose.
+      const organization = Object.hasOwn(recorded.governed, selection.name)
+        ? recorded.governed[selection.name]
+        : undefined;
       return {
         ...(status.tools[index] as ToolStatus),
         tier: selection.tier,
         setup: selection.setup,
-        enabled: selection.enabled,
+        enabled: selection.enabled && organization?.allowed !== false,
         // Whether this Environment offers it (decision F44): one it does
         // not is never rendered for agents and cannot be enabled.
         offered: selection.offered,
+        ...(organization === undefined ? {} : { organization }),
         ...(signIn === undefined ? {} : { signIn }),
         ...(note === undefined ? {} : { note }),
       };
@@ -488,7 +498,11 @@ async function runFolderToolsCommand(
         `revision ${recorded.revision}`,
         ...tools.flatMap((tool) => [
           `${tool.name.padEnd(9)} ${tool.tier.padEnd(12)} ${tool.setup.padEnd(10)} ${(
-            tool.enabled ? "enabled" : "disabled"
+            tool.organization?.allowed === false
+              ? "not allowed by the Organization"
+              : tool.enabled
+                ? "enabled"
+                : "disabled"
           ).padEnd(9)} ${
             tool.installed
               ? `${tool.version ?? "?"} ${tool.path}${
@@ -556,6 +570,17 @@ async function runFolderToolsCommand(
             `${name} is required and cannot be disabled`,
           );
     }
+    // A tool the Organization does not allow here is its decision now
+    // (decision F45): the person's choice of it does not change.
+    if (
+      Object.hasOwn(recorded.governed, name) &&
+      recorded.governed[name]?.allowed === false
+    )
+      return done(
+        2,
+        { kind: "blocked", reason: "organization-governed", tool: name },
+        `Blocked: organization-governed (the Organization does not allow ${name} on this Environment; only its Admin can allow it, in the Organization's settings)`,
+      );
     const tools = enabling
       ? [...new Set([...recorded.enabled, name])].sort()
       : recorded.enabled.filter((tool) => tool !== name);
