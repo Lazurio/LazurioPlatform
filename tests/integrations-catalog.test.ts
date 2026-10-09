@@ -393,4 +393,31 @@ test("a catalog of another shape is refused", () => {
     },
   ])
     expect(() => parseCatalog(broken)).toThrow();
+  // One app per Executor integration and per MCP endpoint (an integration is
+  // a catalog app only at its endpoint): a second app on either is refused.
+  const notion = valid.apps.find(
+    (entry: { id: string }) => entry.id === "notion",
+  );
+  for (const twin of [
+    {
+      ...notion,
+      id: "notion-twin",
+      direct: {
+        ...notion.direct,
+        integration: "notion-twin",
+        endpoint: `${notion.direct.endpoint}/`,
+      },
+    },
+    {
+      ...notion,
+      id: "notion-twin",
+      direct: {
+        ...notion.direct,
+        endpoint: "https://mcp.notion-twin.example/mcp",
+      },
+    },
+  ])
+    expect(() =>
+      parseCatalog({ ...valid, apps: [...valid.apps, twin] }),
+    ).toThrow(/Duplicate (MCP endpoint|integration slug)/);
 });

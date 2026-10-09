@@ -18,6 +18,19 @@ import {
 
 export const catalogSchema = "lazurio.integrations-catalog.v1";
 
+/** An endpoint as it is shown and compared: scheme, host and path, never
+ * userinfo or a query, which may carry a key; null where it is no http(s)
+ * URL. Two servers are the same only at the same canonical endpoint. */
+export function canonicalEndpoint(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return `${url.protocol}//${url.host}${url.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return null;
+  }
+}
+
 export const categories = [
   "mail",
   "chat",
@@ -182,6 +195,10 @@ export function parseCatalog(value: unknown): IntegrationsCatalog {
     throw new Error("Invalid catalog version");
   if (!Array.isArray(record.apps)) throw new Error("Invalid catalog apps");
   const ids = new Set<string>();
+  // One app per Executor integration and per MCP endpoint: an integration is
+  // a catalog app only at its endpoint (decision F42).
+  const integrationSlugs = new Set<string>();
+  const endpoints = new Set<string>();
   const apps = record.apps.map((entry): CatalogApp => {
     const app = exact(
       entry,
@@ -206,6 +223,16 @@ export function parseCatalog(value: unknown): IntegrationsCatalog {
       throw new Error("Invalid app tool");
     const direct =
       app.direct === undefined ? undefined : parseDirect(app.direct);
+    if (direct !== undefined) {
+      if (integrationSlugs.has(direct.integration))
+        throw new Error("Duplicate integration slug");
+      integrationSlugs.add(direct.integration);
+      if (direct.endpoint !== undefined) {
+        const endpoint = canonicalEndpoint(direct.endpoint) ?? "";
+        if (endpoints.has(endpoint)) throw new Error("Duplicate MCP endpoint");
+        endpoints.add(endpoint);
+      }
+    }
     if (
       app.composio === undefined &&
       direct === undefined &&

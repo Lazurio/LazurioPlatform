@@ -5919,7 +5919,10 @@ preferences), which was never merged. The reference is
    sent only after the listener of the port is proven this account's, over
    `node:http` so that no proxy of the environment sees it, and never answered,
    logged or kept. A custom server's key goes from the page to the Launchpad once
-   and on to Executor only.
+   and on to Executor only. An integration is an app's only as the remote MCP
+   server at the catalog's endpoint, never by its slug: one that holds an app's
+   slug and points elsewhere is a custom server, and connecting the app refuses
+   (`integration-conflict`) instead of reusing it.
 3. **Composio through its CLI, as before.** `composio link --no-wait` makes the
    link; its URL is answered only to the request that started it and opened in a
    window of the person's browser; the Launchpad asks for a second account's name

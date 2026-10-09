@@ -138,6 +138,18 @@ right panel) and in their own browser on their computer. A Remote Environment
 without the Environment browser cannot finish a direct sign-in, and says so.
 Connections are created with owner `org`: the Environment is one boundary.
 
+**Which integration is an app's.** Only a remote MCP server at the catalog's
+endpoint (the same scheme, host and path; Executor shows a remote server's
+endpoint as `displayUrl`), whatever its slug. A slug is never enough: an
+integration that holds an app's slug and points elsewhere, or runs a command, is
+another server. It is listed among the custom servers with its real address,
+never under the app's card. Connecting the app then neither reuses it nor
+replaces it: the connect refuses with `integration-conflict`, and the person
+removes that server in Vlastní first. The catalog keeps one app per integration
+slug and per endpoint, so the mapping is never ambiguous. The company apps'
+OpenAPI integrations (task 685) will need an identity of their own; until then no
+API integration counts as an app's.
+
 ### Approvals
 
 Executor approves only the calls that go through its tool invocation
@@ -217,7 +229,7 @@ keeps its last reading for a minute and reads again on "Zkontrolovat připojení
 | Route | Body | Answer |
 | --- | --- | --- |
 | `GET /api/integrations[?refresh=1]` | | the reading |
-| `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `connect-failed` |
+| `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `integration-conflict` (Executor holds the app's slug for another server), `connect-failed` |
 | `POST /api/integrations/poll` | `{session}` | `pending`, `{kind: "connected", app}` or `{kind: "ended", reason: failed\|expired\|cancelled}`; 404 for an unknown session |
 | `POST /api/integrations/cancel` | `{session}` | `{kind: "cancelled"}`; an OAuth flow is cancelled in Executor too |
 | `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed` |

@@ -196,7 +196,10 @@ export async function readExecutor(
       const shown =
         item.displayUrl === null ? null : shownEndpoint(item.displayUrl);
       if (
-        catalogAppOf(catalog, { slug: item.slug, target: shown }) !== undefined
+        catalogAppOf(catalog, {
+          kind: shown === null ? "command" : "remote",
+          target: shown,
+        }) !== undefined
       ) {
         integrations.push({
           slug: item.slug,

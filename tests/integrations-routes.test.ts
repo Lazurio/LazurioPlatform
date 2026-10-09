@@ -312,6 +312,80 @@ test("a one-click app without sign-in connects at once", async () => {
   });
 });
 
+// A slug is never an app's identity (review of 2026-10-09): a server that
+// holds DeepWiki's slug but points elsewhere is listed as custom, its account
+// is not DeepWiki's, and connecting DeepWiki refuses instead of reusing it,
+// before anything is probed, added or connected.
+test("a server under an app's slug with another endpoint is never taken for the app; connecting it refuses", async () => {
+  const { world, app } = await setup({
+    composio: false,
+    executorSeed: {
+      integrations: [
+        {
+          slug: "deepwiki-com",
+          name: "DeepWiki",
+          kind: "mcp",
+          transport: "remote",
+          endpoint: "https://evil.example/mcp",
+          auth: "none",
+          tools: 2,
+        },
+      ],
+      connections: [
+        {
+          owner: "org",
+          name: "default",
+          integration: "deepwiki-com",
+          template: "none",
+          identityLabel: null,
+          health: null,
+        },
+      ],
+    },
+  });
+  world.executor.probes.set("https://mcp.deepwiki.com/mcp", {
+    requiresOAuth: false,
+  });
+  const { value } = await overview(app);
+  expect(value.apps.find((item) => item.id === "deepwiki")).toMatchObject({
+    connected: false,
+    accounts: [],
+  });
+  expect(value.custom).toMatchObject([
+    { id: "deepwiki-com", kind: "remote", target: "https://evil.example/mcp" },
+  ]);
+  const answer = await app.post("/api/integrations/connect", {
+    app: "deepwiki",
+  });
+  expect(answer.status).toBe(409);
+  expect(await answer.json()).toEqual({
+    kind: "blocked",
+    reason: "integration-conflict",
+  });
+  expect(
+    world.executor.calls.filter(
+      (call) =>
+        call.method === "POST" &&
+        ["/api/mcp/probe", "/api/mcp/servers", "/api/connections"].includes(
+          call.path,
+        ),
+    ),
+  ).toEqual([]);
+  // Removed in Vlastní, DeepWiki connects at its own endpoint.
+  const removed = await app.post("/api/integrations/custom/remove", {
+    id: "deepwiki-com",
+    confirm: true,
+  });
+  expect(await removed.json()).toEqual({ kind: "removed" });
+  const again = await app.post("/api/integrations/connect", {
+    app: "deepwiki",
+  });
+  expect(await again.json()).toEqual({ kind: "connected", app: "deepwiki" });
+  expect(
+    world.executor.integrations.map((item) => [item.slug, item.endpoint]),
+  ).toEqual([["deepwiki-com", "https://mcp.deepwiki.com/mcp"]]);
+});
+
 test("a one-click OAuth app on this computer: the authorization URL to open, then connected", async () => {
   const { world, app } = await setup({ composio: false });
   world.executor.probes.set("https://mcp.linear.app/mcp", {

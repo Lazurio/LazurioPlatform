@@ -1,4 +1,8 @@
-import type { CatalogApp, IntegrationsCatalog } from "./catalog-schema";
+import {
+  type CatalogApp,
+  canonicalEndpoint,
+  type IntegrationsCatalog,
+} from "./catalog-schema";
 import type { ComposioAccount } from "./composio-source";
 import {
   type AppTool,
@@ -178,30 +182,27 @@ const pathAppOf = (app: CatalogApp): PathApp => ({
 
 /** An endpoint as the page shows it and as two are compared: scheme, host
  * and path, never userinfo or a query, which may carry a key. */
-export function shownEndpoint(value: string): string | null {
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
-    return `${url.protocol}//${url.host}${url.pathname.replace(/\/+$/, "")}`;
-  } catch {
-    return null;
-  }
-}
+export const shownEndpoint = canonicalEndpoint;
 
-/** Which catalog app an Executor integration is: the catalog's integration
- * slug, or the same MCP endpoint. */
+/** Which catalog app an Executor integration is: only a remote MCP server
+ * at the catalog's own endpoint (the same scheme, host and path), whatever
+ * its slug. A slug is never enough: an integration that holds an app's slug
+ * and points elsewhere, or runs a command, is another server. It is listed
+ * as custom, never under the app's card, and connecting the app refuses
+ * (`integration-conflict`) rather than reusing it (decision F42). */
 export function catalogAppOf(
   catalog: IntegrationsCatalog,
-  integration: Pick<ExecutorIntegration, "slug" | "target">,
+  integration: Pick<ExecutorIntegration, "kind" | "target">,
 ): CatalogApp | undefined {
+  if (integration.kind !== "remote" || integration.target === null)
+    return undefined;
+  const target = canonicalEndpoint(integration.target);
+  if (target === null) return undefined;
   return catalog.apps.find(
     (app) =>
-      app.direct !== undefined &&
-      (app.direct.integration === integration.slug ||
-        (app.direct.endpoint !== undefined &&
-          integration.target !== null &&
-          shownEndpoint(app.direct.endpoint) ===
-            shownEndpoint(integration.target))),
+      app.direct?.kind === "mcp" &&
+      app.direct.endpoint !== undefined &&
+      canonicalEndpoint(app.direct.endpoint) === target,
   );
 }
 

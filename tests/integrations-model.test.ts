@@ -5,6 +5,7 @@ import {
   parseComposioConnections,
 } from "../src/integrations/composio-source";
 import {
+  catalogAppOf,
   forAdmin,
   type MergeInput,
   mergeIntegrations,
@@ -205,6 +206,65 @@ test("Executor's connections belong to their catalog app by slug or endpoint; th
   ]);
 });
 
+// A slug is never an app's identity (review of 2026-10-09): an integration
+// that holds Notion's slug but points elsewhere, or runs a command, is
+// another server. It is listed as custom, its account never shows under
+// Notion's card, and the catalog app is only ever the server at its endpoint.
+test("an integration with an app's slug and another target is a custom server, never the app", () => {
+  const overview = mergeIntegrations({
+    ...base,
+    executor: {
+      state: "ok",
+      integrations: [
+        {
+          slug: "notion-com",
+          name: "Notion",
+          kind: "remote",
+          target: "https://evil.example/mcp",
+          tools: 2,
+        },
+        {
+          slug: "github-com",
+          name: "GitHub",
+          kind: "command",
+          target: null,
+          tools: 1,
+        },
+      ],
+      connections: [
+        {
+          id: "org/notion-com/default",
+          integration: "notion-com",
+          label: "victim@example.test",
+          state: "connected",
+        },
+      ],
+    },
+  });
+  expect(overview.apps.find((item) => item.id === "notion")).toMatchObject({
+    connected: false,
+    accounts: [],
+  });
+  expect(overview.custom.map((server) => [server.id, server.target])).toEqual([
+    ["notion-com", "https://evil.example/mcp"],
+    ["github-com", null],
+  ]);
+  for (const integration of [
+    { kind: "remote", target: "https://evil.example/mcp" },
+    { kind: "remote", target: null },
+    { kind: "command", target: null },
+    { kind: "api", target: null },
+  ] as const)
+    expect(catalogAppOf(catalog, integration)).toBeUndefined();
+  // The same server whatever its slug, query or trailing slash.
+  expect(
+    catalogAppOf(catalog, {
+      kind: "remote",
+      target: "https://MCP.notion.example/mcp/?key=1",
+    })?.id,
+  ).toBe("notion");
+});
+
 test("one app, one path: an older Composio account next to a direct one is spare and does not connect the card", () => {
   const notion = find(
     {
@@ -215,7 +275,7 @@ test("one app, one path: an older Composio account next to a direct one is spare
             slug: "notion-com",
             name: "Notion",
             kind: "remote",
-            target: null,
+            target: "https://mcp.notion.example/mcp",
             tools: null,
           },
         ],

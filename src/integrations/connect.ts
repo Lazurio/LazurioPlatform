@@ -89,6 +89,9 @@ export type ConnectRefusal =
   | "name-invalid"
   | "executor-unavailable"
   | "browser-unavailable"
+  /** Executor holds the app's slug for another server: never reused under
+   * the app's card; the person removes it in Vlastní first. */
+  | "integration-conflict"
   | "connect-failed";
 
 export type ConnectProgress =
@@ -207,7 +210,10 @@ export function createConnectSessions(host: () => ConnectHost) {
     return session;
   }
 
-  /** The integration of a catalog app in Executor, added once. */
+  /** The integration of a catalog app in Executor, added once: the remote
+   * MCP server at the catalog's endpoint, whatever its slug. One that only
+   * holds the app's slug is another server and is never reused (decision
+   * F42): the connect refuses instead. */
   async function ensureIntegration(
     executor: ExecutorEndpoint,
     app: CatalogApp,
@@ -219,18 +225,26 @@ export function createConnectSessions(host: () => ConnectHost) {
       await executorCall(executor, "GET", "/integrations"),
       200,
     );
-    const present = (Array.isArray(listed) ? listed : []).map(record).find(
-      (item) =>
-        item.kind === "mcp" &&
-        typeof item.slug === "string" &&
+    const items = (Array.isArray(listed) ? listed : []).map(record);
+    const present = items.find((item) => {
+      if (item.kind !== "mcp" || typeof item.slug !== "string") return false;
+      // Executor shows a remote server's endpoint; a command server none.
+      const target =
+        typeof item.displayUrl === "string"
+          ? shownEndpoint(item.displayUrl)
+          : null;
+      return (
         catalogAppOf(catalog(), {
-          slug: item.slug,
-          target:
-            typeof item.displayUrl === "string"
-              ? shownEndpoint(item.displayUrl)
-              : null,
-        })?.id === app.id,
-    );
+          kind: target === null ? "command" : "remote",
+          target,
+        })?.id === app.id
+      );
+    });
+    if (
+      present === undefined &&
+      items.some((item) => item.slug === direct.integration)
+    )
+      throw new ConnectBlocked("integration-conflict");
     const probe = record(
       answerOf(
         await executorCall(

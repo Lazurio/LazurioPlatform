@@ -325,6 +325,8 @@ export function createIntegrationsPanel(
       note = copy.integrationsBrowserMissing;
     else if (reason === "executor-unavailable")
       note = copy.integrationsExecutorUnavailable;
+    else if (reason === "integration-conflict")
+      note = copy.integrationsIntegrationConflict;
     else note = copy.integrationsConnectFailed;
     render();
   }

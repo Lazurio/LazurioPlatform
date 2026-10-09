@@ -1040,6 +1040,8 @@ const en = {
   integrationsWaiting: "Waiting for the sign-in…",
   integrationsConnectedNow: "{app} is connected.",
   integrationsConnectFailed: "The connection could not be started.",
+  integrationsIntegrationConflict:
+    "Executor holds another server under this app's name. You find it in Custom: remove it there and connect the app again.",
   integrationsConnectEnded: "The connection was not finished.",
   integrationsNameTaken: "This name is used by another account of the app.",
   integrationsAccountUnnamed: "account",
@@ -2132,6 +2134,8 @@ const cs: Record<MessageKey, string> = {
   integrationsWaiting: "Čekám na přihlášení…",
   integrationsConnectedNow: "{app} je připojená.",
   integrationsConnectFailed: "Připojení se nepodařilo spustit.",
+  integrationsIntegrationConflict:
+    "V Executoru je pod jménem téhle aplikace jiný server. Najdeš ho ve Vlastní: odeber ho tam a aplikaci připoj znovu.",
   integrationsConnectEnded: "Připojení se nedokončilo.",
   integrationsNameTaken: "Tenhle název už má jiný účet aplikace.",
   integrationsAccountUnnamed: "účet",
