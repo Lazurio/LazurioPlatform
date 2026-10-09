@@ -5885,6 +5885,90 @@ The same day the Admin dropped the status line "Připojeno, pokračuju…" ("Con
 continuing…"): once the address answers, the page reloads into the Environment at
 once, with nothing shown in between. `tests/shell-offline-guide.test.ts` keeps it out.
 
+## F42 — Integrace: one catalog for the Environment, one path per app, Executor's API behind the Launchpad
+
+**Decided by Matěj 2026-10-09 (root decision 0162, addendum of 2026-10-09; root
+decision 0194 for who allows Composio; plan DEV-6626 tasks 675, 683 and the Folder
+part of 681; the wireframe approved in HumanAndMachine-ai/prototypes-lazurio#25);
+implemented in this revision.** It supersedes the proposal of the same number
+(connected apps over Composio in two modes, MCP servers in the Folder's
+preferences), which was never merged. The reference is
+[integrations](integrations.md).
+
+1. **One list, one path per app.** Apps → Integrace (`/integrations`, the tabs
+   Vše, Připojené and Vlastní, an app's card at `/integrations/app/<id>`, under
+   `app/` so that no app id is ever a tab) lists every app of the catalog, the
+   apps connected here that the catalog does not know, and the custom MCP servers.
+   Each app has exactly one path, chosen by the wireframe's rule (`choosePath`,
+   [integrations](integrations.md#the-path-rule)): a connected tool for the app,
+   then the way it is already connected (přímo before Composio), then directly
+   where it is just as easy, then Composio where it is allowed, then what is
+   missing and who acts. A card says quietly "přímo", "přes Composio" or "přes
+   <tool>"; a Composio form says that Composio, a third-party server, makes the
+   connection.
+2. **Executor's typed API, never its console.** The Launchpad's server drives the
+   Environment's Executor over the HTTP API the console uses (Executor 1.6.10 on
+   127.0.0.1:4789): it reads integrations and connections, adds an official MCP
+   server once under the catalog's slug, creates its connection, and for OAuth
+   creates the client from Executor's client ID metadata document or registers one
+   dynamically, then starts the flow. Executor's callback returns to localhost on
+   the Environment, so on a Remote Environment the person signs in in the
+   Environment browser (a tab the right panel shows) and on their own computer in
+   their own browser; a Remote Environment without the Environment browser says it
+   cannot. The console token is read for each call from an owner-only regular file,
+   sent only after the listener of the port is proven this account's, over
+   `node:http` so that no proxy of the environment sees it, and never answered,
+   logged or kept. A custom server's key goes from the page to the Launchpad once
+   and on to Executor only.
+3. **Composio through its CLI, as before.** `composio link --no-wait` makes the
+   link; its URL is answered only to the request that started it and opened in a
+   window of the person's browser; the Launchpad asks for a second account's name
+   before linking. It disconnects only where the CLI removes without a terminal
+   (`--yes`, which 0.4.x does not have): otherwise it says so and the person
+   disconnects in Composio. Its accounts count only where Composio is allowed,
+   switched on for agents, installed and signed in.
+4. **Who allows Composio is one seam.** `composioPolicy()` answers `{allowed,
+   source: "organization" | "environment"}`; until the Organization's settings
+   reach the Environment (root decision 0194, plan DEV-6653) it is the
+   Environment's, allowed, as it has been since F18. The page, the rule and the
+   reading read only that seam; the Folder never says whether Composio is allowed,
+   it defers to the card's path.
+5. **One reading for people and agents.** `GET /api/integrations` and
+   `lazurio integrations list [--json]` answer the same document from the same
+   core: each source with its own state (`ok`, `unavailable`, `unreadable`,
+   `signed-out`, `not-allowed`), so a source that is down is never taken for
+   "nothing connected" and never fails the page. The Launchpad keeps its last
+   reading for a minute and reads again on request and after every change.
+6. **The catalog is Lazurio's to keep.** 67 curated apps, built from Composio's and
+   Executor's public catalogs by `scripts/integrations-catalog.ts` and checked in;
+   a direct path only where the probe of the official endpoint verified it (one
+   click by dynamic client registration, a client ID metadata document or without
+   sign-in; an app the company registers; Google's and Microsoft's company apps
+   from Executor's curated specs). Icons are bundled from simple-icons (CC0) or are
+   the app's first letter: the page asks no third party for a logo. A maintainer
+   refreshes it with the script and a pull request.
+7. **The Folder (template revision `base-instructions-39`).** AGENTS.md gains the
+   section Integrace after Tools: the three paths, `lazurio integrations list
+   --json`, the order tool → Executor → Composio, never connecting an Integrace
+   (the card's link, or on a workstation the page named), a custom MCP server only
+   on the person's explicit instruction and always into Executor. The manual's
+   "Connected applications" (F14 addendum of 2026-10-02) becomes Integrace, with
+   Executor's approvals: Executor 1.6.10 returns a destructive MCP tool's call or
+   an API write to the agent as `waiting_for_interaction` (elicitation mode
+   `model`), and the agent accepts it only for a Draft or a Publication the
+   Operator explicitly approved; Lazurio does not change Executor's policy. F18's
+   instruction that MCP servers are set up per harness and never recorded is
+   retired, and so are `composio link` for agents, "send the link the command
+   returns" and "no cloud connector other than Composio". Settings → Tools says
+   that apps are connected in Apps → Integrace, and its MCP card prepares an
+   agent's prompt that adds the server to Executor.
+
+Not in this revision: the Organization's settings themselves (DEV-6653), the
+company apps of Google Workspace and Microsoft 365 (task 685; their cards show
+that the company app is not set up, with a link to the Organization's Dashboard
+for its Admin and a message to copy for anyone else), the Dashboard's place for
+"Požádat Admina", and Executor 2.
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;
