@@ -2,8 +2,8 @@
 
 The maintained Lazurio Core contract is authoritative, not a new Platform schema:
 
-- [Manifest family](https://github.com/HumanAndMachines/Lazurio/blob/b6c2849e2f5b1b6ca91cf197a597be7dc9270ceb/manual/lazurio-manifest-family.md), accepted by decisions 0026, 0031 and 0042.
-- [Authored schema](https://github.com/HumanAndMachines/Lazurio/blob/b6c2849e2f5b1b6ca91cf197a597be7dc9270ceb/lazurio/lazurio.organization.v1.schema.json), SHA256 `e75588a6fef1d96953f1241fea377bdfd89d07c007d6d539da1b4cf12a9b1f61`.
+- [Manifest family](https://github.com/HumanAndMachines/Lazurio/blob/b037a9f0691afea39efc722aede3a44125bf1d38/manual/lazurio-manifest-family.md), accepted by decisions 0026, 0031 and 0042.
+- [Authored schema](https://github.com/HumanAndMachines/Lazurio/blob/b037a9f0691afea39efc722aede3a44125bf1d38/lazurio/lazurio.organization.v1.schema.json), SHA256 `4f14f1a1fec950b39fd0fddb1b13f1c41874c99b836d1029f2ee9f91ff5c6292`.
 
 Platform must consume this same versioned contract. The current independently
 authored `canonical-manifest.ts` parser is not an exact vendored schema or a complete
@@ -93,9 +93,7 @@ Upstream decision 0194 adds the optional, closed `settings` section of
 `lazurio.organization.json`; its first setting is
 `settings.integrations.composio.allowed`. Platform consumes it exactly as Lazurio
 Core defines it ([contract, schema `$defs.organizationSettings` and Core tests](https://github.com/HumanAndMachines/Lazurio/pull/512),
-at commit `b037a9f0691afea39efc722aede3a44125bf1d38`, schema SHA256
-`4f14f1a1fec950b39fd0fddb1b13f1c41874c99b836d1029f2ee9f91ff5c6292`). The pin at
-the top of this page names the previous schema until that change lands upstream.
+merged; the authored schema pinned at the top of this page carries the section).
 
 - `parseCanonicalOrganization` accepts the section and keeps it as authored but
   never judges it. `organizationSettings` (`src/organizations/organization-settings.ts`)
