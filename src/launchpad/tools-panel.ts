@@ -143,6 +143,7 @@ export function createToolsPanel(
     post: options.post,
     copy: options.copy,
     changed: () => render(),
+    settled: () => void refresh(),
     prompt: (title, hint, text, from) => openPrompt(title, hint, text, from),
   });
 

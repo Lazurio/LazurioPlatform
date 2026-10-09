@@ -31,6 +31,9 @@ export function createExecutorPanel(
     copy: () => Copy;
     /** Executor's state changed: the tools section draws again. */
     changed: () => void;
+    /** A setup ended: the tools are read again, so the rest of the row (its
+     * installation in Details) says what the setup left. */
+    settled: () => void;
     /** The conflict's prepared prompt for an agent. */
     prompt: (
       title: string,
@@ -97,10 +100,14 @@ export function createExecutorPanel(
         continue;
       }
       const parsed = parseExecutorStatus(value);
+      // The setup's answer is the newest state: a read that started before
+      // it ended is dropped when it arrives (`read` compares its turn).
+      reading++;
       running = null;
       unreadable = parsed === null;
       if (parsed !== null) status = parsed;
       options.changed();
+      options.settled();
       return;
     }
   }
