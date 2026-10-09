@@ -193,12 +193,15 @@ export function offered(app: IntegrationApp): boolean {
 
 /** The apps of a tab, in the order the page shows them: connected first,
  * then what connects here, then what cannot yet; each group in catalog
- * order. A search finds every app; Vše without one lists what is offered. */
+ * order. A search finds every app; Vše without one lists what is offered,
+ * and always the app a card link names (`linked`), even one nothing
+ * connects here, so the link opens its card with what is missing. */
 export function visibleApps(
   overview: IntegrationsOverview,
   catalog: readonly CatalogApp[],
   tab: IntegrationsTab,
   search: string,
+  linked: string | null = null,
 ): IntegrationApp[] {
   const wanted = normalize(search.trim());
   const describe = (app: IntegrationApp) => {
@@ -216,7 +219,7 @@ export function visibleApps(
     tab === "connected"
       ? overview.apps.filter((app) => app.connected || app.accounts.length > 0)
       : wanted === ""
-        ? overview.apps.filter(offered)
+        ? overview.apps.filter((app) => offered(app) || app.id === linked)
         : overview.apps;
   const matching =
     wanted === ""

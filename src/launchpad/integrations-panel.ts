@@ -595,7 +595,14 @@ export function createIntegrationsPanel(
     const copy = options.copy();
     if (overview === null) return [];
     const query = search.value;
-    const apps = visibleApps(overview, integrationsCatalog.apps, tab, query);
+    // The app a card link names stays listed while the link is open.
+    const apps = visibleApps(
+      overview,
+      integrationsCatalog.apps,
+      tab,
+      query,
+      route?.app ?? null,
+    );
     const searching = query.trim() !== "";
     const capped =
       tab === "all" && !searching && !showAll && apps.length > appsPreview;

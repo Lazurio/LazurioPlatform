@@ -311,6 +311,48 @@ test("a connected card says its one way quietly; Composio's form says who makes 
   ).toBe("Finish the connection in the browser");
 });
 
+// An agent's card link names any app of the catalog (review of
+// 2026-10-09): WhatsApp without wacli is not offered in Vše, yet its link
+// lists its card, with the line and the action of what is missing.
+test("a card link lists the app it names even where nothing connects it, with what is missing", () => {
+  const whatsapp = app("whatsapp", {
+    path: { path: null, missing: "tool", tool: "wacli" },
+    link: "https://launchpad.example.test/integrations/app/whatsapp",
+  });
+  const value = overview([app("linear"), whatsapp]);
+  expect(
+    visibleApps(value, integrationsCatalog.apps, "all", "").map(
+      (item) => item.id,
+    ),
+  ).toEqual(["linear"]);
+  expect(
+    visibleApps(value, integrationsCatalog.apps, "all", "", "whatsapp").map(
+      (item) => item.id,
+    ),
+  ).toEqual(["linear", "whatsapp"]);
+  // A link to an app the Environment does not know adds nothing.
+  expect(
+    visibleApps(value, integrationsCatalog.apps, "all", "", "unknown-app").map(
+      (item) => item.id,
+    ),
+  ).toEqual(["linear"]);
+  expect(
+    cardView(
+      whatsapp,
+      integrationsCatalog.apps.find((item) => item.id === "whatsapp"),
+      options(cs),
+    ),
+  ).toMatchObject({
+    line: "Připojí ji nástroj wacli.",
+    action: { kind: "open-tools", label: "Otevřít Nástroje" },
+  });
+  expect(pageRoute("/integrations/app/whatsapp")).toEqual({
+    view: "integrations",
+    tab: "all",
+    app: "whatsapp",
+  });
+});
+
 test("where nothing connects an app: one line and one action, the Admin's or anyone's", () => {
   const entry = (id: string) =>
     integrationsCatalog.apps.find((item) => item.id === id);
