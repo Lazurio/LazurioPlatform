@@ -6305,7 +6305,17 @@ the service (`tests/executor-service.test.ts`), the agents
 Launchpad routes and row (`tests/launchpad-executor.test.ts`,
 `tests/executor-view.test.ts`), the convergence (`tests/update-install.test.ts`,
 `tests/update-cli.test.ts`), doctor (`tests/doctor.test.ts`) and the offer rule
-(`tests/folder-tools.test.ts`). The npm behaviour of point 2 and the program's
-`--version` were observed with the real tarballs in a Linux container on
-2026-10-09; the whole setup first runs on a real Remote Environment after the
-release.
+(`tests/folder-tools.test.ts`). With the real packages on 2026-10-09, in Debian
+12 containers with npm 11.19.0 and Node 24.21.0: the npm behaviour of point 2
+for both targets; the linux-arm64 program answering `executor v1.6.10` (the x64
+program was not run there: the x64 emulator lacks AVX, which Bun's x64 builds
+need, Lazurio's own release binaries included); and the setup of
+`src/executor/flow.ts`, natively on linux-arm64 under a lingering systemd user
+manager: from `not-installed` to `running` in 13 s, Executor's unit as point 4
+reads it, both switches in the daemon's environment from its first start and
+`/api/health` answering; a second setup kept the same process, a changed
+drop-in restarted it once and a stopped service was started; Codex 0.162.0 and
+Claude Code 2.1.295 each got exactly one entry, read back as registered, and
+`claude mcp list` reported `executor` connected. The x64 program, the switch
+from the pilot's manual installation and a Remote Environment's own image
+first run on a real Remote Environment after the release.
