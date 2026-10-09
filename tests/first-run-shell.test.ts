@@ -606,6 +606,7 @@ const tool = (overrides: Partial<ToolOverview>): ToolOverview => ({
   tier: "recommended",
   setup: "launchpad",
   enabled: false,
+  offered: true,
   purpose: "Catalog purpose.",
   usage: "Usage.",
   source: "https://example.invalid",

@@ -1,3 +1,5 @@
+import { executorPin } from "../executor/pin";
+import type { PresetName } from "../folder/presets";
 import { bitwardenPin } from "../vault/pin";
 import { toolNoteProblem } from "./note";
 
@@ -81,12 +83,16 @@ export type ToolActivation = Readonly<{
    * an installation and a person's sign-in (the Environment vault, decision
    * F43): it replaces the two generic paragraphs. */
   task?: ToolText;
-  /** Where Lazurio sets the tool up: `hosted-linux` only in a Remote
-   * Environment on Linux (the Environment vault, decision F43; this computer
-   * is its second wave). Absent: everywhere. Elsewhere doctor does not
-   * count it as missing. */
-  offered?: "hosted-linux";
+  /** Where Lazurio offers the tool (`toolOffered`): `hosted-linux` only in a
+   * Remote Environment on Linux (the Environment vault, decision F43, and
+   * Executor, F44; this computer is their second wave). Absent: everywhere.
+   * Where a tool is not offered it is not rendered into the Folder, cannot
+   * be enabled, and doctor does not count it as missing; a stored selection
+   * naming it stays readable and can turn it off. */
+  offered?: ToolOffer;
 }>;
+
+export type ToolOffer = "hosted-linux";
 
 export type ToolEntry = Readonly<{
   name: string;
@@ -187,6 +193,46 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         cs: "Používej `gh` pro veškerou práci s GitHubem. Před připojenou operací ověř přihlášenou identitu příkazem `gh auth status`; přihlášení není důkaz práva k přesné operaci.",
         en: "Use `gh` for all GitHub work. Verify the signed-in identity with `gh auth status` before a connected operation; a sign-in is not proof of the right to an exact operation.",
       },
+    },
+  }),
+  // Executor 1 of every Remote Environment (decision F44, root decision 0162
+  // addendum 2026-10-09): the MCP gateway of the direct Integrations and of
+  // custom MCP servers, installed, run and connected to the agents by
+  // Lazurio itself (`lazurio executor setup`, the install and update
+  // convergence, Settings → Tools → executor), pinned per Platform release.
+  // Even its version command writes a cache in its data directory, so the
+  // probe gets a private one.
+  tool({
+    name: "executor",
+    command: "executor",
+    versionArgs: ["--version"],
+    source: "https://github.com/UsefulSoftwareCo/executor",
+    updater: { kind: "none" },
+    isolatedData: "EXECUTOR_DATA_DIR",
+    activation: {
+      tier: "required",
+      setup: "launchpad",
+      offered: "hosted-linux",
+      task: {
+        cs: "Úkol: zprovozni Executor tohoto Environmentu, nástroj `executor`: verzi, kterou připíná Lazurio, jeho službu jen na localhostu a MCP server `executor` v Codexu a Claude Code. Nejdřív zjisti skutečný stav příkazem `lazurio executor status --json`; co už funguje, neměň.",
+        en: "Task: get this Environment's Executor working, the tool `executor`: the version Lazurio pins, its service on localhost only and the MCP server `executor` in Codex and Claude Code. First read the actual state with `lazurio executor status --json`; change nothing that already works.",
+      },
+      installation: installation(
+        `Cílový stav: Executor ve verzi, kterou připíná Lazurio (${executorPin.version}, balíčky \`executor\` a \`executor-linux-<arch>\` z registru npm ověřené proti otiskům v Lazuriu), v \`~/.local/share/executor-cli/<verze>\`; spouští ho wrapper Lazuria \`~/.local/bin/executor\`, který vždy vypíná analytiku i kontrolu nové verze; jeho služba \`sh.executor.daemon.service\` běží pod uživatelem Environmentu jen na \`127.0.0.1:4789\` s doplňkem Lazuria \`lazurio.conf\`; Codex a Claude Code mají MCP server \`executor\` (\`~/.local/bin/executor mcp\`). Udělá to příkaz \`lazurio executor setup --json\` a ohlásí, co chybí. Jinou verzi Executoru neinstaluj, \`~/.local/bin/executor\` ani MCP server \`executor\`, které nejsou Lazuria, nepřepisuj a přístupový token z \`~/.executor\` nikam nekopíruj. Důkaz: \`lazurio executor status --json\` hlásí \`running\`.`,
+        `Target state: Executor at the version Lazurio pins (${executorPin.version}, the packages \`executor\` and \`executor-linux-<arch>\` of the npm registry, verified against the digests in Lazurio), in \`~/.local/share/executor-cli/<version>\`; Lazurio's wrapper \`~/.local/bin/executor\` runs it with analytics and the check for a newer version always off; its service \`sh.executor.daemon.service\` runs as the Environment's user on \`127.0.0.1:4789\` only, with Lazurio's drop-in \`lazurio.conf\`; Codex and Claude Code have the MCP server \`executor\` (\`~/.local/bin/executor mcp\`). The command \`lazurio executor setup --json\` does it and reports what is missing. Install no other version of Executor, never overwrite a \`~/.local/bin/executor\` or an MCP server \`executor\` that is not Lazurio's, and copy the access token in \`~/.executor\` nowhere. Proof: \`lazurio executor status --json\` reports \`running\`.`,
+      ),
+      purpose: {
+        cs: "MCP brána tohoto Environmentu pro přímo připojené Integrace a vlastní MCP servery; běží jako služba jen na localhostu a stará se o ni Lazurio.",
+        en: "This Environment's MCP gateway for directly connected Integrations and custom MCP servers; it runs as a service on localhost only and Lazurio looks after it.",
+      },
+      usage: writingUsage(
+        "Integrace připojené přímo používej přes MCP server `executor` (jeho nástroje `skills` a `execute`) nebo příkazem `executor call tools <integrace> <vlastník> <připojení> <nástroj> '<json>'`; co je k dispozici, ukáže `executor tools integrations` a `executor tools search \"<úkol>\"`. Stav služby a napojení agentů ověříš příkazem `lazurio executor status`; když hlásí, že Executor neběží nebo není hotový, řekni to Operátorovi: na jeho pokyn ho opraví `lazurio executor setup` (totéž nabízí Nastavení → Nástroje → executor).",
+        "Use the Integrations connected directly through the MCP server `executor` (its tools `skills` and `execute`) or with `executor call tools <integration> <owner> <connection> <tool> '<json>'`; `executor tools integrations` and `executor tools search \"<task>\"` show what is there. Check the service and the agents' connection with `lazurio executor status`; when it reports that Executor is not running or not finished, tell the Operator: on their instruction `lazurio executor setup` repairs it (Settings → Tools → executor offers the same).",
+        {
+          cs: "Zápis viditelný navenek přes Integraci (odeslání, zveřejnění, smazání)",
+          en: "An externally visible write through an Integration (sending, publishing, deleting)",
+        },
+      ),
     },
   }),
   tool({
@@ -400,6 +446,24 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
  * vault connect` and Settings → Tools → bitwarden, not by the curated
  * install and sign-in of F19. */
 export const vaultToolName = "bitwarden";
+
+/** Executor's catalog tool (decision F44): set up by Lazurio itself
+ * (`lazurio executor setup`, the install and update convergence, Settings →
+ * Tools → executor), not by the curated install and sign-in of F19. */
+export const executorToolName = "executor";
+
+/** Whether Lazurio offers a tool in an Environment of this preset, on Linux
+ * or elsewhere (`ToolActivation.offered`). A Remote Environment is always
+ * Linux; `local` is the person's own computer. */
+export function toolOffered(
+  entry: Pick<ActivatableTool, "activation">,
+  environment: Readonly<{ preset: PresetName; linux: boolean }>,
+): boolean {
+  const offered = entry.activation.offered;
+  if (offered === "hosted-linux")
+    return environment.preset !== "local" && environment.linux;
+  return true;
+}
 
 export function findTool(name: string): ToolEntry | undefined {
   return toolCatalog.find((entry) => entry.name === name);

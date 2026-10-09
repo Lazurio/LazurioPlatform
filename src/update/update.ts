@@ -5,6 +5,10 @@ import {
   environmentBrowserFailed,
 } from "../browser/units";
 import {
+  type ExecutorConvergence,
+  executorConvergenceFailed,
+} from "../executor/converge";
+import {
   type FolderRefresh,
   folderRefreshNeeded,
 } from "../folder/refresh-needed";
@@ -83,6 +87,10 @@ export type UpdateEnvironment = Readonly<{
    * supervised hosted base (`convergeEnvironmentBrowser`, decision F38);
    * undefined when there is nothing to converge. Absent: nothing. */
   browserUnits?: (() => Promise<EnvironmentBrowser | undefined>) | undefined;
+  /** After a successful run: set up Executor of a supervised hosted base
+   * (`convergeExecutor`, decision F44); undefined when there is nothing to
+   * converge. Absent: nothing. */
+  executorUnits?: (() => Promise<ExecutorConvergence | undefined>) | undefined;
   run?: ProcessRunner | undefined;
   now?: (() => Date) | undefined;
   download?: Partial<DownloadPolicy> | undefined;
@@ -270,6 +278,8 @@ export type UpdateResult =
       codexAppServer?: CodexAppServer;
       /** Supervised base only: the Environment browser's units (F38). */
       environmentBrowser?: EnvironmentBrowser;
+      /** Supervised base only: Executor (F44). */
+      executor?: ExecutorConvergence;
     }>
   | Readonly<{
       kind: "updated";
@@ -281,6 +291,7 @@ export type UpdateResult =
       folderRefresh: FolderRefresh | null;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
+      executor?: ExecutorConvergence;
     }>
   | ErrorResult;
 
@@ -328,12 +339,21 @@ export async function performUpdate(
       : await environment
           .browserUnits()
           .catch(() => environmentBrowserFailed("unit"));
-  return codexAppServer === undefined && environmentBrowser === undefined
+  const executor =
+    environment.executorUnits === undefined
+      ? undefined
+      : await environment
+          .executorUnits()
+          .catch(() => executorConvergenceFailed);
+  return codexAppServer === undefined &&
+    environmentBrowser === undefined &&
+    executor === undefined
     ? result
     : Object.freeze({
         ...result,
         ...(codexAppServer === undefined ? {} : { codexAppServer }),
         ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
+        ...(executor === undefined ? {} : { executor }),
       });
 }
 

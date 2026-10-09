@@ -1,5 +1,5 @@
 import { sharedEnvironment } from "../folder/render";
-import { activatableTools, vaultToolName } from "./catalog";
+import { activatableTools, executorToolName, vaultToolName } from "./catalog";
 import {
   githubLoginRefused,
   githubRefusal,
@@ -121,6 +121,22 @@ export function refuseTool(
       text: json
         ? JSON.stringify(result)
         : `${name} is the Environment vault: connect it in the Launchpad (Settings → Tools → bitwarden) or with lazurio vault connect.`,
+    };
+  }
+  // Executor is set up by Lazurio itself (decision F44).
+  if (name === executorToolName) {
+    const result = {
+      kind: "blocked",
+      reason: "setup-executor",
+      tool: name,
+      command: "lazurio executor setup",
+    };
+    return {
+      code: 2,
+      result,
+      text: json
+        ? JSON.stringify(result)
+        : `${name} is set up by Lazurio itself: lazurio executor setup (or Settings → Tools → executor) installs and repairs it.`,
     };
   }
   if (curatedTool(name) === undefined) {

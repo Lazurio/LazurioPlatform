@@ -1,8 +1,10 @@
 import {
+  activatableTools,
   activeTools,
   parseEnabledTools,
   parseToolNotes,
   type ToolNotes,
+  toolOffered,
 } from "../tools/catalog";
 import {
   type MachineBinding,
@@ -25,6 +27,7 @@ import {
   instructionSource,
   instructionTemplateRevision,
   isOlderTemplateRevision,
+  toolEnvironmentOf,
 } from "./render";
 import {
   enabledTools,
@@ -99,6 +102,21 @@ export async function planToolsChange(
 ) {
   const current = parseFolderPreferences(currentPreferencesInput);
   const tools = parseEnabledTools(requestedInput);
+  // A tool this Environment does not offer is never newly enabled (decision
+  // F44: gogcli on a work Environment); one the selection already names
+  // stays, so the stored selection is readable and can turn it off.
+  const environment = toolEnvironmentOf(current.preset.name, current.profile);
+  const recorded = enabledTools(current);
+  if (
+    tools.some(
+      (name) =>
+        !recorded.includes(name) &&
+        activatableTools().some(
+          (entry) => entry.name === name && !toolOffered(entry, environment),
+        ),
+    )
+  )
+    return { kind: "blocked", reason: "tool-not-offered" } as const;
   return planFolderChange(
     current,
     currentManifestInput,
@@ -238,10 +256,14 @@ export async function planFolderChange(
   if (preview.plan.kind === "blocked") return preview.plan;
   // The entry is the one part of the binding the product acts on, not only
   // renders: the Launchpad serves and admits from the recorded one. A changed
-  // entry is recorded even when the Folder renders the same bytes.
+  // entry is recorded even when the Folder renders the same bytes. So is a
+  // changed selection or note: a tool this Environment does not offer is not
+  // rendered (decision F44), and switching it off changes only the record.
   if (
     preview.plan.kind === "unchanged" &&
-    JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry)
+    JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
+    JSON.stringify(tools) === JSON.stringify(enabledTools(current)) &&
+    JSON.stringify(notes) === JSON.stringify(toolNotes(current))
   )
     return { kind: "unchanged" } as const;
   if (current.revision === Number.MAX_SAFE_INTEGER)

@@ -474,6 +474,9 @@ async function runFolderToolsCommand(
         tier: selection.tier,
         setup: selection.setup,
         enabled: selection.enabled,
+        // Whether this Environment offers it (decision F44): one it does
+        // not is never rendered for agents and cannot be enabled.
+        offered: selection.offered,
         ...(signIn === undefined ? {} : { signIn }),
         ...(note === undefined ? {} : { note }),
       };
@@ -492,7 +495,7 @@ async function runFolderToolsCommand(
                   tool.standardPath === false ? "  (outside ~/.local/bin)" : ""
                 }`
               : `missing ${tool.source}`
-          }${
+          }${tool.offered ? "" : "  (not offered here)"}${
             tool.signIn === undefined
               ? ""
               : `  (${signInText(tool.signIn, recorded.sharedEnvironment)})`

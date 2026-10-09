@@ -6,6 +6,10 @@ import {
   type EnvironmentBrowser,
   environmentBrowserFailed,
 } from "../browser/units";
+import {
+  type ExecutorConvergence,
+  executorConvergenceFailed,
+} from "../executor/converge";
 import { activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
 import {
@@ -152,6 +156,14 @@ export type InstallInput = Readonly<{
   /** The handover's `entry.browser`, asked only on a supervised hosted base
    * (decision F38); absent: none, so nothing is converged. */
   browserEntry?: (() => Promise<BrowserEntry | undefined>) | undefined;
+  /** Executor's convergence on a supervised hosted base (decision F44,
+   * `convergeExecutor`), given the same hosted answer; absent: nothing is
+   * converged. */
+  executor?:
+    | ((
+        hosted: () => Promise<boolean>,
+      ) => Promise<ExecutorConvergence | undefined>)
+    | undefined;
   run?: ProcessRunner | undefined;
   healthDeadlineMs?: number | undefined;
 }>;
@@ -174,6 +186,8 @@ export type InstallResult =
       /** Only on a supervised base: what became of the Environment
        * browser's units (decision F38). */
       environmentBrowser?: EnvironmentBrowser;
+      /** Only on a supervised base: what became of Executor (F44). */
+      executor?: ExecutorConvergence;
     }>
   /** The offline update: a newer executable over an existing installation. */
   | Readonly<{
@@ -187,6 +201,7 @@ export type InstallResult =
       entry: PathEntry | null;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
+      executor?: ExecutorConvergence;
     }>
   | ErrorResult;
 
@@ -485,6 +500,12 @@ async function install(input: InstallInput): Promise<InstallResult> {
       hosted,
       entry: input.browserEntry ?? (async () => undefined),
     }).catch(() => environmentBrowserFailed("unit"));
+  // Executor the same way (decision F44): set up for the hosted operator of
+  // a supervised base, never a reason for the installation to fail.
+  const executor: ExecutorConvergence | undefined =
+    input.executor === undefined
+      ? undefined
+      : await input.executor(hosted).catch(() => executorConvergenceFailed);
   // Last, and never a reason to fail: the product is installed whatever
   // happens to its PATH entry, and the result says what it found.
   const entry = await ensurePathEntry({
@@ -506,6 +527,7 @@ async function install(input: InstallInput): Promise<InstallResult> {
       entry,
       ...(codexAppServer === undefined ? {} : { codexAppServer }),
       ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
+      ...(executor === undefined ? {} : { executor }),
     });
   return Object.freeze({
     kind: "installed" as const,
@@ -515,5 +537,6 @@ async function install(input: InstallInput): Promise<InstallResult> {
     entry,
     ...(codexAppServer === undefined ? {} : { codexAppServer }),
     ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
+    ...(executor === undefined ? {} : { executor }),
   });
 }

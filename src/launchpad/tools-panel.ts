@@ -1,6 +1,7 @@
-import { vaultToolName } from "../tools/catalog";
+import { executorToolName, vaultToolName } from "../tools/catalog";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
 import type { ToolSignIn } from "../tools/status";
+import { createExecutorPanel } from "./executor-panel";
 import type { MessageKey } from "./messages";
 import {
   answerWithin,
@@ -133,6 +134,16 @@ export function createToolsPanel(
       if (!busy && !dialog.open && !loginDialog.open)
         focusRow({ name: vaultToolName, control: "vault" });
     },
+  });
+
+  // Executor (decision F44): its own state, read beside the tools; Lazurio
+  // sets it up itself, so its row offers Install, Update or Repair, and an
+  // agent's prompt for a conflict.
+  const executor = createExecutorPanel({
+    post: options.post,
+    copy: options.copy,
+    changed: () => render(),
+    prompt: (title, hint, text, from) => openPrompt(title, hint, text, from),
   });
 
   type Selection = Readonly<{
@@ -979,16 +990,27 @@ export function createToolsPanel(
       notice !== null && notice.name === tool.name ? notice : null;
     const said =
       recorded === null ? null : toolNoticeView(recorded, tool, copy);
-    // The Environment vault (decision F43) says its own state and offers its
-    // own steps: an account of the Environment, not a person's sign-in.
-    const vaultRow = tool.name === vaultToolName ? vault.row(copy) : null;
+    // The Environment vault (decision F43) and Executor (F44) say their own
+    // state and offer their own steps: an account of the Environment and a
+    // service Lazurio runs, not a person's sign-in.
+    const vaultRow =
+      tool.name === vaultToolName
+        ? vault.row(copy)
+        : tool.name === executorToolName
+          ? executor.row(copy)
+          : null;
+    // A tool this Environment does not offer (decision F44) is listed only
+    // while it is still switched on, so that it can be switched off.
+    const offeredLine = tool.offered
+      ? line
+      : { text: copy.toolsNotOffered, state: "unknown", ssh: null };
     const status = element("p", "row-status");
     const signIn = element(
       "span",
       "tool-signin",
-      vaultRow?.line.text ?? line.text,
+      vaultRow?.line.text ?? offeredLine.text,
     );
-    signIn.dataset.state = vaultRow?.line.state ?? line.state;
+    signIn.dataset.state = vaultRow?.line.state ?? offeredLine.state;
     status.append(signIn);
     // gh's SSH key, as its own part of the line, only when it needs the
     // person (not linked, in the warning colour) or on a Team Environment.
@@ -1033,7 +1055,7 @@ export function createToolsPanel(
     // "Sign out" only while a person's account is signed in there; a
     // sentence says why.
     const curated =
-      vaultRow === null
+      vaultRow === null && tool.offered
         ? curatedActions(tool, copy, team)
         : { primary: null, logout: false, linkSsh: false };
     const primary = curated.primary;
@@ -1082,7 +1104,7 @@ export function createToolsPanel(
       signOut.className = "destructive";
       controls.append(signOut);
     }
-    if (tool.setup !== "launchpad") controls.append(agent);
+    if (tool.setup !== "launchpad" && tool.offered) controls.append(agent);
     // A tool outside the standard place on a hosted Machine (0161 point 6):
     // one action that hands the straightening to an agent, and no sentence
     // about paths.
@@ -1106,12 +1128,15 @@ export function createToolsPanel(
       fix.disabled = false;
       controls.append(fix);
     }
-    if (tool.tier === "required")
-      controls.append(element("span", "always-on", copy.toolsAlwaysOn));
-    else {
+    if (tool.tier === "required") {
+      // Not offered here (Executor on a computer): nothing is on.
+      if (tool.offered)
+        controls.append(element("span", "always-on", copy.toolsAlwaysOn));
+    } else if (tool.offered || tool.enabled) {
       // "Used by agents": the switch guides agents to the tool; installing
       // and signing in are separate acts (the section's intro says so once).
-      // Its accessible name holds the visible label and names the tool.
+      // Its accessible name holds the visible label and names the tool. A
+      // tool this Environment does not offer has it only to be switched off.
       const enable = !tool.enabled;
       const toggler = button(
         "",
@@ -1315,6 +1340,7 @@ export function createToolsPanel(
     render();
     // The vault beside the tools: asked itself when the sign-ins are.
     void vault.read(probe);
+    void executor.read();
     try {
       const { value, ok } = await options.post(
         "/api/tools/status",

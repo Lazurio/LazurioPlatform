@@ -28,6 +28,7 @@ import { renderLaunchpadUnit } from "../src/update/install";
 import { layout } from "../src/update/layout";
 import { runProcess } from "../src/update/self-check";
 import { launchpadHealth, launchpadUnit } from "../src/update/service-control";
+import { executorWorld } from "./fixtures/fake-executor";
 import {
   closeSharedSigstore,
   commitOf,
@@ -424,3 +425,79 @@ test("lazurio update converges the Codex app-server unit on a supervised hosted 
     "The Codex app-server daemon is not set up to start with this Environment",
   );
 });
+
+// Decision F44: `lazurio update` sets Executor up on a supervised base in a
+// Remote Environment, as it converges the entry units; it is not a reason for
+// the update to fail, and a context that names no Executor host sets nothing
+// up (every other test here).
+test("lazurio update sets Executor up on a supervised hosted base and leaves an unsupervised base or a workstation alone", async () => {
+  world = await createWorld();
+  await world.release("1.1.0");
+  const executor = await executorWorld();
+  try {
+    const folder = join(world.root, "Lazurio");
+    await mkdir(folder);
+    const config = join(world.root, "config");
+    const units = join(config, "systemd", "user");
+    const service = fakeService(world.base, { folder });
+    const update = async (hosted: boolean, failing = false) =>
+      JSON.parse(
+        (
+          await runUpdateCommand(["--base", world.base, "--json"], {
+            ...context("1.1.0"),
+            platform: "linux",
+            env: {
+              HOME: world.root,
+              XDG_DATA_HOME: world.root,
+              XDG_CONFIG_HOME: config,
+            },
+            run: async (command, timeoutMs, env) =>
+              command[0] === "systemctl"
+                ? { exitCode: 0, stdout: "" }
+                : runProcess(command, timeoutMs, env),
+            hostedFolder: async () => (hosted ? folder : undefined),
+            executor: () =>
+              failing
+                ? {
+                    ...executor.host,
+                    context: async () => {
+                      throw new Error("handover unreadable");
+                    },
+                  }
+                : executor.host,
+            environment: world.environment("1.1.0", { service }),
+          })
+        ).stdout ?? "",
+      );
+    // Unsupervised: no key and nothing set up.
+    const unsupervised = await update(true);
+    expect(unsupervised).toMatchObject({ kind: "updated", to: "1.1.0" });
+    expect(Object.keys(unsupervised)).not.toContain("executor");
+    expect(executor.journal).toEqual([]);
+    // Supervised by this base's Launchpad unit.
+    await mkdir(units, { recursive: true });
+    await writeFile(
+      join(units, launchpadUnit),
+      renderLaunchpadUnit(world.base, folder),
+    );
+    expect(await update(false)).toMatchObject({
+      kind: "up-to-date",
+      executor: { state: "skipped-not-hosted" },
+    });
+    expect(executor.journal).toEqual([]);
+    expect(await update(true)).toMatchObject({
+      kind: "up-to-date",
+      executor: { state: "running" },
+    });
+    expect(executor.journal).toEqual([
+      { operation: "setup", outcome: "running" },
+    ]);
+    // Whatever happens to Executor, the update stands.
+    const failed = await update(true, true);
+    expect(failed.kind).toBe("up-to-date");
+    expect(failed.executor).toMatchObject({ state: "failed" });
+    expect(failed.executor.next).toContain("lazurio executor setup");
+  } finally {
+    await executor.close();
+  }
+}, 60_000);

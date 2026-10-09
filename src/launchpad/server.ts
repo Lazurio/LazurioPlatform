@@ -13,6 +13,8 @@ import {
   preparationAnswer,
   processContentHost,
 } from "../content/host";
+import type { ExecutorHost } from "../executor/flow";
+import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
@@ -28,6 +30,7 @@ import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { readMachineContext } from "../machine/context";
+import { hostedOperatorFolder } from "../machine/operator";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import {
   createModuleOperations,
@@ -43,6 +46,7 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import type { RecoveryResult } from "../recover/recover";
 import {
   activatableTools,
+  executorToolName,
   toolSelection,
   vaultToolName,
 } from "../tools/catalog";
@@ -73,6 +77,7 @@ import { launchpadBoot, withBoot } from "./boot-document";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
+import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { signsInAsPerson } from "./first-run";
 import { serveHealthSocket } from "./health-socket";
@@ -332,6 +337,10 @@ export async function startLaunchpad(
   // the handover, for the Folder this Launchpad serves. Trusted composition,
   // never HTTP input; tests supply a fake vault and a fake bw.
   vaultHost?: VaultHost | undefined,
+  // Where Executor is set up (decision F44): this process's home, user
+  // manager and harnesses, for the handover's declared operator. Trusted
+  // composition, never HTTP input; tests supply fakes.
+  executorHost?: ExecutorHost | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -416,6 +425,29 @@ export async function startLaunchpad(
       vaultHost === undefined
         ? (defaultVault as VaultHost)
         : { ...vaultHost, journal: vaultHost.journal ?? vaultJournal },
+  });
+  // Executor (decision F44): its setup journals the outcome and a fixed
+  // reason, never a path, an output or a value.
+  const executorJournal = (entry: object) =>
+    console.log(JSON.stringify({ scope: "tools-executor", ...entry }));
+  const defaultExecutor =
+    executorHost === undefined
+      ? processExecutorHost({
+          hostedFolder: hostedOperatorFolder,
+          env: process.env,
+          platform: toolsEnvironment.platform,
+          run: toolsEnvironment.run,
+          journal: executorJournal,
+        })
+      : undefined;
+  const executor = createExecutorRoutes({
+    host: () =>
+      executorHost === undefined
+        ? (defaultExecutor as ExecutorHost)
+        : {
+            ...executorHost,
+            journal: executorHost.journal ?? executorJournal,
+          },
   });
   // Content installation: one job at a time per Folder, over the same core
   // as `lazurio organization install` and `lazurio personalspace install`.
@@ -1144,6 +1176,22 @@ export async function startLaunchpad(
           );
           return response(answer.body, answer.status);
         }
+        if (executor.handles(url.pathname)) {
+          // Executor (decision F44): `{}`, or a setup's `{job}`; a setup
+          // answers within a second and goes on (executor-routes.ts).
+          const withJob =
+            url.pathname === "/api/tools/executor/setup" &&
+            ownDataValue(input, "job") !== undefined;
+          const value = stateFields(input, withJob ? ["job"] : []);
+          if (withJob && !isExecutorJob(value.job))
+            return response({ error: "invalid-job" }, 400);
+          server.timeout(request, 300);
+          const answer = await executor.handle(
+            url.pathname,
+            withJob ? (value.job as string) : undefined,
+          );
+          return response(answer.body, answer.status);
+        }
         if (
           url.pathname.startsWith("/api/tools/") &&
           curatedRoutes.has(url.pathname)
@@ -1198,6 +1246,12 @@ export async function startLaunchpad(
           if (tool === vaultToolName)
             return response(
               { kind: "blocked", reason: "setup-vault", tool },
+              409,
+            );
+          // So does Executor, which Lazurio sets up itself (decision F44).
+          if (tool === executorToolName)
+            return response(
+              { kind: "blocked", reason: "setup-executor", tool },
               409,
             );
           if (curatedTool(tool) === undefined)

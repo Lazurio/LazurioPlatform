@@ -1,12 +1,12 @@
 import { join } from "node:path";
-import { toolSelection } from "../tools/catalog";
+import { activatableTools, toolOffered, toolSelection } from "../tools/catalog";
 import { planToolsChange } from "./change-profile";
 import { inspectOutput } from "./inventory";
 import { withFolderOperationLock, withFolderReadLock } from "./lock";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { readFolderState } from "./read-state";
-import { sharedEnvironment } from "./render";
+import { sharedEnvironment, toolEnvironmentOf } from "./render";
 import { enabledTools, toolNotes } from "./state";
 
 // The read-only twin of `updateTools`, as `inspectProfileChange` is of
@@ -67,7 +67,18 @@ export async function readFolderTools(folder: string) {
       sharedEnvironment: sharedEnvironment(preferences.preset.name),
       enabled: enabledTools(preferences),
       notes: toolNotes(preferences),
-      tools: toolSelection(enabledTools(preferences)),
+      tools: toolSelection(enabledTools(preferences)).map((selection) => ({
+        ...selection,
+        // Whether this Environment offers it (decision F44).
+        offered: activatableTools().some(
+          (entry) =>
+            entry.name === selection.name &&
+            toolOffered(
+              entry,
+              toolEnvironmentOf(preferences.preset.name, preferences.profile),
+            ),
+        ),
+      })),
     };
   });
 }

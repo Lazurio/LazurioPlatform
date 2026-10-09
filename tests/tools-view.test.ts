@@ -42,6 +42,7 @@ const tool = (overrides: Partial<ToolOverview> = {}): ToolOverview => ({
   tier: "recommended",
   setup: "launchpad",
   enabled: false,
+  offered: true,
   purpose: "Purpose.",
   usage: "Usage.",
   source: "https://docs.composio.dev/docs/cli",

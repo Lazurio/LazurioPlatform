@@ -27,6 +27,8 @@ import {
   doctorContextRules,
   doctorReasons,
 } from "../src/doctor/doctor";
+import { executorSetup } from "../src/executor/flow";
+import { processExecutorHost } from "../src/executor/host";
 import {
   initializeFolder,
   initializeHandoverFolder,
@@ -45,6 +47,7 @@ import {
   writeOrganization,
   writePersonalspaceModule,
 } from "./fixtures/catalog-folder";
+import { executorWorld } from "./fixtures/fake-executor";
 import { handoverEntry } from "./fixtures/machine-bindings";
 import organizationContext from "./fixtures/machine-context.json";
 import { commitOf, executable, target } from "./fixtures/update-world";
@@ -347,6 +350,8 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "tool wacli skipped not-enabled",
     "tool gogcli skipped not-enabled",
     "tool neon skipped not-enabled",
+    // Executor has its own check; a computer is its second wave (F44).
+    "executor skipped not-offered",
     "catalog ok",
     "organization alpha ok",
     "module alpha/web ok",
@@ -829,6 +834,13 @@ test.skipIf(process.platform === "win32")(
           ...(options.hosted === null
             ? {}
             : { hostedFolder: options.hosted ?? (async () => world.folder) }),
+          // Executor has its own test below; here it is not offered.
+          executorHost: processExecutorHost({
+            hostedFolder: async () => undefined,
+            env: {},
+            platform: "linux",
+            run: runners.tools,
+          }),
         },
       );
       expectTierOne(output.stdout ?? "", world);
@@ -979,3 +991,93 @@ test.skipIf(process.platform === "win32")(
     });
   },
 );
+
+// Executor of a Remote Environment (decision F44): its own check in the
+// tools group, `ok` when it runs with the agents connected, `warn` with its
+// state otherwise and never `fail`, so a release that makes Executor required
+// never turns an Environment broken before its install or update set it up.
+test("Executor: warn until it is set up, ok once it runs, never broken", async () => {
+  const world = await createWorld();
+  const executor = await executorWorld();
+  try {
+    const run = async () => {
+      const output = await runDoctorCommand(
+        ["--base", world.base, "--folder", world.folder, "--json"],
+        { ...context(world), executorHost: executor.host },
+      );
+      const json = JSON.parse(output.stdout ?? "");
+      return { code: output.code, json, check: find(json, "executor") };
+    };
+    const missing = await run();
+    expect(missing.check).toEqual({
+      id: "executor",
+      outcome: "warn",
+      reason: "executor-not-installed",
+      context: {
+        tool: "executor",
+        executorService: "missing",
+        codexMcp: "missing",
+        claudeMcp: "missing",
+      },
+    });
+    expect(missing.json.verdict).toBe("attention");
+    expect(missing.code).toBe(exitAttention);
+    // Reading set nothing up.
+    expect(executor.registry.requests).toEqual([]);
+    expect(await executor.calls("npm.calls")).toEqual([]);
+
+    expect((await executorSetup(executor.host)).state).toBe("running");
+    const running = await run();
+    expect(running.check).toEqual({
+      id: "executor",
+      outcome: "ok",
+      context: {
+        tool: "executor",
+        toolVersion: "1.6.10",
+        executorService: "running",
+        codexMcp: "registered",
+        claudeMcp: "registered",
+      },
+    });
+    expect(running.json.verdict).toBe("ok");
+    // Executor is not also a tool row.
+    expect(find(running.json, "tool", "executor")).toBeUndefined();
+
+    await executor.setActive("failed");
+    const stopped = await run();
+    expect(stopped.check).toMatchObject({
+      outcome: "warn",
+      reason: "executor-not-running",
+      context: { executorService: "failed" },
+    });
+    expect(stopped.json.verdict).toBe("attention");
+  } finally {
+    await executor.close();
+  }
+}, 30_000);
+
+test("Executor where it is not offered or the handover cannot be read: skipped with the reason", async () => {
+  const world = await createWorld();
+  for (const [reason, expected] of [
+    ["workstation", "not-offered"],
+    ["not-operator", "not-offered"],
+    ["handover-unreadable", "handover-unreadable"],
+  ] as const) {
+    const executor = await executorWorld({
+      context: { kind: "unsupported", reason },
+    });
+    try {
+      const output = await runDoctorCommand(
+        ["--base", world.base, "--folder", world.folder, "--json"],
+        { ...context(world), executorHost: executor.host },
+      );
+      expect(find(JSON.parse(output.stdout ?? ""), "executor")).toEqual({
+        id: "executor",
+        outcome: "skipped",
+        reason: expected,
+      });
+    } finally {
+      await executor.close();
+    }
+  }
+}, 30_000);

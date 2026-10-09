@@ -2,13 +2,18 @@ import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
-import { hostedEnvironment, sharedEnvironment } from "../folder/render";
+import {
+  hostedEnvironment,
+  sharedEnvironment,
+  toolEnvironmentOf,
+} from "../folder/render";
 import { enabledTools, toolNotes } from "../folder/state";
 import {
   activatableTools,
   mcpServerPrompt,
   type ToolSetup,
   type ToolTier,
+  toolOffered,
   toolPrompt,
 } from "./catalog";
 import {
@@ -54,6 +59,10 @@ export type ToolOverview = Readonly<{
   tier: ToolTier;
   setup: ToolSetup;
   enabled: boolean;
+  /** Whether this Environment offers the tool (`toolOffered`, decision
+   * F44): one it does not offer is not rendered for agents and cannot be
+   * enabled. */
+  offered: boolean;
   purpose: string;
   usage: string;
   source: string;
@@ -108,6 +117,10 @@ export async function toolsOverview(
       locale: preferences.profile.locale,
       sharedEnvironment: sharedEnvironment(preferences.preset.name),
       hosted: hostedEnvironment(preferences.preset.name),
+      offeredIn: toolEnvironmentOf(
+        preferences.preset.name,
+        preferences.profile,
+      ),
       enabled: enabledTools(preferences),
       notes: toolNotes(preferences),
     };
@@ -155,6 +168,7 @@ export async function toolsOverview(
         enabled:
           entry.activation.tier === "required" ||
           recorded.enabled.includes(entry.name),
+        offered: toolOffered(entry, recorded.offeredIn),
         purpose: entry.activation.purpose[locale],
         usage: entry.activation.usage[locale],
         source: entry.source,

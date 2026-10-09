@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { ExecutorHost } from "../executor/flow";
 import { columns } from "../organizations/cli";
 import {
   exitBroken,
@@ -34,7 +35,10 @@ export const doctorHelp = `doctor [--folder <absolute Folder>] [--sign-in] [--js
   Folder refresh, the Folder's template revision), Folder (its state as this
   version reads it, preset, a pending transaction; in a Remote Environment
   the recorded binding against the live handover), tools (required missing is a
-  failure, recommended or enabled missing needs attention), Organizations and
+  failure, recommended or enabled missing needs attention; Executor of a
+  Remote Environment has its own check executor: installed version, service,
+  loopback answer and the agents' MCP server, which needs attention when it
+  is not running and never makes the Environment broken), Organizations and
   modules (every catalog entry, executable or the typed reason), Launchpad
   (the supervised unit and its health socket) and Environment (in a Remote
   Environment whether the entry is recorded). Reads only: the Folder's tool
@@ -53,6 +57,8 @@ export type DoctorContext = RecoverContext &
   Readonly<{
     /** Tests only: the runner of the tools' version and sign-in commands. */
     toolRun?: ToolRunner | undefined;
+    /** Tests only: where Executor is read (decision F44). */
+    executorHost?: ExecutorHost | undefined;
   }>;
 
 const synopsis = "doctor [--folder <absolute Folder>] [--sign-in] [--json]";
@@ -194,6 +200,7 @@ export async function runDoctorCommand(
       ...recoveryEnvironment(context, { base, folder: values.folder }),
       tools: toolsEnvironmentOf(context.env, context.platform, context.toolRun),
       signIn: values["sign-in"] === true,
+      executor: context.executorHost,
     });
     return Object.freeze({
       code: exitCodes[result.verdict],
