@@ -216,6 +216,7 @@ export function toolGroups(
 const descriptionKeys: Readonly<Record<string, MessageKey>> = {
   gh: "toolsDescriptionGh",
   composio: "toolsDescriptionComposio",
+  bitwarden: "toolsDescriptionBitwarden",
   wacli: "toolsDescriptionWacli",
   gogcli: "toolsDescriptionGogcli",
   neon: "toolsDescriptionNeon",

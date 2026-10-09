@@ -41,7 +41,11 @@ import { readFolderCatalog } from "../organizations/catalog";
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
-import { activatableTools, toolSelection } from "../tools/catalog";
+import {
+  activatableTools,
+  toolSelection,
+  vaultToolName,
+} from "../tools/catalog";
 import {
   folderPreset,
   githubLoginRefused,
@@ -62,6 +66,8 @@ import { qrMatrix, qrSvg } from "../tools/qr";
 import type { GithubAction } from "../tools/team-github";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
+import type { VaultHost } from "../vault/flow";
+import { processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, withBoot } from "./boot-document";
 import { createChatPromptCheck, issueChatLink, publicEntry } from "./chat";
@@ -114,6 +120,7 @@ import {
   readStartState,
 } from "./start-check";
 import type { UpdatePill } from "./update-pill";
+import { createVaultRoutes, isVaultJob } from "./vault-routes";
 
 // One local owner. Optional application adapters are trusted composition, never
 // HTTP input; the browser cannot supply a filesystem root or executable.
@@ -321,6 +328,10 @@ export async function startLaunchpad(
     openWindow: (session: string) =>
       ensureThreadWindow(session, undefined, cdpSeams(process.env, runProcess)),
   }),
+  // Where the Environment vault runs (decision F43): this process's home and
+  // the handover, for the Folder this Launchpad serves. Trusted composition,
+  // never HTTP input; tests supply a fake vault and a fake bw.
+  vaultHost?: VaultHost | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -386,6 +397,26 @@ export async function startLaunchpad(
   };
   // The Files page (decision F35): the Operator's Documents folder.
   const files = createFilesRoutes({ host: documentsHost, headers });
+  // The Environment vault (decision F43): its routes journal the operation,
+  // the outcome and a fixed reason, never a value.
+  const vaultJournal = (entry: object) =>
+    console.log(JSON.stringify({ scope: "tools-vault", ...entry }));
+  const defaultVault =
+    vaultHost === undefined
+      ? processVaultHost({
+          folder: async () => folder,
+          env: process.env,
+          platform: toolsEnvironment.platform,
+          run: toolsEnvironment.run,
+          journal: vaultJournal,
+        })
+      : undefined;
+  const vault = createVaultRoutes({
+    host: () =>
+      vaultHost === undefined
+        ? (defaultVault as VaultHost)
+        : { ...vaultHost, journal: vaultHost.journal ?? vaultJournal },
+  });
   // Content installation: one job at a time per Folder, over the same core
   // as `lazurio organization install` and `lazurio personalspace install`.
   const content = createContentRoutes({
@@ -1096,6 +1127,23 @@ export async function startLaunchpad(
             setup.forget();
           return response(overview);
         }
+        if (vault.handles(url.pathname)) {
+          // The Environment vault (decision F43): `{}`, or a connect's
+          // `{job}`; a connect answers within a second and goes on
+          // (vault-routes.ts).
+          const withJob =
+            url.pathname === "/api/tools/bitwarden/connect" &&
+            ownDataValue(input, "job") !== undefined;
+          const value = stateFields(input, withJob ? ["job"] : []);
+          if (withJob && !isVaultJob(value.job))
+            return response({ error: "invalid-job" }, 400);
+          server.timeout(request, 300);
+          const answer = await vault.handle(
+            url.pathname,
+            withJob ? (value.job as string) : undefined,
+          );
+          return response(answer.body, answer.status);
+        }
         if (
           url.pathname.startsWith("/api/tools/") &&
           curatedRoutes.has(url.pathname)
@@ -1144,6 +1192,12 @@ export async function startLaunchpad(
           if (!activatableTools().some((entry) => entry.name === tool))
             return response(
               { kind: "blocked", reason: "tool-unknown", tool },
+              409,
+            );
+          // The Environment vault has its own routes (decision F43).
+          if (tool === vaultToolName)
+            return response(
+              { kind: "blocked", reason: "setup-vault", tool },
               409,
             );
           if (curatedTool(tool) === undefined)
