@@ -1873,14 +1873,26 @@ function operatorClient(
         ),
       ]
     : [];
+  // ChatGPT Desktop offers "Permanently delete" in a thread's menu only in
+  // Codex mode; in ChatGPT mode the menu only archives (observed in the
+  // Windows app 2026-10-09; a UI fact, so it may change). People asked, so the
+  // agent can tell them (decision F14 addendum 2026-10-09). Left out where the
+  // handover rules ChatGPT Desktop out.
+  const deleteInChatGpt =
+    ssh === false
+      ? null
+      : t(
+          " V ChatGPT Desktopu je v nabídce vlákna (pravé tlačítko na vláknu v postranním panelu) trvalé smazání (Permanently delete) jen v režimu Codex (přepínač vlevo nahoře); v režimu ChatGPT je tam jen archivace (Archive). Když se člověk ptá, jak vlákno smazat, řekni mu to.",
+          " In ChatGPT Desktop, a thread's menu (right-click the thread in the sidebar) offers Permanently delete only in Codex mode (the switcher at the top left); in ChatGPT mode it offers only Archive. When someone asks how to delete a thread, tell them.",
+        );
   const chats = organization
     ? t(
-        `- **Chaty.** Konverzace ze všech klientů se ukládají sem, na Environment, který patří Organizaci; jsou pracovní.${team ? " Na týmovém Environmentu je vidí celý Team." : ""} Mazat a archivovat chaty umí Operátor sám ve svém klientovi; soubory relací sám nemaž.`,
-        `- **Chats.** Conversations from every client are stored here, in an Environment the Organization owns; they are work conversations.${team ? " In a Team Environment the whole Team sees them." : ""} The Operator deletes and archives chats in their own client; do not delete session files yourself.`,
+        `- **Chaty.** Konverzace ze všech klientů se ukládají sem, na Environment, který patří Organizaci; jsou pracovní.${team ? " Na týmovém Environmentu je vidí celý Team." : ""} Mazat a archivovat chaty umí Operátor sám ve svém klientovi; soubory relací sám nemaž.${deleteInChatGpt?.cs ?? ""}`,
+        `- **Chats.** Conversations from every client are stored here, in an Environment the Organization owns; they are work conversations.${team ? " In a Team Environment the whole Team sees them." : ""} The Operator deletes and archives chats in their own client; do not delete session files yourself.${deleteInChatGpt?.en ?? ""}`,
       )
     : t(
-        "- **Chaty.** Konverzace ze všech klientů se ukládají sem. Mazat a archivovat chaty umí Operátor sám ve svém klientovi; soubory relací sám nemaž.",
-        "- **Chats.** Conversations from every client are stored here. The Operator deletes and archives chats in their own client; do not delete session files yourself.",
+        `- **Chaty.** Konverzace ze všech klientů se ukládají sem. Mazat a archivovat chaty umí Operátor sám ve svém klientovi; soubory relací sám nemaž.${deleteInChatGpt?.cs ?? ""}`,
+        `- **Chats.** Conversations from every client are stored here. The Operator deletes and archives chats in their own client; do not delete session files yourself.${deleteInChatGpt?.en ?? ""}`,
       );
   return [
     t("## Jak s tebou Operátor pracuje", "## How the Operator works with you"),

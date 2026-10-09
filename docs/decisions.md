@@ -1232,6 +1232,19 @@ not consent. Template revision `base-instructions-33`. A unit test checks, on ev
 preset in both locales, the exact line right after the full-access line, once, and the
 troubleshooting section before "Reporting problems".
 
+**Addendum 2026-10-09 (Matěj): deleting a thread in ChatGPT Desktop.** People asked how
+to delete an agent thread. In the ChatGPT desktop app (observed in the Windows app on
+2026-10-09), a thread's menu in the sidebar offers **Permanently delete** only when the
+mode switcher at the top left is set to **Codex**; in **ChatGPT** mode the same menu
+offers only **Archive**. The chats bullet of a Remote Environment's
+`manual/this-machine.md`, personal and Organization variant, now says so after "the
+Operator deletes and archives chats in their own client", so an agent can tell a person
+who asks. Like the other ChatGPT Desktop lines, it is left out where the handover
+records that the Operator does not connect over SSH. It is a fact of the client's
+interface, not a rule; when the client changes, the sentence changes with a new
+revision. Unchanged: the agent never deletes session files. Template revision
+`base-instructions-35`; a unit test checks the sentence in both locales.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

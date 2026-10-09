@@ -29,6 +29,7 @@ import {
   binding,
   bindings,
   entries,
+  workRelationships,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
@@ -935,6 +936,79 @@ test("an update the Operator asks for updates the tools and pulls every module; 
           /Vzdálený chat zatím nejde|A remote chat cannot be deleted/,
         );
     }
+});
+
+// People asked how to delete a thread. ChatGPT Desktop offers "Permanently
+// delete" in a thread's menu only in Codex mode; in ChatGPT mode the menu only
+// archives (observed in the Windows app 2026-10-09, F14 addendum). The chats
+// bullet of a Remote Environment says so in both languages, in the personal
+// and the Organization variant, unless the handover rules ChatGPT Desktop out;
+// a workstation has no such section.
+test("the chats bullet tells how to delete a thread in ChatGPT Desktop: only in Codex mode", () => {
+  const note = {
+    cs: " V ChatGPT Desktopu je v nabídce vlákna (pravé tlačítko na vláknu v postranním panelu) trvalé smazání (Permanently delete) jen v režimu Codex (přepínač vlevo nahoře); v režimu ChatGPT je tam jen archivace (Archive). Když se člověk ptá, jak vlákno smazat, řekni mu to.",
+    en: " In ChatGPT Desktop, a thread's menu (right-click the thread in the sidebar) offers Permanently delete only in Codex mode (the switcher at the top left); in ChatGPT mode it offers only Archive. When someone asks how to delete a thread, tell them.",
+  } as const;
+  const chats = (
+    preset: (typeof journeys)[number]["preset"],
+    machine: typeof bindings.related | null,
+    locale: "cs" | "en",
+    os: (typeof journeys)[number]["os"] = "linux",
+  ) => {
+    const text = renderManual({
+      preset,
+      machine,
+      profile: presetProfile(preset, os, { locale }),
+    })["manual/this-machine.md"];
+    return {
+      text,
+      line: text
+        .split("\n")
+        .find((line) =>
+          line.startsWith(locale === "cs" ? "- **Chaty.**" : "- **Chats.**"),
+        ),
+    };
+  };
+  for (const locale of ["cs", "en"] as const) {
+    for (const journey of journeys) {
+      const { text, line } = chats(
+        journey.preset,
+        journey.machine,
+        locale,
+        journey.os,
+      );
+      if (journey.machine === null) {
+        expect(text).not.toContain(note[locale].trim());
+        continue;
+      }
+      expect([journey.preset, locale, line?.endsWith(note[locale])]).toEqual([
+        journey.preset,
+        locale,
+        true,
+      ]);
+    }
+    // The handover records that the Operator connects over SSH.
+    expect(
+      chats("hosted-organization-personal", bindings.related, locale).line,
+    ).toEndWith(note[locale]);
+    // The handover records no SSH from the Operator: no ChatGPT Desktop here.
+    const { team: _, ...owner } = organization.owner;
+    const withoutSsh = binding({
+      ...organization,
+      owner,
+      relationships: {
+        zone: "work",
+        peers: workRelationships.peers.filter((peer) => peer.ssh === null),
+      },
+    });
+    const { text, line } = chats(
+      "hosted-organization-personal",
+      withoutSsh,
+      locale,
+    );
+    expect(line).toBeDefined();
+    expect(text).not.toContain(note[locale].trim());
+  }
 });
 
 // Decision F29 addendum (issue #173): doctor's `app-server-outdated` means
