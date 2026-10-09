@@ -111,6 +111,78 @@ export function organizationSettings(manifest: Data): OrganizationSettings {
   });
 }
 
+/** At most this many keys of settings this release does not know are kept. */
+export const unsupportedSettingsMax = 64;
+const depthMax = 16;
+
+/**
+ * The settings the Dashboard delivered to this Environment (contract C2 of
+ * DEV-6653, root decision 0194 point 3), read by this release's contract. The
+ * Dashboard checked them against its own, possibly newer, contract, so a key
+ * this release does not know is a setting it cannot apply: its dotted path
+ * (the key of a C2 report item) is kept apart, sorted, to be reported
+ * `unsupported`, and its value is never kept. Every known key is checked
+ * exactly as `organizationSettings` checks it, and a known key that breaks the
+ * contract makes the whole answer unusable (null): nothing of it applies.
+ */
+export function deliveredSettings(input: unknown): Readonly<{
+  values: OrganizationSettingsValues;
+  unsupported: readonly string[];
+}> | null {
+  if (!isRecord(input) || contract.kind !== "object") return null;
+  const unsupported: string[] = [];
+  const known = knownPart(input, contract, "", unsupported, 0);
+  if (known === null) return null;
+  const verdict = organizationSettings({ settings: known });
+  if (verdict.status !== "valid") return null;
+  return deepFreeze({
+    values: verdict.values,
+    unsupported: [...new Set(unsupported)]
+      .sort()
+      .slice(0, unsupportedSettingsMax),
+  });
+}
+
+function knownPart(
+  value: Data,
+  node: Extract<ContractNode, { kind: "object" }>,
+  path: string,
+  unsupported: string[],
+  depth: number,
+): Record<string, unknown> | null {
+  if (depth > depthMax) return null;
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(value)) {
+    const child = node.fields.get(key);
+    const at = path === "" ? key : `${path}.${key}`;
+    const member = value[key];
+    if (child === undefined) leafPaths(member, at, unsupported, depth + 1);
+    else if (child.kind === "object" && isRecord(member)) {
+      const inner = knownPart(member, child, at, unsupported, depth + 1);
+      if (inner === null) return null;
+      result[key] = inner;
+    }
+    // A known leaf, or a known group that is not an object: the strict
+    // reader judges it.
+    else result[key] = member;
+  }
+  return result;
+}
+
+function leafPaths(
+  value: unknown,
+  path: string,
+  out: string[],
+  depth: number,
+): void {
+  if (isRecord(value) && depth <= depthMax) {
+    for (const key of Object.keys(value))
+      leafPaths(value[key], `${path}.${key}`, out, depth + 1);
+    return;
+  }
+  out.push(path);
+}
+
 function effective(values: unknown): OrganizationSettingsEntry[] {
   return organizationSettingsKeys.map((key) => {
     let node = values;
