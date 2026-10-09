@@ -32,7 +32,7 @@ import type { ShellApp } from "./view";
 //
 // The account has one of two sources, decided once per page:
 // - This origin (the default: the Launchpad page and the forks). The
-//   elements read `/.lazurio/account/environments` once, draw at once from
+//   elements share one bounded account read cycle, draw at once from
 //   the account this origin remembered for its operator and keep the fresh
 //   answer for the next page load (account.ts), and report the last
 //   Environment (`PUT /.lazurio/account/last`, last.ts).

@@ -651,7 +651,9 @@ export function createCatalogPanel(
       box.classList.add("is-open");
       button.setAttribute("aria-expanded", "true");
       openMenu = close;
-      list.querySelector<HTMLElement>(".tile-menu-item")?.focus();
+      list
+        .querySelector<HTMLElement>(".tile-menu-item:not(:disabled)")
+        ?.focus();
     });
     box.append(button, list);
     return box;
