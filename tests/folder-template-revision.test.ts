@@ -21,8 +21,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-39",
-  digest: "08dbdbce11fd2cd81a488e7b6f75264d22d31bcab6707761a516799f0e7f5799",
+  revision: "base-instructions-40",
+  digest: "1277573699b842367d697bfea6fb56fff6a548e422065f3d5452f9caae17a9ed",
 } as const;
 
 const optionalTools = activatableTools()
@@ -86,18 +86,38 @@ const environments = [
     os: "linux",
   },
   { preset: "hosted-personal", machine: bindings.personalBrowser, os: "linux" },
+  // With the Organization's settings (root decision 0194, F45): a tool it does
+  // not allow is left out, with the line that says why, on a work Environment
+  // that has the Environment's relay and on a Team Environment.
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organizationRelay,
+    os: "linux",
+    settings: { integrations: { composio: { allowed: false } } },
+  },
+  {
+    preset: "hosted-organization-team",
+    machine: bindings.teamEntry,
+    os: "linux",
+    settings: { integrations: { composio: { allowed: false } } },
+  },
 ] as const;
 
 function compositions() {
   const all = [];
   for (const environment of environments)
     for (const locale of ["cs", "en"] as const) {
+      const settings =
+        "settings" in environment
+          ? { organizationSettings: environment.settings }
+          : {};
       all.push({
         preset: environment.preset,
         machine: environment.machine,
         profile: presetProfile(environment.preset, environment.os, { locale }),
         tools: [],
         toolNotes: {},
+        ...settings,
       });
       all.push({
         preset: environment.preset,
@@ -109,6 +129,7 @@ function compositions() {
         }),
         tools: optionalTools,
         toolNotes: { [optionalTools[0] ?? "gh"]: "Use it for the example." },
+        ...settings,
       });
     }
   return all;

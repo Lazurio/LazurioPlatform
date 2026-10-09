@@ -6553,7 +6553,10 @@ the version back and forth); the Organization governing the person's own compute
 
 Compatibility: a Folder that records the section is unreadable by a release before
 this one, whose preferences admit no unknown key, as F18's `tools` was; updates move
-forward only (F17). Generated text changes only for a Folder that records settings.
+forward only (F17). Generated text changes only for a Folder that records settings;
+the template revision moves to `base-instructions-40`, whose pinned digest includes
+compositions with the Organization's settings, so every other Folder renders the same
+bytes under the new revision.
 
 Not in this revision: the Dashboard's editor of the settings, the company apps of
 Google Workspace and Microsoft 365 (DEV-6626 task 685), the relay on Team and
