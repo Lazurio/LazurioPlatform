@@ -411,7 +411,8 @@ test("the planner enables, disables and reports an unchanged selection", async (
 });
 
 // Where Lazurio offers a tool (decision F44): Executor and the vault only in
-// a Remote Environment on Linux, the rest everywhere.
+// a Remote Environment on Linux, gogcli only in a person's own Environment
+// (root decision 0162 addendum 2026-10-09 point 5), the rest everywhere.
 test("where Lazurio offers a tool", () => {
   const offered = (name: string, preset: PresetName, linux: boolean) => {
     const entry = activatableTools().find((tool) => tool.name === name);
@@ -430,7 +431,10 @@ test("where Lazurio offers a tool", () => {
       expect(offered(name, preset, true)).toBe(preset !== "local");
       expect(offered(name, preset, false)).toBe(false);
     }
-    for (const name of ["gh", "composio", "wacli", "gogcli", "neon"])
+    expect(offered("gogcli", preset, true)).toBe(
+      preset === "local" || preset === "hosted-personal",
+    );
+    for (const name of ["gh", "composio", "wacli", "neon"])
       expect(offered(name, preset, preset !== "local")).toBe(true);
   }
 });
@@ -485,6 +489,98 @@ test("a tool the Environment does not offer is never newly enabled; one stored b
   expect(enabledTools(off.preferences)).toEqual(["composio"]);
   expect(toolNotes(off.preferences)).toEqual({});
   expect(off.files).toEqual([]);
+});
+
+test("gogcli is offered only in a person's own Environment: a work Environment never enables it, and a selection stored before stays readable and can be switched off", async () => {
+  const work = {
+    schemaVersion: 2,
+    revision: 3,
+    preset: {
+      name: "hosted-organization-personal",
+      version: 1,
+      selection: "derived",
+    },
+    machine: bindings.organization,
+    profile: presetProfile("hosted-organization-personal", "linux"),
+    customInstructions: "",
+  };
+  const fresh = await planned(work);
+  expect(
+    await planToolsChange(
+      fresh.preferences,
+      fresh.manifest,
+      3,
+      ["gogcli"],
+      fresh.inspect,
+    ),
+  ).toEqual({ kind: "blocked", reason: "tool-not-offered" });
+  expect(
+    (
+      await planToolsChange(
+        fresh.preferences,
+        fresh.manifest,
+        3,
+        ["composio"],
+        fresh.inspect,
+      )
+    ).kind,
+  ).toBe("profile-change");
+  // A selection a work Environment stored before gogcli left it, with a note.
+  const before = await planned({
+    ...work,
+    tools: ["composio", "gogcli"],
+    toolNotes: { gogcli: "Only the team calendar." },
+  });
+  expect(enabledTools(before.preferences)).toEqual(["composio", "gogcli"]);
+  const source = instructionSource(before.preferences);
+  const rendered = [
+    renderInstructions(source),
+    renderManual(source)["manual/this-machine.md"],
+  ];
+  for (const text of rendered) {
+    expect(text).not.toContain("- `gogcli` (");
+    expect(text).not.toContain("Only the team calendar.");
+    expect(text).toContain("- `composio` (");
+  }
+  expect(
+    await planToolsChange(
+      before.preferences,
+      before.manifest,
+      3,
+      ["composio", "gogcli"],
+      before.inspect,
+    ),
+  ).toEqual({ kind: "unchanged" });
+  const off = await planToolsChange(
+    before.preferences,
+    before.manifest,
+    3,
+    ["composio"],
+    before.inspect,
+  );
+  if (off.kind !== "profile-change")
+    throw new Error(`Expected a change: ${JSON.stringify(off)}`);
+  expect(enabledTools(off.preferences)).toEqual(["composio"]);
+  // A personal Remote Environment offers it.
+  const personal = await planned({
+    schemaVersion: 2,
+    revision: 3,
+    preset: { name: "hosted-personal", version: 1, selection: "derived" },
+    machine: bindings.personal,
+    profile: presetProfile("hosted-personal", "linux"),
+    customInstructions: "",
+  });
+  expect(
+    (
+      await planToolsChange(
+        personal.preferences,
+        personal.manifest,
+        3,
+        ["gogcli"],
+        personal.inspect,
+      )
+    ).kind,
+  ).toBe("profile-change");
 });
 
 test("every existing refusal holds for a tools change", async () => {

@@ -85,14 +85,17 @@ export type ToolActivation = Readonly<{
   task?: ToolText;
   /** Where Lazurio offers the tool (`toolOffered`): `hosted-linux` only in a
    * Remote Environment on Linux (the Environment vault, decision F43, and
-   * Executor, F44; this computer is their second wave). Absent: everywhere.
-   * Where a tool is not offered it is not rendered into the Folder, cannot
-   * be enabled, and doctor does not count it as missing; a stored selection
-   * naming it stays readable and can turn it off. */
+   * Executor, F44; this computer is their second wave); `personal` only in
+   * a person's own Environment, their computer or personal Remote
+   * Environment, never a work one of an Organization (gogcli, root decision
+   * 0162 addendum 2026-10-09 point 5). Absent: everywhere. Where a tool is
+   * not offered it is not rendered into the Folder, cannot be enabled, and
+   * doctor does not count it as missing; a stored selection naming it stays
+   * readable and can turn it off. */
   offered?: ToolOffer;
 }>;
 
-export type ToolOffer = "hosted-linux";
+export type ToolOffer = "hosted-linux" | "personal";
 
 export type ToolEntry = Readonly<{
   name: string;
@@ -387,6 +390,10 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
     activation: {
       tier: "optional",
       setup: "agent",
+      // Google of the company comes through the Organization's company app
+      // (root decision 0162 addendum 2026-10-09 point 5): a work
+      // Environment does not offer gogcli; a personal one does.
+      offered: "personal",
       signInProbe: {
         argv: ["auth", "list", "--check", "--json", "--no-input"],
         account: {
@@ -462,6 +469,10 @@ export function toolOffered(
   const offered = entry.activation.offered;
   if (offered === "hosted-linux")
     return environment.preset !== "local" && environment.linux;
+  if (offered === "personal")
+    return (
+      environment.preset === "local" || environment.preset === "hosted-personal"
+    );
   return true;
 }
 
