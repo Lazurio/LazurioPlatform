@@ -41,7 +41,6 @@ type Copy = {
   continuesTo: string;
   retry: string;
   retried: string;
-  connected: string;
   stillFailing: string;
   docs: string;
   account: string;
@@ -63,7 +62,6 @@ const copy: Record<"cs" | "en", Copy> = {
     continuesTo: "Pokračuje na",
     retry: "Zkusit znovu",
     retried: "Environment je pořád mimo dosah.",
-    connected: "Připojeno, pokračuju…",
     stillFailing: "Pořád to nejde?",
     docs: "Podrobný návod v dokumentaci",
     account: "Tvůj účet",
@@ -104,7 +102,6 @@ const copy: Record<"cs" | "en", Copy> = {
     continuesTo: "Continues to",
     retry: "Try again",
     retried: "The Environment is still out of reach.",
-    connected: "Connected, continuing…",
     stillFailing: "Still not working?",
     docs: "The detailed guide in the documentation",
     account: "Your account",
@@ -207,8 +204,6 @@ h1{margin:0;font-size:26px}
 .lead{margin:0;color:var(--muted)}
 .lead strong{color:var(--ink);font-weight:600}
 code{padding:1px 5px;border-radius:3px;background:var(--blue-50);color:#0b0e91;font:0.88em ui-monospace,Menlo,Consolas,monospace;overflow-wrap:break-word}
-.status{display:none;align-self:flex-start;padding:3px 10px;border:1px solid #88daae;border-radius:999px;background:#f4f8f6;color:#1b7a46;font-size:12px;font-weight:600}
-.is-connected .status{display:inline-block}
 .tabs{display:inline-flex;align-self:flex-start;gap:2px;padding:2px;border:1px solid var(--line);border-radius:6px;background:var(--paper)}
 .tabs button{padding:3px 10px;border:0;border-radius:3px;background:none;color:var(--muted);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 .tabs button[aria-selected=true]{background:#fff;color:var(--ink);box-shadow:0 0 0 1px var(--line)}
@@ -273,7 +268,7 @@ const script = `
   show(p);
   document.getElementById("address").textContent=location.host+location.pathname+location.search;
   var busy=false;
-  function attempt(manual){if(busy)return;busy=true;fetch(location.href,{cache:"no-store",credentials:"same-origin",redirect:"manual"}).then(function(){document.body.classList.add("is-connected");setTimeout(function(){location.reload()},600)},function(){if(manual)document.getElementById("retried").hidden=false}).finally(function(){busy=false})}
+  function attempt(manual){if(busy)return;busy=true;fetch(location.href,{cache:"no-store",credentials:"same-origin",redirect:"manual"}).then(function(){location.reload()},function(){if(manual)document.getElementById("retried").hidden=false}).finally(function(){busy=false})}
   document.getElementById("retry").addEventListener("click",function(){attempt(true)});
   addEventListener("focus",function(){attempt(false)});addEventListener("online",function(){attempt(false)});
   document.addEventListener("visibilitychange",function(){if(!document.hidden)attempt(false)});
@@ -310,7 +305,7 @@ export function renderOfflineGuide(input: OfflineGuideInput): string {
   return `<!doctype html>
 <html lang="${input.locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${c.title}</title><style>${style}</style></head>
 <body><nav class="rail" aria-label="Lazurio">${home}</nav><main>
-<section class="card"><div class="status" role="status">${c.connected}</div>
+<section class="card">
 ${back}<h1>${c.title}</h1>
 <p class="lead">${c.lead(environment, organization)} ${c.choose} <code>${tailnet}</code>. ${c.continues}</p>
 <div class="tabs" role="tablist">${tabs}</div>
