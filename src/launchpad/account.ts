@@ -13,7 +13,7 @@ import { parseFavorites } from "./favorites";
 // favourites of this Environment's Organization (`favourites`, keyed by the
 // Organization slug). Everything else in it (the spaces, the Environments,
 // the last one used) is the shell library's, which also makes the page's one
-// request (`src/shell/account.ts`). Until the gateway relays the
+// read cycle (`src/shell/account.ts`). Until the gateway relays the
 // namespace the read fails (404) and Apps keeps today's behaviour: favourites
 // in this browser, apps in a new tab. Nothing here holds a token: the
 // requests are plain same-origin ones, and the gateway adds the person's
@@ -79,7 +79,7 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
 /** What Apps reads of the account: the answer this page read once (the
  * shell library's `pageAccountJson`, which the rail merges too, so the page
- * asks once), or null when it is unavailable (no gateway relay yet, a
+ * shares one bounded recovery cycle), or null when it is unavailable (no gateway relay yet, a
  * refusal, a sign-in redirect, a slow answer, anything else than
  * `lazurio.account.v1`). Never throws. */
 export async function readAccount(

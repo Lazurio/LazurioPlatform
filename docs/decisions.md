@@ -5198,6 +5198,42 @@ and Apps fall back silently, exactly as without the account document.
 4. Platform: the second document in `contract.ts`, the merge, `PUT last`, and the Apps
    consumers.
 
+### Addendum 2026-10-09 — bounded recovery of the first account read (#273)
+
+A slow first account read must not leave the account navigation missing until a
+reload. The local document still renders immediately and the account provider
+still owns composition and access. The rail and Apps share one pending read
+**cycle**, not one HTTP attempt: allow up to three attempts, twelve seconds each,
+with 250 ms and 750 ms delays. Twelve seconds allows first-account initialization
+and the existing gateway response deadline to answer; retries also cover a
+transient gateway timeout or an initialization response that is still unavailable.
+
+Retry only a timeout/network failure, HTTP 408 or HTTP 5xx. A 401, 403 or 404
+ends the cycle at once and removes the remembered account as before; other 4xx,
+invalid JSON and invalid account documents are terminal. Redirects are never
+followed. A failed redirect is indistinguishable from a network error to Fetch,
+so it can consume the same bounded retries but never become a sign-in flow.
+After exhaustion the existing local/remembered fallback remains; there is no
+poller, session refresh, new grant store or claim that a persistent outage heals.
+A successful response reaches both the rail and Apps without a page reload.
+The host-provided account (Dashboard) continues to make no relay requests.
+Account writes retain their four-second deadline and are never retried here.
+
+A longer single request would miss a transient 503/504; unbounded polling would
+amplify outages. The shared bounded cycle handles both without another state
+owner or public component interface. The earlier one-attempt/four-second read
+wording in F36 and F37 is superseded only for the account document. Loading the
+local shell document and access-denied pages are separate concerns; this change
+makes no unproven claim to repair them.
+
+Acceptance: with an empty browser cache, show the local Environment immediately,
+then add the account's multiple Organizations and Environments after a delayed or
+initially failed read, without navigation. Test shared rail/Apps completion,
+abort followed by success, a finite outage budget, refusal after a transient
+failure, malformed answers and unchanged per-person cache handling. Verify the
+same artifact in a browser before review. Installed consumers receive the fix
+only through a qualified Platform release and their normal update lane.
+
 ## F38 — The Environment browser of a Remote Environment: one Chromium, a window per thread, a view behind the gateway
 
 **Decided by Matěj 2026-10-05 (plan DEV-6646, root decision 0191); implemented in this
