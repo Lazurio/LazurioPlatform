@@ -25,6 +25,7 @@ import { parseFolderProfile } from "./folder/profile";
 import { resumeInitialization } from "./folder/resume-initialization";
 import { stateFields } from "./folder/state";
 import { resumeProfileUpdate, updateProfile } from "./folder/update-profile";
+import { integrationsHelp, runIntegrationsCommand } from "./integrations/cli";
 import {
   readApplicationRequest,
   requestApplication,
@@ -238,6 +239,10 @@ async function runOtherCommand(args: string[]): Promise<number> {
         progress: (line) => console.error(line),
       }),
     );
+  // The Integrace of this Environment (decision F42): the same reading as
+  // the Launchpad's Apps → Integrace.
+  if (args[0] === "integrations")
+    return emit(await runIntegrationsCommand(args.slice(1), processContext()));
   // The link or path alone on stdout; the note follows on stderr.
   if (args[0] === "files")
     return emit(
@@ -492,6 +497,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(chatHelp);
     console.log(browserHelp);
     console.log(filesHelp);
+    console.log(integrationsHelp);
     console.log(vaultHelp);
     console.log(executorHelp);
     console.log(machineHelp);

@@ -7,8 +7,8 @@ import {
   assignmentLine,
   type InstructionSource,
   instructionTemplateRevision,
+  integrationsPointer,
   launchpadRouting,
-  mcpInstruction,
   notesMeaning,
   operatorConnectsOverSsh,
   parseInstructionSource,
@@ -1141,8 +1141,8 @@ function building(preset: PresetName): readonly Text[] {
   return [
     t("## Než postavíš něco nového", "## Before you build something new"),
     t(
-      "Nejdřív najdi mechanismus Lazuria, který věc už řeší: manifest Organizace, Module Standard, `lazurio module`, nástroje Environmentu, Composio, Mission Control nebo Knowledgebase. Paralelní řešení vedle nich nestav: vlastní instalaci Lazuria, vlastní integraci, spouštěč, registr ani druhý zdroj pravdy. Když mechanismus chybí nebo nestačí, zapiš issue do repozitáře, který ho vlastní, a navrhni Operátorovi řešení.",
-      "First find the Lazurio mechanism that already covers it: the Organization manifest, the Module Standard, `lazurio module`, the Environment's tools, Composio, Mission Control or the Knowledgebase. Do not build a parallel solution next to them: your own installation of Lazurio, your own integration, launcher, registry or second source of truth. When a mechanism is missing or falls short, file an issue in the repository that owns it and propose a solution to the Operator.",
+      "Nejdřív najdi mechanismus Lazuria, který věc už řeší: manifest Organizace, Module Standard, `lazurio module`, nástroje a Integrace Environmentu, Mission Control nebo Knowledgebase. Paralelní řešení vedle nich nestav: vlastní instalaci Lazuria, vlastní integraci, spouštěč, registr ani druhý zdroj pravdy. Když mechanismus chybí nebo nestačí, zapiš issue do repozitáře, který ho vlastní, a navrhni Operátorovi řešení.",
+      "First find the Lazurio mechanism that already covers it: the Organization manifest, the Module Standard, `lazurio module`, the Environment's tools and Integrations, Mission Control or the Knowledgebase. Do not build a parallel solution next to them: your own installation of Lazurio, your own integration, launcher, registry or second source of truth. When a mechanism is missing or falls short, file an issue in the repository that owns it and propose a solution to the Operator.",
     ),
     blank,
     t("## Organizace a její manifest", "## The Organization and its manifest"),
@@ -1224,39 +1224,52 @@ function building(preset: PresetName): readonly Text[] {
   ];
 }
 
-// Connected applications on every preset (decision F14 addendum 2026-10-02,
-// root decision 0162): what is here first, Composio as the standard route for
-// a missing application, no own integrations, a write is a Publication.
+// Integrace on every preset (root decision 0162, addendum of 2026-10-09;
+// decision F42): what is here and how to read it, the order of the paths,
+// that only a person connects an Integrace, custom MCP servers into
+// Executor, no own integrations, a write is a Publication.
 const connectedApplications: readonly Text[] = [
-  t("## Napojené aplikace", "## Connected applications"),
+  t("## Integrace", "## Integrations"),
   t(
-    "Než cokoli napojíš, zjisti, co tu je: zapnuté nástroje (`manual/this-machine.md`), napojené aplikace v Composiu (`composio whoami`) a MCP servery tvého harnessu. Přednost má zapnutý nástroj CLI, potom MCP.",
-    "Before connecting anything, find out what is here: the enabled tools (`manual/this-machine.md`), the applications connected in Composio (`composio whoami`) and your harness's MCP servers. An enabled CLI tool comes first, MCP after it.",
+    "Integrace je aplikace nebo služba připojená k tomuhle Environmentu. Každá má právě jednu cestu: nástrojem z Nastavení → Nástroje (`gh` pro GitHub, `wacli` pro WhatsApp, `gogcli` pro Google na osobním Environmentu, `neon` pro Neon), přímo přes Executor tohohle Environmentu, nebo přes Composio s vlastním Composio účtem člověka (decision 0162). Lidé je připojují, vidí a odpojují v Launchpadu v Apps → Integrace; ty zjistíš totéž příkazem `lazurio integrations list --json`: u každé aplikace cestu, stav účtů a odkaz na její kartu.",
+    "An Integration is an app or service connected to this Environment. Each has exactly one path: by its tool from Settings → Tools (`gh` for GitHub, `wacli` for WhatsApp, `gogcli` for Google on a personal Environment, `neon` for Neon), directly through this Environment's Executor, or through Composio with the person's own Composio account (decision 0162). People connect, see and disconnect them in the Launchpad under Apps → Integrations; you learn the same with `lazurio integrations list --json`: for each app its path, the state of its accounts and the link to its card.",
   ),
   blank,
   t(
-    "- **Chybějící aplikaci napoj přes Composio.** Composio je součást Lazuria, jakmile ho Operátor zapne a přihlásí v Launchpadu (Nastavení → Nástroje). Najdi toolkit aplikace (`composio search <aplikace>`) a spusť `composio link <toolkit>`. Odkaz, který příkaz vrátí, pošli Operátorovi; otevře ho ve svém prohlížeči a přihlásí se vlastním účtem. Pak napojení ověř čtením, třeba vyhledáním známé zprávy.",
-    "- **Connect a missing application through Composio.** Composio is part of Lazurio once the Operator enables it and signs it in in the Launchpad (Settings → Tools). Find the application's toolkit (`composio search <application>`) and run `composio link <toolkit>`. Send the link the command returns to the Operator; they open it in their browser and sign in with their own account. Then verify the connection by reading, for example by finding a known message.",
+    "- **Pořadí.** Integraci použij tam, kde je připojená: nejdřív nástroj aplikace, potom Executor (MCP server `executor` tvého harnessu s nástroji `skills` a `execute`, nebo příkaz `executor`; oba popisuje nástroj `executor` v `manual/this-machine.md`), potom Composio (`composio search` a `composio execute`). Composio použij jen pro Integraci, jejíž cestou je Composio: kde ho Organizace nebo člověk nepovolil, se nepoužívá.",
+    "- **Order.** Use an Integration where it is connected: first the app's tool, then Executor (your harness's MCP server `executor` with the tools `skills` and `execute`, or the `executor` command; the tool `executor` in `manual/this-machine.md` describes both), then Composio (`composio search` and `composio execute`). Use Composio only for an Integration whose path is Composio: where the Organization or the person has not allowed it, it is not used.",
+  ),
+  t(
+    "- **Integraci nepřipojuj sám.** Přihlášení je souhlas člověka. Chybějící Integraci připojí člověk v Apps → Integrace: pošli mu odkaz na její kartu (`link` v `lazurio integrations list --json`); kde odkaz není, řekni mu, ať ji tam připojí. Připojení sám nespouštěj, ani v Composiu, ani v Executoru.",
+    "- **Never connect an Integration yourself.** The sign-in is the person's consent. The person connects a missing Integration in Apps → Integrations: send them the link to its card (`link` in `lazurio integrations list --json`); where there is no link, ask them to connect it there. Never start a connection yourself, neither in Composio nor in Executor.",
+  ),
+  t(
+    "- **Vlastní MCP server** přidej jen na výslovný pokyn člověka, a vždy do Executoru tohohle Environmentu (lidé totéž dělají v Apps → Integrace → Vlastní), nikdy jen do svého harnessu: Executor ho dá všem agentům a botům Environmentu. Dej přednost oficiálnímu serveru poskytovatele. Klíč nebo token k němu zadá člověk sám v Launchpadu, nikdy do chatu.",
+    "- **A custom MCP server** you add only on the person's explicit instruction, and always to this Environment's Executor (people do the same in Apps → Integrations → Custom), never only to your harness: Executor gives it to every agent and bot of the Environment. Prefer the provider's official server. The person enters its key or token in the Launchpad themselves, never into chat.",
+  ),
+  t(
+    "- **Když cesta chybí,** řekni to člověku jednou větou a pošli mu kartu aplikace: firemní aplikaci (Google Workspace, Microsoft 365) nastavuje Admin Organizace v Dashboardu, Composio na pracovním Environmentu povoluje Organizace a na osobním člověk sám; ostatní požádají Admina.",
+    "- **When there is no path,** tell the person in one sentence and send them the app's card: an Organization's Admin sets up a company app (Google Workspace, Microsoft 365) in the Dashboard, the Organization allows Composio on a work Environment and the person on a personal one; everyone else asks the Admin.",
   ),
   t(
     "- **Firemní aplikace může čekat na souhlas správce.** Když přihlášení hlásí, že je potřeba schválení správcem (typicky Microsoft 365), řekni to Operátorovi: aplikaci schválí jejich IT a Operátor potom napojení spustí znovu. Souhlas pro jednu aplikaci (Outlook) nepokrývá jinou (Teams).",
     "- **A company application may wait for an administrator's consent.** When the sign-in says administrator approval is required (typically Microsoft 365), tell the Operator: their IT approves the application and the Operator then starts the connection again. Consent for one application (Outlook) does not cover another (Teams).",
   ),
   t(
-    "- **Když Composio zapnuté není,** nabídni Operátorovi, ať ho zapne v Launchpadu (Nastavení → Nástroje). Jinou cestu, například jiný nástroj z katalogu nebo oficiální MCP server poskytovatele, volí on.",
-    "- **When Composio is not enabled,** offer the Operator to enable it in the Launchpad (Settings → Tools). Another route, such as another catalog tool or the provider's official MCP server, is their choice.",
-  ),
-  t(
-    "- **Vlastní integraci nestav** (vlastní OAuth aplikaci, spouštěč, MCP server, API klienta ani scraper) bez výslovného rozhodnutí Operátora. Jiné cloudové konektory než Composio nezřizuj; scraping a servery postavené na cookies přihlášené relace nikdy.",
-    "- **Do not build your own integration** (your own OAuth app, launcher, MCP server, API client or scraper) without the Operator's explicit decision. Set up no cloud connector other than Composio; never scraping or servers built on a signed-in session's cookies.",
+    "- **Vlastní integraci nestav** (vlastní OAuth aplikaci, spouštěč, API klienta ani scraper) bez výslovného rozhodnutí Operátora; scraping a servery postavené na cookies přihlášené relace nikdy.",
+    "- **Do not build your own integration** (your own OAuth app, launcher, API client or scraper) without the Operator's explicit decision; never scraping or servers built on a signed-in session's cookies.",
   ),
   t(
     "- **Zápis je Publikace.** Napojená aplikace umí číst, zapisovat i mazat, ale schopnost není souhlas. Odeslání, zveřejnění, smazání nebo sdílení mimo Organizaci proveď až na výslovné „Publikuj“ Operátora k připravenému Draftu (oddíl Draft, Publikace, Release výše); do té doby připrav koncept. Zkoušky dělej na pojmenovaném testovacím cíli.",
     "- **A write is a Publication.** A connected application can read, write and delete, but capability is not consent. Send, publish, delete or share outside the Organization only on the Operator's explicit “Publish” for the prepared Draft (the section Draft, Publication, Release above); until then, prepare a draft. Test against a named test target.",
   ),
   t(
-    "- **Každá Organizace zvlášť.** Pracuješ-li pro víc Organizací, používej nástroje té, pro kterou právě pracuješ, a data mezi nimi nepřenášej. Na týmovém Environmentu se přihlašují jen týmové účty, nikdy osobní. Integrace sdílené celou Organizací popisuje její vlastní katalog a mění se PR do Organizace; do Folderu se MCP servery nezapisují.",
-    "- **Each Organization on its own.** When you work for several Organizations, use the tools of the one you are working for and move no data between them. On a Team Environment only Team accounts sign in, never personal ones. Integrations shared by a whole Organization are described in its own catalog and change by a PR to the Organization; MCP servers are never written into the Folder.",
+    "- **Schválení v Executoru.** Executor některá volání pozastaví a vrátí ti je ke schválení (`waiting_for_interaction`): nástroje, které server označil jako ničivé, a zápisy do API. Potvrď je (`resume` s `accept`) jen u Draftu nebo u Publikace, kterou Operátor výslovně schválil; jinak je odmítni (`decline`).",
+    "- **Approvals in Executor.** Executor pauses some calls and returns them to you for approval (`waiting_for_interaction`): tools the server marks as destructive, and writes to an API. Accept them (`resume` with `accept`) only for a Draft or for a Publication the Operator explicitly approved; otherwise decline them (`decline`).",
+  ),
+  t(
+    "- **Každá Organizace zvlášť.** Pracuješ-li pro víc Organizací, používej nástroje a účty té, pro kterou právě pracuješ, a data mezi nimi nepřenášej. Na týmovém Environmentu se přihlašují jen týmové účty, nikdy osobní. Integrace sdílené celou Organizací popisuje její vlastní katalog a mění se PR do Organizace; do Folderu se Integrace nezapisují.",
+    "- **Each Organization on its own.** When you work for several Organizations, use the tools and accounts of the one you are working for and move no data between them. On a Team Environment only Team accounts sign in, never personal ones. Integrations shared by a whole Organization are described in its own catalog and change by a PR to the Organization; Integrations are never written into the Folder.",
   ),
 ];
 
@@ -1743,8 +1756,8 @@ function fromPersonalVm(
 
 // The tools agents are to use on this Machine (decision F18): the required
 // catalog tools and the ones the operator enabled in this Folder, each with
-// its usage and the operator's quoted note when there is one, then the
-// generic instruction for MCP servers.
+// its usage and the operator's quoted note when there is one, then where the
+// Integrace and the custom MCP servers are (decision F42).
 function enabledToolsSection(
   tools: readonly string[],
   environment: ToolEnvironment,
@@ -1766,8 +1779,8 @@ function enabledToolsSection(
     ...(noted ? [notesMeaning, blank] : []),
     ...toolLines(tools, environment, locale, "usage", notes).map(same),
     blank,
-    t("### MCP servery", "### MCP servers"),
-    mcpInstruction,
+    t("### Integrace a MCP", "### Integrations and MCP"),
+    integrationsPointer,
   ];
 }
 

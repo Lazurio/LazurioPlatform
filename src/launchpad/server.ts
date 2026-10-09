@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   type BrowserViewSeams,
   browserEntryOf,
+  browserViewUrl,
   isBrowserSession,
   resolveBrowserView,
 } from "../browser/view";
@@ -23,12 +24,14 @@ import {
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
 import { withFolderReadLock } from "../folder/lock";
+import type { MachineEntry } from "../folder/machine-binding";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { selectablePresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { enabledTools, stateFields } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
+import { processExecutorEndpoint } from "../integrations/executor-client";
 import { readMachineContext } from "../machine/context";
 import { hostedOperatorFolder } from "../machine/operator";
 import { createApplicationLifecycle } from "../modules/lifecycle";
@@ -82,6 +85,10 @@ import { createFilesRoutes, maxRequestBytes } from "./files-routes";
 import { signsInAsPerson } from "./first-run";
 import { serveHealthSocket } from "./health-socket";
 import { type AuthFetcher, createHostedTrust } from "./hosted-trust";
+import {
+  createIntegrationsRoutes,
+  type IntegrationsSeams,
+} from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 import { issueMausbotLink } from "./mausbot";
 import { messages } from "./messages";
@@ -146,6 +153,29 @@ export type HostedOptions = Readonly<{
    * HTTP input; tests supply the address. */
   offlineTailnet?: () => Promise<string | null>;
 }>;
+
+/** Where a direct sign-in of an Integrace opens (decision F42): Executor's
+ * OAuth returns to localhost, so on a Remote Environment the person signs in
+ * in the Environment browser, a new tab the panel shows; a workstation (no
+ * entry) answers null and the person's own browser opens the address. An
+ * entry whose gateway routes no browser view has none to offer. */
+export function environmentBrowserOf(
+  entry: MachineEntry | null,
+): IntegrationsSeams["environmentBrowser"] {
+  if (entry === null) return null;
+  const browser = browserEntryOf(entry);
+  return async (url) => {
+    if (browser === undefined) return null;
+    const created = (await cdpSeams(process.env, runProcess).cdp(
+      "Target.createTarget",
+      { url },
+    )) as { targetId?: unknown } | null;
+    const target = created?.targetId;
+    return typeof target === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(target)
+      ? { view: browserViewUrl(browser.origin, target) }
+      : null;
+  };
+}
 
 /** The Lazurio shell's data document (decision F36). */
 export const shellDocumentPath = "/.lazurio/shell.json";
@@ -341,6 +371,10 @@ export async function startLaunchpad(
   // manager and harnesses, for the handover's declared operator. Trusted
   // composition, never HTTP input; tests supply fakes.
   executorHost?: ExecutorHost | undefined,
+  // Where Integrace are read and connected (decision F42): this account's
+  // Executor on loopback and, on a Remote Environment, its browser. Trusted
+  // composition, never HTTP input; tests supply a fake Executor.
+  integrationSeams?: Partial<IntegrationsSeams> | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -465,6 +499,37 @@ export async function startLaunchpad(
       }),
   });
   const contentState: ContentReader = contentReader ?? content;
+  // Integrace (decision F42): one reading and the connect sessions of this
+  // Launchpad, journaled as the operation, the app and the outcome only.
+  const integrations = createIntegrationsRoutes({
+    folder,
+    tools: toolsEnvironment,
+    headers,
+    seams: () => ({
+      executor:
+        integrationSeams?.executor !== undefined
+          ? integrationSeams.executor
+          : processExecutorEndpoint(process.env),
+      environmentBrowser:
+        integrationSeams?.environmentBrowser !== undefined
+          ? integrationSeams.environmentBrowser
+          : environmentBrowserOf(entry),
+      // Whether Lazurio sets Executor up here: F44's context of this
+      // Launchpad's Executor host.
+      executorContext:
+        integrationSeams?.executorContext ??
+        (() =>
+          (executorHost === undefined
+            ? (defaultExecutor as ExecutorHost)
+            : executorHost
+          ).context()),
+      executorPresent: integrationSeams?.executorPresent,
+      policy: integrationSeams?.policy,
+      catalog: integrationSeams?.catalog,
+      now: integrationSeams?.now,
+    }),
+    journal: (line) => console.log(JSON.stringify(line)),
+  });
   // The shell document's `setup` from the last reading, never awaited (F36's
   // addendum of 2026-10-08): the forks' column head says what is missing
   // once it is known, and no page waits for GitHub to learn it.
@@ -1034,6 +1099,16 @@ export async function startLaunchpad(
             void content.settled().then(() => setup.forget());
           }
           return answer;
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (integrations.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await integrations.handle(request, url, (seconds) =>
+            server.timeout(request, seconds),
+          );
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

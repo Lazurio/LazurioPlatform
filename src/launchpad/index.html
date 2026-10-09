@@ -14,6 +14,7 @@
   var frame = "catalog";
   var section = "";
   if (path === "/files" || path.indexOf("/files/") === 0) frame = "files";
+  else if (trimmed === "/integrations" || trimmed.indexOf("/integrations/") === 0) frame = "integrations";
   else if (trimmed === "/marketplace") frame = "marketplace";
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
@@ -93,6 +94,7 @@ html:not([data-ready]) body { visibility: hidden; animation: lazurio-reveal 0s 2
 @keyframes lazurio-reveal { to { visibility: visible; } }
 html[data-frame="catalog"] [data-view]:not([data-view~="catalog"]),
 html[data-frame="files"] [data-view]:not([data-view~="files"]),
+html[data-frame="integrations"] [data-view]:not([data-view~="integrations"]),
 html[data-frame="marketplace"] [data-view]:not([data-view~="marketplace"]),
 html[data-frame="settings"] [data-view]:not([data-view~="settings"]),
 html:not([data-frame]) [data-view]:not([data-view~="catalog"]),
@@ -459,8 +461,67 @@ a.files-name:hover { text-decoration: underline; }
    header of Settings and Files, in the Marketplace's head; pressed, it takes
    the quiet surface. Below 1100 px there is no room for the page beside the
    panel, so the panel covers the window like a sheet, its Close in view. */
+/* Integrace (decision F42), after the approved wireframe: the head with
+   search and "Jak to funguje", the tabs, cards in a grid with the app's mark,
+   a line, the action and the accounts; Vlastní as rows. */
+.integrations-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 24px; }
+.integrations-titles { display: grid; gap: 4px; min-width: 0; }
+.integrations-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.integrations-search { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--input); border-radius: var(--radius-control); background: var(--card); color: var(--muted-fg); }
+.integrations-search input { width: 200px; height: 30px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.integrations-search input:focus-visible { outline: none; }
+.integrations-search:focus-within { outline: 2px solid var(--lz-accent); outline-offset: 1px; }
+.integrations-refresh.is-spinning .icon { animation: integrations-spin 1s linear infinite; }
+@keyframes integrations-spin { to { transform: rotate(360deg); } }
+.integrations-tabs { display: flex; gap: 4px; margin-top: -12px; border-bottom: 1px solid var(--lz-line-faint); }
+.integrations-tab { padding: 8px 12px; border-bottom: 2px solid transparent; color: var(--muted-fg); font-size: 14px; text-decoration: none; }
+.integrations-tab:hover { color: var(--fg); }
+.integrations-tab[aria-current="page"] { border-bottom-color: var(--lz-accent); color: var(--fg); font-weight: var(--lz-weight-akce); }
+.integrations-alert:empty, #integrations-status:empty { display: none; }
+.integrations-section-head { margin: 8px 0 10px; color: var(--muted-fg); font-size: 13px; }
+.integration-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.integration-card { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--card); }
+.integration-card.is-focused { border-color: var(--lz-accent); box-shadow: 0 0 0 1px var(--lz-accent); }
+.integration-top { display: flex; gap: 12px; min-width: 0; }
+.integration-mark { display: grid; flex: none; width: 40px; height: 40px; place-items: center; border: 1px solid var(--lz-line-faint); border-radius: var(--lz-radius-sm); background: var(--lz-white); }
+.integration-mark svg { width: 24px; height: 24px; }
+.integration-mark-letter { color: var(--muted-fg); font-weight: var(--lz-weight-akce); font-size: 17px; background: var(--lz-gray-25); }
+.integration-text { display: grid; gap: 2px; min-width: 0; }
+.integration-name { font-size: 15px; font-weight: var(--lz-weight-akce); }
+.integration-line { color: var(--muted-fg); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.integration-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+.integration-state { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--success-fg); font-size: 13px; }
+.integration-state .icon { width: 14px; height: 14px; }
+.integration-path { display: inline-flex; align-items: center; gap: 3px; color: var(--muted-fg); }
+.integration-path .icon { width: 12px; height: 12px; }
+.integration-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.integration-form-note { flex-basis: 100%; color: var(--muted-fg); font-size: 13px; }
+.integration-form-field { flex: 1 1 140px; }
+.integration-form-field input { width: 100%; }
+.integration-accounts { display: grid; gap: 6px; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--lz-line-faint); list-style: none; }
+.integration-account { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; font-size: 13px; }
+.integration-account-text { display: grid; gap: 2px; min-width: 0; }
+.integration-account-name { overflow-wrap: anywhere; }
+.integration-account-line { color: var(--muted-fg); font-size: 12px; }
+.integration-account[data-state="expired"] .integration-account-line, .integration-account[data-state="failed"] .integration-account-line { color: var(--warning-fg); }
+.integration-account-actions { display: flex; flex: none; gap: 8px; }
+button.link-button { height: auto; padding: 0; border: 0; background: none; color: var(--link); font-size: 13px; cursor: pointer; }
+button.link-button:hover { background: none; text-decoration: underline; }
+button.link-button.danger { color: var(--destructive); }
+.integrations-more { justify-self: center; margin-top: 12px; }
+.integrations-custom-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
+.integrations-custom-head h2 { font-size: 15px; }
+.integration-server .row-title { display: flex; align-items: center; gap: 8px; }
+.integration-server[data-state="failed"] .row-status { color: var(--destructive); }
+.integration-server-form { display: grid; gap: 12px; padding: 16px; }
+.integration-kinds { display: flex; flex-wrap: wrap; gap: 16px; margin: 0; padding: 0; border: 0; }
+.integration-kind { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.integration-field { display: grid; gap: 4px; font-size: 13px; color: var(--muted-fg); }
+.integration-field input { color: var(--fg); }
+.integration-field input.mono { font-family: var(--font-mono); font-size: 13px; }
+.menu-count { margin-left: auto; min-width: 18px; padding: 0 6px; border-radius: var(--lz-radius-pill); background: var(--warning-bg); color: var(--warning-fg); font-size: 11.5px; line-height: 18px; text-align: center; }
 button.ghost.browser-toggle[aria-expanded="true"] { background: var(--hover); color: var(--fg); }
-.apps-head .browser-toggle, .market-head .browser-toggle { font-weight: var(--lz-weight-akce); }
+.apps-head .browser-toggle, .market-head .browser-toggle, .integrations-head .browser-toggle { font-weight: var(--lz-weight-akce); }
 .market-head .browser-toggle { margin-left: auto; }
 .browser-panel { position: sticky; top: 0; z-index: 3; display: flex; flex: none; flex-direction: column; width: clamp(360px, calc((100vw - var(--lazurio-rail-width, 64px) - var(--column-width)) / 2), 960px); height: 100vh; background: var(--card); border-left: 1px solid var(--lz-line-faint); }
 .browser-head { display: flex; flex: none; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 16px; border-bottom: 1px solid var(--lz-line-faint); }
@@ -583,6 +644,11 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6.75827 17.2426L12.0009 12M17.2435 6.75736L12.0009 12M12.0009 12L6.75827 6.75736M12.0009 12L17.2435 17.2426" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-browser" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M2 19V5C2 3.89543 2.89543 3 4 3H20C21.1046 3 22 3.89543 22 5V19C22 20.1046 21.1046 21 20 21H4C2.89543 21 2 20.1046 2 19Z" stroke="currentColor"/><path d="M2 7L22 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 5.01L5.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5.01L8.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5.01L11.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-star-filled" viewBox="0 0 24 24" fill="currentColor" stroke-width="1.6"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-integrations" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M4 14V18.4C4 18.7314 4.26863 19 4.6 19H10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 14V18.4C19 18.7314 18.7314 19 18.4 19H14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 5H18.4C18.7314 5 19 5.26863 19 5.6V10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 10V5.6C4 5.26863 4.26863 5 4.6 5H10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 19V20C14 21.1046 13.1046 22 12 22C10.8954 22 10 21.1046 10 20V19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 10H5C6.10457 10 7 10.8954 7 12C7 13.1046 6.10457 14 5 14H4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 10H20C21.1046 10 22 10.8954 22 12C22 13.1046 21.1046 14 20 14H19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 5V4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4V5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M17 17L21 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11C3 15.4183 6.58172 19 11 19C13.213 19 15.2161 18.1015 16.6644 16.6493C18.1077 15.2022 19 13.2053 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M16 12H17.4C17.7314 12 18 12.2686 18 12.6V19.4C18 19.7314 17.7314 20 17.4 20H6.6C6.26863 20 6 19.7314 6 19.4V12.6C6 12.2686 6.26863 12 6.6 12H8M16 12V8C16 6.66667 15.2 4 12 4C8.8 4 8 6.66667 8 8V12M16 12H8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M13 17H20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7L10 12L5 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 12.5L8 14.5L7 18L8 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 20.5L16.5 18L14 17V13.5L17 12.5L21.5 13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 5.5L18.5 7L15 7.5V10.5L17.5 9.5H19.5L21.5 10.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10.5L5 8.5L7.5 8L9.5 5L8.5 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
 <!-- Level 1, the rail of Organizations (decision F36 and its addendum of
      2026-10-04, src/shell): the same element the Dashboard and the forks load
@@ -597,12 +663,13 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <lazurio-column-head id="column-head" active="apps" settings="/settings/general"></lazurio-column-head>
 <!-- Apps: all modules, Files (decision F35) and the favourites; no module
      list and no search. The Marketplace stands at the foot. -->
-<div class="column-apps" data-view="catalog files marketplace">
+<div class="column-apps" data-view="catalog files integrations marketplace">
 <nav class="column-scroll" id="catalog-nav" aria-labelledby="catalog-nav-label">
 <span class="sr-only" id="catalog-nav-label" data-message="appsTitle">Apps</span>
 <ul class="menu column-top">
 <li><a class="menu-item" href="/" id="catalog-home" data-route><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span class="menu-name" data-message="appsAll">All modules</span></a></li>
 <li><a class="menu-item" href="/files" id="files-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span class="menu-name" data-message="filesTitle">Files</span></a></li>
+<li><a class="menu-item" href="/integrations" id="integrations-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-integrations"/></svg><span class="menu-name" data-message="integrationsTitle">Integrations</span><span class="menu-count" id="integrations-attention" hidden></span></a></li>
 </ul>
 <div class="column-favorites" id="catalog-favorites"></div>
 </nav>
@@ -632,7 +699,7 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <p id="update-error" hidden></p>
 <p id="update-state-invalid" hidden></p>
 </section>
-<ul class="menu" data-view="catalog files marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span><span class="menu-soon" data-message="appsSoon">coming soon</span></a></li></ul>
+<ul class="menu" data-view="catalog files integrations marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span><span class="menu-soon" data-message="appsSoon">coming soon</span></a></li></ul>
 <ul class="menu" data-view="settings"><li><a class="menu-item" href="/" id="settings-back" data-route><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span class="menu-name" data-message="settingsBack">Back</span></a></li></ul>
 </div>
 </aside>
@@ -671,6 +738,17 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <main id="view-marketplace" class="container" data-view="marketplace">
 <header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></header>
 <p class="empty" id="marketplace-text"></p>
+</main>
+
+<!-- Integrace (decision F42): the apps and services connected to this
+     Environment, `/integrations` with its tabs Vše · Připojené · Vlastní and
+     an app's card `/integrations/app/<id>`; drawn by integrations-panel.ts. -->
+<main id="view-integrations" class="container wide" data-view="integrations">
+<header class="apps-head integrations-head"><div class="integrations-titles"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="integrationsTitle">Integrations</h1><p class="module-meta" data-message="integrationsSubtitle">Every agent and bot of this Environment uses what you connect here.</p></div><div class="integrations-tools"><a class="apps-guide" id="integrations-help" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span data-message="integrationsHelp">How it works</span></a><label class="integrations-search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><span class="sr-only" data-message="integrationsSearch">Search apps</span><input type="search" id="integrations-search" autocomplete="off" spellcheck="false"></label><button type="button" class="ghost integrations-refresh" id="integrations-refresh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span class="sr-only" data-message="integrationsRefresh">Check connections</span></button><button type="button" class="ghost browser-toggle" aria-controls="browser-panel" aria-expanded="false" hidden><svg class="icon" aria-hidden="true"><use href="#i-browser"/></svg><span class="browser-toggle-text" data-message="browserToggle">Browser</span></button></div></header>
+<nav class="integrations-tabs" id="integrations-tabs" aria-labelledby="integrations-tabs-label"><span class="sr-only" id="integrations-tabs-label" data-message="integrationsTabsLabel">Show</span><a class="integrations-tab" href="/integrations" data-tab="all" data-route>All</a><a class="integrations-tab" href="/integrations/connected" data-tab="connected" data-route>Connected</a><a class="integrations-tab" href="/integrations/custom" data-tab="custom" data-route>Custom</a></nav>
+<p id="integrations-alert" class="callout integrations-alert" role="status" aria-live="polite" hidden></p>
+<p id="integrations-status" class="row-status" role="status" aria-live="polite"></p>
+<div id="integrations-body" class="stack"></div>
 </main>
 
 <!-- Files (decision F35): the Documents folder of this Environment, `/files`
@@ -732,8 +810,8 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 </div>
 <div id="tools-groups" class="stack"></div>
 <section class="group" aria-labelledby="tools-mcp-heading">
-<div class="group-head"><h2 id="tools-mcp-heading" data-message="toolsMcpTitle">Connect another app through an MCP server</h2></div>
-<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="toolsMcpText">For an app the catalog does not cover, an agent sets up an MCP server on your request.</p></div><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Set up an MCP server with an agent</button></div></div></div></div>
+<div class="group-head"><h2 id="tools-mcp-heading" data-message="toolsMcpTitle">A custom MCP server</h2></div>
+<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-desc" data-message="toolsMcpText">You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.</p></div><div class="row-control"><button type="button" id="tools-mcp" data-message="toolsMcpAction" disabled>Add one with an agent</button></div></div></div></div>
 </section>
 </section>
 
@@ -779,6 +857,12 @@ button.tour-quit:hover { background: transparent; color: var(--fg); }
 <p id="tools-login-status" role="status" aria-live="polite"></p>
 <div id="tools-login-body"></div>
 <div class="dialog-foot"><button type="button" id="tools-login-close" data-message="toolsClose">Close</button></div>
+</dialog>
+<dialog id="integrations-confirm" aria-labelledby="integrations-confirm-title">
+<h2 id="integrations-confirm-title" tabindex="-1"></h2>
+<p id="integrations-confirm-text"></p>
+<p id="integrations-confirm-status" role="status" aria-live="polite"></p>
+<div class="dialog-foot"><button type="button" class="destructive" id="integrations-confirm-ok"></button><button type="button" id="integrations-confirm-cancel" data-message="integrationsCancel">Cancel</button></div>
 </dialog>
 <dialog id="tools-vault" aria-labelledby="tools-vault-title">
 <h2 id="tools-vault-title" tabindex="-1"></h2>

@@ -363,12 +363,12 @@ const en = {
   toolsCopyFailed:
     "Copying is not available here. The text is selected; copy it with the keyboard.",
   toolsClose: "Close",
-  toolsMcpTitle: "Connect another app through an MCP server",
+  toolsMcpTitle: "A custom MCP server",
   toolsMcpText:
-    "For an app the catalog does not cover, an agent sets up an MCP server on your request.",
-  toolsMcpAction: "Set up an MCP server with an agent",
+    "You add custom MCP servers in Apps → Integrations → Custom; an agent adds one on your explicit request.",
+  toolsMcpAction: "Add one with an agent",
   toolsMcpPromptHint:
-    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which app you want, sets the server up and lets you sign in in your browser. You never copy an API key.",
+    "Copy this prompt and paste it into a new chat in T3 Code in this Environment. The agent asks which server you want and adds it to this Environment's Executor; a key you enter yourself in Integrations.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "All modules",
@@ -834,7 +834,7 @@ const en = {
   toolsDescriptionGh:
     "The connection to GitHub, where your modules are kept. Nothing works here without it.",
   toolsDescriptionComposio:
-    "The connection to your apps: mail, calendar, Slack. Agents work in them for you.",
+    "An easy way to many apps through Composio, with your own account. You connect the apps in Apps → Integrations.",
   toolsDescriptionWacli:
     "The connection to WhatsApp: agents read and send your messages.",
   toolsDescriptionGogcli:
@@ -988,6 +988,134 @@ const en = {
     "The Environment browser is not available right now; try to reload it in a moment.",
   browserFailed:
     "The Environment browser could not be loaded here; open it in a new tab, where you can sign in again.",
+  integrationsTitle: "Integrations",
+  integrationsSubtitle:
+    "Every agent and bot of this Environment uses what you connect here.",
+  integrationsHelp: "How it works",
+  integrationsSearch: "Search apps",
+  integrationsRefresh: "Check connections",
+  integrationsTabsLabel: "Show",
+  integrationsTabAll: "All",
+  integrationsTabConnected: "Connected",
+  integrationsTabCustom: "Custom",
+  integrationsAvailable: "Available apps · {count}",
+  integrationsYours: "Your connections",
+  integrationsResults: "Search results",
+  integrationsLoading: "Reading Integrations…",
+  integrationsChecking: "Checking connections…",
+  integrationsLoadFailed: "Integrations could not be read.",
+  integrationsNoneConnected: "No connected apps yet.",
+  integrationsPick: "Choose an app",
+  integrationsNoneFound: "No apps found.",
+  integrationsShowAll: "Show all {count} apps",
+  integrationsPopupBlocked:
+    "The browser blocked the connection window. Allow pop-ups and try again.",
+  integrationsExecutorUnavailable:
+    "Executor does not run in this Environment now, so nothing connects directly.",
+  integrationsExecutorAbsent:
+    "This Environment has no Executor, so apps connect here through Composio or their tool.",
+  integrationsExecutorUnreadable:
+    "Executor answered unexpectedly; the direct connections could not be read.",
+  integrationsComposioUnreadable:
+    "The connections through Composio could not be read.",
+  integrationsToolsUnreadable: "The tools could not be read.",
+  integrationsRetry: "Try again",
+  integrationsConnect: "Connect",
+  integrationsAddAccount: "Add account",
+  integrationsConnected: "Connected",
+  integrationsPathDirect: "directly",
+  integrationsPathComposio: "through Composio",
+  integrationsPathTool: "through {tool}",
+  integrationsComposioNote:
+    "Composio, a third-party service, makes this connection.",
+  integrationsAccountName: "Account name (optional)",
+  integrationsAccountNameRequired: "Account name",
+  integrationsAccountNameHint:
+    "Another account of this app needs a name of its own.",
+  integrationsContinue: "Continue",
+  integrationsCancel: "Cancel",
+  integrationsFinishInBrowser: "Finish the connection in the browser",
+  integrationsFinishInEnvironment:
+    "Finish the sign-in in the Environment browser on the right.",
+  integrationsWaiting: "Waiting for the sign-in…",
+  integrationsConnectedNow: "{app} is connected.",
+  integrationsConnectFailed: "The connection could not be started.",
+  integrationsIntegrationConflict:
+    "Executor holds another server under this app's name. You find it in Custom: remove it there and connect the app again.",
+  integrationsStillFailing:
+    "It still does not work: Executor cannot use this account. Try again later, or disconnect it.",
+  integrationsConnectEnded: "The connection was not finished.",
+  integrationsNameTaken: "This name is used by another account of the app.",
+  integrationsAccountUnnamed: "account",
+  integrationsAccountExpired: "The sign-in expired — try again",
+  integrationsAccountPending:
+    "Finish the connection in the browser, or disconnect the account",
+  integrationsAccountFailed: "The connection failed — try again",
+  integrationsAccountSpareDirect: "Also directly, not used",
+  integrationsAccountSpareComposio: "Also through Composio, not used",
+  integrationsSignInAgain: "Sign in again",
+  integrationsDisconnect: "Disconnect",
+  integrationsDisconnectTitle: "Disconnect {account} from {app}?",
+  integrationsDisconnectDirect: "It disconnects in this Environment only.",
+  integrationsDisconnectComposio:
+    "It disconnects from the Composio account {account}, so in every Environment that uses it.",
+  integrationsDisconnectComposioAny:
+    "It disconnects from the Composio account, so in every Environment that uses it.",
+  integrationsDisconnectPending:
+    "Only this account is withdrawn; the other accounts of {app} stay connected.",
+  integrationsDisconnectUnsupported:
+    "Composio cannot disconnect from here yet: disconnect the account in Composio.",
+  integrationsDisconnectFailed: "The account could not be disconnected.",
+  integrationsOpenComposio: "Open Composio",
+  integrationsMissingPath: "It cannot be connected here yet.",
+  integrationsMissingTool: "The tool {tool} connects it.",
+  integrationsOpenTools: "Open Tools",
+  integrationsMissingCompanyApp:
+    "The company app {provider} is not set up yet.",
+  integrationsComposioOffOrganization: "Composio is off in the company.",
+  integrationsComposioOffHere: "Composio is off here.",
+  integrationsAskAdmin: "Ask the Admin",
+  integrationsAskAdminCopied: "A message for the Admin is in your clipboard.",
+  integrationsAskAdminText:
+    "Please make {app} available in the Integrations of our Environments: {line}",
+  integrationsSetUpInDashboard: "Set up in the Dashboard",
+  integrationsAllowComposio: "Allow Composio",
+  integrationsComposioSignIn:
+    "Sign in to Composio first: it opens in Settings → Tools.",
+  integrationsBrowserMissing:
+    "A direct sign-in needs this Environment's browser, which is not available here.",
+  integrationsKeyTitle: "Key for {app}",
+  integrationsKeyText:
+    "The key goes only to this Environment's Executor and is never shown again.",
+  integrationsKeyLabel: "Key",
+  integrationsMcpTitle: "MCP servers",
+  integrationsMcpAdd: "Add MCP server",
+  integrationsMcpCommand: "A command in this Environment",
+  integrationsMcpUrl: "A server at a URL",
+  integrationsMcpKind: "Server",
+  integrationsMcpName: "Name",
+  integrationsMcpCommandLine: "Command with arguments",
+  integrationsMcpAddress: "URL",
+  integrationsMcpVariable: "Variable (optional)",
+  integrationsMcpHeader: "Header (optional)",
+  integrationsMcpValue: "Value",
+  integrationsMcpSubmit: "Add",
+  integrationsMcpNone: "No MCP servers yet.",
+  integrationsMcpWhereCommand: "A command in this Environment",
+  integrationsMcpReady: "Added",
+  integrationsMcpTools: "Connected · {tools}",
+  integrationsMcpPending: "Starting…",
+  integrationsMcpFailed: "Could not start",
+  integrationsMcpRemove: "Remove",
+  integrationsMcpRemoveTitle: "Remove the MCP server “{name}”?",
+  integrationsMcpRemoveText: "Agents and bots lose its tools.",
+  integrationsMcpAddFailed: "The MCP server could not be added.",
+  integrationsMcpNameTaken: "An integration of this name exists already.",
+  integrationsMcpUnavailable:
+    "Executor does not run here now, so MCP servers cannot be added.",
+  integrationsToolsOne: "{count} tool",
+  integrationsToolsFew: "{count} tools",
+  integrationsToolsMany: "{count} tools",
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
@@ -1336,12 +1464,12 @@ const cs: Record<MessageKey, string> = {
   toolsCopyFailed:
     "Kopírování tady není dostupné. Text je označený; zkopírujte ho klávesnicí.",
   toolsClose: "Zavřít",
-  toolsMcpTitle: "Napojit další aplikaci přes MCP server",
+  toolsMcpTitle: "Vlastní MCP server",
   toolsMcpText:
-    "Pro aplikaci, kterou katalog nepokrývá, nastaví agent na vaši žádost MCP server.",
-  toolsMcpAction: "Nastavit MCP server s agentem",
+    "Vlastní MCP servery přidáš v Apps → Integrace → Vlastní; agent ho přidá na tvůj výslovný pokyn.",
+  toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
-    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, kterou aplikaci chcete, server nastaví a přihlášení necháte proběhnout ve svém prohlížeči. Žádný API klíč nikdy nekopírujete.",
+    "Zkopírujte tenhle prompt a vložte ho do nového chatu v T3 Code na tomhle Environmentu. Agent se zeptá, který server chcete, a přidá ho do Executoru tohohle Environmentu; klíč zadáte sami v Integracích.",
   // The Apps home and its left column (decision F36).
   appsTitle: "Apps",
   appsAll: "Všechny moduly",
@@ -1805,7 +1933,7 @@ const cs: Record<MessageKey, string> = {
   toolsDescriptionGh:
     "Připojení na GitHub, kde jsou uložené tvoje moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
-    "Připojení na tvoje aplikace: pošta, kalendář, Slack. Agenti v nich pracují za tebe.",
+    "Snadná cesta k mnoha aplikacím přes Composio, s tvým vlastním účtem. Aplikace připojíš v Apps → Integrace.",
   toolsDescriptionWacli:
     "Připojení na WhatsApp: agenti čtou a posílají tvoje zprávy.",
   toolsDescriptionGogcli:
@@ -1956,6 +2084,133 @@ const cs: Record<MessageKey, string> = {
     "Prohlížeč Environmentu teď není k dispozici; zkus ho za chvíli načíst znovu.",
   browserFailed:
     "Prohlížeč Environmentu se tu nepodařilo načíst; otevři ho v nové kartě, kde se můžeš znovu přihlásit.",
+  integrationsTitle: "Integrace",
+  integrationsSubtitle:
+    "Co tu připojíš, používají všichni agenti a boti tohoto Environmentu.",
+  integrationsHelp: "Jak to funguje",
+  integrationsSearch: "Hledat aplikace",
+  integrationsRefresh: "Zkontrolovat připojení",
+  integrationsTabsLabel: "Zobrazit",
+  integrationsTabAll: "Vše",
+  integrationsTabConnected: "Připojené",
+  integrationsTabCustom: "Vlastní",
+  integrationsAvailable: "Dostupné aplikace · {count}",
+  integrationsYours: "Tvoje připojení",
+  integrationsResults: "Výsledky hledání",
+  integrationsLoading: "Načítám Integrace…",
+  integrationsChecking: "Kontroluji připojení…",
+  integrationsLoadFailed: "Integrace se nepodařilo načíst.",
+  integrationsNoneConnected: "Zatím žádné připojené aplikace.",
+  integrationsPick: "Vybrat aplikaci",
+  integrationsNoneFound: "Žádné aplikace jsme nenašli.",
+  integrationsShowAll: "Zobrazit všech {count} aplikací",
+  integrationsPopupBlocked:
+    "Prohlížeč zablokoval okno s připojením. Povol vyskakovací okna a zkus to znovu.",
+  integrationsExecutorUnavailable:
+    "Executor v tomhle Environmentu teď neběží, takže nic nejde připojit přímo.",
+  integrationsExecutorAbsent:
+    "Tenhle Environment nemá Executor, aplikace se tu proto připojují přes Composio nebo svým nástrojem.",
+  integrationsExecutorUnreadable:
+    "Executor odpověděl nečekaně, přímá připojení se nepodařilo načíst.",
+  integrationsComposioUnreadable:
+    "Připojení přes Composio se nepodařilo načíst.",
+  integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
+  integrationsRetry: "Zkusit znovu",
+  integrationsConnect: "Připojit",
+  integrationsAddAccount: "Přidat účet",
+  integrationsConnected: "Připojeno",
+  integrationsPathDirect: "přímo",
+  integrationsPathComposio: "přes Composio",
+  integrationsPathTool: "přes {tool}",
+  integrationsComposioNote:
+    "Připojení zprostředkuje služba Composio, server třetí strany.",
+  integrationsAccountName: "Název účtu (nepovinné)",
+  integrationsAccountNameRequired: "Název účtu",
+  integrationsAccountNameHint:
+    "Další účet téže aplikace potřebuje vlastní název.",
+  integrationsContinue: "Pokračovat",
+  integrationsCancel: "Zrušit",
+  integrationsFinishInBrowser: "Dokonči připojení v prohlížeči",
+  integrationsFinishInEnvironment:
+    "Dokonči přihlášení v prohlížeči Environmentu vpravo.",
+  integrationsWaiting: "Čekám na přihlášení…",
+  integrationsConnectedNow: "{app} je připojená.",
+  integrationsConnectFailed: "Připojení se nepodařilo spustit.",
+  integrationsIntegrationConflict:
+    "V Executoru je pod jménem téhle aplikace jiný server. Najdeš ho ve Vlastní: odeber ho tam a aplikaci připoj znovu.",
+  integrationsStillFailing:
+    "Pořád to nefunguje: Executor tenhle účet použít neumí. Zkus to později, nebo účet odpoj.",
+  integrationsConnectEnded: "Připojení se nedokončilo.",
+  integrationsNameTaken: "Tenhle název už má jiný účet aplikace.",
+  integrationsAccountUnnamed: "účet",
+  integrationsAccountExpired: "Přihlášení vypršelo — zkus to znovu",
+  integrationsAccountPending: "Dokonči připojení v prohlížeči, nebo účet odpoj",
+  integrationsAccountFailed: "Připojení se nepovedlo — zkus to znovu",
+  integrationsAccountSpareDirect: "Navíc přímo, nepoužívá se",
+  integrationsAccountSpareComposio: "Navíc přes Composio, nepoužívá se",
+  integrationsSignInAgain: "Přihlásit znovu",
+  integrationsDisconnect: "Odpojit",
+  integrationsDisconnectTitle: "Odpojit {account} od aplikace {app}?",
+  integrationsDisconnectDirect: "Odpojí se jen v tomto Environmentu.",
+  integrationsDisconnectComposio:
+    "Odpojí se z Composio účtu {account}, takže ve všech Environmentech, které ho používají.",
+  integrationsDisconnectComposioAny:
+    "Odpojí se z Composio účtu, takže ve všech Environmentech, které ho používají.",
+  integrationsDisconnectPending:
+    "Odvolá se jen tento účet; ostatní účty aplikace {app} zůstanou připojené.",
+  integrationsDisconnectUnsupported:
+    "Composio odsud zatím odpojit nejde: účet odpoj v Composiu.",
+  integrationsDisconnectFailed: "Účet se nepodařilo odpojit.",
+  integrationsOpenComposio: "Otevřít Composio",
+  integrationsMissingPath: "Tady ji zatím nejde připojit.",
+  integrationsMissingTool: "Připojí ji nástroj {tool}.",
+  integrationsOpenTools: "Otevřít Nástroje",
+  integrationsMissingCompanyApp:
+    "Firemní aplikace {provider} ještě není nastavená.",
+  integrationsComposioOffOrganization: "Composio je ve firmě vypnuté.",
+  integrationsComposioOffHere: "Composio je tu vypnuté.",
+  integrationsAskAdmin: "Požádat Admina",
+  integrationsAskAdminCopied: "Zprávu pro Admina máš ve schránce.",
+  integrationsAskAdminText:
+    "Prosím o zpřístupnění aplikace {app} v Integracích našich Environmentů: {line}",
+  integrationsSetUpInDashboard: "Nastavit v Dashboardu",
+  integrationsAllowComposio: "Povolit Composio",
+  integrationsComposioSignIn:
+    "Nejdřív se přihlas do Composia: otevře se v Nastavení → Nástroje.",
+  integrationsBrowserMissing:
+    "Přímé přihlášení potřebuje prohlížeč tohoto Environmentu, který tu teď není.",
+  integrationsKeyTitle: "Klíč pro {app}",
+  integrationsKeyText:
+    "Klíč jde jen do Executoru tohoto Environmentu a už se nikde nezobrazí.",
+  integrationsKeyLabel: "Klíč",
+  integrationsMcpTitle: "MCP servery",
+  integrationsMcpAdd: "Přidat MCP server",
+  integrationsMcpCommand: "Příkaz na tomto Environmentu",
+  integrationsMcpUrl: "Server na adrese URL",
+  integrationsMcpKind: "Server",
+  integrationsMcpName: "Název",
+  integrationsMcpCommandLine: "Příkaz s argumenty",
+  integrationsMcpAddress: "Adresa URL",
+  integrationsMcpVariable: "Proměnná (nepovinné)",
+  integrationsMcpHeader: "Hlavička (nepovinné)",
+  integrationsMcpValue: "Hodnota",
+  integrationsMcpSubmit: "Přidat",
+  integrationsMcpNone: "Zatím žádné MCP servery.",
+  integrationsMcpWhereCommand: "Příkaz na tomto Environmentu",
+  integrationsMcpReady: "Přidáno",
+  integrationsMcpTools: "Připojeno · {tools}",
+  integrationsMcpPending: "Spouštím…",
+  integrationsMcpFailed: "Nepodařilo se spustit",
+  integrationsMcpRemove: "Odebrat",
+  integrationsMcpRemoveTitle: "Odebrat MCP server „{name}“?",
+  integrationsMcpRemoveText: "Agenti a boti přijdou o jeho nástroje.",
+  integrationsMcpAddFailed: "MCP server se nepodařilo přidat.",
+  integrationsMcpNameTaken: "Integrace s tímhle názvem už existuje.",
+  integrationsMcpUnavailable:
+    "Executor tu teď neběží, takže MCP servery nejde přidat.",
+  integrationsToolsOne: "{count} nástroj",
+  integrationsToolsFew: "{count} nástroje",
+  integrationsToolsMany: "{count} nástrojů",
 };
 export function messages(
   locale: unknown,

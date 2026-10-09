@@ -34,6 +34,7 @@ import {
   startSection,
   type TourFacts,
 } from "./first-run";
+import { createIntegrationsPanel } from "./integrations-panel";
 import { environmentFacts, type Fact, type MachineView } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { createRecoveryPanel } from "./recovery-panel";
@@ -157,6 +158,8 @@ function showWhenDrawn() {
   markDrawn();
 }
 let toolsOverview: ToolsOverview | null = null;
+// The tools' sign-ins as last observed, so Integrace follow a change.
+let toolSignIns: string | null = null;
 async function readShell() {
   try {
     const response = await fetch("/.lazurio/shell.json", {
@@ -456,6 +459,42 @@ const files = createFilesPanel({
   copy: () => copy,
   locale: () => locale,
 });
+// Apps → Integrace (decision F42): the apps of this Environment. A direct
+// sign-in opens in the Environment browser's panel on a Remote Environment
+// and in a window of this browser on the person's own computer.
+const integrations = createIntegrationsPanel({
+  get: (path) => get(path),
+  post: (path, body) => post(path, body),
+  copy: () => copy,
+  locale: () => locale,
+  navigate: (path) => shell.navigate(path),
+  hosted: () => entry !== null,
+  showBrowser: (view) => {
+    if (!browser.showView(view))
+      window.open(view, "_blank", "noopener,noreferrer");
+  },
+  signInComposio: async () => {
+    shell.navigate(settingsPath("tools"));
+    await tools.refresh();
+    return tools.openSignIn("composio");
+  },
+  admin: async () => {
+    const key = catalog.soleOrganization();
+    if (key === null) return false;
+    try {
+      const { value, ok } = await get(
+        `/api/organizations/${encodeURIComponent(key)}/owner`,
+      );
+      return ok && (value as { owner?: unknown } | null)?.owner === true;
+    } catch {
+      return false;
+    }
+  },
+  dashboard: () =>
+    shellDocument !== null && shellDocument.organizations.length === 1
+      ? (shellDocument.organizations[0]?.dashboard ?? null)
+      : null,
+});
 // Settings → Recovery, and in Recovery mode the whole page
 // (docs/recovery.md "The Recovery page"): read on first view, never written.
 const recovery = createRecoveryPanel({
@@ -505,6 +544,7 @@ const shell = createShell({
           : copy.appsMarketplaceOrganization.replace("{name}", name));
     }
     files.show(route);
+    integrations.show(route);
     if (
       route.view === "settings" &&
       route.section === "recovery" &&
@@ -635,6 +675,7 @@ function relabel() {
   shell.relabel();
   recovery.render();
   files.relabel();
+  integrations.relabel();
   browser.relabel();
 }
 async function post(path: string, body: unknown) {
@@ -748,6 +789,14 @@ function whenIdle(task: () => void) {
 // revision, so a profile preview made before it is no longer valid.
 const tools = createToolsPanel({
   observed: (overview) => {
+    // A tool's sign-in changes which apps it connects: Integrace read again.
+    const signIns = JSON.stringify(
+      overview?.tools.map((tool) => [tool.name, tool.signIn?.state ?? null]) ??
+        null,
+    );
+    if (toolSignIns !== null && toolSignIns !== signIns)
+      void integrations.refresh();
+    toolSignIns = signIns;
     toolsOverview = overview;
     // Once GitHub is connected the content routes may answer otherwise.
     const github =

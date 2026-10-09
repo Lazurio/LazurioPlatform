@@ -1,4 +1,5 @@
 import { filesUrlPath, parseUrlPath } from "../files/rules";
+import { integrationIdPattern } from "../integrations/path";
 import type { MessageKey } from "./messages";
 
 // The page routes of the Launchpad: one document served under each path, the
@@ -33,20 +34,40 @@ export type PageRoute =
   | Readonly<{ view: "files"; path: readonly string[] }>
   /** The Marketplace of the Environment, at the foot of the Apps column
    * (decision F36 addendum of 2026-10-04): for now it says it is coming. */
-  | Readonly<{ view: "marketplace" }>;
+  | Readonly<{ view: "marketplace" }>
+  /** Integrace of the Environment (decision F42): `/integrations` is the tab
+   * Vše, `/integrations/connected` and `/integrations/custom` the two others,
+   * and `/integrations/app/<id>` one app's card in Vše, the link an agent
+   * sends. A card lives under `app/`, so no app id is ever a tab's name. */
+  | Readonly<{
+      view: "integrations";
+      tab: IntegrationsTab;
+      app?: string;
+    }>;
+
+/** The tabs of Integrace: Vše · Připojené · Vlastní. */
+export const integrationsTabs = ["all", "connected", "custom"] as const;
+export type IntegrationsTab = (typeof integrationsTabs)[number];
 
 /** The frames of the page: the Apps home (home, Organization, module), the
- * Files page and the Marketplace beside the same Apps column, and Settings
- * with its navigation. */
-export type PageFrame = "catalog" | "files" | "marketplace" | "settings";
+ * Files page, Integrace and the Marketplace beside the same Apps column, and
+ * Settings with its navigation. */
+export type PageFrame =
+  | "catalog"
+  | "files"
+  | "integrations"
+  | "marketplace"
+  | "settings";
 export const routeFrame = (route: PageRoute): PageFrame =>
   route.view === "settings"
     ? "settings"
     : route.view === "files"
       ? "files"
-      : route.view === "marketplace"
-        ? "marketplace"
-        : "catalog";
+      : route.view === "integrations"
+        ? "integrations"
+        : route.view === "marketplace"
+          ? "marketplace"
+          : "catalog";
 
 /** Every path the server answers with the page. The two catalog patterns are
  * the server's route parameters; the page reads its segments itself. */
@@ -56,6 +77,8 @@ export const pagePaths: readonly string[] = [
   "/o/:organization/:module",
   "/files",
   "/files/*",
+  "/integrations",
+  "/integrations/*",
   "/marketplace",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
@@ -71,6 +94,15 @@ export function organizationPath(organization: string): string {
 
 export function modulePath(organization: string, module: string): string {
   return `${organizationPath(organization)}/${encodeURIComponent(module)}`;
+}
+
+/** The path of an Integrace tab, or of one app's card. */
+export function integrationsPath(
+  tab: IntegrationsTab = "all",
+  app?: string,
+): string {
+  if (app !== undefined) return `/integrations/app/${encodeURIComponent(app)}`;
+  return tab === "all" ? "/integrations" : `/integrations/${tab}`;
 }
 
 // One path segment, decoded; null when it is empty or not valid encoding.
@@ -98,6 +130,20 @@ export function pageRoute(pathname: string): PageRoute {
   }
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (path === "/marketplace") return { view: "marketplace" };
+  // Integrace: a tab, or one app's card; anything else below opens Vše.
+  if (path === "/integrations" || path.startsWith("/integrations/")) {
+    const parts = path.slice("/integrations".length).split("/").slice(1);
+    if (
+      parts.length === 1 &&
+      (parts[0] === "connected" || parts[0] === "custom")
+    )
+      return { view: "integrations", tab: parts[0] };
+    const app =
+      parts.length === 2 && parts[0] === "app" ? segment(parts[1]) : null;
+    return app !== null && integrationIdPattern.test(app)
+      ? { view: "integrations", tab: "all", app }
+      : { view: "integrations", tab: "all" };
+  }
   if (path.startsWith("/o/")) {
     const parts = path.slice("/o/".length).split("/");
     const organization = segment(parts[0]);
@@ -142,6 +188,8 @@ export function routePath(route: PageRoute): string {
   if (route.view === "module")
     return modulePath(route.organization, route.module);
   if (route.view === "files") return filesUrlPath(route.path);
+  if (route.view === "integrations")
+    return integrationsPath(route.tab, route.app);
   if (route.view === "marketplace") return "/marketplace";
   return settingsPath(route.section);
 }
@@ -180,6 +228,11 @@ export function routeTitle(
     return {
       heading: copy.appsMarketplace,
       document: `${copy.appsMarketplace} — ${copy.title}`,
+    };
+  if (route.view === "integrations")
+    return {
+      heading: copy.integrationsTitle,
+      document: `${copy.integrationsTitle} — ${copy.title}`,
     };
   if (route.view === "files") {
     const folder = route.path.at(-1);

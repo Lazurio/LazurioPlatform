@@ -138,3 +138,26 @@ async function readStableFile(
     await file.close();
   }
 }
+
+/** One bounded read of a credential file only its owner may read: a regular
+ * file of `expectedUid` with one link, no group or other permission bits
+ * (0600 or stricter), at most `bytesMax`, never through a symlink and
+ * unchanged during the read (Executor's console token, decision F42). The
+ * caller keeps the bytes to itself. */
+export async function readOwnerOnlyFileBytes(
+  path: string,
+  expectedUid: number,
+  bytesMax: number,
+): Promise<Buffer> {
+  if (!Number.isSafeInteger(expectedUid) || expectedUid < 0)
+    throw new Error("Invalid credential owner");
+  return readStableFile(path, (stat) =>
+    stat.isFile() &&
+    stat.nlink === 1 &&
+    stat.uid === expectedUid &&
+    (stat.mode & 0o077) === 0 &&
+    stat.size <= bytesMax
+      ? null
+      : new Error("Unsafe credential file"),
+  );
+}

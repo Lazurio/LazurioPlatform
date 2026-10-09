@@ -24,8 +24,8 @@ export const manualEntries = Object.freeze([
     path: "manual/working-here.md",
     title: { cs: "Jak se tu pracuje", en: "Working here" },
     summary: {
-      cs: "Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky, chybějící práva, kam patří poznatky, jak se v Lazuriu staví, napojené aplikace a tajné údaje",
-      en: "Draft, Publication, worktrees, review findings, handoff, open questions, missing rights, where knowledge goes, how Lazurio is built, connected applications and secrets",
+      cs: "Draft, Publikace, worktrees, nálezy z review, handoff, otevřené otázky, chybějící práva, kam patří poznatky, jak se v Lazuriu staví, Integrace a tajné údaje",
+      en: "Draft, Publication, worktrees, review findings, handoff, open questions, missing rights, where knowledge goes, how Lazurio is built, Integrations and secrets",
     },
   },
   {

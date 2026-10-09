@@ -50,6 +50,8 @@ test("a path names the view and the settings section; the canonical path is one"
     "/o/:organization/:module",
     "/files",
     "/files/*",
+    "/integrations",
+    "/integrations/*",
     "/marketplace",
     "/settings",
     "/settings/general",

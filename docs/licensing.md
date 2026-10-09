@@ -59,3 +59,13 @@ or Apache grant. No Apache or FSL grant was introduced during the discussion;
 history is retained. This decision supersedes the open choice in the initial
 foundation draft, not any third-party rights. GitHub's automatic license label
 is not a guarantee or an authority for the terms.
+
+## Bundled third-party assets
+
+| Asset | Where | License |
+| --- | --- | --- |
+| Brand icons of the Integrace catalog: the SVG path and colour of an app's icon | `src/integrations/catalog.json` (`icon.source` names `simple-icons@<version>/<slug>`) | [simple-icons](https://github.com/simple-icons/simple-icons), CC0-1.0; an icon simple-icons marks with a license of its own is never bundled |
+
+Brand names and logos remain the trademarks of their owners; the Launchpad shows
+them only to identify the app an Integrace connects (decision F42,
+[integrations](integrations.md#icons)).

@@ -18,9 +18,17 @@
 // automation stands in for that origin. In a Remote Environment, Executor
 // (decision F44) is the tests' fake world: Settings → Tools → executor shows
 // "not installed", and its setup runs a fake npm, program and user manager,
-// never the network or this computer's services. Synthetic names only; stop
-// it with Ctrl-C.
+// never the network or this computer's services. Apps → Integrace (decision
+// F42) reads a fake Executor API on a loopback port of its own (never 4789)
+// with a synthetic token, and a fake `composio` signed in with two accounts:
+// a direct sign-in finishes by itself after a few seconds and a Composio link
+// at once (the window they open shows nothing real). Locally that fake
+// stands in for a Remote Environment's Executor, so the page shows the
+// direct paths (decision F44 installs none on a computer); in a Remote
+// Environment the page follows Settings → Tools → executor, as in
+// production. Synthetic names only; stop it with Ctrl-C.
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -35,6 +43,7 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
+import { updateTools } from "../src/folder/update-profile";
 import { startLaunchpad } from "../src/launchpad/server";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
@@ -43,6 +52,7 @@ import {
   writeOrganization,
 } from "../tests/fixtures/catalog-folder";
 import { executorWorld } from "../tests/fixtures/fake-executor";
+import { startFakeExecutor } from "../tests/fixtures/fake-executor-api";
 import {
   organizationWithEntry,
   personalWithEntry,
@@ -185,6 +195,118 @@ for (const tool of ["gh", "t3"])
   await writeFile(join(home, "bin", tool), "#!/bin/sh\nexit 1\n", {
     mode: 0o755,
   });
+// Integrace (decision F42): a fake composio signed in, two accounts, and
+// a fake Executor with Executor's token file of a synthetic token.
+await writeFile(
+  join(home, "bin", "composio"),
+  `#!/bin/sh\nexec '${process.execPath}' --no-env-file '${join(import.meta.dir, "..", "tests", "fixtures", "fake-composio.ts")}' "$@"\n`,
+  { mode: 0o755 },
+);
+await mkdir(join(home, ".fake-composio"), { recursive: true, mode: 0o700 });
+await writeFile(
+  join(home, ".fake-composio", "state.json"),
+  JSON.stringify({
+    signedIn: true,
+    removeYes: false,
+    next: 100,
+    activateOnLink: true,
+    accounts: [
+      {
+        id: "ca_1",
+        toolkit: "salesforce",
+        status: "ACTIVE",
+        alias: null,
+        word_id: "castle",
+      },
+      {
+        id: "ca_2",
+        toolkit: "zoom",
+        status: "EXPIRED",
+        alias: null,
+        word_id: "river",
+      },
+    ],
+  }),
+);
+await mkdir(join(home, ".composio"), { recursive: true, mode: 0o700 });
+await writeFile(
+  join(home, ".composio", "toolkits.json"),
+  JSON.stringify(
+    [
+      "salesforce",
+      "zoom",
+      "trello",
+      "gmail",
+      "outlook",
+      "slack",
+      "hubspot",
+    ].map((slug) => ({ name: slug, slug })),
+  ),
+);
+const executorToken = "previewExecutorToken000000000000";
+await mkdir(join(home, ".executor", "server-control"), {
+  recursive: true,
+  mode: 0o700,
+});
+await writeFile(
+  join(home, ".executor", "server-control", "auth.json"),
+  JSON.stringify({ token: executorToken }),
+  { mode: 0o600 },
+);
+await chmod(join(home, ".executor", "server-control", "auth.json"), 0o600);
+const executorApi = await startFakeExecutor(
+  executorToken,
+  {
+    integrations: [
+      {
+        slug: "notion-com",
+        name: "Notion",
+        kind: "mcp",
+        transport: "remote",
+        endpoint: "https://mcp.notion.com/mcp",
+        auth: "oauth2",
+        tools: 12,
+      },
+      {
+        slug: "invoices",
+        name: "invoices",
+        kind: "mcp",
+        transport: "remote",
+        endpoint: "https://mcp.invoices.example.com/mcp",
+        auth: "header",
+        tools: 6,
+      },
+    ],
+    connections: [
+      {
+        owner: "org",
+        name: "default",
+        integration: "notion-com",
+        template: "oauth2",
+        identityLabel: "jana@example.com",
+        health: "healthy",
+      },
+      {
+        owner: "org",
+        name: "default",
+        integration: "invoices",
+        template: "header",
+        identityLabel: null,
+        health: null,
+      },
+    ],
+  },
+  4_000,
+);
+for (const endpoint of [
+  "https://mcp.linear.app/mcp",
+  "https://mcp.clickup.com/mcp",
+  "https://mcp.figma.com/mcp",
+])
+  executorApi.probes.set(endpoint, { requiresOAuth: true });
+executorApi.probes.set("https://mcp.deepwiki.com/mcp", {
+  requiresOAuth: false,
+});
 await mkdir(join(home, "Documents", "Nabídky"), { recursive: true });
 await mkdir(join(home, "Documents", "Smlouvy"), { recursive: true });
 await writeFile(
@@ -199,6 +321,7 @@ await writeFile(
 // Executor's fake world (decision F44) in a Remote Environment; its entry is
 // on the tools' PATH, so the row's installation reads what its setup placed.
 const executor = mode === "local" ? undefined : await executorWorld({ home });
+if (mode === "local") await updateTools(folder, 1, ["composio"]);
 const app = await startLaunchpad(
   folder,
   undefined,
@@ -243,15 +366,36 @@ const app = await startLaunchpad(
               }),
               stderr: "",
             }
-          : command[1] === "--version"
-            ? { exitCode: 0, stdout: "t3 v0.0.45-lazurio.2\n", stderr: "" }
-            : command[1] === "auth" && command[2] === "pairing"
-              ? {
-                  exitCode: 0,
-                  stdout: JSON.stringify({ credential: "PreviewPairingToken" }),
-                  stderr: "",
-                }
-              : runTool(command, timeoutMs, env),
+          : command[0]?.endsWith("/gh") &&
+              command.slice(1).join(" ") === "auth status --json hosts"
+            ? {
+                exitCode: 0,
+                stdout: JSON.stringify({
+                  hosts: {
+                    "github.com": [
+                      {
+                        state: "success",
+                        active: true,
+                        host: "github.com",
+                        login: "example-user",
+                        tokenSource: "keyring",
+                      },
+                    ],
+                  },
+                }),
+                stderr: "",
+              }
+            : command[1] === "--version"
+              ? { exitCode: 0, stdout: "t3 v0.0.45-lazurio.2\n", stderr: "" }
+              : command[1] === "auth" && command[2] === "pairing"
+                ? {
+                    exitCode: 0,
+                    stdout: JSON.stringify({
+                      credential: "PreviewPairingToken",
+                    }),
+                    stderr: "",
+                  }
+                : runTool(command, timeoutMs, env),
   ),
   {},
   undefined,
@@ -267,6 +411,21 @@ const app = await startLaunchpad(
   // Executor: the fake world in a Remote Environment, this computer's own on
   // a workstation (its second wave).
   executor?.host,
+  // Integrace (decision F42): the fake Executor, and on a Remote
+  // Environment a synthetic tab of the Environment browser.
+  {
+    ...(mode === "local" ? { executorPresent: true } : {}),
+    executor: {
+      dataDir: join(home, ".executor"),
+      port: executorApi.port,
+      uid: process.getuid?.() ?? 0,
+      ownsListener: async () => true,
+    },
+    environmentBrowser:
+      mode === "local"
+        ? null
+        : async () => ({ view: `${browserOrigin}/t/${"1".repeat(32)}` }),
+  },
 );
 let proxy: string | null = null;
 if (mode !== "local") {
