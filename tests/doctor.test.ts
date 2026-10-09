@@ -341,6 +341,9 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "machine-binding skipped not-hosted",
     "tool gh ok",
     "tool composio ok",
+    // The Environment vault is offered in a Remote Environment on Linux
+    // only (decision F43).
+    "tool bitwarden skipped not-offered",
     "tool wacli skipped not-enabled",
     "tool gogcli skipped not-enabled",
     "tool neon skipped not-enabled",

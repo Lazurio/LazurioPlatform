@@ -1,5 +1,13 @@
 import { spawn } from "node:child_process";
-import { access, constants, realpath, stat } from "node:fs/promises";
+import {
+  access,
+  constants,
+  mkdtemp,
+  realpath,
+  rm,
+  stat,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { type SignInProbe, type ToolEntry, toolCatalog } from "./catalog";
 import { ghStatus } from "./gh-status";
@@ -202,7 +210,14 @@ export async function toolsStatus(
     const env: Record<string, string> = {};
     if (input.path) env.PATH = input.path;
     if (input.home) env.HOME = input.home;
+    // A tool that writes its store on every start (bw) gets a private
+    // temporary data directory, so the probe touches no profile.
+    let isolated: string | undefined;
     try {
+      if (entry.isolatedData !== undefined) {
+        isolated = await mkdtemp(join(tmpdir(), "lazurio-probe-"));
+        env[entry.isolatedData] = isolated;
+      }
       const result = await input.run(
         [path, ...entry.versionArgs],
         versionTimeoutMs,
@@ -251,6 +266,9 @@ export async function toolsStatus(
         standardPath,
         versionError: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      if (isolated !== undefined)
+        await rm(isolated, { recursive: true, force: true });
     }
   }
   return { kind: "tools-status", tools };

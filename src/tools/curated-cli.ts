@@ -1,5 +1,5 @@
 import { sharedEnvironment } from "../folder/render";
-import { activatableTools } from "./catalog";
+import { activatableTools, vaultToolName } from "./catalog";
 import {
   githubLoginRefused,
   githubRefusal,
@@ -104,6 +104,23 @@ export function refuseTool(
       text: json
         ? JSON.stringify(result)
         : `Unknown tool ${name}; the catalog offers: ${known.join(", ")}`,
+    };
+  }
+  // The Environment vault has its own flow (decision F43): no sign-in of a
+  // person, an account of the Environment.
+  if (name === vaultToolName) {
+    const result = {
+      kind: "blocked",
+      reason: "setup-vault",
+      tool: name,
+      command: "lazurio vault connect",
+    };
+    return {
+      code: 2,
+      result,
+      text: json
+        ? JSON.stringify(result)
+        : `${name} is the Environment vault: connect it in the Launchpad (Settings → Tools → bitwarden) or with lazurio vault connect.`,
     };
   }
   if (curatedTool(name) === undefined) {

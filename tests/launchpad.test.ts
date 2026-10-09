@@ -261,6 +261,12 @@ test.skipIf(process.platform === "win32")(
             enabled: false,
           },
           {
+            name: "bitwarden",
+            tier: "recommended",
+            setup: "launchpad",
+            enabled: false,
+          },
+          {
             name: "wacli",
             tier: "optional",
             setup: "launchpad",

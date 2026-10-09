@@ -44,7 +44,7 @@ import { toolsUpdate } from "./update";
  * (decision 0162 / F18), docs/environment-tools.md. */
 export const toolsHelp = `tools status [--json]
   The operator's tools (codex, claude, gh, git, node, npm, bun, composio,
-  wacli, gog, neon) as found on this process's PATH: path, real path, the version each reports and whether
+  bw, wacli, gog, neon) as found on this process's PATH: path, real path, the version each reports and whether
   the PATH entry is the standard ~/.local/bin/<tool> (decision 0161).
   Read-only; the version commands never use the network. Versions are facts,
   not drift.
@@ -57,8 +57,8 @@ tools update <tool> [--json]
   Codex app-server is never stopped: after Codex changed its version, the
   answer says it keeps the old version until it is replaced.
 tools list --folder <absolute Folder> [--sign-in] [--json]
-  The catalog tools agents may be told to use (gh required, composio
-  recommended, wacli, gogcli and neon optional): tier, setup mode (launchpad:
+  The catalog tools agents may be told to use (gh required, composio and
+  bitwarden recommended, wacli, gogcli and neon optional): tier, setup mode (launchpad:
   a curated Launchpad flow sets it up; agent: an agent does, from the prepared
   prompt), whether each is enabled in that Folder, the operator's note on it,
   and the same live facts as tools status. Read-only. --sign-in also runs each
@@ -130,7 +130,8 @@ tools composio-org [list | switch <id>] [--json]
   marked, and switching the current one. Apps connected in Composio belong to
   the account and organization of this Environment.
   Tools set up by an agent (gogcli, neon) have no curated flow: use
-  lazurio tools prompt <tool>.`;
+  lazurio tools prompt <tool>. The Environment vault (bitwarden) is
+  connected with lazurio vault connect or in the Launchpad.`;
 
 export class ToolsUsageError extends Error {}
 
