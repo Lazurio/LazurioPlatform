@@ -339,7 +339,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "a registration interrupted before its API key is resumed by a login, never a second registration",
+  "a registration interrupted before its API key is resumed by a login, never a second registration, and its account file is never removed",
   async () => {
     const w = await world();
     try {
@@ -360,8 +360,23 @@ test.skipIf(!posix)(
         reason: "unreachable",
       });
       expect(w.vault.users.has(account)).toBe(true);
-      expect((await readAccount(w.paths))?.clientId).toBeUndefined();
+      const pending = await readAccount(w.paths);
+      expect(pending?.clientId).toBeUndefined();
       drop = false;
+      // The vault refuses the login of the registered account (here: it no
+      // longer takes the password), so the resumed run asks to register,
+      // and the vault refuses that too, as it refuses an address that is
+      // not invited. The account file is the only copy of the registered
+      // account's password: it stays.
+      const user = w.vault.users.get(account);
+      if (user === undefined) throw new Error("registered user");
+      const hash = user.hash;
+      user.hash = "refused";
+      expect(await vaultConnect(host)).toMatchObject({
+        state: "awaiting-invite",
+      });
+      expect(await readAccount(w.paths)).toEqual(pending);
+      user.hash = hash;
       expect(await vaultConnect(host)).toMatchObject({ state: "confirming" });
       expect(
         w.vault.requests.filter(
@@ -480,6 +495,124 @@ test.skipIf(!posix)(
         outcome: "failed",
         reason: "account-mismatch",
       });
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a damaged or missing account file changes nothing: every operation, disconnect included, leaves the sign-in as it is, and the file restored restores the connection",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      await w.vault.confirm(collection);
+      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
+      const original = await readFile(w.paths.account, "utf8");
+      const session = await readSession(w.paths);
+      const files = async () =>
+        Promise.all(
+          [
+            join(w.paths.data, "data.json"),
+            join(w.paths.data, "fake", "user"),
+            w.paths.session,
+            w.paths.record,
+          ].map((path) => readFile(path, "utf8").catch(() => null)),
+        );
+      const before = await files();
+      expect(before).not.toContain(null);
+      const logouts = async () =>
+        (await w.vault.calls())
+          .split("\n")
+          .filter((line) => line.startsWith("logout")).length;
+      const unlocks = () =>
+        w.journal.filter((entry) => entry.operation === "unlock").length;
+      const counts = { logouts: await logouts(), unlocks: unlocks() };
+      const untouched = async () => {
+        expect(await files()).toEqual(before);
+        expect(await logouts()).toBe(counts.logouts);
+        expect(unlocks()).toBe(counts.unlocks);
+      };
+
+      // Damaged: every operation refuses, and nothing is replaced or
+      // removed.
+      await writeFile(w.paths.account, "{invalid", { mode: 0o600 });
+      const unreadable = {
+        state: "failed",
+        stage: "account",
+        reason: "account-unreadable",
+      };
+      expect(await vaultStatus(w.host)).toMatchObject(unreadable);
+      expect(await vaultRefresh(w.host)).toMatchObject(unreadable);
+      expect(await vaultConnect(w.host)).toMatchObject(unreadable);
+      expect(await vaultDisconnect(w.host)).toMatchObject(unreadable);
+      expect(await vaultEnv(w.host)).toEqual({
+        kind: "vault-env-refused",
+        reason: "not-connected",
+      });
+      expect(await readFile(w.paths.account, "utf8")).toBe("{invalid");
+      await untouched();
+
+      // Missing: there is no account of this Environment to disconnect.
+      await rm(w.paths.account);
+      expect(await vaultDisconnect(w.host)).toMatchObject({
+        state: "none",
+        registered: false,
+      });
+      await untouched();
+
+      // Restored: connected as before, with the same session.
+      await writeFile(w.paths.account, original, { mode: 0o600 });
+      expect(await vaultStatus(w.host)).toMatchObject({ state: "connected" });
+      const env = await vaultEnv(w.host);
+      expect(env.kind === "vault-env" ? env.env.BW_SESSION : null).toBe(
+        session,
+      );
+    } finally {
+      await w.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix)(
+  "a bw profile signed in to another account in the Environment's data directory is never used, and connecting signs the Environment's own account in again",
+  async () => {
+    const w = await world();
+    try {
+      w.vault.invite(account);
+      await w.vault.confirm(collection);
+      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
+      // An agent signed bw in to a person's account in this data directory
+      // (the wrapper's default); the session file still holds the session
+      // bw answers to.
+      const email = join(w.paths.data, "fake", "email");
+      await writeFile(email, "person@example.lazurio.io\n");
+      const unlocks = () =>
+        w.journal.filter((entry) => entry.operation === "unlock").length;
+      const unlocked = unlocks();
+      expect(await vaultStatus(w.host)).toMatchObject({
+        state: "none",
+        registered: true,
+      });
+      expect(await vaultRefresh(w.host)).toMatchObject({
+        state: "none",
+        registered: true,
+      });
+      expect(await vaultEnv(w.host)).toEqual({
+        kind: "vault-env-refused",
+        reason: "not-connected",
+      });
+      expect(unlocks()).toBe(unlocked);
+      // Connecting signs that profile out and the Environment's account in.
+      expect(await vaultConnect(w.host)).toMatchObject({ state: "connected" });
+      expect((await readFile(email, "utf8")).trim()).toBe(account);
+      const env = await vaultEnv(w.host);
+      expect(env.kind === "vault-env" ? env.env.BW_SESSION : null).toBe(
+        await readSession(w.paths),
+      );
     } finally {
       await w.close();
     }

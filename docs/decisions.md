@@ -5828,7 +5828,10 @@ to chat, Git, a log or a pull request.
       `bw login --apikey`, `bw unlock --passwordfile --raw`, `bw sync`). An
       interrupted creation resumes with a login, never a second registration; a
       registration the vault refuses because the address is not invited leaves
-      nothing behind.
+      nothing behind when its password was generated in the same run. A resumed
+      account file is never removed: the vault refuses "not invited" and
+      "exists already" alike, so it may be the only copy of a registered
+      account's password.
    3. The Admin confirms the member in the vault (only an Admin's client hands a
       member the organization's key) after comparing the fingerprint phrase the
       dialog shows (`bw get fingerprint me`). The dialog asks the vault every few
@@ -5854,9 +5857,16 @@ to chat, Git, a log or a pull request.
    under the account's lock; a session another process replaced meanwhile is
    taken, so two agents never unlock twice. Agents never run `bw login`,
    `unlock`, `lock`, `logout` or `bw config`, and when `bw` says the vault is
-   locked they run `lazurio vault env` again. Disconnect signs bw out and removes
+   locked they run `lazurio vault env` again. A bw profile signed in to
+   anything but the account at its vault (an agent's `bw login` in this data
+   directory) is not the Environment's sign-in: status reports `none`, env
+   refuses, nothing unlocks with it, and connecting signs it out and the
+   Environment's account in. Disconnect signs bw out and removes
    its store, the session and the record; the account stays in the vault and in
-   its file, so connecting again signs it in. Only removing the account in the
+   its file, so connecting again signs it in. It acts only on the Environment's
+   own readable account file: with none, an unreadable one or another account's
+   it changes nothing (`account-unreadable`, `account-mismatch`), because bw's
+   store may then be the only working sign-in. Only removing the account in the
    vault ends its access.
 
 6. **Surfaces.** `lazurio vault env [--json]`, `vault status [--json]` (local,
@@ -5919,8 +5929,9 @@ round trips, the exact request bodies and Vaultwarden's refusals
 (`tests/vault-register.test.ts`), the context (`tests/vault-context.test.ts`),
 the flow from not invited through confirming, connected, revoked, disconnected
 and back, the shared session and its replacement, interrupted and refused
-registrations, an address that changes in the same network and an account file
-out of place, and the pinned installer (`tests/vault-flow.test.ts`), the CLI and
+registrations, an address that changes in the same network, an account file out
+of place, damaged or missing, a bw profile signed in to another account, and the
+pinned installer (`tests/vault-flow.test.ts`), the CLI and
 its shell exports (`tests/vault-cli.test.ts`), the Launchpad routes
 (`tests/launchpad-vault.test.ts`) and the page's states (`tests/vault-view.test.ts`).
 The registration, the API key and the real CLI were proven end to end against

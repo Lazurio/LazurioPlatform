@@ -8,6 +8,7 @@ import {
   type BwCollection,
   type BwFailure,
   type BwOrganization,
+  type BwStatus,
   bwCli,
 } from "./bw";
 import {
@@ -222,6 +223,21 @@ function cliOf(host: VaultHost, paths: VaultPaths): BwCli {
     path: host.path,
     run: host.run,
   });
+}
+
+/** Whether bw's profile is signed in to exactly this account at exactly this
+ * vault. Anything else (no sign-in, another account or vault, as after an
+ * agent's `bw login` in this data directory) is not the Environment's
+ * sign-in: it is never used, reported as connected or handed out. */
+function signedInAs(
+  state: BwStatus,
+  account: Readonly<{ email: string; server: string }>,
+): boolean {
+  return (
+    state.status !== "unauthenticated" &&
+    state.userEmail?.toLowerCase() === account.email &&
+    state.serverUrl?.replace(/\/+$/, "") === account.server
+  );
 }
 
 /** The account's own collection among those it sees: the one named as the
@@ -449,12 +465,10 @@ export async function vaultStatus(host: VaultHost): Promise<VaultStatus> {
   const bw = cliOf(host, paths);
   const record = await readRecord(paths);
   const session = await readSession(paths).catch(() => null);
-  if (session === null) {
-    const state = await bw.status(null);
-    if (state.ok && state.value.status === "unauthenticated")
-      return none(facts, "none", true);
-    return lockedStatus(facts, record);
-  }
+  const state = await bw.status(session);
+  if (state.ok && !signedInAs(state.value, account))
+    return none(facts, "none", true);
+  if (session === null) return lockedStatus(facts, record);
   const observation = await observe(bw, session, context, record);
   if (observation.kind === "failed") {
     if (observation.reason === "unauthenticated")
@@ -502,7 +516,7 @@ async function usableSession(
   const current = await readSession(paths).catch(() => null);
   const state = await bw.status(current);
   if (!state.ok) return { ok: false, reason: state.reason };
-  if (state.value.status === "unauthenticated")
+  if (!signedInAs(state.value, account))
     return { ok: false, reason: "unauthenticated" };
   if (state.value.status === "unlocked" && current !== null)
     return { ok: true, session: current, fresh: false };
@@ -709,8 +723,11 @@ async function ensureAccount(
       });
     } catch (error) {
       if (error instanceof VaultwardenError && error.reason === "not-invited") {
-        // Nothing is left behind: the vault has no account with it.
-        await forgetUnregisteredAccount(paths);
+        // A password generated in this run leaves nothing behind: the vault
+        // has no account with it. A resumed account file stays: the vault's
+        // refusal does not tell "not invited" from "exists already", so it
+        // may hold the only copy of a registered account's password.
+        if (existing === null) await forgetUnregisteredAccount(paths);
         return {
           kind: "status",
           status: { kind: "vault-status", state: "awaiting-invite", ...facts },
@@ -838,14 +855,9 @@ async function signIn(
 > {
   const state = await bw.status(null);
   if (!state.ok) return state;
-  const signedIn = state.value.status !== "unauthenticated";
-  if (
-    signedIn &&
-    state.value.userEmail?.toLowerCase() === account.email &&
-    state.value.serverUrl?.replace(/\/+$/, "") === account.server
-  )
-    return { ok: true };
-  if (signedIn) {
+  if (signedInAs(state.value, account)) return { ok: true };
+  // Another sign-in in this account's data directory is signed out first.
+  if (state.value.status !== "unauthenticated") {
     const out = await bw.logout(null);
     if (!out.ok) return out;
   }
@@ -858,7 +870,8 @@ async function signIn(
 /** `disconnect`: bw signs out and its store, the session and the record go;
  * the account stays in the vault and in its file, so connecting again signs
  * the same account in. Access ends completely only when an Admin removes the
- * account in the vault. */
+ * account in the vault. Only for the Environment's own readable account
+ * file; otherwise nothing changes. */
 export async function vaultDisconnect(host: VaultHost): Promise<VaultStatus> {
   const prepared = await prepare(host);
   if (prepared.kind === "status") return prepared.status;
@@ -868,9 +881,16 @@ export async function vaultDisconnect(host: VaultHost): Promise<VaultStatus> {
     host.lockMs ?? lockMs,
     () => failedStatus(facts, "sign-in", "busy"),
     async () => {
-      // Another account's file is neither signed out nor cleared here.
-      if ((await accountOf(paths, context)) === "mismatch")
+      // Only the Environment's own account, readable, is signed out. Another
+      // account's file, an unreadable one (it may hold the only copy of the
+      // password, and bw's store then the only working sign-in) or none at
+      // all leaves everything as it is.
+      const account = await accountOf(paths, context);
+      if (account === "mismatch")
         return failedStatus(facts, "account", "account-mismatch");
+      if (account === "unreadable")
+        return failedStatus(facts, "account", "account-unreadable");
+      if (account === null) return vaultStatus(host);
       if (await pinnedInstalled(host.base, host.pin)) {
         const session = await readSession(paths).catch(() => null);
         await cliOf(host, paths).logout(session);
@@ -925,9 +945,9 @@ export async function vaultEnv(host: VaultHost): Promise<VaultEnvResult> {
   const current = await readSession(paths).catch(() => null);
   if (current !== null) {
     const state = await bw.status(current);
-    if (state.ok && state.value.status === "unlocked") return answer(current);
-    if (state.ok && state.value.status === "unauthenticated")
+    if (state.ok && !signedInAs(state.value, account))
       return refuse("not-connected");
+    if (state.ok && state.value.status === "unlocked") return answer(current);
   }
   return locked(
     paths,

@@ -464,7 +464,8 @@ wave (`unsupported`, `workstation`).
   receiveMarketingEmails: false}` with `Accept: application/json` answers the
   registration token (a JSON string, or `text/plain` from 1.37.4 without that
   header; 204 means SMTP is on: `smtp-enabled`; "Registration not allowed or user
-  already exists": `awaiting-invite`, and the account file goes); `POST
+  already exists": `awaiting-invite`, and the account file goes when its password was
+  generated in the same run, never a resumed one); `POST
   /identity/accounts/register/finish` with the v1 account keys (PBKDF2-SHA256 600 000,
   the salt the trimmed lowercased email, an RSA-2048 key pair, the user key wrapped by
   the stretched master key); `POST /identity/accounts/prelogin`, `POST
@@ -491,7 +492,10 @@ wave (`unsupported`, `workstation`).
   network); `refresh` syncs first and unlocks again when the session is no longer the
   unlocked one; `connect` installs, creates or resumes the account, signs bw in,
   unlocks and syncs; `disconnect` signs bw out and removes its store, the session and
-  the record, keeping the account. Mutations hold the account's kernel lock.
+  the record, keeping the account, and only for the Environment's own readable account
+  file (none, an unreadable or another account's: nothing changes). A bw profile signed
+  in to anything but the account at its vault is never used (status `none`, env refuses);
+  connecting signs it out and the account in. Mutations hold the account's kernel lock.
 - **CLI** (`lazurio vault`): `env [--json]` prints `export BITWARDENCLI_APPDATA_DIR=…`,
   `BW_SESSION`, `LAZURIO_VAULT_ORGANIZATION_ID` and `LAZURIO_VAULT_COLLECTION_ID`,
   single-quoted, for `eval "$(lazurio vault env)"`; not connected, one line on stderr,

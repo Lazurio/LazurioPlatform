@@ -231,7 +231,8 @@ export async function completeAccount(
   return ready;
 }
 
-/** Only a registration the vault refused leaves no account behind. */
+/** A registration the vault refused, of a password generated in the same
+ * run, leaves no account behind. */
 export async function forgetUnregisteredAccount(
   paths: VaultPaths,
 ): Promise<void> {
