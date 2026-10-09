@@ -62,6 +62,7 @@ const guide = (): string | null =>
         organization: "Example",
         tailnet: server.tailnet,
         docs: "https://documentation.lazurio.ai/cs/guide/tailscale/",
+        dashboard: "https://dashboard.lazurio.ai/home",
       });
 const digestOf = (page: string | null) =>
   createHash("sha256")

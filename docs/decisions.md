@@ -5772,6 +5772,27 @@ without `refreshOutcome`'s retirement), and a registration refused without
 `Service-Worker-Allowed`. The smoke builds the shell's registration from
 `src/shell/offline-guide.ts` into its page.
 
+**Addendum 2026-10-09, asked for by the Organization Admin: a way back without the
+tailnet.** An Environment of another Organization clicked by mistake in the Dashboard
+opened the guide, and nothing on it led back: switching the tailnet was the only way
+out. The guide now stands in the shell's frame as far as an offline page can:
+- **The rail** on the left, as in every app (64 px, the paper surface), with only the
+  Lazurio logo on its white disc. It leads to the Dashboard, as the rail's logo does
+  everywhere. On a narrow screen it is a bar above the card.
+- **"Zpět do Dashboardu"** ("Back to the Dashboard"), a button at the top of the card,
+  for whoever does not know the logo is a link.
+
+Both lead to the shell document's `dashboard` (the person's Dashboard, on the public
+internet), where the person chooses another Environment. The page takes it only as an
+https address: without one (none, a path on the unreachable origin, another scheme) it
+draws the logo without a link and no button. Nothing else of the rail is drawn: the
+spaces and Environments need the person's account, which an offline page cannot read.
+The change alters the page's bytes, so every installed worker takes the new page with
+its next update check (decision F41's update contract). Tests:
+`tests/shell-offline-guide.test.ts` (the links, the https rule, both languages) and
+`tests/launchpad-offline-guide.test.ts` (the served page leads to the Launchpad's
+Dashboard).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 **Decided by Matěj 2026-10-08 and 2026-10-09 (root decision 0193, plan DEV-6631;

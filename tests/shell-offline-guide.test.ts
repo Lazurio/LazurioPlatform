@@ -218,6 +218,7 @@ test("the guide page names the Environment, its Organization and the tailnet, es
     organization: "Acme & Co",
     tailnet: "headscale.example.lazurio.io",
     docs: "https://documentation.lazurio.ai/cs/guide/tailscale/",
+    dashboard: "https://dashboard.lazurio.ai/home",
   });
   expect(page).toContain("Team &lt;Sales&gt;");
   expect(page).toContain("Acme &amp; Co");
@@ -229,4 +230,46 @@ test("the guide page names the Environment, its Organization and the tailnet, es
   // It stands alone: nothing is loaded from the network.
   expect(page).not.toMatch(/<(link|img)\b|\ssrc="|url\((?!#)/);
   expect(escapeHtml(`"'<>&`)).toBe("&quot;&#39;&lt;&gt;&amp;");
+});
+
+test("the guide page leads back to the Dashboard without the tailnet: the rail's logo and a button", () => {
+  const input = {
+    locale: "cs" as const,
+    environment: "Team",
+    organization: "Example",
+    tailnet: "headscale.example.lazurio.io",
+    docs: "https://documentation.lazurio.ai/cs/guide/tailscale/",
+  };
+  const page = renderOfflineGuide({
+    ...input,
+    dashboard: "https://dashboard.lazurio.ai/home?x=1&y=2",
+  });
+  const href = 'href="https://dashboard.lazurio.ai/home?x=1&amp;y=2"';
+  expect(page).toContain(
+    `<nav class="rail" aria-label="Lazurio"><a class="home" ${href}`,
+  );
+  expect(page).toContain(`<a class="back" ${href}>`);
+  expect(page).toContain("Zpět do Dashboardu");
+  expect(
+    renderOfflineGuide({
+      ...input,
+      locale: "en",
+      dashboard: "https://dashboard.lazurio.ai/home",
+    }),
+  ).toContain("Back to the Dashboard");
+  // Only an https address: none, a path on the unreachable origin or another
+  // scheme draws the logo without a link and no way back.
+  for (const dashboard of [
+    null,
+    "/home",
+    "javascript:alert(1)",
+    "http://dashboard.lazurio.ai/home",
+  ]) {
+    const without = renderOfflineGuide({ ...input, dashboard });
+    expect(without).toContain(
+      '<nav class="rail" aria-label="Lazurio"><span class="home">',
+    );
+    expect(without).not.toContain('class="back"');
+    expect(without).not.toContain("Zpět do Dashboardu");
+  }
 });
