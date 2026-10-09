@@ -670,6 +670,46 @@ test("the Folder opens a new page in a new tab and names T3 Code's preview tools
   }
 });
 
+// A matter's work happens in the Environment it belongs to: the Operator's
+// personal matters and their sign-ins in the personal Environment's browser,
+// an Organization's in its Environment (plan DEV-6646, 2026-10-09).
+test("the Folder keeps personal matters in the personal browser and an Organization's in its own", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const render = (
+      preset: "hosted-personal" | "hosted-organization-personal",
+      machine: typeof bindings.organizationBrowser,
+    ) =>
+      renderManual({
+        preset,
+        machine,
+        profile: presetProfile(preset, "linux", { locale }),
+      })["manual/this-machine.md"];
+    const personal = render("hosted-personal", bindings.personalBrowser);
+    const work = render(
+      "hosted-organization-personal",
+      bindings.organizationBrowser,
+    );
+    const [personalBrowser, workBrowser, otherEnvironment] =
+      locale === "cs"
+        ? [
+            "**Osobní prohlížeč.**",
+            "**Prohlížeč Organizace.**",
+            "Práce v jiném Environmentu",
+          ]
+        : [
+            "**A personal browser.**",
+            "**An Organization's browser.**",
+            "Work in another Environment",
+          ];
+    expect(personal).toContain(personalBrowser);
+    expect(personal).toContain(otherEnvironment);
+    expect(personal).not.toContain(workBrowser);
+    expect(work).toContain(workBrowser);
+    expect(work).not.toContain(personalBrowser);
+    expect(work).not.toContain(otherEnvironment);
+  }
+});
+
 // ---- The CLI -----------------------------------------------------------------
 
 async function folderWith(machine: typeof bindings.organizationBrowser) {
