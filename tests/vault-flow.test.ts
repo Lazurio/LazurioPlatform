@@ -454,15 +454,32 @@ test.skipIf(!posix)(
         stage: "account",
         reason: "account-mismatch",
       };
+      const logouts = async () =>
+        (await w.vault.calls())
+          .split("\n")
+          .filter((line) => line.startsWith("logout")).length;
+      const loggedOut = await logouts();
+      const store = await readFile(join(misplaced.data, "data.json"), "utf8");
       expect(await vaultStatus(host)).toMatchObject(mismatch);
       expect(await vaultRefresh(host)).toMatchObject(mismatch);
       expect(await vaultConnect(host)).toMatchObject(mismatch);
+      expect(await vaultDisconnect(host)).toMatchObject(mismatch);
       expect(await vaultEnv(host)).toEqual({
         kind: "vault-env-refused",
         reason: "not-connected",
       });
       expect(unlocks()).toBe(unlocked);
+      expect(await logouts()).toBe(loggedOut);
       expect(await readFile(misplaced.account, "utf8")).toBe(before.account);
+      expect(await readSession(misplaced)).toBe(before.session);
+      expect(await readFile(join(misplaced.data, "data.json"), "utf8")).toBe(
+        store,
+      );
+      expect(w.journal.at(-1)).toEqual({
+        operation: "disconnect",
+        outcome: "failed",
+        reason: "account-mismatch",
+      });
     } finally {
       await w.close();
     }

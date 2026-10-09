@@ -5743,8 +5743,9 @@ to chat, Git, a log or a pull request.
    directory Lazurio gives the Bitwarden CLI, under a directory of the
    account's whole identity, the vault and the Environment's address: an
    Environment whose address changes never reads the account it had before,
-   and every operation refuses an account file whose address or vault is not
-   the Environment's (`account-mismatch`) rather than hand out its session:
+   and every operation, disconnect included, refuses an account file whose
+   address or vault is not the Environment's (`account-mismatch`): it never
+   hands out that account's session, signs it out or clears its files:
 
    ```text
    ${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<Environment address>/   0700

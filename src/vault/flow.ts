@@ -862,12 +862,15 @@ async function signIn(
 export async function vaultDisconnect(host: VaultHost): Promise<VaultStatus> {
   const prepared = await prepare(host);
   if (prepared.kind === "status") return prepared.status;
-  const { facts, paths } = prepared;
+  const { context, facts, paths } = prepared;
   const result = await locked(
     paths,
     host.lockMs ?? lockMs,
     () => failedStatus(facts, "sign-in", "busy"),
     async () => {
+      // Another account's file is neither signed out nor cleared here.
+      if ((await accountOf(paths, context)) === "mismatch")
+        return failedStatus(facts, "account", "account-mismatch");
       if (await pinnedInstalled(host.base, host.pin)) {
         const session = await readSession(paths).catch(() => null);
         await cliOf(host, paths).logout(session);
