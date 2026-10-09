@@ -5705,6 +5705,37 @@ Before the release, the service ran against a real headless Chrome for Testing 1
 
 Branded Google Chrome ignores `--load-extension`; Chrome for Testing, which the Environment runs, loads it. The pilot Environment's browser check (decision 0178) follows the release.
 
+**Addendum 2026-10-09: the view names its Environment, and another Environment's T3 Code
+or Launchpad may frame it** (root decision 0191 addendum of 2026-10-09, decided by the
+Organization Admin). A person's personal Environment now shows tabs of their work
+Environment's browser in its right panel. The work happens there, over SSH. Point 8's
+"never another Environment" kept those views out of the panel, so agents loaded them inside
+the personal Environment's own browser: a view inside a view. That left the personal
+browser signed in to the work Environment's gateway.
+
+Decided:
+1. **Every view names its Environment.** Read from the view's own address:
+   - `browser.<environment>.<organization>.lazurio.io` reads `<Organization> · <environment>`;
+   - `browser.<login>.lazurio.io` reads `Osobní · <login>` or `Personal · <login>`.
+
+   The bar starts with the GitHub avatar of the Organization or the person and that label,
+   always visible. The page title starts with the label, so a bare tab, a phone or any
+   app's panel says whose browser it is. The view's messages to its app keep the page's
+   own title (`src/browser/people/identity.ts`, `client.ts`, `page.ts`).
+2. **A requesting T3 Code or Launchpad of another Environment may frame the view.**
+   `frame-ancestors` keeps the Environment's own origins. For each page request it adds the
+   origin named by the request's `Referer`, when that origin is
+   `https://t3code.` or `https://launchpad.` of an Environment on `lazurio.io`
+   (`appShellOrigin`). No other page frames the view, so another Organization's app cannot.
+   Who sees the tab is still decided by that Environment's gateway and the person's own
+   session (root 0191 point 8b). T3 Code frames such a view with
+   `referrerPolicy="origin"` and labels it as another Environment's browser
+   (Lazurio/t3code).
+
+Residual risk: a page served as `t3code.` or `launchpad.` of an Environment is Lazurio's own
+app, not an Organization's module, so it is trusted to frame. A browser that sends no
+`Referer` gets the old rule.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public

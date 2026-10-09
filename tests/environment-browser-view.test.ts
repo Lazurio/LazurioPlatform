@@ -14,12 +14,18 @@ import {
   type Viewer,
 } from "../src/browser/people/hub";
 import {
+  identityIcon,
+  identityLabel,
+  viewIdentity,
+} from "../src/browser/people/identity";
+import {
   type ClientMessage,
   decodeFrame,
   type ServerMessage,
 } from "../src/browser/people/protocol";
 import { parseServeArgs } from "../src/browser/people/serve";
 import {
+  appShellOrigin,
   classifyRequest,
   frameAncestors,
   pageHeaders,
@@ -373,6 +379,93 @@ test("only the Environment's own origins may frame the view", () => {
   expect(csp).toContain(
     "frame-ancestors 'self' https://*.pilot.example.lazurio.io",
   );
+});
+
+// Root decision 0191, addendum of 2026-10-09: T3 Code or the Launchpad of
+// another Environment may frame the view when it asks for the page; any other
+// page may not, and the gateway's sign-in still decides who sees it.
+test("a requesting T3 Code or Launchpad of another Environment may frame the view, nothing else", () => {
+  const siblings = "'self' https://*.pilot.example.lazurio.io";
+  for (const referer of [
+    "https://t3code.someone.lazurio.io/abc/def",
+    "https://launchpad.jana.acme.lazurio.io/",
+  ])
+    expect(frameAncestors(origin, referer)).toBe(
+      `${siblings} ${new URL(referer).origin}`,
+    );
+  for (const referer of [
+    undefined,
+    null,
+    "",
+    "not an address",
+    "https://evil.someone.lazurio.io/",
+    "https://app.jana.acme.lazurio.io/",
+    "http://t3code.someone.lazurio.io/",
+    "https://t3code.someone.lazurio.io:8443/",
+    "https://t3code.lazurio.io.evil.example/",
+    "https://t3code.evil.example/",
+    // An app of this Environment is a sibling already.
+    "https://t3code.pilot.example.lazurio.io/",
+  ])
+    expect(frameAncestors(origin, referer)).toBe(siblings);
+  expect(appShellOrigin("https://T3CODE.Someone.lazurio.io/x")).toBe(
+    "https://t3code.someone.lazurio.io",
+  );
+  expect(
+    pageHeaders(origin, "https://t3code.someone.lazurio.io/")[
+      "content-security-policy"
+    ],
+  ).toContain(`frame-ancestors ${siblings} https://t3code.someone.lazurio.io`);
+});
+
+test("the view names its Environment from its own address", () => {
+  expect(viewIdentity("browser.jana.acme.lazurio.io")).toEqual({
+    kind: "organization",
+    organization: "acme",
+    environment: "jana",
+  });
+  expect(viewIdentity("browser.someone.lazurio.io")).toEqual({
+    kind: "personal",
+    login: "someone",
+  });
+  for (const hostname of [
+    "localhost",
+    "127.0.0.1",
+    "t3code.jana.acme.lazurio.io",
+    "browser.lazurio.io",
+    "browser.a.b.acme.lazurio.io",
+    "browser.jana.acme.example.com",
+    "browser.-bad.acme.lazurio.io",
+  ])
+    expect(viewIdentity(hostname)).toBeNull();
+  const work = viewIdentity("browser.jana.acme.lazurio.io");
+  const personal = viewIdentity("browser.someone.lazurio.io");
+  if (work === null || personal === null) throw new Error("no identity");
+  expect(identityLabel(work, true)).toBe("Acme · jana");
+  expect(identityLabel(work, false)).toBe("Acme · jana");
+  expect(identityLabel(personal, true)).toBe("Osobní · someone");
+  expect(identityLabel(personal, false)).toBe("Personal · someone");
+  expect(identityIcon(work)).toBe("https://github.com/acme.png?size=40");
+  expect(identityIcon(personal)).toBe("https://github.com/someone.png?size=40");
+});
+
+test("the page names the app that asks for it as the one that may frame it, end to end", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  const asked = await fetch(`${base}/t/${id(1)}`, {
+    headers: { Host: host, Referer: "https://t3code.someone.lazurio.io/" },
+  });
+  expect(asked.headers.get("content-security-policy")).toContain(
+    "frame-ancestors 'self' https://*.pilot.example.lazurio.io https://t3code.someone.lazurio.io",
+  );
+  const other = await fetch(`${base}/t/${id(1)}`, {
+    headers: { Host: host, Referer: "https://evil.someone.lazurio.io/" },
+  });
+  const otherPolicy = other.headers.get("content-security-policy") ?? "";
+  expect(otherPolicy).toEndWith(
+    "frame-ancestors 'self' https://*.pilot.example.lazurio.io",
+  );
+  expect(otherPolicy).not.toContain("evil");
 });
 
 test("the service refuses another host and a socket from another origin end to end", async () => {

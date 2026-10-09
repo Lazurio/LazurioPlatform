@@ -27,18 +27,49 @@ const script = viewScript();
 const maxUploadBytes = 256 * 1024 * 1024;
 
 /** `frame-ancestors` for the view: the Environment's own origins, the
- * siblings of the view's host (`https://*.<vm>.<org>.lazurio.io`), never
- * another Environment. A host with fewer than three labels (a test on
- * localhost) is framed by itself only. */
-export function frameAncestors(origin: string): string {
+ * siblings of the view's host (`https://*.<vm>.<org>.lazurio.io`), and the
+ * T3 Code or Launchpad of another Environment that asks for the page, named by
+ * the request's `Referer` (root decision 0191, addendum of 2026-10-09). No
+ * other page frames it: the gateway's sign-in still decides who sees it, and
+ * this keeps the views out of other Organizations' apps. A host with fewer
+ * than three labels (a test on localhost) is framed by itself only. */
+export function frameAncestors(
+  origin: string,
+  referer?: string | null,
+): string {
   const host = new URL(origin).hostname;
   const labels = host.split(".");
-  return labels.length >= 3
-    ? `'self' https://*.${labels.slice(1).join(".")}`
-    : "'self'";
+  if (labels.length < 3) return "'self'";
+  const siblings = labels.slice(1).join(".");
+  const shell = appShellOrigin(referer);
+  return shell === null || new URL(shell).hostname.endsWith(`.${siblings}`)
+    ? `'self' https://*.${siblings}`
+    : `'self' https://*.${siblings} ${shell}`;
 }
 
-export function pageHeaders(origin: string): Record<string, string> {
+/** The apps that frame views of the Environment browser in their right panel:
+ * T3 Code and the Launchpad of an Environment on lazurio.io. */
+const APP_SHELL =
+  /^https:\/\/(?:t3code|launchpad)\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+lazurio\.io$/;
+
+/** The origin of `referer` when it is such an app, else null. */
+export function appShellOrigin(
+  referer: string | null | undefined,
+): string | null {
+  if (!referer) return null;
+  let url: URL;
+  try {
+    url = new URL(referer);
+  } catch {
+    return null;
+  }
+  return APP_SHELL.test(url.origin) ? url.origin : null;
+}
+
+export function pageHeaders(
+  origin: string,
+  referer?: string | null,
+): Record<string, string> {
   const url = new URL(origin);
   const socket = `${url.protocol === "https:" ? "wss" : "ws"}://${url.host}`;
   return {
@@ -52,7 +83,7 @@ export function pageHeaders(origin: string): Record<string, string> {
       `connect-src 'self' ${socket}`,
       "base-uri 'none'",
       "form-action 'none'",
-      `frame-ancestors ${frameAncestors(origin)}`,
+      `frame-ancestors ${frameAncestors(origin, referer)}`,
     ].join("; "),
     "x-content-type-options": "nosniff",
     "referrer-policy": "no-referrer",
@@ -145,7 +176,6 @@ export type ViewService = Readonly<{
 
 export function startViewService(options: ViewServiceOptions): ViewService {
   const hub = new BrowserHub(options.hub);
-  const headers = pageHeaders(options.origin);
   const page = viewPage();
   const server = Bun.serve<SocketData>({
     hostname: "127.0.0.1",
@@ -176,7 +206,13 @@ export function startViewService(options: ViewServiceOptions): ViewService {
             hub.connected ? 200 : 503,
           );
         case "page":
-          return new Response(page, { headers });
+          // Per request: the app that asks for the page may frame it.
+          return new Response(page, {
+            headers: pageHeaders(
+              options.origin,
+              request.headers.get("referer"),
+            ),
+          });
         case "script":
           return new Response(script, {
             headers: {

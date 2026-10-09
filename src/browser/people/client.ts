@@ -1,3 +1,4 @@
+import { identityIcon, identityLabel, viewIdentity } from "./identity";
 import {
   buttonBit,
   clampInto,
@@ -116,6 +117,24 @@ function tell(message: Readonly<Record<string, string>>): void {
   try {
     window.parent.postMessage(message, parentOrigin);
   } catch {}
+}
+
+// The view names its Environment at the start of the bar and in the title
+// (root decision 0191, addendum of 2026-10-09), so a person knows whose browser
+// this is in any app's panel, in a bare tab or on a phone. The app's own
+// messages keep the page's title alone.
+const identity = viewIdentity(location.hostname);
+const identityName = identity === null ? null : identityLabel(identity, czech);
+if (identity !== null && identityName !== null) {
+  const badge = byId("environment", HTMLSpanElement);
+  const badgeIcon = byId("environment-icon", HTMLImageElement);
+  byId("environment-label", HTMLSpanElement).textContent = identityName;
+  badge.title = identityName;
+  badgeIcon.addEventListener("error", () => {
+    badgeIcon.hidden = true;
+  });
+  badgeIcon.src = identityIcon(identity);
+  badge.hidden = false;
 }
 
 function byId<T extends HTMLElement>(id: string, kind: new () => T): T {
@@ -1089,7 +1108,9 @@ function showInfo(info: Info): void {
   loading = info.loading;
   reload.dataset.state = loading ? "stop" : "reload";
   label(reload, loading ? say.stop : say.reload);
-  document.title = info.title || info.url;
+  const pageTitle = info.title || info.url;
+  document.title =
+    identityName === null ? pageTitle : `${identityName} — ${pageTitle}`;
   const icon =
     info.favicon !== null && isHttps(info.favicon) ? info.favicon : defaultIcon;
   if (favicon.href !== icon) favicon.href = icon;

@@ -1,10 +1,11 @@
 /** The page of the people's view (decision F39 point 1), one document for
- * `/` and for `/t/<id>`: a thin bar (back, forward, reload and the address),
- * a row for a page's new tab, and the page area. The script
- * (`/assets/view.js`, `client.ts`) does the rest: it opens a remote tab for
- * `/`, fills in the words in the person's language and draws the remote tab.
- * No inline script and nothing from another origin: the service's policy is
- * `script-src 'self'` and allows only its own styles and images. */
+ * `/` and for `/t/<id>`: a thin bar (the Environment's name, back, forward,
+ * reload and the address), a row for a page's new tab, and the page area.
+ * The script (`/assets/view.js`, `client.ts`) does the rest: it names the
+ * Environment, opens a remote tab for `/`, fills in the words in the person's
+ * language and draws the remote tab. No inline script and nothing from another
+ * origin in the document: the service's policy is `script-src 'self'`, and
+ * only icons (the page's and the Environment's) come over https:. */
 
 // Icons drawn for this page, in the current colour, hidden from assistive
 // technology (each button names itself).
@@ -48,6 +49,13 @@ body {
   flex: none; display: flex; align-items: center; gap: 2px; height: 40px;
   padding: 0 6px; background: var(--chrome); border-bottom: 1px solid var(--line);
 }
+.environment {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 34%;
+  height: 28px; margin-right: 4px; padding: 0 10px 0 4px;
+  border-right: 1px solid var(--line); font-weight: 600; white-space: nowrap;
+}
+.environment-icon { flex: none; width: 18px; height: 18px; border-radius: 4px; }
+.environment-label { overflow: hidden; text-overflow: ellipsis; }
 .tool {
   flex: none; display: inline-grid; place-items: center; width: 30px; height: 30px;
   padding: 0; border: 0; border-radius: 50%; background: transparent;
@@ -144,6 +152,7 @@ const page = `<!doctype html>
 <body>
 <div class="view">
 <header class="bar">
+<span id="environment" class="environment" hidden><img id="environment-icon" class="environment-icon" alt="" width="18" height="18"><span id="environment-label" class="environment-label"></span></span>
 <button id="back" class="tool" type="button" disabled>${icon('<path d="M15 5l-7 7 7 7"/>')}</button>
 <button id="forward" class="tool" type="button" disabled>${icon('<path d="M9 5l7 7-7 7"/>')}</button>
 <button id="reload" class="tool" type="button" data-state="reload">${icon('<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v4h-4"/>', "reload-icon")}${icon(cross, "stop-icon")}</button>
