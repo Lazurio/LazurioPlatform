@@ -23,6 +23,7 @@ import {
 } from "../src/integrations/executor-client";
 import { readExecutor } from "../src/integrations/executor-source";
 import { startFakeExecutor } from "./fixtures/fake-executor-api";
+import { runChild } from "./fixtures/run-child";
 
 // The Launchpad's client of the Environment's Executor (decision F42): the
 // console token is read only from an owner-only regular file, sent only to a
@@ -95,7 +96,7 @@ test("the token goes only from an owner-only file, only to this account's listen
 });
 
 test("no proxy of the environment ever sees the token", async () => {
-  const { executor, host } = await world();
+  const { dataDir, executor } = await world();
   const seen: string[] = [];
   const proxy = Bun.serve({
     hostname: "127.0.0.1",
@@ -106,29 +107,38 @@ test("no proxy of the environment ever sees the token", async () => {
     },
   });
   cleanups.push(() => proxy.stop(true));
-  const names = [
-    "HTTP_PROXY",
-    "http_proxy",
-    "ALL_PROXY",
-    "all_proxy",
-    "NODE_USE_ENV_PROXY",
-  ] as const;
-  const before = Object.fromEntries(
-    names.map((name) => [name, process.env[name]]),
+  const address = `http://127.0.0.1:${proxy.port}`;
+  // The proxy variables reach only a process of their own.
+  const child = await runChild(
+    [
+      process.execPath,
+      "--no-env-file",
+      join(import.meta.dir, "fixtures", "executor-call.ts"),
+      dataDir,
+      String(executor.port),
+    ],
+    {
+      env: {
+        ...process.env,
+        HTTP_PROXY: address,
+        http_proxy: address,
+        ALL_PROXY: address,
+        all_proxy: address,
+        NO_PROXY: "",
+        no_proxy: "",
+        NODE_USE_ENV_PROXY: "1",
+      },
+      timeout: 20_000,
+    },
   );
-  try {
-    for (const name of names)
-      process.env[name] =
-        name === "NODE_USE_ENV_PROXY" ? "1" : `http://127.0.0.1:${proxy.port}`;
-    const answer = await executorCall(host(), "GET", "/connections");
-    expect(answer).toEqual({ kind: "answer", status: 200, body: [] });
-  } finally {
-    for (const name of names)
-      if (before[name] === undefined) delete process.env[name];
-      else process.env[name] = before[name];
-  }
+  expect(child.exitCode).toBe(0);
+  expect(JSON.parse(child.stdout)).toEqual({
+    kind: "answer",
+    status: 200,
+    body: [],
+  });
   expect(seen).toEqual([]);
-  expect(executor.calls.every((call) => call.authorized)).toBe(true);
+  expect(executor.calls.map((call) => call.authorized)).toEqual([true]);
 });
 
 test("no redirect is followed and no answer of another kind is taken", async () => {
